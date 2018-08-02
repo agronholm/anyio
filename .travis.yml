@@ -1,0 +1,57 @@
+language: python
+sudo: false
+cache: pip
+python: "3.5.2"
+
+stages:
+  - name: test
+  - name: deploy to pypi
+    if: type = push AND tag =~ ^\d+\.\d+\.\d+
+
+jobs:
+  include:
+    - env: TOXENV=pypy3
+      python: pypy3
+
+    - env: TOXENV=py35
+
+    - env: TOXENV=py36
+      python: "3.6"
+
+      # https://github.com/travis-ci/travis-ci/issues/9815
+    - env: TOXENV=py37
+      dist: xenial
+      sudo: required
+      python: "3.7"
+
+    - env: TOXENV=flake8
+      after_success: skip
+
+    - stage: deploy to PyPI
+      install: pip install -U setuptools
+      script: skip
+      after_success: true
+      deploy:
+        provider: pypi
+        user: agronholm
+        password:
+          secure: ea7qVNkcX9+f1jHEPDd6LNY/K6Z5P2PpQVNUaBt/4mhtWXaQ0hnM3I8xl5sOSwE2FYomIDiJh1fFn1ybJctq1T+U5Q94oxEcFBc61nHk6y9jUlQPtQfX5yCbs9+AzX3PVRjt6hWf10sHiU5KPCh1NFwo/6nFxzhb5PzEZJsaqQk+I407XKKIine2PGd9gDdQ5oSIPySCUMo0HT5RFyMaRKWLGlIIk7STJ3SIcPWNPNlKPLqZDJxqCL5jKN0ZkpqfLU5OaSR43bzoY9rM9vlxk4hAYLrZIDnWlfvjLpykQGbIKSujMr4AB/phw0ey3HqcZkQ/EKFrg1Hml959HbrCTUnu2Dv0gyTS5jYEgBTGWxQbSW+y1vuihlB5l9Jbkwa4W+9m3SjYEjvOWva/YxkL0/+pj9txc5ib57F6ETb4yUKPddhZDZp7qDbM0EMLLOgb+zt2JP25T48MNMSYZQ1U7EsEqOZQPqyWIsrM7//wXPl+bssgGvTVML5rEo6ykjxz1veqyQ5JXxe4dpvNtDnb/Ol7lSRxYyL6H/Jy8PqMZZfksWO6aFU8yMw86XoOo6aIPb7Odv6t9yXGmeVD3BlXTbeUTbGkloKHkdsb9GReghp+vEssLdVgj5BMKG4yU0I37GXid15I1OahKNeSor7sQv8Nykjfw7gl5mzzAkGErxg=
+        distributions: sdist bdist_wheel
+        on:
+          tags: true
+          repo: agronholm/hyperio
+
+install: pip install tox
+
+script: tox
+
+after_success:
+  - pip install codecov
+  - codecov --token=acff82f6-e810-47fb-8117-1d23ed9e3078
+
+notifications:
+  irc:
+    channels:
+      - "irc.freenode.net#pypa-dev"
+    use_notice: true
+    skip_join: true
