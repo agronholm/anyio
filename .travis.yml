@@ -40,6 +40,8 @@ jobs:
         on:
           tags: true
           repo: agronholm/hyperio
+  allow_failures:
+    - python: pypy3
 
 install: pip install tox
 
