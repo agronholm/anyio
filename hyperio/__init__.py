@@ -1,12 +1,11 @@
 import sys
 import threading
+import typing
 from contextlib import contextmanager
 from importlib import import_module
 from pathlib import Path
 from ssl import SSLContext
-from typing import (
-    TypeVar, Callable, Union, Iterable, ContextManager, Optional, AsyncIterable, Awaitable,
-    AsyncContextManager)
+from typing import TypeVar, Callable, Union, Iterable, Optional, AsyncIterable, Awaitable
 
 from .interfaces import (
     IPAddressType, StreamingSocket, CancelScope, DatagramSocket, Lock,
@@ -85,15 +84,15 @@ def sleep(delay: float) -> Awaitable[None]:
     return _get_asynclib().sleep(delay)
 
 
-def open_cancel_scope() -> ContextManager[CancelScope]:
+def open_cancel_scope() -> 'typing.AsyncContextManager[CancelScope]':
     return _get_asynclib().open_cancel_scope()
 
 
-def fail_after(delay: float) -> ContextManager[None]:
+def fail_after(delay: float) -> 'typing.AsyncContextManager[None]':
     return _get_asynclib().fail_after(delay)
 
 
-def move_on_after(delay: float) -> ContextManager[None]:
+def move_on_after(delay: float) -> 'typing.AsyncContextManager[None]':
     return _get_asynclib().move_on_after(delay)
 
 
@@ -101,7 +100,7 @@ def move_on_after(delay: float) -> ContextManager[None]:
 # Concurrency
 #
 
-def create_task_group() -> AsyncContextManager[TaskGroup]:
+def create_task_group() -> 'typing.AsyncContextManager[TaskGroup]':
     return _get_asynclib().open_task_group()
 
 
