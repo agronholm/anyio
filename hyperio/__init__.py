@@ -1,13 +1,13 @@
 import sys
 import threading
-import typing
+import typing  # noqa: F401
 from contextlib import contextmanager
 from importlib import import_module
 from pathlib import Path
 from ssl import SSLContext
 from typing import TypeVar, Callable, Union, Iterable, Optional, AsyncIterable, Awaitable
 
-from .interfaces import (
+from .interfaces import (  # noqa: F401
     IPAddressType, StreamingSocket, CancelScope, DatagramSocket, Lock,
     Condition, Event, Semaphore, Queue, TaskGroup)
 

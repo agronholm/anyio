@@ -1,6 +1,6 @@
 import sys
-from contextlib import suppress, contextmanager
-from typing import Callable, Set, List, Dict
+from contextlib import contextmanager
+from typing import Callable, Set, List, Dict  # noqa: F401
 
 import curio
 from async_generator import async_generator, asynccontextmanager, yield_

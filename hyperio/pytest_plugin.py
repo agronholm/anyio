@@ -1,8 +1,6 @@
-import inspect
 from functools import partial
 
 import pytest
-from async_generator import isasyncgenfunction
 
 import hyperio
 

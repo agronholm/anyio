@@ -8,8 +8,7 @@ from pathlib import Path
 from socket import SocketType
 from ssl import SSLContext
 from threading import Thread
-from typing import (
-    Callable, Set, Optional, List, Union, Iterable, AsyncIterable, Dict)
+from typing import Callable, Set, Optional, List, Union, Iterable, AsyncIterable, Dict  # noqa:F401
 
 from async_generator import async_generator, yield_, asynccontextmanager
 
