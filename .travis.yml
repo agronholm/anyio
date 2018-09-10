@@ -14,26 +14,30 @@ jobs:
     - stage: run linter
       env: TOXENV=flake8
 
-    - env: TOXENV=pypy3
+    - stage: test
+      env: TOXENV=pypy3
       python: pypy3
 
-    - env: TOXENV=py35
+    - stage: test
+      env: TOXENV=py35
       after_success: &after_success
         - pip install coveralls
         - coveralls
 
-    - env: TOXENV=py36
+    - stage: test
+      env: TOXENV=py36
       python: "3.6"
       after_success: *after_success
 
       # https://github.com/travis-ci/travis-ci/issues/9815
-    - env: TOXENV=py37
+    - stage: test
+      env: TOXENV=py37
       dist: xenial
       sudo: required
       python: "3.7"
       after_success: *after_success
 
-    - stage: deploy to PyPI
+    - stage: deploy to pypi
       install: pip install -U setuptools
       script: skip
       deploy:
