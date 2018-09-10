@@ -4,33 +4,38 @@ cache: pip
 python: "3.5.3"
 
 stages:
+  - name: run linter
   - name: test
   - name: deploy to pypi
     if: type = push AND tag =~ ^\d+\.\d+\.\d+
 
 jobs:
   include:
+    - stage: run linter
+      env: TOXENV=flake8
+
     - env: TOXENV=pypy3
       python: pypy3
 
     - env: TOXENV=py35
+      after_success: &after_success
+        - pip install coveralls
+        - coveralls
 
     - env: TOXENV=py36
       python: "3.6"
+      after_success: *after_success
 
       # https://github.com/travis-ci/travis-ci/issues/9815
     - env: TOXENV=py37
       dist: xenial
       sudo: required
       python: "3.7"
-
-    - env: TOXENV=flake8
-      after_success: skip
+      after_success: *after_success
 
     - stage: deploy to PyPI
       install: pip install -U setuptools
       script: skip
-      after_success: true
       deploy:
         provider: pypi
         user: agronholm
@@ -46,10 +51,6 @@ jobs:
 install: pip install tox
 
 script: tox
-
-after_success:
-  - pip install codecov
-  - codecov --token=acff82f6-e810-47fb-8117-1d23ed9e3078
 
 notifications:
   irc:
