@@ -1,6 +1,7 @@
 import sys
 import threading
 import typing  # noqa: F401
+from _socket import AF_INET, SOCK_STREAM
 from contextlib import contextmanager
 from importlib import import_module
 from pathlib import Path
@@ -9,7 +10,7 @@ from typing import TypeVar, Callable, Union, Iterable, Optional, AsyncIterable, 
 
 from .interfaces import (  # noqa: F401
     IPAddressType, StreamingSocket, CancelScope, DatagramSocket, Lock,
-    Condition, Event, Semaphore, Queue, TaskGroup)
+    Condition, Event, Semaphore, Queue, TaskGroup, Socket)
 
 T_Retval = TypeVar('T_Retval', covariant=True)
 _local = threading.local()
@@ -117,6 +118,11 @@ def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
 #
 # Networking
 #
+
+def create_socket(family: int = AF_INET, type: int = SOCK_STREAM, proto: int = 0,
+                  fileno=None) -> Socket:
+    return _get_asynclib().create_socket(family, type, proto, fileno)
+
 
 def connect_tcp(
         address: IPAddressType, port: int, *,

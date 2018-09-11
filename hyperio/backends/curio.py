@@ -1,8 +1,11 @@
+import socket
 import sys
 from contextlib import contextmanager
+from ipaddress import ip_address
 from typing import Callable, Set, List, Dict  # noqa: F401
 
-import curio
+import curio.io
+import curio.socket
 from async_generator import async_generator, asynccontextmanager, yield_
 
 from .. import interfaces, T_Retval, claim_current_thread, _local
@@ -209,6 +212,84 @@ def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
 
 
 #
+# Networking
+#
+
+class CurioSocket(curio.io.Socket):
+    async def accept(self):
+        await _check_cancelled()
+        return await super().accept()
+
+    async def bind(self, address):
+        # For IP address/port combinations, call bind() directly
+        await _check_cancelled()
+        if isinstance(address, tuple) and len(address) == 2:
+            try:
+                ip_address(address[0])
+            except ValueError:
+                pass
+            else:
+                self._socket.bind(address)
+                return
+
+        # In all other cases, do this in a worker thread to avoid blocking the event loop thread
+        await run_in_thread(self._socket.bind, address)
+
+    async def connect(self, address):
+        await _check_cancelled()
+        return await super().connect(address)
+
+    async def recv(self, maxsize, flags=0):
+        await _check_cancelled()
+        return await super().recv(maxsize, flags)
+
+    async def recv_into(self, buffer, nbytes=0, flags=0):
+        await _check_cancelled()
+        return await super().recv_into(buffer, nbytes, flags)
+
+    async def send(self, data, flags=0):
+        await _check_cancelled()
+        return await super().send(data, flags)
+
+    async def sendall(self, data, flags=0):
+        await _check_cancelled()
+        return await super().sendall(data, flags)
+
+    async def recvfrom(self, buffersize, flags=0):
+        await _check_cancelled()
+        return await super().recvfrom(buffersize, flags)
+
+    async def recvfrom_into(self, buffer, bytes=0, flags=0):
+        await _check_cancelled()
+        return await super().recvfrom_into(buffer, bytes, flags)
+
+    async def sendto(self, bytes, flags_or_address, address=None):
+        await _check_cancelled()
+        return await super().sendto(bytes, flags_or_address, address)
+
+    async def recvmsg(self, bufsize, ancbufsize=0, flags=0):
+        await _check_cancelled()
+        return await super().recvmsg(bufsize, ancbufsize, flags)
+
+    async def recvmsg_into(self, buffers, ancbufsize=0, flags=0):
+        await _check_cancelled()
+        return await super().recvmsg_into(buffers, ancbufsize, flags)
+
+    async def sendmsg(self, buffers, ancdata=(), flags=0, address=None):
+        await _check_cancelled()
+        return await super().sendmsg(buffers, ancdata, flags, address)
+
+    async def shutdown(self, how):
+        await _check_cancelled()
+        return await super().shutdown(how)
+
+
+def create_socket(family: int, type: int, proto: int, fileno) -> interfaces.Socket:
+    raw_socket = socket.socket(family, type, proto, fileno)
+    return CurioSocket(raw_socket)
+
+
+#
 # Synchronization
 #
 
@@ -250,8 +331,8 @@ class Queue(curio.Queue):
         return await super().put(item)
 
 
-interfaces.CancelScope.register(CurioCancelScope)
 interfaces.TaskGroup.register(CurioTaskGroup)
+interfaces.Socket.register(curio.socket.SocketType)
 interfaces.Lock.register(Lock)
 interfaces.Condition.register(Condition)
 interfaces.Event.register(Event)

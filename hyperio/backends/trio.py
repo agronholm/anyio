@@ -111,6 +111,34 @@ def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
 
 
 #
+# Networking
+#
+
+class TrioSocketWrapper:
+    def __init__(self, socket: trio.socket.SocketType) -> None:
+        self._socket = socket
+
+    def __getattr__(self, name):
+        return getattr(self._socket, name)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc_info):
+        self._socket.__exit__(*exc_info)
+
+    async def accept(self):
+        trio_socket, addr = await self._socket.accept()
+        return TrioSocketWrapper(trio_socket), addr
+
+
+def create_socket(family: int, type: int, proto: int, fileno) -> interfaces.Socket:
+    # Return a trio socket object, augmented with async context manager support for compatibility
+    trio_socket = trio.socket.socket(family, type, proto, fileno)
+    return TrioSocketWrapper(trio_socket)
+
+
+#
 # Synchronization
 #
 
@@ -134,6 +162,9 @@ Lock = trio.Lock
 Semaphore = trio.Semaphore
 Queue = trio.Queue
 
+interfaces.TaskGroup.register(TaskGroup)
+interfaces.Socket.register(trio.socket.SocketType)
+interfaces.Socket.register(TrioSocketWrapper)
 interfaces.Lock.register(Lock)
 interfaces.Condition.register(Condition)
 interfaces.Event.register(Event)
