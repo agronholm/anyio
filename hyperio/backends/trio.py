@@ -136,7 +136,7 @@ class TrioSocket:
         try:
             raw_socket, address = self._raw_socket.accept()
         except BlockingIOError:
-            await trio.hazmat.wait_readable(self._raw_socket)
+            await trio.hazmat.wait_socket_readable(self._raw_socket)
             raw_socket, address = self._raw_socket.accept()
 
         return TrioSocket(raw_socket), address
@@ -161,7 +161,7 @@ class TrioSocket:
         try:
             self._raw_socket.connect(address)
         except BlockingIOError:
-            await trio.hazmat.wait_writable(self._raw_socket)
+            await trio.hazmat.wait_socket_writable(self._raw_socket)
 
         error = self._raw_socket.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
         if error:
@@ -172,7 +172,7 @@ class TrioSocket:
         try:
             return self._raw_socket.recv(size, flags)
         except (BlockingIOError, ssl.SSLWantReadError):
-            await trio.hazmat.wait_readable(self._raw_socket)
+            await trio.hazmat.wait_socket_readable(self._raw_socket)
             return self._raw_socket.recv(size, flags)
 
     async def recvfrom(self, size: int, *, flags: int = 0) -> Tuple[bytes, Any]:
@@ -180,7 +180,7 @@ class TrioSocket:
         try:
             return self._raw_socket.recvfrom(size, flags)
         except BlockingIOError:
-            await trio.hazmat.wait_readable(self._raw_socket)
+            await trio.hazmat.wait_socket_readable(self._raw_socket)
             return self._raw_socket.recvfrom(size, flags)
 
     async def recv_into(self, buffer, nbytes: int, *, flags: int = 0) -> int:
@@ -188,7 +188,7 @@ class TrioSocket:
         try:
             return self._raw_socket.recv_into(buffer, nbytes, flags)
         except (BlockingIOError, ssl.SSLWantReadError):
-            await trio.hazmat.wait_readable(self._raw_socket)
+            await trio.hazmat.wait_socket_readable(self._raw_socket)
             return self._raw_socket.recv_into(buffer, nbytes, flags)
 
     async def send(self, data: bytes, *, flags: int = 0) -> int:
@@ -196,7 +196,7 @@ class TrioSocket:
         try:
             return self._raw_socket.send(data, flags)
         except (BlockingIOError, ssl.SSLWantWriteError):
-            await trio.hazmat.wait_writable(self._raw_socket)
+            await trio.hazmat.wait_socket_writable(self._raw_socket)
             return self._raw_socket.send(data, flags)
 
     async def sendto(self, data: bytes, addr, *, flags: int = 0) -> int:
@@ -204,7 +204,7 @@ class TrioSocket:
         try:
             return self._raw_socket.sendto(data, flags, addr)
         except BlockingIOError:
-            await trio.hazmat.wait_writable(self._raw_socket)
+            await trio.hazmat.wait_socket_writable(self._raw_socket)
             return self._raw_socket.sendto(data, flags, addr)
 
     async def sendall(self, data: bytes, *, flags: int = 0) -> None:
@@ -214,7 +214,7 @@ class TrioSocket:
             try:
                 sent = self._raw_socket.send(data, flags)
             except (BlockingIOError, ssl.SSLWantWriteError):
-                await trio.hazmat.wait_writable(self._raw_socket)
+                await trio.hazmat.wait_socket_writable(self._raw_socket)
             else:
                 to_send -= sent
 
@@ -227,9 +227,9 @@ class TrioSocket:
             try:
                 self._raw_socket.do_handshake()
             except ssl.SSLWantReadError:
-                await trio.hazmat.wait_readable(self._raw_socket)
+                await trio.hazmat.wait_socket_readable(self._raw_socket)
             except ssl.SSLWantWriteError:
-                await trio.hazmat.wait_writable(self._raw_socket)
+                await trio.hazmat.wait_socket_writable(self._raw_socket)
             except BaseException:
                 self._raw_socket = plain_socket
                 raise
