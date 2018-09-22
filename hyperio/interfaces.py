@@ -5,6 +5,7 @@ from typing import Callable, TypeVar, Optional, Tuple, Union, Iterable, Any, Lis
 
 T_Retval = TypeVar('T_Retval')
 IPAddressType = Union[str, IPv4Address, IPv6Address]
+BufferType = Union[bytes, bytearray, memoryview]
 
 
 class Lock(metaclass=ABCMeta):
@@ -117,13 +118,13 @@ class CancelScope(metaclass=ABCMeta):
 
 
 class Socket(metaclass=ABCMeta):
-    @abstractmethod
-    async def __aenter__(self) -> 'StreamingSocket':
-        pass
-
-    @abstractmethod
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        pass
+    # @abstractmethod
+    # async def __aenter__(self) -> 'StreamingSocket':
+    #     pass
+    #
+    # @abstractmethod
+    # async def __aexit__(self, exc_type, exc_val, exc_tb):
+    #     pass
 
     @abstractmethod
     async def accept(self) -> Tuple['Socket', Any]:
@@ -224,49 +225,93 @@ class Socket(metaclass=ABCMeta):
         pass
 
 
-class StreamingSocket(metaclass=ABCMeta):
-    @abstractmethod
-    async def __aenter__(self) -> 'StreamingSocket':
-        pass
+class Stream(metaclass=ABCMeta):
+    # @abstractmethod
+    # async def __aenter__(self) -> 'Stream':
+    #     pass
+    #
+    # @abstractmethod
+    # async def __aexit__(self, exc_type, exc_val, exc_tb):
+    #     pass
 
     @abstractmethod
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        pass
+    async def receive_some(self, max_bytes: Optional[int]) -> bytes:
+        """
+        Reads up to the given amount of bytes from the stream.
+
+        :param max_bytes: maximum number of bytes to read
+        :return: the bytes read
+        """
 
     @abstractmethod
-    async def read(self, nbytes: Optional[int] = None) -> bytes:
-        pass
+    async def receive_exactly(self, nbytes: int) -> bytes:
+        """
+        Read exactly the given amount of bytes from the stream.
+
+        :param nbytes: the number of bytes to read
+        :return: the bytes read
+        :raises hyperio.exceptions.IncompleteRead: if the stream was closed before the requested
+            amount of bytes could be read from the stream
+        """
 
     @abstractmethod
-    async def read_exactly(self, nbytes: int) -> bytes:
-        pass
+    async def receive_until(self, delimiter: bytes, max_bytes: int) -> bytes:
+        """
+        Read from the stream until the delimiter is found or max_bytes have been read.
+
+        :param delimiter: the marker to look for in the stream
+        :param max_bytes: maximum number of bytes that will be read before raising
+            :exc:`~hyperio.exceptions.DelimiterNotFound`
+        :return: the bytes read, including the delimiter
+        :raises hyperio.exceptions.DelimiterNotFound: if the delimiter is not found within the
+            bytes read up to the maximum allowed
+        """
 
     @abstractmethod
-    async def read_until(self, delimiter: bytes, max_bytes: int) -> bytes:
+    async def send_all(self, data: BufferType) -> None:
+        """
+        Send all of the given data to the other end.
+
+        :param data: the buffer to send
+        """
+
+
+class SocketStream(Stream):
+    @abstractmethod
+    async def start_tls(self, context: Optional[SSLContext] = None) -> None:
         pass
 
+
+class SocketStreamServer(metaclass=ABCMeta):
+    @property
     @abstractmethod
-    async def send(self, data: bytes) -> None:
-        pass
+    def address(self) -> Union[Tuple[str, int], str]:
+        """Return the bound address of the underlying socket."""
+
+    @property
+    def port(self) -> int:
+        """
+        Return the currently bound port of the underlying (TCP or UDP) socket.
+
+        Equivalent to ``server.address[1]``
+        """
+        return self.address[1]
 
     @abstractmethod
-    async def start_tls(self, ssl_context: Optional[SSLContext] = None) -> None:
-        pass
+    async def accept(self) -> SocketStream:
+        """
+        Accept an incoming connection.
+
+        :return: the socket stream for the accepted connection
+        """
 
 
 class DatagramSocket(metaclass=ABCMeta):
     @abstractmethod
-    async def __aenter__(self) -> 'DatagramSocket':
+    async def receive(self, max_bytes: int) -> Tuple[bytes, str]:
         pass
 
     @abstractmethod
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        pass
-
-    @abstractmethod
-    async def read(self) -> Tuple[bytes, str]:
-        pass
-
-    @abstractmethod
-    async def send(self, data: bytes, address: str) -> None:
+    async def send(self, data: BufferType, address: Optional[str] = None,
+                   port: Optional[int] = None) -> None:
         pass

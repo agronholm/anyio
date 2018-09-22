@@ -1,7 +1,7 @@
 import pytest
 
 from hyperio import create_task_group, sleep, move_on_after, fail_after, open_cancel_scope
-from hyperio.exceptions import MultiError
+from hyperio.exceptions import ExceptionGroup
 
 
 class TestTaskGroup:
@@ -119,7 +119,7 @@ class TestTaskGroup:
 
     @pytest.mark.hyperio
     async def test_multi_error_children(self):
-        with pytest.raises(MultiError) as exc:
+        with pytest.raises(ExceptionGroup) as exc:
             async with create_task_group() as tg:
                 await tg.spawn(self.async_error, 'task1')
                 await tg.spawn(self.async_error, 'task2')
@@ -129,7 +129,7 @@ class TestTaskGroup:
 
     @pytest.mark.hyperio
     async def test_multi_error_host(self):
-        with pytest.raises(MultiError) as exc:
+        with pytest.raises(ExceptionGroup) as exc:
             async with create_task_group() as tg:
                 await tg.spawn(self.async_error, 'child', 2)
                 await sleep(0.1)

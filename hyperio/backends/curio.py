@@ -1,15 +1,20 @@
+import os
 import socket
+import ssl
 import sys
 from contextlib import contextmanager
 from ipaddress import ip_address
-from typing import Callable, Set, List, Dict  # noqa: F401
+from ssl import SSLContext
+from typing import Callable, Set, List, Dict, Optional, Union, Tuple  # noqa: F401
 
 import curio.io
 import curio.socket
+import curio.ssl
 from async_generator import async_generator, asynccontextmanager, yield_
 
 from .. import interfaces, T_Retval, claim_current_thread, _local
-from ..exceptions import MultiError, CancelledError
+from ..interfaces import BufferType
+from ..exceptions import ExceptionGroup, CancelledError, DelimiterNotFound
 
 
 def run(func: Callable[..., T_Retval], *args) -> T_Retval:
@@ -188,7 +193,7 @@ async def open_task_group():
 
         group._active = False
         if len(group._exceptions) > 1:
-            raise MultiError(group._exceptions)
+            raise ExceptionGroup(group._exceptions)
         elif group._exceptions:
             raise group._exceptions[0]
 
@@ -220,10 +225,10 @@ class CurioSocket(curio.io.Socket):
         await _check_cancelled()
         return await super().accept()
 
-    async def bind(self, address):
-        # For IP address/port combinations, call bind() directly
+    async def bind(self, address: Union[Tuple[str, int], str]) -> None:
         await _check_cancelled()
         if isinstance(address, tuple) and len(address) == 2:
+            # For IP address/port combinations, call bind() directly
             try:
                 ip_address(address[0])
             except ValueError:
@@ -247,14 +252,6 @@ class CurioSocket(curio.io.Socket):
         await _check_cancelled()
         return await super().recv_into(buffer, nbytes, flags)
 
-    async def send(self, data, flags=0):
-        await _check_cancelled()
-        return await super().send(data, flags)
-
-    async def sendall(self, data, flags=0):
-        await _check_cancelled()
-        return await super().sendall(data, flags)
-
     async def recvfrom(self, buffersize, flags=0):
         await _check_cancelled()
         return await super().recvfrom(buffersize, flags)
@@ -263,30 +260,204 @@ class CurioSocket(curio.io.Socket):
         await _check_cancelled()
         return await super().recvfrom_into(buffer, bytes, flags)
 
+    async def send(self, data, flags=0):
+        await _check_cancelled()
+        return await super().send(data, flags)
+
     async def sendto(self, bytes, flags_or_address, address=None):
         await _check_cancelled()
         return await super().sendto(bytes, flags_or_address, address)
 
-    async def recvmsg(self, bufsize, ancbufsize=0, flags=0):
+    async def sendall(self, data, flags=0):
         await _check_cancelled()
-        return await super().recvmsg(bufsize, ancbufsize, flags)
-
-    async def recvmsg_into(self, buffers, ancbufsize=0, flags=0):
-        await _check_cancelled()
-        return await super().recvmsg_into(buffers, ancbufsize, flags)
-
-    async def sendmsg(self, buffers, ancdata=(), flags=0, address=None):
-        await _check_cancelled()
-        return await super().sendmsg(buffers, ancdata, flags, address)
+        return await super().sendall(data, flags)
 
     async def shutdown(self, how):
         await _check_cancelled()
         return await super().shutdown(how)
 
 
-def create_socket(family: int, type: int, proto: int, fileno) -> interfaces.Socket:
+class SocketStream(interfaces.SocketStream):
+    __slots__ = '_socket', '_ssl_context', '_server_hostname'
+
+    def __init__(self, sock: CurioSocket, ssl_context: Optional[SSLContext] = None,
+                 server_hostname: Optional[str] = None) -> None:
+        self._socket = sock
+        self._ssl_context = ssl_context
+        self._server_hostname = server_hostname
+
+    async def receive_some(self, max_bytes: Optional[int]) -> bytes:
+        return await self._socket.recv(max_bytes)
+
+    async def receive_exactly(self, nbytes: int) -> bytes:
+        buf = bytearray(nbytes)
+        view = memoryview(buf)
+        while nbytes > 0:
+            bytes_read = await self._socket.recv_into(view, nbytes)
+            view = view[bytes_read:]
+            nbytes -= bytes_read
+
+        return bytes(buf)
+
+    async def receive_until(self, delimiter: bytes, max_size: int) -> bytes:
+        offset = 0
+        delimiter_size = len(delimiter)
+        buf = b''
+        while len(buf) < max_size:
+            read_size = max_size - len(buf)
+            data = await self._socket.recv(read_size, flags=socket.MSG_PEEK)
+            buf += data
+            index = buf.find(delimiter, offset)
+            if index >= 0:
+                await self._socket.recv(index + 1)
+                return buf[:index]
+            else:
+                await self._socket.recv(len(data))
+                offset += len(data) - delimiter_size + 1
+
+        raise DelimiterNotFound(buf, False)
+
+    async def send_all(self, data: BufferType) -> None:
+        return await self._socket.sendall(data)
+
+    async def start_tls(self, context: Optional[SSLContext] = None) -> None:
+        ssl_context = context or self._ssl_context or ssl.create_default_context()
+        curio_context = curio.ssl.CurioSSLContext(ssl_context)
+        ssl_socket = await curio_context.wrap_socket(
+            self._socket, do_handshake_on_connect=False, server_side=not self._server_hostname,
+            server_hostname=self._server_hostname
+        )
+        await ssl_socket.do_handshake()
+        self._socket = ssl_socket
+
+
+class SocketStreamServer(interfaces.SocketStreamServer):
+    __slots__ = '_socket', '_ssl_context'
+
+    def __init__(self, sock: CurioSocket, ssl_context: Optional[SSLContext]) -> None:
+        self._socket = sock
+        self._ssl_context = ssl_context
+
+    @property
+    def address(self) -> Union[tuple, str]:
+        return self._socket.getsockname()
+
+    @asynccontextmanager
+    @async_generator
+    async def accept(self):
+        sock, addr = await self._socket.accept()
+        try:
+            stream = SocketStream(sock)
+            if self._ssl_context:
+                await stream.start_tls(self._ssl_context)
+
+            await yield_(stream)
+        finally:
+            await sock.close()
+
+
+class DatagramSocket(interfaces.DatagramSocket):
+    __slots__ = '_socket'
+
+    def __init__(self, sock: CurioSocket) -> None:
+        self._socket = sock
+
+    async def receive(self, max_bytes: int) -> Tuple[bytes, str]:
+        return await self._socket.recvfrom(max_bytes)
+
+    async def send(self, data: bytes, address: Optional[str] = None,
+                   port: Optional[int] = None) -> None:
+        if address is not None and port is not None:
+            await self._socket.sendto(data, address)
+        else:
+            await self._socket.send(data)
+
+
+def create_socket(family: int = socket.AF_INET, type: int = socket.SOCK_STREAM, proto: int = 0,
+                  fileno=None):
     raw_socket = socket.socket(family, type, proto, fileno)
     return CurioSocket(raw_socket)
+
+
+@asynccontextmanager
+@async_generator
+async def connect_tcp(
+        address: str, port: int, *, tls: Union[bool, SSLContext] = False,
+        bind_host: Optional[str] = None, bind_port: Optional[int] = None):
+    sock = create_socket()
+    try:
+        if bind_host is not None and bind_port is not None:
+            await sock.bind((bind_host, bind_port))
+
+        await sock.connect((address, port))
+        stream = SocketStream(sock, server_hostname=address)
+
+        if isinstance(tls, SSLContext):
+            await stream.start_tls(tls)
+        elif tls:
+            await stream.start_tls()
+
+        await yield_(stream)
+    finally:
+        await sock.close()
+
+
+@asynccontextmanager
+@async_generator
+async def connect_unix(path: str):
+    sock = create_socket(socket.AF_UNIX)
+    try:
+        await sock.connect(path)
+        await yield_(SocketStream(sock))
+    finally:
+        await sock.close()
+
+
+@asynccontextmanager
+@async_generator
+async def create_tcp_server(port: int, interface: Optional[str], *,
+                            ssl_context: Optional[SSLContext] = None):
+    sock = create_socket()
+    try:
+        await sock.bind((interface, port))
+        sock.listen()
+        await yield_(SocketStreamServer(sock, ssl_context))
+    finally:
+        await sock.close()
+
+
+@asynccontextmanager
+@async_generator
+async def create_unix_server(path: str, *, mode: Optional[int] = None):
+    sock = create_socket(socket.AF_UNIX)
+    try:
+        await sock.bind(path)
+
+        if mode is not None:
+            os.chmod(path, mode)
+
+        sock.listen()
+        await yield_(SocketStreamServer(sock, None))
+    finally:
+        await sock.close()
+
+
+@asynccontextmanager
+@async_generator
+async def create_udp_socket(
+        *, bind_host: Optional[str] = None, bind_port: Optional[int] = None,
+        target_host: Optional[str] = None, target_port: Optional[int] = None):
+    sock = create_socket(type=socket.SOCK_DGRAM)
+    try:
+        if bind_port is not None:
+            await sock.bind((bind_host, bind_port))
+
+        if target_host is not None and target_port is not None:
+            await sock.connect((target_host, target_port))
+
+        await yield_(DatagramSocket(sock))
+    finally:
+        await sock.close()
 
 
 #

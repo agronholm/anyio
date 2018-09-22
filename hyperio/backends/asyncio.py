@@ -1,17 +1,21 @@
 import asyncio
 import errno
 import inspect
+import os
 import socket
+import ssl
 import sys
 from contextlib import suppress
 from ipaddress import ip_address
+from ssl import SSLContext
 from threading import Thread
-from typing import Callable, Set, Optional, List, Union, Dict  # noqa: F401
+from typing import Callable, Set, Optional, List, Union, Dict, Tuple, Any  # noqa: F401
 
 from async_generator import async_generator, yield_, asynccontextmanager
 
-from .. import interfaces, claim_current_thread, _local, T_Retval
-from ..exceptions import MultiError, CancelledError
+from hyperio.interfaces import BufferType
+from .. import interfaces, claim_current_thread, _local, T_Retval, IPAddressType
+from ..exceptions import ExceptionGroup, CancelledError, DelimiterNotFound
 
 try:
     from asyncio import run as native_run, create_task, get_running_loop, current_task
@@ -278,7 +282,7 @@ async def open_task_group():
 
         group._active = False
         if len(group._exceptions) > 1:
-            raise MultiError(group._exceptions)
+            raise ExceptionGroup(group._exceptions)
         elif group._exceptions:
             raise group._exceptions[0]
 
@@ -320,228 +324,308 @@ def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
 #
 
 class AsyncIOSocket:
-    __slots__ = '_loop', '_sock'
+    __slots__ = '_loop', '_raw_socket'
 
-    def __init__(self, sock: socket.SocketType) -> None:
+    def __init__(self, raw_socket: socket.SocketType) -> None:
         self._loop = get_running_loop()
-        self._sock = sock
+        self._raw_socket = raw_socket
+        self._raw_socket.setblocking(False)
 
     def __getattr__(self, item):
-        return getattr(self._sock, item)
-
-    async def __aenter__(self) -> 'AsyncIOSocket':
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        self._sock.close()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._sock.close()
+        return getattr(self._raw_socket, item)
 
     async def wait_readable(self) -> None:
         _check_cancelled()
         event = asyncio.Event()
-        self._loop.add_reader(self._sock.fileno(), event.set)
+        self._loop.add_reader(self._raw_socket.fileno(), event.set)
         await event.wait()
 
     async def wait_writable(self) -> None:
         _check_cancelled()
         event = asyncio.Event()
-        self._loop.add_writer(self._sock.fileno(), event.set)
+        self._loop.add_writer(self._raw_socket.fileno(), event.set)
         await event.wait()
 
     async def accept(self):
         _check_cancelled()
         try:
-            raw_socket, address = self._sock.accept()
+            raw_socket, address = self._raw_socket.accept()
         except BlockingIOError:
             await self.wait_readable()
-            raw_socket, address = self._sock.accept()
+            raw_socket, address = self._raw_socket.accept()
 
-        raw_socket.setblocking(False)
         return AsyncIOSocket(raw_socket), address
 
-    async def bind(self, address: Union[tuple, str, bytes]) -> None:
-        # For IP address/port combinations, call bind() directly
+    async def bind(self, address: Union[Tuple[str, int], str]) -> None:
         _check_cancelled()
         if isinstance(address, tuple) and len(address) == 2:
+            # For IP address/port combinations, call bind() directly
             try:
                 ip_address(address[0])
             except ValueError:
                 pass
             else:
-                self._sock.bind(address)
+                self._raw_socket.bind(address)
                 return
 
         # In all other cases, do this in a worker thread to avoid blocking the event loop thread
-        await run_in_thread(self._sock.bind, address)
+        await run_in_thread(self._raw_socket.bind, address)
 
     async def connect(self, address: Union[tuple, str, bytes]) -> None:
         _check_cancelled()
         try:
-            self._sock.connect(address)
+            self._raw_socket.connect(address)
         except BlockingIOError:
             await self.wait_writable()
 
-        error = self._sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
+        error = self._raw_socket.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
         if error:
             raise OSError(error, errno.errorcode[error])
 
     async def recv(self, size: int, *, flags: int = 0) -> bytes:
         _check_cancelled()
         try:
-            return self._sock.recv(size, flags)
-        except BlockingIOError:
+            return self._raw_socket.recv(size, flags)
+        except (BlockingIOError, ssl.SSLWantReadError):
             await self.wait_readable()
-            return self._sock.recv(size)
+            return self._raw_socket.recv(size, flags)
 
     async def recv_into(self, buffer, nbytes: int, *, flags: int = 0) -> int:
         _check_cancelled()
         try:
-            return self._sock.recv_into(buffer, nbytes, flags)
+            return self._raw_socket.recv_into(buffer, nbytes, flags)
+        except (BlockingIOError, ssl.SSLWantReadError):
+            await self.wait_readable()
+            return self._raw_socket.recv_into(buffer, nbytes, flags)
+
+    async def recvfrom(self, size: int, *, flags: int = 0) -> Tuple[bytes, Any]:
+        _check_cancelled()
+        try:
+            return self._raw_socket.recvfrom(size, flags)
         except BlockingIOError:
             await self.wait_readable()
-            return self._sock.recv_into(buffer, nbytes, flags)
+            return self._raw_socket.recvfrom(size, flags)
+
+    async def recvfrom_into(self, buffer, size: int, *, flags: int = 0):
+        _check_cancelled()
+        try:
+            return self._raw_socket.recvfrom_into(buffer, size, flags)
+        except BlockingIOError:
+            await self.wait_readable()
+            return self._raw_socket.recvfrom_into(buffer, size, flags)
 
     async def send(self, data: bytes, *, flags: int = 0) -> int:
         _check_cancelled()
         try:
-            return self._sock.send(data, flags)
+            return self._raw_socket.send(data, flags)
+        except (BlockingIOError, ssl.SSLWantWriteError):
+            await self.wait_writable()
+            return self._raw_socket.send(data, flags)
+
+    async def sendto(self, data: bytes, addr, *, flags: int = 0) -> int:
+        _check_cancelled()
+        try:
+            return self._raw_socket.sendto(data, flags, addr)
         except BlockingIOError:
             await self.wait_writable()
-            return self._sock.send(data, flags)
+            return self._raw_socket.sendto(data, flags, addr)
 
     async def sendall(self, data: bytes, *, flags: int = 0) -> None:
         to_send = len(data)
         while to_send > 0:
             _check_cancelled()
             try:
-                sent = self._sock.send(data, flags)
-            except BlockingIOError:
+                sent = self._raw_socket.send(data, flags)
+            except (BlockingIOError, ssl.SSLWantWriteError):
                 await self.wait_writable()
             else:
                 to_send -= sent
 
-
-# class AsyncIOStreamingSocket(AsyncIOSocket, interfaces.StreamingSocket):
-#     __slots__ = ()
-#
-#     async def read_exactly(self, nbytes: int) -> bytes:
-#         buf = b''
-#         while nbytes > 0:
-#             data = await self._loop.sock_recv(self._sock, nbytes)
-#             buf += data
-#             nbytes -= len(data)
-#
-#         return buf
-#
-#     async def read_until(self, delimiter: bytes, max_size: int) -> bytes:
-#         index = 0
-#         delimiter_size = len(delimiter)
-#         buf = b''
-#         while len(buf) < max_size:
-#             data = await self._loop.sock_recv(self._sock, max_size - len(buf))
-#             buf += data
-#             if buf.find(delimiter, index):
-#                 return buf
-#             else:
-#                 index += len(data) - delimiter_size + 1
-#
-#         raise DelimiterNotFound(
-#             'Maximum number of bytes ({}) read while searching for delimiter ({})'.format(
-#                 max_size, delimiter))
-#
-#     async def start_tls(self, ssl_context: SSLContext) -> None:
-#         def ready_callback():
-#             try:
-#                 sslsock.do_handshake()
-#             except ssl.SSLWantReadError:
-#                 print('Want SSL read')
-#             except ssl.SSLWantWriteError:
-#                 print('Want SSL write')
-#             except BaseException as exc:
-#                 future.set_exception(exc)
-#             else:
-#                 future.set_result(None)
-#
-#         sslsock = ssl_context.wrap_socket(self._sock)
-#         future = self._loop.create_future()
-#         self._loop.add_reader(self._sock.fileno(), ready_callback)
-#         self._loop.add_writer(self._sock.fileno(), ready_callback)
-#         try:
-#             await future
-#         finally:
-#             self._loop.remove_reader(self._sock.fileno())
-#             self._loop.remove_writer(self._sock.fileno())
-#
-#         self._sock = sslsock
+    async def start_tls(self, context: SSLContext, server_hostname: Optional[str] = None) -> None:
+        plain_socket = self._raw_socket
+        self._raw_socket = context.wrap_socket(
+            self._raw_socket, server_side=not server_hostname, do_handshake_on_connect=False,
+            server_hostname=server_hostname)
+        while True:
+            try:
+                self._raw_socket.do_handshake()
+            except ssl.SSLWantReadError:
+                await self.wait_readable()
+            except ssl.SSLWantWriteError:
+                await self.wait_writable()
+            except BaseException:
+                self._raw_socket = plain_socket
+                raise
+            else:
+                break
 
 
-# class AsyncIODatagramSocket(AsyncIOSocket, interfaces.DatagramSocket):
-#     __slots__ = ()
-#
-#     async def send(self, data: bytes, address: Optional[IPAddressType] = None) -> None:
-#         if address:
-#             self._sock.connect(str(address))
-#
-#         await self._loop.sock_sendall(data)
+class SocketStream(interfaces.SocketStream):
+    __slots__ = '_socket', '_ssl_context', '_server_hostname'
+
+    def __init__(self, sock: AsyncIOSocket, ssl_context: Optional[SSLContext] = None,
+                 server_hostname: Optional[str] = None) -> None:
+        self._socket = sock
+        self._ssl_context = ssl_context
+        self._server_hostname = server_hostname
+
+    async def receive_some(self, max_bytes: Optional[int]) -> bytes:
+        return await self._socket.recv(max_bytes)
+
+    async def receive_exactly(self, nbytes: int) -> bytes:
+        buf = bytearray(nbytes)
+        view = memoryview(buf)
+        while nbytes > 0:
+            bytes_read = await self._socket.recv_into(view, nbytes)
+            view = view[bytes_read:]
+            nbytes -= bytes_read
+
+        return bytes(buf)
+
+    async def receive_until(self, delimiter: bytes, max_size: int) -> bytes:
+        offset = 0
+        delimiter_size = len(delimiter)
+        buf = b''
+        while len(buf) < max_size:
+            read_size = max_size - len(buf)
+            data = await self._socket.recv(read_size, flags=socket.MSG_PEEK)
+            buf += data
+            index = buf.find(delimiter, offset)
+            if index >= 0:
+                await self._socket.recv(index + 1)
+                return buf[:index]
+            else:
+                await self._socket.recv(len(data))
+                offset += len(data) - delimiter_size + 1
+
+        raise DelimiterNotFound(buf, False)
+
+    async def send_all(self, data: BufferType) -> None:
+        return await self._socket.sendall(data)
+
+    async def start_tls(self, context: Optional[SSLContext] = None) -> None:
+        ssl_context = context or self._ssl_context or ssl.create_default_context()
+        await self._socket.start_tls(ssl_context, self._server_hostname)
 
 
-def create_socket(family: int, type: int, proto: int, fileno) -> interfaces.Socket:
+class SocketStreamServer(interfaces.SocketStreamServer):
+    __slots__ = '_socket', '_ssl_context'
+
+    def __init__(self, sock: AsyncIOSocket, ssl_context: Optional[SSLContext]) -> None:
+        self._socket = sock
+        self._ssl_context = ssl_context
+
+    @property
+    def address(self) -> Union[tuple, str]:
+        return self._socket.getsockname()
+
+    @asynccontextmanager
+    @async_generator
+    async def accept(self):
+        sock, addr = await self._socket.accept()
+        stream = SocketStream(sock)
+        if self._ssl_context:
+            await stream.start_tls(self._ssl_context)
+
+        await yield_(stream)
+        sock.close()
+
+
+class AsyncIODatagramSocket(interfaces.DatagramSocket):
+    __slots__ = '_socket'
+
+    def __init__(self, sock: AsyncIOSocket) -> None:
+        self._socket = sock
+
+    async def receive(self, max_bytes: int) -> Tuple[bytes, str]:
+        return await self._socket.recvfrom(max_bytes)
+
+    async def send(self, data: bytes, address: Optional[IPAddressType] = None,
+                   port: Optional[int] = None) -> None:
+        if address is not None and port is not None:
+            await self._socket.sendto(data, str(address))
+        else:
+            await self._socket.send(data)
+
+
+def create_socket(family: int = socket.AF_INET, type: int = socket.SOCK_STREAM, proto: int = 0,
+                  fileno=None) -> AsyncIOSocket:
+    _check_cancelled()
     raw_socket = socket.socket(family, type, proto, fileno)
-    raw_socket.setblocking(False)
     return AsyncIOSocket(raw_socket)
 
 
-# async def connect_tcp(
-#         address: IPAddressType, port: int, *,
-#         bind: Union[IPAddressType, Iterable[IPAddressType], None] = None) -> StreamingSocket:
-#     _check_cancelled()
-#     sock = socket.socket()
-#     sock.setblocking(False)
-#     loop = get_running_loop()
-#     await loop.sock_connect(sock, (address, port))
-#     return AsyncIOStreamingSocket(sock)
-#
-#
-# async def connect_unix(path: Union[str, Path]) -> StreamingSocket:
-#     _check_cancelled()
-#     sock = socket.socket(socket.AF_UNIX)
-#     sock.setblocking(False)
-#     loop = get_running_loop()
-#     await loop.sock_connect(sock, str(path))
-#     return AsyncIOStreamingSocket(sock)
-#
-#
-# @async_generator
-# async def serve_tcp(
-#         port: int, *, bind: Union[IPAddressType, Iterable[IPAddressType]] = '*',
-#         ssl_context: Optional[SSLContext] = None) -> AsyncIterable[StreamingSocket]:
-#     _check_cancelled()
-#     with closing(socket.socket()) as server_sock:
-#         server_sock.setblocking(False)
-#         server_sock.bind((str(bind), port))
-#         server_sock.listen(5)
-#         while True:
-#             raw_sock, address = await _local.loop.sock_accept(server_sock)
-#             stream = AsyncIOStreamingSocket(raw_sock)
-#             del raw_sock, address
-#             await yield_(stream)
-#
-#
-# async def create_udp_socket(
-#         *, bind: Union[IPAddressType, Iterable[IPAddressType], None] = None,
-#         target: Optional[IPAddressType] = None) -> DatagramSocket:
-#     _check_cancelled()
-#     sock = socket.socket()
-#     sock.setblocking(False)
-#     if target is not None:
-#         sock.connect(target)
-#
-#     return AsyncIODatagramSocket(sock)
+@asynccontextmanager
+@async_generator
+async def connect_tcp(
+        address: str, port: int, *, tls: Union[bool, SSLContext] = False,
+        bind_host: Optional[str] = None, bind_port: Optional[int] = None):
+    sock = create_socket()
+
+    if bind_host is not None and bind_port is not None:
+        await sock.bind((bind_host, bind_port))
+
+    await sock.connect((address, port))
+    stream = SocketStream(sock, server_hostname=address)
+
+    if isinstance(tls, SSLContext):
+        await stream.start_tls(tls)
+    elif tls:
+        await stream.start_tls()
+
+    await yield_(stream)
+    sock.close()
+
+
+@asynccontextmanager
+@async_generator
+async def connect_unix(path: str):
+    sock = create_socket(socket.AF_UNIX)
+    await sock.connect(path)
+    await yield_(SocketStream(sock))
+    sock.close()
+
+
+@asynccontextmanager
+@async_generator
+async def create_tcp_server(port: int, interface: Optional[str], *,
+                            ssl_context: Optional[SSLContext] = None):
+    sock = create_socket()
+    await sock.bind((interface, port))
+    sock.listen()
+    await yield_(SocketStreamServer(sock, ssl_context))
+    sock.close()
+
+
+@asynccontextmanager
+@async_generator
+async def create_unix_server(path: str, *, mode: Optional[int] = None):
+    sock = create_socket(socket.AF_UNIX)
+    await sock.bind(path)
+
+    if mode is not None:
+        os.chmod(path, mode)
+
+    sock.listen()
+    await yield_(SocketStreamServer(sock, None))
+    sock.close()
+
+
+@asynccontextmanager
+@async_generator
+async def create_udp_socket(
+        *, bind_host: Optional[str] = None, bind_port: Optional[int] = None,
+        target_host: Optional[str] = None, target_port: Optional[int] = None):
+    sock = create_socket(type=socket.SOCK_DGRAM)
+
+    if bind_port is not None:
+        await sock.bind((bind_host, bind_port))
+
+    if target_host is not None and target_port is not None:
+        await sock.connect((target_host, target_port))
+
+    await yield_(AsyncIODatagramSocket(sock))
+    sock.close()
 
 
 #
@@ -603,7 +687,8 @@ class Queue(asyncio.Queue):
 
 
 interfaces.TaskGroup.register(AsyncIOTaskGroup)
-interfaces.Socket.register(AsyncIOSocket)
+interfaces.SocketStream.register(SocketStream)
+interfaces.SocketStreamServer.register(SocketStreamServer)
 interfaces.Lock.register(Lock)
 interfaces.Condition.register(Condition)
 interfaces.Event.register(Event)

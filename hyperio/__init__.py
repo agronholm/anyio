@@ -1,16 +1,16 @@
 import sys
 import threading
 import typing  # noqa: F401
-from _socket import AF_INET, SOCK_STREAM
 from contextlib import contextmanager
 from importlib import import_module
 from pathlib import Path
 from ssl import SSLContext
-from typing import TypeVar, Callable, Union, Iterable, Optional, AsyncIterable, Awaitable
+from typing import TypeVar, Callable, Union, Optional, Awaitable
 
 from .interfaces import (  # noqa: F401
-    IPAddressType, StreamingSocket, CancelScope, DatagramSocket, Lock,
-    Condition, Event, Semaphore, Queue, TaskGroup, Socket)
+    IPAddressType, SocketStream, CancelScope, DatagramSocket, Lock,
+    Condition, Event, Semaphore, Queue, TaskGroup, Socket, Stream, SocketStreamServer,
+    SocketStream)
 
 T_Retval = TypeVar('T_Retval', covariant=True)
 _local = threading.local()
@@ -98,12 +98,16 @@ def move_on_after(delay: float) -> 'typing.AsyncContextManager[None]':
 
 
 #
-# Concurrency
+# Task groups
 #
 
 def create_task_group() -> 'typing.AsyncContextManager[TaskGroup]':
     return _get_asynclib().open_task_group()
 
+
+#
+# Threads
+#
 
 def run_in_thread(func: Callable[..., T_Retval], *args) -> Awaitable[T_Retval]:
     assert is_in_event_loop_thread()
@@ -119,31 +123,48 @@ def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
 # Networking
 #
 
-def create_socket(family: int = AF_INET, type: int = SOCK_STREAM, proto: int = 0,
-                  fileno=None) -> Socket:
-    return _get_asynclib().create_socket(family, type, proto, fileno)
-
-
 def connect_tcp(
-        address: IPAddressType, port: int, *,
-        bind: Union[IPAddressType, Iterable[IPAddressType], None] = None) -> \
-        Awaitable[StreamingSocket]:
-    return _get_asynclib().connect_tcp(address, port, bind=bind)
+    address: IPAddressType, port: int, *, tls: Union[bool, SSLContext] = False,
+    bind_host: Optional[IPAddressType] = None, bind_port: Optional[int] = None
+) -> 'typing.AsyncContextManager[SocketStream]':
+    if bind_host:
+        bind_host = str(bind_host)
+
+    return _get_asynclib().connect_tcp(str(address), port, tls=tls, bind_host=bind_host,
+                                       bind_port=bind_port)
 
 
-def connect_unix(path: Union[str, Path]) -> Awaitable[StreamingSocket]:
-    return _get_asynclib().connect_unix(path)
+def connect_unix(path: Union[str, Path]) -> 'typing.AsyncContextManager[SocketStream]':
+    return _get_asynclib().connect_unix(str(path))
 
 
-def serve_tcp(
-        port: int, *, address: Union[IPAddressType, Iterable[IPAddressType]] = None,
-        ssl_context: Optional[SSLContext] = None) -> AsyncIterable[StreamingSocket]:
-    return _get_asynclib().serve_tcp(port, address=address, ssl_context=ssl_context)
+def create_tcp_server(
+    port: int = 0, interface: Optional[IPAddressType] = None,
+    ssl_context: Optional[SSLContext] = None
+) -> 'typing.AsyncContextManager[SocketStreamServer]':
+    if interface:
+        interface = str(interface)
+
+    return _get_asynclib().create_tcp_server(port, interface, ssl_context=ssl_context)
 
 
-def create_udp_socket(*, bind: Union[IPAddressType, Iterable[IPAddressType], None] = None,
-                      target: Optional[IPAddressType] = None) -> Awaitable[DatagramSocket]:
-    return _get_asynclib().create_udp_socket(bind=bind, target=target)
+def create_unix_server(
+    path: Union[str, Path], *, mode: int = 0o666
+) -> 'typing.AsyncContextManager[SocketStreamServer]':
+    return _get_asynclib().create_unix_server(str(path), mode=mode)
+
+
+def create_udp_socket(
+    *, interface: Optional[IPAddressType] = None, port: Optional[int] = None,
+    target_host: Optional[IPAddressType] = None, target_port: Optional[int] = None
+) -> 'typing.AsyncContextManager[DatagramSocket]':
+    if interface:
+        interface = str(interface)
+    if target_host:
+        target_host = str(target_host)
+
+    return _get_asynclib().create_udp_socket(bind_host=interface, bind_port=port,
+                                             target_host=target_host, target_port=target_port)
 
 
 #
