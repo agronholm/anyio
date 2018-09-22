@@ -77,10 +77,6 @@ def _get_asynclib():
 # Timeouts and cancellation
 #
 
-def get_cancelled_error() -> BaseException:
-    return _get_asynclib().CancelledError
-
-
 def sleep(delay: float) -> Awaitable[None]:
     return _get_asynclib().sleep(delay)
 
