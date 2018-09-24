@@ -556,6 +556,20 @@ def create_socket(family: int = socket.AF_INET, type: int = socket.SOCK_STREAM, 
     return AsyncIOSocket(raw_socket)
 
 
+async def wait_socket_readable(sock: socket.SocketType) -> None:
+    _check_cancelled()
+    event = asyncio.Event()
+    get_running_loop().add_reader(sock.fileno(), event.set)
+    await event.wait()
+
+
+async def wait_socket_writable(sock: socket.SocketType) -> None:
+    _check_cancelled()
+    event = asyncio.Event()
+    get_running_loop().add_writer(sock.fileno(), event.set)
+    await event.wait()
+
+
 @asynccontextmanager
 @async_generator
 async def connect_tcp(

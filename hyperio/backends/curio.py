@@ -10,6 +10,7 @@ from typing import Callable, Set, List, Dict, Optional, Union, Tuple  # noqa: F4
 import curio.io
 import curio.socket
 import curio.ssl
+import curio.traps
 from async_generator import async_generator, asynccontextmanager, yield_
 
 from .. import interfaces, T_Retval, claim_current_thread, _local
@@ -377,6 +378,14 @@ def create_socket(family: int = socket.AF_INET, type: int = socket.SOCK_STREAM, 
                   fileno=None):
     raw_socket = socket.socket(family, type, proto, fileno)
     return CurioSocket(raw_socket)
+
+
+def wait_socket_readable(sock):
+    return curio.traps._read_wait(sock)
+
+
+def wait_socket_writable(sock):
+    return curio.traps._write_wait(sock)
 
 
 @asynccontextmanager

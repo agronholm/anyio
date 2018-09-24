@@ -433,6 +433,8 @@ class Condition(trio.Condition):
 
 run = trio.run
 sleep = trio.sleep
+wait_socket_readable = trio.hazmat.wait_socket_readable
+wait_socket_writable = trio.hazmat.wait_socket_writable
 
 Lock = trio.Lock
 Semaphore = trio.Semaphore

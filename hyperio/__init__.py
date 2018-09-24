@@ -1,3 +1,5 @@
+import socket
+import ssl
 import sys
 import threading
 import typing  # noqa: F401
@@ -118,6 +120,26 @@ def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
 #
 # Networking
 #
+
+def wait_socket_readable(sock: Union[socket.SocketType, ssl.SSLSocket]) -> Awaitable[None]:
+    """
+    Wait until the given socket has data to be read.
+
+    :param sock: a socket object
+
+    """
+    return _get_asynclib().wait_socket_readable(sock)
+
+
+def wait_socket_writable(sock: Union[socket.SocketType, ssl.SSLSocket]) -> Awaitable[None]:
+    """
+    Wait until the given socket can be written to.
+
+    :param sock: a socket object
+
+    """
+    return _get_asynclib().wait_socket_writable(sock)
+
 
 def connect_tcp(
     address: IPAddressType, port: int, *, tls: Union[bool, SSLContext] = False,
