@@ -166,7 +166,7 @@ def create_tcp_server(
 
 
 def create_unix_server(
-    path: Union[str, Path], *, mode: int = 0o666
+    path: Union[str, Path], *, mode: Optional[int] = None
 ) -> 'typing.AsyncContextManager[SocketStreamServer]':
     return _get_asynclib().create_unix_server(str(path), mode=mode)
 
