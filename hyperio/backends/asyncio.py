@@ -324,12 +324,13 @@ def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
 #
 
 class AsyncIOSocket:
-    __slots__ = '_loop', '_raw_socket'
+    __slots__ = '_loop', '_raw_socket', '_fileno'
 
     def __init__(self, raw_socket: socket.SocketType) -> None:
         self._loop = get_running_loop()
         self._raw_socket = raw_socket
         self._raw_socket.setblocking(False)
+        self._fileno = self._raw_socket.fileno()
 
     def __getattr__(self, item):
         return getattr(self._raw_socket, item)
@@ -337,13 +338,13 @@ class AsyncIOSocket:
     async def wait_readable(self) -> None:
         _check_cancelled()
         event = asyncio.Event()
-        self._loop.add_reader(self._raw_socket.fileno(), event.set)
+        self._loop.add_reader(self._fileno, event.set)
         await event.wait()
 
     async def wait_writable(self) -> None:
         _check_cancelled()
         event = asyncio.Event()
-        self._loop.add_writer(self._raw_socket.fileno(), event.set)
+        self._loop.add_writer(self._fileno, event.set)
         await event.wait()
 
     async def accept(self):
