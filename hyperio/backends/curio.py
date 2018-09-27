@@ -5,7 +5,7 @@ import sys
 from contextlib import contextmanager
 from ipaddress import ip_address
 from ssl import SSLContext
-from typing import Callable, Set, List, Dict, Optional, Union, Tuple  # noqa: F401
+from typing import Callable, Set, List, Dict, Optional, Union, Tuple, Awaitable  # noqa: F401
 
 import curio.io
 import curio.socket
@@ -13,6 +13,7 @@ import curio.ssl
 import curio.traps
 from async_generator import async_generator, asynccontextmanager, yield_
 
+from hyperio.backends.base import BaseSocket
 from .. import interfaces, T_Retval, claim_current_thread, _local
 from ..interfaces import BufferType
 from ..exceptions import ExceptionGroup, CancelledError, DelimiterNotFound
@@ -221,61 +222,18 @@ def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
 # Networking
 #
 
-class CurioSocket(curio.io.Socket):
-    async def accept(self):
-        await _check_cancelled()
-        return await super().accept()
+class CurioSocket(BaseSocket):
+    def _wait_readable(self) -> None:
+        return wait_socket_readable(self._raw_socket)
 
-    async def bind(self, address: Union[Tuple[str, int], str]) -> None:
-        await _check_cancelled()
-        if isinstance(address, tuple) and len(address) == 2:
-            # For IP address/port combinations, call bind() directly
-            try:
-                ip_address(address[0])
-            except ValueError:
-                pass
-            else:
-                self._socket.bind(address)
-                return
+    def _wait_writable(self) -> None:
+        return wait_socket_writable(self._raw_socket)
 
-        # In all other cases, do this in a worker thread to avoid blocking the event loop thread
-        await run_in_thread(self._socket.bind, address)
+    def _check_cancelled(self) -> Awaitable[None]:
+        return _check_cancelled()
 
-    async def connect(self, address):
-        await _check_cancelled()
-        return await super().connect(address)
-
-    async def recv(self, maxsize, flags=0):
-        await _check_cancelled()
-        return await super().recv(maxsize, flags)
-
-    async def recv_into(self, buffer, nbytes=0, flags=0):
-        await _check_cancelled()
-        return await super().recv_into(buffer, nbytes, flags)
-
-    async def recvfrom(self, buffersize, flags=0):
-        await _check_cancelled()
-        return await super().recvfrom(buffersize, flags)
-
-    async def recvfrom_into(self, buffer, bytes=0, flags=0):
-        await _check_cancelled()
-        return await super().recvfrom_into(buffer, bytes, flags)
-
-    async def send(self, data, flags=0):
-        await _check_cancelled()
-        return await super().send(data, flags)
-
-    async def sendto(self, bytes, flags_or_address, address=None):
-        await _check_cancelled()
-        return await super().sendto(bytes, flags_or_address, address)
-
-    async def sendall(self, data, flags=0):
-        await _check_cancelled()
-        return await super().sendall(data, flags)
-
-    async def shutdown(self, how):
-        await _check_cancelled()
-        return await super().shutdown(how)
+    def _run_in_thread(self, func: Callable, *args):
+        return run_in_thread(func, *args)
 
 
 class SocketStream(interfaces.SocketStream):
@@ -323,13 +281,7 @@ class SocketStream(interfaces.SocketStream):
 
     async def start_tls(self, context: Optional[SSLContext] = None) -> None:
         ssl_context = context or self._ssl_context or ssl.create_default_context()
-        curio_context = curio.ssl.CurioSSLContext(ssl_context)
-        ssl_socket = await curio_context.wrap_socket(
-            self._socket, do_handshake_on_connect=False, server_side=not self._server_hostname,
-            server_hostname=self._server_hostname
-        )
-        await ssl_socket.do_handshake()
-        self._socket = ssl_socket
+        await self._socket.start_tls(ssl_context, self._server_hostname)
 
 
 class SocketStreamServer(interfaces.SocketStreamServer):
@@ -354,7 +306,7 @@ class SocketStreamServer(interfaces.SocketStreamServer):
 
             await yield_(stream)
         finally:
-            await sock.close()
+            sock.close()
 
 
 class DatagramSocket(interfaces.DatagramSocket):
@@ -408,7 +360,7 @@ async def connect_tcp(
 
         await yield_(stream)
     finally:
-        await sock.close()
+        sock.close()
 
 
 @asynccontextmanager
@@ -419,7 +371,7 @@ async def connect_unix(path: str):
         await sock.connect(path)
         await yield_(SocketStream(sock))
     finally:
-        await sock.close()
+        sock.close()
 
 
 @asynccontextmanager
@@ -432,7 +384,7 @@ async def create_tcp_server(port: int, interface: Optional[str], *,
         sock.listen()
         await yield_(SocketStreamServer(sock, ssl_context))
     finally:
-        await sock.close()
+        sock.close()
 
 
 @asynccontextmanager
@@ -448,7 +400,7 @@ async def create_unix_server(path: str, *, mode: Optional[int] = None):
         sock.listen()
         await yield_(SocketStreamServer(sock, None))
     finally:
-        await sock.close()
+        sock.close()
 
 
 @asynccontextmanager
@@ -466,7 +418,7 @@ async def create_udp_socket(
 
         await yield_(DatagramSocket(sock))
     finally:
-        await sock.close()
+        sock.close()
 
 
 #

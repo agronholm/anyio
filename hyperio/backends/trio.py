@@ -1,18 +1,17 @@
-import errno
 import os
 import socket
 import ssl
 import sys
 from functools import wraps
-from ipaddress import ip_address
 from ssl import SSLContext
-from typing import Callable, Union, Optional, Tuple, Any
+from typing import Callable, Union, Optional, Tuple
 
 import trio.hazmat
 from async_generator import async_generator, yield_, asynccontextmanager
 
-from hyperio.interfaces import BufferType
+from .base import BaseSocket
 from ..exceptions import ExceptionGroup, DelimiterNotFound
+from ..interfaces import BufferType
 from .. import interfaces, claim_current_thread, T_Retval, _local
 
 
@@ -121,120 +120,20 @@ def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
 # Networking
 #
 
-class TrioSocket:
-    __slots__ = '_raw_socket'
+class TrioSocket(BaseSocket):
+    __slots__ = ()
 
-    def __init__(self, raw_socket) -> None:
-        self._raw_socket = raw_socket
-        self._raw_socket.setblocking(False)
+    def _wait_readable(self):
+        return wait_socket_readable(self._raw_socket)
 
-    def __getattr__(self, item):
-        return getattr(self._raw_socket, item)
+    def _wait_writable(self) -> None:
+        return wait_socket_writable(self._raw_socket)
 
-    async def accept(self):
-        await trio.hazmat.checkpoint_if_cancelled()
-        try:
-            raw_socket, address = self._raw_socket.accept()
-        except BlockingIOError:
-            await trio.hazmat.wait_socket_readable(self._raw_socket)
-            raw_socket, address = self._raw_socket.accept()
+    def _check_cancelled(self) -> None:
+        return trio.hazmat.checkpoint_if_cancelled()
 
-        return TrioSocket(raw_socket), address
-
-    async def bind(self, address: Union[Tuple[str, int], str]) -> None:
-        await trio.hazmat.checkpoint_if_cancelled()
-        if isinstance(address, tuple) and len(address) == 2:
-            # For IP address/port combinations, call bind() directly
-            try:
-                ip_address(address[0])
-            except ValueError:
-                pass
-            else:
-                self._raw_socket.bind(address)
-                return
-
-        # In all other cases, do this in a worker thread to avoid blocking the event loop thread
-        await run_in_thread(self._raw_socket.bind, address)
-
-    async def connect(self, address: Union[tuple, str, bytes]) -> None:
-        await trio.hazmat.checkpoint_if_cancelled()
-        try:
-            self._raw_socket.connect(address)
-        except BlockingIOError:
-            await trio.hazmat.wait_socket_writable(self._raw_socket)
-
-        error = self._raw_socket.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
-        if error:
-            raise OSError(error, errno.errorcode[error])
-
-    async def recv(self, size: int, *, flags: int = 0) -> bytes:
-        await trio.hazmat.checkpoint_if_cancelled()
-        try:
-            return self._raw_socket.recv(size, flags)
-        except (BlockingIOError, ssl.SSLWantReadError):
-            await trio.hazmat.wait_socket_readable(self._raw_socket)
-            return self._raw_socket.recv(size, flags)
-
-    async def recvfrom(self, size: int, *, flags: int = 0) -> Tuple[bytes, Any]:
-        await trio.hazmat.checkpoint_if_cancelled()
-        try:
-            return self._raw_socket.recvfrom(size, flags)
-        except BlockingIOError:
-            await trio.hazmat.wait_socket_readable(self._raw_socket)
-            return self._raw_socket.recvfrom(size, flags)
-
-    async def recv_into(self, buffer, nbytes: int, *, flags: int = 0) -> int:
-        await trio.hazmat.checkpoint_if_cancelled()
-        try:
-            return self._raw_socket.recv_into(buffer, nbytes, flags)
-        except (BlockingIOError, ssl.SSLWantReadError):
-            await trio.hazmat.wait_socket_readable(self._raw_socket)
-            return self._raw_socket.recv_into(buffer, nbytes, flags)
-
-    async def send(self, data: bytes, *, flags: int = 0) -> int:
-        await trio.hazmat.checkpoint_if_cancelled()
-        try:
-            return self._raw_socket.send(data, flags)
-        except (BlockingIOError, ssl.SSLWantWriteError):
-            await trio.hazmat.wait_socket_writable(self._raw_socket)
-            return self._raw_socket.send(data, flags)
-
-    async def sendto(self, data: bytes, addr, *, flags: int = 0) -> int:
-        await trio.hazmat.checkpoint_if_cancelled()
-        try:
-            return self._raw_socket.sendto(data, flags, addr)
-        except BlockingIOError:
-            await trio.hazmat.wait_socket_writable(self._raw_socket)
-            return self._raw_socket.sendto(data, flags, addr)
-
-    async def sendall(self, data: bytes, *, flags: int = 0) -> None:
-        await trio.hazmat.checkpoint_if_cancelled()
-        to_send = len(data)
-        while to_send > 0:
-            try:
-                sent = self._raw_socket.send(data, flags)
-            except (BlockingIOError, ssl.SSLWantWriteError):
-                await trio.hazmat.wait_socket_writable(self._raw_socket)
-            else:
-                to_send -= sent
-
-    async def start_tls(self, context: SSLContext, server_hostname: Optional[str] = None) -> None:
-        plain_socket = self._raw_socket
-        self._raw_socket = context.wrap_socket(
-            self._raw_socket, server_side=not server_hostname, do_handshake_on_connect=False,
-            server_hostname=server_hostname)
-        while True:
-            try:
-                self._raw_socket.do_handshake()
-            except ssl.SSLWantReadError:
-                await trio.hazmat.wait_socket_readable(self._raw_socket)
-            except ssl.SSLWantWriteError:
-                await trio.hazmat.wait_socket_writable(self._raw_socket)
-            except BaseException:
-                self._raw_socket = plain_socket
-                raise
-            else:
-                break
+    def _run_in_thread(self, func: Callable, *args):
+        return run_in_thread(func, *args)
 
 
 class SocketStream(interfaces.SocketStream):
