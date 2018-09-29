@@ -264,7 +264,7 @@ class AsyncIOTaskGroup:
 
 @asynccontextmanager
 @async_generator
-async def open_task_group():
+async def create_task_group():
     async with open_cancel_scope() as cancel_scope:
         group = AsyncIOTaskGroup(cancel_scope, current_task())
         try:

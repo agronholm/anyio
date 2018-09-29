@@ -99,7 +99,7 @@ def move_on_after(delay: float) -> 'typing.AsyncContextManager[None]':
 #
 
 def create_task_group() -> 'typing.AsyncContextManager[TaskGroup]':
-    return _get_asynclib().open_task_group()
+    return _get_asynclib().create_task_group()
 
 
 #

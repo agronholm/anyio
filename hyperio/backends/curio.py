@@ -170,7 +170,7 @@ class CurioTaskGroup:
 
 @asynccontextmanager
 @async_generator
-async def open_task_group():
+async def create_task_group():
     async with open_cancel_scope() as cancel_scope:
         current_task = await curio.current_task()
         group = CurioTaskGroup(cancel_scope, current_task)

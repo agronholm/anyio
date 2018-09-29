@@ -87,7 +87,7 @@ class TaskGroup:
 
 @asynccontextmanager
 @async_generator
-async def open_task_group():
+async def create_task_group():
     try:
         async with trio.open_nursery() as nursery:
             tg = TaskGroup(nursery)
