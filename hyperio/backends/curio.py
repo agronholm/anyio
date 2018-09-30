@@ -210,6 +210,7 @@ async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
         with claim_current_thread(asynclib):
             return func(*args)
 
+    await _check_cancelled()
     thread = await curio.spawn_thread(wrapper)
     return await thread.join()
 

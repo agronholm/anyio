@@ -301,6 +301,7 @@ async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
         else:
             loop.call_soon_threadsafe(queue.put_nowait, (result, None))
 
+    _check_cancelled()
     asynclib = sys.modules[__name__]
     loop = get_running_loop()
     queue = asyncio.Queue(1)
