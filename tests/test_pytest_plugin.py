@@ -18,7 +18,7 @@ async def asyncgen_fixture():
     await sleep(0)
 
 
-@pytest.mark.hyperio
+@pytest.mark.hyperio(backends=['asyncio'])
 async def test_fixture(async_fixture):
     assert async_fixture == 'foo'
 

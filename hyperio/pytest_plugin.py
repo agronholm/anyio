@@ -53,15 +53,11 @@ def pytest_fixture_setup(fixturedef, request):
 
 
 def pytest_generate_tests(metafunc):
-    if metafunc.definition.get_closest_marker('hyperio'):
+    marker = metafunc.definition.get_closest_marker('hyperio')
+    if marker:
+        backends = marker.kwargs.get('backends', ['asyncio', 'curio', 'trio'])
         metafunc.fixturenames.append('hyperio_backend')
-
-        # If an explicit hyperio_backend was defined, skip parametrization
-        for marker in metafunc.definition.iter_markers(name='parametrize'):
-            if 'hyperio_backend' in marker.args:
-                return
-
-        metafunc.parametrize('hyperio_backend', ['asyncio', 'curio', 'trio'], scope='session')
+        metafunc.parametrize('hyperio_backend', backends, scope='session')
 
 
 @pytest.mark.tryfirst
