@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from importlib import import_module
 from pathlib import Path
 from ssl import SSLContext
-from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any
+from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any, Dict
 
 from .interfaces import (  # noqa: F401
     IPAddressType, CancelScope, DatagramSocket, Lock, Condition, Event, Semaphore, Queue,
@@ -60,7 +60,7 @@ def _get_asynclib():
 
 
 def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
-        backend: str = 'asyncio') -> T_Retval:
+        backend: str = 'asyncio', backend_options: Optional[Dict[str, Any]] = None) -> T_Retval:
     """
     Run the given coroutine function in an asynchronous event loop.
 
@@ -70,6 +70,7 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
     :param args: positional arguments to ``func``
     :param backend: name of the asynchronous event loop implementation – one of ``asyncio``,
         ``curio`` and ``trio``
+    :param backend_options: keyword arguments to call the backend ``run()`` implementation with
     :return: the return value of the coroutine function
 
     """
@@ -79,8 +80,9 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
     except ImportError as exc:
         raise LookupError('No such backend: {}'.format(backend)) from exc
 
+    backend_options = backend_options or {}
     with claim_current_thread(asynclib, True):
-        return asynclib.run(func, *args)
+        return asynclib.run(func, *args, **backend_options)
 
 
 def is_in_event_loop_thread() -> bool:
