@@ -97,13 +97,13 @@ except ImportError:
 _create_task_supports_name = 'name' in inspect.signature(create_task).parameters
 
 
-def run(func: Callable[..., T_Retval], *args,
+def run(func: Callable[..., T_Retval], *args, debug: bool = False,
         policy: Optional[asyncio.AbstractEventLoopPolicy] = None) -> T_Retval:
     if policy is not None:
         asyncio.set_event_loop_policy(policy)
 
     _local.cancel_scopes_by_task = {}  # type: Dict[asyncio.Task, AsyncIOCancelScope]
-    return native_run(func(*args))
+    return native_run(func(*args), debug=debug)
 
 
 #
