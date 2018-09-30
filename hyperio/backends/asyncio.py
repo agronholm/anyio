@@ -12,9 +12,8 @@ from typing import Callable, Set, Optional, List, Union, Dict, Tuple  # noqa: F4
 from async_generator import async_generator, yield_, asynccontextmanager
 
 from .base import BaseSocket
-from .. import interfaces, claim_current_thread, _local, T_Retval, IPAddressType
+from .. import abc, claim_current_thread, _local, T_Retval, IPAddressType, BufferType
 from ..exceptions import ExceptionGroup, CancelledError, DelimiterNotFound
-from ..interfaces import BufferType
 
 try:
     from asyncio import run as native_run, create_task, get_running_loop, current_task
@@ -123,7 +122,7 @@ async def sleep(delay: float) -> None:
     await asyncio.sleep(delay)
 
 
-class AsyncIOCancelScope(interfaces.CancelScope):
+class AsyncIOCancelScope(abc.CancelScope):
     __slots__ = 'children', '_tasks', '_cancel_called'
 
     def __init__(self) -> None:
@@ -350,7 +349,7 @@ class AsyncIOSocket(BaseSocket):
         return run_in_thread(func, *args)
 
 
-class SocketStream(interfaces.SocketStream):
+class SocketStream(abc.SocketStream):
     __slots__ = '_socket', '_ssl_context', '_server_hostname'
 
     def __init__(self, sock: AsyncIOSocket, ssl_context: Optional[SSLContext] = None,
@@ -398,7 +397,7 @@ class SocketStream(interfaces.SocketStream):
         await self._socket.start_tls(ssl_context, self._server_hostname)
 
 
-class SocketStreamServer(interfaces.SocketStreamServer):
+class SocketStreamServer(abc.SocketStreamServer):
     __slots__ = '_socket', '_ssl_context'
 
     def __init__(self, sock: AsyncIOSocket, ssl_context: Optional[SSLContext]) -> None:
@@ -421,7 +420,7 @@ class SocketStreamServer(interfaces.SocketStreamServer):
         sock.close()
 
 
-class AsyncIODatagramSocket(interfaces.DatagramSocket):
+class AsyncIODatagramSocket(abc.DatagramSocket):
     __slots__ = '_socket'
 
     def __init__(self, sock: AsyncIOSocket) -> None:
@@ -590,11 +589,11 @@ class Queue(asyncio.Queue):
         return super().put(item)
 
 
-interfaces.TaskGroup.register(AsyncIOTaskGroup)
-interfaces.SocketStream.register(SocketStream)
-interfaces.SocketStreamServer.register(SocketStreamServer)
-interfaces.Lock.register(Lock)
-interfaces.Condition.register(Condition)
-interfaces.Event.register(Event)
-interfaces.Semaphore.register(Semaphore)
-interfaces.Queue.register(Queue)
+abc.TaskGroup.register(AsyncIOTaskGroup)
+abc.SocketStream.register(SocketStream)
+abc.SocketStreamServer.register(SocketStreamServer)
+abc.Lock.register(Lock)
+abc.Condition.register(Condition)
+abc.Event.register(Event)
+abc.Semaphore.register(Semaphore)
+abc.Queue.register(Queue)

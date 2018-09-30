@@ -9,9 +9,9 @@ from pathlib import Path
 from ssl import SSLContext
 from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any, Dict
 
-from .interfaces import (  # noqa: F401
-    IPAddressType, CancelScope, DatagramSocket, Lock, Condition, Event, Semaphore, Queue,
-    TaskGroup, Socket, Stream, SocketStreamServer, SocketStream)
+from .abc import (  # noqa: F401
+    IPAddressType, BufferType, CancelScope, DatagramSocket, Lock, Condition, Event, Semaphore,
+    Queue, TaskGroup, Socket, Stream, SocketStreamServer, SocketStream)
 
 T_Retval = TypeVar('T_Retval', covariant=True)
 _local = threading.local()

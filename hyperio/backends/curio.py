@@ -3,7 +3,6 @@ import socket
 import ssl
 import sys
 from contextlib import contextmanager
-from ipaddress import ip_address
 from ssl import SSLContext
 from typing import Callable, Set, List, Dict, Optional, Union, Tuple, Awaitable  # noqa: F401
 
@@ -13,9 +12,8 @@ import curio.ssl
 import curio.traps
 from async_generator import async_generator, asynccontextmanager, yield_
 
-from hyperio.backends.base import BaseSocket
-from .. import interfaces, T_Retval, claim_current_thread, _local
-from ..interfaces import BufferType
+from .base import BaseSocket
+from .. import abc, T_Retval, BufferType, claim_current_thread, _local
 from ..exceptions import ExceptionGroup, CancelledError, DelimiterNotFound
 
 
@@ -44,7 +42,7 @@ def translate_exceptions():
 # Timeouts and cancellation
 #
 
-class CurioCancelScope(interfaces.CancelScope):
+class CurioCancelScope(abc.CancelScope):
     __slots__ = 'children', '_tasks', '_cancel_called'
 
     def __init__(self) -> None:
@@ -231,7 +229,7 @@ class CurioSocket(BaseSocket):
         return run_in_thread(func, *args)
 
 
-class SocketStream(interfaces.SocketStream):
+class SocketStream(abc.SocketStream):
     __slots__ = '_socket', '_ssl_context', '_server_hostname'
 
     def __init__(self, sock: CurioSocket, ssl_context: Optional[SSLContext] = None,
@@ -279,7 +277,7 @@ class SocketStream(interfaces.SocketStream):
         await self._socket.start_tls(ssl_context, self._server_hostname)
 
 
-class SocketStreamServer(interfaces.SocketStreamServer):
+class SocketStreamServer(abc.SocketStreamServer):
     __slots__ = '_socket', '_ssl_context'
 
     def __init__(self, sock: CurioSocket, ssl_context: Optional[SSLContext]) -> None:
@@ -304,7 +302,7 @@ class SocketStreamServer(interfaces.SocketStreamServer):
             sock.close()
 
 
-class DatagramSocket(interfaces.DatagramSocket):
+class DatagramSocket(abc.DatagramSocket):
     __slots__ = '_socket'
 
     def __init__(self, sock: CurioSocket) -> None:
@@ -458,10 +456,10 @@ class Queue(curio.Queue):
         return await super().put(item)
 
 
-interfaces.TaskGroup.register(CurioTaskGroup)
-interfaces.Socket.register(curio.socket.SocketType)
-interfaces.Lock.register(Lock)
-interfaces.Condition.register(Condition)
-interfaces.Event.register(Event)
-interfaces.Semaphore.register(Semaphore)
-interfaces.Queue.register(Queue)
+abc.TaskGroup.register(CurioTaskGroup)
+abc.Socket.register(curio.socket.SocketType)
+abc.Lock.register(Lock)
+abc.Condition.register(Condition)
+abc.Event.register(Event)
+abc.Semaphore.register(Semaphore)
+abc.Queue.register(Queue)

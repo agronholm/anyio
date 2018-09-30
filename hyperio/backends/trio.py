@@ -11,8 +11,7 @@ from async_generator import async_generator, yield_, asynccontextmanager
 
 from .base import BaseSocket
 from ..exceptions import ExceptionGroup, DelimiterNotFound
-from ..interfaces import BufferType
-from .. import interfaces, claim_current_thread, T_Retval, _local
+from .. import abc, claim_current_thread, T_Retval, BufferType, _local
 
 
 class DummyAwaitable:
@@ -136,7 +135,7 @@ class TrioSocket(BaseSocket):
         return run_in_thread(func, *args)
 
 
-class SocketStream(interfaces.SocketStream):
+class SocketStream(abc.SocketStream):
     __slots__ = '_socket', '_ssl_context', '_server_hostname'
 
     def __init__(self, sock: TrioSocket, ssl_context: Optional[SSLContext] = None,
@@ -186,7 +185,7 @@ class SocketStream(interfaces.SocketStream):
         await self._socket.start_tls(ssl_context, self._server_hostname)
 
 
-class SocketStreamServer(interfaces.SocketStreamServer):
+class SocketStreamServer(abc.SocketStreamServer):
     __slots__ = '_socket', '_ssl_context'
 
     def __init__(self, sock: TrioSocket, ssl_context: Optional[SSLContext]) -> None:
@@ -209,7 +208,7 @@ class SocketStreamServer(interfaces.SocketStreamServer):
         sock.close()
 
 
-class DatagramSocket(interfaces.DatagramSocket):
+class DatagramSocket(abc.DatagramSocket):
     __slots__ = '_socket'
 
     def __init__(self, sock: TrioSocket) -> None:
@@ -339,9 +338,9 @@ Lock = trio.Lock
 Semaphore = trio.Semaphore
 Queue = trio.Queue
 
-interfaces.TaskGroup.register(TaskGroup)
-interfaces.Lock.register(Lock)
-interfaces.Condition.register(Condition)
-interfaces.Event.register(Event)
-interfaces.Semaphore.register(Semaphore)
-interfaces.Queue.register(Queue)
+abc.TaskGroup.register(TaskGroup)
+abc.Lock.register(Lock)
+abc.Condition.register(Condition)
+abc.Event.register(Event)
+abc.Semaphore.register(Semaphore)
+abc.Queue.register(Queue)
