@@ -118,14 +118,6 @@ class CancelScope(metaclass=ABCMeta):
 
 
 class Socket(metaclass=ABCMeta):
-    # @abstractmethod
-    # async def __aenter__(self) -> 'StreamingSocket':
-    #     pass
-    #
-    # @abstractmethod
-    # async def __aexit__(self, exc_type, exc_val, exc_tb):
-    #     pass
-
     @abstractmethod
     async def accept(self) -> Tuple['Socket', Any]:
         pass
@@ -133,9 +125,6 @@ class Socket(metaclass=ABCMeta):
     @abstractmethod
     def bind(self, address: Union[tuple, str, bytes]) -> None:
         pass
-
-    # def close(self) -> None:
-    #     super().close()
 
     @abstractmethod
     async def connect(self, address: Union[tuple, str, bytes]) -> None:
@@ -226,14 +215,6 @@ class Socket(metaclass=ABCMeta):
 
 
 class Stream(metaclass=ABCMeta):
-    # @abstractmethod
-    # async def __aenter__(self) -> 'Stream':
-    #     pass
-    #
-    # @abstractmethod
-    # async def __aexit__(self, exc_type, exc_val, exc_tb):
-    #     pass
-
     @abstractmethod
     async def receive_some(self, max_bytes: Optional[int]) -> bytes:
         """

@@ -186,12 +186,6 @@ async def create_task_group():
         while group._tasks:
             for task in set(group._tasks):
                 await task.wait()
-                # try:
-                # # with suppress(CancelledError), translate_exceptions():
-                #     await task.join()
-                # except BaseException as exc:
-                #     from pdb import set_trace; set_trace()
-                #     raise
 
         group._active = False
         if len(group._exceptions) > 1:
