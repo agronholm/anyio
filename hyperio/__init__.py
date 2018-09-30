@@ -173,7 +173,7 @@ def run_in_thread(func: Callable[..., T_Retval], *args) -> Awaitable[T_Retval]:
     return _get_asynclib().run_in_thread(func, *args)
 
 
-def run_async_from_thread(func: Callable[..., Coroutine], *args) -> T_Retval:
+def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args) -> T_Retval:
     """
     Call a coroutine function from a worker thread.
 
