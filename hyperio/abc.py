@@ -258,12 +258,32 @@ class Stream(metaclass=ABCMeta):
 
 
 class SocketStream(Stream):
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc_info):
+        self.close()
+
+    @abstractmethod
+    def close(self) -> None:
+        """Close the underlying socket."""
+
     @abstractmethod
     async def start_tls(self, context: Optional[SSLContext] = None) -> None:
         pass
 
 
 class SocketStreamServer(metaclass=ABCMeta):
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc_info):
+        self.close()
+
+    @abstractmethod
+    def close(self) -> None:
+        """Close the underlying socket."""
+
     @property
     @abstractmethod
     def address(self) -> Union[Tuple[str, int], str]:
@@ -288,6 +308,16 @@ class SocketStreamServer(metaclass=ABCMeta):
 
 
 class DatagramSocket(metaclass=ABCMeta):
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc_info):
+        self.close()
+
+    @abstractmethod
+    def close(self) -> None:
+        """Close the underlying socket."""
+
     @abstractmethod
     async def receive(self, max_bytes: int) -> Tuple[bytes, str]:
         pass

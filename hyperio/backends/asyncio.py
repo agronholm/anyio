@@ -358,6 +358,9 @@ class SocketStream(abc.SocketStream):
         self._ssl_context = ssl_context
         self._server_hostname = server_hostname
 
+    def close(self):
+        self._socket.close()
+
     async def receive_some(self, max_bytes: Optional[int]) -> bytes:
         return await self._socket.recv(max_bytes)
 
@@ -404,20 +407,24 @@ class SocketStreamServer(abc.SocketStreamServer):
         self._socket = sock
         self._ssl_context = ssl_context
 
+    def close(self) -> None:
+        self._socket.close()
+
     @property
     def address(self) -> Union[tuple, str]:
         return self._socket.getsockname()
 
-    @asynccontextmanager
-    @async_generator
     async def accept(self):
         sock, addr = await self._socket.accept()
-        stream = SocketStream(sock)
-        if self._ssl_context:
-            await stream.start_tls(self._ssl_context)
+        try:
+            stream = SocketStream(sock)
+            if self._ssl_context:
+                await stream.start_tls(self._ssl_context)
 
-        await yield_(stream)
-        sock.close()
+            return stream
+        except BaseException:
+            sock.close()
+            raise
 
 
 class AsyncIODatagramSocket(abc.DatagramSocket):
@@ -425,6 +432,9 @@ class AsyncIODatagramSocket(abc.DatagramSocket):
 
     def __init__(self, sock: AsyncIOSocket) -> None:
         self._socket = sock
+
+    def close(self):
+        self._socket.close()
 
     async def receive(self, max_bytes: int) -> Tuple[bytes, str]:
         return await self._socket.recvfrom(max_bytes)
@@ -458,77 +468,80 @@ async def wait_socket_writable(sock: socket.SocketType) -> None:
     await event.wait()
 
 
-@asynccontextmanager
-@async_generator
 async def connect_tcp(
         address: str, port: int, *, tls: Union[bool, SSLContext] = False,
         bind_host: Optional[str] = None, bind_port: Optional[int] = None):
     sock = create_socket()
+    try:
+        if bind_host is not None and bind_port is not None:
+            await sock.bind((bind_host, bind_port))
 
-    if bind_host is not None and bind_port is not None:
-        await sock.bind((bind_host, bind_port))
+        await sock.connect((address, port))
+        stream = SocketStream(sock, server_hostname=address)
 
-    await sock.connect((address, port))
-    stream = SocketStream(sock, server_hostname=address)
+        if isinstance(tls, SSLContext):
+            await stream.start_tls(tls)
+        elif tls:
+            await stream.start_tls()
 
-    if isinstance(tls, SSLContext):
-        await stream.start_tls(tls)
-    elif tls:
-        await stream.start_tls()
-
-    await yield_(stream)
-    sock.close()
+        return stream
+    except BaseException:
+        sock.close()
+        raise
 
 
-@asynccontextmanager
-@async_generator
 async def connect_unix(path: str):
     sock = create_socket(socket.AF_UNIX)
-    await sock.connect(path)
-    await yield_(SocketStream(sock))
-    sock.close()
+    try:
+        await sock.connect(path)
+        return SocketStream(sock)
+    except BaseException:
+        sock.close()
+        raise
 
 
-@asynccontextmanager
-@async_generator
 async def create_tcp_server(port: int, interface: Optional[str], *,
                             ssl_context: Optional[SSLContext] = None):
     sock = create_socket()
-    await sock.bind((interface, port))
-    sock.listen()
-    await yield_(SocketStreamServer(sock, ssl_context))
-    sock.close()
+    try:
+        await sock.bind((interface, port))
+        sock.listen()
+        return SocketStreamServer(sock, ssl_context)
+    except BaseException:
+        sock.close()
+        raise
 
 
-@asynccontextmanager
-@async_generator
 async def create_unix_server(path: str, *, mode: Optional[int] = None):
     sock = create_socket(socket.AF_UNIX)
-    await sock.bind(path)
+    try:
+        await sock.bind(path)
 
-    if mode is not None:
-        os.chmod(path, mode)
+        if mode is not None:
+            os.chmod(path, mode)
 
-    sock.listen()
-    await yield_(SocketStreamServer(sock, None))
-    sock.close()
+        sock.listen()
+        return SocketStreamServer(sock, None)
+    except BaseException:
+        sock.close()
+        raise
 
 
-@asynccontextmanager
-@async_generator
 async def create_udp_socket(
         *, bind_host: Optional[str] = None, bind_port: Optional[int] = None,
         target_host: Optional[str] = None, target_port: Optional[int] = None):
     sock = create_socket(type=socket.SOCK_DGRAM)
+    try:
+        if bind_port is not None:
+            await sock.bind((bind_host, bind_port))
 
-    if bind_port is not None:
-        await sock.bind((bind_host, bind_port))
+        if target_host is not None and target_port is not None:
+            await sock.connect((target_host, target_port))
 
-    if target_host is not None and target_port is not None:
-        await sock.connect((target_host, target_port))
-
-    await yield_(AsyncIODatagramSocket(sock))
-    sock.close()
+        return AsyncIODatagramSocket(sock)
+    except BaseException:
+        sock.close()
+        raise
 
 
 #

@@ -1,3 +1,4 @@
+import os
 import ssl
 from pathlib import Path
 
@@ -11,14 +12,14 @@ from hyperio import (
 @pytest.mark.hyperio
 async def test_connect_tcp():
     async def server():
-        async with stream_server.accept() as stream:
+        async with await stream_server.accept() as stream:
             command = await stream.receive_some(100)
             await stream.send_all(command[::-1])
 
     async with create_task_group() as tg:
-        async with create_tcp_server(interface='localhost') as stream_server:
+        async with await create_tcp_server(interface='localhost') as stream_server:
             await tg.spawn(server)
-            async with connect_tcp('localhost', stream_server.port) as client:
+            async with await connect_tcp('localhost', stream_server.port) as client:
                 await client.send_all(b'blah')
                 response = await client.receive_some(100)
 
@@ -28,7 +29,7 @@ async def test_connect_tcp():
 @pytest.mark.hyperio
 async def test_connect_tcp_tls():
     async def server():
-        async with stream_server.accept() as stream:
+        async with await stream_server.accept() as stream:
             command = await stream.receive_some(100)
             await stream.send_all(command[::-1])
 
@@ -38,21 +39,23 @@ async def test_connect_tcp_tls():
     client_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
     client_context.load_verify_locations(cafile=str(Path(__file__).with_name('cert.pem')))
     async with create_task_group() as tg:
-        async with create_tcp_server(
+        async with await create_tcp_server(
                 interface='localhost', ssl_context=server_context) as stream_server:
             await tg.spawn(server)
-            async with connect_tcp('localhost', stream_server.port, tls=client_context) as client:
+            async with await connect_tcp('localhost', stream_server.port,
+                                         tls=client_context) as client:
                 await client.send_all(b'blah')
                 response = await client.receive_some(100)
 
     assert response == b'halb'
 
 
-@pytest.mark.parametrize('as_path', [False, True])
+@pytest.mark.skipif(os.name == 'nt', reason='UNIX sockets are not available on Windows')
+@pytest.mark.parametrize('as_path', [False])
 @pytest.mark.hyperio
 async def test_connect_unix(tmpdir, as_path):
     async def server():
-        async with stream_server.accept() as stream:
+        async with await stream_server.accept() as stream:
             command = await stream.receive_some(100)
             await stream.send_all(command[::-1])
 
@@ -61,9 +64,9 @@ async def test_connect_unix(tmpdir, as_path):
         if as_path:
             path = Path(path)
 
-        async with create_unix_server(path) as stream_server:
+        async with await create_unix_server(path) as stream_server:
             await tg.spawn(server)
-            async with connect_unix(path) as client:
+            async with await connect_unix(path) as client:
                 await client.send_all(b'blah')
                 response = await client.receive_some(100)
 
@@ -77,16 +80,16 @@ async def test_connect_unix(tmpdir, as_path):
 @pytest.mark.hyperio
 async def test_read_partial(method_name, params):
     async def server():
-        async with stream_server.accept() as stream:
+        async with await stream_server.accept() as stream:
             method = getattr(stream, method_name)
             line1 = await method(*params)
             line2 = await method(*params)
             await stream.send_all(line1.strip() + line2.strip())
 
     async with create_task_group() as tg:
-        async with create_tcp_server(interface='localhost') as stream_server:
+        async with await create_tcp_server(interface='localhost') as stream_server:
             await tg.spawn(server)
-            async with connect_tcp('localhost', stream_server.port) as client:
+            async with await connect_tcp('localhost', stream_server.port) as client:
                 await client.send_all(b'bla')
                 await client.send_all(b'h\nb')
                 await client.send_all(b'leh\n')
@@ -97,8 +100,8 @@ async def test_read_partial(method_name, params):
 
 @pytest.mark.hyperio
 async def test_udp():
-    async with create_udp_socket(port=5000, interface='localhost',
-                                 target_port=5000, target_host='localhost') as socket:
+    async with await create_udp_socket(port=5000, interface='localhost',
+                                       target_port=5000, target_host='localhost') as socket:
         await socket.send(b'blah')
         request, addr = await socket.receive(100)
         assert request == b'blah'

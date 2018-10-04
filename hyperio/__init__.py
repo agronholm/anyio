@@ -210,10 +210,10 @@ def wait_socket_writable(sock: Union[socket.SocketType, ssl.SSLSocket]) -> Await
     return _get_asynclib().wait_socket_writable(sock)
 
 
-def connect_tcp(
+async def connect_tcp(
     address: IPAddressType, port: int, *, tls: Union[bool, SSLContext] = False,
     bind_host: Optional[IPAddressType] = None, bind_port: Optional[int] = None
-) -> 'typing.AsyncContextManager[SocketStream]':
+) -> SocketStream:
     """
     Connect to a host using the TCP protocol.
 
@@ -229,11 +229,11 @@ def connect_tcp(
     if bind_host:
         bind_host = str(bind_host)
 
-    return _get_asynclib().connect_tcp(str(address), port, tls=tls, bind_host=bind_host,
-                                       bind_port=bind_port)
+    return await _get_asynclib().connect_tcp(str(address), port, tls=tls, bind_host=bind_host,
+                                             bind_port=bind_port)
 
 
-def connect_unix(path: Union[str, Path]) -> 'typing.AsyncContextManager[SocketStream]':
+async def connect_unix(path: Union[str, Path]) -> SocketStream:
     """
     Connect to the given UNIX socket.
 
@@ -243,13 +243,13 @@ def connect_unix(path: Union[str, Path]) -> 'typing.AsyncContextManager[SocketSt
     :return: an asynchronous context manager that yields a socket stream
 
     """
-    return _get_asynclib().connect_unix(str(path))
+    return await _get_asynclib().connect_unix(str(path))
 
 
-def create_tcp_server(
+async def create_tcp_server(
     port: int = 0, interface: Optional[IPAddressType] = None,
     ssl_context: Optional[SSLContext] = None
-) -> 'typing.AsyncContextManager[SocketStreamServer]':
+) -> SocketStreamServer:
     """
     Start a TCP socket server.
 
@@ -262,12 +262,11 @@ def create_tcp_server(
     if interface:
         interface = str(interface)
 
-    return _get_asynclib().create_tcp_server(port, interface, ssl_context=ssl_context)
+    return await _get_asynclib().create_tcp_server(port, interface, ssl_context=ssl_context)
 
 
-def create_unix_server(
-    path: Union[str, Path], *, mode: Optional[int] = None
-) -> 'typing.AsyncContextManager[SocketStreamServer]':
+async def create_unix_server(
+        path: Union[str, Path], *, mode: Optional[int] = None) -> SocketStreamServer:
     """
     Start a UNIX socket server.
 
@@ -278,13 +277,13 @@ def create_unix_server(
     :return: an asynchronous context manager that yields a server object
 
     """
-    return _get_asynclib().create_unix_server(str(path), mode=mode)
+    return await _get_asynclib().create_unix_server(str(path), mode=mode)
 
 
-def create_udp_socket(
+async def create_udp_socket(
     *, interface: Optional[IPAddressType] = None, port: Optional[int] = None,
     target_host: Optional[IPAddressType] = None, target_port: Optional[int] = None
-) -> 'typing.AsyncContextManager[DatagramSocket]':
+) -> DatagramSocket:
     """
     Create a UDP socket.
 
@@ -303,8 +302,8 @@ def create_udp_socket(
     if target_host:
         target_host = str(target_host)
 
-    return _get_asynclib().create_udp_socket(bind_host=interface, bind_port=port,
-                                             target_host=target_host, target_port=target_port)
+    return await _get_asynclib().create_udp_socket(
+        bind_host=interface, bind_port=port, target_host=target_host, target_port=target_port)
 
 
 #
