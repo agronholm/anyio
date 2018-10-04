@@ -64,7 +64,7 @@ def pytest_generate_tests(metafunc):
 def pytest_pyfunc_call(pyfuncitem):
     if pyfuncitem.get_closest_marker('hyperio'):
         funcargs = pyfuncitem.funcargs
-        backend = funcargs.get('hyperio_backend', 'asyncio')
+        backend = pyfuncitem._request.getfixturevalue('hyperio_backend')
         testargs = {arg: funcargs[arg] for arg in pyfuncitem._fixtureinfo.argnames}
         hyperio.run(partial(pyfuncitem.obj, **testargs), backend=backend)
         return True
