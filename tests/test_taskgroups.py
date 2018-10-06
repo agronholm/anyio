@@ -151,6 +151,11 @@ class TestTaskGroup:
                 await sleep(1)
 
     @pytest.mark.hyperio
+    async def test_fail_after_no_timeout(self):
+        async with fail_after(None):
+            await sleep(0.1)
+
+    @pytest.mark.hyperio
     async def test_move_on_after(self):
         result = False
         async with move_on_after(0.1):
@@ -158,3 +163,12 @@ class TestTaskGroup:
             result = True
 
         assert not result
+
+    @pytest.mark.hyperio
+    async def test_move_on_after_no_timeout(self):
+        result = False
+        async with move_on_after(None):
+            await sleep(0.1)
+            result = True
+
+        assert result

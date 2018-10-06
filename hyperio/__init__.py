@@ -9,6 +9,7 @@ from pathlib import Path
 from ssl import SSLContext
 from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any, Dict
 
+from .utils import NullAsyncContext
 from .abc import (  # noqa: F401
     IPAddressType, BufferType, CancelScope, DatagramSocket, Lock, Condition, Event, Semaphore,
     Queue, TaskGroup, Socket, Stream, SocketStreamServer, SocketStream)
@@ -119,27 +120,35 @@ def open_cancel_scope() -> 'typing.AsyncContextManager[CancelScope]':
     return _get_asynclib().open_cancel_scope()
 
 
-def fail_after(delay: float) -> 'typing.AsyncContextManager[None]':
+def fail_after(delay: Optional[float]) -> 'typing.AsyncContextManager[None]':
     """
     Create a context manager which raises an exception if does not finish in time.
 
-    :param delay: maximum allowed time (in seconds) before raising the exception
+    :param delay: maximum allowed time (in seconds) before raising the exception, or ``None`` to
+        disable the timeout
     :return: an asynchronous context manager
     :raises TimeoutError: if the block does not complete within the allotted time
 
     """
-    return _get_asynclib().fail_after(delay)
+    if delay is None:
+        return NullAsyncContext()
+    else:
+        return _get_asynclib().fail_after(delay)
 
 
-def move_on_after(delay: float) -> 'typing.AsyncContextManager[None]':
+def move_on_after(delay: Optional[float]) -> 'typing.AsyncContextManager[None]':
     """
     Create a context manager which is exited if it does not complete within the given time.
 
-    :param delay: maximum allowed time (in seconds) before exiting the context block
+    :param delay: maximum allowed time (in seconds) before exiting the context block, or ``None``
+        to disable the timeout
     :return: an asynchronous context manager
 
     """
-    return _get_asynclib().move_on_after(delay)
+    if delay is None:
+        return NullAsyncContext()
+    else:
+        return _get_asynclib().move_on_after(delay)
 
 
 #
