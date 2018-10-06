@@ -50,7 +50,11 @@ def detect_running_asynclib() -> Optional[str]:
 
     if 'asyncio' in sys.modules:
         from .backends.asyncio import get_running_loop
-        if get_running_loop() is not None:
+        try:
+            get_running_loop()
+        except RuntimeError:
+            pass
+        else:
             return 'asyncio'
 
     return None

@@ -91,7 +91,13 @@ except ImportError:
     def create_task(coro) -> asyncio.Task:
         return get_running_loop().create_task(coro)
 
-    get_running_loop = asyncio._get_running_loop
+    def get_running_loop():
+        loop = asyncio._get_running_loop()
+        if loop is not None:
+            return loop
+        else:
+            raise RuntimeError('no running event loop')
+
     current_task = asyncio.Task.current_task
 
 _create_task_supports_name = 'name' in inspect.signature(create_task).parameters
