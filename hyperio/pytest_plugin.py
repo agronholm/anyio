@@ -38,9 +38,6 @@ def pytest_fixture_setup(fixturedef, request):
             yield hyperio.run(partial(func, *args, **kwargs), backend=backend)
 
     func = fixturedef.func
-    if hasattr(func, '__wrapped__'):
-        func = func.__wrapped__
-
     if isasyncgenfunction(func) or iscoroutinefunction(func):
         strip_backend = False
         if 'hyperio_backend' not in fixturedef.argnames:
