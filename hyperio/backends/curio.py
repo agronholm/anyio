@@ -4,7 +4,7 @@ import ssl
 import sys
 from contextlib import contextmanager
 from ssl import SSLContext
-from typing import Callable, Set, List, Dict, Optional, Union, Tuple, Awaitable  # noqa: F401
+from typing import Callable, Set, List, Optional, Union, Tuple, Awaitable  # noqa: F401
 
 import curio.io
 import curio.socket
@@ -21,7 +21,6 @@ def run(func: Callable[..., T_Retval], *args) -> T_Retval:
     kernel = None
     try:
         with curio.Kernel() as kernel:
-            _local.cancel_scopes_by_task = {}  # type: Dict[curio.Task, CurioCancelScope]
             return kernel.run(func, *args)
     except BaseException:
         if kernel:
@@ -68,9 +67,28 @@ class CurioCancelScope(abc.CancelScope):
                 await scope.cancel()
 
 
+def get_cancel_scope(task: curio.Task) -> Optional[CurioCancelScope]:
+    try:
+        return _local.cancel_scopes_by_task.get(task)
+    except AttributeError:
+        return None
+
+
+def set_cancel_scope(task: curio.Task, scope: Optional[CurioCancelScope]) -> None:
+    try:
+        cancel_scopes = _local.cancel_scopes_by_task
+    except AttributeError:
+        cancel_scopes = _local.cancel_scopes_by_task = {}
+
+    if scope is None:
+        del cancel_scopes[task]
+    else:
+        cancel_scopes[task] = scope
+
+
 async def _check_cancelled():
     task = await curio.current_task()
-    cancel_scope = _local.cancel_scopes_by_task.get(task)
+    cancel_scope = get_cancel_scope(task)
     if cancel_scope is not None and cancel_scope._cancel_called:
         raise CancelledError
 
@@ -87,19 +105,19 @@ async def open_cancel_scope():
     task = await curio.current_task()
     scope = CurioCancelScope()
     scope.add_task(task)
-    parent_scope = _local.cancel_scopes_by_task.get(task)
+    parent_scope = get_cancel_scope(task)
     if parent_scope is not None:
         parent_scope.children.add(scope)
 
-    _local.cancel_scopes_by_task[task] = scope
+    set_cancel_scope(task, scope)
     try:
         await yield_(scope)
     finally:
         if parent_scope is not None:
             parent_scope.children.remove(scope)
-            _local.cancel_scopes_by_task[task] = parent_scope
+            set_cancel_scope(task, scope)
         else:
-            del _local.cancel_scopes_by_task[task]
+            set_cancel_scope(task, None)
 
 
 @asynccontextmanager
@@ -147,17 +165,18 @@ class CurioTaskGroup:
 
         # Make the spawned task inherit the current cancel scope
         current_task = await curio.current_task()
-        cancel_scope = _local.cancel_scopes_by_task[current_task]
+        cancel_scope = get_cancel_scope(current_task)
         cancel_scope.add_task(task)
-        _local.cancel_scopes_by_task[task] = cancel_scope
+        set_cancel_scope(task, cancel_scope)
 
     async def _task_done(self, task: curio.Task) -> None:
         self._tasks.remove(task)
 
     def _task_discard(self, task: curio.Task) -> None:
         # Remove the task from its cancel scope
-        cancel_scope = _local.cancel_scopes_by_task.pop(task)  # type: CurioCancelScope
-        cancel_scope.remove_task(task)
+        cancel_scope = get_cancel_scope(task)  # type: CurioCancelScope
+        if cancel_scope is not None:
+            cancel_scope.remove_task(task)
 
         self._tasks.discard(task)
         if task.terminated and task.exception is not None:

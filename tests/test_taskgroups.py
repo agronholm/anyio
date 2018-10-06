@@ -1,6 +1,11 @@
+import curio
 import pytest
+import trio
 
-from hyperio import create_task_group, sleep, move_on_after, fail_after, open_cancel_scope
+from hyperio import (
+    create_task_group, sleep, move_on_after, fail_after, open_cancel_scope,
+    reset_detected_asynclib)
+from hyperio.backends import asyncio
 from hyperio.exceptions import ExceptionGroup
 
 
@@ -34,6 +39,22 @@ class TestTaskGroup:
             await tg.spawn(async_add, 'b')
 
         assert results == {'a', 'b'}
+
+    @pytest.mark.parametrize('run_func, as_coro_obj', [
+        (asyncio.native_run, True),
+        (curio.run, False),
+        (trio.run, False)
+    ], ids=['asyncio', 'curio', 'trio'])
+    def test_run_natively(self, run_func, as_coro_obj):
+        async def testfunc():
+            async with create_task_group() as tg:
+                await tg.spawn(sleep, 0)
+
+        reset_detected_asynclib()
+        if as_coro_obj:
+            run_func(testfunc())
+        else:
+            run_func(testfunc)
 
     @pytest.mark.hyperio
     async def test_host_exception(self):

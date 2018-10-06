@@ -7,7 +7,7 @@ import sys
 from contextlib import suppress
 from ssl import SSLContext
 from threading import Thread
-from typing import Callable, Set, Optional, List, Union, Dict, Tuple  # noqa: F401
+from typing import Callable, Set, Optional, List, Union, Tuple  # noqa: F401
 
 from async_generator import async_generator, yield_, asynccontextmanager
 
@@ -102,25 +102,12 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False,
     if policy is not None:
         asyncio.set_event_loop_policy(policy)
 
-    _local.cancel_scopes_by_task = {}  # type: Dict[asyncio.Task, AsyncIOCancelScope]
     return native_run(func(*args), debug=debug)
 
 
 #
 # Timeouts and cancellation
 #
-
-
-def _check_cancelled():
-    cancel_scope = _local.cancel_scopes_by_task.get(current_task())
-    if cancel_scope is not None and cancel_scope._cancel_called:
-        raise CancelledError
-
-
-async def sleep(delay: float) -> None:
-    _check_cancelled()
-    await asyncio.sleep(delay)
-
 
 class AsyncIOCancelScope(abc.CancelScope):
     __slots__ = 'children', '_tasks', '_cancel_called'
@@ -132,12 +119,12 @@ class AsyncIOCancelScope(abc.CancelScope):
 
     def add_task(self, task: asyncio.Task) -> None:
         self._tasks.add(task)
-        _local.cancel_scopes_by_task[task] = self
+        set_cancel_scope(task, self)
         task.add_done_callback(self._task_done)
 
     def _task_done(self, task: asyncio.Task) -> None:
         self._tasks.remove(task)
-        del _local.cancel_scopes_by_task[task]
+        set_cancel_scope(task, None)
 
     async def cancel(self):
         if not self._cancel_called:
@@ -153,13 +140,44 @@ class AsyncIOCancelScope(abc.CancelScope):
                 await child.cancel()
 
 
+def get_cancel_scope(task: asyncio.Task) -> Optional[AsyncIOCancelScope]:
+    try:
+        return _local.cancel_scopes_by_task.get(task)
+    except AttributeError:
+        return None
+
+
+def set_cancel_scope(task: asyncio.Task, scope: Optional[AsyncIOCancelScope]):
+    try:
+        cancel_scopes = _local.cancel_scopes_by_task
+    except AttributeError:
+        cancel_scopes = _local.cancel_scopes_by_task = {}
+
+    if scope is None:
+        del cancel_scopes[task]
+    else:
+        cancel_scopes[task] = scope
+
+
+def _check_cancelled():
+    task = current_task()
+    cancel_scope = get_cancel_scope(task)
+    if cancel_scope is not None and cancel_scope._cancel_called:
+        raise CancelledError
+
+
+async def sleep(delay: float) -> None:
+    _check_cancelled()
+    await asyncio.sleep(delay)
+
+
 @asynccontextmanager
 @async_generator
 async def open_cancel_scope():
     task = current_task()
     scope = AsyncIOCancelScope()
     scope.add_task(task)
-    parent_scope = _local.cancel_scopes_by_task.get(task)
+    parent_scope = get_cancel_scope(task)
     if parent_scope is not None:
         parent_scope.children.add(scope)
 
@@ -168,9 +186,9 @@ async def open_cancel_scope():
     finally:
         if parent_scope is not None:
             parent_scope.children.remove(scope)
-            _local.cancel_scopes_by_task[task] = parent_scope
+            set_cancel_scope(task, parent_scope)
         else:
-            del _local.cancel_scopes_by_task[task]
+            set_cancel_scope(task, None)
 
 
 @asynccontextmanager
@@ -257,7 +275,7 @@ class AsyncIOTaskGroup:
         task.add_done_callback(self._task_done)
 
         # Make the spawned task inherit the task group's cancel scope
-        _local.cancel_scopes_by_task[task] = self.cancel_scope
+        set_cancel_scope(task, self.cancel_scope)
         self.cancel_scope.add_task(task)
 
 

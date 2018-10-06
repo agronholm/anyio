@@ -5,6 +5,7 @@ import threading
 import typing  # noqa: F401
 from contextlib import contextmanager
 from importlib import import_module
+from inspect import ismodule
 from pathlib import Path
 from ssl import SSLContext
 from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any, Dict
@@ -19,16 +20,20 @@ _local = threading.local()
 
 
 @contextmanager
-def claim_current_thread(asynclib, is_event_loop_thread: bool = False) -> None:
+def claim_current_thread(asynclib) -> None:
+    assert ismodule(asynclib)
     _local.asynclib = asynclib
-    _local.is_event_loop_thread = is_event_loop_thread
     try:
         yield
     finally:
-        _local.__dict__.clear()
+        reset_detected_asynclib()
 
 
-def _detect_running_asynclib() -> str:
+def reset_detected_asynclib():
+    _local.__dict__.clear()
+
+
+def detect_running_asynclib() -> Optional[str]:
     if 'trio' in sys.modules:
         from trio.hazmat import current_trio_token
         try:
@@ -48,14 +53,17 @@ def _detect_running_asynclib() -> str:
         if get_running_loop() is not None:
             return 'asyncio'
 
-    raise LookupError('Cannot find any running async event loop')
+    return None
 
 
 def _get_asynclib():
     try:
         return _local.asynclib
     except AttributeError:
-        asynclib_name = _detect_running_asynclib()
+        asynclib_name = detect_running_asynclib()
+        if asynclib_name is None:
+            raise LookupError('Cannot find any running async event loop')
+
         _local.asynclib = import_module('{}.backends.{}'.format(__name__, asynclib_name))
         return _local.asynclib
 
@@ -73,16 +81,21 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
         ``curio`` and ``trio``
     :param backend_options: keyword arguments to call the backend ``run()`` implementation with
     :return: the return value of the coroutine function
+    :raises RuntimeError: if an asynchronous event loop is already running in this thread
+    :raises LookupError: if the named backend is not found
 
     """
-    assert not hasattr(_local, 'asynclib')
+    asynclib_name = detect_running_asynclib()
+    if asynclib_name:
+        raise RuntimeError('Already running {} in this thread'.format(asynclib_name))
+
     try:
         asynclib = import_module('{}.backends.{}'.format(__name__, backend))
     except ImportError as exc:
         raise LookupError('No such backend: {}'.format(backend)) from exc
 
     backend_options = backend_options or {}
-    with claim_current_thread(asynclib, True):
+    with claim_current_thread(asynclib):
         return asynclib.run(func, *args, **backend_options)
 
 
@@ -93,7 +106,7 @@ def is_in_event_loop_thread() -> bool:
     :return: ``True`` if running in the event loop, thread, ``False`` if not
 
     """
-    return getattr(_local, 'is_event_loop_thread', False)
+    return detect_running_asynclib() is not None
 
 
 #
