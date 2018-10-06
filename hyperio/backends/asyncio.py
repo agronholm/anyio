@@ -592,7 +592,7 @@ class Condition(asyncio.Condition):
     async def notify_all(self):
         super().notify(len(self._waiters))
 
-    async def wait(self):
+    def wait(self):
         _check_cancelled()
         return super().wait()
 
