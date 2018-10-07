@@ -116,6 +116,13 @@ def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
 
 
 #
+# Async file I/O
+#
+
+aopen = trio.open_file
+
+
+#
 # Networking
 #
 

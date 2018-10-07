@@ -3,6 +3,7 @@ import socket
 import ssl
 import sys
 from contextlib import contextmanager
+from functools import partial
 from ssl import SSLContext
 from typing import Callable, Set, List, Optional, Union, Tuple, Awaitable  # noqa: F401
 
@@ -228,6 +229,15 @@ async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
 
 def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
     return curio.AWAIT(func(*args))
+
+
+#
+# Async file I/O
+#
+
+async def aopen(*args, **kwargs):
+    fp = await run_in_thread(partial(open, *args, **kwargs))
+    return curio.file.AsyncFile(fp)
 
 
 #

@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+from io import SEEK_SET
 from ipaddress import IPv4Address, IPv6Address
 from ssl import SSLContext
 from typing import Callable, TypeVar, Optional, Tuple, Union, Iterable, Any, List
@@ -115,6 +116,104 @@ class CancelScope(metaclass=ABCMeta):
     @abstractmethod
     async def cancel(self):
         """Cancel all tasks within this scope."""
+
+
+class AsyncFile(metaclass=ABCMeta):
+    """
+    An asynchronous file object.
+
+    This class wraps a standard file object and provides async friendly versions of the following
+    blocking methods (where available on the original file object):
+
+    * read
+    * read1
+    * readline
+    * readlines
+    * readinto
+    * readinto1
+    * write
+    * writelines
+    * truncate
+    * seek
+    * tell
+    * flush
+    * close
+
+    All other methods are directly passed through.
+
+    This class supports the asynchronous context manager protocol which closes the underlying file
+    at the end of the context block.
+
+    This class also supports asynchronous iteration::
+
+        async with await aopen(...) as f:
+            async for line in f:
+                print(line)
+    """
+
+    @abstractmethod
+    async def __aenter__(self):
+        pass
+
+    @abstractmethod
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    @abstractmethod
+    async def __aiter__(self):
+        pass
+
+    @abstractmethod
+    async def read(self, size: int = -1) -> Union[bytes, str]:
+        pass
+
+    @abstractmethod
+    async def read1(self, size: int = -1) -> Union[bytes, str]:
+        pass
+
+    @abstractmethod
+    async def readline(self) -> bytes:
+        pass
+
+    @abstractmethod
+    async def readlines(self) -> bytes:
+        pass
+
+    @abstractmethod
+    async def readinto(self, b: Union[bytes, memoryview]) -> bytes:
+        pass
+
+    @abstractmethod
+    async def readinto1(self, b: Union[bytes, memoryview]) -> bytes:
+        pass
+
+    @abstractmethod
+    async def write(self, b: bytes) -> None:
+        pass
+
+    @abstractmethod
+    async def writelines(self, lines: bytes) -> None:
+        pass
+
+    @abstractmethod
+    async def truncate(self, size: Optional[int] = None) -> int:
+        pass
+
+    @abstractmethod
+    async def seek(self, offset: int, whence: Optional[int] = SEEK_SET) -> int:
+        pass
+
+    @abstractmethod
+    async def tell(self) -> int:
+        pass
+
+    @abstractmethod
+    async def flush(self) -> None:
+        pass
+
+    @abstractmethod
+    async def close(self) -> None:
+        pass
 
 
 class Socket(metaclass=ABCMeta):

@@ -5,6 +5,7 @@ import socket
 import ssl
 import sys
 from contextlib import suppress
+from functools import partial
 from ssl import SSLContext
 from threading import Thread
 from typing import Callable, Set, Optional, List, Union, Tuple  # noqa: F401
@@ -340,6 +341,77 @@ async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
 def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
     f = asyncio.run_coroutine_threadsafe(func(*args), _local.loop)
     return f.result()
+
+
+#
+# Async file I/O
+#
+
+class AsyncFile:
+    def __init__(self, fp) -> None:
+        self._fp = fp
+
+    def __getattr__(self, name):
+        return getattr(self._fp, name)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
+    @async_generator
+    async def __aiter__(self):
+        while True:
+            line = await self.readline()
+            if line:
+                await yield_(line)
+            else:
+                break
+
+    async def read(self, size: int = -1) -> Union[bytes, str]:
+        return await run_in_thread(self._fp.read, size)
+
+    async def read1(self, size: int = -1) -> Union[bytes, str]:
+        return await run_in_thread(self._fp.read1, size)
+
+    async def readline(self) -> bytes:
+        return await run_in_thread(self._fp.readline)
+
+    async def readlines(self) -> bytes:
+        return await run_in_thread(self._fp.readlines)
+
+    async def readinto(self, b: Union[bytes, memoryview]) -> bytes:
+        return await run_in_thread(self._fp.readinto, b)
+
+    async def readinto1(self, b: Union[bytes, memoryview]) -> bytes:
+        return await run_in_thread(self._fp.readinto1, b)
+
+    async def write(self, b: bytes) -> None:
+        return await run_in_thread(self._fp.write, b)
+
+    async def writelines(self, lines: bytes) -> None:
+        return await run_in_thread(self._fp.writelines, lines)
+
+    async def truncate(self, size: Optional[int] = None) -> int:
+        return await run_in_thread(self._fp.truncate, size)
+
+    async def seek(self, offset: int, whence: Optional[int] = os.SEEK_SET) -> int:
+        return await run_in_thread(self._fp.seek, offset, whence)
+
+    async def tell(self) -> int:
+        return await run_in_thread(self._fp.tell)
+
+    async def flush(self) -> None:
+        return await run_in_thread(self._fp.flush)
+
+    async def close(self) -> None:
+        return await run_in_thread(self._fp.close)
+
+
+async def aopen(*args, **kwargs):
+    fp = await run_in_thread(partial(open, *args, **kwargs))
+    return AsyncFile(fp)
 
 
 #

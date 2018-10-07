@@ -13,7 +13,7 @@ from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any
 from .utils import NullAsyncContext
 from .abc import (  # noqa: F401
     IPAddressType, BufferType, CancelScope, DatagramSocket, Lock, Condition, Event, Semaphore,
-    Queue, TaskGroup, Socket, Stream, SocketStreamServer, SocketStream)
+    Queue, TaskGroup, Socket, Stream, SocketStreamServer, SocketStream, AsyncFile)
 
 T_Retval = TypeVar('T_Retval', covariant=True)
 _local = threading.local()
@@ -210,6 +210,28 @@ def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *a
     """
     assert not is_in_event_loop_thread()
     return _get_asynclib().run_async_from_thread(func, *args)
+
+
+#
+# Async file I/O
+#
+
+def aopen(file: Union[str, Path, int], mode: str = 'r', buffering: int = -1,
+          encoding: Optional[str] = None, errors: Optional[str] = None,
+          newline: Optional[str] = None, closefd: bool = True,
+          opener: Optional[Callable] = None) -> Coroutine[Any, Any, AsyncFile]:
+    """
+    Open a file asynchronously.
+
+    The arguments are exactly the same as for the builtin :func:`open`.
+
+    :return: an asynchronous file object
+
+    """
+    if isinstance(file, Path):
+        file = str(file)
+
+    return _get_asynclib().aopen(file, mode, buffering, encoding, errors, newline, closefd, opener)
 
 
 #
