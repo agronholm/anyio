@@ -447,6 +447,17 @@ async def create_udp_socket(
 
 
 #
+# Signal handling
+#
+
+@asynccontextmanager
+@async_generator
+async def receive_signals(*signals: int):
+    async with curio.SignalQueue(*signals) as queue:
+        await yield_(queue)
+
+
+#
 # Synchronization
 #
 

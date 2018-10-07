@@ -408,3 +408,22 @@ def create_queue(capacity: int) -> Queue:
 
     """
     return _get_asynclib().Queue(capacity)
+
+
+#
+# Signal handling
+#
+
+def receive_signals(*signals: int) -> 'typing.ContextManager[typing.AsyncIterator[int]]':
+    """
+    Start receiving operating system signals.
+
+    :param signals: signals to receive (e.g. ``signal.SIGINT``)
+    :return: an asynchronous context manager for an asynchronous iterator which yields signal
+        numbers
+
+    .. warning:: Windows does not support signals natively so it is best to avoid relying on this
+        in cross-platform applications.
+
+    """
+    return _get_asynclib().receive_signals(*signals)

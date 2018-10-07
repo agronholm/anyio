@@ -706,3 +706,30 @@ abc.Condition.register(Condition)
 abc.Event.register(Event)
 abc.Semaphore.register(Semaphore)
 abc.Queue.register(Queue)
+
+
+#
+# Signal handling
+#
+
+@asynccontextmanager
+@async_generator
+async def receive_signals(*signals: int):
+    @async_generator
+    async def process_signal_queue():
+        while True:
+            signum = await queue.get()
+            await yield_(signum)
+
+    loop = get_running_loop()
+    queue = asyncio.Queue(loop=loop)
+    handled_signals = set()
+    try:
+        for sig in set(signals):
+            loop.add_signal_handler(sig, queue.put_nowait, sig)
+            handled_signals.add(sig)
+
+        await yield_(process_signal_queue())
+    finally:
+        for sig in handled_signals:
+            loop.remove_signal_handler(sig)

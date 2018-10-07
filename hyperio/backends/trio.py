@@ -325,6 +325,17 @@ async def create_udp_socket(
 
 
 #
+# Signal handling
+#
+
+@asynccontextmanager
+@async_generator
+async def receive_signals(*signals: int):
+    with trio.open_signal_receiver(*signals) as cm:
+        await yield_(cm)
+
+
+#
 # Synchronization
 #
 
