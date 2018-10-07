@@ -11,7 +11,6 @@ from pathlib import Path
 from ssl import SSLContext
 from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any, Dict
 
-from .utils import NullAsyncContext
 from .abc import (  # noqa: F401
     IPAddressType, BufferType, CancelScope, DatagramSocket, Lock, Condition, Event, Semaphore,
     Queue, TaskGroup, Socket, Stream, SocketStreamServer, SocketStream, AsyncFile)
@@ -19,6 +18,14 @@ from . import _networking
 
 T_Retval = TypeVar('T_Retval', covariant=True)
 _local = threading.local()
+
+
+class NullAsyncContext:
+    async def __aenter__(self) -> None:
+        return None
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        pass
 
 
 @contextmanager
