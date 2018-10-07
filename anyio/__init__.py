@@ -51,7 +51,7 @@ def detect_running_asynclib() -> Optional[str]:
             return 'curio'
 
     if 'asyncio' in sys.modules:
-        from .backends.asyncio import get_running_loop
+        from ._backends.asyncio import get_running_loop
         try:
             get_running_loop()
         except RuntimeError:
@@ -70,7 +70,7 @@ def _get_asynclib():
         if asynclib_name is None:
             raise LookupError('Cannot find any running async event loop')
 
-        _local.asynclib = import_module('{}.backends.{}'.format(__name__, asynclib_name))
+        _local.asynclib = import_module('{}._backends.{}'.format(__name__, asynclib_name))
         return _local.asynclib
 
 
@@ -96,7 +96,7 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
         raise RuntimeError('Already running {} in this thread'.format(asynclib_name))
 
     try:
-        asynclib = import_module('{}.backends.{}'.format(__name__, backend))
+        asynclib = import_module('{}._backends.{}'.format(__name__, backend))
     except ImportError as exc:
         raise LookupError('No such backend: {}'.format(backend)) from exc
 

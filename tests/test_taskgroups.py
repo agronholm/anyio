@@ -5,7 +5,7 @@ import trio
 from anyio import (
     create_task_group, sleep, move_on_after, fail_after, open_cancel_scope,
     reset_detected_asynclib)
-from anyio.backends import asyncio
+from anyio._backends import asyncio
 from anyio.exceptions import ExceptionGroup
 
 
