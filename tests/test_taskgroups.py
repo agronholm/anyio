@@ -2,11 +2,11 @@ import curio
 import pytest
 import trio
 
-from hyperio import (
+from anyio import (
     create_task_group, sleep, move_on_after, fail_after, open_cancel_scope,
     reset_detected_asynclib)
-from hyperio.backends import asyncio
-from hyperio.exceptions import ExceptionGroup
+from anyio.backends import asyncio
+from anyio.exceptions import ExceptionGroup
 
 
 async def async_error(text, delay=0.1):
@@ -17,7 +17,7 @@ async def async_error(text, delay=0.1):
         raise Exception(text)
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_already_closed():
     async with create_task_group() as tg:
         pass
@@ -28,7 +28,7 @@ async def test_already_closed():
     exc.match('This task group is not active; no new tasks can be spawned')
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_success():
     async def async_add(value):
         results.add(value)
@@ -58,7 +58,7 @@ def test_run_natively(run_func, as_coro_obj):
         run_func(testfunc)
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_host_exception():
     async def set_result(value):
         nonlocal result
@@ -75,7 +75,7 @@ async def test_host_exception():
     assert result is None
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_edge_cancellation():
     async def dummy():
         nonlocal marker
@@ -93,7 +93,7 @@ async def test_edge_cancellation():
     assert marker == 1
 
 
-# @pytest.mark.hyperio
+# @pytest.mark.anyio
 # async def test_host_cancelled_before_aexit():
 #     async def set_result(value):
 #         nonlocal result
@@ -115,7 +115,7 @@ async def test_edge_cancellation():
 #     assert result is None
 
 
-# @pytest.mark.hyperio
+# @pytest.mark.anyio
 # async def test_host_cancelled_during_aexit(event_loop, queue):
 #     with pytest.raises(CancelledError):
 #         async with event_loop.TaskGroup() as tg:
@@ -125,7 +125,7 @@ async def test_edge_cancellation():
 #     assert queue.empty()
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_cancel_scope_in_another_task():
     async def child():
         nonlocal result, local_scope
@@ -145,7 +145,7 @@ async def test_cancel_scope_in_another_task():
     assert not result
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_multi_error_children():
     with pytest.raises(ExceptionGroup) as exc:
         async with create_task_group() as tg:
@@ -156,7 +156,7 @@ async def test_multi_error_children():
     assert sorted(str(e) for e in exc.value.exceptions) == ['task1', 'task2']
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_multi_error_host():
     with pytest.raises(ExceptionGroup) as exc:
         async with create_task_group() as tg:
@@ -168,27 +168,27 @@ async def test_multi_error_host():
     assert [str(e) for e in exc.value.exceptions] == ['host', 'child']
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_escaping_cancelled_exception():
     async with create_task_group() as tg:
         await tg.cancel_scope.cancel()
         await sleep(0)
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_fail_after():
     with pytest.raises(TimeoutError):
         async with fail_after(0.1):
             await sleep(1)
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_fail_after_no_timeout():
     async with fail_after(None):
         await sleep(0.1)
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_move_on_after():
     result = False
     async with move_on_after(0.1):
@@ -198,7 +198,7 @@ async def test_move_on_after():
     assert not result
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_move_on_after_no_timeout():
     result = False
     async with move_on_after(None):

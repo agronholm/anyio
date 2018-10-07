@@ -1,7 +1,7 @@
 import pytest
 from async_generator import async_generator, yield_
 
-from hyperio import sleep
+from anyio import sleep
 
 
 @pytest.fixture
@@ -18,11 +18,11 @@ async def asyncgen_fixture():
     await sleep(0)
 
 
-@pytest.mark.hyperio(backends=['asyncio'])
+@pytest.mark.anyio(backends=['asyncio'])
 async def test_fixture(async_fixture):
     assert async_fixture == 'foo'
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_asyncgen_fixture(asyncgen_fixture):
     assert asyncgen_fixture == 'foo'

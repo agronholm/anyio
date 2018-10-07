@@ -1,10 +1,10 @@
 import pytest
 
-from hyperio import (
+from anyio import (
     run_async_from_thread, run_in_thread, is_in_event_loop_thread, create_task_group)
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_run_async_from_thread():
     async def add(a, b):
         assert is_in_event_loop_thread()
@@ -18,7 +18,7 @@ async def test_run_async_from_thread():
     assert result == 3
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_run_in_thread_cancelled():
     def thread_worker():
         nonlocal state

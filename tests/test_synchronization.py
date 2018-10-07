@@ -1,12 +1,12 @@
 import pytest
 
-from hyperio import (
+from anyio import (
     create_lock, create_task_group, sleep, create_queue, create_event, create_semaphore,
     create_condition, open_cancel_scope)
 
 
 class TestLock:
-    @pytest.mark.hyperio
+    @pytest.mark.anyio
     async def test_lock(self):
         async def task():
             assert lock.locked()
@@ -24,7 +24,7 @@ class TestLock:
         assert not lock.locked()
         assert results == ['1', '2']
 
-    @pytest.mark.hyperio
+    @pytest.mark.anyio
     async def test_lock_cancel(self):
         async def task():
             nonlocal task_started, got_lock
@@ -44,7 +44,7 @@ class TestLock:
 
 
 class TestEvent:
-    @pytest.mark.hyperio
+    @pytest.mark.anyio
     async def test_event(self):
         async def setter():
             assert not event.is_set()
@@ -58,7 +58,7 @@ class TestEvent:
 
         assert not event.is_set()
 
-    @pytest.mark.hyperio
+    @pytest.mark.anyio
     async def test_event_cancel(self):
         async def task():
             nonlocal task_started, event_set
@@ -78,7 +78,7 @@ class TestEvent:
 
 
 class TestCondition:
-    @pytest.mark.hyperio
+    @pytest.mark.anyio
     async def test_condition(self):
         async def notifier():
             async with condition:
@@ -91,7 +91,7 @@ class TestCondition:
                 await tg.spawn(notifier)
                 await condition.wait()
 
-    @pytest.mark.hyperio
+    @pytest.mark.anyio
     async def test_wait_cancel(self):
         async def task():
             nonlocal task_started, notified
@@ -117,7 +117,7 @@ class TestCondition:
 
 
 class TestSemaphore:
-    @pytest.mark.hyperio
+    @pytest.mark.anyio
     async def test_semaphore(self):
         async def acquire():
             async with semaphore:
@@ -130,7 +130,7 @@ class TestSemaphore:
 
         assert semaphore.value == 2
 
-    @pytest.mark.hyperio
+    @pytest.mark.anyio
     async def test_acquire_cancel(self):
         async def task():
             nonlocal local_scope, acquired
@@ -151,7 +151,7 @@ class TestSemaphore:
 
 
 class TestQueue:
-    @pytest.mark.hyperio
+    @pytest.mark.anyio
     async def test_queue(self):
         queue = create_queue(1)
         assert queue.empty()
@@ -161,7 +161,7 @@ class TestQueue:
         assert await queue.get() == '1'
         assert queue.empty()
 
-    @pytest.mark.hyperio
+    @pytest.mark.anyio
     async def test_get_cancel(self):
         async def task():
             nonlocal local_scope
@@ -180,7 +180,7 @@ class TestQueue:
 
         assert queue.full()
 
-    @pytest.mark.hyperio
+    @pytest.mark.anyio
     async def test_put_cancel(self):
         async def task():
             nonlocal local_scope

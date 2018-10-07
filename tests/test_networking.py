@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from hyperio import (
+from anyio import (
     create_task_group, connect_tcp, create_udp_socket, connect_unix, create_unix_server,
     create_tcp_server)
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_connect_tcp():
     async def server():
         async with await stream_server.accept() as stream:
@@ -26,7 +26,7 @@ async def test_connect_tcp():
     assert response == b'halb'
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_connect_tcp_tls():
     async def server():
         async with await stream_server.accept() as stream:
@@ -52,7 +52,7 @@ async def test_connect_tcp_tls():
 
 @pytest.mark.skipif(os.name == 'nt', reason='UNIX sockets are not available on Windows')
 @pytest.mark.parametrize('as_path', [False])
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_connect_unix(tmpdir, as_path):
     async def server():
         async with await stream_server.accept() as stream:
@@ -77,7 +77,7 @@ async def test_connect_unix(tmpdir, as_path):
     ('receive_until', [b'\n', 100]),
     ('receive_exactly', [5])
 ], ids=['read_until', 'read_exactly'])
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_read_partial(method_name, params):
     async def server():
         async with await stream_server.accept() as stream:
@@ -98,7 +98,7 @@ async def test_read_partial(method_name, params):
     assert response == b'blahbleh'
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_udp():
     async with await create_udp_socket(port=5000, interface='localhost',
                                        target_port=5000, target_host='localhost') as socket:

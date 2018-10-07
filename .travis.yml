@@ -48,7 +48,7 @@ jobs:
         distributions: sdist bdist_wheel
         on:
           tags: true
-          repo: agronholm/hyperio
+          repo: agronholm/anyio
   allow_failures:
     - python: pypy3
 

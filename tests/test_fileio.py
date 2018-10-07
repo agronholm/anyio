@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from hyperio import aopen
+from anyio import aopen
 
 
 @pytest.fixture(scope='module')
@@ -17,7 +17,7 @@ def testdatafile(tmpdir_factory, testdata):
     return Path(str(file))
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_read(testdatafile, testdata):
     async with await aopen(testdatafile, 'rb') as f:
         data = await f.read()
@@ -26,7 +26,7 @@ async def test_read(testdatafile, testdata):
     assert data == testdata
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_write(testdatafile, testdata):
     async with await aopen(testdatafile, 'ab') as f:
         await f.write(b'f' * 1000)
@@ -34,7 +34,7 @@ async def test_write(testdatafile, testdata):
     assert testdatafile.stat().st_size == len(testdata) + 1000
 
 
-@pytest.mark.hyperio
+@pytest.mark.anyio
 async def test_async_iteration(tmpdir):
     lines = ['blah blah\n', 'foo foo\n', 'bar bar']
     testpath = tmpdir.join('testfile')
