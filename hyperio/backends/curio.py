@@ -87,7 +87,7 @@ def set_cancel_scope(task: curio.Task, scope: Optional[CurioCancelScope]) -> Non
         cancel_scopes[task] = scope
 
 
-async def _check_cancelled():
+async def check_cancelled():
     task = await curio.current_task()
     cancel_scope = get_cancel_scope(task)
     if cancel_scope is not None and cancel_scope._cancel_called:
@@ -95,14 +95,14 @@ async def _check_cancelled():
 
 
 async def sleep(seconds: int):
-    await _check_cancelled()
+    await check_cancelled()
     await curio.sleep(seconds)
 
 
 @asynccontextmanager
 @async_generator
 async def open_cancel_scope():
-    await _check_cancelled()
+    await check_cancelled()
     task = await curio.current_task()
     scope = CurioCancelScope()
     scope.add_task(task)
@@ -222,7 +222,7 @@ async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
         with claim_current_thread(asynclib):
             return func(*args)
 
-    await _check_cancelled()
+    await check_cancelled()
     thread = await curio.spawn_thread(wrapper)
     return await thread.join()
 
@@ -252,7 +252,7 @@ class CurioSocket(BaseSocket):
         return wait_socket_writable(self._raw_socket)
 
     def _check_cancelled(self) -> Awaitable[None]:
-        return _check_cancelled()
+        return check_cancelled()
 
     def _run_in_thread(self, func: Callable, *args):
         return run_in_thread(func, *args)
@@ -452,39 +452,39 @@ async def create_udp_socket(
 
 class Lock(curio.Lock):
     async def __aenter__(self):
-        await _check_cancelled()
+        await check_cancelled()
         return await super().__aenter__()
 
 
 class Condition(curio.Condition):
     async def __aenter__(self):
-        await _check_cancelled()
+        await check_cancelled()
         return await super().__aenter__()
 
     async def wait(self):
-        await _check_cancelled()
+        await check_cancelled()
         return await super().wait()
 
 
 class Event(curio.Event):
     async def wait(self):
-        await _check_cancelled()
+        await check_cancelled()
         return await super().wait()
 
 
 class Semaphore(curio.Semaphore):
     async def __aenter__(self):
-        await _check_cancelled()
+        await check_cancelled()
         return await super().__aenter__()
 
 
 class Queue(curio.Queue):
     async def get(self):
-        await _check_cancelled()
+        await check_cancelled()
         return await super().get()
 
     async def put(self, item):
-        await _check_cancelled()
+        await check_cancelled()
         return await super().put(item)
 
 

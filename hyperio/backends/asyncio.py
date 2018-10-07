@@ -166,7 +166,7 @@ def set_cancel_scope(task: asyncio.Task, scope: Optional[AsyncIOCancelScope]):
         cancel_scopes[task] = scope
 
 
-def _check_cancelled():
+def check_cancelled():
     task = current_task()
     cancel_scope = get_cancel_scope(task)
     if cancel_scope is not None and cancel_scope._cancel_called:
@@ -174,7 +174,7 @@ def _check_cancelled():
 
 
 async def sleep(delay: float) -> None:
-    _check_cancelled()
+    check_cancelled()
     await asyncio.sleep(delay)
 
 
@@ -325,7 +325,7 @@ async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
         else:
             loop.call_soon_threadsafe(queue.put_nowait, (result, None))
 
-    _check_cancelled()
+    check_cancelled()
     asynclib = sys.modules[__name__]
     loop = get_running_loop()
     queue = asyncio.Queue(1)
@@ -427,19 +427,19 @@ class AsyncIOSocket(BaseSocket):
         super().__init__(raw_socket)
 
     async def _wait_readable(self) -> None:
-        _check_cancelled()
+        check_cancelled()
         event = asyncio.Event()
         self._loop.add_reader(self._fileno, event.set)
         await event.wait()
 
     async def _wait_writable(self) -> None:
-        _check_cancelled()
+        check_cancelled()
         event = asyncio.Event()
         self._loop.add_writer(self._fileno, event.set)
         await event.wait()
 
     async def _check_cancelled(self) -> None:
-        _check_cancelled()
+        check_cancelled()
 
     def _run_in_thread(self, func: Callable, *args):
         return run_in_thread(func, *args)
@@ -545,20 +545,20 @@ class AsyncIODatagramSocket(abc.DatagramSocket):
 
 def create_socket(family: int = socket.AF_INET, type: int = socket.SOCK_STREAM, proto: int = 0,
                   fileno=None) -> AsyncIOSocket:
-    _check_cancelled()
+    check_cancelled()
     raw_socket = socket.socket(family, type, proto, fileno)
     return AsyncIOSocket(raw_socket)
 
 
 async def wait_socket_readable(sock: socket.SocketType) -> None:
-    _check_cancelled()
+    check_cancelled()
     event = asyncio.Event()
     get_running_loop().add_reader(sock.fileno(), event.set)
     await event.wait()
 
 
 async def wait_socket_writable(sock: socket.SocketType) -> None:
-    _check_cancelled()
+    check_cancelled()
     event = asyncio.Event()
     get_running_loop().add_writer(sock.fileno(), event.set)
     await event.wait()
@@ -646,7 +646,7 @@ async def create_udp_socket(
 
 class Lock(asyncio.Lock):
     async def __aenter__(self):
-        _check_cancelled()
+        check_cancelled()
         await self.acquire()
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -655,7 +655,7 @@ class Lock(asyncio.Lock):
 
 class Condition(asyncio.Condition):
     async def __aenter__(self):
-        _check_cancelled()
+        check_cancelled()
         return await super().__aenter__()
 
     async def notify(self, n=1):
@@ -665,7 +665,7 @@ class Condition(asyncio.Condition):
         super().notify(len(self._waiters))
 
     def wait(self):
-        _check_cancelled()
+        check_cancelled()
         return super().wait()
 
 
@@ -674,13 +674,13 @@ class Event(asyncio.Event):
         super().set()
 
     def wait(self):
-        _check_cancelled()
+        check_cancelled()
         return super().wait()
 
 
 class Semaphore(asyncio.Semaphore):
     def __aenter__(self):
-        _check_cancelled()
+        check_cancelled()
         return super().__aenter__()
 
     @property
@@ -690,11 +690,11 @@ class Semaphore(asyncio.Semaphore):
 
 class Queue(asyncio.Queue):
     def get(self):
-        _check_cancelled()
+        check_cancelled()
         return super().get()
 
     def put(self, item):
-        _check_cancelled()
+        check_cancelled()
         return super().put(item)
 
 
