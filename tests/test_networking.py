@@ -1,5 +1,5 @@
-import os
 import ssl
+import sys
 from pathlib import Path
 
 import pytest
@@ -50,7 +50,7 @@ async def test_connect_tcp_tls():
     assert response == b'halb'
 
 
-@pytest.mark.skipif(os.name == 'nt', reason='UNIX sockets are not available on Windows')
+@pytest.mark.skipif(sys.platform == 'win32', reason='UNIX sockets are not available on Windows')
 @pytest.mark.parametrize('as_path', [False])
 @pytest.mark.anyio
 async def test_connect_unix(tmpdir, as_path):
