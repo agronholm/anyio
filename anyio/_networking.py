@@ -5,6 +5,10 @@ from abc import ABCMeta, abstractmethod
 from ipaddress import ip_address
 from typing import Union, Tuple, Any, Optional, Callable
 
+from anyio import abc
+from anyio.abc import IPAddressType, BufferType
+from anyio.exceptions import DelimiterNotFound
+
 
 class BaseSocket(metaclass=ABCMeta):
     __slots__ = '_raw_socket'
@@ -152,3 +156,105 @@ class BaseSocket(metaclass=ABCMeta):
             except BaseException:
                 self._raw_socket = plain_socket
                 raise
+
+
+class SocketStream(abc.SocketStream):
+    __slots__ = '_socket', '_ssl_context', '_server_hostname'
+
+    def __init__(self, sock: BaseSocket, ssl_context: Optional[ssl.SSLContext] = None,
+                 server_hostname: Optional[str] = None) -> None:
+        self._socket = sock
+        self._ssl_context = ssl_context
+        self._server_hostname = server_hostname
+
+    def close(self):
+        self._socket.close()
+
+    async def receive_some(self, max_bytes: Optional[int]) -> bytes:
+        return await self._socket.recv(max_bytes)
+
+    async def receive_exactly(self, nbytes: int) -> bytes:
+        buf = bytearray(nbytes)
+        view = memoryview(buf)
+        while nbytes > 0:
+            bytes_read = await self._socket.recv_into(view, nbytes)
+            view = view[bytes_read:]
+            nbytes -= bytes_read
+
+        return bytes(buf)
+
+    async def receive_until(self, delimiter: bytes, max_size: int) -> bytes:
+        offset = 0
+        delimiter_size = len(delimiter)
+        buf = b''
+        while len(buf) < max_size:
+            read_size = max_size - len(buf)
+            data = await self._socket.recv(read_size, flags=socket.MSG_PEEK)
+            buf += data
+            index = buf.find(delimiter, offset)
+            if index >= 0:
+                await self._socket.recv(index + 1)
+                return buf[:index]
+            else:
+                await self._socket.recv(len(data))
+                offset += len(data) - delimiter_size + 1
+
+        raise DelimiterNotFound(buf, False)
+
+    async def send_all(self, data: BufferType) -> None:
+        return await self._socket.sendall(data)
+
+    async def start_tls(self, context: Optional[ssl.SSLContext] = None) -> None:
+        ssl_context = context or self._ssl_context or ssl.create_default_context()
+        await self._socket.start_tls(ssl_context, self._server_hostname)
+
+
+class SocketStreamServer(abc.SocketStreamServer):
+    __slots__ = '_socket', '_ssl_context'
+
+    def __init__(self, sock: BaseSocket, ssl_context: Optional[ssl.SSLContext]) -> None:
+        self._socket = sock
+        self._ssl_context = ssl_context
+
+    def close(self) -> None:
+        self._socket.close()
+
+    @property
+    def address(self) -> Union[tuple, str]:
+        return self._socket.getsockname()
+
+    async def accept(self):
+        sock, addr = await self._socket.accept()
+        try:
+            stream = SocketStream(sock)
+            if self._ssl_context:
+                await stream.start_tls(self._ssl_context)
+
+            return stream
+        except BaseException:
+            sock.close()
+            raise
+
+
+class DatagramSocket(abc.DatagramSocket):
+    __slots__ = '_socket'
+
+    def __init__(self, sock: BaseSocket) -> None:
+        self._socket = sock
+
+    def close(self):
+        self._socket.close()
+
+    @property
+    def address(self) -> Union[Tuple[str, int], str]:
+        return self._socket.getsockname()
+
+    async def receive(self, max_bytes: int) -> Tuple[bytes, str]:
+        return await self._socket.recvfrom(max_bytes)
+
+    async def send(self, data: bytes, address: Optional[IPAddressType] = None,
+                   port: Optional[int] = None) -> None:
+        if address is not None and port is not None:
+            await self._socket.sendto(data, (str(address), port))
+        else:
+            await self._socket.send(data)

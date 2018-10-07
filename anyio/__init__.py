@@ -1,3 +1,4 @@
+import os
 import socket
 import ssl
 import sys
@@ -14,6 +15,7 @@ from .utils import NullAsyncContext
 from .abc import (  # noqa: F401
     IPAddressType, BufferType, CancelScope, DatagramSocket, Lock, Condition, Event, Semaphore,
     Queue, TaskGroup, Socket, Stream, SocketStreamServer, SocketStream, AsyncFile)
+from . import _networking
 
 T_Retval = TypeVar('T_Retval', covariant=True)
 _local = threading.local()
@@ -277,8 +279,24 @@ async def connect_tcp(
     if bind_host:
         bind_host = str(bind_host)
 
-    return await _get_asynclib().connect_tcp(str(address), port, tls=tls, bind_host=bind_host,
-                                             bind_port=bind_port)
+    raw_socket = socket.socket()
+    sock = _get_asynclib().Socket(raw_socket)
+    try:
+        if bind_host is not None and bind_port is not None:
+            await sock.bind((bind_host, bind_port))
+
+        await sock.connect((address, port))
+        stream = _networking.SocketStream(sock, server_hostname=address)
+
+        if isinstance(tls, SSLContext):
+            await stream.start_tls(tls)
+        elif tls:
+            await stream.start_tls()
+
+        return stream
+    except BaseException:
+        sock.close()
+        raise
 
 
 async def connect_unix(path: Union[str, Path]) -> SocketStream:
@@ -291,7 +309,14 @@ async def connect_unix(path: Union[str, Path]) -> SocketStream:
     :return: an asynchronous context manager that yields a socket stream
 
     """
-    return await _get_asynclib().connect_unix(str(path))
+    raw_socket = socket.socket(socket.AF_UNIX)
+    sock = _get_asynclib().Socket(raw_socket)
+    try:
+        await sock.connect(path)
+        return _networking.SocketStream(sock)
+    except BaseException:
+        sock.close()
+        raise
 
 
 async def create_tcp_server(
@@ -310,7 +335,15 @@ async def create_tcp_server(
     if interface:
         interface = str(interface)
 
-    return await _get_asynclib().create_tcp_server(port, interface, ssl_context=ssl_context)
+    raw_socket = socket.socket()
+    sock = _get_asynclib().Socket(raw_socket)
+    try:
+        await sock.bind((interface, port))
+        sock.listen()
+        return _networking.SocketStreamServer(sock, ssl_context)
+    except BaseException:
+        sock.close()
+        raise
 
 
 async def create_unix_server(
@@ -325,7 +358,19 @@ async def create_unix_server(
     :return: an asynchronous context manager that yields a server object
 
     """
-    return await _get_asynclib().create_unix_server(str(path), mode=mode)
+    raw_socket = socket.socket(socket.AF_UNIX)
+    sock = _get_asynclib().Socket(raw_socket)
+    try:
+        await sock.bind(path)
+
+        if mode is not None:
+            os.chmod(path, mode)
+
+        sock.listen()
+        return _networking.SocketStreamServer(sock, None)
+    except BaseException:
+        sock.close()
+        raise
 
 
 async def create_udp_socket(
@@ -350,8 +395,19 @@ async def create_udp_socket(
     if target_host:
         target_host = str(target_host)
 
-    return await _get_asynclib().create_udp_socket(
-        bind_host=interface, bind_port=port, target_host=target_host, target_port=target_port)
+    raw_socket = socket.socket(type=socket.SOCK_DGRAM)
+    sock = _get_asynclib().Socket(raw_socket)
+    try:
+        if interface is not None or port is not None:
+            await sock.bind((interface or '', port or 0))
+
+        if target_host is not None and target_port is not None:
+            await sock.connect((target_host, target_port))
+
+        return _networking.DatagramSocket(sock)
+    except BaseException:
+        sock.close()
+        raise
 
 
 #
