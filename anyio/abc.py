@@ -391,9 +391,9 @@ class SocketStreamServer(metaclass=ABCMeta):
     @property
     def port(self) -> int:
         """
-        Return the currently bound port of the underlying (TCP or UDP) socket.
+        Return the currently bound port of the underlying socket.
 
-        Equivalent to ``server.address[1]``
+        Equivalent to ``server.address[1]``.
         """
         return self.address[1]
 
@@ -416,6 +416,20 @@ class DatagramSocket(metaclass=ABCMeta):
     @abstractmethod
     def close(self) -> None:
         """Close the underlying socket."""
+
+    @property
+    @abstractmethod
+    def address(self) -> Tuple[str, int]:
+        """Return the bound address of the underlying socket."""
+
+    @property
+    def port(self) -> int:
+        """
+        Return the currently bound port of the underlying socket.
+
+        Equivalent to ``socket.address[1]``.
+        """
+        return self.address[1]
 
     @abstractmethod
     async def receive(self, max_bytes: int) -> Tuple[bytes, str]:

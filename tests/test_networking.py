@@ -111,3 +111,17 @@ async def test_udp():
         response, addr = await socket.receive(100)
         assert response == b'halb'
         assert addr == ('127.0.0.1', 5000)
+
+
+@pytest.mark.anyio
+async def test_udp_noconnect():
+    async with await create_udp_socket(interface='localhost') as socket:
+        await socket.send(b'blah', 'localhost', socket.port)
+        request, addr = await socket.receive(100)
+        assert request == b'blah'
+        assert addr == ('127.0.0.1', socket.port)
+
+        await socket.send(b'halb', 'localhost', socket.port)
+        response, addr = await socket.receive(100)
+        assert response == b'halb'
+        assert addr == ('127.0.0.1', socket.port)

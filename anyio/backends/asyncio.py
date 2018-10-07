@@ -539,13 +539,17 @@ class AsyncIODatagramSocket(abc.DatagramSocket):
     def close(self):
         self._socket.close()
 
+    @property
+    def address(self) -> Union[Tuple[str, int], str]:
+        return self._socket.getsockname()
+
     async def receive(self, max_bytes: int) -> Tuple[bytes, str]:
         return await self._socket.recvfrom(max_bytes)
 
     async def send(self, data: bytes, address: Optional[IPAddressType] = None,
                    port: Optional[int] = None) -> None:
         if address is not None and port is not None:
-            await self._socket.sendto(data, str(address))
+            await self._socket.sendto(data, (str(address), port))
         else:
             await self._socket.send(data)
 
@@ -643,8 +647,8 @@ async def create_udp_socket(
         target_host: Optional[str] = None, target_port: Optional[int] = None):
     sock = create_socket(type=socket.SOCK_DGRAM)
     try:
-        if bind_port is not None:
-            await sock.bind((bind_host, bind_port))
+        if bind_host is not None or bind_port is not None:
+            await sock.bind((bind_host or '', bind_port or 0))
 
         if target_host is not None and target_port is not None:
             await sock.connect((target_host, target_port))
