@@ -419,24 +419,31 @@ async def aopen(*args, **kwargs):
 #
 
 class AsyncIOSocket(BaseSocket):
-    __slots__ = '_loop', '_fileno'
+    __slots__ = '_loop', '_read_event', '_write_event'
 
     def __init__(self, raw_socket: socket.SocketType) -> None:
         self._loop = get_running_loop()
-        self._fileno = raw_socket.fileno()
+        self._read_event = asyncio.Event(loop=self._loop)
+        self._write_event = asyncio.Event(loop=self._loop)
         super().__init__(raw_socket)
 
     async def _wait_readable(self) -> None:
         check_cancelled()
-        event = asyncio.Event()
-        self._loop.add_reader(self._fileno, event.set)
-        await event.wait()
+        self._loop.add_reader(self._raw_socket, self._read_event.set)
+        try:
+            await self._read_event.wait()
+            self._read_event.clear()
+        finally:
+            self._loop.remove_reader(self._raw_socket)
 
     async def _wait_writable(self) -> None:
         check_cancelled()
-        event = asyncio.Event()
-        self._loop.add_writer(self._fileno, event.set)
-        await event.wait()
+        self._loop.add_writer(self._raw_socket, self._write_event.set)
+        try:
+            await self._write_event.wait()
+            self._write_event.clear()
+        finally:
+            self._loop.remove_writer(self._raw_socket)
 
     async def _check_cancelled(self) -> None:
         check_cancelled()
@@ -552,16 +559,24 @@ def create_socket(family: int = socket.AF_INET, type: int = socket.SOCK_STREAM, 
 
 async def wait_socket_readable(sock: socket.SocketType) -> None:
     check_cancelled()
-    event = asyncio.Event()
-    get_running_loop().add_reader(sock.fileno(), event.set)
-    await event.wait()
+    loop = get_running_loop()
+    event = asyncio.Event(loop=loop)
+    loop.add_reader(sock, event.set)
+    try:
+        await event.wait()
+    finally:
+        loop.remove_reader(sock)
 
 
 async def wait_socket_writable(sock: socket.SocketType) -> None:
     check_cancelled()
-    event = asyncio.Event()
-    get_running_loop().add_writer(sock.fileno(), event.set)
-    await event.wait()
+    loop = get_running_loop()
+    event = asyncio.Event(loop=loop)
+    loop.add_writer(sock.fileno(), event.set)
+    try:
+        await event.wait()
+    finally:
+        loop.remove_writer(sock)
 
 
 async def connect_tcp(
