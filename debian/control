@@ -2,7 +2,8 @@ Source: anyio
 Maintainer: Matthias Urlichs <matthias@urlichs.de>
 Section: python
 Priority: optional
-Build-Depends: dh-python, python3-setuptools, python3-all, debhelper (>= 9)
+Build-Depends: dh-python, python3-setuptools, python3-all, debhelper (>= 9),
+  python3-setuptools-scm (>> 3)
 Standards-Version: 3.9.6
 
 Package: python3-anyio
