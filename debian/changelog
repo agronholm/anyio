@@ -1,3 +1,10 @@
+anyio (0.0.post46-3) unstable; urgency=medium
+
+  * Missing dependency
+  * re-word description
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Tue, 09 Oct 2018 07:25:20 +0200
+
 anyio (0.0.post46-2) unstable; urgency=medium
 
   * Ignore .eggs dir
