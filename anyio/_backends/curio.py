@@ -220,7 +220,10 @@ async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
 
     await check_cancelled()
     thread = await curio.spawn_thread(wrapper)
-    return await thread.join()
+    try:
+        return await thread.join()
+    except curio.TaskError as exc:
+        raise exc.__cause__ from None
 
 
 def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:

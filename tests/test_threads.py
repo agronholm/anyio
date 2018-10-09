@@ -36,3 +36,14 @@ async def test_run_in_thread_cancelled():
         await tg.cancel_scope.cancel()
 
     assert state == 1
+
+
+@pytest.mark.anyio
+async def test_run_in_thread_exception():
+    def thread_worker():
+        raise ValueError('foo')
+
+    with pytest.raises(ValueError) as exc:
+        await run_in_thread(thread_worker)
+
+    exc.match('^foo$')
