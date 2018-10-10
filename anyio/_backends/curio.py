@@ -319,7 +319,6 @@ class Queue(curio.Queue):
 
 
 abc.TaskGroup.register(CurioTaskGroup)
-abc.Socket.register(curio.socket.SocketType)
 abc.Lock.register(Lock)
 abc.Condition.register(Condition)
 abc.Event.register(Event)

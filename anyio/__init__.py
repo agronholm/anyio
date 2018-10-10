@@ -13,7 +13,7 @@ from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any
 
 from .abc import (  # noqa: F401
     IPAddressType, BufferType, CancelScope, DatagramSocket, Lock, Condition, Event, Semaphore,
-    Queue, TaskGroup, Socket, Stream, SocketStreamServer, SocketStream, AsyncFile)
+    Queue, TaskGroup, Stream, SocketStreamServer, SocketStream, AsyncFile)
 from . import _networking
 
 T_Retval = TypeVar('T_Retval', covariant=True)
