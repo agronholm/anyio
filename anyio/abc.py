@@ -246,6 +246,8 @@ class Stream(metaclass=ABCMeta):
         :param max_bytes: maximum number of bytes that will be read before raising
             :exc:`~anyio.exceptions.DelimiterNotFound`
         :return: the bytes read, including the delimiter
+        :raises anyio.exceptions.IncompleteRead: if the stream was closed before the delimiter
+            was found
         :raises anyio.exceptions.DelimiterNotFound: if the delimiter is not found within the
             bytes read up to the maximum allowed
         """

@@ -28,18 +28,31 @@ class ExceptionGroup(Exception):
 
 
 class CancelledError(Exception):
-    pass
+    """Raised when the enclosing cancel scope has been cancelled."""
 
 
 class IncompleteRead(Exception):
-    def __init__(self, data: bytes, expected_bytes: int) -> None:
-        super().__init__('Incomplete read ({} out of {} bytes read before the stream was closed)'
-                         .format(len(data), expected_bytes))
+    """"
+    Raised during ``read_exactly()`` if the connection is closed before the requested amount of
+    bytes has been read.
+
+    :ivar bytes data: bytes read before the stream was closed
+    """
+
+    def __init__(self, data: bytes) -> None:
+        super().__init__('The stream was closed before the read operation could be completed')
         self.data = data
 
 
 class DelimiterNotFound(Exception):
-    def __init__(self, data: bytes, stream_closed: bool) -> None:
-        reason = 'the stream was closed' if stream_closed else 'max_bytes was reached'
-        super().__init__('Delimiter not found ({} bytes read before {}'.format(len(data), reason))
+    """
+    Raised during ``read_until()`` if the maximum number of bytes has been read without the
+    delimiter being found.
+
+    :ivar bytes data: bytes read before giving up
+    """
+
+    def __init__(self, data: bytes) -> None:
+        super().__init__(
+            'The delimiter was not found among the first {} bytes read'.format(len(data)))
         self.data = data

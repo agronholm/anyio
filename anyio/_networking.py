@@ -7,7 +7,7 @@ from typing import Union, Tuple, Any, Optional, Callable
 
 from anyio import abc
 from anyio.abc import IPAddressType, BufferType
-from anyio.exceptions import DelimiterNotFound
+from anyio.exceptions import DelimiterNotFound, IncompleteRead
 
 
 class BaseSocket(metaclass=ABCMeta):
@@ -178,6 +178,10 @@ class SocketStream(abc.SocketStream):
         view = memoryview(buf)
         while nbytes > 0:
             bytes_read = await self._socket.recv_into(view, nbytes)
+            if bytes_read == 0:
+                total_bytes_read = len(buf) - nbytes
+                raise IncompleteRead(buf[:total_bytes_read])
+
             view = view[bytes_read:]
             nbytes -= bytes_read
 
@@ -190,6 +194,9 @@ class SocketStream(abc.SocketStream):
         while len(buf) < max_size:
             read_size = max_size - len(buf)
             data = await self._socket.recv(read_size, flags=socket.MSG_PEEK)
+            if data == b'':
+                raise IncompleteRead(buf)
+
             buf += data
             index = buf.find(delimiter, offset)
             if index >= 0:
@@ -199,7 +206,7 @@ class SocketStream(abc.SocketStream):
                 await self._socket.recv(len(data))
                 offset += len(data) - delimiter_size + 1
 
-        raise DelimiterNotFound(buf, False)
+        raise DelimiterNotFound(buf)
 
     async def send_all(self, data: BufferType) -> None:
         return await self._socket.sendall(data)

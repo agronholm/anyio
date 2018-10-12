@@ -7,6 +7,7 @@ import pytest
 from anyio import (
     create_task_group, connect_tcp, create_udp_socket, connect_unix, create_unix_server,
     create_tcp_server)
+from anyio.exceptions import IncompleteRead, DelimiterNotFound
 
 
 @pytest.mark.anyio
@@ -96,6 +97,43 @@ async def test_read_partial(method_name, params):
                 response = await client.receive_some(100)
 
     assert response == b'blahbleh'
+
+
+@pytest.mark.parametrize('method_name, params', [
+    ('receive_until', [b'\n', 100]),
+    ('receive_exactly', [5])
+], ids=['read_until', 'read_exactly'])
+@pytest.mark.anyio
+async def test_incomplete_read(method_name, params):
+    async def server():
+        async with await stream_server.accept() as stream:
+            await stream.send_all(b'bla')
+
+    async with create_task_group() as tg:
+        async with await create_tcp_server(interface='localhost') as stream_server:
+            await tg.spawn(server)
+            async with await connect_tcp('localhost', stream_server.port) as client:
+                method = getattr(client, method_name)
+                with pytest.raises(IncompleteRead) as exc:
+                    await method(*params)
+
+                assert exc.value.data == b'bla'
+
+
+@pytest.mark.anyio
+async def test_delimiter_not_found():
+    async def server():
+        async with await stream_server.accept() as stream:
+            await stream.send_all(b'blah\n')
+
+    async with create_task_group() as tg:
+        async with await create_tcp_server(interface='localhost') as stream_server:
+            await tg.spawn(server)
+            async with await connect_tcp('localhost', stream_server.port) as client:
+                with pytest.raises(DelimiterNotFound) as exc:
+                    await client.receive_until(b'\n', 3)
+
+                assert exc.value.data == b'bla'
 
 
 @pytest.mark.anyio
