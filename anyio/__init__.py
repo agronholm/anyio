@@ -345,7 +345,7 @@ async def create_tcp_server(
     raw_socket = socket.socket()
     sock = _get_asynclib().Socket(raw_socket)
     try:
-        await sock.bind((interface, port))
+        await sock.bind((interface or '', port))
         sock.listen()
         return _networking.SocketStreamServer(sock, ssl_context)
     except BaseException:
