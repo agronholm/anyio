@@ -1,0 +1,18 @@
+anyio (0.0.post46-3) unstable; urgency=medium
+
+  * Missing dependency
+  * re-word description
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Tue, 09 Oct 2018 07:25:20 +0200
+
+anyio (0.0.post46-2) unstable; urgency=medium
+
+  * Ignore .eggs dir
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Tue, 09 Oct 2018 07:21:24 +0200
+
+anyio (0.0.post46-1) unstable; urgency=low
+
+  * source package automatically created by stdeb 0.8.5
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Tue, 09 Oct 2018 07:19:35 +0200

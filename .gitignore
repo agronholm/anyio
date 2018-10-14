@@ -1,3 +1,4 @@
+.eggs
 *.egg-info
 *.dist-info
 *.pyc
@@ -9,3 +10,4 @@ __pycache__
 .pytest_cache/
 .tox
 .idea
+/.pybuild
