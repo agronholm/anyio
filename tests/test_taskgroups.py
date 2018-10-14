@@ -68,6 +68,18 @@ async def test_spawn_while_running():
 
 
 @pytest.mark.anyio
+async def test_spawn_after_error():
+    with pytest.raises(ZeroDivisionError):
+        async with create_task_group() as tg:
+            a = 1 / 0
+
+    with pytest.raises(RuntimeError) as exc:
+        await tg.spawn(sleep, 0)
+
+    exc.match('This task group is not active; no new tasks can be spawned')
+
+
+@pytest.mark.anyio
 async def test_host_exception():
     async def set_result(value):
         nonlocal result

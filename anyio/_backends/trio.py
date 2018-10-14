@@ -83,14 +83,16 @@ class TaskGroup:
 @asynccontextmanager
 @async_generator
 async def create_task_group():
+    tg = None
     try:
         async with trio.open_nursery() as nursery:
             tg = TaskGroup(nursery)
             await yield_(tg)
     except trio.MultiError as exc:
         raise ExceptionGroup(exc.exceptions) from None
-
-    tg._active = False
+    finally:
+        if tg is not None:
+            tg._active = False
 
 
 #
