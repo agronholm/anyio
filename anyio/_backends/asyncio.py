@@ -290,18 +290,20 @@ async def create_task_group():
     async with open_cancel_scope() as cancel_scope:
         group = AsyncIOTaskGroup(cancel_scope, current_task())
         try:
-            await yield_(group)
-        except CancelledError:
-            await cancel_scope.cancel()
-        except BaseException as exc:
-            group._exceptions.append(exc)
-            await cancel_scope.cancel()
+            try:
+                await yield_(group)
+            except CancelledError:
+                await cancel_scope.cancel()
+            except BaseException as exc:
+                group._exceptions.append(exc)
+                await cancel_scope.cancel()
 
-        while group._tasks:
-            with suppress(asyncio.CancelledError):
-                await asyncio.wait(group._tasks)
+            while group._tasks:
+                with suppress(asyncio.CancelledError):
+                    await asyncio.wait(group._tasks)
+        finally:
+            group._active = False
 
-        group._active = False
         if len(group._exceptions) > 1:
             raise ExceptionGroup(group._exceptions)
         elif group._exceptions:

@@ -189,19 +189,21 @@ async def create_task_group():
         current_task = await curio.current_task()
         group = CurioTaskGroup(cancel_scope, current_task)
         try:
-            with translate_exceptions():
-                await yield_(group)
-        except CancelledError:
-            await cancel_scope.cancel()
-        except BaseException as exc:
-            group._exceptions.append(exc)
-            await cancel_scope.cancel()
+            try:
+                with translate_exceptions():
+                    await yield_(group)
+            except CancelledError:
+                await cancel_scope.cancel()
+            except BaseException as exc:
+                group._exceptions.append(exc)
+                await cancel_scope.cancel()
 
-        while group._tasks:
-            for task in set(group._tasks):
-                await task.wait()
+            while group._tasks:
+                for task in set(group._tasks):
+                    await task.wait()
+        finally:
+            group._active = False
 
-        group._active = False
         if len(group._exceptions) > 1:
             raise ExceptionGroup(group._exceptions)
         elif group._exceptions:
