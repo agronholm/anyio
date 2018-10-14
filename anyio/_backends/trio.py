@@ -89,8 +89,8 @@ async def create_task_group():
             await yield_(tg)
     except trio.MultiError as exc:
         raise ExceptionGroup(exc.exceptions) from None
-
-    tg._active = False
+    finally:
+        tg._active = False
 
 
 #
