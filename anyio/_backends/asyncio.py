@@ -15,7 +15,7 @@ from .. import abc, claim_current_thread, _local, T_Retval
 from ..exceptions import ExceptionGroup, CancelledError
 
 try:
-    from asyncio import run as native_run, create_task, get_running_loop, current_task
+    from asyncio import run as native_run, create_task, get_running_loop, current_task, all_tasks
 except ImportError:
     # Snatched from the standard library
     def native_run(main, *, debug=False):
@@ -98,6 +98,7 @@ except ImportError:
             raise RuntimeError('no running event loop')
 
     current_task = asyncio.Task.current_task
+    all_tasks = asyncio.Task.all_tasks
 
 _create_task_supports_name = 'name' in inspect.signature(create_task).parameters
 
@@ -563,3 +564,18 @@ async def receive_signals(*signals: int):
     finally:
         for sig in handled_signals:
             loop.remove_signal_handler(sig)
+
+
+#
+# Testing and debugging
+#
+
+async def wait_all_tasks_blocked():
+    this_task = current_task()
+    while True:
+        for task in all_tasks():
+            if task._coro.cr_await is None and task is not this_task:
+                await sleep(0)
+                break
+        else:
+            return

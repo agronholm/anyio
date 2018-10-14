@@ -1,8 +1,8 @@
 import pytest
 
 from anyio import (
-    create_lock, create_task_group, sleep, create_queue, create_event, create_semaphore,
-    create_condition, open_cancel_scope)
+    create_lock, create_task_group, create_queue, create_event, create_semaphore, create_condition,
+    open_cancel_scope, wait_all_tasks_blocked)
 
 
 class TestLock:
@@ -18,7 +18,7 @@ class TestLock:
         async with create_task_group() as tg:
             async with lock:
                 await tg.spawn(task)
-                await sleep(0.1)
+                await wait_all_tasks_blocked()
                 results.append('1')
 
         assert not lock.locked()
@@ -142,9 +142,7 @@ class TestSemaphore:
         async with create_task_group() as tg:
             async with semaphore:
                 await tg.spawn(task)
-                while local_scope is None:
-                    await sleep(0)
-
+                await wait_all_tasks_blocked()
                 await local_scope.cancel()
 
         assert not acquired
@@ -172,9 +170,7 @@ class TestQueue:
         queue = create_queue(1)
         async with create_task_group() as tg:
             await tg.spawn(task)
-            while local_scope is None:
-                await sleep(0)
-
+            await wait_all_tasks_blocked()
             await local_scope.cancel()
             await queue.put(None)
 
@@ -192,9 +188,7 @@ class TestQueue:
         await queue.put(None)
         async with create_task_group() as tg:
             await tg.spawn(task)
-            while local_scope is None:
-                await sleep(0)
-
+            await wait_all_tasks_blocked()
             await local_scope.cancel()
             await queue.get()
 

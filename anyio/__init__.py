@@ -490,3 +490,12 @@ def receive_signals(*signals: int) -> 'typing.ContextManager[typing.AsyncIterato
 
     """
     return _get_asynclib().receive_signals(*signals)
+
+
+#
+# Testing and debugging
+#
+
+async def wait_all_tasks_blocked() -> None:
+    """Wait until all other tasks are waiting for something."""
+    await _get_asynclib().wait_all_tasks_blocked()

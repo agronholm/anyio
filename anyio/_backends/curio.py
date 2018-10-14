@@ -318,6 +318,24 @@ class Queue(curio.Queue):
         return await super().put(item)
 
 
+#
+# Testing and debugging
+#
+
+async def wait_all_tasks_blocked():
+    import gc
+
+    this_task = await curio.current_task()
+    while True:
+        for obj in gc.get_objects():
+            if isinstance(obj, curio.Task) and obj.coro.cr_await is None:
+                if not obj.terminated and obj is not this_task:
+                    await curio.sleep(0)
+                    break
+        else:
+            return
+
+
 abc.TaskGroup.register(CurioTaskGroup)
 abc.Lock.register(Lock)
 abc.Condition.register(Condition)

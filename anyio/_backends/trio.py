@@ -196,6 +196,15 @@ class Queue:
         return await self._receive_channel.receive()
 
 
+#
+# Testing and debugging
+#
+
+def wait_all_tasks_blocked():
+    import trio.testing
+    return trio.testing.wait_all_tasks_blocked()
+
+
 run = trio.run
 sleep = trio.sleep
 
