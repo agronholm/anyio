@@ -171,12 +171,34 @@ class Condition(trio.Condition):
         super().notify_all()
 
 
+class Queue:
+    __slots__ = '_send_channel', '_receive_channel'
+
+    def __init__(self, max_items: int) -> None:
+        self._send_channel, self._receive_channel = trio.open_memory_channel(max_items)
+
+    def empty(self):
+        return self._receive_channel.statistics().current_buffer_used == 0
+
+    def full(self):
+        statistics = self._receive_channel.statistics()
+        return statistics.current_buffer_used >= statistics.max_buffer_size
+
+    def qsize(self) -> int:
+        return self._receive_channel.statistics().current_buffer_used
+
+    async def put(self, item) -> None:
+        await self._send_channel.send(item)
+
+    async def get(self):
+        return await self._receive_channel.receive()
+
+
 run = trio.run
 sleep = trio.sleep
 
 Lock = trio.Lock
 Semaphore = trio.Semaphore
-Queue = trio.Queue
 
 abc.TaskGroup.register(TaskGroup)
 abc.Lock.register(Lock)
