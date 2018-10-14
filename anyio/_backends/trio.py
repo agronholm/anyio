@@ -87,9 +87,10 @@ async def create_task_group():
         async with trio.open_nursery() as nursery:
             tg = TaskGroup(nursery)
             await yield_(tg)
-            tg._active = False
     except trio.MultiError as exc:
         raise ExceptionGroup(exc.exceptions) from None
+
+    tg._active = False
 
 
 #

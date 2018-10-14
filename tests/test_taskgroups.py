@@ -59,6 +59,15 @@ def test_run_natively(run_func, as_coro_obj):
 
 
 @pytest.mark.anyio
+async def test_spawn_while_running():
+    async def task_func():
+        await tg.spawn(sleep, 0)
+
+    async with create_task_group() as tg:
+        await tg.spawn(task_func)
+
+
+@pytest.mark.anyio
 async def test_host_exception():
     async def set_result(value):
         nonlocal result
