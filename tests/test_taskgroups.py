@@ -71,7 +71,7 @@ async def test_spawn_while_running():
 async def test_spawn_after_error():
     with pytest.raises(ZeroDivisionError):
         async with create_task_group() as tg:
-            a = 1 / 0
+            a = 1 / 0  # noqa: F841
 
     with pytest.raises(RuntimeError) as exc:
         await tg.spawn(sleep, 0)
