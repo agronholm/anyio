@@ -11,7 +11,7 @@ from async_generator import async_generator, asynccontextmanager, yield_
 
 from .._networking import BaseSocket
 from .. import abc, T_Retval, claim_current_thread, _local
-from ..exceptions import ExceptionGroup, CancelledError
+from ..exceptions import ExceptionGroup, CancelledError, ClosedResourceError
 
 
 def run(func: Callable[..., T_Retval], *args) -> T_Retval:
@@ -244,11 +244,43 @@ async def aopen(*args, **kwargs):
 #
 
 class Socket(BaseSocket):
-    def _wait_readable(self) -> None:
-        return wait_socket_readable(self._raw_socket)
+    _reader_tasks = {}
+    _writer_tasks = {}
 
-    def _wait_writable(self) -> None:
-        return wait_socket_writable(self._raw_socket)
+    async def _wait_readable(self):
+        task = await curio.current_task()
+        self._reader_tasks[self._raw_socket] = task
+        try:
+            await curio.traps._read_wait(self._raw_socket)
+        except curio.TaskCancelled:
+            if self._raw_socket.fileno() == -1:
+                raise ClosedResourceError from None
+            else:
+                raise
+        finally:
+            del self._reader_tasks[self._raw_socket]
+
+    async def _wait_writable(self):
+        task = await curio.current_task()
+        self._writer_tasks[self._raw_socket] = task
+        try:
+            await curio.traps._write_wait(self._raw_socket)
+        except curio.TaskCancelled:
+            if self._raw_socket.fileno() == -1:
+                raise ClosedResourceError from None
+            else:
+                raise
+        finally:
+            del self._writer_tasks[self._raw_socket]
+
+    async def _notify_close(self) -> None:
+        task = Socket._reader_tasks.get(self._raw_socket)
+        if task:
+            await task.cancel(blocking=False)
+
+        task = Socket._writer_tasks.get(self._raw_socket)
+        if task:
+            await task.cancel(blocking=False)
 
     def _check_cancelled(self) -> Awaitable[None]:
         return check_cancelled()

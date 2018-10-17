@@ -252,6 +252,7 @@ def wait_socket_readable(sock: Union[socket.SocketType, ssl.SSLSocket]) -> Await
     Wait until the given socket has data to be read.
 
     :param sock: a socket object
+    :raises anyio.exceptions.ClosedResourceError: if the socket is closed while waiting
 
     """
     return _get_asynclib().wait_socket_readable(sock)
@@ -262,6 +263,7 @@ def wait_socket_writable(sock: Union[socket.SocketType, ssl.SSLSocket]) -> Await
     Wait until the given socket can be written to.
 
     :param sock: a socket object
+    :raises anyio.exceptions.ClosedResourceError: if the socket is closed while waiting
 
     """
     return _get_asynclib().wait_socket_writable(sock)
@@ -302,7 +304,7 @@ async def connect_tcp(
 
         return stream
     except BaseException:
-        sock.close()
+        await sock.close()
         raise
 
 
@@ -322,7 +324,7 @@ async def connect_unix(path: Union[str, Path]) -> SocketStream:
         await sock.connect(path)
         return _networking.SocketStream(sock)
     except BaseException:
-        sock.close()
+        await sock.close()
         raise
 
 
@@ -349,7 +351,7 @@ async def create_tcp_server(
         sock.listen()
         return _networking.SocketStreamServer(sock, ssl_context)
     except BaseException:
-        sock.close()
+        await sock.close()
         raise
 
 
@@ -376,7 +378,7 @@ async def create_unix_server(
         sock.listen()
         return _networking.SocketStreamServer(sock, None)
     except BaseException:
-        sock.close()
+        await sock.close()
         raise
 
 
@@ -413,7 +415,7 @@ async def create_udp_socket(
 
         return _networking.DatagramSocket(sock)
     except BaseException:
-        sock.close()
+        await sock.close()
         raise
 
 

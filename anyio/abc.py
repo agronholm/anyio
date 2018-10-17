@@ -266,10 +266,10 @@ class SocketStream(Stream):
         return self
 
     async def __aexit__(self, *exc_info):
-        self.close()
+        await self.close()
 
     @abstractmethod
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close the underlying socket."""
 
     @abstractmethod
@@ -282,10 +282,10 @@ class SocketStreamServer(metaclass=ABCMeta):
         return self
 
     async def __aexit__(self, *exc_info):
-        self.close()
+        await self.close()
 
     @abstractmethod
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close the underlying socket."""
 
     @property
@@ -316,10 +316,10 @@ class DatagramSocket(metaclass=ABCMeta):
         return self
 
     async def __aexit__(self, *exc_info):
-        self.close()
+        await self.close()
 
     @abstractmethod
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close the underlying socket."""
 
     @property

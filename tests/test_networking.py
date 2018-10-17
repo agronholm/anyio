@@ -7,7 +7,7 @@ import pytest
 from anyio import (
     create_task_group, connect_tcp, create_udp_socket, connect_unix, create_unix_server,
     create_tcp_server)
-from anyio.exceptions import IncompleteRead, DelimiterNotFound
+from anyio.exceptions import IncompleteRead, DelimiterNotFound, ClosedResourceError
 
 
 @pytest.mark.anyio
@@ -163,3 +163,12 @@ async def test_udp_noconnect():
         response, addr = await socket.receive(100)
         assert response == b'halb'
         assert addr == ('127.0.0.1', socket.port)
+
+
+@pytest.mark.anyio
+async def test_udp_close_socket_from_other_task():
+    async with create_task_group() as tg:
+        async with await create_udp_socket(interface='127.0.0.1') as udp:
+            await tg.spawn(udp.close)
+            with pytest.raises(ClosedResourceError):
+                await udp.receive(100)

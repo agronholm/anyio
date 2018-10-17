@@ -56,3 +56,7 @@ class DelimiterNotFound(Exception):
         super().__init__(
             'The delimiter was not found among the first {} bytes read'.format(len(data)))
         self.data = data
+
+
+class ClosedResourceError(Exception):
+    """Raised when a resource is closed by another task."""

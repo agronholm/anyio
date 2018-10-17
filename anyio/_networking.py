@@ -29,6 +29,10 @@ class BaseSocket(metaclass=ABCMeta):
         pass
 
     @abstractmethod
+    async def _notify_close(self) -> None:
+        pass
+
+    @abstractmethod
     async def _check_cancelled(self) -> None:
         pass
 
@@ -60,6 +64,10 @@ class BaseSocket(metaclass=ABCMeta):
 
         # In all other cases, do this in a worker thread to avoid blocking the event loop thread
         await self._run_in_thread(self._raw_socket.bind, address)
+
+    async def close(self):
+        await self._notify_close()
+        self._raw_socket.close()
 
     async def connect(self, address: Union[tuple, str, bytes]) -> None:
         await self._check_cancelled()
@@ -167,8 +175,8 @@ class SocketStream(abc.SocketStream):
         self._ssl_context = ssl_context
         self._server_hostname = server_hostname
 
-    def close(self):
-        self._socket.close()
+    async def close(self):
+        await self._socket.close()
 
     async def receive_some(self, max_bytes: Optional[int]) -> bytes:
         return await self._socket.recv(max_bytes)
@@ -223,8 +231,8 @@ class SocketStreamServer(abc.SocketStreamServer):
         self._socket = sock
         self._ssl_context = ssl_context
 
-    def close(self) -> None:
-        self._socket.close()
+    async def close(self) -> None:
+        await self._socket.close()
 
     @property
     def address(self) -> Union[tuple, str]:
@@ -239,7 +247,7 @@ class SocketStreamServer(abc.SocketStreamServer):
 
             return stream
         except BaseException:
-            sock.close()
+            await sock.close()
             raise
 
 
@@ -249,8 +257,8 @@ class DatagramSocket(abc.DatagramSocket):
     def __init__(self, sock: BaseSocket) -> None:
         self._socket = sock
 
-    def close(self):
-        self._socket.close()
+    async def close(self):
+        await self._socket.close()
 
     @property
     def address(self) -> Union[Tuple[str, int], str]:

@@ -12,7 +12,7 @@ from async_generator import async_generator, yield_, asynccontextmanager
 
 from .._networking import BaseSocket
 from .. import abc, claim_current_thread, _local, T_Retval
-from ..exceptions import ExceptionGroup, CancelledError
+from ..exceptions import ExceptionGroup, CancelledError, ClosedResourceError
 
 try:
     from asyncio import run as native_run, create_task, get_running_loop, current_task, all_tasks
@@ -417,6 +417,7 @@ async def aopen(*args, **kwargs):
 # Networking
 #
 
+
 class Socket(BaseSocket):
     __slots__ = '_loop', '_read_event', '_write_event'
 
@@ -435,6 +436,9 @@ class Socket(BaseSocket):
         finally:
             self._loop.remove_reader(self._raw_socket)
 
+        if self._raw_socket.fileno() == -1:
+            raise ClosedResourceError
+
     async def _wait_writable(self) -> None:
         check_cancelled()
         self._loop.add_writer(self._raw_socket, self._write_event.set)
@@ -443,6 +447,13 @@ class Socket(BaseSocket):
             self._write_event.clear()
         finally:
             self._loop.remove_writer(self._raw_socket)
+
+        if self._raw_socket.fileno() == -1:
+            raise ClosedResourceError
+
+    async def _notify_close(self) -> None:
+        self._read_event.set()
+        self._write_event.set()
 
     async def _check_cancelled(self) -> None:
         check_cancelled()

@@ -7,7 +7,7 @@ from async_generator import async_generator, yield_, asynccontextmanager
 
 from .._networking import BaseSocket
 from .. import abc, claim_current_thread, T_Retval, _local
-from ..exceptions import ExceptionGroup
+from ..exceptions import ExceptionGroup, ClosedResourceError
 
 
 class DummyAwaitable:
@@ -131,8 +131,11 @@ class Socket(BaseSocket):
     def _wait_readable(self):
         return wait_socket_readable(self._raw_socket)
 
-    def _wait_writable(self) -> None:
+    def _wait_writable(self):
         return wait_socket_writable(self._raw_socket)
+
+    async def _notify_close(self):
+        trio.hazmat.notify_socket_close(self._raw_socket)
 
     def _check_cancelled(self) -> None:
         return trio.hazmat.checkpoint_if_cancelled()
@@ -141,8 +144,18 @@ class Socket(BaseSocket):
         return run_in_thread(func, *args)
 
 
-wait_socket_readable = trio.hazmat.wait_socket_readable
-wait_socket_writable = trio.hazmat.wait_socket_writable
+async def wait_socket_readable(sock):
+    try:
+        await trio.hazmat.wait_socket_readable(sock)
+    except trio.ClosedResourceError as exc:
+        raise ClosedResourceError().with_traceback(exc.__traceback__) from None
+
+
+async def wait_socket_writable(sock):
+    try:
+        await trio.hazmat.wait_socket_writable(sock)
+    except trio.ClosedResourceError as exc:
+        raise ClosedResourceError().with_traceback(exc.__traceback__) from None
 
 
 #
