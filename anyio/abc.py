@@ -2,7 +2,7 @@ from abc import ABCMeta, abstractmethod
 from io import SEEK_SET
 from ipaddress import IPv4Address, IPv6Address
 from ssl import SSLContext
-from typing import Callable, TypeVar, Optional, Tuple, Union
+from typing import Callable, TypeVar, Optional, Tuple, Union, AsyncIterable
 
 T_Retval = TypeVar('T_Retval')
 IPAddressType = Union[str, IPv4Address, IPv6Address]
@@ -253,6 +253,35 @@ class Stream(metaclass=ABCMeta):
         """
 
     @abstractmethod
+    def receive_chunks(self, max_size: int) -> AsyncIterable[bytes]:
+        """
+        Return an async iterable which yields chunks of bytes as soon as they are received.
+
+        The generator will yield new chunks until the stream is closed.
+
+        :param max_size: maximum number of bytes to return in one iteration
+        :return: an async iterable yielding bytes
+        """
+
+    @abstractmethod
+    def receive_delimited_chunks(self, delimiter: bytes,
+                                 max_chunk_size: int) -> AsyncIterable[bytes]:
+        """
+        Return an async iterable which yields chunks of bytes as soon as they are received.
+
+        The generator will yield new chunks until the stream is closed.
+
+        :param delimiter: the marker to look for in the stream
+        :param max_chunk_size: maximum number of bytes that will be read for each chunk before
+            raising :exc:`~anyio.exceptions.DelimiterNotFound`
+        :return: an async iterable yielding bytes
+        :raises anyio.exceptions.IncompleteRead: if the stream was closed before the delimiter
+            was found
+        :raises anyio.exceptions.DelimiterNotFound: if the delimiter is not found within the
+            bytes read up to the maximum allowed
+        """
+
+    @abstractmethod
     async def send_all(self, data: BufferType) -> None:
         """
         Send all of the given data to the other end.
@@ -310,6 +339,14 @@ class SocketStreamServer(metaclass=ABCMeta):
         :return: the socket stream for the accepted connection
         """
 
+    @abstractmethod
+    def accept_connections(self) -> AsyncIterable[SocketStream]:
+        """
+        Return an async iterable yielding streams from accepted incoming connections.
+
+        :return: an async context manager
+        """
+
 
 class DatagramSocket(metaclass=ABCMeta):
     async def __aenter__(self):
@@ -339,6 +376,16 @@ class DatagramSocket(metaclass=ABCMeta):
     @abstractmethod
     async def receive(self, max_bytes: int) -> Tuple[bytes, str]:
         pass
+
+    @abstractmethod
+    def receive_packets(self, max_size: int) -> AsyncIterable[Tuple[bytes, str]]:
+        """
+        Return an async iterable which yields packets read from the socket.
+
+        The iterable exits if the socket is closed.
+
+        :return: an async iterable yielding (bytes, source address) tuples
+        """
 
     @abstractmethod
     async def send(self, data: BufferType, address: Optional[str] = None,

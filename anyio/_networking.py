@@ -3,7 +3,9 @@ import socket
 import ssl
 from abc import ABCMeta, abstractmethod
 from ipaddress import ip_address
-from typing import Union, Tuple, Any, Optional, Callable
+from typing import Union, Tuple, Any, Optional, Callable, AsyncIterable
+
+from async_generator import async_generator, yield_
 
 from anyio import abc
 from anyio.abc import IPAddressType, BufferType
@@ -208,13 +210,36 @@ class SocketStream(abc.SocketStream):
             buf += data
             index = buf.find(delimiter, offset)
             if index >= 0:
-                await self._socket.recv(index + 1)
+                await self._socket.recv(index + len(delimiter))
                 return buf[:index]
             else:
                 await self._socket.recv(len(data))
                 offset += len(data) - delimiter_size + 1
 
         raise DelimiterNotFound(buf)
+
+    @async_generator
+    async def receive_chunks(self, max_size: int) -> AsyncIterable[bytes]:
+        while True:
+            data = await self.receive_some(max_size)
+            if data:
+                await yield_(data)
+            else:
+                break
+
+    @async_generator
+    async def receive_delimited_chunks(self, delimiter: bytes,
+                                       max_chunk_size: int) -> AsyncIterable[bytes]:
+        while True:
+            try:
+                chunk = await self.receive_until(delimiter, max_chunk_size)
+            except IncompleteRead as exc:
+                if exc.data:
+                    raise
+                else:
+                    return
+
+            await yield_(chunk)
 
     async def send_all(self, data: BufferType) -> None:
         return await self._socket.sendall(data)
@@ -250,6 +275,11 @@ class SocketStreamServer(abc.SocketStreamServer):
             await sock.close()
             raise
 
+    @async_generator
+    async def accept_connections(self):
+        while not self._socket.closed:
+            await yield_(await self.accept())
+
 
 class DatagramSocket(abc.DatagramSocket):
     __slots__ = '_socket'
@@ -266,6 +296,15 @@ class DatagramSocket(abc.DatagramSocket):
 
     async def receive(self, max_bytes: int) -> Tuple[bytes, str]:
         return await self._socket.recvfrom(max_bytes)
+
+    @async_generator
+    async def receive_packets(self, max_size: int):
+        while self._socket.fileno() != -1:
+            packet, address = await self.receive(max_size)
+            if packet:
+                await yield_((packet, address))
+            else:
+                break
 
     async def send(self, data: bytes, address: Optional[IPAddressType] = None,
                    port: Optional[int] = None) -> None:

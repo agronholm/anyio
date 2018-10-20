@@ -137,6 +137,41 @@ async def test_delimiter_not_found():
 
 
 @pytest.mark.anyio
+async def test_receive_chunks():
+    async def server():
+        async with await stream_server.accept() as stream:
+            async for chunk in stream.receive_chunks(2):
+                chunks.append(chunk)
+
+    chunks = []
+    async with await create_tcp_server(interface='localhost') as stream_server:
+        async with create_task_group() as tg:
+            await tg.spawn(server)
+            async with await connect_tcp('localhost', stream_server.port) as client:
+                await client.send_all(b'blah')
+
+    assert chunks == [b'bl', b'ah']
+
+
+@pytest.mark.anyio
+async def test_receive_delimited_chunks():
+    async def server():
+        async with await stream_server.accept() as stream:
+            async for chunk in stream.receive_delimited_chunks(b'\r\n', 8):
+                chunks.append(chunk)
+
+    chunks = []
+    async with await create_tcp_server(interface='localhost') as stream_server:
+        async with create_task_group() as tg:
+            await tg.spawn(server)
+            async with await connect_tcp('localhost', stream_server.port) as client:
+                for chunk in (b'bl', b'ah', b'\r', b'\nfoo', b'bar\r\n'):
+                    await client.send_all(chunk)
+
+    assert chunks == [b'blah', b'foobar']
+
+
+@pytest.mark.anyio
 async def test_udp():
     async with await create_udp_socket(port=5000, interface='localhost',
                                        target_port=5000, target_host='localhost') as socket:
@@ -172,3 +207,21 @@ async def test_udp_close_socket_from_other_task():
             await tg.spawn(udp.close)
             with pytest.raises(ClosedResourceError):
                 await udp.receive(100)
+
+
+@pytest.mark.anyio
+async def test_udp_receive_packets():
+    async def serve():
+        async for packet, addr in server.receive_packets(10000):
+            await server.send(packet[::-1], *addr)
+
+    async with await create_udp_socket(interface='127.0.0.1') as server:
+        async with await create_udp_socket(target_host='127.0.0.1',
+                                           target_port=server.port) as client:
+            async with create_task_group() as tg:
+                await tg.spawn(serve)
+                await client.send(b'FOOBAR')
+                assert await client.receive(100) == (b'RABOOF', ('127.0.0.1', server.port))
+                await client.send(b'123456')
+                assert await client.receive(100) == (b'654321', ('127.0.0.1', server.port))
+                await tg.cancel_scope.cancel()
