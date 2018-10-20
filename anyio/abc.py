@@ -217,6 +217,16 @@ class AsyncFile(metaclass=ABCMeta):
 
 
 class Stream(metaclass=ABCMeta):
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc_info):
+        await self.close()
+
+    @abstractmethod
+    async def close(self) -> None:
+        """Close the stream."""
+
     @abstractmethod
     async def receive_some(self, max_bytes: Optional[int]) -> bytes:
         """
@@ -291,16 +301,6 @@ class Stream(metaclass=ABCMeta):
 
 
 class SocketStream(Stream):
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *exc_info):
-        await self.close()
-
-    @abstractmethod
-    async def close(self) -> None:
-        """Close the underlying socket."""
-
     @abstractmethod
     async def start_tls(self, context: Optional[SSLContext] = None) -> None:
         pass
