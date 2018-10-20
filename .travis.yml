@@ -55,10 +55,3 @@ jobs:
 install: pip install tox
 
 script: tox
-
-notifications:
-  irc:
-    channels:
-      - "irc.freenode.net#pypa-dev"
-    use_notice: true
-    skip_join: true
