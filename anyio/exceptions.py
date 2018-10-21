@@ -39,9 +39,8 @@ class IncompleteRead(Exception):
     :ivar bytes data: bytes read before the stream was closed
     """
 
-    def __init__(self, data: bytes) -> None:
+    def __init__(self) -> None:
         super().__init__('The stream was closed before the read operation could be completed')
-        self.data = data
 
 
 class DelimiterNotFound(Exception):
@@ -52,10 +51,8 @@ class DelimiterNotFound(Exception):
     :ivar bytes data: bytes read before giving up
     """
 
-    def __init__(self, data: bytes) -> None:
-        super().__init__(
-            'The delimiter was not found among the first {} bytes read'.format(len(data)))
-        self.data = data
+    def __init__(self, max_bytes: int) -> None:
+        super().__init__('The delimiter was not found among the first {} bytes'.format(max_bytes))
 
 
 class ClosedResourceError(Exception):

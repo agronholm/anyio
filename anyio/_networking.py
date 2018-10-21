@@ -169,54 +169,67 @@ class BaseSocket(metaclass=ABCMeta):
 
 
 class SocketStream(abc.SocketStream):
-    __slots__ = '_socket', '_ssl_context', '_server_hostname'
+    __slots__ = '_socket', '_ssl_context', '_server_hostname', '_buffer'
 
     def __init__(self, sock: BaseSocket, ssl_context: Optional[ssl.SSLContext] = None,
                  server_hostname: Optional[str] = None) -> None:
         self._socket = sock
         self._ssl_context = ssl_context
         self._server_hostname = server_hostname
+        self._buffer = b''
 
     async def close(self):
         await self._socket.close()
 
+    @property
+    def buffered_data(self) -> bytes:
+        return self._buffer
+
     async def receive_some(self, max_bytes: Optional[int]) -> bytes:
+        if self._buffer:
+            data, self._buffer = self._buffer, b''
+            return data
+
         return await self._socket.recv(max_bytes)
 
     async def receive_exactly(self, nbytes: int) -> bytes:
-        buf = bytearray(nbytes)
-        view = memoryview(buf)
-        while nbytes > 0:
-            bytes_read = await self._socket.recv_into(view, nbytes)
-            if bytes_read == 0:
-                total_bytes_read = len(buf) - nbytes
-                raise IncompleteRead(buf[:total_bytes_read])
+        bytes_left = nbytes - len(self._buffer)
+        while bytes_left > 0:
+            chunk = await self._socket.recv(nbytes)
+            if not chunk:
+                raise IncompleteRead
 
-            view = view[bytes_read:]
-            nbytes -= bytes_read
+            self._buffer += chunk
+            bytes_left -= len(chunk)
 
-        return bytes(buf)
+        result = self._buffer[:nbytes]
+        self._buffer = self._buffer[nbytes:]
+        return result
 
     async def receive_until(self, delimiter: bytes, max_size: int) -> bytes:
-        offset = 0
         delimiter_size = len(delimiter)
-        buf = b''
-        while len(buf) < max_size:
-            read_size = max_size - len(buf)
-            data = await self._socket.recv(read_size, flags=socket.MSG_PEEK)
-            if data == b'':
-                raise IncompleteRead(buf)
-
-            buf += data
-            index = buf.find(delimiter, offset)
+        offset = 0
+        while True:
+            # Check if the delimiter can be found in the current buffer
+            index = self._buffer.find(delimiter, offset)
             if index >= 0:
-                await self._socket.recv(index + len(delimiter))
-                return buf[:index]
-            else:
-                await self._socket.recv(len(data))
-                offset += len(data) - delimiter_size + 1
+                found = self._buffer[:index]
+                self._buffer = self._buffer[index + len(delimiter):]
+                return found
 
-        raise DelimiterNotFound(buf)
+            # Check if the buffer is already at or over the limit
+            if len(self._buffer) >= max_size:
+                raise DelimiterNotFound(max_size)
+
+            # Read more data into the buffer from the socket
+            read_size = max_size - len(self._buffer)
+            data = await self._socket.recv(read_size)
+            if not data:
+                raise IncompleteRead
+
+            # Move the offset forward and add the new data to the buffer
+            offset = max(len(self._buffer) - delimiter_size + 1, 0)
+            self._buffer += data
 
     @async_generator
     async def receive_chunks(self, max_size: int) -> AsyncIterable[bytes]:
@@ -233,8 +246,8 @@ class SocketStream(abc.SocketStream):
         while True:
             try:
                 chunk = await self.receive_until(delimiter, max_chunk_size)
-            except IncompleteRead as exc:
-                if exc.data:
+            except IncompleteRead:
+                if self._buffer:
                     raise
                 else:
                     return

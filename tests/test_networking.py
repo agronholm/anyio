@@ -66,10 +66,8 @@ class TestTCPStream:
                 await tg.spawn(server)
                 async with await connect_tcp('localhost', stream_server.port) as client:
                     method = getattr(client, method_name)
-                    with pytest.raises(IncompleteRead) as exc:
+                    with pytest.raises(IncompleteRead):
                         await method(*params)
-
-                    assert exc.value.data == b'bla'
 
     @pytest.mark.anyio
     async def test_delimiter_not_found(self):
@@ -84,7 +82,7 @@ class TestTCPStream:
                     with pytest.raises(DelimiterNotFound) as exc:
                         await client.receive_until(b'\n', 3)
 
-                    assert exc.value.data == b'bla'
+                    assert exc.match(' first 3 bytes$')
 
     @pytest.mark.anyio
     async def test_receive_chunks(self):
@@ -101,6 +99,23 @@ class TestTCPStream:
                     await client.send_all(b'blah')
 
         assert chunks == [b'bl', b'ah']
+
+    @pytest.mark.anyio
+    async def test_buffer(self):
+        async def server():
+            async with await stream_server.accept() as stream:
+                chunks.append(await stream.receive_until(b'\n', 10))
+                chunks.append(await stream.receive_exactly(4))
+                chunks.append(await stream.receive_exactly(2))
+
+        chunks = []
+        async with await create_tcp_server(interface='localhost') as stream_server:
+            async with create_task_group() as tg:
+                await tg.spawn(server)
+                async with await connect_tcp('localhost', stream_server.port) as client:
+                    await client.send_all(b'blah\nfoobar')
+
+        assert chunks == [b'blah', b'foob', b'ar']
 
     @pytest.mark.anyio
     async def test_receive_delimited_chunks(self):
@@ -239,6 +254,26 @@ class TestTLSStream:
 
                     assert client.tls_version.startswith('TLSv')
                     await client.send_all(b'CLOSE')  # arbitrary string
+
+    @pytest.mark.anyio
+    async def test_buffer(self, server_context, client_context):
+        async def server():
+            async with await stream_server.accept() as stream:
+                chunks.append(await stream.receive_until(b'\n', 10))
+                chunks.append(await stream.receive_exactly(4))
+                chunks.append(await stream.receive_exactly(2))
+
+        chunks = []
+        async with await create_tcp_server(interface='localhost',
+                                           ssl_context=server_context) as stream_server:
+            async with create_task_group() as tg:
+                await tg.spawn(server)
+                async with await connect_tcp(
+                        'localhost', stream_server.port, ssl_context=client_context,
+                        autostart_tls=True) as client:
+                    await client.send_all(b'blah\nfoobar')
+
+        assert chunks == [b'blah', b'foob', b'ar']
 
 
 class TestUDPSocket:

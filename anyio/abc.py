@@ -227,6 +227,11 @@ class Stream(metaclass=ABCMeta):
     async def close(self) -> None:
         """Close the stream."""
 
+    @property
+    @abstractmethod
+    def buffered_data(self) -> bytes:
+        """Return the data currently in the read buffer."""
+
     @abstractmethod
     async def receive_some(self, max_bytes: Optional[int]) -> bytes:
         """
