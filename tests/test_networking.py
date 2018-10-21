@@ -194,6 +194,7 @@ class TestTLSStream:
         assert client_binding == server_binding
         assert isinstance(client_binding, bytes)
 
+    @pytest.mark.skipif(not ssl.HAS_ALPN, reason='ALPN support not available')
     @pytest.mark.anyio
     async def test_alpn_negotiation(self, server_context, client_context):
         async def server():
