@@ -160,7 +160,7 @@ class TestTLSStream:
         return client_context
 
     @pytest.mark.anyio
-    async def test_handshake(self, server_context, client_context):
+    async def test_handshake_on_connect(self, server_context, client_context):
         async def server():
             nonlocal server_binding
             async with await stream_server.accept() as stream:
@@ -178,8 +178,9 @@ class TestTLSStream:
             async with await create_tcp_server(
                     interface='localhost', ssl_context=server_context) as stream_server:
                 await tg.spawn(server)
-                async with await connect_tcp('localhost', stream_server.port,
-                                             tls=client_context) as client:
+                async with await connect_tcp(
+                        'localhost', stream_server.port, ssl_context=client_context,
+                        autostart_tls=True) as client:
                     assert not client.server_side
                     assert client.server_hostname == 'localhost'
                     assert client.tls_version.startswith('TLSv')
@@ -201,13 +202,44 @@ class TestTLSStream:
 
         client_context.set_alpn_protocols(['dummy1', 'dummy2'])
         server_context.set_alpn_protocols(['dummy2', 'dummy3'])
-        async with await create_tcp_server(
-                interface='localhost', ssl_context=server_context) as stream_server:
+        async with await create_tcp_server(interface='localhost',
+                                           ssl_context=server_context) as stream_server:
+            async with create_task_group() as tg:
+                await tg.spawn(server)
+                async with await connect_tcp(
+                        'localhost', stream_server.port, ssl_context=client_context,
+                        autostart_tls=True) as client:
+                    assert client.alpn_protocol == 'dummy2'
+
+    @pytest.mark.anyio
+    async def test_manual_handshake(self, server_context, client_context):
+        async def server():
+            async with await stream_server.accept() as stream:
+                assert stream.tls_version is None
+
+                while True:
+                    command = await stream.receive_exactly(5)
+                    if command == b'START':
+                        await stream.start_tls()
+                        assert stream.tls_version.startswith('TLSv')
+                    elif command == b'CLOSE':
+                        break
+
+        client_context.set_alpn_protocols(['dummy1', 'dummy2'])
+        server_context.set_alpn_protocols(['dummy2', 'dummy3'])
+        async with await create_tcp_server(interface='localhost', ssl_context=server_context,
+                                           autostart_tls=False) as stream_server:
             async with create_task_group() as tg:
                 await tg.spawn(server)
                 async with await connect_tcp('localhost', stream_server.port,
-                                             tls=client_context) as client:
-                    assert client.alpn_protocol == 'dummy2'
+                                             ssl_context=client_context) as client:
+                    assert client.tls_version is None
+
+                    await client.send_all(b'START')  # arbitrary string
+                    await client.start_tls()
+
+                    assert client.tls_version.startswith('TLSv')
+                    await client.send_all(b'CLOSE')  # arbitrary string
 
 
 class TestUDPSocket:

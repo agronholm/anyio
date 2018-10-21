@@ -302,11 +302,13 @@ class SocketStream(abc.SocketStream):
 
 
 class SocketStreamServer(abc.SocketStreamServer):
-    __slots__ = '_socket', '_ssl_context'
+    __slots__ = '_socket', '_ssl_context', '_autostart_tls'
 
-    def __init__(self, sock: BaseSocket, ssl_context: Optional[ssl.SSLContext]) -> None:
+    def __init__(self, sock: BaseSocket, ssl_context: Optional[ssl.SSLContext],
+                 autostart_tls: bool) -> None:
         self._socket = sock
         self._ssl_context = ssl_context
+        self._autostart_tls = autostart_tls
 
     async def close(self) -> None:
         await self._socket.close()
@@ -318,9 +320,9 @@ class SocketStreamServer(abc.SocketStreamServer):
     async def accept(self):
         sock, addr = await self._socket.accept()
         try:
-            stream = SocketStream(sock)
-            if self._ssl_context:
-                await stream.start_tls(self._ssl_context)
+            stream = SocketStream(sock, self._ssl_context)
+            if self._ssl_context and self._autostart_tls:
+                await stream.start_tls()
 
             return stream
         except BaseException:
