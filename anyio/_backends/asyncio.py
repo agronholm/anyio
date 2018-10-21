@@ -109,10 +109,22 @@ _create_task_supports_name = 'name' in inspect.signature(create_task).parameters
 
 def run(func: Callable[..., T_Retval], *args, debug: bool = False,
         policy: Optional[asyncio.AbstractEventLoopPolicy] = None) -> T_Retval:
+    async def wrapper():
+        nonlocal exception, retval
+        try:
+            retval = await func(*args)
+        except BaseException as exc:
+            exception = exc
+
     if policy is not None:
         asyncio.set_event_loop_policy(policy)
 
-    return native_run(func(*args), debug=debug)
+    exception = retval = None
+    native_run(wrapper(), debug=debug)
+    if exception is not None:
+        raise exception
+    else:
+        return retval
 
 
 #

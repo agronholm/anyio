@@ -18,15 +18,19 @@ from ..exceptions import ExceptionGroup, CancelledError, ClosedResourceError
 #
 
 def run(func: Callable[..., T_Retval], *args) -> T_Retval:
-    kernel = None
-    try:
-        with curio.Kernel() as kernel:
-            return kernel.run(func, *args)
-    except BaseException:
-        if kernel:
-            kernel.run(shutdown=True)
+    async def wrapper():
+        nonlocal exception, retval
+        try:
+            retval = await func(*args)
+        except BaseException as exc:
+            exception = exc
 
-        raise
+    exception = retval = None
+    curio.run(wrapper)
+    if exception is not None:
+        raise exception
+    else:
+        return retval
 
 
 #
