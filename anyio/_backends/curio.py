@@ -17,7 +17,7 @@ from ..exceptions import ExceptionGroup, CancelledError, ClosedResourceError
 # Main entry point
 #
 
-def run(func: Callable[..., T_Retval], *args) -> T_Retval:
+def run(func: Callable[..., T_Retval], *args, **curio_options) -> T_Retval:
     async def wrapper():
         nonlocal exception, retval
         try:
@@ -26,7 +26,7 @@ def run(func: Callable[..., T_Retval], *args) -> T_Retval:
             exception = exc
 
     exception = retval = None
-    curio.run(wrapper)
+    curio.run(wrapper, **curio_options)
     if exception is not None:
         raise exception
     else:
