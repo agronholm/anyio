@@ -303,7 +303,13 @@ class Stream(metaclass=ABCMeta):
 class SocketStream(Stream):
     @abstractmethod
     async def start_tls(self, context: Optional[SSLContext] = None) -> None:
-        pass
+        """
+        Start the TLS handshake.
+
+        If the handshake fails, the stream will be closed.
+
+        :param context: an explicit SSL context to use for the handshake
+        """
 
 
 class SocketStreamServer(metaclass=ABCMeta):
@@ -375,7 +381,15 @@ class DatagramSocket(metaclass=ABCMeta):
 
     @abstractmethod
     async def receive(self, max_bytes: int) -> Tuple[bytes, str]:
-        pass
+        """
+        Receive a datagram.
+
+        No more than ``max_bytes`` of the received datagram will be returned, even if the datagram
+        was really larger.
+
+        :param max_bytes: maximum amount of bytes to be returned
+        :return: the bytes received
+        """
 
     @abstractmethod
     def receive_packets(self, max_size: int) -> AsyncIterable[Tuple[bytes, str]]:
@@ -390,4 +404,12 @@ class DatagramSocket(metaclass=ABCMeta):
     @abstractmethod
     async def send(self, data: BufferType, address: Optional[str] = None,
                    port: Optional[int] = None) -> None:
-        pass
+        """
+        Send a datagram.
+
+        If the default destination has been set, then ``address`` and ``port`` are optional.
+
+        :param data: the datagram to send
+        :param address: the destination IP address or host name
+        :param port: the destination port
+        """
