@@ -11,8 +11,18 @@ from ..exceptions import ExceptionGroup, ClosedResourceError
 
 
 #
+# Main entry point
+#
+
+run = trio.run
+
+
+#
 # Timeouts and cancellation
 #
+
+sleep = trio.sleep
+
 
 @asynccontextmanager
 @async_generator
@@ -60,6 +70,9 @@ class TaskGroup:
             raise RuntimeError('This task group is not active; no new tasks can be spawned.')
 
         self._nursery.start_soon(func, *args, name=name)
+
+
+abc.TaskGroup.register(TaskGroup)
 
 
 @asynccontextmanager
@@ -155,6 +168,9 @@ async def receive_signals(*signals: int):
 # Synchronization
 #
 
+Lock = trio.Lock
+
+
 class Event(trio.Event):
     async def set(self) -> None:
         super().set()
@@ -168,9 +184,10 @@ class Condition(trio.Condition):
         super().notify_all()
 
 
-class Queue:
-    __slots__ = '_send_channel', '_receive_channel'
+Semaphore = trio.Semaphore
 
+
+class Queue:
     def __init__(self, max_items: int) -> None:
         self._send_channel, self._receive_channel = trio.open_memory_channel(max_items)
 
@@ -191,6 +208,13 @@ class Queue:
         return await self._receive_channel.receive()
 
 
+abc.Lock.register(Lock)
+abc.Condition.register(Condition)
+abc.Event.register(Event)
+abc.Semaphore.register(Semaphore)
+abc.Queue.register(Queue)
+
+
 #
 # Testing and debugging
 #
@@ -198,17 +222,3 @@ class Queue:
 def wait_all_tasks_blocked():
     import trio.testing
     return trio.testing.wait_all_tasks_blocked()
-
-
-run = trio.run
-sleep = trio.sleep
-
-Lock = trio.Lock
-Semaphore = trio.Semaphore
-
-abc.TaskGroup.register(TaskGroup)
-abc.Lock.register(Lock)
-abc.Condition.register(Condition)
-abc.Event.register(Event)
-abc.Semaphore.register(Semaphore)
-abc.Queue.register(Queue)

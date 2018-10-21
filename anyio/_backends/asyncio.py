@@ -103,6 +103,10 @@ except ImportError:
 _create_task_supports_name = 'name' in inspect.signature(create_task).parameters
 
 
+#
+# Main entry point
+#
+
 def run(func: Callable[..., T_Retval], *args, debug: bool = False,
         policy: Optional[asyncio.AbstractEventLoopPolicy] = None) -> T_Retval:
     if policy is not None:
@@ -115,11 +119,11 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False,
 # Timeouts and cancellation
 #
 
-class AsyncIOCancelScope(abc.CancelScope):
+class CancelScope(abc.CancelScope):
     __slots__ = 'children', '_tasks', '_cancel_called'
 
     def __init__(self) -> None:
-        self.children = set()  # type: Set[AsyncIOCancelScope]
+        self.children = set()  # type: Set[CancelScope]
         self._tasks = set()  # type: Set[asyncio.Task]
         self._cancel_called = False
 
@@ -146,14 +150,14 @@ class AsyncIOCancelScope(abc.CancelScope):
                 await child.cancel()
 
 
-def get_cancel_scope(task: asyncio.Task) -> Optional[AsyncIOCancelScope]:
+def get_cancel_scope(task: asyncio.Task) -> Optional[CancelScope]:
     try:
         return _local.cancel_scopes_by_task.get(task)
     except AttributeError:
         return None
 
 
-def set_cancel_scope(task: asyncio.Task, scope: Optional[AsyncIOCancelScope]):
+def set_cancel_scope(task: asyncio.Task, scope: Optional[CancelScope]):
     try:
         cancel_scopes = _local.cancel_scopes_by_task
     except AttributeError:
@@ -181,7 +185,7 @@ async def sleep(delay: float) -> None:
 @async_generator
 async def open_cancel_scope():
     task = current_task()
-    scope = AsyncIOCancelScope()
+    scope = CancelScope()
     scope.add_task(task)
     parent_scope = get_cancel_scope(task)
     if parent_scope is not None:
@@ -250,10 +254,10 @@ async def move_on_after(delay: float):
 # Task groups
 #
 
-class AsyncIOTaskGroup:
+class TaskGroup:
     __slots__ = 'cancel_scope', '_active', '_tasks', '_host_task', '_exceptions'
 
-    def __init__(self, cancel_scope: 'AsyncIOCancelScope', host_task: asyncio.Task) -> None:
+    def __init__(self, cancel_scope: 'CancelScope', host_task: asyncio.Task) -> None:
         self.cancel_scope = cancel_scope
         self._host_task = host_task
         self._active = True
@@ -285,11 +289,14 @@ class AsyncIOTaskGroup:
         self.cancel_scope.add_task(task)
 
 
+abc.TaskGroup.register(TaskGroup)
+
+
 @asynccontextmanager
 @async_generator
 async def create_task_group():
     async with open_cancel_scope() as cancel_scope:
-        group = AsyncIOTaskGroup(cancel_scope, current_task())
+        group = TaskGroup(cancel_scope, current_task())
         try:
             await yield_(group)
         except CancelledError:
@@ -542,7 +549,6 @@ class Queue(asyncio.Queue):
         return super().put(item)
 
 
-abc.TaskGroup.register(AsyncIOTaskGroup)
 abc.Lock.register(Lock)
 abc.Condition.register(Condition)
 abc.Event.register(Event)

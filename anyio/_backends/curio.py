@@ -1,5 +1,4 @@
 import sys
-from contextlib import contextmanager
 from functools import partial
 from typing import Callable, Set, List, Optional, Awaitable  # noqa: F401
 
@@ -14,6 +13,10 @@ from .. import abc, T_Retval, claim_current_thread, _local
 from ..exceptions import ExceptionGroup, CancelledError, ClosedResourceError
 
 
+#
+# Main entry point
+#
+
 def run(func: Callable[..., T_Retval], *args) -> T_Retval:
     kernel = None
     try:
@@ -26,23 +29,15 @@ def run(func: Callable[..., T_Retval], *args) -> T_Retval:
         raise
 
 
-@contextmanager
-def translate_exceptions():
-    try:
-        yield
-    except (curio.CancelledError, curio.TaskCancelled) as exc:
-        raise CancelledError().with_traceback(exc.__traceback__) from None
-
-
 #
 # Timeouts and cancellation
 #
 
-class CurioCancelScope(abc.CancelScope):
+class CancelScope(abc.CancelScope):
     __slots__ = 'children', '_tasks', '_cancel_called'
 
     def __init__(self) -> None:
-        self.children = set()  # type: Set[CurioCancelScope]
+        self.children = set()  # type: Set[CancelScope]
         self._tasks = set()  # type: Set[curio.Task]
         self._cancel_called = False
 
@@ -64,14 +59,14 @@ class CurioCancelScope(abc.CancelScope):
                 await scope.cancel()
 
 
-def get_cancel_scope(task: curio.Task) -> Optional[CurioCancelScope]:
+def get_cancel_scope(task: curio.Task) -> Optional[CancelScope]:
     try:
         return _local.cancel_scopes_by_task.get(task)
     except AttributeError:
         return None
 
 
-def set_cancel_scope(task: curio.Task, scope: Optional[CurioCancelScope]) -> None:
+def set_cancel_scope(task: curio.Task, scope: Optional[CancelScope]) -> None:
     try:
         cancel_scopes = _local.cancel_scopes_by_task
     except AttributeError:
@@ -100,7 +95,7 @@ async def sleep(seconds: int):
 async def open_cancel_scope():
     await check_cancelled()
     task = await curio.current_task()
-    scope = CurioCancelScope()
+    scope = CancelScope()
     scope.add_task(task)
     parent_scope = get_cancel_scope(task)
     if parent_scope is not None:
@@ -140,10 +135,10 @@ async def move_on_after(delay: float):
 # Task groups
 #
 
-class CurioTaskGroup:
+class TaskGroup:
     __slots__ = 'cancel_scope', '_active', '_tasks', '_host_task', '_exceptions'
 
-    def __init__(self, cancel_scope: 'CurioCancelScope', host_task: curio.Task) -> None:
+    def __init__(self, cancel_scope: 'CancelScope', host_task: curio.Task) -> None:
         self.cancel_scope = cancel_scope
         self._host_task = host_task
         self._active = True
@@ -171,7 +166,7 @@ class CurioTaskGroup:
 
     def _task_discard(self, task: curio.Task) -> None:
         # Remove the task from its cancel scope
-        cancel_scope = get_cancel_scope(task)  # type: CurioCancelScope
+        cancel_scope = get_cancel_scope(task)  # type: CancelScope
         if cancel_scope is not None:
             cancel_scope.remove_task(task)
 
@@ -182,16 +177,18 @@ class CurioTaskGroup:
                 self._exceptions.append(task.exception)
 
 
+abc.TaskGroup.register(TaskGroup)
+
+
 @asynccontextmanager
 @async_generator
 async def create_task_group():
     async with open_cancel_scope() as cancel_scope:
         current_task = await curio.current_task()
-        group = CurioTaskGroup(cancel_scope, current_task)
+        group = TaskGroup(cancel_scope, current_task)
         try:
-            with translate_exceptions():
-                await yield_(group)
-        except CancelledError:
+            await yield_(group)
+        except (CancelledError, curio.CancelledError, curio.TaskCancelled):
             await cancel_scope.cancel()
         except BaseException as exc:
             group._exceptions.append(exc)
@@ -213,13 +210,13 @@ async def create_task_group():
 #
 
 async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
-    def wrapper():
+    def thread_worker():
         asynclib = sys.modules[__name__]
         with claim_current_thread(asynclib):
             return func(*args)
 
     await check_cancelled()
-    thread = await curio.spawn_thread(wrapper)
+    thread = await curio.spawn_thread(thread_worker)
     try:
         return await thread.join()
     except curio.TaskError as exc:
@@ -298,17 +295,6 @@ def wait_socket_writable(sock):
 
 
 #
-# Signal handling
-#
-
-@asynccontextmanager
-@async_generator
-async def receive_signals(*signals: int):
-    async with curio.SignalQueue(*signals) as queue:
-        await yield_(queue)
-
-
-#
 # Synchronization
 #
 
@@ -350,6 +336,24 @@ class Queue(curio.Queue):
         return await super().put(item)
 
 
+abc.Lock.register(Lock)
+abc.Condition.register(Condition)
+abc.Event.register(Event)
+abc.Semaphore.register(Semaphore)
+abc.Queue.register(Queue)
+
+
+#
+# Signal handling
+#
+
+@asynccontextmanager
+@async_generator
+async def receive_signals(*signals: int):
+    async with curio.SignalQueue(*signals) as queue:
+        await yield_(queue)
+
+
 #
 # Testing and debugging
 #
@@ -366,11 +370,3 @@ async def wait_all_tasks_blocked():
                     break
         else:
             return
-
-
-abc.TaskGroup.register(CurioTaskGroup)
-abc.Lock.register(Lock)
-abc.Condition.register(Condition)
-abc.Event.register(Event)
-abc.Semaphore.register(Semaphore)
-abc.Queue.register(Queue)
