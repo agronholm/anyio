@@ -2,13 +2,9 @@ from functools import partial
 from inspect import iscoroutinefunction
 
 import pytest
+from async_generator import isasyncgenfunction
 
 import anyio
-
-try:
-    from async_generator import isasyncgenfunction
-except ImportError:
-    from inspect import isasyncgenfunction
 
 
 @pytest.hookimpl(hookwrapper=True)
