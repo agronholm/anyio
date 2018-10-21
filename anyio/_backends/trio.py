@@ -1,31 +1,13 @@
 import sys
-from functools import wraps
 from typing import Callable
 
 import trio.hazmat
 from async_generator import async_generator, yield_, asynccontextmanager
 
 from .._networking import BaseSocket
+from .._utils import wrap_as_awaitable
 from .. import abc, claim_current_thread, T_Retval, _local
 from ..exceptions import ExceptionGroup, ClosedResourceError
-
-
-class DummyAwaitable:
-    def __await__(self):
-        if False:
-            yield
-
-
-dummy_awaitable = DummyAwaitable()
-
-
-def wrap_as_awaitable(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        func(*args, **kwargs)
-        return dummy_awaitable
-
-    return wrapper
 
 
 #
