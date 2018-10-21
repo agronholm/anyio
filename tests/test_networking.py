@@ -226,8 +226,6 @@ class TestTLSStream:
                     elif command == b'CLOSE':
                         break
 
-        client_context.set_alpn_protocols(['dummy1', 'dummy2'])
-        server_context.set_alpn_protocols(['dummy2', 'dummy3'])
         async with await create_tcp_server(interface='localhost', ssl_context=server_context,
                                            autostart_tls=False) as stream_server:
             async with create_task_group() as tg:
