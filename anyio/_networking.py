@@ -3,13 +3,13 @@ import socket
 import ssl
 from abc import ABCMeta, abstractmethod
 from ipaddress import ip_address
-from typing import Union, Tuple, Any, Optional, Callable, AsyncIterable
+from typing import Union, Tuple, Any, Optional, Callable, AsyncIterable, Dict, List
 
 from async_generator import async_generator, yield_
 
 from anyio import abc
 from anyio.abc import IPAddressType, BufferType
-from anyio.exceptions import DelimiterNotFound, IncompleteRead
+from anyio.exceptions import DelimiterNotFound, IncompleteRead, TLSRequired
 
 
 class BaseSocket(metaclass=ABCMeta):
@@ -244,9 +244,61 @@ class SocketStream(abc.SocketStream):
     async def send_all(self, data: BufferType) -> None:
         return await self._socket.sendall(data)
 
+    #
+    # TLS methods
+    #
+
+    def _call_sslsocket_method(self, name: str, *args):
+        try:
+            method = getattr(self._socket, name)
+        except AttributeError:
+            raise TLSRequired from None
+
+        return method(*args)
+
     async def start_tls(self, context: Optional[ssl.SSLContext] = None) -> None:
         ssl_context = context or self._ssl_context or ssl.create_default_context()
         await self._socket.start_tls(ssl_context, self._server_hostname)
+
+    def getpeercert(self, binary_form: bool = False) -> Union[Dict[str, Union[str, tuple]],
+                                                              bytes, None]:
+        return self._call_sslsocket_method('getpeercert', binary_form)
+
+    @property
+    def alpn_protocol(self) -> Optional[str]:
+        return self._call_sslsocket_method('selected_alpn_protocol')
+
+    def get_channel_binding(self, cb_type: str = 'tls-unique') -> bytes:
+        return self._call_sslsocket_method('get_channel_binding', cb_type)
+
+    @property
+    def tls_version(self) -> Optional[str]:
+        try:
+            return self._call_sslsocket_method('version')
+        except TLSRequired:
+            return None
+
+    @property
+    def cipher(self) -> Tuple[str, str, int]:
+        return self._call_sslsocket_method('cipher')
+
+    @property
+    def shared_ciphers(self) -> List[Tuple[str, str, int]]:
+        return self._call_sslsocket_method('shared_ciphers')
+
+    @property
+    def server_hostname(self) -> str:
+        try:
+            return self._socket.server_hostname
+        except AttributeError:
+            raise TLSRequired from None
+
+    @property
+    def server_side(self) -> bool:
+        try:
+            return self._socket.server_side
+        except AttributeError:
+            raise TLSRequired from None
 
 
 class SocketStreamServer(abc.SocketStreamServer):

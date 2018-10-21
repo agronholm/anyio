@@ -146,36 +146,68 @@ class TestUNIXStream:
 
 
 class TestTLSStream:
-    @pytest.fixture(scope='class')
+    @pytest.fixture
     def server_context(self):
         server_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         server_context.load_cert_chain(certfile=str(Path(__file__).with_name('cert.pem')),
                                        keyfile=str(Path(__file__).with_name('key.pem')))
         return server_context
 
-    @pytest.fixture(scope='class')
+    @pytest.fixture
     def client_context(self):
         client_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
         client_context.load_verify_locations(cafile=str(Path(__file__).with_name('cert.pem')))
         return client_context
 
     @pytest.mark.anyio
-    async def test_connect_tcp_tls(self, server_context, client_context):
+    async def test_handshake(self, server_context, client_context):
         async def server():
+            nonlocal server_binding
             async with await stream_server.accept() as stream:
+                assert stream.server_side
+                assert stream.server_hostname is None
+                assert stream.tls_version.startswith('TLSv')
+                assert stream.cipher in stream.shared_ciphers
+                server_binding = stream.get_channel_binding()
+
                 command = await stream.receive_some(100)
                 await stream.send_all(command[::-1])
 
+        server_binding = None
         async with create_task_group() as tg:
             async with await create_tcp_server(
                     interface='localhost', ssl_context=server_context) as stream_server:
                 await tg.spawn(server)
                 async with await connect_tcp('localhost', stream_server.port,
                                              tls=client_context) as client:
+                    assert not client.server_side
+                    assert client.server_hostname == 'localhost'
+                    assert client.tls_version.startswith('TLSv')
+                    assert client.cipher in client.shared_ciphers
+                    client_binding = client.get_channel_binding()
+
                     await client.send_all(b'blah')
                     response = await client.receive_some(100)
 
         assert response == b'halb'
+        assert client_binding == server_binding
+        assert isinstance(client_binding, bytes)
+
+    @pytest.mark.anyio
+    async def test_alpn_negotiation(self, server_context, client_context):
+        async def server():
+            async with await stream_server.accept() as stream:
+                assert stream.alpn_protocol == 'dummy2'
+
+        client_context.set_alpn_protocols(['dummy1', 'dummy2'])
+        server_context.set_alpn_protocols(['dummy2', 'dummy3'])
+        async with await create_tcp_server(
+                interface='localhost', ssl_context=server_context) as stream_server:
+            async with create_task_group() as tg:
+                await tg.spawn(server)
+                async with await connect_tcp('localhost', stream_server.port,
+                                             tls=client_context) as client:
+                    assert client.alpn_protocol == 'dummy2'
 
 
 class TestUDPSocket:

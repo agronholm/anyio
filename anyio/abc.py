@@ -2,7 +2,7 @@ from abc import ABCMeta, abstractmethod
 from io import SEEK_SET
 from ipaddress import IPv4Address, IPv6Address
 from ssl import SSLContext
-from typing import Callable, TypeVar, Optional, Tuple, Union, AsyncIterable
+from typing import Callable, TypeVar, Optional, Tuple, Union, AsyncIterable, Dict, List
 
 T_Retval = TypeVar('T_Retval')
 IPAddressType = Union[str, IPv4Address, IPv6Address]
@@ -309,6 +309,98 @@ class SocketStream(Stream):
         If the handshake fails, the stream will be closed.
 
         :param context: an explicit SSL context to use for the handshake
+        """
+
+    @abstractmethod
+    def getpeercert(self, binary_form: bool = False) -> Union[Dict[str, Union[str, tuple]],
+                                                              bytes, None]:
+        """
+        Get the certificate for the peer on the other end of the connection.
+
+        See :func:`ssl.SSLSocket.getpeercert` for more information.
+
+        :param binary_form: ``False`` to return the certificate as a dict, ``True`` to return it
+            as bytes
+        :return: the peer's certificate, or ``None`` if there is not certificate for the peer
+        :raises anyio.exceptions.TLSRequired: if a TLS handshake has not been done
+        """
+
+    @property
+    @abstractmethod
+    def alpn_protocol(self) -> Optional[str]:
+        """
+        Return the ALPN protocol selected during the TLS handshake.
+
+        :return: The selected ALPN protocol, or ``None`` if no ALPN protocol was selected
+        :raises anyio.exceptions.TLSRequired: if a TLS handshake has not been done
+        """
+
+    @abstractmethod
+    def get_channel_binding(self, cb_type: str = 'tls-unique') -> bytes:
+        """
+        Get the channel binding data for the current connection.
+
+        See :func:`ssl.SSLSocket.get_channel_binding` for more information.
+
+        :param cb_type: type of the channel binding to get
+        :return: the channel binding data
+        :raises anyio.exceptions.TLSRequired: if a TLS handshake has not been done
+        """
+
+    @property
+    @abstractmethod
+    def tls_version(self) -> Optional[str]:
+        """
+        Return the TLS version negotiated during the TLS handshake.
+
+        See :func:`ssl.SSLSocket.version` for more information.
+
+        :return: the TLS version string (e.g. "TLSv1.3"), or ``None`` if the underlying socket is
+            not using TLS
+        """
+
+    @property
+    @abstractmethod
+    def cipher(self) -> Tuple[str, str, int]:
+        """
+        Return the cipher selected in the TLS handshake.
+
+        See :func:`ssl.SSLSocket.cipher` for more information.
+
+        :return: a 3-tuple of (cipher name, TLS version which defined it, number of bits)
+        :raises anyio.exceptions.TLSRequired: if a TLS handshake has not been done
+        """
+
+    @property
+    @abstractmethod
+    def shared_ciphers(self) -> List[Tuple[str, str, int]]:
+        """
+        Return the list of ciphers supported by both parties in the TLS handshake.
+
+        See :func:`ssl.SSLSocket.shared_ciphers` for more information.
+
+        :return: a list of 3-tuples (cipher name, TLS version which defined it, number of bits)
+        :raises anyio.exceptions.TLSRequired: if a TLS handshake has not been done
+        """
+
+    @property
+    @abstractmethod
+    def server_hostname(self) -> Optional[str]:
+        """
+        Return the server host name.
+
+        :return: the server host name, or ``None`` if this is the server side of the connection
+        :raises anyio.exceptions.TLSRequired: if a TLS handshake has not been done
+        """
+
+    @property
+    @abstractmethod
+    def server_side(self) -> bool:
+        """
+        Check if this is the server or client side of the connection.
+
+        :return: ``True`` if this is the server side, ``False`` if this is the client side
+        :raises anyio.exceptions.TLSRequired: if a TLS handshake has not been done
         """
 
 

@@ -60,3 +60,7 @@ class DelimiterNotFound(Exception):
 
 class ClosedResourceError(Exception):
     """Raised when a resource is closed by another task."""
+
+
+class TLSRequired(Exception):
+    """Raised when a TLS related stream method is called before the TLS handshake has been done."""
