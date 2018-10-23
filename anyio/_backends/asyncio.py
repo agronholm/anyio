@@ -7,6 +7,7 @@ from contextlib import suppress
 from functools import partial
 from threading import Thread
 from typing import Callable, Set, Optional, List, Union  # noqa: F401
+from weakref import WeakSet
 
 from async_generator import async_generator, yield_, asynccontextmanager
 
@@ -136,17 +137,12 @@ class CancelScope(abc.CancelScope):
 
     def __init__(self) -> None:
         self.children = set()  # type: Set[CancelScope]
-        self._tasks = set()  # type: Set[asyncio.Task]
+        self._tasks = WeakSet()  # type: Set[asyncio.Task]
         self._cancel_called = False
 
     def add_task(self, task: asyncio.Task) -> None:
         self._tasks.add(task)
         set_cancel_scope(task, self)
-        task.add_done_callback(self._task_done)
-
-    def _task_done(self, task: asyncio.Task) -> None:
-        self._tasks.remove(task)
-        set_cancel_scope(task, None)
 
     async def cancel(self):
         if not self._cancel_called:
