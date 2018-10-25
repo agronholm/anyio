@@ -115,7 +115,12 @@ class TaskGroup(metaclass=ABCMeta):
 class CancelScope(metaclass=ABCMeta):
     @abstractmethod
     async def cancel(self):
-        """Cancel all tasks within this scope."""
+        """Cancel this scope immediately."""
+
+    @property
+    @abstractmethod
+    def cancel_called(self) -> bool:
+        """Return ``True`` if :meth:`cancel` has been called."""
 
 
 class AsyncFile(metaclass=ABCMeta):

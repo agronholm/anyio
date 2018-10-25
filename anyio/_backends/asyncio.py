@@ -144,8 +144,9 @@ class CancelScope(abc.CancelScope):
                 if self._host_task._coro.cr_await is not None:
                     self._host_task.cancel()
 
-            for child in self.children:
-                await child.cancel()
+    @property
+    def cancel_called(self) -> bool:
+        return self._cancel_called
 
 
 def get_cancel_scope(task: asyncio.Task) -> Optional[CancelScope]:

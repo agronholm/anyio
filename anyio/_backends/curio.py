@@ -49,6 +49,10 @@ class CancelScope(abc.CancelScope):
             if self._host_task.coro.cr_await is not None:
                 await self._host_task.cancel(blocking=False)
 
+    @property
+    def cancel_called(self) -> bool:
+        return self._cancel_called
+
 
 def get_cancel_scope(task: curio.Task) -> Optional[CancelScope]:
     try:
