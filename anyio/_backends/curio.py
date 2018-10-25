@@ -98,10 +98,10 @@ async def open_cancel_scope():
 @async_generator
 async def fail_after(delay: float):
     async with open_cancel_scope() as cancel_scope:
-        async with curio.ignore_after(delay) as s:
-            await yield_()
+        async with curio.ignore_after(delay) as cm:
+            await yield_(cancel_scope)
 
-        if s.expired:
+        if cm.expired:
             await cancel_scope.cancel()
             raise TimeoutError
 
@@ -109,8 +109,12 @@ async def fail_after(delay: float):
 @asynccontextmanager
 @async_generator
 async def move_on_after(delay: float):
-    async with curio.ignore_after(delay):
-        await yield_()
+    async with open_cancel_scope() as cancel_scope:
+        async with curio.ignore_after(delay) as cm:
+            await yield_(cancel_scope)
+
+        if cm.expired:
+            await cancel_scope.cancel()
 
 
 #

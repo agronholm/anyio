@@ -140,39 +140,39 @@ def open_cancel_scope() -> 'typing.AsyncContextManager[CancelScope]':
     """
     Open a cancel scope.
 
-    :return: an asynchronous context manager that yields a cancel scope.
+    :return: an asynchronous context manager that yields a cancel scope
 
     """
     return _get_asynclib().open_cancel_scope()
 
 
-def fail_after(delay: Optional[float]) -> 'typing.AsyncContextManager[None]':
+def fail_after(delay: Optional[float]) -> 'typing.AsyncContextManager[CancelScope]':
     """
     Create a context manager which raises an exception if does not finish in time.
 
     :param delay: maximum allowed time (in seconds) before raising the exception, or ``None`` to
         disable the timeout
-    :return: an asynchronous context manager
+    :return: an asynchronous context manager that yields a cancel scope
     :raises TimeoutError: if the block does not complete within the allotted time
 
     """
     if delay is None:
-        return NullAsyncContext()
+        return _get_asynclib().open_cancel_scope()
     else:
         return _get_asynclib().fail_after(delay)
 
 
-def move_on_after(delay: Optional[float]) -> 'typing.AsyncContextManager[None]':
+def move_on_after(delay: Optional[float]) -> 'typing.AsyncContextManager[CancelScope]':
     """
     Create a context manager which is exited if it does not complete within the given time.
 
     :param delay: maximum allowed time (in seconds) before exiting the context block, or ``None``
         to disable the timeout
-    :return: an asynchronous context manager
+    :return: an asynchronous context manager that yields a cancel scope
 
     """
     if delay is None:
-        return NullAsyncContext()
+        return _get_asynclib().open_cancel_scope()
     else:
         return _get_asynclib().move_on_after(delay)
 

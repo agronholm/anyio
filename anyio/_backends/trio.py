@@ -35,16 +35,16 @@ async def open_cancel_scope():
 @asynccontextmanager
 @async_generator
 async def move_on_after(seconds):
-    with trio.move_on_after(seconds) as s:
-        await yield_(s)
+    with trio.move_on_after(seconds) as cancel_scope:
+        await yield_(cancel_scope)
 
 
 @asynccontextmanager
 @async_generator
 async def fail_after(seconds):
     try:
-        with trio.fail_after(seconds) as s:
-            await yield_(s)
+        with trio.fail_after(seconds) as cancel_scope:
+            await yield_(cancel_scope)
     except trio.TooSlowError as exc:
         raise TimeoutError().with_traceback(exc.__traceback__) from None
 
