@@ -1,6 +1,7 @@
 import sys
 from functools import partial
 from typing import Callable, Set, List, Optional, Awaitable  # noqa: F401
+from weakref import WeakSet
 
 import curio.io
 import curio.socket
@@ -42,21 +43,19 @@ class CancelScope(abc.CancelScope):
 
     def __init__(self) -> None:
         self.children = set()  # type: Set[CancelScope]
-        self._tasks = set()  # type: Set[curio.Task]
+        self._tasks = WeakSet()  # type: Set[curio.Task]
         self._cancel_called = False
 
     def add_task(self, task: curio.Task) -> None:
         self._tasks.add(task)
 
-    def remove_task(self, task: curio.Task) -> None:
-        self._tasks.remove(task)
-
     async def cancel(self):
         if not self._cancel_called:
             self._cancel_called = True
 
+            current = await curio.current_task()
             for task in self._tasks:
-                if task.coro.cr_await is not None:
+                if task is not current and task.coro.cr_await is not None:
                     await task.cancel(blocking=False)
 
             for scope in self.children:
@@ -97,15 +96,14 @@ async def sleep(seconds: int):
 @asynccontextmanager
 @async_generator
 async def open_cancel_scope():
-    await check_cancelled()
     task = await curio.current_task()
     scope = CancelScope()
     scope.add_task(task)
+    set_cancel_scope(task, scope)
     parent_scope = get_cancel_scope(task)
     if parent_scope is not None:
         parent_scope.children.add(scope)
 
-    set_cancel_scope(task, scope)
     try:
         await yield_(scope)
     finally:
@@ -140,45 +138,35 @@ async def move_on_after(delay: float):
 #
 
 class TaskGroup:
-    __slots__ = 'cancel_scope', '_active', '_tasks', '_host_task', '_exceptions'
+    __slots__ = 'cancel_scope', '_active', '_tasks', '_host_task'
 
     def __init__(self, cancel_scope: 'CancelScope', host_task: curio.Task) -> None:
         self.cancel_scope = cancel_scope
         self._host_task = host_task
         self._active = True
-        self._exceptions = []  # type: List[BaseException]
         self._tasks = set()  # type: Set[curio.Task]
+
+    async def _run_wrapped_task(self, func, *args):
+        try:
+            await func(*args)
+        except BaseException as exc:
+            await self.cancel_scope.cancel()
+            raise
+        else:
+            self._tasks.remove(await curio.current_task())
 
     async def spawn(self, func: Callable, *args, name=None) -> None:
         if not self._active:
             raise RuntimeError('This task group is not active; no new tasks can be spawned.')
 
-        task = await curio.spawn(func, *args, report_crash=False)
-        task._taskgroup = self
+        task = await curio.spawn(self._run_wrapped_task, func, *args, report_crash=False)
         self._tasks.add(task)
         if name is not None:
             task.name = name
 
         # Make the spawned task inherit the current cancel scope
-        current_task = await curio.current_task()
-        cancel_scope = get_cancel_scope(current_task)
-        cancel_scope.add_task(task)
-        set_cancel_scope(task, cancel_scope)
-
-    async def _task_done(self, task: curio.Task) -> None:
-        self._tasks.remove(task)
-
-    def _task_discard(self, task: curio.Task) -> None:
-        # Remove the task from its cancel scope
-        cancel_scope = get_cancel_scope(task)  # type: CancelScope
-        if cancel_scope is not None:
-            cancel_scope.remove_task(task)
-
-        self._tasks.discard(task)
-        if task.terminated and task.exception is not None:
-            if not isinstance(task.exception, (CancelledError, curio.TaskCancelled,
-                                               curio.CancelledError)):
-                self._exceptions.append(task.exception)
+        set_cancel_scope(task, self.cancel_scope)
+        self.cancel_scope.add_task(task)
 
 
 abc.TaskGroup.register(TaskGroup)
@@ -190,23 +178,30 @@ async def create_task_group():
     async with open_cancel_scope() as cancel_scope:
         current_task = await curio.current_task()
         group = TaskGroup(cancel_scope, current_task)
+        exceptions = []
         try:
             await yield_(group)
         except (CancelledError, curio.CancelledError, curio.TaskCancelled):
             await cancel_scope.cancel()
         except BaseException as exc:
-            group._exceptions.append(exc)
+            exceptions.append(exc)
             await cancel_scope.cancel()
 
         while group._tasks:
             for task in set(group._tasks):
-                await task.wait()
+                try:
+                    await task.join()
+                except (curio.TaskError, curio.TaskCancelled):
+                    group._tasks.remove(task)
+                    if task.exception:
+                        if not isinstance(task.exception, (CancelledError, curio.CancelledError)):
+                            exceptions.append(task.exception)
 
         group._active = False
-        if len(group._exceptions) > 1:
-            raise ExceptionGroup(group._exceptions)
-        elif group._exceptions:
-            raise group._exceptions[0]
+        if len(exceptions) > 1:
+            raise ExceptionGroup(exceptions)
+        elif exceptions:
+            raise exceptions[0]
 
 
 #

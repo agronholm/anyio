@@ -7,6 +7,7 @@ from contextlib import suppress
 from functools import partial
 from threading import Thread
 from typing import Callable, Set, Optional, List, Union  # noqa: F401
+from weakref import WeakSet
 
 from async_generator import async_generator, yield_, asynccontextmanager
 
@@ -136,26 +137,21 @@ class CancelScope(abc.CancelScope):
 
     def __init__(self) -> None:
         self.children = set()  # type: Set[CancelScope]
-        self._tasks = set()  # type: Set[asyncio.Task]
+        self._tasks = WeakSet()  # type: Set[asyncio.Task]
         self._cancel_called = False
 
     def add_task(self, task: asyncio.Task) -> None:
         self._tasks.add(task)
-        set_cancel_scope(task, self)
-        task.add_done_callback(self._task_done)
-
-    def _task_done(self, task: asyncio.Task) -> None:
-        self._tasks.remove(task)
-        set_cancel_scope(task, None)
 
     async def cancel(self):
         if not self._cancel_called:
             self._cancel_called = True
 
             # Cancel all tasks that have started (i.e. they're awaiting on something)
+            current = current_task()
             for task in self._tasks:
-                coro = task._coro  # dirty, but works with both the stdlib event loop and uvloop
-                if coro.cr_await is not None:
+                # dirty, but works with both the stdlib event loop and uvloop
+                if task is not current and task._coro.cr_await is not None:
                     task.cancel()
 
             for child in self.children:
@@ -199,6 +195,7 @@ async def open_cancel_scope():
     task = current_task()
     scope = CancelScope()
     scope.add_task(task)
+    set_cancel_scope(task, scope)
     parent_scope = get_cancel_scope(task)
     if parent_scope is not None:
         parent_scope.children.add(scope)
@@ -311,7 +308,7 @@ async def create_task_group():
         group = TaskGroup(cancel_scope, current_task())
         try:
             await yield_(group)
-        except CancelledError:
+        except (CancelledError, asyncio.CancelledError):
             await cancel_scope.cancel()
         except BaseException as exc:
             group._exceptions.append(exc)

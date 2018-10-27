@@ -4,7 +4,7 @@ import trio
 
 from anyio import (
     create_task_group, sleep, move_on_after, fail_after, open_cancel_scope,
-    reset_detected_asynclib)
+    reset_detected_asynclib, wait_all_tasks_blocked)
 from anyio._backends import asyncio
 from anyio.exceptions import ExceptionGroup
 
@@ -114,36 +114,39 @@ async def test_edge_cancellation():
     assert marker == 1
 
 
-# @pytest.mark.anyio
-# async def test_host_cancelled_before_aexit():
-#     async def set_result(value):
-#         nonlocal result
-#         await sleep(3)
-#         result = value
-#
-#     async def host():
-#         async with create_task_group() as tg:
-#             await tg.spawn(set_result, 'a')
-#
-#     result = None
-#     with pytest.raises(event_loop.CancelledError):
-#         with open_cancel_scope() as scope:
-#             async with create_task_group() as main_group:
-#                 await main_group.spawn(host)
-#                 await sleep(0.1)
-#                 scope.cancel()
-#
-#     assert result is None
+@pytest.mark.anyio
+async def test_failing_child_task_cancels_host():
+    async def child():
+        await wait_all_tasks_blocked()
+        raise Exception('foo')
+
+    sleep_completed = False
+    with pytest.raises(Exception) as exc:
+        async with create_task_group() as tg:
+            await tg.spawn(child)
+            await sleep(0.5)
+            sleep_completed = True
+
+    exc.match('foo')
+    assert not sleep_completed
 
 
-# @pytest.mark.anyio
-# async def test_host_cancelled_during_aexit(event_loop, queue):
-#     with pytest.raises(CancelledError):
-#         async with event_loop.TaskGroup() as tg:
-#             tg.spawn(self.delayed_put, event_loop, queue, 'a')
-#             event_loop.call_soon(asyncio.Task.current_task().cancel)
-#
-#     assert queue.empty()
+@pytest.mark.anyio
+async def test_failing_host_task_cancels_children():
+    async def child():
+        nonlocal sleep_completed
+        await sleep(1)
+        sleep_completed = True
+
+    sleep_completed = False
+    with pytest.raises(Exception) as exc:
+        async with create_task_group() as tg:
+            await tg.spawn(child)
+            await wait_all_tasks_blocked()
+            raise Exception('foo')
+
+    exc.match('foo')
+    assert not sleep_completed
 
 
 @pytest.mark.anyio
@@ -182,7 +185,7 @@ async def test_multi_error_host():
     with pytest.raises(ExceptionGroup) as exc:
         async with create_task_group() as tg:
             await tg.spawn(async_error, 'child', 2)
-            await sleep(0.1)
+            await wait_all_tasks_blocked()
             raise Exception('host')
 
     assert len(exc.value.exceptions) == 2
