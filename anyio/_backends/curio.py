@@ -149,7 +149,7 @@ class TaskGroup:
     async def _run_wrapped_task(self, func, *args):
         try:
             await func(*args)
-        except BaseException as exc:
+        except BaseException:
             await self.cancel_scope.cancel()
             raise
         else:
