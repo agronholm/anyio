@@ -3,11 +3,9 @@ import inspect
 import os
 import socket
 import sys
-from contextlib import suppress
 from functools import partial
 from threading import Thread
-from typing import Callable, Set, Optional, List, Union  # noqa: F401
-from weakref import WeakSet
+from typing import Callable, Set, Optional, Union  # noqa: F401
 
 from async_generator import async_generator, yield_, asynccontextmanager
 
@@ -133,26 +131,18 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False,
 #
 
 class CancelScope(abc.CancelScope):
-    __slots__ = 'children', '_tasks', '_cancel_called'
-
-    def __init__(self) -> None:
-        self.children = set()  # type: Set[CancelScope]
-        self._tasks = WeakSet()  # type: Set[asyncio.Task]
+    def __init__(self, host_task: asyncio.Task) -> None:
+        self._host_task = host_task
         self._cancel_called = False
-
-    def add_task(self, task: asyncio.Task) -> None:
-        self._tasks.add(task)
 
     async def cancel(self):
         if not self._cancel_called:
             self._cancel_called = True
 
-            # Cancel all tasks that have started (i.e. they're awaiting on something)
-            current = current_task()
-            for task in self._tasks:
-                # dirty, but works with both the stdlib event loop and uvloop
-                if task is not current and task._coro.cr_await is not None:
-                    task.cancel()
+            if self._host_task is not current_task():
+                # Dirty, but works with both the stdlib event loop and uvloop
+                if self._host_task._coro.cr_await is not None:
+                    self._host_task.cancel()
 
             for child in self.children:
                 await child.cancel()
@@ -192,22 +182,14 @@ async def sleep(delay: float) -> None:
 @asynccontextmanager
 @async_generator
 async def open_cancel_scope():
-    task = current_task()
-    parent_scope = get_cancel_scope(task)
-    scope = CancelScope()
-    scope.add_task(task)
-    set_cancel_scope(task, scope)
-    if parent_scope is not None:
-        parent_scope.children.add(scope)
-
+    host_task = current_task()
+    parent_scope = get_cancel_scope(host_task)
+    scope = CancelScope(host_task)
+    set_cancel_scope(host_task, scope)
     try:
         await yield_(scope)
     finally:
-        if parent_scope is not None:
-            parent_scope.children.remove(scope)
-            set_cancel_scope(task, parent_scope)
-        else:
-            set_cancel_scope(task, None)
+        set_cancel_scope(host_task, parent_scope)
 
 
 @asynccontextmanager
@@ -264,38 +246,36 @@ async def move_on_after(delay: float):
 #
 
 class TaskGroup:
-    __slots__ = 'cancel_scope', '_active', '_tasks', '_host_task', '_exceptions'
+    __slots__ = 'cancel_scope', '_active', '_tasks', '_host_task'
 
     def __init__(self, cancel_scope: 'CancelScope', host_task: asyncio.Task) -> None:
         self.cancel_scope = cancel_scope
         self._host_task = host_task
         self._active = True
-        self._exceptions = []  # type: List[BaseException]
         self._tasks = set()  # type: Set[asyncio.Task]
 
-    def _task_done(self, task: asyncio.Task) -> None:
-        self._tasks.remove(task)
-        if not task.cancelled():
-            exc = task.exception()
-            if exc is not None and not isinstance(exc, CancelledError):
-                self._exceptions.append(exc)
-                self._host_task.cancel()
+    async def _run_wrapped_task(self, func, *args):
+        try:
+            await func(*args)
+        except BaseException:
+            await self.cancel_scope.cancel()
+            raise
+        else:
+            self._tasks.remove(current_task())
 
     async def spawn(self, func: Callable, *args, name=None) -> None:
         if not self._active:
             raise RuntimeError('This task group is not active; no new tasks can be spawned.')
 
         if _create_task_supports_name:
-            task = create_task(func(*args), name=name)
+            task = create_task(self._run_wrapped_task(func, *args), name=name)
         else:
-            task = create_task(func(*args))
+            task = create_task(self._run_wrapped_task(func, *args))
 
         self._tasks.add(task)
-        task.add_done_callback(self._task_done)
 
         # Make the spawned task inherit the task group's cancel scope
         set_cancel_scope(task, self.cancel_scope)
-        self.cancel_scope.add_task(task)
 
 
 abc.TaskGroup.register(TaskGroup)
@@ -306,23 +286,35 @@ abc.TaskGroup.register(TaskGroup)
 async def create_task_group():
     async with open_cancel_scope() as cancel_scope:
         group = TaskGroup(cancel_scope, current_task())
+        exceptions = []
         try:
             await yield_(group)
         except (CancelledError, asyncio.CancelledError):
             await cancel_scope.cancel()
         except BaseException as exc:
-            group._exceptions.append(exc)
+            exceptions.append(exc)
             await cancel_scope.cancel()
 
+        if cancel_scope.cancel_called:
+            for task in group._tasks:
+                if task._coro.cr_await is not None:
+                    task.cancel()
+
         while group._tasks:
-            with suppress(asyncio.CancelledError):
-                await asyncio.wait(group._tasks)
+            for task in set(group._tasks):
+                try:
+                    await task
+                except (CancelledError, asyncio.CancelledError):
+                    group._tasks.remove(task)
+                except BaseException as exc:
+                    group._tasks.remove(task)
+                    exceptions.append(exc)
 
         group._active = False
-        if len(group._exceptions) > 1:
-            raise ExceptionGroup(group._exceptions)
-        elif group._exceptions:
-            raise group._exceptions[0]
+        if len(exceptions) > 1:
+            raise ExceptionGroup(exceptions)
+        elif exceptions:
+            raise exceptions[0]
 
 
 #

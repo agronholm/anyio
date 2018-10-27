@@ -1,7 +1,6 @@
 import sys
 from functools import partial
-from typing import Callable, Set, List, Optional, Awaitable  # noqa: F401
-from weakref import WeakSet
+from typing import Callable, Set, Optional, Awaitable  # noqa: F401
 
 import curio.io
 import curio.socket
@@ -39,27 +38,16 @@ def run(func: Callable[..., T_Retval], *args, **curio_options) -> T_Retval:
 #
 
 class CancelScope(abc.CancelScope):
-    __slots__ = 'children', '_tasks', '_cancel_called'
-
-    def __init__(self) -> None:
-        self.children = set()  # type: Set[CancelScope]
-        self._tasks = WeakSet()  # type: Set[curio.Task]
+    def __init__(self, host_task: curio.Task) -> None:
+        self._host_task = host_task
         self._cancel_called = False
-
-    def add_task(self, task: curio.Task) -> None:
-        self._tasks.add(task)
 
     async def cancel(self):
         if not self._cancel_called:
             self._cancel_called = True
 
-            current = await curio.current_task()
-            for task in self._tasks:
-                if task is not current and task.coro.cr_await is not None:
-                    await task.cancel(blocking=False)
-
-            for scope in self.children:
-                await scope.cancel()
+            if self._host_task.coro.cr_await is not None:
+                await self._host_task.cancel(blocking=False)
 
 
 def get_cancel_scope(task: curio.Task) -> Optional[CancelScope]:
@@ -96,22 +84,14 @@ async def sleep(seconds: int):
 @asynccontextmanager
 @async_generator
 async def open_cancel_scope():
-    task = await curio.current_task()
-    parent_scope = get_cancel_scope(task)
-    scope = CancelScope()
-    scope.add_task(task)
-    set_cancel_scope(task, scope)
-    if parent_scope is not None:
-        parent_scope.children.add(scope)
-
+    host_task = await curio.current_task()
+    parent_scope = get_cancel_scope(host_task)
+    scope = CancelScope(host_task)
+    set_cancel_scope(host_task, scope)
     try:
         await yield_(scope)
     finally:
-        if parent_scope is not None:
-            parent_scope.children.remove(scope)
-            set_cancel_scope(task, scope)
-        else:
-            set_cancel_scope(task, None)
+        set_cancel_scope(host_task, parent_scope)
 
 
 @asynccontextmanager
@@ -164,9 +144,8 @@ class TaskGroup:
         if name is not None:
             task.name = name
 
-        # Make the spawned task inherit the current cancel scope
+        # Make the spawned task inherit the task group's cancel scope
         set_cancel_scope(task, self.cancel_scope)
-        self.cancel_scope.add_task(task)
 
 
 abc.TaskGroup.register(TaskGroup)
@@ -176,8 +155,7 @@ abc.TaskGroup.register(TaskGroup)
 @async_generator
 async def create_task_group():
     async with open_cancel_scope() as cancel_scope:
-        current_task = await curio.current_task()
-        group = TaskGroup(cancel_scope, current_task)
+        group = TaskGroup(cancel_scope, await curio.current_task())
         exceptions = []
         try:
             await yield_(group)
@@ -186,6 +164,11 @@ async def create_task_group():
         except BaseException as exc:
             exceptions.append(exc)
             await cancel_scope.cancel()
+
+        if cancel_scope.cancel_called:
+            for task in group._tasks:
+                if task.coro.cr_await is not None:
+                    await task.cancel(blocking=False)
 
         while group._tasks:
             for task in set(group._tasks):
