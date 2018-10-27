@@ -7,6 +7,11 @@ from async_generator import isasyncgenfunction
 import anyio
 
 
+def pytest_configure(config):
+    config.addinivalue_line('markers', 'anyio: mark the (coroutine function) test to be run '
+                                       'asynchronously via anyio.')
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_fixture_setup(fixturedef, request):
     def wrapper(*args, **kwargs):
