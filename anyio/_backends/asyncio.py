@@ -193,10 +193,10 @@ async def sleep(delay: float) -> None:
 @async_generator
 async def open_cancel_scope():
     task = current_task()
+    parent_scope = get_cancel_scope(task)
     scope = CancelScope()
     scope.add_task(task)
     set_cancel_scope(task, scope)
-    parent_scope = get_cancel_scope(task)
     if parent_scope is not None:
         parent_scope.children.add(scope)
 

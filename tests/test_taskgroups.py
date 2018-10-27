@@ -200,6 +200,14 @@ async def test_escaping_cancelled_exception():
 
 
 @pytest.mark.anyio
+async def test_cancel_scope_cleared():
+    async with move_on_after(0.1):
+        await sleep(1)
+
+    await sleep(0)
+
+
+@pytest.mark.anyio
 async def test_fail_after():
     with pytest.raises(TimeoutError):
         async with fail_after(0.1):
