@@ -38,9 +38,11 @@ def run(func: Callable[..., T_Retval], *args, **curio_options) -> T_Retval:
 #
 
 class CancelScope(abc.CancelScope):
-    def __init__(self, host_task: curio.Task, deadline: float) -> None:
+    def __init__(self, host_task: curio.Task, deadline: float,
+                 parent_scope: Optional['CancelScope']) -> None:
         self._host_task = host_task
         self._deadline = deadline
+        self._parent_scope = parent_scope
         self._cancel_called = False
 
     async def cancel(self):
@@ -100,8 +102,7 @@ async def open_cancel_scope(deadline: float = float('inf')):
         await scope.cancel()
 
     host_task = await curio.current_task()
-    parent_scope = get_cancel_scope(host_task)
-    scope = CancelScope(host_task, deadline)
+    scope = CancelScope(host_task, deadline, get_cancel_scope(host_task))
     set_cancel_scope(host_task, scope)
     timeout_expired = False
 
@@ -120,7 +121,7 @@ async def open_cancel_scope(deadline: float = float('inf')):
         if timeout_task:
             await timeout_task.cancel()
 
-        set_cancel_scope(host_task, parent_scope)
+        set_cancel_scope(host_task, scope._parent_scope)
 
 
 @asynccontextmanager
@@ -142,6 +143,16 @@ async def move_on_after(delay: float):
     except TimeoutError:
         if not cancel_scope or not cancel_scope.cancel_called:
             raise
+
+
+async def current_effective_deadline():
+    deadline = float('inf')
+    cancel_scope = get_cancel_scope(await curio.current_task())
+    while cancel_scope:
+        deadline = min(deadline, cancel_scope.deadline)
+        cancel_scope = cancel_scope._parent_scope
+
+    return deadline
 
 
 #

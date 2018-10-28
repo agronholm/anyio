@@ -177,6 +177,10 @@ def move_on_after(delay: Optional[float]) -> 'typing.AsyncContextManager[CancelS
         return _get_asynclib().move_on_after(delay)
 
 
+def current_effective_deadline() -> Awaitable[float]:
+    return _get_asynclib().current_effective_deadline()
+
+
 #
 # Task groups
 #

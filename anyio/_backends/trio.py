@@ -49,6 +49,10 @@ async def fail_after(seconds):
         raise TimeoutError().with_traceback(exc.__traceback__) from None
 
 
+async def current_effective_deadline():
+    return trio.current_effective_deadline()
+
+
 #
 # Task groups
 #

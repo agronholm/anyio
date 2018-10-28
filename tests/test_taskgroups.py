@@ -4,7 +4,7 @@ import trio
 
 from anyio import (
     create_task_group, sleep, move_on_after, fail_after, open_cancel_scope,
-    reset_detected_asynclib, wait_all_tasks_blocked)
+    reset_detected_asynclib, wait_all_tasks_blocked, current_effective_deadline)
 from anyio._backends import asyncio
 from anyio.exceptions import ExceptionGroup
 
@@ -252,7 +252,9 @@ async def test_move_on_after_no_timeout():
 async def test_nested_move_on_after():
     sleep_completed = inner_scope_completed = False
     async with move_on_after(0.1) as outer_scope:
+        assert await current_effective_deadline() == outer_scope.deadline
         async with move_on_after(1) as inner_scope:
+            assert await current_effective_deadline() == outer_scope.deadline
             await sleep(2)
             sleep_completed = True
 
