@@ -147,7 +147,8 @@ class TaskGroup:
         if not self._active:
             raise RuntimeError('This task group is not active; no new tasks can be spawned.')
 
-        task = await curio.spawn(self._run_wrapped_task, func, *args, report_crash=False)
+        task = await curio.spawn(self._run_wrapped_task, func, *args, daemon=True,
+                                 report_crash=False)
         self._tasks.add(task)
         if name is not None:
             task.name = name
