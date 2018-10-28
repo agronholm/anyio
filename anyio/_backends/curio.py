@@ -38,8 +38,9 @@ def run(func: Callable[..., T_Retval], *args, **curio_options) -> T_Retval:
 #
 
 class CancelScope(abc.CancelScope):
-    def __init__(self, host_task: curio.Task) -> None:
+    def __init__(self, host_task: curio.Task, deadline: float) -> None:
         self._host_task = host_task
+        self._deadline = deadline
         self._cancel_called = False
 
     async def cancel(self):
@@ -48,6 +49,10 @@ class CancelScope(abc.CancelScope):
 
             if self._host_task.coro.cr_await is not None:
                 await self._host_task.cancel(blocking=False)
+
+    @property
+    def deadline(self) -> float:
+        return self._deadline
 
     @property
     def cancel_called(self) -> bool:
@@ -87,38 +92,56 @@ async def sleep(seconds: int):
 
 @asynccontextmanager
 @async_generator
-async def open_cancel_scope():
+async def open_cancel_scope(deadline: float = float('inf')):
+    async def timeout():
+        nonlocal timeout_expired
+        await curio.sleep(deadline - await curio.clock())
+        timeout_expired = True
+        await scope.cancel()
+
     host_task = await curio.current_task()
     parent_scope = get_cancel_scope(host_task)
-    scope = CancelScope(host_task)
+    scope = CancelScope(host_task, deadline)
     set_cancel_scope(host_task, scope)
+    timeout_expired = False
+
+    timeout_task = None
+    if deadline != float('inf'):
+        timeout_task = await curio.spawn(timeout)
+
     try:
         await yield_(scope)
+    except curio.TaskCancelled as exc:
+        if timeout_expired:
+            raise TimeoutError().with_traceback(exc.__traceback__) from None
+        else:
+            raise
     finally:
+        if timeout_task:
+            await timeout_task.cancel()
+
         set_cancel_scope(host_task, parent_scope)
 
 
 @asynccontextmanager
 @async_generator
 async def fail_after(delay: float):
-    async with open_cancel_scope() as cancel_scope:
-        async with curio.ignore_after(delay) as cm:
-            await yield_(cancel_scope)
-
-        if cm.expired:
-            await cancel_scope.cancel()
-            raise TimeoutError
+    deadline = await curio.clock() + delay
+    async with open_cancel_scope(deadline) as cancel_scope:
+        await yield_(cancel_scope)
 
 
 @asynccontextmanager
 @async_generator
 async def move_on_after(delay: float):
-    async with open_cancel_scope() as cancel_scope:
-        async with curio.ignore_after(delay) as cm:
+    deadline = await curio.clock() + delay
+    cancel_scope = None
+    try:
+        async with open_cancel_scope(deadline) as cancel_scope:
             await yield_(cancel_scope)
-
-        if cm.expired:
-            await cancel_scope.cancel()
+    except TimeoutError:
+        if not cancel_scope or not cancel_scope.cancel_called:
+            raise
 
 
 #

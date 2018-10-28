@@ -131,8 +131,9 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False,
 #
 
 class CancelScope(abc.CancelScope):
-    def __init__(self, host_task: asyncio.Task) -> None:
+    def __init__(self, host_task: asyncio.Task, deadline: float) -> None:
         self._host_task = host_task
+        self._deadline = deadline
         self._cancel_called = False
 
     async def cancel(self):
@@ -143,6 +144,10 @@ class CancelScope(abc.CancelScope):
                 # Dirty, but works with both the stdlib event loop and uvloop
                 if self._host_task._coro.cr_await is not None:
                     self._host_task.cancel()
+
+    @property
+    def deadline(self) -> float:
+        return self._deadline
 
     @property
     def cancel_called(self) -> bool:
@@ -182,64 +187,56 @@ async def sleep(delay: float) -> None:
 
 @asynccontextmanager
 @async_generator
-async def open_cancel_scope():
+async def open_cancel_scope(deadline: float = float('inf')):
+    async def timeout():
+        nonlocal timeout_expired
+        await asyncio.sleep(deadline - get_running_loop().time())
+        timeout_expired = True
+        await scope.cancel()
+
     host_task = current_task()
     parent_scope = get_cancel_scope(host_task)
-    scope = CancelScope(host_task)
+    scope = CancelScope(host_task, deadline)
     set_cancel_scope(host_task, scope)
+    timeout_expired = False
+
+    timeout_task = None
+    if deadline != float('inf'):
+        timeout_task = get_running_loop().create_task(timeout())
+
     try:
         await yield_(scope)
+    except asyncio.CancelledError as exc:
+        if timeout_expired:
+            raise TimeoutError().with_traceback(exc.__traceback__) from None
+        else:
+            raise
     finally:
+        if timeout_task:
+            timeout_task.cancel()
+
         set_cancel_scope(host_task, parent_scope)
 
 
 @asynccontextmanager
 @async_generator
 async def fail_after(delay: float):
-    async def timeout():
-        nonlocal timeout_expired
-        await sleep(delay)
-        timeout_expired = True
-        await scope.cancel()
-
-    timeout_expired = False
-    async with open_cancel_scope() as scope:
-        timeout_task = get_running_loop().create_task(timeout())
-        try:
-            await yield_(scope)
-        except asyncio.CancelledError as exc:
-            if timeout_expired:
-                await scope.cancel()
-                raise TimeoutError().with_traceback(exc.__traceback__) from None
-            else:
-                raise
-        finally:
-            timeout_task.cancel()
-            await asyncio.gather(timeout_task, return_exceptions=True)
+    deadline = get_running_loop().time() + delay
+    async with open_cancel_scope(deadline) as cancel_scope:
+        await yield_(cancel_scope)
 
 
 @asynccontextmanager
 @async_generator
 async def move_on_after(delay: float):
-    async def timeout():
-        nonlocal timeout_expired
-        await sleep(delay)
-        timeout_expired = True
-        await scope.cancel()
-
-    timeout_expired = False
-    async with open_cancel_scope() as scope:
-        timeout_task = get_running_loop().create_task(timeout())
-        try:
-            await yield_(scope)
-        except asyncio.CancelledError:
-            if timeout_expired:
-                await scope.cancel()
-            else:
-                raise
-        finally:
-            timeout_task.cancel()
-            await asyncio.gather(timeout_task, return_exceptions=True)
+    deadline = get_running_loop().time() + delay
+    cancel_scope = None
+    try:
+        async with open_cancel_scope(deadline) as cancel_scope:
+            await yield_(cancel_scope)
+    except TimeoutError:
+        if not cancel_scope or not cancel_scope.cancel_called:
+            raise
 
 
 #

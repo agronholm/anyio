@@ -119,6 +119,15 @@ class CancelScope(metaclass=ABCMeta):
 
     @property
     @abstractmethod
+    def deadline(self) -> float:
+        """
+        The time (clock value) when this scope is cancelled automatically.
+
+        Will be ``float('inf')``` if no timeout has been set.
+        """
+
+    @property
+    @abstractmethod
     def cancel_called(self) -> bool:
         """Return ``True`` if :meth:`cancel` has been called."""
 

@@ -219,6 +219,7 @@ async def test_fail_after():
 @pytest.mark.anyio
 async def test_fail_after_no_timeout():
     async with fail_after(None) as scope:
+        assert scope.deadline == float('inf')
         await sleep(0.1)
 
     assert not scope.cancel_called
@@ -239,8 +240,25 @@ async def test_move_on_after():
 async def test_move_on_after_no_timeout():
     result = False
     async with move_on_after(None) as scope:
+        assert scope.deadline == float('inf')
         await sleep(0.1)
         result = True
 
     assert result
     assert not scope.cancel_called
+
+
+@pytest.mark.anyio
+async def test_nested_move_on_after():
+    sleep_completed = inner_scope_completed = False
+    async with move_on_after(0.1) as outer_scope:
+        async with move_on_after(1) as inner_scope:
+            await sleep(2)
+            sleep_completed = True
+
+        inner_scope_completed = True
+
+    assert not sleep_completed
+    assert not inner_scope_completed
+    assert outer_scope.cancel_called
+    assert not inner_scope.cancel_called
