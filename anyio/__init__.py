@@ -296,6 +296,7 @@ async def connect_tcp(
     raw_socket = socket.socket()
     sock = _get_asynclib().Socket(raw_socket)
     try:
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         if bind_host is not None and bind_port is not None:
             await sock.bind((bind_host, bind_port))
 
@@ -352,6 +353,11 @@ async def create_tcp_server(
     raw_socket = socket.socket()
     sock = _get_asynclib().Socket(raw_socket)
     try:
+        if sys.platform == 'win32':
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        else:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
         await sock.bind((interface or '', port))
         sock.listen()
         return _networking.SocketStreamServer(sock, ssl_context, autostart_tls)

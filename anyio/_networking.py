@@ -50,6 +50,9 @@ class BaseSocket(metaclass=ABCMeta):
             await self._wait_readable()
             raw_socket, address = self._raw_socket.accept()
 
+        if raw_socket.family == socket.AF_INET:
+            raw_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
         return self.__class__(raw_socket), address
 
     async def bind(self, address: Union[Tuple[str, int], str]) -> None:
