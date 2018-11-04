@@ -278,6 +278,34 @@ class TestTLSStream:
 
         assert chunks == [b'blah', b'foob', b'ar']
 
+    @pytest.mark.parametrize('server_compatible, client_compatible, exc_class', [
+        (True, True, IncompleteRead),
+        (True, False, ssl.SSLEOFError),
+        (False, True, IncompleteRead),
+        (False, False, IncompleteRead)
+    ], ids=['both_standard', 'server_standard', 'client_standard', 'neither_standard'])
+    @pytest.mark.anyio
+    async def test_ragged_eofs(self, server_context, client_context, server_compatible,
+                               client_compatible, exc_class):
+        async def server():
+            async with await stream_server.accept() as stream:
+                chunks.append(await stream.receive_exactly(2))
+                with pytest.raises(exc_class):
+                    await stream.receive_exactly(2)
+
+        chunks = []
+        async with await create_tcp_server(
+                interface='localhost', ssl_context=server_context,
+                tls_standard_compatible=server_compatible) as stream_server:
+            async with create_task_group() as tg:
+                await tg.spawn(server)
+                async with await connect_tcp(
+                        'localhost', stream_server.port, ssl_context=client_context,
+                        autostart_tls=True, tls_standard_compatible=client_compatible) as client:
+                    await client.send_all(b'bl')
+
+        assert chunks == [b'bl']
+
 
 class TestUDPSocket:
     @pytest.mark.anyio

@@ -94,6 +94,9 @@ class BaseSocket(metaclass=ABCMeta):
                 await self._wait_readable()
             except ssl.SSLWantWriteError:
                 await self._wait_writable()
+            except ssl.SSLEOFError:
+                self._raw_socket.close()
+                raise
 
     async def recv_into(self, buffer, nbytes: int, *, flags: int = 0) -> int:
         while True:
@@ -149,15 +152,19 @@ class BaseSocket(metaclass=ABCMeta):
                 await self._wait_writable()
             except ssl.SSLWantReadError:
                 await self._wait_readable()
+            except ssl.SSLEOFError:
+                self._raw_socket.close()
+                raise
             else:
                 to_send -= sent
 
     async def start_tls(self, context: ssl.SSLContext,
-                        server_hostname: Optional[str] = None) -> None:
+                        server_hostname: Optional[str] = None,
+                        suppress_ragged_eofs: bool = False) -> None:
         plain_socket = self._raw_socket
         self._raw_socket = context.wrap_socket(
             self._raw_socket, server_side=not server_hostname, do_handshake_on_connect=False,
-            server_hostname=server_hostname)
+            server_hostname=server_hostname, suppress_ragged_eofs=suppress_ragged_eofs)
         while True:
             try:
                 self._raw_socket.do_handshake()
@@ -170,19 +177,44 @@ class BaseSocket(metaclass=ABCMeta):
                 self._raw_socket = plain_socket
                 raise
 
+    async def unwrap_tls(self) -> None:
+        if isinstance(self._raw_socket, ssl.SSLSocket):
+            while True:
+                try:
+                    self._raw_socket = self._raw_socket.unwrap()
+                    return
+                except ssl.SSLWantReadError:
+                    await self._wait_readable()
+                except ssl.SSLWantWriteError:
+                    await self._wait_writable()
+                except OSError as exc:
+                    if exc.errno == 0:
+                        # https://bugs.python.org/issue10808
+                        self._raw_socket.close()
+                        return
+                    else:
+                        raise
+
 
 class SocketStream(abc.SocketStream):
-    __slots__ = '_socket', '_ssl_context', '_server_hostname', '_buffer'
-
     def __init__(self, sock: BaseSocket, ssl_context: Optional[ssl.SSLContext] = None,
-                 server_hostname: Optional[str] = None) -> None:
+                 server_hostname: Optional[str] = None,
+                 tls_standard_compatible: bool = True) -> None:
         self._socket = sock
         self._ssl_context = ssl_context
         self._server_hostname = server_hostname
+        self._tls_standard_compatible = tls_standard_compatible
         self._buffer = b''
 
     async def close(self):
-        await self._socket.close()
+        from . import move_on_after
+
+        try:
+            if self._tls_standard_compatible and self._socket.fileno() != -1:
+                async with move_on_after(5, shield=True):
+                    await self._socket.unwrap_tls()
+        finally:
+            await self._socket.close()
 
     @property
     def buffered_data(self) -> bytes:
@@ -274,7 +306,8 @@ class SocketStream(abc.SocketStream):
 
     async def start_tls(self, context: Optional[ssl.SSLContext] = None) -> None:
         ssl_context = context or self._ssl_context or ssl.create_default_context()
-        await self._socket.start_tls(ssl_context, self._server_hostname)
+        await self._socket.start_tls(ssl_context, self._server_hostname,
+                                     not self._tls_standard_compatible)
 
     def getpeercert(self, binary_form: bool = False) -> Union[Dict[str, Union[str, tuple]],
                                                               bytes, None]:
@@ -321,10 +354,11 @@ class SocketStreamServer(abc.SocketStreamServer):
     __slots__ = '_socket', '_ssl_context', '_autostart_tls'
 
     def __init__(self, sock: BaseSocket, ssl_context: Optional[ssl.SSLContext],
-                 autostart_tls: bool) -> None:
+                 autostart_tls: bool, tls_standard_compatible: bool) -> None:
         self._socket = sock
         self._ssl_context = ssl_context
         self._autostart_tls = autostart_tls
+        self._tls_standard_compatible = tls_standard_compatible
 
     async def close(self) -> None:
         await self._socket.close()
@@ -336,7 +370,7 @@ class SocketStreamServer(abc.SocketStreamServer):
     async def accept(self):
         sock, addr = await self._socket.accept()
         try:
-            stream = SocketStream(sock, self._ssl_context)
+            stream = SocketStream(sock, self._ssl_context, None, self._tls_standard_compatible)
             if self._ssl_context and self._autostart_tls:
                 await stream.start_tls()
 
