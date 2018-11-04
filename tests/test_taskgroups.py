@@ -109,6 +109,7 @@ async def test_edge_cancellation():
     marker = None
     async with create_task_group() as tg:
         await tg.spawn(dummy)
+        assert marker is None
         await tg.cancel_scope.cancel()
 
     assert marker == 1
@@ -264,3 +265,42 @@ async def test_nested_move_on_after():
     assert not inner_scope_completed
     assert outer_scope.cancel_called
     assert not inner_scope.cancel_called
+
+
+@pytest.mark.anyio
+async def test_shielding():
+    async def cancel_when_ready():
+        await wait_all_tasks_blocked()
+        await tg.cancel_scope.cancel()
+
+    inner_sleep_completed = outer_sleep_completed = False
+    async with create_task_group() as tg:
+        await tg.spawn(cancel_when_ready)
+        async with move_on_after(10, shield=True) as inner_scope:
+            assert inner_scope.shield
+            await sleep(0.1)
+            inner_sleep_completed = True
+
+        await sleep(1)
+        outer_sleep_completed = True
+
+    assert inner_sleep_completed
+    assert not outer_sleep_completed
+    assert tg.cancel_scope.cancel_called
+    assert not inner_scope.cancel_called
+
+
+@pytest.mark.anyio
+async def test_shielding_immediate_scope_cancelled():
+    async def cancel_when_ready():
+        await wait_all_tasks_blocked()
+        await scope.cancel()
+
+    sleep_completed = False
+    async with create_task_group() as tg:
+        async with open_cancel_scope(shield=True) as scope:
+            await tg.spawn(cancel_when_ready)
+            await sleep(0.5)
+            sleep_completed = True
+
+    assert not sleep_completed

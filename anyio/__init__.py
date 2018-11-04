@@ -136,45 +136,50 @@ def sleep(delay: float) -> Awaitable[None]:
     return _get_asynclib().sleep(delay)
 
 
-def open_cancel_scope() -> 'typing.AsyncContextManager[CancelScope]':
+def open_cancel_scope(*, shield: bool = False) -> 'typing.AsyncContextManager[CancelScope]':
     """
     Open a cancel scope.
 
+    :param shield: ``True`` to shield the cancel scope from external cancellation
     :return: an asynchronous context manager that yields a cancel scope
 
     """
-    return _get_asynclib().open_cancel_scope()
+    return _get_asynclib().open_cancel_scope(shield=shield)
 
 
-def fail_after(delay: Optional[float]) -> 'typing.AsyncContextManager[CancelScope]':
+def fail_after(delay: Optional[float], *,
+               shield: bool = False) -> 'typing.AsyncContextManager[CancelScope]':
     """
     Create a context manager which raises an exception if does not finish in time.
 
     :param delay: maximum allowed time (in seconds) before raising the exception, or ``None`` to
         disable the timeout
+    :param shield: ``True`` to shield the cancel scope from external cancellation
     :return: an asynchronous context manager that yields a cancel scope
     :raises TimeoutError: if the block does not complete within the allotted time
 
     """
     if delay is None:
-        return _get_asynclib().open_cancel_scope()
+        return _get_asynclib().open_cancel_scope(shield=shield)
     else:
-        return _get_asynclib().fail_after(delay)
+        return _get_asynclib().fail_after(delay, shield=shield)
 
 
-def move_on_after(delay: Optional[float]) -> 'typing.AsyncContextManager[CancelScope]':
+def move_on_after(delay: Optional[float], *,
+                  shield: bool = False) -> 'typing.AsyncContextManager[CancelScope]':
     """
     Create a context manager which is exited if it does not complete within the given time.
 
     :param delay: maximum allowed time (in seconds) before exiting the context block, or ``None``
         to disable the timeout
+    :param shield: ``True`` to shield the cancel scope from external cancellation
     :return: an asynchronous context manager that yields a cancel scope
 
     """
     if delay is None:
-        return _get_asynclib().open_cancel_scope()
+        return _get_asynclib().open_cancel_scope(shield=shield)
     else:
-        return _get_asynclib().move_on_after(delay)
+        return _get_asynclib().move_on_after(delay, shield=shield)
 
 
 def current_effective_deadline() -> Awaitable[float]:

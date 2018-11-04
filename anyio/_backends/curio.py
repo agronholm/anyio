@@ -39,18 +39,27 @@ def run(func: Callable[..., T_Retval], *args, **curio_options) -> T_Retval:
 
 class CancelScope(abc.CancelScope):
     def __init__(self, host_task: curio.Task, deadline: float,
-                 parent_scope: Optional['CancelScope']) -> None:
+                 parent_scope: Optional['CancelScope'], shield: bool = False) -> None:
         self._host_task = host_task
         self._deadline = deadline
         self._parent_scope = parent_scope
+        self._shield = shield
         self._cancel_called = False
 
     async def cancel(self):
         if not self._cancel_called:
             self._cancel_called = True
 
-            if self._host_task.coro.cr_await is not None:
-                await self._host_task.cancel(blocking=False)
+            # Check if the host task should be cancelled
+            if self._host_task is not await curio.current_task():
+                scope = get_cancel_scope(self._host_task)
+                while scope and scope is not self:
+                    if scope.shield:
+                        break
+                    else:
+                        scope = scope._parent_scope
+                else:
+                    await self._host_task.cancel(blocking=False)
 
     @property
     def deadline(self) -> float:
@@ -59,6 +68,10 @@ class CancelScope(abc.CancelScope):
     @property
     def cancel_called(self) -> bool:
         return self._cancel_called
+
+    @property
+    def shield(self) -> bool:
+        return self._shield
 
 
 def get_cancel_scope(task: curio.Task) -> Optional[CancelScope]:
@@ -83,7 +96,7 @@ def set_cancel_scope(task: curio.Task, scope: Optional[CancelScope]) -> None:
 async def check_cancelled():
     task = await curio.current_task()
     cancel_scope = get_cancel_scope(task)
-    if cancel_scope is not None and cancel_scope._cancel_called:
+    if cancel_scope is not None and not cancel_scope._shield and cancel_scope._cancel_called:
         raise CancelledError
 
 
@@ -94,7 +107,7 @@ async def sleep(seconds: int):
 
 @asynccontextmanager
 @async_generator
-async def open_cancel_scope(deadline: float = float('inf')):
+async def open_cancel_scope(deadline: float = float('inf'), shield: bool = False):
     async def timeout():
         nonlocal timeout_expired
         await curio.sleep(deadline - await curio.clock())
@@ -102,7 +115,7 @@ async def open_cancel_scope(deadline: float = float('inf')):
         await scope.cancel()
 
     host_task = await curio.current_task()
-    scope = CancelScope(host_task, deadline, get_cancel_scope(host_task))
+    scope = CancelScope(host_task, deadline, get_cancel_scope(host_task), shield)
     set_cancel_scope(host_task, scope)
     timeout_expired = False
 
@@ -126,19 +139,19 @@ async def open_cancel_scope(deadline: float = float('inf')):
 
 @asynccontextmanager
 @async_generator
-async def fail_after(delay: float):
+async def fail_after(delay: float, shield: bool):
     deadline = await curio.clock() + delay
-    async with open_cancel_scope(deadline) as cancel_scope:
+    async with open_cancel_scope(deadline, shield) as cancel_scope:
         await yield_(cancel_scope)
 
 
 @asynccontextmanager
 @async_generator
-async def move_on_after(delay: float):
+async def move_on_after(delay: float, shield: bool):
     deadline = await curio.clock() + delay
     cancel_scope = None
     try:
-        async with open_cancel_scope(deadline) as cancel_scope:
+        async with open_cancel_scope(deadline, shield) as cancel_scope:
             await yield_(cancel_scope)
     except TimeoutError:
         if not cancel_scope or not cancel_scope.cancel_called:

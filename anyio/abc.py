@@ -131,6 +131,15 @@ class CancelScope(metaclass=ABCMeta):
     def cancel_called(self) -> bool:
         """Return ``True`` if :meth:`cancel` has been called."""
 
+    @property
+    @abstractmethod
+    def shield(self) -> bool:
+        """
+        Return ``True`` if this scope is shielded from external cancellation.
+
+        While a scope is shielded, it will not receive cancellations from outside.
+        """
+
 
 class AsyncFile(metaclass=ABCMeta):
     """
