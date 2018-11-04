@@ -16,7 +16,7 @@ jobs:
 
     - stage: test
       env: TOXENV=pypy3
-      python: pypy3
+      python: pypy3.5
 
     - stage: test
       env: TOXENV=py35
@@ -49,8 +49,6 @@ jobs:
         on:
           tags: true
           repo: agronholm/anyio
-  allow_failures:
-    - python: pypy3
 
 install: pip install tox
 
