@@ -33,7 +33,7 @@ def pytest_fixture_setup(fixturedef, request):
             except StopAsyncIteration:
                 pass
             else:
-                anyio.run(gen.aclose)
+                anyio.run(gen.aclose, backend=backend)
                 raise RuntimeError('Async generator fixture did not stop')
         else:
             yield anyio.run(partial(func, *args, **kwargs), backend=backend)
