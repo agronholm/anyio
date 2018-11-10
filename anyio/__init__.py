@@ -20,14 +20,6 @@ T_Retval = TypeVar('T_Retval', covariant=True)
 _local = threading.local()
 
 
-class NullAsyncContext:
-    async def __aenter__(self) -> None:
-        return None
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        pass
-
-
 @contextmanager
 def claim_current_thread(asynclib) -> None:
     assert ismodule(asynclib)
