@@ -16,6 +16,8 @@ from .abc import (  # noqa: F401
     Queue, TaskGroup, Stream, SocketStreamServer, SocketStream, AsyncFile)
 from . import _networking
 
+BACKENDS = 'asyncio', 'curio', 'trio'
+
 T_Retval = TypeVar('T_Retval', covariant=True)
 _local = threading.local()
 
@@ -74,7 +76,7 @@ def _get_asynclib():
 
 
 def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
-        backend: str = 'asyncio', backend_options: Optional[Dict[str, Any]] = None) -> T_Retval:
+        backend: str = BACKENDS[0], backend_options: Optional[Dict[str, Any]] = None) -> T_Retval:
     """
     Run the given coroutine function in an asynchronous event loop.
 

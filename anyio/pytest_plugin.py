@@ -53,7 +53,7 @@ def pytest_fixture_setup(fixturedef, request):
 def pytest_generate_tests(metafunc):
     marker = metafunc.definition.get_closest_marker('anyio')
     if marker:
-        backends = marker.kwargs.get('backends', ['asyncio', 'curio', 'trio'])
+        backends = marker.kwargs.get('backends', anyio.BACKENDS)
         metafunc.fixturenames.append('anyio_backend')
         metafunc.parametrize('anyio_backend', backends, scope='session')
 
