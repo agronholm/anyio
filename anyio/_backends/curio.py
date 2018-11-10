@@ -188,7 +188,9 @@ class TaskGroup:
             await self.cancel_scope.cancel()
             raise
         else:
-            self._tasks.remove(await curio.current_task())
+            task = await curio.current_task()
+            self._tasks.remove(task)
+            set_cancel_scope(task, None)
 
     async def spawn(self, func: Callable, *args, name=None) -> None:
         if not self._active:
@@ -232,6 +234,7 @@ async def create_task_group():
                     await task.join()
                 except (curio.TaskError, curio.TaskCancelled):
                     group._tasks.remove(task)
+                    set_cancel_scope(task, None)
                     if task.exception:
                         if not isinstance(task.exception, (CancelledError, curio.CancelledError)):
                             exceptions.append(task.exception)

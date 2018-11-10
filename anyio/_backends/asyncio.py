@@ -281,7 +281,9 @@ class TaskGroup:
             await self.cancel_scope.cancel()
             raise
         else:
-            self._tasks.remove(current_task())
+            task = current_task()
+            self._tasks.remove(task)
+            set_cancel_scope(task, None)
 
     async def spawn(self, func: Callable, *args, name=None) -> None:
         if not self._active:
@@ -326,8 +328,10 @@ async def create_task_group():
                     await task
                 except (CancelledError, asyncio.CancelledError):
                     group._tasks.remove(task)
+                    set_cancel_scope(task, None)
                 except BaseException as exc:
                     group._tasks.remove(task)
+                    set_cancel_scope(task, None)
                     exceptions.append(exc)
 
         group._active = False
