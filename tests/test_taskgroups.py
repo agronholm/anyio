@@ -179,6 +179,8 @@ async def test_multi_error_children():
 
     assert len(exc.value.exceptions) == 2
     assert sorted(str(e) for e in exc.value.exceptions) == ['task1', 'task2']
+    assert exc.match('^2 exceptions were raised in the task group:\n')
+    assert exc.match(r'Exception: task\d\n----')
 
 
 @pytest.mark.anyio
@@ -191,6 +193,8 @@ async def test_multi_error_host():
 
     assert len(exc.value.exceptions) == 2
     assert [str(e) for e in exc.value.exceptions] == ['host', 'child']
+    assert exc.match('^2 exceptions were raised in the task group:\n')
+    assert exc.match(r'Exception: host\n----')
 
 
 @pytest.mark.anyio
