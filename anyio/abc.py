@@ -484,7 +484,7 @@ class SocketStreamServer(metaclass=ABCMeta):
         """
 
 
-class DatagramSocket(metaclass=ABCMeta):
+class UDPSocket(metaclass=ABCMeta):
     async def __aenter__(self):
         return self
 

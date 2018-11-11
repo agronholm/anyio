@@ -385,7 +385,7 @@ class SocketStreamServer(abc.SocketStreamServer):
             await yield_(await self.accept())
 
 
-class DatagramSocket(abc.DatagramSocket):
+class UDPSocket(abc.UDPSocket):
     __slots__ = '_socket'
 
     def __init__(self, sock: BaseSocket) -> None:

@@ -12,8 +12,8 @@ from ssl import SSLContext
 from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any, Dict
 
 from .abc import (  # noqa: F401
-    IPAddressType, BufferType, CancelScope, DatagramSocket, Lock, Condition, Event, Semaphore,
-    Queue, TaskGroup, Stream, SocketStreamServer, SocketStream, AsyncFile)
+    IPAddressType, BufferType, CancelScope, UDPSocket, Lock, Condition, Event, Semaphore, Queue,
+    TaskGroup, Stream, SocketStreamServer, SocketStream, AsyncFile)
 from . import _networking
 
 BACKENDS = 'asyncio', 'curio', 'trio'
@@ -407,7 +407,7 @@ async def create_unix_server(
 async def create_udp_socket(
     *, interface: Optional[IPAddressType] = None, port: Optional[int] = None,
     target_host: Optional[IPAddressType] = None, target_port: Optional[int] = None
-) -> DatagramSocket:
+) -> UDPSocket:
     """
     Create a UDP socket.
 
@@ -435,7 +435,7 @@ async def create_udp_socket(
         if target_host is not None and target_port is not None:
             await sock.connect((target_host, target_port))
 
-        return _networking.DatagramSocket(sock)
+        return _networking.UDPSocket(sock)
     except BaseException:
         await sock.close()
         raise
