@@ -23,6 +23,41 @@ T_Agen = TypeVar('T_Agen')
 _local = threading.local()
 
 
+#
+# Event loop
+#
+
+def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
+        backend: str = BACKENDS[0], backend_options: Optional[Dict[str, Any]] = None) -> T_Retval:
+    """
+    Run the given coroutine function in an asynchronous event loop.
+
+    The current thread must not be already running an event loop.
+
+    :param func: a coroutine function
+    :param args: positional arguments to ``func``
+    :param backend: name of the asynchronous event loop implementation – one of ``asyncio``,
+        ``curio`` and ``trio``
+    :param backend_options: keyword arguments to call the backend ``run()`` implementation with
+    :return: the return value of the coroutine function
+    :raises RuntimeError: if an asynchronous event loop is already running in this thread
+    :raises LookupError: if the named backend is not found
+
+    """
+    asynclib_name = detect_running_asynclib()
+    if asynclib_name:
+        raise RuntimeError('Already running {} in this thread'.format(asynclib_name))
+
+    try:
+        asynclib = import_module('{}._backends.{}'.format(__name__, backend))
+    except ImportError as exc:
+        raise LookupError('No such backend: {}'.format(backend)) from exc
+
+    backend_options = backend_options or {}
+    with claim_current_thread(asynclib):
+        return asynclib.run(func, *args, **backend_options)
+
+
 @contextmanager
 def claim_current_thread(asynclib) -> None:
     assert ismodule(asynclib)
@@ -33,11 +68,24 @@ def claim_current_thread(asynclib) -> None:
         reset_detected_asynclib()
 
 
-def reset_detected_asynclib():
+def reset_detected_asynclib() -> None:
+    """
+    Reset the cached information about the currently running async library.
+
+    This is only needed in case you need to run AnyIO code on two or more different async libraries
+    using their native ``run()`` functions one after another in the same thread.
+
+    """
     _local.__dict__.clear()
 
 
 def detect_running_asynclib() -> Optional[str]:
+    """
+    Return the name of the asynchronous framework running in the current thread.
+
+    :return: the name of the framework, or ``None`` if no supported framework is running
+
+    """
     if 'trio' in sys.modules:
         from trio.hazmat import current_trio_token
         try:
@@ -76,37 +124,6 @@ def _get_asynclib():
         return _local.asynclib
 
 
-def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
-        backend: str = BACKENDS[0], backend_options: Optional[Dict[str, Any]] = None) -> T_Retval:
-    """
-    Run the given coroutine function in an asynchronous event loop.
-
-    The current thread must not be already running an event loop.
-
-    :param func: a coroutine function
-    :param args: positional arguments to ``func``
-    :param backend: name of the asynchronous event loop implementation – one of ``asyncio``,
-        ``curio`` and ``trio``
-    :param backend_options: keyword arguments to call the backend ``run()`` implementation with
-    :return: the return value of the coroutine function
-    :raises RuntimeError: if an asynchronous event loop is already running in this thread
-    :raises LookupError: if the named backend is not found
-
-    """
-    asynclib_name = detect_running_asynclib()
-    if asynclib_name:
-        raise RuntimeError('Already running {} in this thread'.format(asynclib_name))
-
-    try:
-        asynclib = import_module('{}._backends.{}'.format(__name__, backend))
-    except ImportError as exc:
-        raise LookupError('No such backend: {}'.format(backend)) from exc
-
-    backend_options = backend_options or {}
-    with claim_current_thread(asynclib):
-        return asynclib.run(func, *args, **backend_options)
-
-
 def is_in_event_loop_thread() -> bool:
     """
     Determine whether the current thread is running a recognized asynchronous event loop.
@@ -115,6 +132,11 @@ def is_in_event_loop_thread() -> bool:
 
     """
     return detect_running_asynclib() is not None
+
+
+#
+# Miscellaneous
+#
 
 
 def finalize(resource: T_Agen) -> 'typing.AsyncContextManager[T_Agen]':
@@ -130,10 +152,6 @@ def finalize(resource: T_Agen) -> 'typing.AsyncContextManager[T_Agen]':
     return _get_asynclib().finalize(resource)
 
 
-#
-# Timeouts and cancellation
-#
-
 def sleep(delay: float) -> Awaitable[None]:
     """
     Pause the current task for the specified duration.
@@ -142,6 +160,11 @@ def sleep(delay: float) -> Awaitable[None]:
 
     """
     return _get_asynclib().sleep(delay)
+
+
+#
+# Timeouts and cancellation
+#
 
 
 def open_cancel_scope(*, shield: bool = False) -> 'typing.AsyncContextManager[CancelScope]':
@@ -190,7 +213,15 @@ def move_on_after(delay: Optional[float], *,
         return _get_asynclib().move_on_after(delay, shield=shield)
 
 
-def current_effective_deadline() -> Awaitable[float]:
+def current_effective_deadline() -> Coroutine[Any, Any, float]:
+    """
+    Return the nearest deadline among all the cancel scopes effective for the current task.
+
+    :return: a clock value from the event loop's internal clock (``float('inf')`` if there is no
+        deadline in effect)
+    :rtype: float
+
+    """
     return _get_asynclib().current_effective_deadline()
 
 
@@ -252,6 +283,7 @@ def aopen(file: Union[str, Path, int], mode: str = 'r', buffering: int = -1,
     The arguments are exactly the same as for the builtin :func:`open`.
 
     :return: an asynchronous file object
+    :rtype: AsyncFile
 
     """
     if isinstance(file, Path):
@@ -261,7 +293,7 @@ def aopen(file: Union[str, Path, int], mode: str = 'r', buffering: int = -1,
 
 
 #
-# Networking
+# Sockets and networking
 #
 
 def wait_socket_readable(sock: Union[socket.SocketType, ssl.SSLSocket]) -> Awaitable[None]:
@@ -512,7 +544,7 @@ def create_queue(capacity: int) -> Queue:
 
 
 #
-# Signal handling
+# Operating system signals
 #
 
 def receive_signals(*signals: int) -> 'typing.ContextManager[typing.AsyncIterator[int]]':

@@ -11,18 +11,23 @@ from ..exceptions import ExceptionGroup, ClosedResourceError
 
 
 #
-# Main entry point
+# Event loop
 #
 
 run = trio.run
 
 
 #
-# Timeouts and cancellation
+# Miscellaneous
 #
 
+finalize = aclosing
 sleep = trio.sleep
 
+
+#
+# Timeouts and cancellation
+#
 
 @asynccontextmanager
 @async_generator
@@ -123,7 +128,7 @@ aopen = trio.open_file
 
 
 #
-# Networking
+# Sockets and networking
 #
 
 class Socket(BaseSocket):
@@ -157,17 +162,6 @@ async def wait_socket_writable(sock):
         await trio.hazmat.wait_socket_writable(sock)
     except trio.ClosedResourceError as exc:
         raise ClosedResourceError().with_traceback(exc.__traceback__) from None
-
-
-#
-# Signal handling
-#
-
-@asynccontextmanager
-@async_generator
-async def receive_signals(*signals: int):
-    with trio.open_signal_receiver(*signals) as cm:
-        await yield_(cm)
 
 
 #
@@ -222,10 +216,14 @@ abc.Queue.register(Queue)
 
 
 #
-# Miscellaneous functions
+# Signal handling
 #
 
-finalize = aclosing
+@asynccontextmanager
+@async_generator
+async def receive_signals(*signals: int):
+    with trio.open_signal_receiver(*signals) as cm:
+        await yield_(cm)
 
 
 #

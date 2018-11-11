@@ -1,3 +1,6 @@
+.. image:: https://readthedocs.org/projects/anyio/badge/?version=latest
+  :target: https://anyio.readthedocs.io/en/latest/?badge=latest
+  :alt: Documentation
 .. image:: https://travis-ci.com/agronholm/anyio.svg?branch=master
   :target: https://travis-ci.com/agronholm/anyio
   :alt: Build Status
@@ -14,6 +17,9 @@ It bridges the following functionality:
 * Asynchronous file I/O
 * Synchronization primitives (locks, conditions, events, semaphores, queues)
 * High level networking (TCP, UDP and UNIX sockets)
+
+You can even use it together with native libraries from your selected backend in applications.
+Doing this in libraries is not advisable however since it limits the usefulness of your library.
 
 .. _asyncio: https://docs.python.org/3/library/asyncio.html
 .. _curio: https://github.com/dabeaz/curio

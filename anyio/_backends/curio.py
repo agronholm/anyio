@@ -15,7 +15,7 @@ from ..exceptions import ExceptionGroup, CancelledError, ClosedResourceError
 
 
 #
-# Main entry point
+# Event loop
 #
 
 def run(func: Callable[..., T_Retval], *args, **curio_options) -> T_Retval:
@@ -32,6 +32,18 @@ def run(func: Callable[..., T_Retval], *args, **curio_options) -> T_Retval:
         raise exception
     else:
         return retval
+
+
+#
+# Miscellaneous functions
+#
+
+finalize = curio.meta.finalize
+
+
+async def sleep(seconds: int):
+    await check_cancelled()
+    await curio.sleep(seconds)
 
 
 #
@@ -274,7 +286,7 @@ async def aopen(*args, **kwargs):
 
 
 #
-# Networking
+# Sockets and networking
 #
 
 class Socket(BaseSocket):
@@ -381,7 +393,7 @@ abc.Queue.register(Queue)
 
 
 #
-# Signal handling
+# Operating system signals
 #
 
 @asynccontextmanager
@@ -389,18 +401,6 @@ abc.Queue.register(Queue)
 async def receive_signals(*signals: int):
     async with curio.SignalQueue(*signals) as queue:
         await yield_(queue)
-
-
-#
-# Miscellaneous functions
-#
-
-async def sleep(seconds: int):
-    await check_cancelled()
-    await curio.sleep(seconds)
-
-
-finalize = curio.meta.finalize
 
 
 #

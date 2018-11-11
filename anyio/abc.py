@@ -2,7 +2,7 @@ from abc import ABCMeta, abstractmethod
 from io import SEEK_SET
 from ipaddress import IPv4Address, IPv6Address
 from ssl import SSLContext
-from typing import Callable, TypeVar, Optional, Tuple, Union, AsyncIterable, Dict, List
+from typing import Callable, TypeVar, Optional, Tuple, Union, AsyncIterable, Dict, List, Coroutine
 
 T_Retval = TypeVar('T_Retval')
 IPAddressType = Union[str, IPv4Address, IPv6Address]
@@ -52,19 +52,23 @@ class Condition(metaclass=ABCMeta):
 class Event(metaclass=ABCMeta):
     @abstractmethod
     async def set(self) -> None:
-        pass
+        """Set the flag, notifying all listeners."""
 
     @abstractmethod
     def clear(self) -> None:
-        pass
+        """Clear the flag, so that listeners can receive another notification."""
 
     @abstractmethod
     def is_set(self) -> None:
-        pass
+        """Return ``True`` if the flag is set, ``False`` if not."""
 
     @abstractmethod
     async def wait(self) -> bool:
-        pass
+        """
+        Wait until the flag has been set.
+
+        If the flag has already been set when this method is called, it returns immediately.
+        """
 
 
 class Semaphore(metaclass=ABCMeta):
@@ -79,37 +83,63 @@ class Semaphore(metaclass=ABCMeta):
     @property
     @abstractmethod
     def value(self) -> int:
-        pass
+        """The current value of the semaphore."""
 
 
 class Queue(metaclass=ABCMeta):
     @abstractmethod
     def empty(self) -> bool:
-        pass
+        """Return ``True`` if the queue is not holding any items."""
 
     @abstractmethod
     def full(self) -> bool:
-        pass
+        """Return ``True`` if the queue is holding the maximum number of items."""
 
     @abstractmethod
     def qsize(self) -> int:
-        pass
+        """Return the number of items the queue is currently holding."""
 
     @abstractmethod
     async def put(self, item) -> None:
-        pass
+        """
+        Put an item into the queue.
+
+        If the queue is currently full, this method will block until there is at least one free
+        slot available.
+
+        :param item: the object to put into the queue
+        """
 
     @abstractmethod
     async def get(self):
-        pass
+        """
+        Get an item from the queue.
+
+        If there are no items in the queue, this method will block until one is available.
+
+        :return: the removed item
+        """
 
 
 class TaskGroup(metaclass=ABCMeta):
+    """
+    Groups several asynchronous tasks together.
+
+    :ivar cancel_scope: the cancel scope inherited by all child tasks
+    :vartype cancel_scope: CancelScope
+    """
+
     cancel_scope = None  # type: CancelScope
 
     @abstractmethod
-    async def spawn(self, func: Callable, *args, name=None) -> None:
-        pass
+    async def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
+        """
+        Launch a new task in this task group.
+
+        :param func: a coroutine function
+        :param args: positional arguments to call the function with
+        :param name: name of the task, for the purposes of introspection and debugging
+        """
 
 
 class CancelScope(metaclass=ABCMeta):
@@ -129,13 +159,13 @@ class CancelScope(metaclass=ABCMeta):
     @property
     @abstractmethod
     def cancel_called(self) -> bool:
-        """Return ``True`` if :meth:`cancel` has been called."""
+        """``True`` if :meth:`cancel` has been called."""
 
     @property
     @abstractmethod
     def shield(self) -> bool:
         """
-        Return ``True`` if this scope is shielded from external cancellation.
+        ``True`` if this scope is shielded from external cancellation.
 
         While a scope is shielded, it will not receive cancellations from outside.
         """
@@ -367,7 +397,7 @@ class SocketStream(Stream):
     @abstractmethod
     def alpn_protocol(self) -> Optional[str]:
         """
-        Return the ALPN protocol selected during the TLS handshake.
+        The ALPN protocol selected during the TLS handshake.
 
         :return: The selected ALPN protocol, or ``None`` if no ALPN protocol was selected
         :raises anyio.exceptions.TLSRequired: if a TLS handshake has not been done
@@ -389,7 +419,7 @@ class SocketStream(Stream):
     @abstractmethod
     def tls_version(self) -> Optional[str]:
         """
-        Return the TLS version negotiated during the TLS handshake.
+        The TLS version negotiated during the TLS handshake.
 
         See :func:`ssl.SSLSocket.version` for more information.
 
@@ -401,7 +431,7 @@ class SocketStream(Stream):
     @abstractmethod
     def cipher(self) -> Tuple[str, str, int]:
         """
-        Return the cipher selected in the TLS handshake.
+        The cipher selected in the TLS handshake.
 
         See :func:`ssl.SSLSocket.cipher` for more information.
 
@@ -413,7 +443,7 @@ class SocketStream(Stream):
     @abstractmethod
     def shared_ciphers(self) -> List[Tuple[str, str, int]]:
         """
-        Return the list of ciphers supported by both parties in the TLS handshake.
+        The list of ciphers supported by both parties in the TLS handshake.
 
         See :func:`ssl.SSLSocket.shared_ciphers` for more information.
 
@@ -425,7 +455,7 @@ class SocketStream(Stream):
     @abstractmethod
     def server_hostname(self) -> Optional[str]:
         """
-        Return the server host name.
+        The server host name.
 
         :return: the server host name, or ``None`` if this is the server side of the connection
         :raises anyio.exceptions.TLSRequired: if a TLS handshake has not been done
@@ -435,7 +465,7 @@ class SocketStream(Stream):
     @abstractmethod
     def server_side(self) -> bool:
         """
-        Check if this is the server or client side of the connection.
+        ``True`` if this is the server side of the connection, ``False`` if this is the client.
 
         :return: ``True`` if this is the server side, ``False`` if this is the client side
         :raises anyio.exceptions.TLSRequired: if a TLS handshake has not been done

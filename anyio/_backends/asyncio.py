@@ -103,7 +103,7 @@ _create_task_supports_name = 'name' in inspect.signature(create_task).parameters
 
 
 #
-# Main entry point
+# Event loop
 #
 
 def run(func: Callable[..., T_Retval], *args, debug: bool = False,
@@ -124,6 +124,18 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False,
         raise exception
     else:
         return retval
+
+
+#
+# Miscellaneous
+#
+
+finalize = aclosing
+
+
+async def sleep(delay: float) -> None:
+    check_cancelled()
+    await asyncio.sleep(delay)
 
 
 #
@@ -441,7 +453,7 @@ async def aopen(*args, **kwargs):
 
 
 #
-# Networking
+# Sockets and networking
 #
 
 
@@ -577,7 +589,7 @@ abc.Queue.register(Queue)
 
 
 #
-# Signal handling
+# Operating system signals
 #
 
 @asynccontextmanager
@@ -603,17 +615,6 @@ async def receive_signals(*signals: int):
         await agen.aclose()
         for sig in handled_signals:
             loop.remove_signal_handler(sig)
-
-
-#
-# Miscellaneous functions
-#
-
-async def sleep(delay: float) -> None:
-    check_cancelled()
-    await asyncio.sleep(delay)
-
-finalize = aclosing
 
 
 #
