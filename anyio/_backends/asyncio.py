@@ -597,13 +597,15 @@ async def receive_signals(*signals: int):
     loop = get_running_loop()
     queue = asyncio.Queue(loop=loop)
     handled_signals = set()
+    agen = process_signal_queue()
     try:
         for sig in set(signals):
             loop.add_signal_handler(sig, queue.put_nowait, sig)
             handled_signals.add(sig)
 
-        await yield_(process_signal_queue())
+        await yield_(agen)
     finally:
+        await agen.aclose()
         for sig in handled_signals:
             loop.remove_signal_handler(sig)
 
