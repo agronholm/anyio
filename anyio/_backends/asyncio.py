@@ -221,7 +221,7 @@ async def open_cancel_scope(deadline: float = float('inf'), shield: bool = False
     except asyncio.CancelledError as exc:
         if timeout_expired:
             raise TimeoutError().with_traceback(exc.__traceback__) from None
-        else:
+        elif not scope._cancel_called:
             raise
     finally:
         if timeout_task:
