@@ -222,7 +222,7 @@ class SocketStream(abc.SocketStream):
 
     async def receive_some(self, max_bytes: Optional[int]) -> bytes:
         if self._buffer:
-            data, self._buffer = self._buffer, b''
+            data, self._buffer = self._buffer[:max_bytes], self._buffer[max_bytes:]
             return data
 
         return await self._socket.recv(max_bytes)
