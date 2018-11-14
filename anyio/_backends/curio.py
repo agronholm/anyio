@@ -3,6 +3,7 @@ from functools import partial
 from typing import Callable, Set, Optional, Awaitable  # noqa: F401
 
 import curio.io
+import curio.meta
 import curio.socket
 import curio.ssl
 import curio.traps
@@ -98,11 +99,6 @@ async def check_cancelled():
     cancel_scope = get_cancel_scope(task)
     if cancel_scope is not None and not cancel_scope._shield and cancel_scope._cancel_called:
         raise CancelledError
-
-
-async def sleep(seconds: int):
-    await check_cancelled()
-    await curio.sleep(seconds)
 
 
 @asynccontextmanager
@@ -393,6 +389,18 @@ abc.Queue.register(Queue)
 async def receive_signals(*signals: int):
     async with curio.SignalQueue(*signals) as queue:
         await yield_(queue)
+
+
+#
+# Miscellaneous functions
+#
+
+async def sleep(seconds: int):
+    await check_cancelled()
+    await curio.sleep(seconds)
+
+
+finalize = curio.meta.finalize
 
 
 #

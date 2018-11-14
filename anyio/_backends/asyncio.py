@@ -7,7 +7,7 @@ from functools import partial
 from threading import Thread
 from typing import Callable, Set, Optional, Union  # noqa: F401
 
-from async_generator import async_generator, yield_, asynccontextmanager
+from async_generator import async_generator, yield_, asynccontextmanager, aclosing
 
 from .._networking import BaseSocket
 from .. import abc, claim_current_thread, _local, T_Retval
@@ -191,11 +191,6 @@ def check_cancelled():
     cancel_scope = get_cancel_scope(task)
     if cancel_scope is not None and not cancel_scope._shield and cancel_scope._cancel_called:
         raise CancelledError
-
-
-async def sleep(delay: float) -> None:
-    check_cancelled()
-    await asyncio.sleep(delay)
 
 
 @asynccontextmanager
@@ -608,6 +603,17 @@ async def receive_signals(*signals: int):
         await agen.aclose()
         for sig in handled_signals:
             loop.remove_signal_handler(sig)
+
+
+#
+# Miscellaneous functions
+#
+
+async def sleep(delay: float) -> None:
+    check_cancelled()
+    await asyncio.sleep(delay)
+
+finalize = aclosing
 
 
 #

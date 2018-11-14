@@ -2,7 +2,7 @@ import sys
 from typing import Callable
 
 import trio.hazmat
-from async_generator import async_generator, yield_, asynccontextmanager
+from async_generator import async_generator, yield_, asynccontextmanager, aclosing
 
 from .._networking import BaseSocket
 from .._utils import wrap_as_awaitable
@@ -219,6 +219,13 @@ abc.Condition.register(Condition)
 abc.Event.register(Event)
 abc.Semaphore.register(Semaphore)
 abc.Queue.register(Queue)
+
+
+#
+# Miscellaneous functions
+#
+
+finalize = aclosing
 
 
 #

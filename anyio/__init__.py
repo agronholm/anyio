@@ -19,6 +19,7 @@ from . import _networking
 BACKENDS = 'asyncio', 'curio', 'trio'
 
 T_Retval = TypeVar('T_Retval', covariant=True)
+T_Agen = TypeVar('T_Agen')
 _local = threading.local()
 
 
@@ -114,6 +115,19 @@ def is_in_event_loop_thread() -> bool:
 
     """
     return detect_running_asynclib() is not None
+
+
+def finalize(resource: T_Agen) -> 'typing.AsyncContextManager[T_Agen]':
+    """
+    Return a context manager that automatically closes an asynchronous resource on exit.
+
+    :param resource: an asynchronous generator or other resource with an ``aclose()`` method
+    :return: an asynchronous context manager that yields the given object
+
+    """
+    # This exists solely because curio is being a special snowflake and doesn't accept
+    # async_generator.aclosing(). See https://github.com/dabeaz/curio/issues/176.
+    return _get_asynclib().finalize(resource)
 
 
 #
