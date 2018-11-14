@@ -155,6 +155,33 @@ class TestTCPStream:
 
         assert chunks == [b'blah', b'foobar']
 
+    @pytest.mark.anyio
+    async def test_accept_connections(self):
+        async def handle_client(stream):
+            async with stream:
+                line = await stream.receive_until(b'\n', 10)
+                lines.append(line)
+
+            if len(lines) == 2:
+                await stream_server.close()
+
+        async def server():
+            async for stream in stream_server.accept_connections():
+                await tg.spawn(handle_client, stream)
+
+        lines = []
+        async with await create_tcp_server(interface='localhost') as stream_server:
+            async with create_task_group() as tg:
+                await tg.spawn(server)
+
+                async with await connect_tcp('localhost', stream_server.port) as client:
+                    await client.send_all(b'client1\n')
+
+                async with await connect_tcp('localhost', stream_server.port) as client:
+                    await client.send_all(b'client2\n')
+
+        assert lines == [b'client1', b'client2']
+
 
 class TestUNIXStream:
     @pytest.mark.skipif(sys.platform == 'win32',

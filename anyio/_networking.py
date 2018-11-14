@@ -9,7 +9,7 @@ from async_generator import async_generator, yield_
 
 from anyio import abc
 from anyio.abc import IPAddressType, BufferType
-from anyio.exceptions import DelimiterNotFound, IncompleteRead, TLSRequired
+from anyio.exceptions import DelimiterNotFound, IncompleteRead, TLSRequired, ClosedResourceError
 
 
 class BaseSocket(metaclass=ABCMeta):
@@ -381,8 +381,11 @@ class SocketStreamServer(abc.SocketStreamServer):
 
     @async_generator
     async def accept_connections(self):
-        while not self._socket.closed:
-            await yield_(await self.accept())
+        while self._socket.fileno() != -1:
+            try:
+                await yield_(await self.accept())
+            except ClosedResourceError:
+                break
 
 
 class UDPSocket(abc.UDPSocket):
