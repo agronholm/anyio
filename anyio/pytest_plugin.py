@@ -12,6 +12,14 @@ def pytest_configure(config):
                                        'asynchronously via anyio.')
 
 
+def pytest_addoption(parser):
+    group = parser.getgroup('AnyIO')
+    group.addoption(
+        '--anyio-backends', action='store', dest='anyio_backends', default=anyio.BACKENDS[0],
+        help='Comma separated list of backends to use for running asynchronous tests.',
+    )
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_fixture_setup(fixturedef, request):
     def wrapper(*args, **kwargs):
@@ -53,7 +61,12 @@ def pytest_fixture_setup(fixturedef, request):
 def pytest_generate_tests(metafunc):
     marker = metafunc.definition.get_closest_marker('anyio')
     if marker:
-        backends = marker.kwargs.get('backends', anyio.BACKENDS)
+        backends = metafunc.config.getoption('anyio_backends')
+        if backends == 'all':
+            backends = anyio.BACKENDS
+        else:
+            backends = backends.replace(' ', '').split(',')
+
         metafunc.fixturenames.append('anyio_backend')
         metafunc.parametrize('anyio_backend', backends, scope='session')
 
