@@ -18,7 +18,7 @@ async def asyncgen_fixture():
     await sleep(0)
 
 
-@pytest.mark.anyio(backends=['asyncio'])
+@pytest.mark.anyio
 async def test_fixture(async_fixture):
     assert async_fixture == 'foo'
 
