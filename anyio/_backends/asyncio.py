@@ -64,9 +64,9 @@ except ImportError:
                 loop.close()
 
     def _cancel_all_tasks(loop):
-        from asyncio import Task, gather
+        from asyncio import gather
 
-        to_cancel = Task.all_tasks(loop)
+        to_cancel = all_tasks(loop)
         if not to_cancel:
             return
 
@@ -96,8 +96,16 @@ except ImportError:
         else:
             raise RuntimeError('no running event loop')
 
+    def all_tasks(loop=None):
+        """Return a set of all tasks for the loop."""
+        from asyncio import Task
+
+        if loop is None:
+            loop = get_running_loop()
+
+        return {t for t in Task.all_tasks(loop) if not t.done()}
+
     current_task = asyncio.Task.current_task
-    all_tasks = asyncio.Task.all_tasks
 
 _create_task_supports_name = 'name' in inspect.signature(create_task).parameters
 
