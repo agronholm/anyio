@@ -55,6 +55,8 @@ Sockets and networking
 .. autocofunction:: anyio.create_tcp_server
 .. autocofunction:: anyio.create_unix_server
 .. autocofunction:: anyio.create_udp_socket
+.. autocofunction:: anyio.wait_socket_readable
+.. autocofunction:: anyio.wait_socket_writable
 
 .. autoclass:: anyio.abc.Stream
     :members:
