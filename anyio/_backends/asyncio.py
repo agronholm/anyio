@@ -3,7 +3,6 @@ import concurrent.futures  # noqa: F401
 import inspect
 import os
 import socket
-import sys
 from functools import partial
 from threading import Thread
 from typing import (
@@ -375,7 +374,7 @@ _Retval_Queue_Type = Tuple[Optional[T_Retval], Optional[BaseException]]
 async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
     def thread_worker():
         try:
-            with claim_current_thread(asynclib):
+            with claim_current_thread('asyncio'):
                 _local.loop = loop
                 result = func(*args)
         except BaseException as exc:
@@ -384,7 +383,6 @@ async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
             loop.call_soon_threadsafe(queue.put_nowait, (result, None))
 
     check_cancelled()
-    asynclib = sys.modules[__name__]
     loop = get_running_loop()
     queue = asyncio.Queue(1)  # type: asyncio.Queue[_Retval_Queue_Type]
     thread = Thread(target=thread_worker)

@@ -1,19 +1,21 @@
+import threading
+
 import pytest
 
-from anyio import (
-    run_async_from_thread, run_in_thread, is_in_event_loop_thread, create_task_group)
+from anyio import run_async_from_thread, run_in_thread, create_task_group
 
 
 @pytest.mark.anyio
 async def test_run_async_from_thread():
     async def add(a, b):
-        assert is_in_event_loop_thread()
+        assert threading.get_ident() == event_loop_thread_id
         return a + b
 
     def worker(a, b):
-        assert not is_in_event_loop_thread()
+        assert threading.get_ident() != event_loop_thread_id
         return run_async_from_thread(add, a, b)
 
+    event_loop_thread_id = threading.get_ident()
     result = await run_in_thread(worker, 1, 2)
     assert result == 3
 
@@ -47,3 +49,11 @@ async def test_run_in_thread_exception():
         await run_in_thread(thread_worker)
 
     exc.match('^foo$')
+
+
+def test_run_async_from_unclaimed_thread():
+    async def foo():
+        pass
+
+    exc = pytest.raises(RuntimeError, run_async_from_thread, foo)
+    exc.match('This function can only be run from an AnyIO worker thread')

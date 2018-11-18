@@ -1,4 +1,3 @@
-import sys
 from typing import Callable
 
 import trio.hazmat
@@ -107,8 +106,7 @@ async def create_task_group():
 
 async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
     def wrapper():
-        asynclib = sys.modules[__name__]
-        with claim_current_thread(asynclib):
+        with claim_current_thread('trio'):
             _local.portal = portal
             return func(*args)
 

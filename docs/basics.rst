@@ -19,14 +19,15 @@ backend, say trio_, you can use the ``backend`` argument, like so::
 But AnyIO code is not required to be run via :func:`anyio.run`. You can just as well use the native
 ``run()`` function of the backend library::
 
+    import sniffio
     import trio
-    from anyio import sleep, detect_running_asynclib
+    from anyio import sleep
 
 
     async def main():
         print('Hello')
         await sleep(1)
-        print("I'm running on", detect_running_asynclib())
+        print("I'm running on", sniffio.current_async_library())
 
     trio.run(main)
 

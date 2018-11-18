@@ -3,8 +3,8 @@ import pytest
 import trio
 
 from anyio import (
-    create_task_group, sleep, move_on_after, fail_after, open_cancel_scope,
-    reset_detected_asynclib, wait_all_tasks_blocked, current_effective_deadline)
+    create_task_group, sleep, move_on_after, fail_after, open_cancel_scope, wait_all_tasks_blocked,
+    current_effective_deadline)
 from anyio._backends import asyncio
 from anyio.exceptions import ExceptionGroup
 
@@ -51,7 +51,6 @@ def test_run_natively(run_func, as_coro_obj):
         async with create_task_group() as tg:
             await tg.spawn(sleep, 0)
 
-    reset_detected_asynclib()
     if as_coro_obj:
         run_func(testfunc())
     else:

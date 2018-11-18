@@ -1,5 +1,4 @@
 import socket  # noqa: F401
-import sys
 from functools import partial
 from typing import Callable, Set, Optional, Coroutine, Any, cast, Dict  # noqa: F401
 
@@ -261,8 +260,7 @@ async def create_task_group():
 
 async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
     def thread_worker():
-        asynclib = sys.modules[__name__]
-        with claim_current_thread(asynclib):
+        with claim_current_thread('curio'):
             return func(*args)
 
     await check_cancelled()

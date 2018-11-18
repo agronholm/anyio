@@ -5,9 +5,6 @@ Event loop
 ----------
 
 .. autofunction:: anyio.run
-.. autofunction:: anyio.detect_running_asynclib
-.. autofunction:: anyio.reset_detected_asynclib
-.. autofunction:: anyio.is_in_event_loop_thread
 
 Miscellaneous
 -------------

@@ -6,10 +6,11 @@ import threading
 import typing
 from contextlib import contextmanager
 from importlib import import_module
-from inspect import ismodule
 from pathlib import Path
 from ssl import SSLContext
 from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any, Dict
+
+import sniffio
 
 from .abc import (  # noqa: F401
     IPAddressType, CancelScope, UDPSocket, Lock, Condition, Event, Semaphore, Queue, TaskGroup,
@@ -44,7 +45,7 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
     :raises LookupError: if the named backend is not found
 
     """
-    asynclib_name = detect_running_asynclib()
+    asynclib_name = _detect_running_asynclib()
     if asynclib_name:
         raise RuntimeError('Already running {} in this thread'.format(asynclib_name))
 
@@ -54,90 +55,45 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
         raise LookupError('No such backend: {}'.format(backend)) from exc
 
     backend_options = backend_options or {}
-    with claim_current_thread(asynclib):
+    with claim_current_thread(backend):
         return asynclib.run(func, *args, **backend_options)  # type: ignore
 
 
 @contextmanager
-def claim_current_thread(asynclib) -> typing.Generator[Any, None, None]:
-    assert ismodule(asynclib)
-    _local.asynclib = asynclib
+def claim_current_thread(backend) -> typing.Generator[Any, None, None]:
+    module = sys.modules['anyio._backends.' + backend]
+    _local.current_async_module = module
     try:
         yield
     finally:
-        reset_detected_asynclib()
+        _local.__dict__.clear()
 
 
-def reset_detected_asynclib() -> None:
-    """
-    Reset the cached information about the currently running async library.
+def _detect_running_asynclib() -> Optional[str]:
+    # This function can be removed once https://github.com/python-trio/sniffio/pull/5 has been
+    # merged
+    try:
+        return sniffio.current_async_library()
+    except sniffio.AsyncLibraryNotFoundError:
+        if 'curio' in sys.modules:
+            from curio.meta import curio_running
+            if curio_running():
+                return 'curio'
 
-    This is only needed in case you need to run AnyIO code on two or more different async libraries
-    using their native ``run()`` functions one after another in the same thread.
-
-    """
-    _local.__dict__.clear()
-
-
-def detect_running_asynclib() -> Optional[str]:
-    """
-    Return the name of the asynchronous framework running in the current thread.
-
-    :return: the name of the framework, or ``None`` if no supported framework is running
-
-    """
-    if 'trio' in sys.modules:
-        from trio.hazmat import current_trio_token
-        try:
-            current_trio_token()
-        except RuntimeError:
-            pass
-        else:
-            return 'trio'
-
-    if 'curio' in sys.modules:
-        from curio.meta import curio_running
-        if curio_running():
-            return 'curio'
-
-    if 'asyncio' in sys.modules:
-        from ._backends.asyncio import get_running_loop
-        try:
-            get_running_loop()
-        except RuntimeError:
-            pass
-        else:
-            return 'asyncio'
-
-    return None
+        return None
 
 
 def _get_asynclib():
-    try:
-        return _local.asynclib
-    except AttributeError:
-        asynclib_name = detect_running_asynclib()
-        if asynclib_name is None:
-            raise LookupError('Cannot find any running async event loop')
+    asynclib_name = _detect_running_asynclib()
+    if asynclib_name is None:
+        raise LookupError('Cannot find any running async event loop')
 
-        _local.asynclib = import_module('{}._backends.{}'.format(__name__, asynclib_name))
-        return _local.asynclib
-
-
-def is_in_event_loop_thread() -> bool:
-    """
-    Determine whether the current thread is running a recognized asynchronous event loop.
-
-    :return: ``True`` if running in the event loop, thread, ``False`` if not
-
-    """
-    return detect_running_asynclib() is not None
+    return import_module('anyio._backends.' + asynclib_name)
 
 
 #
 # Miscellaneous
 #
-
 
 def finalize(resource: T_Agen) -> 'typing.AsyncContextManager[T_Agen]':
     """
@@ -165,7 +121,6 @@ def sleep(delay: float) -> Awaitable[None]:
 #
 # Timeouts and cancellation
 #
-
 
 def open_cancel_scope(*, shield: bool = False) -> 'typing.AsyncContextManager[CancelScope]':
     """
@@ -252,7 +207,6 @@ def run_in_thread(func: Callable[..., T_Retval], *args) -> Awaitable[T_Retval]:
     :return: an awaitable that yields the return value of the function.
 
     """
-    assert is_in_event_loop_thread()
     return _get_asynclib().run_in_thread(func, *args)
 
 
@@ -265,8 +219,12 @@ def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *a
     :return: the return value of the coroutine function
 
     """
-    assert not is_in_event_loop_thread()
-    return _get_asynclib().run_async_from_thread(func, *args)
+    try:
+        asynclib = _local.current_async_module
+    except AttributeError:
+        raise RuntimeError('This function can only be run from an AnyIO worker thread')
+
+    return asynclib.run_async_from_thread(func, *args)
 
 
 #
