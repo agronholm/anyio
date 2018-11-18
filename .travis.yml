@@ -4,17 +4,17 @@ cache: pip
 python: "3.6"
 
 stages:
-  - name: run linter
+  - name: static analysis
   - name: test
   - name: deploy to pypi
     if: type = push AND tag =~ ^\d+\.\d+\.\d+
 
 jobs:
   include:
-    - stage: run linter
+    - stage: static analysis
       env: TOXENV=flake8
 
-    - stage: run linter
+    - stage: static analysis
       env: TOXENV=mypy
       python: "3.7"
 
