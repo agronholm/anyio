@@ -1,5 +1,26 @@
-Running AnyIO programs
-======================
+The basics
+==========
+
+AnyIO requires Python 3.5.3 or later to run. It is recommended that you set up a virtualenv_ when
+developing or playing around with AnyIO.
+
+Installation
+------------
+
+To install AnyIO, run:
+
+.. code-block:: bash
+
+    pip install anyio
+
+To install a supported version of trio_ or curio_, you can use install them as extras like this:
+
+.. code-block:: bash
+
+    pip install anyio[curio]
+
+Running async programs
+----------------------
 
 The simplest possible AnyIO program looks like this::
 
@@ -31,8 +52,6 @@ But AnyIO code is not required to be run via :func:`anyio.run`. You can just as 
 
     trio.run(main)
 
-.. _trio: https://github.com/python-trio/trio
-
 Using native async libraries
 ----------------------------
 
@@ -45,3 +64,7 @@ of your choice. There are a few rules to keep in mind however:
   cancellation rules enforced by AnyIO
 * Threads spawned outside of AnyIO cannot use :func:`~run_async_from_thread` to call asynchronous
   code
+
+.. _virtualenv: https://docs.python-guide.org/dev/virtualenvs/
+.. _trio: https://github.com/python-trio/trio
+.. _curio: https://github.com/dabeaz/curio

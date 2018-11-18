@@ -1,7 +1,10 @@
+AnyIO
+=====
+
 .. include:: ../README.rst
 
-Table of contents
------------------
+The manual
+----------
 
 .. toctree::
    :maxdepth: 2

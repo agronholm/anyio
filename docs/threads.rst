@@ -17,7 +17,7 @@ To run a (synchronous) callable in a worker thread::
 
     import time
 
-    from anyio import call_in_thread, run
+    from anyio import run_in_thread, run
 
 
     async def main():
