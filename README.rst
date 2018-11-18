@@ -1,9 +1,12 @@
-.. image:: https://readthedocs.org/projects/anyio/badge/?version=latest
-  :target: https://anyio.readthedocs.io/en/latest/?badge=latest
-  :alt: Documentation
 .. image:: https://travis-ci.com/agronholm/anyio.svg?branch=master
   :target: https://travis-ci.com/agronholm/anyio
   :alt: Build Status
+.. image:: https://coveralls.io/repos/github/agronholm/anyio/badge.svg?branch=master
+  :target: https://coveralls.io/github/agronholm/anyio?branch=master
+  :alt: Code Coverage
+.. image:: https://readthedocs.org/projects/anyio/badge/?version=latest
+  :target: https://anyio.readthedocs.io/en/latest/?badge=latest
+  :alt: Documentation
 
 AnyIO is a asynchronous compatibility API that allows applications and libraries written against
 it to run unmodified on asyncio_, curio_ and trio_.
