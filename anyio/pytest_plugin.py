@@ -47,7 +47,7 @@ def pytest_fixture_setup(fixturedef, request):
             yield anyio.run(partial(func, *args, **kwargs), backend=backend)
 
     func = fixturedef.func
-    if isasyncgenfunction(func) or iscoroutinefunction(func) and 'anyio' in request.keywords:
+    if (isasyncgenfunction(func) or iscoroutinefunction(func)) and 'anyio' in request.keywords:
         strip_backend = False
         if 'anyio_backend' not in fixturedef.argnames:
             fixturedef.argnames += ('anyio_backend',)
