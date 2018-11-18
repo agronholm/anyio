@@ -122,7 +122,7 @@ def finalize(resource: T_Agen) -> 'typing.AsyncContextManager[T_Agen]':
     return _get_asynclib().finalize(resource)
 
 
-def sleep(delay: float) -> Awaitable[None]:
+def sleep(delay: float) -> Coroutine[Any, Any, None]:
     """
     Pause the current task for the specified duration.
 
