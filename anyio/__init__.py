@@ -54,9 +54,17 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
     except ImportError as exc:
         raise LookupError('No such backend: {}'.format(backend)) from exc
 
-    backend_options = backend_options or {}
-    with claim_current_thread(backend):
+    token = None
+    if sniffio.current_async_library_cvar.get(None) is None:
+        # Since we're in control of the event loop, we can cache the name of the async library
+        token = sniffio.current_async_library_cvar.set(backend)
+
+    try:
+        backend_options = backend_options or {}
         return asynclib.run(func, *args, **backend_options)  # type: ignore
+    finally:
+        if token:
+            sniffio.current_async_library_cvar.reset(token)
 
 
 @contextmanager
@@ -86,9 +94,13 @@ def _detect_running_asynclib() -> Optional[str]:
 def _get_asynclib():
     asynclib_name = _detect_running_asynclib()
     if asynclib_name is None:
-        raise LookupError('Cannot find any running async event loop')
+        raise RuntimeError('Not running in any supported asynchronous event loop')
 
-    return import_module('anyio._backends.' + asynclib_name)
+    modulename = 'anyio._backends.' + asynclib_name
+    try:
+        return sys.modules[modulename]
+    except KeyError:
+        return import_module(modulename)
 
 
 #
