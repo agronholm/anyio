@@ -1,5 +1,5 @@
-The basics
-==========
+Running AnyIO programs
+======================
 
 The simplest possible AnyIO program looks like this::
 

@@ -3,12 +3,12 @@ import socket
 import ssl
 from abc import ABCMeta, abstractmethod
 from ipaddress import ip_address
-from typing import Union, Tuple, Any, Optional, Callable, AsyncIterable, Dict, List
+from typing import Union, Tuple, Any, Optional, Callable, Dict, List, cast
 
 from async_generator import async_generator, yield_
 
 from anyio import abc
-from anyio.abc import IPAddressType, BufferType
+from anyio.abc import IPAddressType
 from anyio.exceptions import DelimiterNotFound, IncompleteRead, TLSRequired, ClosedResourceError
 
 
@@ -181,7 +181,7 @@ class BaseSocket(metaclass=ABCMeta):
         if isinstance(self._raw_socket, ssl.SSLSocket):
             while True:
                 try:
-                    self._raw_socket = self._raw_socket.unwrap()
+                    self._raw_socket = cast(ssl.SSLSocket, self._raw_socket).unwrap()
                     return
                 except ssl.SSLWantReadError:
                     await self._wait_readable()
@@ -220,7 +220,7 @@ class SocketStream(abc.SocketStream):
     def buffered_data(self) -> bytes:
         return self._buffer
 
-    async def receive_some(self, max_bytes: Optional[int]) -> bytes:
+    async def receive_some(self, max_bytes: int) -> bytes:
         if self._buffer:
             data, self._buffer = self._buffer[:max_bytes], self._buffer[max_bytes:]
             return data
@@ -267,7 +267,7 @@ class SocketStream(abc.SocketStream):
             self._buffer += data
 
     @async_generator
-    async def receive_chunks(self, max_size: int) -> AsyncIterable[bytes]:
+    async def receive_chunks(self, max_size: int):
         while True:
             data = await self.receive_some(max_size)
             if data:
@@ -276,8 +276,7 @@ class SocketStream(abc.SocketStream):
                 break
 
     @async_generator
-    async def receive_delimited_chunks(self, delimiter: bytes,
-                                       max_chunk_size: int) -> AsyncIterable[bytes]:
+    async def receive_delimited_chunks(self, delimiter: bytes, max_chunk_size: int):
         while True:
             try:
                 chunk = await self.receive_until(delimiter, max_chunk_size)
@@ -285,11 +284,11 @@ class SocketStream(abc.SocketStream):
                 if self._buffer:
                     raise
                 else:
-                    return
+                    break
 
             await yield_(chunk)
 
-    async def send_all(self, data: BufferType) -> None:
+    async def send_all(self, data: bytes) -> None:
         return await self._socket.sendall(data)
 
     #
@@ -364,8 +363,16 @@ class SocketStreamServer(abc.SocketStreamServer):
         await self._socket.close()
 
     @property
-    def address(self) -> Union[tuple, str]:
+    def address(self) -> Union[Tuple[str, int], Tuple[str, int, int, int], str]:
         return self._socket.getsockname()
+
+    @property
+    def port(self) -> int:
+        address = self._socket.getsockname()
+        if isinstance(address, tuple):
+            return cast(int, self.address[1])
+        else:
+            raise ValueError('Not a TCP socket')
 
     async def accept(self):
         sock, addr = await self._socket.accept()
@@ -398,8 +405,12 @@ class UDPSocket(abc.UDPSocket):
         await self._socket.close()
 
     @property
-    def address(self) -> Union[Tuple[str, int], str]:
+    def address(self) -> Union[Tuple[str, int], Tuple[str, int, int, int]]:
         return self._socket.getsockname()
+
+    @property
+    def port(self) -> int:
+        return self.address[1]
 
     async def receive(self, max_bytes: int) -> Tuple[bytes, str]:
         return await self._socket.recvfrom(max_bytes)

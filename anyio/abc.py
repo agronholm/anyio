@@ -6,7 +6,6 @@ from typing import Callable, TypeVar, Optional, Tuple, Union, AsyncIterable, Dic
 
 T_Retval = TypeVar('T_Retval')
 IPAddressType = Union[str, IPv4Address, IPv6Address]
-BufferType = Union[bytes, bytearray, memoryview]
 
 
 class Lock(metaclass=ABCMeta):
@@ -286,7 +285,7 @@ class Stream(metaclass=ABCMeta):
         """Return the data currently in the read buffer."""
 
     @abstractmethod
-    async def receive_some(self, max_bytes: Optional[int]) -> bytes:
+    async def receive_some(self, max_bytes: int) -> bytes:
         """
         Reads up to the given amount of bytes from the stream.
 
@@ -360,11 +359,11 @@ class Stream(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    async def send_all(self, data: BufferType) -> None:
+    async def send_all(self, data: bytes) -> None:
         """
         Send all of the given data to the other end.
 
-        :param data: the buffer to send
+        :param data: the bytes to send
         """
 
 
@@ -485,17 +484,18 @@ class SocketStreamServer(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def address(self) -> Union[Tuple[str, int], str]:
+    def address(self) -> Union[Tuple[str, int], Tuple[str, int, int, int], str]:
         """Return the bound address of the underlying socket."""
 
     @property
+    @abstractmethod
     def port(self) -> int:
         """
-        Return the currently bound port of the underlying socket.
+        The currently bound port of the underlying TCP socket.
 
         Equivalent to ``server.address[1]``.
+        :raises ValueError: if the socket is not a TCP socket
         """
-        return self.address[1]
 
     @abstractmethod
     async def accept(self) -> SocketStream:
@@ -527,17 +527,17 @@ class UDPSocket(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def address(self) -> Tuple[str, int]:
+    def address(self) -> Union[Tuple[str, int], Tuple[str, int, int, int]]:
         """Return the bound address of the underlying socket."""
 
     @property
+    @abstractmethod
     def port(self) -> int:
         """
         Return the currently bound port of the underlying socket.
 
         Equivalent to ``socket.address[1]``.
         """
-        return self.address[1]
 
     @abstractmethod
     async def receive(self, max_bytes: int) -> Tuple[bytes, str]:
@@ -562,14 +562,14 @@ class UDPSocket(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    async def send(self, data: BufferType, address: Optional[str] = None,
+    async def send(self, data: bytes, address: Optional[str] = None,
                    port: Optional[int] = None) -> None:
         """
         Send a datagram.
 
         If the default destination has been set, then ``address`` and ``port`` are optional.
 
-        :param data: the datagram to send
+        :param data: the bytes to send
         :param address: the destination IP address or host name
         :param port: the destination port
         """

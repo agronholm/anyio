@@ -1,6 +1,7 @@
+import socket  # noqa: F401
 import sys
 from functools import partial
-from typing import Callable, Set, Optional, Awaitable  # noqa: F401
+from typing import Callable, Set, Optional, Coroutine, Any, cast, Dict  # noqa: F401
 
 import curio.io
 import curio.meta
@@ -31,7 +32,7 @@ def run(func: Callable[..., T_Retval], *args, **curio_options) -> T_Retval:
     if exception is not None:
         raise exception
     else:
-        return retval
+        return cast(T_Retval, retval)
 
 
 #
@@ -290,8 +291,8 @@ async def aopen(*args, **kwargs):
 #
 
 class Socket(BaseSocket):
-    _reader_tasks = {}
-    _writer_tasks = {}
+    _reader_tasks = {}  # type: Dict[socket.SocketType, curio.Task]
+    _writer_tasks = {}  # type: Dict[socket.SocketType, curio.Task]
 
     async def _wait_readable(self):
         task = await curio.current_task()
@@ -328,7 +329,7 @@ class Socket(BaseSocket):
         if task:
             await task.cancel(blocking=False)
 
-    def _check_cancelled(self) -> Awaitable[None]:
+    def _check_cancelled(self) -> Coroutine[Any, Any, None]:
         return check_cancelled()
 
     def _run_in_thread(self, func: Callable, *args):

@@ -3,7 +3,7 @@ import socket
 import ssl
 import sys
 import threading
-import typing  # noqa: F401
+import typing
 from contextlib import contextmanager
 from importlib import import_module
 from inspect import ismodule
@@ -12,8 +12,8 @@ from ssl import SSLContext
 from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any, Dict
 
 from .abc import (  # noqa: F401
-    IPAddressType, BufferType, CancelScope, UDPSocket, Lock, Condition, Event, Semaphore, Queue,
-    TaskGroup, Stream, SocketStreamServer, SocketStream, AsyncFile)
+    IPAddressType, CancelScope, UDPSocket, Lock, Condition, Event, Semaphore, Queue, TaskGroup,
+    Stream, SocketStreamServer, SocketStream, AsyncFile)
 from . import _networking
 
 BACKENDS = 'asyncio', 'curio', 'trio'
@@ -55,11 +55,11 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
 
     backend_options = backend_options or {}
     with claim_current_thread(asynclib):
-        return asynclib.run(func, *args, **backend_options)
+        return asynclib.run(func, *args, **backend_options)  # type: ignore
 
 
 @contextmanager
-def claim_current_thread(asynclib) -> None:
+def claim_current_thread(asynclib) -> typing.Generator[Any, None, None]:
     assert ismodule(asynclib)
     _local.asynclib = asynclib
     try:
@@ -351,7 +351,7 @@ async def connect_tcp(
             await sock.bind((bind_host, bind_port))
 
         await sock.connect((address, port))
-        stream = _networking.SocketStream(sock, ssl_context, address, tls_standard_compatible)
+        stream = _networking.SocketStream(sock, ssl_context, str(address), tls_standard_compatible)
 
         if autostart_tls:
             await stream.start_tls()

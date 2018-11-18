@@ -143,7 +143,7 @@ class Socket(BaseSocket):
     async def _notify_close(self):
         trio.hazmat.notify_socket_close(self._raw_socket)
 
-    def _check_cancelled(self) -> None:
+    def _check_cancelled(self):
         return trio.hazmat.checkpoint_if_cancelled()
 
     def _run_in_thread(self, func: Callable, *args):

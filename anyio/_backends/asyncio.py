@@ -1,11 +1,14 @@
 import asyncio
+import concurrent.futures  # noqa: F401
 import inspect
 import os
 import socket
 import sys
 from functools import partial
 from threading import Thread
-from typing import Callable, Set, Optional, Union  # noqa: F401
+from typing import (
+    Callable, Set, Optional, Union, Tuple, cast, Coroutine, Any, Awaitable, TypeVar,
+    Generator)  # noqa: F401
 
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
 
@@ -16,8 +19,10 @@ from ..exceptions import ExceptionGroup, CancelledError, ClosedResourceError
 try:
     from asyncio import run as native_run, create_task, get_running_loop, current_task, all_tasks
 except ImportError:
+    _T = TypeVar('_T')
+
     # Snatched from the standard library
-    def native_run(main, *, debug=False):
+    def native_run(main: Awaitable[_T], *, debug: bool = False) -> _T:
         """Run a coroutine.
 
         This function runs the passed coroutine, taking care of
@@ -60,7 +65,7 @@ except ImportError:
                 _cancel_all_tasks(loop)
                 loop.run_until_complete(loop.shutdown_asyncgens())
             finally:
-                events.set_event_loop(None)
+                events.set_event_loop(None)  # type: ignore
                 loop.close()
 
     def _cancel_all_tasks(loop):
@@ -86,17 +91,17 @@ except ImportError:
                     'task': task,
                 })
 
-    def create_task(coro) -> asyncio.Task:
+    def create_task(coro: Union[Generator[Any, None, _T], Awaitable[_T]]) -> asyncio.Task:
         return get_running_loop().create_task(coro)
 
-    def get_running_loop():
+    def get_running_loop() -> asyncio.AbstractEventLoop:
         loop = asyncio._get_running_loop()
         if loop is not None:
             return loop
         else:
             raise RuntimeError('no running event loop')
 
-    def all_tasks(loop=None):
+    def all_tasks(loop: Optional[asyncio.AbstractEventLoop] = None) -> Set[asyncio.Task]:
         """Return a set of all tasks for the loop."""
         from asyncio import Task
 
@@ -105,7 +110,11 @@ except ImportError:
 
         return {t for t in Task.all_tasks(loop) if not t.done()}
 
-    current_task = asyncio.Task.current_task
+    def current_task(loop: Optional[asyncio.AbstractEventLoop] = None) -> Optional[asyncio.Task]:
+        if loop is None:
+            loop = get_running_loop()
+
+        return asyncio.Task.current_task(loop)
 
 _create_task_supports_name = 'name' in inspect.signature(create_task).parameters
 
@@ -131,7 +140,7 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False,
     if exception is not None:
         raise exception
     else:
-        return retval
+        return cast(T_Retval, retval)
 
 
 #
@@ -222,7 +231,7 @@ async def open_cancel_scope(deadline: float = float('inf'), shield: bool = False
         timeout_expired = True
         await scope.cancel()
 
-    host_task = current_task()
+    host_task = cast(asyncio.Task, current_task())
     scope = CancelScope(host_task, deadline, get_cancel_scope(host_task), shield)
     set_cancel_scope(host_task, scope)
     timeout_expired = False
@@ -305,7 +314,7 @@ class TaskGroup:
             raise RuntimeError('This task group is not active; no new tasks can be spawned.')
 
         if _create_task_supports_name:
-            task = create_task(self._run_wrapped_task(func, *args), name=name)
+            task = create_task(self._run_wrapped_task(func, *args), name=name)  # type: ignore
         else:
             task = create_task(self._run_wrapped_task(func, *args))
 
@@ -360,6 +369,9 @@ async def create_task_group():
 # Threads
 #
 
+_Retval_Queue_Type = Tuple[Optional[T_Retval], Optional[BaseException]]
+
+
 async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
     def thread_worker():
         try:
@@ -374,18 +386,19 @@ async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
     check_cancelled()
     asynclib = sys.modules[__name__]
     loop = get_running_loop()
-    queue = asyncio.Queue(1)
+    queue = asyncio.Queue(1)  # type: asyncio.Queue[_Retval_Queue_Type]
     thread = Thread(target=thread_worker)
     thread.start()
     retval, exception = await queue.get()
     if exception is not None:
         raise exception
     else:
-        return retval
+        return cast(T_Retval, retval)
 
 
-def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
-    f = asyncio.run_coroutine_threadsafe(func(*args), _local.loop)
+def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args) -> T_Retval:
+    f = asyncio.run_coroutine_threadsafe(
+        func(*args), _local.loop)  # type: concurrent.futures.Future[T_Retval]
     return f.result()
 
 
@@ -610,7 +623,7 @@ async def receive_signals(*signals: int):
             await yield_(signum)
 
     loop = get_running_loop()
-    queue = asyncio.Queue(loop=loop)
+    queue = asyncio.Queue(loop=loop)  # type: asyncio.Queue[int]
     handled_signals = set()
     agen = process_signal_queue()
     try:
