@@ -5,7 +5,7 @@ from async_generator import async_generator, yield_, asynccontextmanager, aclosi
 
 from .._networking import BaseSocket
 from .._utils import wrap_as_awaitable
-from .. import abc, claim_current_thread, T_Retval, _local
+from .. import abc, claim_worker_thread, T_Retval, _local
 from ..exceptions import ExceptionGroup, ClosedResourceError
 
 
@@ -106,7 +106,7 @@ async def create_task_group():
 
 async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
     def wrapper():
-        with claim_current_thread('trio'):
+        with claim_worker_thread('trio'):
             _local.portal = portal
             return func(*args)
 

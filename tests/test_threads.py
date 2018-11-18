@@ -2,7 +2,7 @@ import threading
 
 import pytest
 
-from anyio import run_async_from_thread, run_in_thread, create_task_group
+from anyio import run_async_from_thread, run_in_thread, create_task_group, sleep
 
 
 @pytest.mark.anyio
@@ -18,6 +18,15 @@ async def test_run_async_from_thread():
     event_loop_thread_id = threading.get_ident()
     result = await run_in_thread(worker, 1, 2)
     assert result == 3
+
+
+@pytest.mark.anyio
+async def test_run_anyio_async_func_from_thread():
+    def worker(*args):
+        run_async_from_thread(sleep, *args)
+        return True
+
+    assert await run_in_thread(worker, 0)
 
 
 @pytest.mark.anyio

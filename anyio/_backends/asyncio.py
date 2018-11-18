@@ -12,7 +12,7 @@ from typing import (
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
 
 from .._networking import BaseSocket
-from .. import abc, claim_current_thread, _local, T_Retval
+from .. import abc, claim_worker_thread, _local, T_Retval
 from ..exceptions import ExceptionGroup, CancelledError, ClosedResourceError
 
 try:
@@ -375,7 +375,7 @@ _Retval_Queue_Type = Tuple[Optional[T_Retval], Optional[BaseException]]
 async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
     def thread_worker():
         try:
-            with claim_current_thread('asyncio'):
+            with claim_worker_thread('asyncio'):
                 _local.loop = loop
                 result = func(*args)
         except BaseException as exc:

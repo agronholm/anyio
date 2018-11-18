@@ -68,13 +68,15 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
 
 
 @contextmanager
-def claim_current_thread(backend) -> typing.Generator[Any, None, None]:
+def claim_worker_thread(backend) -> typing.Generator[Any, None, None]:
     module = sys.modules['anyio._backends.' + backend]
     _local.current_async_module = module
+    token = sniffio.current_async_library_cvar.set(backend)
     try:
         yield
     finally:
-        _local.__dict__.clear()
+        sniffio.current_async_library_cvar.reset(token)
+        del _local.current_async_module
 
 
 def _detect_running_asynclib() -> Optional[str]:

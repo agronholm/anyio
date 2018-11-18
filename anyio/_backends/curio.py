@@ -10,7 +10,7 @@ import curio.traps
 from async_generator import async_generator, asynccontextmanager, yield_
 
 from .._networking import BaseSocket
-from .. import abc, T_Retval, claim_current_thread, _local
+from .. import abc, T_Retval, claim_worker_thread, _local
 from ..exceptions import ExceptionGroup, CancelledError, ClosedResourceError
 
 
@@ -263,7 +263,7 @@ async def create_task_group():
 
 async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
     def thread_worker():
-        with claim_current_thread('curio'):
+        with claim_worker_thread('curio'):
             return func(*args)
 
     await check_cancelled()
