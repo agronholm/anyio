@@ -224,30 +224,33 @@ async def create_task_group():
         group = TaskGroup(cancel_scope, await curio.current_task())
         exceptions = []
         try:
-            await yield_(group)
-        except (CancelledError, curio.CancelledError, curio.TaskCancelled):
-            await cancel_scope.cancel()
-        except BaseException as exc:
-            exceptions.append(exc)
-            await cancel_scope.cancel()
+            try:
+                await yield_(group)
+            except (CancelledError, curio.CancelledError, curio.TaskCancelled):
+                await cancel_scope.cancel()
+            except BaseException as exc:
+                exceptions.append(exc)
+                await cancel_scope.cancel()
 
-        if cancel_scope.cancel_called:
-            for task in group._tasks:
-                if task.coro.cr_await is not None:
-                    await task.cancel(blocking=False)
+            if cancel_scope.cancel_called:
+                for task in group._tasks:
+                    if task.coro.cr_await is not None:
+                        await task.cancel(blocking=False)
 
-        while group._tasks:
-            for task in set(group._tasks):
-                try:
-                    await task.join()
-                except (curio.TaskError, curio.TaskCancelled):
-                    group._tasks.remove(task)
-                    set_cancel_scope(task, None)
-                    if task.exception:
-                        if not isinstance(task.exception, (CancelledError, curio.CancelledError)):
-                            exceptions.append(task.exception)
+            while group._tasks:
+                for task in set(group._tasks):
+                    try:
+                        await task.join()
+                    except (curio.TaskError, curio.TaskCancelled):
+                        group._tasks.remove(task)
+                        set_cancel_scope(task, None)
+                        if task.exception:
+                            if not isinstance(task.exception,
+                                              (CancelledError, curio.CancelledError)):
+                                exceptions.append(task.exception)
+        finally:
+            group._active = False
 
-        group._active = False
         if len(exceptions) > 1:
             raise ExceptionGroup(exceptions)
         elif exceptions:

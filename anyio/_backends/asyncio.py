@@ -333,36 +333,37 @@ async def create_task_group():
         group = TaskGroup(cancel_scope, current_task())
         exceptions = []
         try:
-            await yield_(group)
-        except (CancelledError, asyncio.CancelledError):
-            await cancel_scope.cancel()
-        except BaseException as exc:
-            exceptions.append(exc)
-            await cancel_scope.cancel()
+            try:
+                await yield_(group)
+            except (CancelledError, asyncio.CancelledError):
+                await cancel_scope.cancel()
+            except BaseException as exc:
+                exceptions.append(exc)
+                await cancel_scope.cancel()
 
-        if cancel_scope.cancel_called:
-            for task in group._tasks:
-                if task._coro.cr_await is not None:
-                    task.cancel()
+            if cancel_scope.cancel_called:
+                for task in group._tasks:
+                    if task._coro.cr_await is not None:
+                        task.cancel()
 
-        while group._tasks:
-            for task in set(group._tasks):
-                try:
-                    await task
-                except (CancelledError, asyncio.CancelledError):
-                    group._tasks.remove(task)
-                    set_cancel_scope(task, None)
-                except BaseException as exc:
-                    group._tasks.remove(task)
-                    set_cancel_scope(task, None)
-                    exceptions.append(exc)
+            while group._tasks:
+                for task in set(group._tasks):
+                    try:
+                        await task
+                    except (CancelledError, asyncio.CancelledError):
+                        group._tasks.remove(task)
+                        set_cancel_scope(task, None)
+                    except BaseException as exc:
+                        group._tasks.remove(task)
+                        set_cancel_scope(task, None)
+                        exceptions.append(exc)
+        finally:
+            group._active = False
 
-        group._active = False
         if len(exceptions) > 1:
             raise ExceptionGroup(exceptions)
         elif exceptions:
             raise exceptions[0]
-
 
 #
 # Threads
