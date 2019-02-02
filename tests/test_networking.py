@@ -78,7 +78,7 @@ class TestTCPStream:
             async with await stream_server.accept() as stream:
                 await stream.send_all(buffer)
 
-        buffer = b'\xff' * 1024  # should exceed the maximum kernel send buffer size
+        buffer = b'\xff' * 1024 * 1024  # should exceed the maximum kernel send buffer size
         async with create_task_group() as tg:
             async with await create_tcp_server(interface='localhost') as stream_server:
                 await tg.spawn(server)
