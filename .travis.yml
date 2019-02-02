@@ -1,7 +1,6 @@
 dist: xenial
 language: python
-cache: pip
-python: "3.6"
+python: "3.7"
 
 stages:
   - name: static analysis
@@ -16,32 +15,29 @@ jobs:
 
     - stage: static analysis
       env: TOXENV=mypy
-      python: "3.7"
 
-    - stage: test
+    - &test
+      stage: test
       env: TOXENV=pypy3
-      python: pypy3.5
-      after_success: &after_success
+      python: pypy3.5-6.0
+      after_success:
         - pip install coveralls
         - coveralls
 
-    - stage: test
+    - <<: *test
       env: TOXENV=py35
       python: "3.5.3"
-      after_success: *after_success
 
-    - stage: test
+    - <<: *test
       env: TOXENV=py36
       python: "3.6"
-      after_success: *after_success
 
-    - stage: test
+    - <<: *test
       env: TOXENV=py37
       python: "3.7"
-      after_success: *after_success
 
     - stage: deploy to pypi
-      install: pip install -U setuptools
+      install: true
       script: skip
       deploy:
         provider: pypi
