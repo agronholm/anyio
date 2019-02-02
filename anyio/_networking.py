@@ -143,11 +143,13 @@ class BaseSocket(metaclass=ABCMeta):
             return self._raw_socket.sendto(data, flags, addr)
 
     async def sendall(self, data: bytes, *, flags: int = 0) -> None:
-        to_send = len(data)
-        while to_send > 0:
+        offset = 0
+        total = len(data)
+        buffer = memoryview(data)
+        while offset < total:
             await self._check_cancelled()
             try:
-                sent = self._raw_socket.send(data, flags)
+                offset += self._raw_socket.send(buffer[offset:], flags)
             except (BlockingIOError, ssl.SSLWantWriteError):
                 await self._wait_writable()
             except ssl.SSLWantReadError:
@@ -155,8 +157,6 @@ class BaseSocket(metaclass=ABCMeta):
             except ssl.SSLEOFError:
                 self._raw_socket.close()
                 raise
-            else:
-                to_send -= sent
 
     async def start_tls(self, context: ssl.SSLContext,
                         server_hostname: Optional[str] = None,

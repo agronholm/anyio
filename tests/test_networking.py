@@ -72,6 +72,23 @@ class TestTCPStream:
 
         assert response == b'blahbleh'
 
+    @pytest.mark.anyio
+    async def test_send_large_buffer(self):
+        async def server():
+            async with await stream_server.accept() as stream:
+                await stream.send_all(buffer)
+
+        buffer = b'\xff' * 1024  # should exceed the maximum kernel send buffer size
+        async with create_task_group() as tg:
+            async with await create_tcp_server(interface='localhost') as stream_server:
+                await tg.spawn(server)
+                async with await connect_tcp('localhost', stream_server.port) as client:
+                    response = await client.receive_exactly(len(buffer))
+                    with pytest.raises(IncompleteRead):
+                        await client.receive_exactly(1)
+
+        assert response == buffer
+
     @pytest.mark.parametrize('method_name, params', [
         ('receive_until', [b'\n', 100]),
         ('receive_exactly', [5])
