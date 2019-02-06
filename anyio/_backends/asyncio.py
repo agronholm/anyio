@@ -1,5 +1,5 @@
 import asyncio
-import concurrent.futures  # noqa: F401
+import concurrent.futures
 import inspect
 import os
 import socket
@@ -7,12 +7,13 @@ from functools import partial
 from threading import Thread
 from typing import (
     Callable, Set, Optional, Union, Tuple, cast, Coroutine, Any, Awaitable, TypeVar,
-    Generator)  # noqa: F401
+    Generator)
+from weakref import WeakKeyDictionary
 
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
 
 from .._networking import BaseSocket
-from .. import abc, claim_worker_thread, _local, T_Retval
+from .. import abc, claim_worker_thread, _local, T_Retval, TaskInfo
 from ..exceptions import ExceptionGroup, CancelledError, ClosedResourceError
 
 try:
@@ -115,7 +116,10 @@ except ImportError:
 
         return asyncio.Task.current_task(loop)
 
-_create_task_supports_name = 'name' in inspect.signature(create_task).parameters
+# Check whether there is native support for task names in asyncio (3.8+)
+_task_names = None  # type: Optional[WeakKeyDictionary[asyncio.Task, str]]
+if 'name' not in inspect.signature(create_task).parameters:
+    _task_names = WeakKeyDictionary()
 
 
 #
@@ -312,10 +316,12 @@ class TaskGroup:
         if not self._active:
             raise RuntimeError('This task group is not active; no new tasks can be spawned.')
 
-        if _create_task_supports_name:
+        if _task_names is None:
             task = create_task(self._run_wrapped_task(func, *args), name=name)  # type: ignore
         else:
             task = create_task(self._run_wrapped_task(func, *args))
+            if name is not None:
+                _task_names[task] = name
 
         self._tasks.add(task)
 
@@ -640,6 +646,16 @@ async def receive_signals(*signals: int):
 #
 # Testing and debugging
 #
+
+def get_running_tasks():
+    task_infos = []
+    for task in all_tasks():
+        if not task.done():
+            name = task.get_name() if _task_names is None else _task_names.get(task)
+            task_infos.append(TaskInfo(id(task), name, task._coro))
+
+    return task_infos
+
 
 async def wait_all_tasks_blocked():
     this_task = current_task()

@@ -5,7 +5,7 @@ from async_generator import async_generator, yield_, asynccontextmanager, aclosi
 
 from .._networking import BaseSocket
 from .._utils import wrap_as_awaitable
-from .. import abc, claim_worker_thread, T_Retval, _local
+from .. import abc, claim_worker_thread, T_Retval, _local, TaskInfo
 from ..exceptions import ExceptionGroup, ClosedResourceError
 
 
@@ -227,6 +227,17 @@ async def receive_signals(*signals: int):
 #
 # Testing and debugging
 #
+
+def get_running_tasks():
+    import gc
+
+    task_infos = []
+    for task in gc.get_referrers(trio.hazmat.Task):
+        if isinstance(task, trio.hazmat.Task) and task.coro.cr_frame is not None:
+            task_infos.append(TaskInfo(id(task), task.name, task.coro))
+
+    return task_infos
+
 
 def wait_all_tasks_blocked():
     import trio.testing

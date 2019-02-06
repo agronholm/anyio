@@ -10,7 +10,7 @@ import curio.traps
 from async_generator import async_generator, asynccontextmanager, yield_
 
 from .._networking import BaseSocket
-from .. import abc, T_Retval, claim_worker_thread, _local
+from .. import abc, T_Retval, claim_worker_thread, _local, TaskInfo
 from ..exceptions import ExceptionGroup, CancelledError, ClosedResourceError
 
 
@@ -414,10 +414,21 @@ async def wait_all_tasks_blocked():
 
     this_task = await curio.current_task()
     while True:
-        for obj in gc.get_objects():
-            if isinstance(obj, curio.Task) and obj.coro.cr_await is None:
-                if not obj.terminated and obj is not this_task:
+        for task in gc.get_referrers(curio.Task):
+            if isinstance(task, curio.Task) and task.coro.cr_await is None:
+                if not task.terminated and task is not this_task:
                     await curio.sleep(0)
                     break
         else:
             return
+
+
+def get_running_tasks():
+    import gc
+
+    task_infos = []
+    for task in gc.get_referrers(curio.Task):
+        if isinstance(task, curio.Task) and not task.terminated:
+            task_infos.append(TaskInfo(task.id, task.name, task.coro))
+
+    return task_infos
