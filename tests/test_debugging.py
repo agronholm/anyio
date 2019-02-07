@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from anyio import create_task_group, create_event, wait_all_tasks_blocked, get_running_tasks
@@ -18,3 +20,5 @@ async def test_get_running_tasks():
     assert len(task_infos) == 2
     assert task_infos[0].name == 'task1'
     assert task_infos[1].name == 'task2'
+    assert re.fullmatch(r"TaskInfo\(id=\d+, name='task1'\)", repr(task_infos[0]))
+    assert re.fullmatch(r"TaskInfo\(id=\d+, name='task2'\)", repr(task_infos[1]))

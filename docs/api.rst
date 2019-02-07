@@ -100,4 +100,6 @@ Operating system signals
 Testing and debugging
 ---------------------
 
+.. autoclass:: anyio.TaskInfo
+.. autocofunction:: anyio.get_running_tasks
 .. autocofunction:: anyio.wait_all_tasks_blocked
