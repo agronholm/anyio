@@ -544,7 +544,7 @@ class TaskInfo:
 
     :ivar int id: the unique identifier of the task
     :ivar str name: the description of the task (if any)
-    :ivar Coroutine coro: the coroutine object of the task
+    :ivar ~collections.abc.Coroutine coro: the coroutine object of the task
     """
 
     __slots__ = 'id', 'name', 'coro'
