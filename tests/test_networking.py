@@ -16,7 +16,7 @@ class TestTCPStream:
     async def test_receive_some(self):
         async def server():
             async with await stream_server.accept() as stream:
-                assert stream._socket.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) == 1
+                assert stream._socket.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
                 command = await stream.receive_some(100)
                 await stream.send_all(command[::-1])
 
@@ -24,7 +24,7 @@ class TestTCPStream:
             async with await create_tcp_server(interface='localhost') as stream_server:
                 await tg.spawn(server)
                 async with await connect_tcp('localhost', stream_server.port) as client:
-                    assert client._socket.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) == 1
+                    assert client._socket.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
                     await client.send_all(b'blah')
                     response = await client.receive_some(100)
 
@@ -205,14 +205,14 @@ class TestUNIXStream:
                         reason='UNIX sockets are not available on Windows')
     @pytest.mark.parametrize('as_path', [False])
     @pytest.mark.anyio
-    async def test_connect_unix(self, tmpdir, as_path):
+    async def test_connect_unix(self, tmpdir_factory, as_path):
         async def server():
             async with await stream_server.accept() as stream:
                 command = await stream.receive_some(100)
                 await stream.send_all(command[::-1])
 
         async with create_task_group() as tg:
-            path = str(tmpdir.join('socket'))
+            path = str(tmpdir_factory.mktemp('unix').join('socket'))
             if as_path:
                 path = Path(path)
 
