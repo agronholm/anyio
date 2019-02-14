@@ -369,6 +369,22 @@ class Stream(metaclass=ABCMeta):
 
 class SocketStream(Stream):
     @abstractmethod
+    def getsockopt(self, level, optname, *args):
+        """
+        Get a socket option from the underlying socket.
+
+        :return: the return value of :meth:`~socket.socket.getsockopt`
+        """
+
+    @abstractmethod
+    def setsockopt(self, level, optname, value, optlen: Optional[int] = None) -> None:
+        """
+        Set a socket option.
+
+        This calls :meth:`~socket.socket.setsockopt` on the underlying socket.
+        """
+
+    @abstractmethod
     async def start_tls(self, context: Optional[SSLContext] = None) -> None:
         """
         Start the TLS handshake.
@@ -482,6 +498,22 @@ class SocketStreamServer(metaclass=ABCMeta):
     async def close(self) -> None:
         """Close the underlying socket."""
 
+    @abstractmethod
+    def getsockopt(self, level, optname, *args):
+        """
+        Get a socket option from the underlying socket.
+
+        :return: the return value of :meth:`~socket.socket.getsockopt`
+        """
+
+    @abstractmethod
+    def setsockopt(self, level, optname, value, optlen: Optional[int] = None) -> None:
+        """
+        Set a socket option.
+
+        This calls :meth:`~socket.socket.setsockopt` on the underlying socket.
+        """
+
     @property
     @abstractmethod
     def address(self) -> Union[Tuple[str, int], Tuple[str, int, int, int], str]:
@@ -537,6 +569,22 @@ class UDPSocket(metaclass=ABCMeta):
         Return the currently bound port of the underlying socket.
 
         Equivalent to ``socket.address[1]``.
+        """
+
+    @abstractmethod
+    def getsockopt(self, level, optname, *args):
+        """
+        Get a socket option from the underlying socket.
+
+        :return: the return value of :meth:`~socket.socket.getsockopt`
+        """
+
+    @abstractmethod
+    def setsockopt(self, level, optname, value, optlen: Optional[int] = None) -> None:
+        """
+        Set a socket option.
+
+        This calls :meth:`~socket.socket.setsockopt` on the underlying socket.
         """
 
     @abstractmethod

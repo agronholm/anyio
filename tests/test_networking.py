@@ -16,7 +16,7 @@ class TestTCPStream:
     async def test_receive_some(self):
         async def server():
             async with await stream_server.accept() as stream:
-                assert stream._socket.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
+                assert stream.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
                 command = await stream.receive_some(100)
                 await stream.send_all(command[::-1])
 
@@ -24,7 +24,7 @@ class TestTCPStream:
             async with await create_tcp_server(interface='localhost') as stream_server:
                 await tg.spawn(server)
                 async with await connect_tcp('localhost', stream_server.port) as client:
-                    assert client._socket.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
+                    assert client.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
                     await client.send_all(b'blah')
                     response = await client.receive_some(100)
 
