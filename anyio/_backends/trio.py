@@ -4,7 +4,7 @@ import trio.hazmat
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
 
 from .._networking import BaseSocket
-from .._utils import wrap_as_awaitable
+from .._utils import dummy_awaitable
 from .. import abc, claim_worker_thread, T_Retval, _local, TaskInfo
 from ..exceptions import ExceptionGroup, ClosedResourceError
 
@@ -28,12 +28,36 @@ sleep = trio.sleep
 # Timeouts and cancellation
 #
 
-@asynccontextmanager
-@async_generator
-async def open_cancel_scope(shield):
-    with trio.open_cancel_scope(shield=shield) as cancel_scope:
-        cancel_scope.cancel = wrap_as_awaitable(cancel_scope.cancel)
-        await yield_(cancel_scope)
+class CancelScopeWrapper:
+    __slots__ = '__original'
+
+    def __init__(self, original: trio.CancelScope):
+        assert type(original) is trio.CancelScope
+        self.__original = original
+
+    def __getattr__(self, item):
+        return getattr(self.__original, item)
+
+    def __setattr__(self, key, value):
+        if key != '_CancelScopeWrapper__original':
+            setattr(self.__original, key, value)
+        else:
+            super().__setattr__(key, value)
+
+    async def __aenter__(self):
+        self.__original.__enter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        return self.__original.__exit__(exc_type, exc_val, exc_tb)
+
+    def cancel(self):
+        self.__original.cancel()
+        return dummy_awaitable
+
+
+def open_cancel_scope(shield):
+    return CancelScopeWrapper(trio.CancelScope(shield=shield))
 
 
 @asynccontextmanager
@@ -41,7 +65,7 @@ async def open_cancel_scope(shield):
 async def move_on_after(seconds, shield):
     with trio.move_on_after(seconds) as cancel_scope:
         cancel_scope.shield = shield
-        await yield_(cancel_scope)
+        await yield_(CancelScopeWrapper(cancel_scope))
 
 
 @asynccontextmanager
@@ -50,7 +74,7 @@ async def fail_after(seconds, shield):
     try:
         with trio.fail_after(seconds) as cancel_scope:
             cancel_scope.shield = shield
-            await yield_(cancel_scope)
+            await yield_(CancelScopeWrapper(cancel_scope))
     except trio.TooSlowError as exc:
         raise TimeoutError().with_traceback(exc.__traceback__) from None
 
@@ -64,16 +88,12 @@ async def current_effective_deadline():
 #
 
 class TaskGroup:
-    __slots__ = '_active', '_nursery'
+    __slots__ = '_active', '_nursery', 'cancel_scope'
 
     def __init__(self, nursery) -> None:
         self._active = True
         self._nursery = nursery
-        nursery.cancel_scope.cancel = wrap_as_awaitable(nursery.cancel_scope.cancel)
-
-    @property
-    def cancel_scope(self):
-        return self._nursery.cancel_scope
+        self.cancel_scope = CancelScopeWrapper(nursery.cancel_scope)
 
     async def spawn(self, func: Callable, *args, name=None) -> None:
         if not self._active:

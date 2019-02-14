@@ -8,6 +8,7 @@ This library adheres to `Semantic Versioning <http://semver.org/>`_.
 - Added introspection of running tasks via ``anyio.get_running_tasks()``
 - Added the ``getsockopt()`` and ``setsockopt()`` methods to the ``SocketStream`` API
 - Fixed mishandling of large buffers by ``BaseSocket.sendall()``
+- Fixed compatibility with (and upgraded minimum required version to) trio v0.11
 
 **1.0.0b1**
 
