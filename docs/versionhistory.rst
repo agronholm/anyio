@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning <http://semver.org/>`_.
 
-**UNRELEASED**
+**1.0.0b2**
 
 - Added introspection of running tasks via ``anyio.get_running_tasks()``
 - Added the ``getsockopt()`` and ``setsockopt()`` methods to the ``SocketStream`` API
