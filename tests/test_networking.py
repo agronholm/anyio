@@ -199,6 +199,15 @@ class TestTCPStream:
 
         assert lines == {b'client1', b'client2'}
 
+    @pytest.mark.anyio
+    async def test_socket_options(self):
+        async with await create_tcp_server(interface='localhost') as stream_server:
+            stream_server.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
+            assert stream_server.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
+            async with await connect_tcp('localhost', stream_server.port) as client:
+                client.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
+                assert client.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
+
 
 class TestUNIXStream:
     @pytest.mark.skipif(sys.platform == 'win32',
@@ -421,3 +430,9 @@ class TestUDPSocket:
                     await client.send(b'123456')
                     assert await client.receive(100) == (b'654321', ('127.0.0.1', server.port))
                     await tg.cancel_scope.cancel()
+
+    @pytest.mark.anyio
+    async def test_socket_options(self):
+        async with await create_udp_socket(interface='127.0.0.1') as udp:
+            udp.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
+            assert udp.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)

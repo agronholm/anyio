@@ -377,7 +377,7 @@ class SocketStream(Stream):
         """
 
     @abstractmethod
-    def setsockopt(self, level, optname, value, optlen: Optional[int] = None) -> None:
+    def setsockopt(self, level, optname, value, *args) -> None:
         """
         Set a socket option.
 
@@ -507,7 +507,7 @@ class SocketStreamServer(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def setsockopt(self, level, optname, value, optlen: Optional[int] = None) -> None:
+    def setsockopt(self, level, optname, value, *args) -> None:
         """
         Set a socket option.
 
@@ -580,7 +580,7 @@ class UDPSocket(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def setsockopt(self, level, optname, value, optlen: Optional[int] = None) -> None:
+    def setsockopt(self, level, optname, value, *args) -> None:
         """
         Set a socket option.
 

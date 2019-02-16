@@ -219,8 +219,8 @@ class SocketStream(abc.SocketStream):
     def getsockopt(self, level, optname, *args):
         return self._socket.getsockopt(level, optname, *args)
 
-    def setsockopt(self, level, optname, value, optlen: Optional[int] = None) -> None:
-        self._socket.setsockopt(level, optname, value, optlen)
+    def setsockopt(self, level, optname, value, *args) -> None:
+        self._socket.setsockopt(level, optname, value, *args)
 
     @property
     def buffered_data(self) -> bytes:
@@ -371,8 +371,8 @@ class SocketStreamServer(abc.SocketStreamServer):
     def getsockopt(self, level, optname, *args):
         return self._socket.getsockopt(level, optname, *args)
 
-    def setsockopt(self, level, optname, value, optlen: Optional[int] = None) -> None:
-        self._socket.setsockopt(level, optname, value, optlen)
+    def setsockopt(self, level, optname, value, *args) -> None:
+        self._socket.setsockopt(level, optname, value, *args)
 
     @property
     def address(self) -> Union[Tuple[str, int], Tuple[str, int, int, int], str]:
@@ -427,8 +427,8 @@ class UDPSocket(abc.UDPSocket):
     def getsockopt(self, level, optname, *args):
         return self._socket.getsockopt(level, optname, *args)
 
-    def setsockopt(self, level, optname, value, optlen: Optional[int] = None) -> None:
-        self._socket.setsockopt(level, optname, value, optlen)
+    def setsockopt(self, level, optname, value, *args) -> None:
+        self._socket.setsockopt(level, optname, value, *args)
 
     async def receive(self, max_bytes: int) -> Tuple[bytes, str]:
         return await self._socket.recvfrom(max_bytes)

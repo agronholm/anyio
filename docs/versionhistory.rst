@@ -3,6 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed ``setsockopt()`` passing options to the underlying method in the wrong manner
+
 **1.0.0b2**
 
 - Added introspection of running tasks via ``anyio.get_running_tasks()``
