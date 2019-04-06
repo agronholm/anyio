@@ -1,6 +1,6 @@
 import socket  # noqa: F401
 from functools import partial
-from typing import Callable, Set, Optional, Coroutine, Any, cast, Dict  # noqa: F401
+from typing import Callable, Set, Optional, Coroutine, Any, cast, Dict, List  # noqa: F401
 
 import curio.io
 import curio.meta
@@ -416,26 +416,23 @@ async def receive_signals(*signals: int):
 # Testing and debugging
 #
 
-async def wait_all_tasks_blocked():
-    import gc
-
-    this_task = await curio.current_task()
-    while True:
-        for task in gc.get_referrers(curio.Task):
-            if isinstance(task, curio.Task) and task.coro.cr_await is None:
-                if not task.terminated and task is not this_task:
-                    await curio.sleep(0)
-                    break
-        else:
-            return
-
-
-def get_running_tasks():
-    import gc
-
+async def get_running_tasks() -> List[TaskInfo]:
     task_infos = []
-    for task in gc.get_referrers(curio.Task):
-        if isinstance(task, curio.Task) and not task.terminated:
+    kernel = await curio.traps._get_kernel()
+    for task in kernel._tasks.values():
+        if not task.terminated:
             task_infos.append(TaskInfo(task.id, task.name, task.coro))
 
     return task_infos
+
+
+async def wait_all_tasks_blocked() -> None:
+    this_task = await curio.current_task()
+    kernel = await curio.traps._get_kernel()
+    while True:
+        for task in kernel._tasks.values():
+            if task.id != this_task.id and task.coro.cr_await is None:
+                await curio.sleep(0)
+                break
+        else:
+            return

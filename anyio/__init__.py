@@ -567,14 +567,14 @@ class TaskInfo:
         return '{}(id={self.id!r}, name={self.name!r})'.format(self.__class__.__name__, self=self)
 
 
-def get_running_tasks() -> typing.List[TaskInfo]:
+async def get_running_tasks() -> typing.List[TaskInfo]:
     """
     Return a list of running tasks in the current event loop.
 
     :return: a list of task info objects
 
     """
-    return _get_asynclib().get_running_tasks()
+    return await _get_asynclib().get_running_tasks()
 
 
 async def wait_all_tasks_blocked() -> None:

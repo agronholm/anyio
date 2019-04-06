@@ -7,7 +7,7 @@ from functools import partial
 from threading import Thread
 from typing import (
     Callable, Set, Optional, Union, Tuple, cast, Coroutine, Any, Awaitable, TypeVar,
-    Generator)
+    Generator, List)
 from weakref import WeakKeyDictionary
 
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
@@ -661,21 +661,26 @@ async def receive_signals(*signals: int):
 # Testing and debugging
 #
 
-def get_running_tasks():
+async def get_running_tasks() -> List[TaskInfo]:
     task_infos = []
     for task in all_tasks():
         if not task.done():
-            name = task.get_name() if _task_names is None else _task_names.get(task)
-            task_infos.append(TaskInfo(id(task), name, task._coro))
+            coro = task._coro  # type: ignore
+            if _task_names is None:
+                name = task.get_name()  # type: ignore
+            else:
+                name = _task_names.get(task)
+
+            task_infos.append(TaskInfo(id(task), name, coro))
 
     return task_infos
 
 
-async def wait_all_tasks_blocked():
+async def wait_all_tasks_blocked() -> None:
     this_task = current_task()
     while True:
         for task in all_tasks():
-            if task._coro.cr_await is None and task is not this_task:
+            if task._coro.cr_await is None and task is not this_task:  # type: ignore
                 await sleep(0)
                 break
         else:

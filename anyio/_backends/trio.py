@@ -1,4 +1,4 @@
-from typing import Callable, Optional
+from typing import Callable, Optional, List
 
 import trio.hazmat
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
@@ -252,13 +252,18 @@ async def receive_signals(*signals: int):
 # Testing and debugging
 #
 
-def get_running_tasks():
-    import gc
+async def get_running_tasks() -> List[TaskInfo]:
+    root_task = trio.hazmat.current_root_task()
+    task_infos = [TaskInfo(id(root_task), root_task.name, root_task.coro)]
+    nurseries = root_task.child_nurseries
+    while nurseries:
+        new_nurseries = []  # type: List[trio.Nursery]
+        for nursery in nurseries:
+            for task in nursery.child_tasks:
+                task_infos.append(TaskInfo(id(task), task.name, task.coro))
+                new_nurseries.extend(task.child_nurseries)
 
-    task_infos = []
-    for task in gc.get_referrers(trio.hazmat.Task):
-        if isinstance(task, trio.hazmat.Task) and task.coro.cr_frame is not None:
-            task_infos.append(TaskInfo(id(task), task.name, task.coro))
+        nurseries = new_nurseries
 
     return task_infos
 

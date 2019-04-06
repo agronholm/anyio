@@ -7,6 +7,7 @@ This library adheres to `Semantic Versioning <http://semver.org/>`_.
 
 - Fixed ``setsockopt()`` passing options to the underlying method in the wrong manner
 - Fixed cancellation propagation from nested task groups
+- Fixed ``get_running_tasks()`` returning tasks from other event loops
 
 **1.0.0b2**
 
