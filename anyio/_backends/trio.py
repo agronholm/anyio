@@ -252,15 +252,26 @@ async def receive_signals(*signals: int):
 # Testing and debugging
 #
 
+async def get_current_task() -> TaskInfo:
+    task = trio.hazmat.current_task()
+
+    parent_id = None
+    if task.parent_nursery and task.parent_nursery.parent_task:
+        parent_id = id(task.parent_nursery.parent_task)
+
+    return TaskInfo(id(task), parent_id, task.name, task.coro)
+
+
 async def get_running_tasks() -> List[TaskInfo]:
     root_task = trio.hazmat.current_root_task()
-    task_infos = [TaskInfo(id(root_task), root_task.name, root_task.coro)]
+    task_infos = [TaskInfo(id(root_task), None, root_task.name, root_task.coro)]
     nurseries = root_task.child_nurseries
     while nurseries:
         new_nurseries = []  # type: List[trio.Nursery]
         for nursery in nurseries:
             for task in nursery.child_tasks:
-                task_infos.append(TaskInfo(id(task), task.name, task.coro))
+                task_infos.append(
+                    TaskInfo(id(task), id(nursery.parent_task), task.name, task.coro))
                 new_nurseries.extend(task.child_nurseries)
 
         nurseries = new_nurseries

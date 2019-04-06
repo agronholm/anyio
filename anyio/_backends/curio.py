@@ -253,6 +253,7 @@ class TaskGroup:
 
         task = await curio.spawn(self._run_wrapped_task, func, *args, daemon=True,
                                  report_crash=False)
+        task.parentid = self.cancel_scope._host_task.id
         self._tasks.add(task)
         if name is not None:
             task.name = name
@@ -416,12 +417,17 @@ async def receive_signals(*signals: int):
 # Testing and debugging
 #
 
+async def get_current_task() -> TaskInfo:
+    task = await curio.current_task()
+    return TaskInfo(task.id, task.parentid, task.name, task.coro)
+
+
 async def get_running_tasks() -> List[TaskInfo]:
     task_infos = []
     kernel = await curio.traps._get_kernel()
     for task in kernel._tasks.values():
         if not task.terminated:
-            task_infos.append(TaskInfo(task.id, task.name, task.coro))
+            task_infos.append(TaskInfo(task.id, task.parentid, task.name, task.coro))
 
     return task_infos
 

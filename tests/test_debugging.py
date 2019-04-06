@@ -1,24 +1,28 @@
-import re
-
 import pytest
 
-from anyio import create_task_group, create_event, wait_all_tasks_blocked, get_running_tasks
+from anyio import (
+    create_task_group, create_event, wait_all_tasks_blocked, get_running_tasks, get_current_task)
 
 
 @pytest.mark.anyio
 async def test_get_running_tasks():
+    async def inspect():
+        await wait_all_tasks_blocked()
+        new_tasks = set(await get_running_tasks()) - existing_tasks
+        task_infos[:] = sorted(new_tasks, key=lambda info: info.name or '')
+        await event.set()
+
     event = create_event()
+    task_infos = []
+    host_task = await get_current_task()
     async with create_task_group() as tg:
         existing_tasks = set(await get_running_tasks())
         await tg.spawn(event.wait, name='task1')
         await tg.spawn(event.wait, name='task2')
-        await wait_all_tasks_blocked()
-        task_infos = set(await get_running_tasks()) - existing_tasks
-        await event.set()
+        await tg.spawn(inspect, name='inspector')
 
-    task_infos = sorted(task_infos, key=lambda info: info.name or '')
-    assert len(task_infos) == 2
-    assert task_infos[0].name == 'task1'
-    assert task_infos[1].name == 'task2'
-    assert re.fullmatch(r"TaskInfo\(id=\d+, name='task1'\)", repr(task_infos[0]))
-    assert re.fullmatch(r"TaskInfo\(id=\d+, name='task2'\)", repr(task_infos[1]))
+    assert len(task_infos) == 3
+    for task, expected_name in zip(task_infos, ['inspector', 'task1', 'task2']):
+        assert task.parent_id == host_task.id
+        assert task.name == expected_name
+        assert repr(task) == "TaskInfo(id={}, name={!r})".format(task.id, expected_name)

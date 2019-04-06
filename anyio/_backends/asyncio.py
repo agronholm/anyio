@@ -117,6 +117,7 @@ except ImportError:
         return asyncio.Task.current_task(loop)
 
 # Check whether there is native support for task names in asyncio (3.8+)
+_task_parents = WeakKeyDictionary()  # type: WeakKeyDictionary[asyncio.Task, int]
 _task_names = None  # type: Optional[WeakKeyDictionary[asyncio.Task, str]]
 if 'name' not in inspect.signature(create_task).parameters:
     _task_names = WeakKeyDictionary()
@@ -376,6 +377,7 @@ class TaskGroup:
             if name is not None:
                 _task_names[task] = name
 
+        _task_parents[task] = id(current_task())
         self._tasks.add(task)
 
         # Make the spawned task inherit the task group's cancel scope
@@ -661,19 +663,22 @@ async def receive_signals(*signals: int):
 # Testing and debugging
 #
 
+def _create_task_info(task: asyncio.Task) -> TaskInfo:
+    coro = task._coro  # type: ignore
+    if _task_names is None:
+        name = task.get_name()  # type: ignore
+    else:
+        name = _task_names.get(task)
+
+    return TaskInfo(id(task), _task_parents.get(task), name, coro)
+
+
+async def get_current_task() -> TaskInfo:
+    return _create_task_info(current_task())
+
+
 async def get_running_tasks() -> List[TaskInfo]:
-    task_infos = []
-    for task in all_tasks():
-        if not task.done():
-            coro = task._coro  # type: ignore
-            if _task_names is None:
-                name = task.get_name()  # type: ignore
-            else:
-                name = _task_names.get(task)
-
-            task_infos.append(TaskInfo(id(task), name, coro))
-
-    return task_infos
+    return [_create_task_info(task) for task in all_tasks() if not task.done()]
 
 
 async def wait_all_tasks_blocked() -> None:

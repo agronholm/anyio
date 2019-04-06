@@ -543,14 +543,17 @@ class TaskInfo:
     Represents an asynchronous task.
 
     :ivar int id: the unique identifier of the task
+    :ivar parent_id: the identifier of the parent task, if any
+    :vartype parent_id: Optional[int]
     :ivar str name: the description of the task (if any)
     :ivar ~collections.abc.Coroutine coro: the coroutine object of the task
     """
 
-    __slots__ = 'id', 'name', 'coro'
+    __slots__ = 'id', 'parent_id', 'name', 'coro'
 
-    def __init__(self, id, name: Optional[str], coro: Coroutine):
+    def __init__(self, id: int, parent_id: Optional[int], name: Optional[str], coro: Coroutine):
         self.id = id
+        self.parent_id = parent_id
         self.name = name
         self.coro = coro
 
@@ -565,6 +568,16 @@ class TaskInfo:
 
     def __repr__(self):
         return '{}(id={self.id!r}, name={self.name!r})'.format(self.__class__.__name__, self=self)
+
+
+async def get_current_task() -> TaskInfo:
+    """
+    Return the current task.
+
+    :return: a representation of the current task
+
+    """
+    return await _get_asynclib().get_current_task()
 
 
 async def get_running_tasks() -> typing.List[TaskInfo]:
