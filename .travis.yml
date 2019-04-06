@@ -36,6 +36,10 @@ jobs:
       env: TOXENV=py37
       python: "3.7"
 
+    - <<: *test
+      env: TOXENV=py38
+      python: 3.8-dev
+
     - stage: deploy to pypi
       install: true
       script: skip
@@ -48,6 +52,8 @@ jobs:
         on:
           tags: true
           repo: agronholm/anyio
+  allow_failures:
+    - python: 3.8-dev
 
 install: pip install tox
 
