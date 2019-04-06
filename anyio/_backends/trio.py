@@ -1,10 +1,9 @@
-from typing import Callable
+from typing import Callable, Optional
 
 import trio.hazmat
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
 
 from .._networking import BaseSocket
-from .._utils import dummy_awaitable
 from .. import abc, claim_worker_thread, T_Retval, _local, TaskInfo
 from ..exceptions import ExceptionGroup, ClosedResourceError
 
@@ -28,44 +27,49 @@ sleep = trio.sleep
 # Timeouts and cancellation
 #
 
-class CancelScopeWrapper:
+class CancelScope:
     __slots__ = '__original'
 
-    def __init__(self, original: trio.CancelScope):
-        assert type(original) is trio.CancelScope
-        self.__original = original
-
-    def __getattr__(self, item):
-        return getattr(self.__original, item)
-
-    def __setattr__(self, key, value):
-        if key != '_CancelScopeWrapper__original':
-            setattr(self.__original, key, value)
-        else:
-            super().__setattr__(key, value)
+    def __init__(self, original: Optional[trio.CancelScope] = None, **kwargs):
+        self.__original = original or trio.CancelScope(**kwargs)
 
     async def __aenter__(self):
+        if self.__original._has_been_entered:
+            raise RuntimeError(
+                "Each CancelScope may only be used for a single 'async with' block"
+            )
+
         self.__original.__enter__()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         return self.__original.__exit__(exc_type, exc_val, exc_tb)
 
-    def cancel(self):
+    async def cancel(self):
         self.__original.cancel()
-        return dummy_awaitable
+
+    @property
+    def deadline(self) -> float:
+        return self.__original.deadline
+
+    @property
+    def cancel_called(self) -> bool:
+        return self.__original.cancel_called
+
+    @property
+    def shield(self) -> bool:
+        return self.__original.shield
 
 
-def open_cancel_scope(shield):
-    return CancelScopeWrapper(trio.CancelScope(shield=shield))
+abc.CancelScope.register(CancelScope)
 
 
 @asynccontextmanager
 @async_generator
 async def move_on_after(seconds, shield):
-    with trio.move_on_after(seconds) as cancel_scope:
-        cancel_scope.shield = shield
-        await yield_(CancelScopeWrapper(cancel_scope))
+    with trio.move_on_after(seconds) as scope:
+        scope.shield = shield
+        await yield_(CancelScope(scope))
 
 
 @asynccontextmanager
@@ -74,7 +78,7 @@ async def fail_after(seconds, shield):
     try:
         with trio.fail_after(seconds) as cancel_scope:
             cancel_scope.shield = shield
-            await yield_(CancelScopeWrapper(cancel_scope))
+            await yield_(CancelScope(cancel_scope))
     except trio.TooSlowError as exc:
         raise TimeoutError().with_traceback(exc.__traceback__) from None
 
@@ -88,12 +92,27 @@ async def current_effective_deadline():
 #
 
 class TaskGroup:
-    __slots__ = '_active', '_nursery', 'cancel_scope'
+    __slots__ = '_active', '_nursery_manager', '_nursery', 'cancel_scope'
 
-    def __init__(self, nursery) -> None:
+    def __init__(self) -> None:
+        self._active = False
+        self._nursery_manager = trio.open_nursery()
+        self.cancel_scope = None
+
+    async def __aenter__(self):
         self._active = True
-        self._nursery = nursery
-        self.cancel_scope = CancelScopeWrapper(nursery.cancel_scope)
+        self._nursery = await self._nursery_manager.__aenter__()
+        self.cancel_scope = CancelScope(self._nursery.cancel_scope)
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        try:
+            return await self._nursery_manager.__aexit__(exc_type, exc_val, exc_tb)
+        except trio.MultiError as exc:
+            if not all(isinstance(e, trio.Cancelled) for e in exc.exceptions):
+                raise ExceptionGroup(exc.exceptions) from None
+        finally:
+            self._active = False
 
     async def spawn(self, func: Callable, *args, name=None) -> None:
         if not self._active:
@@ -103,21 +122,6 @@ class TaskGroup:
 
 
 abc.TaskGroup.register(TaskGroup)
-
-
-@asynccontextmanager
-@async_generator
-async def create_task_group():
-    tg = None
-    try:
-        async with trio.open_nursery() as nursery:
-            tg = TaskGroup(nursery)
-            await yield_(tg)
-    except trio.MultiError as exc:
-        raise ExceptionGroup(exc.exceptions) from None
-    finally:
-        if tg is not None:
-            tg._active = False
 
 
 #

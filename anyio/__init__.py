@@ -144,13 +144,13 @@ def open_cancel_scope(*, shield: bool = False) -> 'typing.AsyncContextManager[Ca
     :return: an asynchronous context manager that yields a cancel scope
 
     """
-    return _get_asynclib().open_cancel_scope(shield=shield)
+    return _get_asynclib().CancelScope(shield=shield)
 
 
 def fail_after(delay: Optional[float], *,
                shield: bool = False) -> 'typing.AsyncContextManager[CancelScope]':
     """
-    Create a context manager which raises an exception if does not finish in time.
+    Create an async context manager which raises an exception if does not finish in time.
 
     :param delay: maximum allowed time (in seconds) before raising the exception, or ``None`` to
         disable the timeout
@@ -160,7 +160,7 @@ def fail_after(delay: Optional[float], *,
 
     """
     if delay is None:
-        return _get_asynclib().open_cancel_scope(shield=shield)
+        return _get_asynclib().CancelScope(shield=shield)
     else:
         return _get_asynclib().fail_after(delay, shield=shield)
 
@@ -168,7 +168,7 @@ def fail_after(delay: Optional[float], *,
 def move_on_after(delay: Optional[float], *,
                   shield: bool = False) -> 'typing.AsyncContextManager[CancelScope]':
     """
-    Create a context manager which is exited if it does not complete within the given time.
+    Create an async context manager which is exited if it does not complete within the given time.
 
     :param delay: maximum allowed time (in seconds) before exiting the context block, or ``None``
         to disable the timeout
@@ -177,7 +177,7 @@ def move_on_after(delay: Optional[float], *,
 
     """
     if delay is None:
-        return _get_asynclib().open_cancel_scope(shield=shield)
+        return _get_asynclib().CancelScope(shield=shield)
     else:
         return _get_asynclib().move_on_after(delay, shield=shield)
 
@@ -198,14 +198,14 @@ def current_effective_deadline() -> Coroutine[Any, Any, float]:
 # Task groups
 #
 
-def create_task_group() -> 'typing.AsyncContextManager[TaskGroup]':
+def create_task_group() -> TaskGroup:
     """
     Create a task group.
 
-    :return: an asynchronous context manager that yields a task group
+    :return: a task group
 
     """
-    return _get_asynclib().create_task_group()
+    return _get_asynclib().TaskGroup()
 
 
 #

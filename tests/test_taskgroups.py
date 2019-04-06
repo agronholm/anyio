@@ -170,6 +170,25 @@ async def test_cancel_scope_in_another_task():
 
 
 @pytest.mark.anyio
+async def test_cancel_propagation():
+    async def g():
+        async with create_task_group() as group2:
+            print('inner group id = %s  scope id = %s' % (id(group2), id(group2.cancel_scope)))
+            await sleep(1)
+            print('sleep completed')
+
+        assert False
+
+    async with create_task_group() as group:
+        print('outer group id = %s  scope id = %s' % (id(group), id(group.cancel_scope)))
+        await group.spawn(g)
+        await sleep(0)
+        print('about to cancel outer scope')
+        await group.cancel_scope.cancel()
+        print('cancelled outer scope')
+
+
+@pytest.mark.anyio
 async def test_multi_error_children():
     with pytest.raises(ExceptionGroup) as exc:
         async with create_task_group() as tg:
