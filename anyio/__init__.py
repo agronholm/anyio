@@ -519,7 +519,7 @@ def create_queue(capacity: int) -> Queue:
 # Operating system signals
 #
 
-def receive_signals(*signals: int) -> 'typing.ContextManager[typing.AsyncIterator[int]]':
+def receive_signals(*signals: int) -> 'typing.AsyncContextManager[typing.AsyncIterator[int]]':
     """
     Start receiving operating system signals.
 
