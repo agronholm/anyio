@@ -253,7 +253,7 @@ class TaskGroup:
 
         task = await curio.spawn(self._run_wrapped_task, func, *args, daemon=True,
                                  report_crash=False)
-        task.parentid = self.cancel_scope._host_task.id
+        task.parentid = self.cancel_scope._host_task.id  # type: ignore
         self._tasks.add(task)
         if name is not None:
             task.name = name

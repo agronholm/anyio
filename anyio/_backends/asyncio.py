@@ -674,7 +674,7 @@ def _create_task_info(task: asyncio.Task) -> TaskInfo:
 
 
 async def get_current_task() -> TaskInfo:
-    return _create_task_info(current_task())
+    return _create_task_info(current_task())  # type: ignore
 
 
 async def get_running_tasks() -> List[TaskInfo]:
