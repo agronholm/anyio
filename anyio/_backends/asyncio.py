@@ -164,16 +164,18 @@ async def sleep(delay: float) -> None:
 #
 
 class CancelScope:
-    __slots__ = ('_deadline', '_shield', '_parent_scope', '_cancel_called', '_host_task',
-                 '_timeout_task', '_timeout_expired')
+    __slots__ = ('_deadline', '_shield', '_parent_scope', '_cancel_called', '_active',
+                 '_timeout_task', '_tasks', '_timeout_expired')
 
     def __init__(self, deadline: float = float('inf'), shield: bool = False):
         self._deadline = deadline
         self._shield = shield
         self._parent_scope = None
         self._cancel_called = False
-        self._host_task = None
+        self._active = False
         self._timeout_task = None
+        self._tasks = set()  # type: Set[asyncio.Task]
+        self._timeout_expired = False
 
     async def __aenter__(self):
         async def timeout():
@@ -181,26 +183,30 @@ class CancelScope:
             self._timeout_expired = True
             await self.cancel()
 
-        if self._host_task:
+        if self._active:
             raise RuntimeError(
                 "Each CancelScope may only be used for a single 'async with' block"
             )
 
-        self._host_task = current_task()
-        self._parent_scope = get_cancel_scope(self._host_task)
-        set_cancel_scope(self._host_task, self)
-        self._timeout_expired = False
+        host_task = current_task()
+        self._parent_scope = get_cancel_scope(host_task)
+        self._tasks.add(host_task)
+        set_cancel_scope(host_task, self)
 
         if self._deadline != float('inf'):
             self._timeout_task = get_running_loop().create_task(timeout())
 
+        self._active = True
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self._active = False
         if self._timeout_task:
             self._timeout_task.cancel()
 
-        set_cancel_scope(self._host_task, self._parent_scope)
+        host_task = current_task()
+        self._tasks.remove(host_task)
+        set_cancel_scope(host_task, self._parent_scope)
 
         if isinstance(exc_val, asyncio.CancelledError):
             if self._timeout_expired:
@@ -210,19 +216,19 @@ class CancelScope:
                 return True
 
     async def cancel(self):
-        if not self._cancel_called:
-            self._cancel_called = True
+        if self._cancel_called:
+            return
 
-            # Check if the host task should be cancelled
-            if self._host_task is not current_task():
-                scope = get_cancel_scope(self._host_task)
-                while scope and scope is not self:
-                    if scope.shield:
-                        break
-                    else:
-                        scope = scope._parent_scope
-                else:
-                    self._host_task.cancel()
+        self._cancel_called = True
+
+        # Cancel any contained tasks
+        for task in self._tasks:
+            if task._coro.cr_await is not None and not task._coro.cr_running:
+                # Cancel the task directly, but only if it's blocked and isn't within a shielded
+                # scope
+                scope = get_cancel_scope(task)
+                if scope is self or not scope.shield:
+                    task.cancel()
 
     @property
     def deadline(self) -> float:
@@ -304,12 +310,11 @@ async def current_effective_deadline():
 #
 
 class TaskGroup:
-    __slots__ = 'cancel_scope', '_active', '_tasks'
+    __slots__ = 'cancel_scope', '_active'
 
-    def __init__(self) -> None:
+    def __init__(self):
         self.cancel_scope = CancelScope()
         self._active = False
-        self._tasks = set()  # type: Set[asyncio.Task]
 
     async def __aenter__(self):
         await self.cancel_scope.__aenter__()
@@ -317,7 +322,9 @@ class TaskGroup:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        exceptions = []
+        await self.cancel_scope.__aexit__(exc_type, exc_val, exc_tb)
+
+        exceptions = []  # type: List[BaseException]
         ignore_exception = False
         if exc_val is not None:
             await self.cancel_scope.cancel()
@@ -328,26 +335,17 @@ class TaskGroup:
             elif not self.cancel_scope._parent_scope.cancel_called:
                 ignore_exception = True
 
-        if self.cancel_scope.cancel_called:
-            for task in self._tasks:
-                if task._coro.cr_await is not None:
-                    task.cancel()
-
-        while self._tasks:
-            for task in set(self._tasks):
+        while self.cancel_scope._tasks:
+            for task in self.cancel_scope._tasks.copy():
                 try:
                     await task
-                except (asyncio.CancelledError, CancelledError):
-                    set_cancel_scope(task, None)
-                    self._tasks.remove(task)
                 except BaseException as exc:
                     set_cancel_scope(task, None)
-                    self._tasks.remove(task)
-                    exceptions.append(exc)
+                    self.cancel_scope._tasks.remove(task)
+                    if not isinstance(exc, (asyncio.CancelledError, CancelledError)):
+                        exceptions.append(exc)
 
         self._active = False
-        await self.cancel_scope.__aexit__(exc_type, exc_val, exc_tb)
-
         if len(exceptions) > 1:
             raise ExceptionGroup(exceptions)
         elif exceptions and exceptions[0] is not exc_val:
@@ -356,15 +354,15 @@ class TaskGroup:
         return ignore_exception
 
     async def _run_wrapped_task(self, func, *args):
+        task = current_task()
         try:
             await func(*args)
         except BaseException:
             await self.cancel_scope.cancel()
             raise
         else:
-            task = current_task()
-            self._tasks.remove(task)
             set_cancel_scope(task, None)
+            self.cancel_scope._tasks.remove(task)
 
     async def spawn(self, func: Callable, *args, name=None) -> None:
         if not self._active:
@@ -374,13 +372,12 @@ class TaskGroup:
             task = create_task(self._run_wrapped_task(func, *args), name=name)  # type: ignore
         else:
             task = create_task(self._run_wrapped_task(func, *args))
+            _task_parents[task] = id(current_task())
             if name is not None:
                 _task_names[task] = name
 
-        _task_parents[task] = id(current_task())
-        self._tasks.add(task)
-
         # Make the spawned task inherit the task group's cancel scope
+        self.cancel_scope._tasks.add(task)
         set_cancel_scope(task, self.cancel_scope)
 
 

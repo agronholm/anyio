@@ -172,20 +172,15 @@ async def test_cancel_scope_in_another_task():
 @pytest.mark.anyio
 async def test_cancel_propagation():
     async def g():
-        async with create_task_group() as group2:
-            print('inner group id = %s  scope id = %s' % (id(group2), id(group2.cancel_scope)))
+        async with create_task_group():
             await sleep(1)
-            print('sleep completed')
 
         assert False
 
     async with create_task_group() as group:
-        print('outer group id = %s  scope id = %s' % (id(group), id(group.cancel_scope)))
         await group.spawn(g)
         await sleep(0)
-        print('about to cancel outer scope')
         await group.cancel_scope.cancel()
-        print('cancelled outer scope')
 
 
 @pytest.mark.anyio
@@ -346,3 +341,24 @@ async def test_cancel_scope_in_child_task():
 
     assert host_done
     assert not tg.cancel_scope.cancel_called
+
+
+@pytest.mark.anyio
+async def test_exception_cancels_siblings():
+    async def child(fail):
+        if fail:
+            raise Exception('foo')
+        else:
+            nonlocal sleep_completed
+            await sleep(1)
+            sleep_completed = True
+
+    sleep_completed = False
+    with pytest.raises(Exception) as exc:
+        async with create_task_group() as tg:
+            await tg.spawn(child, False)
+            await wait_all_tasks_blocked()
+            await tg.spawn(child, True)
+
+    exc.match('foo')
+    assert not sleep_completed
