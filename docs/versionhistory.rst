@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning <http://semver.org/>`_.
 
-**UNRELEASED**
+**1.0.0rc1**
 
 - Fixed ``setsockopt()`` passing options to the underlying method in the wrong manner
 - Fixed cancellation propagation from nested task groups
