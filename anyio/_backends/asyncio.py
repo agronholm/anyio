@@ -1,6 +1,7 @@
 import asyncio
 import concurrent.futures
 import inspect
+import math
 import os
 import socket
 from functools import partial
@@ -167,7 +168,7 @@ class CancelScope:
     __slots__ = ('_deadline', '_shield', '_parent_scope', '_cancel_called', '_active',
                  '_timeout_task', '_tasks', '_timeout_expired')
 
-    def __init__(self, deadline: float = float('inf'), shield: bool = False):
+    def __init__(self, deadline: float = math.inf, shield: bool = False):
         self._deadline = deadline
         self._shield = shield
         self._parent_scope = None
@@ -193,7 +194,7 @@ class CancelScope:
         self._tasks.add(host_task)
         set_cancel_scope(host_task, self)
 
-        if self._deadline != float('inf'):
+        if self._deadline != math.inf:
             self._timeout_task = get_running_loop().create_task(timeout())
 
         self._active = True
@@ -272,7 +273,7 @@ def check_cancelled():
         raise CancelledError
 
 
-def open_cancel_scope(deadline: float = float('inf'), shield: bool = False) -> CancelScope:
+def open_cancel_scope(deadline: float = math.inf, shield: bool = False) -> CancelScope:
     return CancelScope(deadline, shield)
 
 
@@ -296,7 +297,7 @@ async def move_on_after(delay: float, shield: bool):
 
 
 async def current_effective_deadline():
-    deadline = float('inf')
+    deadline = math.inf
     cancel_scope = get_cancel_scope(current_task())
     while cancel_scope:
         deadline = min(deadline, cancel_scope.deadline)
