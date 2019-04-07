@@ -8,14 +8,14 @@ from functools import partial
 from threading import Thread
 from typing import (
     Callable, Set, Optional, Union, Tuple, cast, Coroutine, Any, Awaitable, TypeVar,
-    Generator, List)
+    Generator, List, Dict)
 from weakref import WeakKeyDictionary
 
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
 
 from .._networking import BaseSocket
 from .. import abc, claim_worker_thread, _local, T_Retval, TaskInfo
-from ..exceptions import ExceptionGroup, CancelledError, ClosedResourceError
+from ..exceptions import ExceptionGroup, CancelledError, ClosedResourceError, ResourceBusyError
 
 try:
     from asyncio import run as native_run, create_task, get_running_loop, current_task, all_tasks
@@ -496,43 +496,27 @@ async def aopen(*args, **kwargs):
 # Sockets and networking
 #
 
+_read_events = {}  # type: Dict[socket.SocketType, asyncio.Event]
+_write_events = {}  # type: Dict[socket.SocketType, asyncio.Event]
+
 
 class Socket(BaseSocket):
     __slots__ = '_loop', '_read_event', '_write_event'
 
     def __init__(self, raw_socket: socket.SocketType) -> None:
+        super().__init__(raw_socket)
         self._loop = get_running_loop()
         self._read_event = asyncio.Event(loop=self._loop)
         self._write_event = asyncio.Event(loop=self._loop)
-        super().__init__(raw_socket)
 
-    async def _wait_readable(self) -> None:
-        check_cancelled()
-        self._loop.add_reader(self._raw_socket, self._read_event.set)
-        try:
-            await self._read_event.wait()
-            self._read_event.clear()
-        finally:
-            self._loop.remove_reader(self._raw_socket)
+    def _wait_readable(self):
+        return wait_socket_readable(self._raw_socket)
 
-        if self._raw_socket.fileno() == -1:
-            raise ClosedResourceError
+    def _wait_writable(self):
+        return wait_socket_writable(self._raw_socket)
 
-    async def _wait_writable(self) -> None:
-        check_cancelled()
-        self._loop.add_writer(self._raw_socket, self._write_event.set)
-        try:
-            await self._write_event.wait()
-            self._write_event.clear()
-        finally:
-            self._loop.remove_writer(self._raw_socket)
-
-        if self._raw_socket.fileno() == -1:
-            raise ClosedResourceError
-
-    async def _notify_close(self) -> None:
-        self._read_event.set()
-        self._write_event.set()
+    def _notify_close(self):
+        return notify_socket_close(self._raw_socket)
 
     async def _check_cancelled(self) -> None:
         check_cancelled()
@@ -543,24 +527,45 @@ class Socket(BaseSocket):
 
 async def wait_socket_readable(sock: socket.SocketType) -> None:
     check_cancelled()
+    if _read_events.get(sock):
+        raise ResourceBusyError('reading from') from None
+
     loop = get_running_loop()
-    event = asyncio.Event(loop=loop)
+    event = _read_events[sock] = asyncio.Event(loop=loop)
     loop.add_reader(sock, event.set)
     try:
         await event.wait()
     finally:
         loop.remove_reader(sock)
+        del _read_events[sock]
+
+    if sock.fileno() == -1:
+        raise ClosedResourceError
 
 
 async def wait_socket_writable(sock: socket.SocketType) -> None:
     check_cancelled()
+    if _write_events.get(sock):
+        raise ResourceBusyError('writing to') from None
+
     loop = get_running_loop()
-    event = asyncio.Event(loop=loop)
+    event = _write_events[sock] = asyncio.Event(loop=loop)
     loop.add_writer(sock.fileno(), event.set)
     try:
         await event.wait()
     finally:
         loop.remove_writer(sock)
+        del _write_events[sock]
+
+    if sock.fileno() == -1:
+        raise ClosedResourceError
+
+
+async def notify_socket_close(sock: socket.SocketType) -> None:
+    for events_map in _read_events, _write_events:
+        event = events_map.get(sock)
+        if event is not None:
+            event.set()
 
 
 #

@@ -59,3 +59,10 @@ class ClosedResourceError(Exception):
 
 class TLSRequired(Exception):
     """Raised when a TLS related stream method is called before the TLS handshake has been done."""
+
+
+class ResourceBusyError(Exception):
+    """Raised when two tasks are trying to read from or write to the same resource concurrently."""
+
+    def __init__(self, action: str):
+        super().__init__('Another task is already {} this resource'.format(action))

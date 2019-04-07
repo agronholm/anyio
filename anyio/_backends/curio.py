@@ -12,7 +12,7 @@ from async_generator import async_generator, asynccontextmanager, yield_
 
 from .._networking import BaseSocket
 from .. import abc, T_Retval, claim_worker_thread, _local, TaskInfo
-from ..exceptions import ExceptionGroup, CancelledError, ClosedResourceError
+from ..exceptions import ExceptionGroup, CancelledError, ClosedResourceError, ResourceBusyError
 
 
 #
@@ -300,44 +300,21 @@ async def aopen(*args, **kwargs):
 # Sockets and networking
 #
 
+_reader_tasks = {}  # type: Dict[socket.SocketType, curio.Task]
+_writer_tasks = {}  # type: Dict[socket.SocketType, curio.Task]
+
+
 class Socket(BaseSocket):
-    _reader_tasks = {}  # type: Dict[socket.SocketType, curio.Task]
-    _writer_tasks = {}  # type: Dict[socket.SocketType, curio.Task]
+    __slots__ = ()
 
-    async def _wait_readable(self):
-        task = await curio.current_task()
-        self._reader_tasks[self._raw_socket] = task
-        try:
-            await curio.traps._read_wait(self._raw_socket)
-        except curio.TaskCancelled:
-            if self._raw_socket.fileno() == -1:
-                raise ClosedResourceError from None
-            else:
-                raise
-        finally:
-            del self._reader_tasks[self._raw_socket]
+    def _wait_readable(self):
+        return wait_socket_readable(self._raw_socket)
 
-    async def _wait_writable(self):
-        task = await curio.current_task()
-        self._writer_tasks[self._raw_socket] = task
-        try:
-            await curio.traps._write_wait(self._raw_socket)
-        except curio.TaskCancelled:
-            if self._raw_socket.fileno() == -1:
-                raise ClosedResourceError from None
-            else:
-                raise
-        finally:
-            del self._writer_tasks[self._raw_socket]
+    def _wait_writable(self):
+        return wait_socket_writable(self._raw_socket)
 
-    async def _notify_close(self) -> None:
-        task = Socket._reader_tasks.get(self._raw_socket)
-        if task:
-            await task.cancel(blocking=False)
-
-        task = Socket._writer_tasks.get(self._raw_socket)
-        if task:
-            await task.cancel(blocking=False)
+    def _notify_close(self):
+        return notify_socket_close(self._raw_socket)
 
     def _check_cancelled(self) -> Coroutine[Any, Any, None]:
         return check_cancelled()
@@ -346,12 +323,45 @@ class Socket(BaseSocket):
         return run_in_thread(func, *args)
 
 
-def wait_socket_readable(sock):
-    return curio.traps._read_wait(sock)
+async def wait_socket_readable(sock):
+    await check_cancelled()
+    if _reader_tasks.get(sock):
+        raise ResourceBusyError('reading from') from None
+
+    _reader_tasks[sock] = await curio.current_task()
+    try:
+        return await curio.traps._read_wait(sock)
+    except curio.TaskCancelled:
+        if sock.fileno() == -1:
+            raise ClosedResourceError from None
+        else:
+            raise
+    finally:
+        del _reader_tasks[sock]
 
 
-def wait_socket_writable(sock):
-    return curio.traps._write_wait(sock)
+async def wait_socket_writable(sock):
+    await check_cancelled()
+    if _writer_tasks.get(sock):
+        raise ResourceBusyError('writing to') from None
+
+    _writer_tasks[sock] = await curio.current_task()
+    try:
+        return await curio.traps._write_wait(sock)
+    except curio.TaskCancelled:
+        if sock.fileno() == -1:
+            raise ClosedResourceError from None
+        else:
+            raise
+    finally:
+        del _writer_tasks[sock]
+
+
+async def notify_socket_close(sock: socket.SocketType):
+    for tasks_map in _reader_tasks, _writer_tasks:
+        task = tasks_map.get(sock)
+        if task is not None:
+            await task.cancel(blocking=False)
 
 
 #

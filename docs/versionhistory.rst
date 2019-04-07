@@ -10,6 +10,8 @@ This library adheres to `Semantic Versioning <http://semver.org/>`_.
 - Fixed ``get_running_tasks()`` returning tasks from other event loops
 - Added the ``parent_id`` attribute to ``anyio.TaskInfo``
 - Added the ``get_current_task()`` function
+- Added guards to protect against concurrent read/write from/to sockets by multiple tasks
+- Added the ``notify_socket_close()`` function
 
 **1.0.0b2**
 

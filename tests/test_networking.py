@@ -7,8 +7,10 @@ import pytest
 
 from anyio import (
     create_task_group, connect_tcp, create_udp_socket, connect_unix, create_unix_server,
-    create_tcp_server)
-from anyio.exceptions import IncompleteRead, DelimiterNotFound, ClosedResourceError
+    create_tcp_server, wait_all_tasks_blocked)
+from anyio.exceptions import (
+    IncompleteRead, DelimiterNotFound, ClosedResourceError,
+    ResourceBusyError)
 
 
 class TestTCPStream:
@@ -207,6 +209,43 @@ class TestTCPStream:
             async with await connect_tcp('localhost', stream_server.port) as client:
                 client.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
                 assert client.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
+
+    @pytest.mark.anyio
+    async def test_concurrent_write(self):
+        async def send_data():
+            while True:
+                await client.send_all(b'\x00' * 1024000)
+
+        async with await create_tcp_server(interface='localhost') as stream_server:
+            async with await connect_tcp('localhost', stream_server.port) as client:
+                async with create_task_group() as tg:
+                    await tg.spawn(send_data)
+                    await wait_all_tasks_blocked()
+                    try:
+                        with pytest.raises(ResourceBusyError) as exc:
+                            await client.send_all(b'foo')
+
+                        exc.match('already writing to')
+                    finally:
+                        await tg.cancel_scope.cancel()
+
+    @pytest.mark.anyio
+    async def test_concurrent_read(self):
+        async def receive_data():
+            await client.receive_exactly(1)
+
+        async with await create_tcp_server(interface='localhost') as stream_server:
+            async with await connect_tcp('localhost', stream_server.port) as client:
+                async with create_task_group() as tg:
+                    await tg.spawn(receive_data)
+                    await wait_all_tasks_blocked()
+                    try:
+                        with pytest.raises(ResourceBusyError) as exc:
+                            await client.receive_exactly(1)
+
+                        exc.match('already reading from')
+                    finally:
+                        await tg.cancel_scope.cancel()
 
 
 class TestUNIXStream:

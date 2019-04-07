@@ -3,6 +3,7 @@ from typing import Callable, Optional, List
 import trio.hazmat
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
 
+from anyio.exceptions import ResourceBusyError
 from .._networking import BaseSocket
 from .. import abc, claim_worker_thread, T_Retval, _local, TaskInfo
 from ..exceptions import ExceptionGroup, ClosedResourceError
@@ -177,6 +178,8 @@ async def wait_socket_readable(sock):
         await trio.hazmat.wait_socket_readable(sock)
     except trio.ClosedResourceError as exc:
         raise ClosedResourceError().with_traceback(exc.__traceback__) from None
+    except trio.BusyResourceError:
+        raise ResourceBusyError('reading from') from None
 
 
 async def wait_socket_writable(sock):
@@ -184,6 +187,12 @@ async def wait_socket_writable(sock):
         await trio.hazmat.wait_socket_writable(sock)
     except trio.ClosedResourceError as exc:
         raise ClosedResourceError().with_traceback(exc.__traceback__) from None
+    except trio.BusyResourceError:
+        raise ResourceBusyError('writing to') from None
+
+
+async def notify_socket_close(sock):
+    return trio.hazmat.notify_socket_close(sock)
 
 
 #
