@@ -84,6 +84,10 @@ class CancelScope:
         if self._deadline != math.inf:
             self._timeout_task = await curio.spawn(timeout)
 
+        if self._parent_scope is not None:
+            if self._parent_scope._cancel_called and not self._shield:
+                await self.cancel()
+
         self._active = True
         return self
 

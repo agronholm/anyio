@@ -198,6 +198,10 @@ class CancelScope:
             self._timeout_task = get_running_loop().create_task(timeout())
 
         self._active = True
+
+        if self._parent_scope is not None:
+            if self._parent_scope. _cancel_called and not self._shield:
+                await self.cancel()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):

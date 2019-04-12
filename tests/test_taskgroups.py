@@ -362,3 +362,23 @@ async def test_exception_cancels_siblings():
 
     exc.match('foo')
     assert not sleep_completed
+
+
+@pytest.mark.anyio
+async def test_cancelled_parent():
+    async def child():
+        async with open_cancel_scope() as sc:
+            await sleep(1)
+        raise RuntimeError("This should not be printed")
+
+    async def parent(tg):
+        try:
+            await sleep(1)
+        finally:
+            await tg.spawn(child)
+        pass
+
+    async with create_task_group() as tg:
+        await tg.spawn(parent,tg)
+        await tg.cancel_scope.cancel()
+
