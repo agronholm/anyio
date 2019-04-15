@@ -136,11 +136,11 @@ class CancelScope:
         for child in list(self._children):
             await child._sub_cancel(real_scope)
 
-    async def _sub_cancel(self, scope):
+    async def _sub_cancel(self, real_scope):
         if self.shield or self._cancel_called:
             return
 
-        self._cancel_called = scope
+        self._cancel_called = real_scope
 
         for task in list(self._tasks):
             if task.coro.cr_await is not None and not task.coro.cr_running:
@@ -151,7 +151,7 @@ class CancelScope:
                     await task.cancel()
 
         for child in self._children:
-            await child._sub_cancel(scope)
+            await child._sub_cancel(real_scope)
 
     @property
     def deadline(self) -> float:

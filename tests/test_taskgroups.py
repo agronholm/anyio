@@ -287,8 +287,8 @@ async def test_nested_move_on_after():
 @pytest.mark.anyio
 async def test_fail_in_taskgroup():
     bad = False
+
     async def check():
-        task_status.started()
         async with fail_after(1):
             await sleep(1)
         nonlocal bad
