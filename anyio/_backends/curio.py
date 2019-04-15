@@ -285,6 +285,9 @@ class TaskGroup:
         task = await curio.current_task()
         try:
             await func(*args)
+        except CancelledError as exc:
+            await self.cancel_scope.cancel(exc.args[0])
+            raise
         except BaseException:
             await self.cancel_scope.cancel()
             raise
