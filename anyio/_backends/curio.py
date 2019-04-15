@@ -111,8 +111,8 @@ class CancelScope:
         if isinstance(exc_val, curio.TaskCancelled):
             if self._timeout_expired:
                 return True
-            elif self._cancel_called:
-                # This scope was directly(?) cancelled
+            elif self._cancel_called in {id(self), self}:
+                # This scope was directly cancelled
                 return True
         elif isinstance(exc_val, CancelledError):
             return exc_val.args[0] is self
