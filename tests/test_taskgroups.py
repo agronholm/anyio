@@ -381,3 +381,16 @@ async def test_cancelled_parent():
     async with create_task_group() as tg:
         await tg.spawn(parent, tg)
         await tg.cancel_scope.cancel()
+
+
+@pytest.mark.anyio
+async def test_cancelled_parent_scope():
+    async with open_cancel_scope() as scope:
+        async with open_cancel_scope() as sc2:
+            try:
+                await scope.cancel()
+                await sleep(2)
+            except BaseException:
+                await sc2.cancel()
+                raise
+        raise RuntimeError("This should not be printed")

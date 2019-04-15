@@ -53,17 +53,18 @@ async def sleep(delay: float):
 
 class CancelScope:
     __slots__ = ('_deadline', '_shield', '_parent_scope', '_cancel_called', '_active',
-                 '_timeout_task', '_tasks', '_timeout_expired')
+                 '_timeout_task', '_tasks', '_timeout_expired', '_children')
 
     def __init__(self, deadline: float = math.inf, shield: bool = False):
         self._deadline = deadline
         self._shield = shield
         self._parent_scope = None
-        self._cancel_called = False
+        self._cancel_called = None
         self._active = False
         self._timeout_task = None
         self._tasks = set()  # type: Set[curio.Task]
         self._timeout_expired = False
+        self._children = set()  # type: Set[CancelScope]
 
     async def __aenter__(self):
         async def timeout():
@@ -78,6 +79,8 @@ class CancelScope:
 
         host_task = await curio.current_task()
         self._parent_scope = get_cancel_scope(host_task)
+        if self._parent_scope is not None:
+            self._parent_scope._children.add(self)
         self._tasks.add(host_task)
         set_cancel_scope(host_task, self)
 
@@ -86,7 +89,7 @@ class CancelScope:
 
         if self._parent_scope is not None:
             if self._parent_scope._cancel_called and not self._shield:
-                await self.cancel()
+                await self.cancel(self._parent_scope._cancel_called)
 
         self._active = True
         return self
@@ -98,20 +101,29 @@ class CancelScope:
 
         host_task = await curio.current_task()
         self._tasks.remove(host_task)
+        if self._parent_scope is not None:
+            self._parent_scope._children.remove(self)
         set_cancel_scope(host_task, self._parent_scope)
+
+        if self._cancel_called:
+            self._cancel_called = id(self._cancel_called)  # avoid reference loops
 
         if isinstance(exc_val, curio.TaskCancelled):
             if self._timeout_expired:
                 return True
             elif self._cancel_called:
-                # This scope was directly cancelled
+                # This scope was directly(?) cancelled
                 return True
+        elif isinstance(exc_val, CancelledError):
+            return exc_val.args[0] is self
 
-    async def cancel(self):
+    async def cancel(self, real_scope=None):
         if self._cancel_called:
             return
 
-        self._cancel_called = True
+        if real_scope is None:
+            real_scope = self
+        self._cancel_called = real_scope
 
         # Cancel any contained tasks
         for task in self._tasks:
@@ -122,13 +134,33 @@ class CancelScope:
                 if scope is self or not scope.shield:
                     await task.cancel(blocking=False)
 
+        for child in list(self._children):
+            await child._sub_cancel(real_scope)
+
+    async def _sub_cancel(self, scope):
+        if self.shield or self._cancel_called:
+            return
+
+        self._cancel_called = scope
+
+        for task in list(self._tasks):
+            if task.coro.cr_await is not None and not task.coro.cr_running:
+                # Cancel the task directly, but only if it's blocked and isn't within a shielded
+                # scope
+                scope = get_cancel_scope(task)
+                if scope is self or not scope.shield:
+                    await task.cancel()
+
+        for child in self._children:
+            await child._sub_cancel(scope)
+
     @property
     def deadline(self) -> float:
         return self._deadline
 
     @property
     def cancel_called(self) -> bool:
-        return self._cancel_called
+        return self._cancel_called in {id(self), self}
 
     @property
     def shield(self) -> bool:
@@ -160,8 +192,10 @@ def set_cancel_scope(task: curio.Task, scope: Optional[CancelScope]) -> None:
 async def check_cancelled():
     task = await curio.current_task()
     cancel_scope = get_cancel_scope(task)
-    if cancel_scope is not None and not cancel_scope._shield and cancel_scope._cancel_called:
-        raise CancelledError
+    if cancel_scope is None:
+        return
+    if not cancel_scope._shield and cancel_scope._cancel_called:
+        raise CancelledError(cancel_scope._cancel_called)
 
 
 @asynccontextmanager
@@ -169,7 +203,10 @@ async def check_cancelled():
 async def fail_after(delay: float, shield: bool):
     deadline = await curio.clock() + delay
     async with CancelScope(deadline, shield) as scope:
-        await yield_(scope)
+        try:
+            await yield_(scope)
+        except curio.TaskCancelled:
+            raise CancelledError(scope._cancel_called)
 
     if scope._timeout_expired:
         raise TimeoutError
@@ -180,7 +217,10 @@ async def fail_after(delay: float, shield: bool):
 async def move_on_after(delay: float, shield: bool):
     deadline = await curio.clock() + delay
     async with CancelScope(deadline=deadline, shield=shield) as scope:
-        await yield_(scope)
+        try:
+            await yield_(scope)
+        except curio.TaskCancelled:
+            raise CancelledError(scope._cancel_called)
 
 
 async def current_effective_deadline():
