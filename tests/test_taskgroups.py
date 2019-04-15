@@ -289,15 +289,15 @@ async def test_fail_in_taskgroup():
     bad = False
     async def check():
         task_status.started()
-        async with anyio.fail_after(1):
-            await anyio.sleep(1)
+        async with fail_after(1):
+            await sleep(1)
         nonlocal bad
         bad = True
 
     try:
         async with create_task_group() as tg:
             await tg.start(check)
-            await anyio.sleep(0.1)
+            await sleep(0.1)
             await tg.cancel_scope.cancel()
             raise RuntimeError("Owch")
     except Exception:

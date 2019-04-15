@@ -105,24 +105,23 @@ class CancelScope:
             self._parent_scope._children.remove(self)
         set_cancel_scope(host_task, self._parent_scope)
 
-        if self._cancel_called:
-            self._cancel_called = id(self._cancel_called)  # avoid reference loops
-
         if isinstance(exc_val, curio.TaskCancelled):
             if self._timeout_expired:
                 return True
-            elif self._cancel_called in {id(self), self}:
+            elif self._cancel_called == id(self):
                 # This scope was directly cancelled
                 return True
         elif isinstance(exc_val, CancelledError):
-            return exc_val.args[0] is self
+            return exc_val.cause == id(self)
 
     async def cancel(self, real_scope=None):
         if self._cancel_called:
             return
 
         if real_scope is None:
-            real_scope = self
+            real_scope = id(self)
+        elif type(real_scope) is not int:
+            real_scope = id(real_scope)
         self._cancel_called = real_scope
 
         # Cancel any contained tasks
@@ -160,7 +159,7 @@ class CancelScope:
 
     @property
     def cancel_called(self) -> bool:
-        return self._cancel_called in {id(self), self}
+        return self._cancel_called == id(self)
 
     @property
     def shield(self) -> bool:
@@ -286,7 +285,7 @@ class TaskGroup:
         try:
             await func(*args)
         except CancelledError as exc:
-            await self.cancel_scope.cancel(exc.args[0])
+            await self.cancel_scope.cancel(exc.cause)
             raise
         except BaseException:
             await self.cancel_scope.cancel()

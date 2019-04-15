@@ -27,6 +27,10 @@ class ExceptionGroup(Exception):
 
 class CancelledError(Exception):
     """Raised when the enclosing cancel scope has been cancelled."""
+    def __init__(self, cause=None):
+        if type(cause) is not int:
+            cause = id(cause)
+        self.cause = cause
 
 
 class IncompleteRead(Exception):
