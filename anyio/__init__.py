@@ -45,8 +45,11 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
     :raises LookupError: if the named backend is not found
 
     """
-    asynclib_name = _detect_running_asynclib()
-    if asynclib_name:
+    try:
+        asynclib_name = sniffio.current_async_library()
+    except sniffio.AsyncLibraryNotFoundError:
+        pass
+    else:
         raise RuntimeError('Already running {} in this thread'.format(asynclib_name))
 
     try:
@@ -79,24 +82,11 @@ def claim_worker_thread(backend) -> typing.Generator[Any, None, None]:
         del _local.current_async_module
 
 
-def _detect_running_asynclib() -> Optional[str]:
-    # This function can be removed once https://github.com/python-trio/sniffio/pull/5 has been
-    # merged
-    try:
-        return sniffio.current_async_library()
-    except sniffio.AsyncLibraryNotFoundError:
-        if 'curio' in sys.modules:
-            from curio.meta import curio_running
-            if curio_running():
-                return 'curio'
-
-        return None
-
-
 def _get_asynclib():
-    asynclib_name = _detect_running_asynclib()
-    if asynclib_name is None:
-        raise RuntimeError('Not running in any supported asynchronous event loop')
+    try:
+        asynclib_name = sniffio.current_async_library()
+    except sniffio.AsyncLibraryNotFoundError as exc:
+        raise RuntimeError('Not running in any supported asynchronous event loop') from exc
 
     modulename = 'anyio._backends.' + asynclib_name
     try:
