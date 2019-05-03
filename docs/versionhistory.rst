@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed some corner cases of cancellation where behavior on asyncio and curio did not match with
+  that of trio. Thanks to Joshua Oreman for help with this.
+
 **1.0.0rc1**
 
 - Fixed ``setsockopt()`` passing options to the underlying method in the wrong manner

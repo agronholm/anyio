@@ -92,6 +92,10 @@ async def current_effective_deadline():
 # Task groups
 #
 
+class TrioExceptionGroup(ExceptionGroup, trio.MultiError):
+    pass
+
+
 class TaskGroup:
     __slots__ = '_active', '_nursery_manager', '_nursery', 'cancel_scope'
 
@@ -110,8 +114,7 @@ class TaskGroup:
         try:
             return await self._nursery_manager.__aexit__(exc_type, exc_val, exc_tb)
         except trio.MultiError as exc:
-            if not all(isinstance(e, trio.Cancelled) for e in exc.exceptions):
-                raise ExceptionGroup(exc.exceptions) from None
+            raise TrioExceptionGroup(exc.exceptions) from None
         finally:
             self._active = False
 

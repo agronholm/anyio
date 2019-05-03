@@ -362,3 +362,34 @@ async def test_exception_cancels_siblings():
 
     exc.match('foo')
     assert not sleep_completed
+
+
+@pytest.mark.anyio
+async def test_cancel_cascade():
+    async def do_something():
+        async with create_task_group() as task_group:
+            await task_group.spawn(sleep, 1)
+
+        raise Exception('foo')
+
+    async with create_task_group() as tg:
+        await tg.spawn(do_something)
+        await wait_all_tasks_blocked()
+        await tg.cancel_scope.cancel()
+
+
+@pytest.mark.anyio
+async def test_cancelled_parent():
+    async def child():
+        async with open_cancel_scope():
+            await sleep(1)
+
+        raise Exception('foo')
+
+    async def parent(tg):
+        await wait_all_tasks_blocked()
+        await tg.spawn(child)
+
+    async with create_task_group() as tg:
+        await tg.spawn(parent, tg)
+        await tg.cancel_scope.cancel()
