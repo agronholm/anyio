@@ -4,7 +4,7 @@ import trio
 
 from anyio import (
     create_task_group, sleep, move_on_after, fail_after, open_cancel_scope, wait_all_tasks_blocked,
-    current_effective_deadline)
+    current_effective_deadline, current_time)
 from anyio._backends import asyncio
 from anyio.exceptions import ExceptionGroup
 
@@ -393,3 +393,11 @@ async def test_cancelled_parent():
     async with create_task_group() as tg:
         await tg.spawn(parent, tg)
         await tg.cancel_scope.cancel()
+
+
+@pytest.mark.anyio
+async def test_shielded_deadline():
+    async with move_on_after(10):
+        async with open_cancel_scope(shield=True):
+            async with move_on_after(1000):
+                assert await current_effective_deadline() - await current_time() > 900

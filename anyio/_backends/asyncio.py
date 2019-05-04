@@ -294,7 +294,10 @@ async def current_effective_deadline():
     cancel_scope = _task_states[current_task()].cancel_scope
     while cancel_scope:
         deadline = min(deadline, cancel_scope.deadline)
-        cancel_scope = cancel_scope._parent_scope
+        if cancel_scope.shield:
+            break
+        else:
+            cancel_scope = cancel_scope._parent_scope
 
     return deadline
 
