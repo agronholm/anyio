@@ -299,6 +299,10 @@ async def current_effective_deadline():
     return deadline
 
 
+async def current_time():
+    return get_running_loop().time()
+
+
 #
 # Task states
 #

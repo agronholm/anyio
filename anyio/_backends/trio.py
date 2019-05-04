@@ -88,6 +88,10 @@ async def current_effective_deadline():
     return trio.current_effective_deadline()
 
 
+async def current_time():
+    return trio.current_time()
+
+
 #
 # Task groups
 #

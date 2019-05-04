@@ -7,6 +7,7 @@ This library adheres to `Semantic Versioning <http://semver.org/>`_.
 
 - Fixed some corner cases of cancellation where behavior on asyncio and curio did not match with
   that of trio. Thanks to Joshua Oreman for help with this.
+- Added the ``current_time()`` function
 
 **1.0.0rc1**
 

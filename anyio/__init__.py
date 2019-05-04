@@ -194,6 +194,17 @@ def current_effective_deadline() -> Coroutine[Any, Any, float]:
     return _get_asynclib().current_effective_deadline()
 
 
+def current_time() -> Coroutine[Any, Any, float]:
+    """
+    Return the current value of the event loop's internal clock.
+
+    :return the clock value (seconds)
+    :rtype: float
+
+    """
+    return _get_asynclib().current_time()
+
+
 #
 # Task groups
 #

@@ -192,6 +192,10 @@ async def current_effective_deadline():
     return deadline
 
 
+async def current_time():
+    return await curio.clock()
+
+
 #
 # Task states
 #
