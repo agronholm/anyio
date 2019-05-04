@@ -169,6 +169,14 @@ class CancelScope(metaclass=ABCMeta):
         While a scope is shielded, it will not receive cancellations from outside.
         """
 
+    @abstractmethod
+    async def __aenter__(self):
+        pass
+
+    @abstractmethod
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
 
 class AsyncFile(metaclass=ABCMeta):
     """

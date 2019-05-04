@@ -136,12 +136,12 @@ def sleep(delay: float) -> Coroutine[Any, Any, None]:
 # Timeouts and cancellation
 #
 
-def open_cancel_scope(*, shield: bool = False) -> 'typing.AsyncContextManager[CancelScope]':
+def open_cancel_scope(*, shield: bool = False) -> CancelScope:
     """
     Open a cancel scope.
 
     :param shield: ``True`` to shield the cancel scope from external cancellation
-    :return: an asynchronous context manager that yields a cancel scope
+    :return: a cancel scope
 
     """
     return _get_asynclib().CancelScope(shield=shield)
