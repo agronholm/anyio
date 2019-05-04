@@ -12,14 +12,6 @@ Miscellaneous
 .. autofunction:: anyio.finalize
 .. autocofunction:: anyio.sleep
 
-Task groups
------------
-
-.. autofunction:: anyio.create_task_group
-
-.. autoclass:: anyio.abc.TaskGroup
-    :members:
-
 Timeouts and cancellation
 -------------------------
 
@@ -27,8 +19,17 @@ Timeouts and cancellation
 .. autofunction:: anyio.move_on_after
 .. autofunction:: anyio.fail_after
 .. autocofunction:: anyio.current_effective_deadline
+.. autocofunction:: anyio.current_time
 
 .. autoclass:: anyio.abc.CancelScope
+    :members:
+
+Task groups
+-----------
+
+.. autofunction:: anyio.create_task_group
+
+.. autoclass:: anyio.abc.TaskGroup
     :members:
 
 Threads
@@ -54,6 +55,7 @@ Sockets and networking
 .. autocofunction:: anyio.create_udp_socket
 .. autocofunction:: anyio.wait_socket_readable
 .. autocofunction:: anyio.wait_socket_writable
+.. autocofunction:: anyio.notify_socket_close
 
 .. autoclass:: anyio.abc.Stream
     :members:
@@ -101,5 +103,6 @@ Testing and debugging
 ---------------------
 
 .. autoclass:: anyio.TaskInfo
+.. autocofunction:: anyio.get_current_task
 .. autocofunction:: anyio.get_running_tasks
 .. autocofunction:: anyio.wait_all_tasks_blocked

@@ -279,47 +279,6 @@ def aopen(file: Union[str, Path, int], mode: str = 'r', buffering: int = -1,
 # Sockets and networking
 #
 
-def wait_socket_readable(sock: Union[socket.SocketType, ssl.SSLSocket]) -> Awaitable[None]:
-    """
-    Wait until the given socket has data to be read.
-
-    :param sock: a socket object
-    :raises anyio.exceptions.ClosedResourceError: if the socket was closed while waiting for the
-        socket to become readable
-    :raises anyio.exceptions.ResourceBusyError: if another task is already waiting for the socket
-        to become readable
-
-    """
-    return _get_asynclib().wait_socket_readable(sock)
-
-
-def wait_socket_writable(sock: Union[socket.SocketType, ssl.SSLSocket]) -> Awaitable[None]:
-    """
-    Wait until the given socket can be written to.
-
-    :param sock: a socket object
-    :raises anyio.exceptions.ClosedResourceError: if the socket was closed while waiting for the
-        socket to become writable
-    :raises anyio.exceptions.ResourceBusyError: if another task is already waiting for the socket
-        to become writable
-
-    """
-    return _get_asynclib().wait_socket_writable(sock)
-
-
-def notify_socket_close(sock: socket.SocketType) -> Awaitable[None]:
-    """
-    Notify any relevant tasks that you are about to close a socket.
-
-    This will cause :exc:`~anyio.exceptions.ClosedResourceError` to be raised on any task waiting
-    for the socket to become readable or writable.
-
-    :param sock: the socket to be closed after this
-
-    """
-    return _get_asynclib().notify_socket_close(sock)
-
-
 async def connect_tcp(
     address: IPAddressType, port: int, *, ssl_context: Optional[SSLContext] = None,
     autostart_tls: bool = False, bind_host: Optional[IPAddressType] = None,
@@ -487,6 +446,47 @@ async def create_udp_socket(
     except BaseException:
         await sock.close()
         raise
+
+
+def wait_socket_readable(sock: Union[socket.SocketType, ssl.SSLSocket]) -> Awaitable[None]:
+    """
+    Wait until the given socket has data to be read.
+
+    :param sock: a socket object
+    :raises anyio.exceptions.ClosedResourceError: if the socket was closed while waiting for the
+        socket to become readable
+    :raises anyio.exceptions.ResourceBusyError: if another task is already waiting for the socket
+        to become readable
+
+    """
+    return _get_asynclib().wait_socket_readable(sock)
+
+
+def wait_socket_writable(sock: Union[socket.SocketType, ssl.SSLSocket]) -> Awaitable[None]:
+    """
+    Wait until the given socket can be written to.
+
+    :param sock: a socket object
+    :raises anyio.exceptions.ClosedResourceError: if the socket was closed while waiting for the
+        socket to become writable
+    :raises anyio.exceptions.ResourceBusyError: if another task is already waiting for the socket
+        to become writable
+
+    """
+    return _get_asynclib().wait_socket_writable(sock)
+
+
+def notify_socket_close(sock: socket.SocketType) -> Awaitable[None]:
+    """
+    Notify any relevant tasks that you are about to close a socket.
+
+    This will cause :exc:`~anyio.exceptions.ClosedResourceError` to be raised on any task waiting
+    for the socket to become readable or writable.
+
+    :param sock: the socket to be closed after this
+
+    """
+    return _get_asynclib().notify_socket_close(sock)
 
 
 #
