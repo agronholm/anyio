@@ -1,10 +1,13 @@
 from traceback import format_exception
+from typing import Sequence
 
 
 class ExceptionGroup(BaseException):
     """Raised when multiple exceptions have been raised in a task group."""
 
     SEPARATOR = '----------------------------\n'
+
+    exceptions = ()  # type: Sequence[BaseException]
 
     def __str__(self):
         tracebacks = ['\n'.join(format_exception(type(exc), exc, exc.__traceback__))
