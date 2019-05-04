@@ -9,6 +9,8 @@ This library adheres to `Semantic Versioning <http://semver.org/>`_.
   that of trio. Thanks to Joshua Oreman for help with this.
 - Fixed ``current_effective_deadline()`` not taking shielded cancellation scopes into account on
   asyncio and curio
+- Fixed task cancellation not happening right away on asyncio and curio when a cancel scope is
+  entered when the deadline has already passed
 - Added the ``current_time()`` function
 
 **1.0.0rc1**

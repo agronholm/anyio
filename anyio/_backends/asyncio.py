@@ -200,6 +200,8 @@ class CancelScope:
 
         if self._deadline != math.inf:
             self._timeout_task = get_running_loop().create_task(timeout())
+            if get_running_loop().time() >= self._deadline:
+                self._cancel_called = True
 
         self._active = True
         return self

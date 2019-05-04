@@ -401,3 +401,10 @@ async def test_shielded_deadline():
         async with open_cancel_scope(shield=True):
             async with move_on_after(1000):
                 assert await current_effective_deadline() - await current_time() > 900
+
+
+@pytest.mark.anyio
+async def test_deadline_reached_on_start():
+    async with move_on_after(0):
+        await sleep(0)
+        pytest.fail('Execution should not reach this point')
