@@ -7,9 +7,9 @@ from typing import Union, Tuple, Any, Optional, Callable, Dict, List, cast
 
 from async_generator import async_generator, yield_
 
-from anyio import abc
-from anyio.abc import IPAddressType
-from anyio.exceptions import DelimiterNotFound, IncompleteRead, TLSRequired, ClosedResourceError
+from . import abc
+from .abc import IPAddressType
+from .exceptions import DelimiterNotFound, IncompleteRead, TLSRequired, ClosedResourceError
 
 
 class BaseSocket(metaclass=ABCMeta):

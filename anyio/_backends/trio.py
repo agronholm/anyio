@@ -3,10 +3,9 @@ from typing import Callable, Optional, List
 import trio.hazmat
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
 
-from anyio.exceptions import ResourceBusyError
 from .._networking import BaseSocket
 from .. import abc, claim_worker_thread, T_Retval, _local, TaskInfo
-from ..exceptions import ExceptionGroup, ClosedResourceError
+from ..exceptions import ExceptionGroup, ClosedResourceError, ResourceBusyError
 
 
 #
