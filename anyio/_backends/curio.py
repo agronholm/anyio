@@ -1,10 +1,7 @@
 import math
-import socket  # noqa: F401
+import socket
 from functools import partial
-from typing import (
-    Callable, Set, Optional, Coroutine, Any, cast, Dict, List,
-    Sequence  # noqa: F401
-)
+from typing import Callable, Set, Optional, Coroutine, Any, cast, Dict, List, Sequence
 from weakref import WeakKeyDictionary
 
 import curio.io
