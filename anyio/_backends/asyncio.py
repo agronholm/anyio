@@ -215,7 +215,8 @@ class CancelScope:
         self._tasks.remove(host_task)
         _task_states[host_task].cancel_scope = self._parent_scope
 
-        if isinstance(exc_val, (asyncio.CancelledError, CancelledError)):
+        exceptions = exc_val.exceptions if isinstance(exc_val, ExceptionGroup) else [exc_val]
+        if all(isinstance(exc, (asyncio.CancelledError, CancelledError)) for exc in exceptions):
             if self._timeout_expired:
                 return True
             elif self._parent_scope is None or not self._parent_scope.cancel_called:

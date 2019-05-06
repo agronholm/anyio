@@ -408,3 +408,12 @@ async def test_deadline_reached_on_start():
     async with move_on_after(0):
         await sleep(0)
         pytest.fail('Execution should not reach this point')
+
+
+@pytest.mark.anyio
+async def test_timeout_error_with_multiple_cancellations():
+    with pytest.raises(TimeoutError):
+        async with fail_after(0.1):
+            async with create_task_group() as tg:
+                await tg.spawn(sleep, 2)
+                await sleep(2)
