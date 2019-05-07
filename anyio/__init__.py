@@ -118,6 +118,11 @@ def sleep(delay: float) -> Coroutine[Any, Any, None]:
     return _get_asynclib().sleep(delay)
 
 
+def get_cancelled_exc_class() -> typing.Type[BaseException]:
+    """Return the current async library's cancellation exception class."""
+    return _get_asynclib().CancelledError
+
+
 #
 # Timeouts and cancellation
 #

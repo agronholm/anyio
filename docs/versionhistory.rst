@@ -14,6 +14,7 @@ This library adheres to `Semantic Versioning <http://semver.org/>`_.
 - Fixed exception group containing only cancellation exceptions not being swallowed by a timed out
   cancel scope on asyncio and curio
 - Added the ``current_time()`` function
+- Replaced ``CancelledError`` with ``get_cancelled_exc_class()``
 
 **1.0.0rc1**
 

@@ -27,6 +27,9 @@ sleep = trio.sleep
 # Timeouts and cancellation
 #
 
+CancelledError = trio.Cancelled
+
+
 class CancelScope:
     __slots__ = '__original'
 

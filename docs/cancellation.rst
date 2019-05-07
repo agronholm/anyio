@@ -78,3 +78,34 @@ To accomplish this, open a new cancel scope with the ``shield=True`` argument::
 The shielded block will be exempt from cancellation except when the shielded block itself is being
 cancelled. Shieldin a cancel scope is often best combined with :func:`~anyio.move_on_after` or
 :func:`~anyio.fail_after`, both of which also accept ``shield=True``.
+
+Finalization
+------------
+
+Sometimes you may want to perform cleanup operations in response to the failure of the operation::
+
+    async def do_something():
+        try:
+            await run_async_stuff()
+        except BaseException:
+            # (perform cleanup)
+            raise
+
+In some specific cases, you might only want to catch the cancellation exception. This is tricky
+because each async framework has its own exception class for that and AnyIO cannot control which
+exception is raised in the task when it's cancelled. To work around that, AnyIO provides a way to
+retrieve the exception class specific to the currently running async framework, using
+:func:`~anyio.get_cancelled_exc_class`::
+
+    from anyio import get_cancelled_exc_class
+
+
+    async def do_something():
+        try:
+            await run_async_stuff()
+        except get_cancelled_exc_class():
+            # (perform cleanup)
+            raise
+
+.. warning:: Always reraise the cancellation exception if you catch it. Failing to do so may cause
+             undefined behavior in your application.

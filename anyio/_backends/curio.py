@@ -13,7 +13,7 @@ from async_generator import async_generator, asynccontextmanager, yield_
 
 from .._networking import BaseSocket
 from .. import abc, T_Retval, claim_worker_thread, TaskInfo
-from ..exceptions import ExceptionGroup, CancelledError, ClosedResourceError, ResourceBusyError
+from ..exceptions import ExceptionGroup, ClosedResourceError, ResourceBusyError
 
 
 #
@@ -51,6 +51,9 @@ async def sleep(delay: float):
 #
 # Timeouts and cancellation
 #
+
+CancelledError = curio.TaskCancelled
+
 
 class CancelScope:
     __slots__ = ('_deadline', '_shield', '_parent_scope', '_cancel_called', '_active',
@@ -106,7 +109,7 @@ class CancelScope:
         _task_states[host_task].cancel_scope = self._parent_scope
 
         exceptions = exc_val.exceptions if isinstance(exc_val, ExceptionGroup) else [exc_val]
-        if all(isinstance(exc, (curio.TaskCancelled, CancelledError)) for exc in exceptions):
+        if all(isinstance(exc, CancelledError) for exc in exceptions):
             if self._timeout_expired:
                 return True
             elif self._parent_scope is None or not self._parent_scope.cancel_called:
@@ -255,8 +258,7 @@ class TaskGroup:
         self._active = False
         if (not self.cancel_scope._parent_scope
                 or not self.cancel_scope._parent_scope.cancel_called):
-            exceptions = [exc for exc in self._exceptions
-                          if not isinstance(exc, (curio.TaskCancelled, CancelledError))]
+            exceptions = [exc for exc in self._exceptions if not isinstance(exc, CancelledError)]
         else:
             exceptions = self._exceptions
 
@@ -361,7 +363,7 @@ async def wait_socket_readable(sock):
     _reader_tasks[sock] = await curio.current_task()
     try:
         return await curio.traps._read_wait(sock)
-    except curio.TaskCancelled:
+    except CancelledError:
         if sock.fileno() == -1:
             raise ClosedResourceError from None
         else:
@@ -378,7 +380,7 @@ async def wait_socket_writable(sock):
     _writer_tasks[sock] = await curio.current_task()
     try:
         return await curio.traps._write_wait(sock)
-    except curio.TaskCancelled:
+    except CancelledError:
         if sock.fileno() == -1:
             raise ClosedResourceError from None
         else:

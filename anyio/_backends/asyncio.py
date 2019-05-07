@@ -15,7 +15,7 @@ from async_generator import async_generator, yield_, asynccontextmanager, aclosi
 
 from .._networking import BaseSocket
 from .. import abc, claim_worker_thread, _local, T_Retval, TaskInfo
-from ..exceptions import ExceptionGroup, CancelledError, ClosedResourceError, ResourceBusyError
+from ..exceptions import ExceptionGroup, ClosedResourceError, ResourceBusyError
 
 try:
     from asyncio import run as native_run, create_task, get_running_loop, current_task, all_tasks
@@ -161,6 +161,9 @@ async def sleep(delay: float) -> None:
 # Timeouts and cancellation
 #
 
+CancelledError = asyncio.CancelledError
+
+
 class CancelScope:
     __slots__ = ('_deadline', '_shield', '_parent_scope', '_cancel_called', '_active',
                  '_timeout_task', '_tasks', '_timeout_expired')
@@ -216,7 +219,7 @@ class CancelScope:
         _task_states[host_task].cancel_scope = self._parent_scope
 
         exceptions = exc_val.exceptions if isinstance(exc_val, ExceptionGroup) else [exc_val]
-        if all(isinstance(exc, (asyncio.CancelledError, CancelledError)) for exc in exceptions):
+        if all(isinstance(exc, CancelledError) for exc in exceptions):
             if self._timeout_expired:
                 return True
             elif self._parent_scope is None or not self._parent_scope.cancel_called:
@@ -367,8 +370,7 @@ class TaskGroup:
         self._active = False
         if (not self.cancel_scope._parent_scope
                 or not self.cancel_scope._parent_scope.cancel_called):
-            exceptions = [exc for exc in self._exceptions
-                          if not isinstance(exc, (asyncio.CancelledError, CancelledError))]
+            exceptions = [exc for exc in self._exceptions if not isinstance(exc, CancelledError)]
         else:
             exceptions = self._exceptions
 

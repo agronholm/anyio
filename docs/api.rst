@@ -11,6 +11,7 @@ Miscellaneous
 
 .. autofunction:: anyio.finalize
 .. autocofunction:: anyio.sleep
+.. autofunction:: anyio.get_cancelled_exc_class
 
 Timeouts and cancellation
 -------------------------

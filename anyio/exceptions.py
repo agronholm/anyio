@@ -19,10 +19,6 @@ class ExceptionGroup(BaseException):
         return '<{} ({} exceptions)>'.format(self.__class__.__name__, len(self.exceptions))
 
 
-class CancelledError(Exception):
-    """Raised when the enclosing cancel scope has been cancelled."""
-
-
 class IncompleteRead(Exception):
     """"
     Raised during ``read_exactly()`` if the connection is closed before the requested amount of
