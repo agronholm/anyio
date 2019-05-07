@@ -125,7 +125,7 @@ _native_task_names = 'name' in inspect.signature(create_task).parameters
 # Event loop
 #
 
-def run(func: Callable[..., T_Retval], *args, debug: bool = False,
+def run(func: Callable[..., T_Retval], *args, debug: bool = False, use_uvloop: bool = True,
         policy: Optional[asyncio.AbstractEventLoopPolicy] = None) -> T_Retval:
     async def wrapper():
         nonlocal exception, retval
@@ -133,6 +133,15 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False,
             retval = await func(*args)
         except BaseException as exc:
             exception = exc
+
+    # Use uvloop when possible if no other policy has been given and if not explicitly disabled
+    if policy is None and use_uvloop:
+        try:
+            import uvloop
+        except ImportError:
+            pass
+        else:
+            policy = uvloop.EventLoopPolicy()
 
     if policy is not None:
         asyncio.set_event_loop_policy(policy)
