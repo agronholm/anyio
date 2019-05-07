@@ -7,5 +7,8 @@ docs/_build
 __pycache__
 .coverage
 .pytest_cache/
+.mypy_cache/
+.hypothesis/
+.eggs/
 .tox
 .idea
