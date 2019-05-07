@@ -71,6 +71,12 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize('anyio_backend', backends, scope='session')
 
 
+def check_test_function_type(func):
+    if not iscoroutinefunction(func):
+        funcname = '{}.{}'.format(func.__module__, func.__qualname__)
+        pytest.fail('{} is not a coroutine function'.format(funcname))
+
+
 @pytest.mark.tryfirst
 def pytest_pyfunc_call(pyfuncitem):
     def run_with_hypothesis(**kwargs):
@@ -81,12 +87,13 @@ def pytest_pyfunc_call(pyfuncitem):
         if hasattr(pyfuncitem.obj, 'hypothesis'):
             # Wrap the inner test function unless it's already wrapped
             original_func = pyfuncitem.obj.hypothesis.inner_test
-            original_func_name = getattr(original_func, '__qualname__', '')
-            if original_func_name != run_with_hypothesis.__qualname__:
+            if original_func.__qualname__ != run_with_hypothesis.__qualname__:
+                check_test_function_type(original_func)
                 pyfuncitem.obj.hypothesis.inner_test = run_with_hypothesis
 
             return False
 
+        check_test_function_type(pyfuncitem.obj)
         funcargs = pyfuncitem.funcargs
         testargs = {arg: funcargs[arg] for arg in pyfuncitem._fixtureinfo.argnames}
         run(partial(pyfuncitem.obj, **testargs), backend=backend)
