@@ -17,7 +17,7 @@ This library adheres to `Semantic Versioning <http://semver.org/>`_.
 - Replaced ``CancelledError`` with ``get_cancelled_exc_class()``
 - Added support for Hypothesis_
 - Added support for :pep:`561`
-- Use uvloop for the asyncio backend by default when available
+- Use uvloop for the asyncio backend by default when available (but only on CPython)
 
 .. _Hypothesis: https://hypothesis.works/
 

@@ -4,6 +4,7 @@ import inspect
 import math
 import os
 import socket
+import sys
 from functools import partial
 from threading import Thread
 from typing import (
@@ -134,8 +135,9 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False, use_uvloop: b
         except BaseException as exc:
             exception = exc
 
-    # Use uvloop when possible if no other policy has been given and if not explicitly disabled
-    if policy is None and use_uvloop:
+    # On CPython, use uvloop when possible if no other policy has been given and if not explicitly
+    # disabled
+    if policy is None and use_uvloop and sys.implementation.name == 'cpython':
         try:
             import uvloop
         except ImportError:
