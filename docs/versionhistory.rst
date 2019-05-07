@@ -16,6 +16,7 @@ This library adheres to `Semantic Versioning <http://semver.org/>`_.
 - Added the ``current_time()`` function
 - Replaced ``CancelledError`` with ``get_cancelled_exc_class()``
 - Added support for Hypothesis_
+- Added support for :pep:`561`
 
 .. _Hypothesis: https://hypothesis.works/
 
