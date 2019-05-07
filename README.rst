@@ -24,6 +24,11 @@ It bridges the following functionality:
 You can even use it together with native libraries from your selected backend in applications.
 Doing this in libraries is not advisable however since it limits the usefulness of your library.
 
+AnyIO comes with its own pytest_ plugin which also supports asynchronous fixtures.
+It even works with the popular Hypothesis_ library.
+
 .. _asyncio: https://docs.python.org/3/library/asyncio.html
 .. _curio: https://github.com/dabeaz/curio
 .. _trio: https://github.com/python-trio/trio
+.. _pytest: https://docs.pytest.org/en/latest/
+.. _Hypothesis: https://hypothesis.works/

@@ -15,6 +15,9 @@ This library adheres to `Semantic Versioning <http://semver.org/>`_.
   cancel scope on asyncio and curio
 - Added the ``current_time()`` function
 - Replaced ``CancelledError`` with ``get_cancelled_exc_class()``
+- Added support for Hypothesis_
+
+.. _Hypothesis: https://hypothesis.works/
 
 **1.0.0rc1**
 

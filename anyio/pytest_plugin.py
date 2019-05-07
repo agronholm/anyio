@@ -73,9 +73,21 @@ def pytest_generate_tests(metafunc):
 
 @pytest.mark.tryfirst
 def pytest_pyfunc_call(pyfuncitem):
+    def run_with_hypothesis(**kwargs):
+        run(partial(original_func, **kwargs), backend=backend)
+
     if pyfuncitem.get_closest_marker('anyio'):
-        funcargs = pyfuncitem.funcargs
         backend = pyfuncitem._request.getfixturevalue('anyio_backend')
+        if hasattr(pyfuncitem.obj, 'hypothesis'):
+            # Wrap the inner test function unless it's already wrapped
+            original_func = pyfuncitem.obj.hypothesis.inner_test
+            original_func_name = getattr(original_func, '__qualname__', '')
+            if original_func_name != run_with_hypothesis.__qualname__:
+                pyfuncitem.obj.hypothesis.inner_test = run_with_hypothesis
+
+            return False
+
+        funcargs = pyfuncitem.funcargs
         testargs = {arg: funcargs[arg] for arg in pyfuncitem._fixtureinfo.argnames}
         run(partial(pyfuncitem.obj, **testargs), backend=backend)
         return True
