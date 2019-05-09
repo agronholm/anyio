@@ -378,7 +378,6 @@ async def test_cancel_cascade():
         await tg.cancel_scope.cancel()
 
 
-
 @pytest.mark.anyio
 async def test_cancelled_parent():
     async def child():
