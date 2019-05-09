@@ -156,7 +156,10 @@ def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
 # Async file I/O
 #
 
-aopen = trio.open_file
+async def aopen(*args, **kwargs):
+    f = await trio.open_file(*args, **kwargs)
+    f.close = f.aclose
+    return f
 
 
 #

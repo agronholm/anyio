@@ -16,6 +16,12 @@ def testdatafile(tmp_path_factory, testdata):
 
 
 @pytest.mark.anyio
+async def test_open_close(testdatafile):
+    f = await aopen(testdatafile)
+    await f.close()
+
+
+@pytest.mark.anyio
 async def test_read(testdatafile, testdata):
     async with await aopen(testdatafile, 'rb') as f:
         data = await f.read()
