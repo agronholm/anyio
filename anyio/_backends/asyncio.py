@@ -233,7 +233,7 @@ class CancelScope:
         if all(isinstance(exc, CancelledError) for exc in exceptions):
             if self._timeout_expired:
                 return True
-            elif self._parent_scope is None or not self._parent_scope.cancel_called:
+            elif not self._parent_cancelled():
                 # This scope was directly cancelled
                 return True
 
@@ -248,6 +248,15 @@ class CancelScope:
                     task.cancel()
             elif not cancel_scope.shield:
                 await cancel_scope._cancel()
+
+    def _parent_cancelled(self):
+        p = self._parent_scope
+        while True:
+            if p is None:
+                return False
+            if p.cancel_called:
+                return True
+            p = p._parent_scope
 
     async def cancel(self):
         if self._cancel_called:
@@ -379,8 +388,7 @@ class TaskGroup:
             await asyncio.wait(self.cancel_scope._tasks)
 
         self._active = False
-        if (not self.cancel_scope._parent_scope
-                or not self.cancel_scope._parent_scope.cancel_called):
+        if not self.cancel_scope._parent_cancelled():
             exceptions = [exc for exc in self._exceptions if not isinstance(exc, CancelledError)]
         else:
             exceptions = self._exceptions

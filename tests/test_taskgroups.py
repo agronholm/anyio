@@ -378,6 +378,7 @@ async def test_cancel_cascade():
         await tg.cancel_scope.cancel()
 
 
+
 @pytest.mark.anyio
 async def test_cancelled_parent():
     async def child():
@@ -430,3 +431,23 @@ async def test_catch_cancellation():
             raise
 
     assert finalizer_done
+
+
+@pytest.mark.anyio
+async def test_nexted_fail_after():
+    async def killer(scope):
+        await sleep(0.1)
+        await scope.cancel()
+
+    async with create_task_group() as tg:
+        async with open_cancel_scope() as scope:
+            async with open_cancel_scope():
+                await tg.spawn(killer, scope)
+                async with fail_after(1):
+                    await sleep(2)
+                    raise RuntimeError("Do not go here")
+                raise RuntimeError("Do not go here either")
+            raise RuntimeError("Do not go here squared")
+
+    assert scope.cancel_called
+
