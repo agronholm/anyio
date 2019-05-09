@@ -449,4 +449,3 @@ async def test_nexted_fail_after():
             raise RuntimeError("Do not go here squared")
 
     assert scope.cancel_called
-
