@@ -250,21 +250,26 @@ class CancelScope:
                 await cancel_scope._cancel()
 
     def _shielded_to(self, parent):
+        # Check whether this task or any parent up to (but not including)
+        # the "parent" argument is shielded
         scope = self
         while True:
-            if scope.shield:
+            if scope._shield:
                 return True
             scope = scope._parent_scope
-            if scope is None or scope == parent:
+            if scope is None or scope is parent:
                 return False
 
     def _parent_cancelled(self):
+        # Check whether any parent has been cancelled
         p = self._parent_scope
         while True:
             if p is None:
                 return False
-            if p.cancel_called:
+            if p._cancel_called:
                 return True
+            if p._shield:
+                return False
             p = p._parent_scope
 
     async def cancel(self):
