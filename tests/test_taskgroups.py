@@ -433,7 +433,7 @@ async def test_catch_cancellation():
 
 
 @pytest.mark.anyio
-async def test_nexted_fail_after():
+async def test_nested_fail_after():
     async def killer(scope):
         await sleep(0.1)
         await scope.cancel()
@@ -444,15 +444,17 @@ async def test_nexted_fail_after():
                 await tg.spawn(killer, scope)
                 async with fail_after(1):
                     await sleep(2)
-                    raise RuntimeError("Do not go here")
-                raise RuntimeError("Do not go here either")
-            raise RuntimeError("Do not go here squared")
+                    pytest.fail('Execution should not reach this point')
+
+                pytest.fail('Execution should not reach this point either')
+
+            pytest.fail('Execution should also not reach this point')
 
     assert scope.cancel_called
 
 
 @pytest.mark.anyio
-async def test_nexted_shield():
+async def test_nested_shield():
     async def killer(scope):
         await sleep(0.1)
         await scope.cancel()
