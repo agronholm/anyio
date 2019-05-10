@@ -435,7 +435,7 @@ async def test_catch_cancellation():
 @pytest.mark.anyio
 async def test_nested_fail_after():
     async def killer(scope):
-        await sleep(0.1)
+        await wait_all_tasks_blocked()
         await scope.cancel()
 
     async with create_task_group() as tg:
@@ -456,7 +456,7 @@ async def test_nested_fail_after():
 @pytest.mark.anyio
 async def test_nested_shield():
     async def killer(scope):
-        await sleep(0.1)
+        await wait_all_tasks_blocked()
         await scope.cancel()
 
     with pytest.raises(TimeoutError):
