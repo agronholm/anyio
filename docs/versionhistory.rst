@@ -6,6 +6,7 @@ This library adheres to `Semantic Versioning <http://semver.org/>`_.
 **UNRELEASED**
 
 - Fixed pathlib2_ compatibility with ``anyio.aopen()``
+- Fixed timeouts not propagating from nested scopes on asyncio and curio (PR by Matthias Urlichs)
 
  .. _pathlib2: https://pypi.org/project/pathlib2/
 

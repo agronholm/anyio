@@ -430,3 +430,39 @@ async def test_catch_cancellation():
             raise
 
     assert finalizer_done
+
+
+@pytest.mark.anyio
+async def test_nested_fail_after():
+    async def killer(scope):
+        await wait_all_tasks_blocked()
+        await scope.cancel()
+
+    async with create_task_group() as tg:
+        async with open_cancel_scope() as scope:
+            async with open_cancel_scope():
+                await tg.spawn(killer, scope)
+                async with fail_after(1):
+                    await sleep(2)
+                    pytest.fail('Execution should not reach this point')
+
+                pytest.fail('Execution should not reach this point either')
+
+            pytest.fail('Execution should also not reach this point')
+
+    assert scope.cancel_called
+
+
+@pytest.mark.anyio
+async def test_nested_shield():
+    async def killer(scope):
+        await wait_all_tasks_blocked()
+        await scope.cancel()
+
+    with pytest.raises(TimeoutError):
+        async with create_task_group() as tg:
+            async with open_cancel_scope() as scope:
+                async with open_cancel_scope(shield=True):
+                    await tg.spawn(killer, scope)
+                    async with fail_after(0.2):
+                        await sleep(2)

@@ -233,7 +233,7 @@ class CancelScope:
         if all(isinstance(exc, CancelledError) for exc in exceptions):
             if self._timeout_expired:
                 return True
-            elif self._parent_scope is None or not self._parent_scope.cancel_called:
+            elif not self._parent_cancelled():
                 # This scope was directly cancelled
                 return True
 
@@ -246,8 +246,31 @@ class CancelScope:
                 # Only deliver the cancellation if the task is already running
                 if task._coro.cr_await is not None:
                     task.cancel()
-            elif not cancel_scope.shield:
+            elif not cancel_scope._shielded_to(self):
                 await cancel_scope._cancel()
+
+    def _shielded_to(self, parent: Optional['CancelScope']) -> bool:
+        # Check whether this task or any parent up to (but not including) the "parent" argument is
+        # shielded
+        cancel_scope = self  # type: Optional[CancelScope]
+        while cancel_scope is not None and cancel_scope is not parent:
+            if cancel_scope._shield:
+                return True
+            else:
+                cancel_scope = cancel_scope._parent_scope
+
+        return False
+
+    def _parent_cancelled(self) -> bool:
+        # Check whether any parent has been cancelled
+        cancel_scope = self._parent_scope
+        while cancel_scope is not None and not cancel_scope._shield:
+            if cancel_scope._cancel_called:
+                return True
+            else:
+                cancel_scope = cancel_scope._parent_scope
+
+        return False
 
     async def cancel(self):
         if self._cancel_called:
@@ -379,8 +402,7 @@ class TaskGroup:
             await asyncio.wait(self.cancel_scope._tasks)
 
         self._active = False
-        if (not self.cancel_scope._parent_scope
-                or not self.cancel_scope._parent_scope.cancel_called):
+        if not self.cancel_scope._parent_cancelled():
             exceptions = [exc for exc in self._exceptions if not isinstance(exc, CancelledError)]
         else:
             exceptions = self._exceptions
