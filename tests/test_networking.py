@@ -253,14 +253,14 @@ class TestUNIXStream:
                         reason='UNIX sockets are not available on Windows')
     @pytest.mark.parametrize('as_path', [False])
     @pytest.mark.anyio
-    async def test_connect_unix(self, tmpdir_factory, as_path):
+    async def test_connect_unix(self, tmp_path_factory, as_path):
         async def server():
             async with await stream_server.accept() as stream:
                 command = await stream.receive_some(100)
                 await stream.send_all(command[::-1])
 
         async with create_task_group() as tg:
-            path = str(tmpdir_factory.mktemp('unix').join('socket'))
+            path = str(tmp_path_factory.mktemp('unix').joinpath('socket'))
             if as_path:
                 path = Path(path)
 

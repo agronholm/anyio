@@ -3,6 +3,12 @@ Version history
 
 This library adheres to `Semantic Versioning <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed pathlib2_ compatibility with ``anyio.aopen()``
+
+ .. _pathlib2: https://pypi.org/project/pathlib2/
+
 **1.0.0rc2**
 
 - Fixed some corner cases of cancellation where behavior on asyncio and curio did not match with

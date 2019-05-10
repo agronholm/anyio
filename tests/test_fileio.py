@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pytest
 
 from anyio import aopen
@@ -11,10 +9,16 @@ def testdata():
 
 
 @pytest.fixture
-def testdatafile(tmpdir_factory, testdata):
-    file = tmpdir_factory.mktemp('file').join('testdata')
-    file.write(testdata)
-    return Path(str(file))
+def testdatafile(tmp_path_factory, testdata):
+    file = tmp_path_factory.mktemp('file').joinpath('testdata')
+    file.write_bytes(testdata)
+    return file
+
+
+@pytest.mark.anyio
+async def test_open_close(testdatafile):
+    f = await aopen(testdatafile)
+    await f.close()
 
 
 @pytest.mark.anyio
@@ -35,9 +39,9 @@ async def test_write(testdatafile, testdata):
 
 
 @pytest.mark.anyio
-async def test_async_iteration(tmpdir):
+async def test_async_iteration(tmp_path):
     lines = ['blah blah\n', 'foo foo\n', 'bar bar']
-    testpath = tmpdir.join('testfile')
+    testpath = tmp_path.joinpath('testfile')
     testpath.write_text(''.join(lines), 'ascii')
     async with await aopen(str(testpath)) as f:
         lines_i = iter(lines)
