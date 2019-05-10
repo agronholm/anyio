@@ -449,3 +449,18 @@ async def test_nexted_fail_after():
             raise RuntimeError("Do not go here squared")
 
     assert scope.cancel_called
+
+
+@pytest.mark.anyio
+async def test_nexted_shield():
+    async def killer(scope):
+        await sleep(0.1)
+        await scope.cancel()
+
+    with pytest.raises(TimeoutError):
+        async with create_task_group() as tg:
+            async with open_cancel_scope() as scope:
+                async with open_cancel_scope(shield=True):
+                    await tg.spawn(killer, scope)
+                    async with fail_after(0.2):
+                        await sleep(2)

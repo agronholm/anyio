@@ -125,8 +125,17 @@ class CancelScope:
                 # Only deliver the cancellation if the task is already running
                 if task.coro.cr_await is not None:
                     await task.cancel(blocking=False)
-            elif not cancel_scope.shield:
+            elif not cancel_scope._shielded_to(self):
                 await cancel_scope._cancel()
+
+    def _shielded_to(self, parent):
+        scope = self
+        while True:
+            if scope.shield:
+                return True
+            scope = scope._parent_scope
+            if scope is None or scope == parent:
+                return False
 
     def _parent_cancelled(self):
         p = self._parent_scope
