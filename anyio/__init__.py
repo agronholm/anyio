@@ -52,7 +52,7 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
         raise RuntimeError('Already running {} in this thread'.format(asynclib_name))
 
     try:
-        asynclib = import_module('{}._backends.{}'.format(__name__, backend))
+        asynclib = import_module('{}._backends._{}'.format(__name__, backend))
     except ImportError as exc:
         raise LookupError('No such backend: {}'.format(backend)) from exc
 
@@ -71,7 +71,7 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
 
 @contextmanager
 def claim_worker_thread(backend) -> typing.Generator[Any, None, None]:
-    module = sys.modules['anyio._backends.' + backend]
+    module = sys.modules['anyio._backends._' + backend]
     _local.current_async_module = module
     token = sniffio.current_async_library_cvar.set(backend)
     try:
@@ -83,7 +83,7 @@ def claim_worker_thread(backend) -> typing.Generator[Any, None, None]:
 
 def _get_asynclib():
     asynclib_name = sniffio.current_async_library()
-    modulename = 'anyio._backends.' + asynclib_name
+    modulename = 'anyio._backends._' + asynclib_name
     try:
         return sys.modules[modulename]
     except KeyError:

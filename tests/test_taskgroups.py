@@ -5,7 +5,7 @@ import trio
 from anyio import (
     create_task_group, sleep, move_on_after, fail_after, open_cancel_scope, wait_all_tasks_blocked,
     current_effective_deadline, current_time, get_cancelled_exc_class)
-from anyio._backends import asyncio
+from anyio._backends import _asyncio
 from anyio.exceptions import ExceptionGroup
 
 
@@ -42,7 +42,7 @@ async def test_success():
 
 
 @pytest.mark.parametrize('run_func, as_coro_obj', [
-    (asyncio.native_run, True),
+    (_asyncio.native_run, True),
     (curio.run, False),
     (trio.run, False)
 ], ids=['asyncio', 'curio', 'trio'])
