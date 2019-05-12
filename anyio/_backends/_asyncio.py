@@ -594,10 +594,13 @@ async def wait_socket_readable(sock: socket.SocketType) -> None:
     try:
         await event.wait()
     finally:
-        loop.remove_reader(sock)
-        del _read_events[sock]
+        if _read_events.pop(sock, None) is not None:
+            loop.remove_reader(sock)
+            readable = True
+        else:
+            readable = False
 
-    if sock.fileno() == -1:
+    if not readable:
         raise ClosedResourceError
 
 
@@ -612,18 +615,28 @@ async def wait_socket_writable(sock: socket.SocketType) -> None:
     try:
         await event.wait()
     finally:
-        loop.remove_writer(sock)
-        del _write_events[sock]
+        if _write_events.pop(sock, None) is not None:
+            loop.remove_writer(sock)
+            writable = True
+        else:
+            writable = False
 
-    if sock.fileno() == -1:
+    if not writable:
         raise ClosedResourceError
 
 
 async def notify_socket_close(sock: socket.SocketType) -> None:
-    for events_map in _read_events, _write_events:
-        event = events_map.get(sock)
-        if event is not None:
-            event.set()
+    loop = get_running_loop()
+
+    event = _read_events.pop(sock, None)
+    if event is not None:
+        loop.remove_reader(sock)
+        event.set()
+
+    event = _write_events.pop(sock, None)
+    if event is not None:
+        loop.remove_writer(sock)
+        event.set()
 
 
 #
