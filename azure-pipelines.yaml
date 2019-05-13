@@ -1,0 +1,97 @@
+stages:
+- stage: code_quality
+  displayName: Static analysis
+  jobs:
+  - job: flake8_mypy
+    pool:
+      vmImage: 'ubuntu-16.04'
+
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.7'
+
+    - script: pip install flake8 mypy
+      displayName: Install dependencies
+
+    - script: flake8
+      displayName: Run flake8
+
+    - script: mypy anyio
+      displayName: Run mypy
+
+- stage: run_test_suite
+  displayName: Run the test suite
+  jobs:
+  - job: test
+    strategy:
+      matrix:
+        Linux-Py35:
+          imageName: 'ubuntu-16.04'
+          python.version: '3.5'
+        Linux-Py37:
+          imageName: 'ubuntu-16.04'
+          python.version: '3.7'
+        Linux-PyPy3:
+          imageName: 'ubuntu-16.04'
+          python.version: 'pypy3'
+        Mac-Py35:
+          imageName: 'macos-10.13'
+          python.version: '3.5'
+        Win-Py35:
+          imageName: 'vs2017-win2016'
+          python.version: '3.5'
+
+    pool:
+      vmImage: '$(imageName)'
+
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '$(python.version)'
+
+    - script: pip install .[test,curio,trio]
+      displayName: Install dependencies
+
+    - script: |
+        coverage run -m pytest --junit-xml=junit.xml
+        coverage xml
+      displayName: Run pytest
+
+    - task: PublishTestResults@2
+      displayName: Publish test results
+      condition: succeededOrFailed()
+      inputs:
+        testResultsFiles: '$(System.DefaultWorkingDirectory)/junit.xml'
+
+    - task: PublishCodeCoverageResults@1
+      inputs:
+        codeCoverageTool: Cobertura
+        summaryFileLocation: '$(System.DefaultWorkingDirectory)/coverage.xml'
+
+- stage: Deploy
+  condition: startsWith(variables['Build.SourceBranch'], 'refs/tags/')
+  jobs:
+  - job: publish
+    displayName: Publish to PyPI
+
+    pool:
+      vmImage: 'ubuntu-16.04'
+
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.7'
+
+    - script: pip install twine
+      displayName: Install Twine
+
+    - task: TwineAuthenticate@0
+      inputs:
+        externalFeeds: pypi
+
+    - script: python setup.py sdist bdist_wheel
+      displayName: Create packages
+
+    - script: 'twine upload -r pypi/anyio --config-file $(PYPIRC_PATH) dist/*'
+      displayName: Upload packages to PyPI
