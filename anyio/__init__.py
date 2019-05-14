@@ -288,7 +288,7 @@ async def connect_tcp(
         :exc:`~ssl.SSLEOFError` may be raised during reads from the stream.
         Some protocols, such as HTTP, require this option to be ``False``.
         See :meth:`~ssl.SSLContext.wrap_socket` for details.
-    :return: an asynchronous context manager that yields a socket stream
+    :return: a socket stream object
 
     """
     if bind_host:
@@ -320,7 +320,7 @@ async def connect_unix(path: Union[str, 'os.PathLike']) -> SocketStream:
     Not available on Windows.
 
     :param path: path to the socket
-    :return: an asynchronous context manager that yields a socket stream
+    :return: a socket stream object
 
     """
     raw_socket = socket.socket(socket.AF_UNIX)
@@ -351,7 +351,7 @@ async def create_tcp_server(
         :exc:`~ssl.SSLEOFError` may be raised during reads from a client stream.
         Some protocols, such as HTTP, require this option to be ``False``.
         See :meth:`~ssl.SSLContext.wrap_socket` for details.
-    :return: an asynchronous context manager that yields a server object
+    :return: a server object
 
     """
     if interface:
@@ -383,7 +383,7 @@ async def create_unix_server(
 
     :param path: path of the socket
     :param mode: permissions to set on the socket
-    :return: an asynchronous context manager that yields a server object
+    :return: a server object
 
     """
     raw_socket = socket.socket(socket.AF_UNIX)
