@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning <http://semver.org/>`_.
 
-**UNRELEASED**
+**1.0.0**
 
 - Fixed pathlib2_ compatibility with ``anyio.aopen()``
 - Fixed timeouts not propagating from nested scopes on asyncio and curio (PR by Matthias Urlichs)
