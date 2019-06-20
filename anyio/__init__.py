@@ -493,14 +493,15 @@ def create_lock() -> Lock:
     return _get_asynclib().Lock()
 
 
-def create_condition() -> Condition:
+def create_condition(lock: Lock = None) -> Condition:
     """
     Create an asynchronous condition.
 
+    :param lock: the lock to base the condition object on
     :return: a condition object
 
     """
-    return _get_asynclib().Condition()
+    return _get_asynclib().Condition(lock=lock)
 
 
 def create_event() -> Event:
