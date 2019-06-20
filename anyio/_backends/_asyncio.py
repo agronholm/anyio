@@ -696,6 +696,13 @@ class Queue(asyncio.Queue):
         check_cancelled()
         return super().put(item)
 
+    def __aiter__(self):
+        return self
+
+    def __anext__(self):
+        check_cancelled()
+        return super().get()
+
 
 abc.Lock.register(Lock)
 abc.Condition.register(Condition)
