@@ -497,7 +497,7 @@ def create_condition(lock: Lock = None) -> Condition:
     """
     Create an asynchronous condition.
 
-    :param lock: the lock to base the condition object on.
+    :param lock: the lock to base the condition object on
     :return: a condition object
 
     """
