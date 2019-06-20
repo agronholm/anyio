@@ -256,6 +256,7 @@ class Queue:
     async def __anext__(self):
         return await self._receive_channel.receive()
 
+
 abc.Lock.register(Lock)
 abc.Condition.register(Condition)
 abc.Event.register(Event)
