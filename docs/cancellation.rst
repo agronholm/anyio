@@ -76,7 +76,7 @@ To accomplish this, open a new cancel scope with the ``shield=True`` argument::
     run(main)
 
 The shielded block will be exempt from cancellation except when the shielded block itself is being
-cancelled. Shieldin a cancel scope is often best combined with :func:`~anyio.move_on_after` or
+cancelled. Shielding a cancel scope is often best combined with :func:`~anyio.move_on_after` or
 :func:`~anyio.fail_after`, both of which also accept ``shield=True``.
 
 Finalization
