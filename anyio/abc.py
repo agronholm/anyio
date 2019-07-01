@@ -2,7 +2,19 @@ from abc import ABCMeta, abstractmethod
 from io import SEEK_SET
 from ipaddress import IPv4Address, IPv6Address
 from ssl import SSLContext
-from typing import Callable, TypeVar, Optional, Tuple, Union, AsyncIterable, Dict, List, Coroutine
+from typing import (
+    Callable,
+    TypeVar,
+    Optional,
+    Tuple,
+    Union,
+    AsyncIterable,
+    Dict,
+    List,
+    Coroutine,
+    Type,
+)
+from types import TracebackType
 
 T_Retval = TypeVar('T_Retval')
 IPAddressType = Union[str, IPv4Address, IPv6Address]
@@ -138,6 +150,22 @@ class TaskGroup(metaclass=ABCMeta):
         :param func: a coroutine function
         :param args: positional arguments to call the function with
         :param name: name of the task, for the purposes of introspection and debugging
+        """
+
+    @abstractmethod
+    async def __aenter__(self) -> 'TaskGroup':
+        """
+        Enter the task group context and allow starting new tasks
+        """
+
+    async def __aexit__(
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: TracebackType,
+    ) -> Optional[bool]:
+        """
+        Exit the task group context waiting for all tasks to finish
         """
 
 
