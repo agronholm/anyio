@@ -2,9 +2,9 @@ from abc import ABCMeta, abstractmethod
 from io import SEEK_SET
 from ipaddress import IPv4Address, IPv6Address
 from ssl import SSLContext
+from types import TracebackType
 from typing import (
     Callable, TypeVar, Optional, Tuple, Union, AsyncIterable, Dict, List, Coroutine, Type)
-from types import TracebackType
 
 T_Retval = TypeVar('T_Retval')
 IPAddressType = Union[str, IPv4Address, IPv6Address]
@@ -144,16 +144,12 @@ class TaskGroup(metaclass=ABCMeta):
 
     @abstractmethod
     async def __aenter__(self) -> 'TaskGroup':
-        """
-        Enter the task group context and allow starting new tasks
-        """
+        """Enter the task group context and allow starting new tasks."""
 
     @abstractmethod
     async def __aexit__(self, exc_type: Type[BaseException], exc_val: BaseException,
                         exc_tb: TracebackType) -> Optional[bool]:
-        """
-        Exit the task group context waiting for all tasks to finish
-        """
+        """Exit the task group context waiting for all tasks to finish."""
 
 
 class CancelScope(metaclass=ABCMeta):
