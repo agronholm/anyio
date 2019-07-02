@@ -3,17 +3,7 @@ from io import SEEK_SET
 from ipaddress import IPv4Address, IPv6Address
 from ssl import SSLContext
 from typing import (
-    Callable,
-    TypeVar,
-    Optional,
-    Tuple,
-    Union,
-    AsyncIterable,
-    Dict,
-    List,
-    Coroutine,
-    Type,
-)
+    Callable, TypeVar, Optional, Tuple, Union, AsyncIterable, Dict, List, Coroutine, Type)
 from types import TracebackType
 
 T_Retval = TypeVar('T_Retval')
@@ -158,12 +148,8 @@ class TaskGroup(metaclass=ABCMeta):
         Enter the task group context and allow starting new tasks
         """
 
-    async def __aexit__(
-        self,
-        exc_type: Type[BaseException],
-        exc_val: BaseException,
-        exc_tb: TracebackType,
-    ) -> Optional[bool]:
+    async def __aexit__(self, exc_type: Type[BaseException], exc_val: BaseException,
+                        exc_tb: TracebackType) -> Optional[bool]:
         """
         Exit the task group context waiting for all tasks to finish
         """
