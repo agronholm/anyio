@@ -177,6 +177,28 @@ class TestQueue:
         assert queue.full()
 
     @pytest.mark.anyio
+    async def test_get_iter(self):
+        async def task():
+            nonlocal total
+            async for msg in queue:
+                if msg is None:
+                    return
+                else:
+                    total += msg
+
+        total = 0
+        queue = create_queue(1)
+        async with create_task_group() as tg:
+            await tg.spawn(task)
+            await queue.put(1)
+            await queue.put(2)
+            await queue.put(3)
+            await queue.put(None)
+
+        assert queue.empty()
+        assert total == 6
+
+    @pytest.mark.anyio
     async def test_put_cancel(self):
         async def task():
             nonlocal local_scope

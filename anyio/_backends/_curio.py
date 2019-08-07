@@ -459,6 +459,13 @@ class Queue(curio.Queue):
         await check_cancelled()
         return await super().put(item)
 
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        await check_cancelled()
+        return await super().get()
+
 
 abc.Lock.register(Lock)
 abc.Condition.register(Condition)

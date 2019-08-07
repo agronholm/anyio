@@ -121,6 +121,14 @@ class Queue(metaclass=ABCMeta):
         :return: the removed item
         """
 
+    @abstractmethod
+    def __aiter__(self):
+        return self
+
+    @abstractmethod
+    def __anext__(self) -> Coroutine:
+        """Return the next item in the queue."""
+
 
 class TaskGroup(metaclass=ABCMeta):
     """
