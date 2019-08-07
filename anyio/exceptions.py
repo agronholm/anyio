@@ -8,6 +8,7 @@ class ExceptionGroup(BaseException):
     SEPARATOR = '----------------------------\n'
 
     exceptions = ()  # type: Sequence[BaseException]
+    del exceptions  # Needed for trio 0.12+ compatibility
 
     def __str__(self):
         tracebacks = ['\n'.join(format_exception(type(exc), exc, exc.__traceback__))

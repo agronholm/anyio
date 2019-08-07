@@ -7,6 +7,19 @@ from .._networking import BaseSocket
 from .. import abc, claim_worker_thread, T_Retval, _local, TaskInfo
 from ..exceptions import ExceptionGroup, ClosedResourceError, ResourceBusyError
 
+try:
+    # Trio >= 0.12
+    from trio.to_thread import run_sync
+    from trio.from_thread import run as run_async_from_thread
+    from trio.hazmat import wait_readable, wait_writable, notify_closing
+except ImportError:
+    # Trio < 0.12
+    from trio import run_sync_in_worker_thread as run_sync
+    from trio.hazmat import (
+        wait_socket_readable as wait_readable, wait_socket_writable as wait_writable,
+        notify_socket_close as notify_closing
+    )
+    run_async_from_thread = None
 
 #
 # Event loop
@@ -138,18 +151,25 @@ abc.TaskGroup.register(TaskGroup)
 # Threads
 #
 
-async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
-    def wrapper():
-        with claim_worker_thread('trio'):
-            _local.portal = portal
-            return func(*args)
+if run_async_from_thread:
+    async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
+        def wrapper():
+            with claim_worker_thread('trio'):
+                return func(*args)
 
-    portal = trio.BlockingTrioPortal()
-    return await trio.run_sync_in_worker_thread(wrapper)
+        return await run_sync(wrapper)
+else:
+    async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
+        def wrapper():
+            with claim_worker_thread('trio'):
+                _local.portal = portal
+                return func(*args)
 
+        portal = trio.BlockingTrioPortal()
+        return await run_sync(wrapper)
 
-def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
-    return _local.portal.run(func, *args)
+    def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
+        return _local.portal.run(func, *args)
 
 
 #
@@ -176,7 +196,7 @@ class Socket(BaseSocket):
         return wait_socket_writable(self._raw_socket)
 
     async def _notify_close(self):
-        trio.hazmat.notify_socket_close(self._raw_socket)
+        notify_closing(self._raw_socket)
 
     def _check_cancelled(self):
         return trio.hazmat.checkpoint_if_cancelled()
@@ -187,7 +207,7 @@ class Socket(BaseSocket):
 
 async def wait_socket_readable(sock):
     try:
-        await trio.hazmat.wait_socket_readable(sock)
+        await wait_readable(sock)
     except trio.ClosedResourceError as exc:
         raise ClosedResourceError().with_traceback(exc.__traceback__) from None
     except trio.BusyResourceError:
@@ -196,7 +216,7 @@ async def wait_socket_readable(sock):
 
 async def wait_socket_writable(sock):
     try:
-        await trio.hazmat.wait_socket_writable(sock)
+        await wait_writable(sock)
     except trio.ClosedResourceError as exc:
         raise ClosedResourceError().with_traceback(exc.__traceback__) from None
     except trio.BusyResourceError:
@@ -204,7 +224,7 @@ async def wait_socket_writable(sock):
 
 
 async def notify_socket_close(sock):
-    return trio.hazmat.notify_socket_close(sock)
+    return notify_closing(sock)
 
 
 #
@@ -214,9 +234,21 @@ async def notify_socket_close(sock):
 Lock = trio.Lock
 
 
-class Event(trio.Event):
+class Event:
+    def __init__(self):
+        self._event = trio.Event()
+
     async def set(self) -> None:
-        super().set()
+        self._event.set()
+
+    def clear(self):
+        self._event = trio.Event()
+
+    def is_set(self) -> bool:
+        return self._event.is_set()
+
+    async def wait(self):
+        await self._event.wait()
 
 
 class Condition(trio.Condition):

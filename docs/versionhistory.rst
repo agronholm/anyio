@@ -3,6 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed compatibility with trio v0.12
+
 **1.0.0**
 
 - Fixed pathlib2_ compatibility with ``anyio.aopen()``
