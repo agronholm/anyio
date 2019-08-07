@@ -5,6 +5,7 @@ This library adheres to `Semantic Versioning <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added the ``lock`` parameter to ``anyio.create_condition()`` (PR by Matthias Urlichs)
 - Fixed compatibility with trio v0.12
 
 **1.0.0**
