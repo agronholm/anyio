@@ -242,7 +242,8 @@ class Event:
         self._event.set()
 
     def clear(self):
-        self._event = trio.Event()
+        if self._event.is_set():
+            self._event = trio.Event()
 
     def is_set(self) -> bool:
         return self._event.is_set()
