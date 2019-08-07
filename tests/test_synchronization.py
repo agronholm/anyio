@@ -179,13 +179,14 @@ class TestQueue:
     @pytest.mark.anyio
     async def test_get_iter(self):
         async def task():
-            sum = 0
+            nonlocal total
             async for msg in queue:
                 if msg is None:
-                    assert sum == 6
                     return
-                sum += msg
+                else:
+                    total += msg
 
+        total = 0
         queue = create_queue(1)
         async with create_task_group() as tg:
             await tg.spawn(task)
@@ -195,6 +196,7 @@ class TestQueue:
             await queue.put(None)
 
         assert queue.empty()
+        assert total == 6
 
     @pytest.mark.anyio
     async def test_put_cancel(self):
