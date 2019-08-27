@@ -615,7 +615,7 @@ class UDPSocket(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    async def receive(self, max_bytes: int) -> Tuple[bytes, str]:
+    async def receive(self, max_bytes: int) -> Tuple[bytes, Tuple[str, int]]:
         """
         Receive a datagram.
 
@@ -623,7 +623,7 @@ class UDPSocket(metaclass=ABCMeta):
         was really larger.
 
         :param max_bytes: maximum amount of bytes to be returned
-        :return: the bytes received
+        :return: a tuple of (bytes received, (source IP address, source port))
         """
 
     @abstractmethod

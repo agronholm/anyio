@@ -1,6 +1,7 @@
 import socket
 import ssl
 import sys
+import warnings
 from pathlib import Path
 
 import pytest
@@ -9,13 +10,17 @@ from anyio import (
     create_task_group, connect_tcp, create_udp_socket, connect_unix, create_unix_server,
     create_tcp_server, wait_all_tasks_blocked)
 from anyio.exceptions import (
-    IncompleteRead, DelimiterNotFound, ClosedResourceError,
-    ResourceBusyError)
+    IncompleteRead, DelimiterNotFound, ClosedResourceError, ResourceBusyError)
+
+
+@pytest.fixture(scope='module')
+def localhost():
+    return '::1' if socket.has_ipv6 else '127.0.0.1'
 
 
 class TestTCPStream:
     @pytest.mark.anyio
-    async def test_receive_some(self):
+    async def test_receive_some(self, localhost):
         async def server():
             async with await stream_server.accept() as stream:
                 assert stream.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
@@ -23,9 +28,9 @@ class TestTCPStream:
                 await stream.send_all(command[::-1])
 
         async with create_task_group() as tg:
-            async with await create_tcp_server(interface='localhost') as stream_server:
+            async with await create_tcp_server(interface=localhost) as stream_server:
                 await tg.spawn(server)
-                async with await connect_tcp('localhost', stream_server.port) as client:
+                async with await connect_tcp(localhost, stream_server.port) as client:
                     assert client.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
                     await client.send_all(b'blah')
                     response = await client.receive_some(100)
@@ -33,18 +38,17 @@ class TestTCPStream:
         assert response == b'halb'
 
     @pytest.mark.anyio
-    async def test_receive_some_from_cache(self):
+    async def test_receive_some_from_cache(self, localhost):
         async def server():
             async with await stream_server.accept() as stream:
                 await stream.receive_until(b'a', 10)
                 request = await stream.receive_some(1)
                 await stream.send_all(request + b'\n')
 
-        received = None
         async with create_task_group() as tg:
-            async with await create_tcp_server(interface='localhost') as stream_server:
+            async with await create_tcp_server(interface=localhost) as stream_server:
                 await tg.spawn(server)
-                async with await connect_tcp('localhost', stream_server.port) as client:
+                async with await connect_tcp(localhost, stream_server.port) as client:
                     await client.send_all(b'abc')
                     received = await client.receive_until(b'\n', 3)
 
@@ -55,7 +59,7 @@ class TestTCPStream:
         ('receive_exactly', [5])
     ], ids=['read_until', 'read_exactly'])
     @pytest.mark.anyio
-    async def test_read_partial(self, method_name, params):
+    async def test_read_partial(self, localhost, method_name, params):
         async def server():
             async with await stream_server.accept() as stream:
                 method = getattr(stream, method_name)
@@ -64,9 +68,9 @@ class TestTCPStream:
                 await stream.send_all(line1.strip() + line2.strip())
 
         async with create_task_group() as tg:
-            async with await create_tcp_server(interface='localhost') as stream_server:
+            async with await create_tcp_server(interface=localhost) as stream_server:
                 await tg.spawn(server)
-                async with await connect_tcp('localhost', stream_server.port) as client:
+                async with await connect_tcp(localhost, stream_server.port) as client:
                     await client.send_all(b'bla')
                     await client.send_all(b'h\nb')
                     await client.send_all(b'leh\n')
@@ -75,16 +79,16 @@ class TestTCPStream:
         assert response == b'blahbleh'
 
     @pytest.mark.anyio
-    async def test_send_large_buffer(self):
+    async def test_send_large_buffer(self, localhost):
         async def server():
             async with await stream_server.accept() as stream:
                 await stream.send_all(buffer)
 
         buffer = b'\xff' * 1024 * 1024  # should exceed the maximum kernel send buffer size
         async with create_task_group() as tg:
-            async with await create_tcp_server(interface='localhost') as stream_server:
+            async with await create_tcp_server(interface=localhost) as stream_server:
                 await tg.spawn(server)
-                async with await connect_tcp('localhost', stream_server.port) as client:
+                async with await connect_tcp(localhost, stream_server.port) as client:
                     response = await client.receive_exactly(len(buffer))
                     with pytest.raises(IncompleteRead):
                         await client.receive_exactly(1)
@@ -96,52 +100,52 @@ class TestTCPStream:
         ('receive_exactly', [5])
     ], ids=['read_until', 'read_exactly'])
     @pytest.mark.anyio
-    async def test_incomplete_read(self, method_name, params):
+    async def test_incomplete_read(self, localhost, method_name, params):
         async def server():
             async with await stream_server.accept() as stream:
                 await stream.send_all(b'bla')
 
         async with create_task_group() as tg:
-            async with await create_tcp_server(interface='localhost') as stream_server:
+            async with await create_tcp_server(interface=localhost) as stream_server:
                 await tg.spawn(server)
-                async with await connect_tcp('localhost', stream_server.port) as client:
+                async with await connect_tcp(localhost, stream_server.port) as client:
                     method = getattr(client, method_name)
                     with pytest.raises(IncompleteRead):
                         await method(*params)
 
     @pytest.mark.anyio
-    async def test_delimiter_not_found(self):
+    async def test_delimiter_not_found(self, localhost):
         async def server():
             async with await stream_server.accept() as stream:
                 await stream.send_all(b'blah\n')
 
         async with create_task_group() as tg:
-            async with await create_tcp_server(interface='localhost') as stream_server:
+            async with await create_tcp_server(interface=localhost) as stream_server:
                 await tg.spawn(server)
-                async with await connect_tcp('localhost', stream_server.port) as client:
+                async with await connect_tcp(localhost, stream_server.port) as client:
                     with pytest.raises(DelimiterNotFound) as exc:
                         await client.receive_until(b'\n', 3)
 
                     assert exc.match(' first 3 bytes$')
 
     @pytest.mark.anyio
-    async def test_receive_chunks(self):
+    async def test_receive_chunks(self, localhost):
         async def server():
             async with await stream_server.accept() as stream:
                 async for chunk in stream.receive_chunks(2):
                     chunks.append(chunk)
 
         chunks = []
-        async with await create_tcp_server(interface='localhost') as stream_server:
+        async with await create_tcp_server(interface=localhost) as stream_server:
             async with create_task_group() as tg:
                 await tg.spawn(server)
-                async with await connect_tcp('localhost', stream_server.port) as client:
+                async with await connect_tcp(localhost, stream_server.port) as client:
                     await client.send_all(b'blah')
 
         assert chunks == [b'bl', b'ah']
 
     @pytest.mark.anyio
-    async def test_buffer(self):
+    async def test_buffer(self, localhost):
         async def server():
             async with await stream_server.accept() as stream:
                 chunks.append(await stream.receive_until(b'\n', 10))
@@ -149,33 +153,40 @@ class TestTCPStream:
                 chunks.append(await stream.receive_exactly(2))
 
         chunks = []
-        async with await create_tcp_server(interface='localhost') as stream_server:
+        async with await create_tcp_server(interface=localhost) as stream_server:
             async with create_task_group() as tg:
                 await tg.spawn(server)
-                async with await connect_tcp('localhost', stream_server.port) as client:
+                async with await connect_tcp(localhost, stream_server.port) as client:
                     await client.send_all(b'blah\nfoobar')
 
         assert chunks == [b'blah', b'foob', b'ar']
 
     @pytest.mark.anyio
-    async def test_receive_delimited_chunks(self):
+    async def test_receive_delimited_chunks(self, localhost):
         async def server():
             async with await stream_server.accept() as stream:
                 async for chunk in stream.receive_delimited_chunks(b'\r\n', 8):
                     chunks.append(chunk)
 
         chunks = []
-        async with await create_tcp_server(interface='localhost') as stream_server:
+        async with await create_tcp_server(interface=localhost) as stream_server:
             async with create_task_group() as tg:
                 await tg.spawn(server)
-                async with await connect_tcp('localhost', stream_server.port) as client:
+                async with await connect_tcp(localhost, stream_server.port) as client:
                     for chunk in (b'bl', b'ah', b'\r', b'\nfoo', b'bar\r\n'):
                         await client.send_all(chunk)
 
         assert chunks == [b'blah', b'foobar']
 
+    @pytest.mark.parametrize('interface, target', [
+        (None, '127.0.0.1'),
+        (None, '::1'),
+        ('127.0.0.1', '127.0.0.1'),
+        ('::1', '::1'),
+        ('localhost', 'localhost'),
+    ], ids=['any_ipv4', 'any_ipv6', 'only_ipv4', 'only_ipv6', 'localhost'])
     @pytest.mark.anyio
-    async def test_accept_connections(self):
+    async def test_accept_connections(self, interface, target):
         async def handle_client(stream):
             async with stream:
                 line = await stream.receive_until(b'\n', 10)
@@ -189,35 +200,40 @@ class TestTCPStream:
                 await tg.spawn(handle_client, stream)
 
         lines = set()
-        async with await create_tcp_server(interface='localhost') as stream_server:
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', category=DeprecationWarning,
+                                    module='anyio._networking')
+            stream_server = await create_tcp_server(interface=interface)
+
+        async with stream_server:
             async with create_task_group() as tg:
                 await tg.spawn(server)
 
-                async with await connect_tcp('localhost', stream_server.port) as client:
+                async with await connect_tcp(target, stream_server.port) as client:
                     await client.send_all(b'client1\n')
 
-                async with await connect_tcp('localhost', stream_server.port) as client:
+                async with await connect_tcp(target, stream_server.port) as client:
                     await client.send_all(b'client2\n')
 
         assert lines == {b'client1', b'client2'}
 
     @pytest.mark.anyio
-    async def test_socket_options(self):
-        async with await create_tcp_server(interface='localhost') as stream_server:
+    async def test_socket_options(self, localhost):
+        async with await create_tcp_server(interface=localhost) as stream_server:
             stream_server.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
             assert stream_server.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
-            async with await connect_tcp('localhost', stream_server.port) as client:
+            async with await connect_tcp(localhost, stream_server.port) as client:
                 client.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
                 assert client.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
 
     @pytest.mark.anyio
-    async def test_concurrent_write(self):
+    async def test_concurrent_write(self, localhost):
         async def send_data():
             while True:
                 await client.send_all(b'\x00' * 1024000)
 
-        async with await create_tcp_server(interface='localhost') as stream_server:
-            async with await connect_tcp('localhost', stream_server.port) as client:
+        async with await create_tcp_server(interface=localhost) as stream_server:
+            async with await connect_tcp(localhost, stream_server.port) as client:
                 async with create_task_group() as tg:
                     await tg.spawn(send_data)
                     await wait_all_tasks_blocked()
@@ -230,12 +246,12 @@ class TestTCPStream:
                         await tg.cancel_scope.cancel()
 
     @pytest.mark.anyio
-    async def test_concurrent_read(self):
+    async def test_concurrent_read(self, localhost):
         async def receive_data():
             await client.receive_exactly(1)
 
-        async with await create_tcp_server(interface='localhost') as stream_server:
-            async with await connect_tcp('localhost', stream_server.port) as client:
+        async with await create_tcp_server(interface=localhost) as stream_server:
+            async with await connect_tcp(localhost, stream_server.port) as client:
                 async with create_task_group() as tg:
                     await tg.spawn(receive_data)
                     await wait_all_tasks_blocked()
@@ -288,7 +304,7 @@ class TestTLSStream:
         return client_context
 
     @pytest.mark.anyio
-    async def test_handshake_on_connect(self, server_context, client_context):
+    async def test_handshake_on_connect(self, localhost, server_context, client_context):
         async def server():
             nonlocal server_binding
             async with await stream_server.accept() as stream:
@@ -304,7 +320,7 @@ class TestTLSStream:
         server_binding = None
         async with create_task_group() as tg:
             async with await create_tcp_server(
-                    interface='localhost', ssl_context=server_context) as stream_server:
+                    interface=localhost, ssl_context=server_context) as stream_server:
                 await tg.spawn(server)
                 async with await connect_tcp(
                         'localhost', stream_server.port, ssl_context=client_context,
@@ -324,14 +340,14 @@ class TestTLSStream:
 
     @pytest.mark.skipif(not ssl.HAS_ALPN, reason='ALPN support not available')
     @pytest.mark.anyio
-    async def test_alpn_negotiation(self, server_context, client_context):
+    async def test_alpn_negotiation(self, localhost, server_context, client_context):
         async def server():
             async with await stream_server.accept() as stream:
                 assert stream.alpn_protocol == 'dummy2'
 
         client_context.set_alpn_protocols(['dummy1', 'dummy2'])
         server_context.set_alpn_protocols(['dummy2', 'dummy3'])
-        async with await create_tcp_server(interface='localhost',
+        async with await create_tcp_server(interface=localhost,
                                            ssl_context=server_context) as stream_server:
             async with create_task_group() as tg:
                 await tg.spawn(server)
@@ -341,7 +357,7 @@ class TestTLSStream:
                     assert client.alpn_protocol == 'dummy2'
 
     @pytest.mark.anyio
-    async def test_manual_handshake(self, server_context, client_context):
+    async def test_manual_handshake(self, localhost, server_context, client_context):
         async def server():
             async with await stream_server.accept() as stream:
                 assert stream.tls_version is None
@@ -354,7 +370,7 @@ class TestTLSStream:
                     elif command == b'CLOSE':
                         break
 
-        async with await create_tcp_server(interface='localhost', ssl_context=server_context,
+        async with await create_tcp_server(interface=localhost, ssl_context=server_context,
                                            autostart_tls=False) as stream_server:
             async with create_task_group() as tg:
                 await tg.spawn(server)
@@ -369,7 +385,7 @@ class TestTLSStream:
                     await client.send_all(b'CLOSE')  # arbitrary string
 
     @pytest.mark.anyio
-    async def test_buffer(self, server_context, client_context):
+    async def test_buffer(self, localhost, server_context, client_context):
         async def server():
             async with await stream_server.accept() as stream:
                 chunks.append(await stream.receive_until(b'\n', 10))
@@ -377,7 +393,7 @@ class TestTLSStream:
                 chunks.append(await stream.receive_exactly(2))
 
         chunks = []
-        async with await create_tcp_server(interface='localhost',
+        async with await create_tcp_server(interface=localhost,
                                            ssl_context=server_context) as stream_server:
             async with create_task_group() as tg:
                 await tg.spawn(server)
@@ -395,7 +411,7 @@ class TestTLSStream:
         (False, False, IncompleteRead)
     ], ids=['both_standard', 'server_standard', 'client_standard', 'neither_standard'])
     @pytest.mark.anyio
-    async def test_ragged_eofs(self, server_context, client_context, server_compatible,
+    async def test_ragged_eofs(self, localhost, server_context, client_context, server_compatible,
                                client_compatible, exc_class):
         async def server():
             async with await stream_server.accept() as stream:
@@ -405,7 +421,7 @@ class TestTLSStream:
 
         chunks = []
         async with await create_tcp_server(
-                interface='localhost', ssl_context=server_context,
+                interface=localhost, ssl_context=server_context,
                 tls_standard_compatible=server_compatible) as stream_server:
             async with create_task_group() as tg:
                 await tg.spawn(server)
@@ -419,59 +435,59 @@ class TestTLSStream:
 
 class TestUDPSocket:
     @pytest.mark.anyio
-    async def test_udp(self):
-        async with await create_udp_socket(port=5000, interface='localhost',
-                                           target_port=5000, target_host='localhost') as socket:
+    async def test_udp(self, localhost):
+        async with await create_udp_socket(port=5000, interface=localhost,
+                                           target_port=5000, target_host=localhost) as socket:
             await socket.send(b'blah')
             request, addr = await socket.receive(100)
             assert request == b'blah'
-            assert addr == ('127.0.0.1', 5000)
+            assert addr[:2] == (localhost, 5000)
 
             await socket.send(b'halb')
             response, addr = await socket.receive(100)
             assert response == b'halb'
-            assert addr == ('127.0.0.1', 5000)
+            assert addr[:2] == (localhost, 5000)
 
     @pytest.mark.anyio
-    async def test_udp_noconnect(self):
-        async with await create_udp_socket(interface='localhost') as socket:
-            await socket.send(b'blah', 'localhost', socket.port)
+    async def test_udp_noconnect(self, localhost):
+        async with await create_udp_socket(interface=localhost) as socket:
+            await socket.send(b'blah', localhost, socket.port)
             request, addr = await socket.receive(100)
             assert request == b'blah'
-            assert addr == ('127.0.0.1', socket.port)
+            assert addr[:2] == (localhost, socket.port)
 
-            await socket.send(b'halb', 'localhost', socket.port)
+            await socket.send(b'halb', localhost, socket.port)
             response, addr = await socket.receive(100)
             assert response == b'halb'
-            assert addr == ('127.0.0.1', socket.port)
+            assert addr[:2] == (localhost, socket.port)
 
     @pytest.mark.anyio
-    async def test_udp_close_socket_from_other_task(self):
+    async def test_udp_close_socket_from_other_task(self, localhost):
         async with create_task_group() as tg:
-            async with await create_udp_socket(interface='127.0.0.1') as udp:
+            async with await create_udp_socket(interface=localhost) as udp:
                 await tg.spawn(udp.close)
                 with pytest.raises(ClosedResourceError):
                     await udp.receive(100)
 
     @pytest.mark.anyio
-    async def test_udp_receive_packets(self):
+    async def test_udp_receive_packets(self, localhost):
         async def serve():
             async for packet, addr in server.receive_packets(10000):
-                await server.send(packet[::-1], *addr)
+                await server.send(packet[::-1], *addr[:2])
 
-        async with await create_udp_socket(interface='127.0.0.1') as server:
-            async with await create_udp_socket(target_host='127.0.0.1',
+        async with await create_udp_socket(interface=localhost) as server:
+            async with await create_udp_socket(target_host=localhost,
                                                target_port=server.port) as client:
                 async with create_task_group() as tg:
                     await tg.spawn(serve)
                     await client.send(b'FOOBAR')
-                    assert await client.receive(100) == (b'RABOOF', ('127.0.0.1', server.port))
+                    assert await client.receive(100) == (b'RABOOF', (localhost, server.port))
                     await client.send(b'123456')
-                    assert await client.receive(100) == (b'654321', ('127.0.0.1', server.port))
+                    assert await client.receive(100) == (b'654321', (localhost, server.port))
                     await tg.cancel_scope.cancel()
 
     @pytest.mark.anyio
-    async def test_socket_options(self):
-        async with await create_udp_socket(interface='127.0.0.1') as udp:
+    async def test_socket_options(self, localhost):
+        async with await create_udp_socket(interface=localhost) as udp:
             udp.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
             assert udp.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)

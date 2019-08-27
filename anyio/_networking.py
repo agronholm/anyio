@@ -1,8 +1,9 @@
 import errno
 import socket
 import ssl
+import warnings
 from abc import ABCMeta, abstractmethod
-from ipaddress import ip_address
+from ipaddress import ip_address, IPv6Address
 from typing import Union, Tuple, Any, Optional, Callable, Dict, List, cast
 
 from async_generator import async_generator, yield_
@@ -50,7 +51,7 @@ class BaseSocket(metaclass=ABCMeta):
             await self._wait_readable()
             raw_socket, address = self._raw_socket.accept()
 
-        if raw_socket.family == socket.AF_INET:
+        if raw_socket.family in (socket.AF_INET, socket.AF_INET6):
             raw_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
         return self.__class__(raw_socket), address
@@ -430,8 +431,9 @@ class UDPSocket(abc.UDPSocket):
     def setsockopt(self, level, optname, value, *args) -> None:
         self._socket.setsockopt(level, optname, value, *args)
 
-    async def receive(self, max_bytes: int) -> Tuple[bytes, str]:
-        return await self._socket.recvfrom(max_bytes)
+    async def receive(self, max_bytes: int) -> Tuple[bytes, Tuple[str, int]]:
+        data, addr = await self._socket.recvfrom(max_bytes)
+        return data, addr[:2]
 
     @async_generator
     async def receive_packets(self, max_size: int):
@@ -448,3 +450,24 @@ class UDPSocket(abc.UDPSocket):
             await self._socket.sendto(data, (str(address), port))
         else:
             await self._socket.send(data)
+
+
+async def get_bind_address(interface: Optional[IPAddressType]) -> Tuple[str, int, bool]:
+    if interface:
+        try:
+            if_addr = ip_address(interface)
+        except ValueError:
+            from . import run_in_thread
+
+            warnings.warn('Passing a host name as the interface address has been deprecated. '
+                          'Use an IP address instead.', category=DeprecationWarning)
+            res = await run_in_thread(socket.getaddrinfo, interface, 0)
+            return res[0][-1][0], res[0][0], False
+
+        family = socket.AF_INET6 if isinstance(if_addr, IPv6Address) else socket.AF_INET
+        v6only = interface == '::'
+        return str(if_addr), family, v6only
+    elif socket.has_ipv6:
+        return '::', socket.AF_INET6, False
+    else:
+        return '0.0.0.0', socket.AF_INET, False

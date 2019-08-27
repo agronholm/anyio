@@ -8,6 +8,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added the ``lock`` parameter to ``anyio.create_condition()`` (PR by Matthias Urlichs)
 - Added async iteration for queues (PR by Matthias Urlichs)
 - Fixed compatibility with trio v0.12
+- Fixed IPv6 support in ``create_tcp_server()``, ``connect_tcp()`` and ``create_udp_socket()``
 
 **1.0.0**
 

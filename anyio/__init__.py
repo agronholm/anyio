@@ -291,18 +291,23 @@ async def connect_tcp(
     :return: a socket stream object
 
     """
+    interface, family = None, 0  # type: Optional[str], int
     if bind_host:
-        bind_host = str(bind_host)
+        interface, family, _v6only = await _networking.get_bind_address(bind_host)
 
-    raw_socket = socket.socket()
+    # getaddrinfo() will raise an exception if name resolution fails
+    address = str(address)
+    addrlist = await run_in_thread(socket.getaddrinfo, address, port, family)
+    family, type_, proto, _cn, sa = addrlist[0]
+    raw_socket = socket.socket(family, type_, proto)
     sock = _get_asynclib().Socket(raw_socket)
     try:
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        if bind_host is not None and bind_port is not None:
-            await sock.bind((bind_host, bind_port))
+        if interface is not None and bind_port is not None:
+            await sock.bind((interface, bind_port))
 
-        await sock.connect((address, port))
-        stream = _networking.SocketStream(sock, ssl_context, str(address), tls_standard_compatible)
+        await sock.connect(sa)
+        stream = _networking.SocketStream(sock, ssl_context, address, tls_standard_compatible)
 
         if autostart_tls:
             await stream.start_tls()
@@ -342,7 +347,9 @@ async def create_tcp_server(
     Start a TCP socket server.
 
     :param port: port number to listen on
-    :param interface: interface to listen on (if omitted, listen on any interface)
+    :param interface: IP address of the interface to listen on. If omitted, listen on all IPv4
+        and IPv6 interfaces. To listen on all interfaces on a specific address family, use
+        ``0.0.0.0`` for IPv4 or ``::`` for IPv6.
     :param ssl_context: an SSL context object for TLS negotiation
     :param autostart_tls: automatically do the TLS handshake on new connections if ``ssl_context``
         has been provided
@@ -354,10 +361,11 @@ async def create_tcp_server(
     :return: a server object
 
     """
-    if interface:
-        interface = str(interface)
+    interface, family, v6only = await _networking.get_bind_address(interface)
+    raw_socket = socket.socket(family)
+    if v6only:
+        raw_socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, True)
 
-    raw_socket = socket.socket()
     sock = _get_asynclib().Socket(raw_socket)
     try:
         if sys.platform == 'win32':
@@ -411,7 +419,7 @@ async def create_udp_socket(
     If ``port`` has been given, the socket will be bound to this port on the local machine,
     making this socket suitable for providing UDP based services.
 
-    :param interface: interface to bind to
+    :param interface: IP address of the interface to bind to
     :param port: port to bind to
     :param target_host: remote host to set as the default target
     :param target_port: port on the remote host to set as the default target
@@ -419,11 +427,19 @@ async def create_udp_socket(
 
     """
     if interface:
-        interface = str(interface)
-    if target_host:
-        target_host = str(target_host)
+        interface, family, _v6only = await _networking.get_bind_address(interface)
+    else:
+        interface, family = None, 0
 
-    raw_socket = socket.socket(type=socket.SOCK_DGRAM)
+    if target_host:
+        res = await run_in_thread(socket.getaddrinfo, target_host, target_port, family)
+        if res:
+            family, type_, proto, _cn, sa = res[0]
+            target_host, target_port = sa[:2]
+        else:
+            raise ValueError('{!r} cannot be resolved to an IP address'.format(target_host))
+
+    raw_socket = socket.socket(family=family, type=socket.SOCK_DGRAM)
     sock = _get_asynclib().Socket(raw_socket)
     try:
         if interface is not None or port is not None:
