@@ -4,8 +4,7 @@ import pkg_resources
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.intersphinx',
-    'sphinx_autodoc_typehints',
-    'sphinxcontrib.asyncio'
+    'sphinx_autodoc_typehints'
 ]
 
 templates_path = ['_templates']

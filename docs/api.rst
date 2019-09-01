@@ -10,7 +10,7 @@ Miscellaneous
 -------------
 
 .. autofunction:: anyio.finalize
-.. autocofunction:: anyio.sleep
+.. autofunction:: anyio.sleep(delay)
 .. autofunction:: anyio.get_cancelled_exc_class
 
 Timeouts and cancellation
@@ -19,8 +19,8 @@ Timeouts and cancellation
 .. autofunction:: anyio.open_cancel_scope
 .. autofunction:: anyio.move_on_after
 .. autofunction:: anyio.fail_after
-.. autocofunction:: anyio.current_effective_deadline
-.. autocofunction:: anyio.current_time
+.. autofunction:: anyio.current_effective_deadline
+.. autofunction:: anyio.current_time
 
 .. autoclass:: anyio.abc.CancelScope
     :members:
@@ -36,27 +36,27 @@ Task groups
 Threads
 -------
 
-.. autocofunction:: anyio.run_in_thread
+.. autofunction:: anyio.run_in_thread
 .. autofunction:: anyio.run_async_from_thread
 
 Async file I/O
 --------------
 
-.. autocofunction:: anyio.aopen
+.. autofunction:: anyio.aopen
 
 .. autoclass:: anyio.abc.AsyncFile
 
 Sockets and networking
 ----------------------
 
-.. autocofunction:: anyio.connect_tcp
-.. autocofunction:: anyio.connect_unix
-.. autocofunction:: anyio.create_tcp_server
-.. autocofunction:: anyio.create_unix_server
-.. autocofunction:: anyio.create_udp_socket
-.. autocofunction:: anyio.wait_socket_readable
-.. autocofunction:: anyio.wait_socket_writable
-.. autocofunction:: anyio.notify_socket_close
+.. autofunction:: anyio.connect_tcp
+.. autofunction:: anyio.connect_unix
+.. autofunction:: anyio.create_tcp_server
+.. autofunction:: anyio.create_unix_server
+.. autofunction:: anyio.create_udp_socket
+.. autofunction:: anyio.wait_socket_readable
+.. autofunction:: anyio.wait_socket_writable
+.. autofunction:: anyio.notify_socket_close
 
 .. autoclass:: anyio.abc.Stream
     :members:
@@ -98,12 +98,12 @@ Synchronization
 Operating system signals
 ------------------------
 
-.. autocofunction:: anyio.receive_signals
+.. autofunction:: anyio.receive_signals
 
 Testing and debugging
 ---------------------
 
 .. autoclass:: anyio.TaskInfo
-.. autocofunction:: anyio.get_current_task
-.. autocofunction:: anyio.get_running_tasks
-.. autocofunction:: anyio.wait_all_tasks_blocked
+.. autofunction:: anyio.get_current_task
+.. autofunction:: anyio.get_running_tasks
+.. autofunction:: anyio.wait_all_tasks_blocked
