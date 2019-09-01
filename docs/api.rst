@@ -79,6 +79,7 @@ Synchronization
 .. autofunction:: anyio.create_event
 .. autofunction:: anyio.create_condition
 .. autofunction:: anyio.create_queue
+.. autofunction:: anyio.create_capacity_limiter
 
 .. autoclass:: anyio.abc.Semaphore
     :members:
@@ -93,6 +94,9 @@ Synchronization
     :members:
 
 .. autoclass:: anyio.abc.Queue
+    :members:
+
+.. autoclass:: anyio.abc.CapacityLimiter
     :members:
 
 Operating system signals

@@ -57,3 +57,7 @@ class ResourceBusyError(Exception):
 
     def __init__(self, action: str):
         super().__init__('Another task is already {} this resource'.format(action))
+
+
+class WouldBlock(Exception):
+    """Raised by ``X_nowait``functions if ``X()``would block."""

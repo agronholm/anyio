@@ -160,3 +160,29 @@ Example::
                     break
 
     run(main)
+
+Capacity limiters
+-----------------
+
+Capacity limiters are like semaphores except that a single borrower (the current task by default)
+can only hold a single token at a time. It is also possible to borrow a token on behalf of any
+arbitrary object, so long as that object is hashable.
+
+Example::
+
+    from anyio import create_task_group, create_capacity_limiter, sleep, run
+
+
+    async def use_resource(tasknum, limiter):
+        async with limiter:
+            print('Task number', tasknum, 'is now working with the shared resource')
+            await sleep(1)
+
+
+    async def main():
+        limiter = create_capacity_limiter(2)
+        async with create_task_group() as tg:
+            for num in range(10):
+                await tg.spawn(use_resource, num, limiter)
+
+    run(main)

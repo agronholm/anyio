@@ -2,7 +2,7 @@ import pytest
 
 from anyio import (
     create_lock, create_task_group, create_queue, create_event, create_semaphore, create_condition,
-    open_cancel_scope, wait_all_tasks_blocked)
+    open_cancel_scope, wait_all_tasks_blocked, create_capacity_limiter)
 
 
 class TestLock:
@@ -215,3 +215,60 @@ class TestQueue:
             await queue.get()
 
         assert queue.empty()
+
+
+class TestCapacityLimiter:
+    @pytest.mark.anyio
+    async def test_bad_init_type(self):
+        pytest.raises(TypeError, create_capacity_limiter, 1.0).\
+            match('total_tokens must be an int or math.inf')
+
+    @pytest.mark.anyio
+    async def test_bad_init_value(self):
+        pytest.raises(ValueError, create_capacity_limiter, 0).\
+            match('total_tokens must be >= 1')
+
+    @pytest.mark.anyio
+    async def test_borrow(self):
+        limiter = create_capacity_limiter(2)
+        assert limiter.total_tokens == 2
+        assert limiter.available_tokens == 2
+        assert limiter.borrowed_tokens == 0
+        async with limiter:
+            assert limiter.total_tokens == 2
+            assert limiter.available_tokens == 1
+            assert limiter.borrowed_tokens == 1
+
+    @pytest.mark.anyio
+    async def test_limit(self):
+        async def taskfunc():
+            nonlocal value
+            for _ in range(5):
+                async with limiter:
+                    assert value == 0
+                    value = 1
+                    await wait_all_tasks_blocked()
+                    value = 0
+
+        value = 0
+        limiter = create_capacity_limiter(1)
+        async with create_task_group() as tg:
+            for _ in range(3):
+                await tg.spawn(taskfunc)
+
+    @pytest.mark.anyio
+    async def test_borrow_twice(self):
+        limiter = create_capacity_limiter(1)
+        await limiter.acquire()
+        with pytest.raises(RuntimeError) as exc:
+            await limiter.acquire()
+
+        exc.match("this borrower is already holding one of this CapacityLimiter's tokens")
+
+    @pytest.mark.anyio
+    async def test_bad_release(self):
+        limiter = create_capacity_limiter(1)
+        with pytest.raises(RuntimeError) as exc:
+            await limiter.release()
+
+        exc.match("this borrower isn't holding any of this CapacityLimiter's tokens")

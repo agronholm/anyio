@@ -5,7 +5,7 @@ from async_generator import async_generator, yield_, asynccontextmanager, aclosi
 
 from .._networking import BaseSocket
 from .. import abc, claim_worker_thread, T_Retval, _local, TaskInfo
-from ..exceptions import ExceptionGroup, ClosedResourceError, ResourceBusyError
+from ..exceptions import ExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock
 
 try:
     # Trio >= 0.12
@@ -290,11 +290,57 @@ class Queue:
         return await self._receive_channel.receive()
 
 
+class CapacityLimiter(abc.CapacityLimiter):
+    def __init__(self, total_tokens: int):
+        self._limiter = trio.CapacityLimiter(total_tokens)
+
+    async def __aenter__(self) -> 'CapacityLimiter':
+        await self._limiter.__aenter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self._limiter.__aexit__(exc_type, exc_val, exc_tb)
+
+    @property
+    def total_tokens(self) -> float:
+        return self._limiter.total_tokens
+
+    @property
+    def borrowed_tokens(self) -> int:
+        return self._limiter.borrowed_tokens
+
+    @property
+    def available_tokens(self) -> float:
+        return self._limiter.available_tokens
+
+    async def acquire_nowait(self):
+        return self.acquire_nowait()
+
+    async def acquire_on_behalf_of_nowait(self, borrower):
+        try:
+            return self._limiter.acquire_on_behalf_of_nowait(borrower)
+        except trio.WouldBlock as exc:
+            raise WouldBlock from exc
+
+    def acquire(self):
+        return self._limiter.acquire()
+
+    def acquire_on_behalf_of(self, borrower):
+        return self._limiter.acquire_on_behalf_of(borrower)
+
+    async def release(self):
+        self._limiter.release()
+
+    async def release_on_behalf_of(self, borrower):
+        self._limiter.release_on_behalf_of(borrower)
+
+
 abc.Lock.register(Lock)
 abc.Condition.register(Condition)
 abc.Event.register(Event)
 abc.Semaphore.register(Semaphore)
 abc.Queue.register(Queue)
+abc.CapacityLimiter.register(CapacityLimiter)
 
 
 #

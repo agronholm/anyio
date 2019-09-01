@@ -13,7 +13,7 @@ import sniffio
 
 from .abc import (  # noqa: F401
     IPAddressType, CancelScope, UDPSocket, Lock, Condition, Event, Semaphore, Queue, TaskGroup,
-    Stream, SocketStreamServer, SocketStream, AsyncFile)
+    Stream, SocketStreamServer, SocketStream, AsyncFile, CapacityLimiter)
 from . import _networking
 
 BACKENDS = 'asyncio', 'curio', 'trio'
@@ -550,6 +550,18 @@ def create_queue(capacity: int) -> Queue:
 
     """
     return _get_asynclib().Queue(capacity)
+
+
+def create_capacity_limiter(total_tokens: float) -> CapacityLimiter:
+    """
+    Create a capacity limiter.
+
+    :param total_tokens: the total number of tokens available for borrowing (can be an integer or
+        :data:`math.inf`)
+    :return: a capacity limiter object
+
+    """
+    return _get_asynclib().CapacityLimiter(total_tokens)
 
 
 #

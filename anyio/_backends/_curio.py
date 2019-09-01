@@ -1,5 +1,6 @@
 import math
 import socket
+from collections import OrderedDict
 from functools import partial
 from typing import Callable, Set, Optional, Coroutine, Any, cast, Dict, List, Sequence
 from weakref import WeakKeyDictionary
@@ -13,7 +14,7 @@ from async_generator import async_generator, asynccontextmanager, yield_
 
 from .._networking import BaseSocket
 from .. import abc, T_Retval, claim_worker_thread, TaskInfo
-from ..exceptions import ExceptionGroup, ClosedResourceError, ResourceBusyError
+from ..exceptions import ExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock
 
 
 #
@@ -467,11 +468,87 @@ class Queue(curio.Queue):
         return await super().get()
 
 
+class CapacityLimiter:
+    def __init__(self, total_tokens: int):
+        if not isinstance(total_tokens, int) and not math.isinf(total_tokens):
+            raise TypeError('total_tokens must be an int or math.inf')
+        if total_tokens < 1:
+            raise ValueError('total_tokens must be >= 1')
+
+        self._total_tokens = total_tokens
+        self._borrowers = set()  # type: Set[Any]
+        self._wait_queue = OrderedDict()  # type: Dict[Any, curio.Event]
+
+    async def __aenter__(self):
+        await self.acquire()
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.release()
+
+    @property
+    def total_tokens(self) -> float:
+        return self._total_tokens
+
+    @property
+    def borrowed_tokens(self) -> int:
+        return len(self._borrowers)
+
+    @property
+    def available_tokens(self) -> float:
+        return self._total_tokens - len(self._borrowers)
+
+    async def acquire_nowait(self):
+        await self.acquire_on_behalf_of_nowait(await curio.current_task())
+
+    async def acquire_on_behalf_of_nowait(self, borrower):
+        if borrower in self._borrowers:
+            raise RuntimeError("this borrower is already holding one of this CapacityLimiter's "
+                               "tokens")
+
+        if self._wait_queue or len(self._borrowers) >= self._total_tokens:
+            raise WouldBlock
+
+        self._borrowers.add(borrower)
+
+    async def acquire(self):
+        return await self.acquire_on_behalf_of(await curio.current_task())
+
+    async def acquire_on_behalf_of(self, borrower):
+        try:
+            await self.acquire_on_behalf_of_nowait(borrower)
+        except WouldBlock:
+            event = curio.Event()
+            self._wait_queue[borrower] = event
+            try:
+                await event.wait()
+            except BaseException:
+                del self._wait_queue[borrower]
+                raise
+
+            self._borrowers.add(borrower)
+
+    async def release(self):
+        await self.release_on_behalf_of(await curio.current_task())
+
+    async def release_on_behalf_of(self, borrower):
+        try:
+            self._borrowers.remove(borrower)
+        except KeyError:
+            raise RuntimeError("this borrower isn't holding any of this CapacityLimiter's "
+                               "tokens") from None
+
+        # Notify the next task in line if this limiter has free capacity now
+        if self._wait_queue and len(self._borrowers) < self._total_tokens:
+            event = self._wait_queue.popitem()[1]
+            await event.set()
+
+
 abc.Lock.register(Lock)
 abc.Condition.register(Condition)
 abc.Event.register(Event)
 abc.Semaphore.register(Semaphore)
 abc.Queue.register(Queue)
+abc.CapacityLimiter.register(CapacityLimiter)
 
 
 #
