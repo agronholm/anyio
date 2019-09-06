@@ -301,7 +301,7 @@ async def connect_tcp(
 
     # getaddrinfo() will raise an exception if name resolution fails
     address = str(address)
-    addrlist = await run_in_thread(socket.getaddrinfo, address, port, family)
+    addrlist = await run_in_thread(socket.getaddrinfo, address, port, family, socket.SOCK_STREAM)
     family, type_, proto, _cn, sa = addrlist[0]
     raw_socket = socket.socket(family, type_, proto)
     sock = _get_asynclib().Socket(raw_socket)
