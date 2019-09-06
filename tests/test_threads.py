@@ -2,7 +2,8 @@ import threading
 
 import pytest
 
-from anyio import run_async_from_thread, run_in_thread, create_task_group, sleep
+from anyio import (
+    run_async_from_thread, run_in_thread, create_task_group, sleep, create_capacity_limiter)
 
 
 @pytest.mark.anyio
@@ -58,6 +59,34 @@ async def test_run_in_thread_exception():
         await run_in_thread(thread_worker)
 
     exc.match('^foo$')
+
+
+@pytest.mark.anyio
+async def test_run_in_custom_limiter():
+    def thread_worker():
+        nonlocal num_active_threads, max_active_threads
+        num_active_threads += 1
+        max_active_threads = max(num_active_threads, max_active_threads)
+        event.wait(1)
+        num_active_threads -= 1
+
+    async def task_worker():
+        await run_in_thread(thread_worker, limiter=limiter)
+
+    event = threading.Event()
+    num_active_threads = max_active_threads = 0
+    limiter = create_capacity_limiter(3)
+    async with create_task_group() as tg:
+        for _ in range(4):
+            await tg.spawn(task_worker)
+
+        await sleep(0.1)
+        assert num_active_threads == 3
+        assert limiter.borrowed_tokens == 3
+        event.set()
+
+    assert num_active_threads == 0
+    assert max_active_threads == 3
 
 
 def test_run_async_from_unclaimed_thread():

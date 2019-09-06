@@ -451,7 +451,8 @@ abc.TaskGroup.register(TaskGroup)
 _Retval_Queue_Type = Tuple[Optional[T_Retval], Optional[BaseException]]
 
 
-async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
+async def run_in_thread(func: Callable[..., T_Retval], *args,
+                        limiter: Optional['CapacityLimiter'] = None) -> T_Retval:
     def thread_worker():
         try:
             with claim_worker_thread('asyncio'):
@@ -463,15 +464,16 @@ async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
             loop.call_soon_threadsafe(queue.put_nowait, (result, None))
 
     check_cancelled()
-    loop = get_running_loop()
-    queue = asyncio.Queue(1)  # type: asyncio.Queue[_Retval_Queue_Type]
-    thread = Thread(target=thread_worker)
-    thread.start()
-    retval, exception = await queue.get()
-    if exception is not None:
-        raise exception
-    else:
-        return cast(T_Retval, retval)
+    async with (limiter or _default_thread_limiter):
+        loop = get_running_loop()
+        queue = asyncio.Queue(1)  # type: asyncio.Queue[_Retval_Queue_Type]
+        thread = Thread(target=thread_worker)
+        thread.start()
+        retval, exception = await queue.get()
+        if exception is not None:
+            raise exception
+        else:
+            return cast(T_Retval, retval)
 
 
 def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args) -> T_Retval:
@@ -759,7 +761,7 @@ class CapacityLimiter:
             try:
                 await event.wait()
             except BaseException:
-                del self._wait_queue[borrower]
+                self._wait_queue.pop(borrower, None)
                 raise
 
             self._borrowers.add(borrower)
@@ -776,9 +778,11 @@ class CapacityLimiter:
 
         # Notify the next task in line if this limiter has free capacity now
         if self._wait_queue and len(self._borrowers) < self._total_tokens:
-            borrower, event = self._wait_queue.popitem()
+            event = self._wait_queue.popitem()[1]
             event.set()
 
+
+_default_thread_limiter = CapacityLimiter(40)
 
 abc.Lock.register(Lock)
 abc.Condition.register(Condition)

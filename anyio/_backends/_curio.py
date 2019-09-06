@@ -325,17 +325,19 @@ abc.TaskGroup.register(TaskGroup)
 # Threads
 #
 
-async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
+async def run_in_thread(func: Callable[..., T_Retval], *args,
+                        limiter: Optional['CapacityLimiter'] = None) -> T_Retval:
     def thread_worker():
         with claim_worker_thread('curio'):
             return func(*args)
 
     await check_cancelled()
-    thread = await curio.spawn_thread(thread_worker)
-    try:
-        return await thread.join()
-    except curio.TaskError as exc:
-        raise exc.__cause__ from None
+    async with (limiter or _default_thread_limiter):
+        thread = await curio.spawn_thread(thread_worker)
+        try:
+            return await thread.join()
+        except curio.TaskError as exc:
+            raise exc.__cause__ from None
 
 
 def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
@@ -522,7 +524,7 @@ class CapacityLimiter:
             try:
                 await event.wait()
             except BaseException:
-                del self._wait_queue[borrower]
+                self._wait_queue.pop(borrower, None)
                 raise
 
             self._borrowers.add(borrower)
@@ -542,6 +544,8 @@ class CapacityLimiter:
             event = self._wait_queue.popitem()[1]
             await event.set()
 
+
+_default_thread_limiter = CapacityLimiter(40)
 
 abc.Lock.register(Lock)
 abc.Condition.register(Condition)

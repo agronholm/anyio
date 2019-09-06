@@ -213,16 +213,19 @@ def create_task_group() -> TaskGroup:
 # Threads
 #
 
-def run_in_thread(func: Callable[..., T_Retval], *args) -> Awaitable[T_Retval]:
+def run_in_thread(func: Callable[..., T_Retval], *args,
+                  limiter: Optional[CapacityLimiter] = None) -> Awaitable[T_Retval]:
     """
     Start a thread that calls the given function with the given arguments.
 
     :param func: a callable
     :param args: positional arguments for the callable
+    :param limiter: capacity limiter to use to limit the total amount of threads running
+        (if omitted, the default limiter is used)
     :return: an awaitable that yields the return value of the function.
 
     """
-    return _get_asynclib().run_in_thread(func, *args)
+    return _get_asynclib().run_in_thread(func, *args, limiter=limiter)
 
 
 def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args) -> T_Retval:

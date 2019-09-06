@@ -152,21 +152,25 @@ abc.TaskGroup.register(TaskGroup)
 #
 
 if run_async_from_thread:
-    async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
+    async def run_in_thread(func: Callable[..., T_Retval], *args,
+                            limiter: Optional['CapacityLimiter'] = None) -> T_Retval:
         def wrapper():
             with claim_worker_thread('trio'):
                 return func(*args)
 
-        return await run_sync(wrapper)
+        trio_limiter = getattr(limiter, '_limiter', None)
+        return await run_sync(wrapper, limiter=trio_limiter)
 else:
-    async def run_in_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
+    async def run_in_thread(func: Callable[..., T_Retval], *args,
+                            limiter: Optional['CapacityLimiter'] = None) -> T_Retval:
         def wrapper():
             with claim_worker_thread('trio'):
                 _local.portal = portal
                 return func(*args)
 
         portal = trio.BlockingTrioPortal()
-        return await run_sync(wrapper)
+        trio_limiter = getattr(limiter, '_limiter', None)
+        return await run_sync(wrapper, limiter=trio_limiter)
 
     def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
         return _local.portal.run(func, *args)
