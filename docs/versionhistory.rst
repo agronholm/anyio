@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**1.1.0**
 
 - Added the ``lock`` parameter to ``anyio.create_condition()`` (PR by Matthias Urlichs)
 - Added async iteration for queues (PR by Matthias Urlichs)
