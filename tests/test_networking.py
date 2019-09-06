@@ -304,7 +304,7 @@ class TestTLSStream:
         return client_context
 
     @pytest.mark.anyio
-    async def test_handshake_on_connect(self, localhost, server_context, client_context):
+    async def test_handshake_on_connect(self, server_context, client_context):
         async def server():
             nonlocal server_binding
             async with await stream_server.accept() as stream:
@@ -319,8 +319,7 @@ class TestTLSStream:
 
         server_binding = None
         async with create_task_group() as tg:
-            async with await create_tcp_server(
-                    interface=localhost, ssl_context=server_context) as stream_server:
+            async with await create_tcp_server(ssl_context=server_context) as stream_server:
                 await tg.spawn(server)
                 async with await connect_tcp(
                         'localhost', stream_server.port, ssl_context=client_context,
@@ -340,15 +339,14 @@ class TestTLSStream:
 
     @pytest.mark.skipif(not ssl.HAS_ALPN, reason='ALPN support not available')
     @pytest.mark.anyio
-    async def test_alpn_negotiation(self, localhost, server_context, client_context):
+    async def test_alpn_negotiation(self, server_context, client_context):
         async def server():
             async with await stream_server.accept() as stream:
                 assert stream.alpn_protocol == 'dummy2'
 
         client_context.set_alpn_protocols(['dummy1', 'dummy2'])
         server_context.set_alpn_protocols(['dummy2', 'dummy3'])
-        async with await create_tcp_server(interface=localhost,
-                                           ssl_context=server_context) as stream_server:
+        async with await create_tcp_server(ssl_context=server_context) as stream_server:
             async with create_task_group() as tg:
                 await tg.spawn(server)
                 async with await connect_tcp(
@@ -357,7 +355,7 @@ class TestTLSStream:
                     assert client.alpn_protocol == 'dummy2'
 
     @pytest.mark.anyio
-    async def test_manual_handshake(self, localhost, server_context, client_context):
+    async def test_manual_handshake(self, server_context, client_context):
         async def server():
             async with await stream_server.accept() as stream:
                 assert stream.tls_version is None
@@ -370,7 +368,7 @@ class TestTLSStream:
                     elif command == b'CLOSE':
                         break
 
-        async with await create_tcp_server(interface=localhost, ssl_context=server_context,
+        async with await create_tcp_server(ssl_context=server_context,
                                            autostart_tls=False) as stream_server:
             async with create_task_group() as tg:
                 await tg.spawn(server)
@@ -385,7 +383,7 @@ class TestTLSStream:
                     await client.send_all(b'CLOSE')  # arbitrary string
 
     @pytest.mark.anyio
-    async def test_buffer(self, localhost, server_context, client_context):
+    async def test_buffer(self, server_context, client_context):
         async def server():
             async with await stream_server.accept() as stream:
                 chunks.append(await stream.receive_until(b'\n', 10))
@@ -393,8 +391,7 @@ class TestTLSStream:
                 chunks.append(await stream.receive_exactly(2))
 
         chunks = []
-        async with await create_tcp_server(interface=localhost,
-                                           ssl_context=server_context) as stream_server:
+        async with await create_tcp_server(ssl_context=server_context) as stream_server:
             async with create_task_group() as tg:
                 await tg.spawn(server)
                 async with await connect_tcp(
@@ -411,7 +408,7 @@ class TestTLSStream:
         (False, False, IncompleteRead)
     ], ids=['both_standard', 'server_standard', 'client_standard', 'neither_standard'])
     @pytest.mark.anyio
-    async def test_ragged_eofs(self, localhost, server_context, client_context, server_compatible,
+    async def test_ragged_eofs(self, server_context, client_context, server_compatible,
                                client_compatible, exc_class):
         async def server():
             async with await stream_server.accept() as stream:
@@ -421,7 +418,7 @@ class TestTLSStream:
 
         chunks = []
         async with await create_tcp_server(
-                interface=localhost, ssl_context=server_context,
+                ssl_context=server_context,
                 tls_standard_compatible=server_compatible) as stream_server:
             async with create_task_group() as tg:
                 await tg.spawn(server)
