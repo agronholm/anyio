@@ -53,9 +53,7 @@ stages:
     - script: pip install .[test,curio,trio]
       displayName: Install dependencies
 
-    - script: |
-        coverage run -m pytest --junit-xml=junit.xml
-        coverage xml
+    - script: coverage run -m pytest --junit-xml=junit.xml
       displayName: Run pytest
 
     - task: PublishTestResults@2
@@ -63,6 +61,9 @@ stages:
       condition: succeededOrFailed()
       inputs:
         testResultsFiles: '$(System.DefaultWorkingDirectory)/junit.xml'
+
+    - script: coverage xml
+      displayName: Generate coverage report
 
     - task: PublishCodeCoverageResults@1
       inputs:
