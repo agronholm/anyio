@@ -469,7 +469,9 @@ async def run_in_thread(func: Callable[..., T_Retval], *args,
         queue = asyncio.Queue(1)  # type: asyncio.Queue[_Retval_Queue_Type]
         thread = Thread(target=thread_worker)
         thread.start()
-        retval, exception = await queue.get()
+        async with CancelScope(shield=True):
+            retval, exception = await queue.get()
+
         if exception is not None:
             raise exception
         else:

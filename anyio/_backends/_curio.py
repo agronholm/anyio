@@ -335,7 +335,8 @@ async def run_in_thread(func: Callable[..., T_Retval], *args,
     async with (limiter or _default_thread_limiter):
         thread = await curio.spawn_thread(thread_worker)
         try:
-            return await thread.join()
+            async with CancelScope(shield=True):
+                return await thread.join()
         except curio.TaskError as exc:
             raise exc.__cause__ from None
 

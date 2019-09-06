@@ -1,9 +1,11 @@
 import threading
+import time
 
 import pytest
 
 from anyio import (
-    run_async_from_thread, run_in_thread, create_task_group, sleep, create_capacity_limiter)
+    run_async_from_thread, run_in_thread, create_task_group, sleep, create_capacity_limiter,
+    create_event)
 
 
 @pytest.mark.anyio
@@ -95,3 +97,36 @@ def test_run_async_from_unclaimed_thread():
 
     exc = pytest.raises(RuntimeError, run_async_from_thread, foo)
     exc.match('This function can only be run from an AnyIO worker thread')
+
+
+@pytest.mark.anyio
+async def test_cancel_worker_thread():
+    """
+    Test that when a task running a worker thread is cancelled, the cancellation is not acted on
+    until the thread finishes.
+
+    """
+    def thread_worker():
+        nonlocal last_active
+        run_async_from_thread(sleep_event.set)
+        time.sleep(0.2)
+        last_active = 'thread'
+        run_async_from_thread(finish_event.set)
+
+    async def task_worker():
+        nonlocal last_active
+        try:
+            await run_in_thread(thread_worker)
+        finally:
+            last_active = 'task'
+
+    sleep_event = create_event()
+    finish_event = create_event()
+    last_active = None
+    async with create_task_group() as tg:
+        await tg.spawn(task_worker)
+        await sleep_event.wait()
+        await tg.cancel_scope.cancel()
+
+    await finish_event.wait()
+    assert last_active == 'task'

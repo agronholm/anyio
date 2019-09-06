@@ -11,6 +11,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added the possibility of using capacity limiters for limiting the maximum number of threads
 - Fixed compatibility with trio v0.12
 - Fixed IPv6 support in ``create_tcp_server()``, ``connect_tcp()`` and ``create_udp_socket()``
+- Fixed mishandling of task cancellation while the task is running a worker thread on asyncio and
+  curio
 
 **1.0.0**
 
