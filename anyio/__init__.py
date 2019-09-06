@@ -17,6 +17,7 @@ from .abc import (  # noqa: F401
 from . import _networking
 
 BACKENDS = 'asyncio', 'curio', 'trio'
+IPPROTO_IPV6 = getattr(socket, 'IPPROTO_IPV6', 41)  # https://bugs.python.org/issue29515
 
 T_Retval = TypeVar('T_Retval', covariant=True)
 T_Agen = TypeVar('T_Agen')
@@ -366,8 +367,10 @@ async def create_tcp_server(
     """
     interface, family, v6only = await _networking.get_bind_address(interface)
     raw_socket = socket.socket(family)
-    if v6only:
-        raw_socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, True)
+
+    # Enable/disable dual stack operation as needed
+    if family == socket.AF_INET6:
+        raw_socket.setsockopt(IPPROTO_IPV6, socket.IPV6_V6ONLY, v6only)
 
     sock = _get_asynclib().Socket(raw_socket)
     try:
