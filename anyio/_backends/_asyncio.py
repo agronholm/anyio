@@ -683,9 +683,9 @@ class Event(asyncio.Event):
 
 
 class Semaphore(asyncio.Semaphore):
-    def __aenter__(self):
+    async def __aenter__(self):
         check_cancelled()
-        return super().__aenter__()
+        return await super().__aenter__()
 
     @property
     def value(self):
