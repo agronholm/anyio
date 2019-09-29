@@ -227,8 +227,14 @@ class CancelScope:
             self._timeout_task.cancel()
 
         host_task = current_task()
-        self._tasks.remove(host_task)
-        _task_states[host_task].cancel_scope = self._parent_scope
+        if host_task not in self._tasks:
+            # `__aexit__()` was called from a different host task than `__aenter__()`.
+            # As a result, this particular `host_task` has never been registered,
+            # so we don't need to clean it up.
+            pass
+        else:
+            self._tasks.remove(host_task)
+            _task_states[host_task].cancel_scope = self._parent_scope
 
         exceptions = exc_val.exceptions if isinstance(exc_val, ExceptionGroup) else [exc_val]
         if all(isinstance(exc, CancelledError) for exc in exceptions):
@@ -400,7 +406,10 @@ class TaskGroup:
                 self._exceptions.append(exc_val)
 
         while self.cancel_scope._tasks:
-            await asyncio.wait(self.cancel_scope._tasks)
+            done, pending = await asyncio.wait(self.cancel_scope._tasks)
+            for task in done:
+                if task in self.cancel_scope._tasks:
+                    self.cancel_scope._tasks.remove(task)
 
         self._active = False
         if not self.cancel_scope._parent_cancelled():

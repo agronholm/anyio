@@ -1,3 +1,5 @@
+import sys
+
 import curio
 import pytest
 import trio
@@ -466,3 +468,29 @@ async def test_nested_shield():
                     await tg.spawn(killer, scope)
                     async with fail_after(0.2):
                         await sleep(2)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="Requires Python 3.6 or higher.")
+def test_asyncio_enter_exit_different_tasks():
+    """Regression test for: https://github.com/agronholm/anyio/issues/74."""
+    import asyncio
+
+    # Don't instanciate here or it will try to sniff the async library.
+    task_group = None
+
+    async def setup():
+        nonlocal task_group
+        task_group = create_task_group()
+        await task_group.__aenter__()
+
+    async def teardown():
+        assert task_group is not None
+        await task_group.__aexit__(None, None, None)
+
+    # Run `.run_until_complete()` twice (enter then exit) on the same loop.
+    # This is what pytest-asyncio does to setup and teardown async fixtures,
+    # and what initially prompted a bug fix.
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(setup())
+    loop.run_until_complete(teardown())
