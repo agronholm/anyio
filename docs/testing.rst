@@ -62,3 +62,13 @@ For example, to run your test suite against the curio and trio backends:
 .. code-block:: bash
 
     pytest --anyio-backends=curio,trio
+
+Using AnyIO from regular tests
+------------------------------
+
+In rare cases, you may need to have tests that run against whatever backends you have chosen to
+work with. For this, you can add the ``anyio_backend`` parameter to your test. It will be filled
+in with the name of each of the selected backends in turn::
+
+    def test_something(anyio_backend):
+        assert anyio_backend in ('asyncio', 'curio', 'trio')
