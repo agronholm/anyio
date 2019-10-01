@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Added the possibility to parametrize regular pytest test functions against the selected list of
+  backends
+
 **1.1.0**
 
 - Added the ``lock`` parameter to ``anyio.create_condition()`` (PR by Matthias Urlichs)
