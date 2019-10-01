@@ -12,9 +12,9 @@ import curio.ssl
 import curio.traps
 from async_generator import async_generator, asynccontextmanager, yield_
 
-from .._networking import BaseSocket
 from .. import abc, T_Retval, claim_worker_thread, TaskInfo
 from ..exceptions import ExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock
+from .._networking import BaseSocket
 
 
 #
@@ -58,7 +58,7 @@ CancelledError = curio.TaskCancelled
 
 class CancelScope:
     __slots__ = ('_deadline', '_shield', '_parent_scope', '_cancel_called', '_active',
-                 '_timeout_task', '_tasks', '_timeout_expired')
+                 '_timeout_task', '_tasks', '_host_task', '_timeout_expired')
 
     def __init__(self, deadline: float = math.inf, shield: bool = False):
         self._deadline = deadline
@@ -68,6 +68,7 @@ class CancelScope:
         self._active = False
         self._timeout_task = None
         self._tasks = set()  # type: Set[curio.Task]
+        self._host_task = None  # type: Optional[curio.Task]
         self._timeout_expired = False
 
     async def __aenter__(self):
@@ -81,13 +82,13 @@ class CancelScope:
                 "Each CancelScope may only be used for a single 'async with' block"
             )
 
-        host_task = await curio.current_task()
-        self._tasks.add(host_task)
+        self._host_task = await curio.current_task()
+        self._tasks.add(self._host_task)
         try:
-            task_state = _task_states[host_task]
+            task_state = _task_states[self._host_task]
         except KeyError:
             task_state = TaskState(self)
-            _task_states[host_task] = task_state
+            _task_states[self._host_task] = task_state
         else:
             self._parent_scope = task_state.cancel_scope
             task_state.cancel_scope = self
@@ -105,9 +106,10 @@ class CancelScope:
         if self._timeout_task:
             await self._timeout_task.cancel(blocking=False)
 
-        host_task = await curio.current_task()
-        self._tasks.remove(host_task)
-        _task_states[host_task].cancel_scope = self._parent_scope
+        self._tasks.discard(self._host_task)
+        host_task_state = _task_states.get(self._host_task)
+        if host_task_state is not None and host_task_state.cancel_scope is self:
+            host_task_state.cancel_scope = self._parent_scope
 
         exceptions = exc_val.exceptions if isinstance(exc_val, ExceptionGroup) else [exc_val]
         if all(isinstance(exc, CancelledError) for exc in exceptions):

@@ -15,9 +15,9 @@ from weakref import WeakKeyDictionary
 
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
 
-from .._networking import BaseSocket
 from .. import abc, claim_worker_thread, _local, T_Retval, TaskInfo
 from ..exceptions import ExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock
+from .._networking import BaseSocket
 
 try:
     from asyncio import run as native_run, create_task, get_running_loop, current_task, all_tasks
@@ -150,7 +150,9 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False, use_uvloop: b
         asyncio.set_event_loop_policy(policy)
 
     exception = retval = None
-    native_run(wrapper(), debug=debug)
+    loop = asyncio.get_event_loop()
+    loop.set_debug(debug)
+    loop.run_until_complete(wrapper())
     if exception is not None:
         raise exception
     else:
@@ -178,7 +180,7 @@ CancelledError = asyncio.CancelledError
 
 class CancelScope:
     __slots__ = ('_deadline', '_shield', '_parent_scope', '_cancel_called', '_active',
-                 '_timeout_task', '_tasks', '_timeout_expired')
+                 '_timeout_task', '_tasks', '_host_task', '_timeout_expired')
 
     def __init__(self, deadline: float = math.inf, shield: bool = False):
         self._deadline = deadline
@@ -188,6 +190,7 @@ class CancelScope:
         self._active = False
         self._timeout_task = None
         self._tasks = set()  # type: Set[asyncio.Task]
+        self._host_task = None  # type: Optional[asyncio.Task]
         self._timeout_expired = False
 
     async def __aenter__(self):
@@ -201,14 +204,14 @@ class CancelScope:
                 "Each CancelScope may only be used for a single 'async with' block"
             )
 
-        host_task = current_task()
-        self._tasks.add(host_task)
+        self._host_task = current_task()
+        self._tasks.add(self._host_task)
         try:
-            task_state = _task_states[host_task]
+            task_state = _task_states[self._host_task]
         except KeyError:
-            task_name = host_task.get_name() if _native_task_names else None
+            task_name = self._host_task.get_name() if _native_task_names else None
             task_state = TaskState(None, task_name, self)
-            _task_states[host_task] = task_state
+            _task_states[self._host_task] = task_state
         else:
             self._parent_scope = task_state.cancel_scope
             task_state.cancel_scope = self
@@ -226,9 +229,10 @@ class CancelScope:
         if self._timeout_task:
             self._timeout_task.cancel()
 
-        host_task = current_task()
-        self._tasks.remove(host_task)
-        _task_states[host_task].cancel_scope = self._parent_scope
+        self._tasks.remove(self._host_task)
+        host_task_state = _task_states.get(self._host_task)
+        if host_task_state is not None and host_task_state.cancel_scope is self:
+            host_task_state.cancel_scope = self._parent_scope
 
         exceptions = exc_val.exceptions if isinstance(exc_val, ExceptionGroup) else [exc_val]
         if all(isinstance(exc, CancelledError) for exc in exceptions):
@@ -400,6 +404,7 @@ class TaskGroup:
                 self._exceptions.append(exc_val)
 
         while self.cancel_scope._tasks:
+            print('waiting for %d tasks' % len(self.cancel_scope._tasks))
             await asyncio.wait(self.cancel_scope._tasks)
 
         self._active = False

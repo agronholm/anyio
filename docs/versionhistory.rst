@@ -7,6 +7,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added the possibility to parametrize regular pytest test functions against the selected list of
   backends
+- Fixed ``KeyError`` on asyncio and curio where entering and exiting a cancel scope happens in
+  different tasks
 
 **1.1.0**
 
