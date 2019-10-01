@@ -1,7 +1,9 @@
 import curio
 import pytest
 import trio
+from async_generator import async_generator, yield_
 
+import anyio
 from anyio import (
     create_task_group, sleep, move_on_after, fail_after, open_cancel_scope, wait_all_tasks_blocked,
     current_effective_deadline, current_time, get_cancelled_exc_class)
@@ -466,3 +468,14 @@ async def test_nested_shield():
                     await tg.spawn(killer, scope)
                     async with fail_after(0.2):
                         await sleep(2)
+
+
+def test_task_group_in_generator(anyio_backend):
+    @async_generator
+    async def task_group_generator():
+        async with create_task_group():
+            await yield_()
+
+    gen = task_group_generator()
+    anyio.run(gen.__anext__, backend=anyio_backend)
+    pytest.raises(StopAsyncIteration, anyio.run, gen.__anext__, backend=anyio_backend)
