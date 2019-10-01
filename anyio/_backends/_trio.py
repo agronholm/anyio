@@ -2,24 +2,13 @@ from typing import Callable, Optional, List
 
 import trio.hazmat
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
+from trio.to_thread import run_sync
+from trio.from_thread import run as run_async_from_thread
+from trio.hazmat import wait_readable, wait_writable, notify_closing
 
-from .._networking import BaseSocket
 from .. import abc, claim_worker_thread, T_Retval, _local, TaskInfo
 from ..exceptions import ExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock
-
-try:
-    # Trio >= 0.12
-    from trio.to_thread import run_sync
-    from trio.from_thread import run as run_async_from_thread
-    from trio.hazmat import wait_readable, wait_writable, notify_closing
-except ImportError:
-    # Trio < 0.12
-    from trio import run_sync_in_worker_thread as run_sync
-    from trio.hazmat import (
-        wait_socket_readable as wait_readable, wait_socket_writable as wait_writable,
-        notify_socket_close as notify_closing
-    )
-    run_async_from_thread = None
+from .._networking import BaseSocket
 
 #
 # Event loop
