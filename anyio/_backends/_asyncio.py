@@ -404,7 +404,6 @@ class TaskGroup:
                 self._exceptions.append(exc_val)
 
         while self.cancel_scope._tasks:
-            print('waiting for %d tasks' % len(self.cancel_scope._tasks))
             await asyncio.wait(self.cancel_scope._tasks)
 
         self._active = False
