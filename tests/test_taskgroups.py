@@ -1,3 +1,5 @@
+import asyncio
+
 import curio
 import pytest
 import trio
@@ -7,7 +9,6 @@ import anyio
 from anyio import (
     create_task_group, sleep, move_on_after, fail_after, open_cancel_scope, wait_all_tasks_blocked,
     current_effective_deadline, current_time, get_cancelled_exc_class)
-from anyio._backends import _asyncio
 from anyio.exceptions import ExceptionGroup
 
 
@@ -43,20 +44,22 @@ async def test_success():
     assert results == {'a', 'b'}
 
 
-@pytest.mark.parametrize('run_func, as_coro_obj', [
-    (_asyncio.native_run, True),
-    (curio.run, False),
-    (trio.run, False)
+@pytest.mark.parametrize('module, as_coro_obj', [
+    pytest.param(asyncio, True, marks=[
+        pytest.mark.skipif(not hasattr(asyncio, 'run'), reason='asyncio.run() is not available')]
+    ),
+    (curio, False),
+    (trio, False)
 ], ids=['asyncio', 'curio', 'trio'])
-def test_run_natively(run_func, as_coro_obj):
+def test_run_natively(module, as_coro_obj):
     async def testfunc():
         async with create_task_group() as tg:
             await tg.spawn(sleep, 0)
 
     if as_coro_obj:
-        run_func(testfunc())
+        module.run(testfunc())
     else:
-        run_func(testfunc)
+        module.run(testfunc)
 
 
 @pytest.mark.anyio
