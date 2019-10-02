@@ -149,6 +149,10 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False, use_uvloop: b
     if policy is not None:
         asyncio.set_event_loop_policy(policy)
 
+    # We use loop.run_until_complete() instead of asyncio.run() because the latter cancels all
+    # tasks and shuts down all async generators, making it unsuitable for things like pytest
+    # fixtures which require one run() call for setup, one for the actual test and one for
+    # teardown.
     exception = retval = None
     loop = asyncio.get_event_loop()
     loop.set_debug(debug)
