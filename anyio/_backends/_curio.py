@@ -106,7 +106,7 @@ class CancelScope:
         if self._timeout_task:
             await self._timeout_task.cancel(blocking=False)
 
-        self._tasks.discard(self._host_task)
+        self._tasks.remove(self._host_task)
         host_task_state = _task_states.get(self._host_task)
         if host_task_state is not None and host_task_state.cancel_scope is self:
             host_task_state.cancel_scope = self._parent_scope
