@@ -10,6 +10,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``KeyError`` on asyncio and curio where entering and exiting a cancel scope happens in
   different tasks
 - Fixed deprecation warnings on Python 3.8 about the ``loop`` argument of ``asyncio.Event()``
+- Forced the use ``WindowsSelectorEventLoopPolicy`` in ``asyncio.run`` when on Windows and asyncio
+  to keep network functionality working
 - Dropped support for trio v0.11
 
 **1.1.0**

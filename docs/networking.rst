@@ -13,6 +13,12 @@ Currently AnyIO offers the following networking functionality:
 
 More exotic forms of networking such as raw sockets and SCTP are currently not supported.
 
+.. warning:: With the combination of Windows, Python 3.8 and asyncio, AnyIO currently requires the
+    use of :class:`asyncio.SelectorEventLoop`. The appropriate event loop policy is automatically
+    set when calling :func:`anyio.run()`, but applications using AnyIO network functionality
+    directly without explicitly switching to the selector event loop policy will fail. This
+    limitation is expected to be lifted in the 2.0 release.
+
 Working with TCP sockets
 ------------------------
 
