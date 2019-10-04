@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from importlib import import_module
 from ipaddress import ip_address, IPv6Address
 from ssl import SSLContext
-from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any, Dict, List
+from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any, Dict, List, Tuple
 
 import sniffio
 
@@ -350,7 +350,7 @@ async def connect_tcp(
         # Organize the list so that the first address is an IPv6 address (if available) and the
         # second one is an IPv4 addresses. The rest can be in whatever order.
         v6_found = v4_found = False
-        target_addrs = []
+        target_addrs = []  # type: List[Tuple[socket.AddressFamily, str]]
         for af, *rest, sa in resolved:
             if af == socket.AF_INET6 and not v6_found:
                 v6_found = True
