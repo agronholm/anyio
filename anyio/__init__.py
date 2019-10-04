@@ -285,7 +285,7 @@ async def connect_tcp(
 
     This function implements the stateless version of the Happy Eyeballs algorithm (RFC 6555).
     If ``address`` is a host name that resolves to multiple IP addresses, each one is tried until
-    one connection attempt succeeds. If the first attempt does not connected within 300
+    one connection attempt succeeds. If the first attempt does not connected within 250
     milliseconds, a second attempt is started using the next address in the list, and so on.
     For IPv6 enabled systems, IPv6 addresses are tried first.
 
