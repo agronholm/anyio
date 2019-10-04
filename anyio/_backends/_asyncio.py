@@ -77,7 +77,7 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False, use_uvloop: b
             policy = uvloop.EventLoopPolicy()
 
     # Must be explicitly set on Python 3.8 for now or wait_socket_(readable|writable) won't work
-    if policy is None and sys.platform == 'win32':
+    if policy is None and sys.platform == 'win32' and sys.version_info >= (3, 8):
         policy = asyncio.WindowsSelectorEventLoopPolicy()  # type: ignore
 
     if policy is not None:
