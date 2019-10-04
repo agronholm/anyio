@@ -6,6 +6,7 @@ import threading
 import typing
 from contextlib import contextmanager
 from importlib import import_module
+from ipaddress import ip_address, IPv6Address
 from ssl import SSLContext
 from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any, Dict, List
 
@@ -330,7 +331,7 @@ async def connect_tcp(
             raise
 
         assert stream is None
-        stream = _networking.SocketStream(sock, ssl_context, str(address), tls_standard_compatible)
+        stream = _networking.SocketStream(sock, ssl_context, target_host, tls_standard_compatible)
         await tg.cancel_scope.cancel()
 
     asynclib = _get_asynclib()
@@ -338,13 +339,22 @@ async def connect_tcp(
     if bind_host:
         interface, family, _v6only = await _networking.get_bind_address(bind_host)
 
-    # getaddrinfo() will raise an exception if name resolution fails
-    addrlist = await run_in_thread(socket.getaddrinfo, str(address), port, family,
-                                   socket.SOCK_STREAM)
+    target_host = str(address)
+    try:
+        addr_obj = ip_address(address)
+    except ValueError:
+        # getaddrinfo() will raise an exception if name resolution fails
+        resolved = await run_in_thread(socket.getaddrinfo, target_host, port, family,
+                                       socket.SOCK_STREAM)
 
-    # Sort the list so that IPv4 addresses are tried last
-    addresses = sorted(((item[0], item[-1][0]) for item in addrlist),
-                       key=lambda item: item[0] == socket.AF_INET)
+        # Sort the list so that IPv4 addresses are tried last
+        addresses = sorted(((item[0], item[-1][0]) for item in resolved),
+                           key=lambda item: item[0] == socket.AF_INET)
+    else:
+        if isinstance(addr_obj, IPv6Address):
+            addresses = [(socket.AF_INET6, addr_obj.compressed)]
+        else:
+            addresses = [(socket.AF_INET, addr_obj.compressed)]
 
     oserrors = []  # type: List[OSError]
     async with create_task_group() as tg:

@@ -18,6 +18,14 @@ def localhost():
     return '::1' if socket.has_ipv6 else '127.0.0.1'
 
 
+@pytest.fixture
+def fake_localhost_dns(monkeypatch):
+    # Make it return IPv4 addresses first so we can test the IPv6 preference
+    fake_results = [(socket.AF_INET, socket.SOCK_STREAM, '', ('127.0.0.1', 0)),
+                    (socket.AF_INET6, socket.SOCK_STREAM, '', ('::1', 0))]
+    monkeypatch.setattr('socket.getaddrinfo', lambda *args: fake_results)
+
+
 class TestTCPStream:
     @pytest.mark.anyio
     async def test_receive_some(self, localhost):
@@ -270,7 +278,7 @@ class TestTCPStream:
         ('::1', b'::1')
     ])
     @pytest.mark.anyio
-    async def test_happy_eyeballs(self, interface, expected_addr, monkeypatch):
+    async def test_happy_eyeballs(self, interface, expected_addr, fake_localhost_dns):
         async def handle_client(stream):
             addr, port, *rest = stream._socket._raw_socket.getpeername()
             await stream.send_all(addr.encode() + b'\n')
@@ -278,11 +286,6 @@ class TestTCPStream:
         async def server():
             async for stream in stream_server.accept_connections():
                 await tg.spawn(handle_client, stream)
-
-        # Fake getaddrinfo() to return IPv4 addresses first so we can test the IPv6 preference
-        fake_results = [(socket.AF_INET, socket.SOCK_STREAM, '', ('127.0.0.1', 0)),
-                        (socket.AF_INET6, socket.SOCK_STREAM, '', ('::1', 0))]
-        monkeypatch.setattr('socket.getaddrinfo', lambda *args: fake_results)
 
         async with await create_tcp_server(interface=interface) as stream_server:
             async with create_task_group() as tg:
@@ -292,13 +295,15 @@ class TestTCPStream:
 
                 await stream_server.close()
 
-    @pytest.mark.skipif(not socket.has_ipv6, reason='IPv6 is not available')
     @pytest.mark.parametrize('target, exception_class', [
-        ('localhost', ExceptionGroup),
+        pytest.param(
+            'localhost', ExceptionGroup,
+            marks=[pytest.mark.skipif(not socket.has_ipv6, reason='IPv6 is not available')]
+        ),
         ('127.0.0.1', ConnectionRefusedError)
-    ])
+    ], ids=['multi', 'single'])
     @pytest.mark.anyio
-    async def test_connrefused(self, target, exception_class):
+    async def test_connrefused(self, target, exception_class, fake_localhost_dns):
         dummy_socket = socket.socket(socket.AF_INET6)
         dummy_socket.bind(('::', 0))
         free_port = dummy_socket.getsockname()[1]
