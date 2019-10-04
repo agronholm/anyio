@@ -308,12 +308,8 @@ async def connect_tcp(
     # Placed here due to https://github.com/python/mypy/issues/7057
     stream = None  # type: Optional[SocketStream]
 
-    async def try_connect(af: int, addr: str, delay: float):
+    async def try_connect(af: int, addr: str, event: Event):
         nonlocal stream
-
-        if delay:
-            await sleep(delay)
-
         raw_socket = socket.socket(af, socket.SOCK_STREAM)
         sock = asynclib.Socket(raw_socket)
         try:
@@ -329,10 +325,12 @@ async def connect_tcp(
         except BaseException:
             await sock.close()
             raise
-
-        assert stream is None
-        stream = _networking.SocketStream(sock, ssl_context, target_host, tls_standard_compatible)
-        await tg.cancel_scope.cancel()
+        else:
+            assert stream is None
+            stream = _networking.SocketStream(sock, ssl_context, target_host,
+                                              tls_standard_compatible)
+        finally:
+            await event.set()
 
     asynclib = _get_asynclib()
     interface, family = None, 0  # type: Optional[str], int
@@ -369,7 +367,14 @@ async def connect_tcp(
     oserrors = []  # type: List[OSError]
     async with create_task_group() as tg:
         for i, (af, addr) in enumerate(target_addrs):
-            await tg.spawn(try_connect, af, addr, i * happy_eyeballs_delay)
+            event = create_event()
+            await tg.spawn(try_connect, af, addr, event)
+            async with move_on_after(happy_eyeballs_delay):
+                await event.wait()
+
+            if stream is not None:
+                await tg.cancel_scope.cancel()
+                break
 
     if stream is None:
         cause = oserrors[0] if len(oserrors) == 1 else asynclib.ExceptionGroup(oserrors)
