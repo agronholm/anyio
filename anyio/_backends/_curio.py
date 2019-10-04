@@ -13,7 +13,8 @@ import curio.traps
 from async_generator import async_generator, asynccontextmanager, yield_
 
 from .. import abc, T_Retval, claim_worker_thread, TaskInfo
-from ..exceptions import ExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock
+from ..exceptions import (
+    ExceptionGroup as BaseExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock)
 from .._networking import BaseSocket
 
 
@@ -251,7 +252,7 @@ _task_states = WeakKeyDictionary()  # type: WeakKeyDictionary[curio.Task, TaskSt
 # Task groups
 #
 
-class CurioExceptionGroup(ExceptionGroup):
+class ExceptionGroup(BaseExceptionGroup):
     def __init__(self, exceptions: Sequence[BaseException]):
         super().__init__()
         self.exceptions = exceptions
@@ -288,7 +289,7 @@ class TaskGroup:
             exceptions = self._exceptions
 
         if len(exceptions) > 1:
-            raise CurioExceptionGroup(exceptions)
+            raise ExceptionGroup(exceptions)
         elif exceptions and exceptions[0] is not exc_val:
             raise exceptions[0]
 
