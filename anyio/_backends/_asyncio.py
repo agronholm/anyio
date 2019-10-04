@@ -507,8 +507,8 @@ class Socket(BaseSocket):
     def __init__(self, raw_socket: socket.SocketType) -> None:
         super().__init__(raw_socket)
         self._loop = get_running_loop()
-        self._read_event = asyncio.Event(loop=self._loop)
-        self._write_event = asyncio.Event(loop=self._loop)
+        self._read_event = asyncio.Event()
+        self._write_event = asyncio.Event()
 
     def _wait_readable(self):
         return wait_socket_readable(self._raw_socket)
@@ -532,8 +532,8 @@ async def wait_socket_readable(sock: socket.SocketType) -> None:
         raise ResourceBusyError('reading from') from None
 
     loop = get_running_loop()
-    event = _read_events[sock] = asyncio.Event(loop=loop)
-    loop.add_reader(sock, event.set)
+    event = _read_events[sock] = asyncio.Event()
+    get_running_loop().add_reader(sock, event.set)
     try:
         await event.wait()
     finally:
@@ -553,7 +553,7 @@ async def wait_socket_writable(sock: socket.SocketType) -> None:
         raise ResourceBusyError('writing to') from None
 
     loop = get_running_loop()
-    event = _write_events[sock] = asyncio.Event(loop=loop)
+    event = _write_events[sock] = asyncio.Event()
     loop.add_writer(sock.fileno(), event.set)
     try:
         await event.wait()
@@ -746,7 +746,7 @@ async def receive_signals(*signals: int):
             await yield_(signum)
 
     loop = get_running_loop()
-    queue = asyncio.Queue(loop=loop)  # type: asyncio.Queue[int]
+    queue = asyncio.Queue()  # type: asyncio.Queue[int]
     handled_signals = set()
     agen = process_signal_queue()
     try:
