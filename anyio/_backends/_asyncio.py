@@ -16,7 +16,8 @@ from weakref import WeakKeyDictionary
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
 
 from .. import abc, claim_worker_thread, _local, T_Retval, TaskInfo
-from ..exceptions import ExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock
+from ..exceptions import (
+    ExceptionGroup as BaseExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock)
 from .._networking import BaseSocket
 
 try:
@@ -315,7 +316,7 @@ _task_states = WeakKeyDictionary()  # type: WeakKeyDictionary[asyncio.Task, Task
 # Task groups
 #
 
-class AsyncioExceptionGroup(ExceptionGroup):
+class ExceptionGroup(BaseExceptionGroup):
     def __init__(self, exceptions: Sequence[BaseException]):
         super().__init__()
         self.exceptions = exceptions
@@ -351,7 +352,7 @@ class TaskGroup:
             exceptions = self._exceptions
 
         if len(exceptions) > 1:
-            raise AsyncioExceptionGroup(exceptions)
+            raise ExceptionGroup(exceptions)
         elif exceptions and exceptions[0] is not exc_val:
             raise exceptions[0]
 

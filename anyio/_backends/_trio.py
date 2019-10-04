@@ -7,7 +7,8 @@ from trio.from_thread import run as run_async_from_thread
 from trio.hazmat import wait_readable, wait_writable, notify_closing
 
 from .. import abc, claim_worker_thread, T_Retval, _local, TaskInfo
-from ..exceptions import ExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock
+from ..exceptions import (
+    ExceptionGroup as BaseExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock)
 from .._networking import BaseSocket
 
 #
@@ -100,7 +101,7 @@ async def current_time():
 # Task groups
 #
 
-class TrioExceptionGroup(ExceptionGroup, trio.MultiError):
+class ExceptionGroup(BaseExceptionGroup, trio.MultiError):
     pass
 
 
@@ -122,7 +123,7 @@ class TaskGroup:
         try:
             return await self._nursery_manager.__aexit__(exc_type, exc_val, exc_tb)
         except trio.MultiError as exc:
-            raise TrioExceptionGroup(exc.exceptions) from None
+            raise ExceptionGroup(exc.exceptions) from None
         finally:
             self._active = False
 
