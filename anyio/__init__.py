@@ -7,7 +7,7 @@ import typing
 from contextlib import contextmanager
 from importlib import import_module
 from ssl import SSLContext
-from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any, Dict
+from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any, Dict, List
 
 import sniffio
 
@@ -276,10 +276,17 @@ def aopen(file: Union[str, 'os.PathLike', int], mode: str = 'r', buffering: int 
 async def connect_tcp(
     address: IPAddressType, port: int, *, ssl_context: Optional[SSLContext] = None,
     autostart_tls: bool = False, bind_host: Optional[IPAddressType] = None,
-    bind_port: Optional[int] = None, tls_standard_compatible: bool = True
+    bind_port: Optional[int] = None, tls_standard_compatible: bool = True,
+    happy_eyeballs_delay: float = 0.25
 ) -> SocketStream:
     """
     Connect to a host using the TCP protocol.
+
+    This function implements the stateless version of the Happy Eyeballs algorithm (RFC 6555).
+    If ``address`` is a host name that resolves to multiple IP addresses, each one is tried until
+    one connection attempt succeeds. If the first attempt does not connected within 300
+    milliseconds, a second attempt is started using the next address in the list, and so on.
+    For IPv6 enabled systems, IPv6 addresses are tried first.
 
     :param address: the IP address or host name to connect to
     :param port: port on the target host to connect to
@@ -292,34 +299,65 @@ async def connect_tcp(
         :exc:`~ssl.SSLEOFError` may be raised during reads from the stream.
         Some protocols, such as HTTP, require this option to be ``False``.
         See :meth:`~ssl.SSLContext.wrap_socket` for details.
+    :param happy_eyeballs_delay: delay (in seconds) before starting the next connection attempt
     :return: a socket stream object
+    :raises OSError: if the connection attempt fails
 
     """
+    # Placed here due to https://github.com/python/mypy/issues/7057
+    stream = None  # type: Optional[SocketStream]
+
+    async def try_connect(af: int, addr: str, delay: float):
+        nonlocal stream
+
+        if delay:
+            await sleep(delay)
+
+        raw_socket = socket.socket(af, socket.SOCK_STREAM)
+        sock = asynclib.Socket(raw_socket)
+        try:
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            if interface is not None and bind_port is not None:
+                await sock.bind((interface, bind_port))
+
+            await sock.connect((addr, port))
+        except OSError as exc:
+            oserrors.append(exc)
+            await sock.close()
+            return
+        except BaseException:
+            await sock.close()
+            raise
+
+        assert stream is None
+        stream = _networking.SocketStream(sock, ssl_context, str(address), tls_standard_compatible)
+        await tg.cancel_scope.cancel()
+
+    asynclib = _get_asynclib()
     interface, family = None, 0  # type: Optional[str], int
     if bind_host:
         interface, family, _v6only = await _networking.get_bind_address(bind_host)
 
     # getaddrinfo() will raise an exception if name resolution fails
-    address = str(address)
-    addrlist = await run_in_thread(socket.getaddrinfo, address, port, family, socket.SOCK_STREAM)
-    family, type_, proto, _cn, sa = addrlist[0]
-    raw_socket = socket.socket(family, type_, proto)
-    sock = _get_asynclib().Socket(raw_socket)
-    try:
-        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        if interface is not None and bind_port is not None:
-            await sock.bind((interface, bind_port))
+    addrlist = await run_in_thread(socket.getaddrinfo, str(address), port, family,
+                                   socket.SOCK_STREAM)
 
-        await sock.connect(sa)
-        stream = _networking.SocketStream(sock, ssl_context, address, tls_standard_compatible)
+    # Sort the list so that IPv4 addresses are tried last
+    addresses = sorted(((item[0], item[-1][0]) for item in addrlist),
+                       key=lambda item: item[0] == socket.AF_INET)
 
-        if autostart_tls:
-            await stream.start_tls()
+    oserrors = []  # type: List[OSError]
+    async with create_task_group() as tg:
+        for i, (af, addr) in enumerate(addresses):
+            await tg.spawn(try_connect, af, addr, i * happy_eyeballs_delay)
 
-        return stream
-    except BaseException:
-        await sock.close()
-        raise
+    if stream is None:
+        raise OSError('All connection attempts failed') from asynclib.ExceptionGroup(oserrors)
+
+    if autostart_tls:
+        await stream.start_tls()
+
+    return stream
 
 
 async def connect_unix(path: Union[str, 'os.PathLike']) -> SocketStream:
