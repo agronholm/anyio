@@ -293,20 +293,25 @@ class TestTCPStream:
                 await stream_server.close()
 
     @pytest.mark.skipif(not socket.has_ipv6, reason='IPv6 is not available')
+    @pytest.mark.parametrize('target, exception_class', [
+        ('localhost', ExceptionGroup),
+        ('127.0.0.1', ConnectionRefusedError)
+    ])
     @pytest.mark.anyio
-    async def test_happy_eyeballs_connrefused(self):
+    async def test_connrefused(self, target, exception_class):
         dummy_socket = socket.socket(socket.AF_INET6)
         dummy_socket.bind(('::', 0))
         free_port = dummy_socket.getsockname()[1]
         dummy_socket.close()
 
         with pytest.raises(OSError) as exc:
-            await connect_tcp('localhost', free_port)
+            await connect_tcp(target, free_port)
 
         assert exc.match('All connection attempts failed')
-        assert isinstance(exc.value.__cause__, ExceptionGroup)
-        for exc in exc.value.__cause__.exceptions:
-            assert isinstance(exc, ConnectionRefusedError)
+        assert isinstance(exc.value.__cause__, exception_class)
+        if exception_class is ExceptionGroup:
+            for exc in exc.value.__cause__.exceptions:
+                assert isinstance(exc, ConnectionRefusedError)
 
 
 class TestUNIXStream:
