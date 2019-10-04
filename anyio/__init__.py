@@ -347,18 +347,28 @@ async def connect_tcp(
         resolved = await run_in_thread(socket.getaddrinfo, target_host, port, family,
                                        socket.SOCK_STREAM)
 
-        # Sort the list so that IPv4 addresses are tried last
-        addresses = sorted(((item[0], item[-1][0]) for item in resolved),
-                           key=lambda item: item[0] == socket.AF_INET)
+        # Organize the list so that the first address is an IPv6 address (if available) and the
+        # second one is an IPv4 addresses. The rest can be in whatever order.
+        v6_found = v4_found = False
+        target_addrs = []
+        for af, *rest, sa in resolved:
+            if af == socket.AF_INET6 and not v6_found:
+                v6_found = True
+                target_addrs.insert(0, (af, sa[0]))
+            elif af == socket.AF_INET and not v4_found and v6_found:
+                v4_found = True
+                target_addrs.insert(1, (af, sa[0]))
+            else:
+                target_addrs.append((af, sa[0]))
     else:
         if isinstance(addr_obj, IPv6Address):
-            addresses = [(socket.AF_INET6, addr_obj.compressed)]
+            target_addrs = [(socket.AF_INET6, addr_obj.compressed)]
         else:
-            addresses = [(socket.AF_INET, addr_obj.compressed)]
+            target_addrs = [(socket.AF_INET, addr_obj.compressed)]
 
     oserrors = []  # type: List[OSError]
     async with create_task_group() as tg:
-        for i, (af, addr) in enumerate(addresses):
+        for i, (af, addr) in enumerate(target_addrs):
             await tg.spawn(try_connect, af, addr, i * happy_eyeballs_delay)
 
     if stream is None:
