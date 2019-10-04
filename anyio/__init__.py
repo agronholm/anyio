@@ -352,7 +352,8 @@ async def connect_tcp(
             await tg.spawn(try_connect, af, addr, i * happy_eyeballs_delay)
 
     if stream is None:
-        raise OSError('All connection attempts failed') from asynclib.ExceptionGroup(oserrors)
+        cause = oserrors[0] if len(oserrors) == 1 else asynclib.ExceptionGroup(oserrors)
+        raise OSError('All connection attempts failed') from cause
 
     if autostart_tls:
         await stream.start_tls()
