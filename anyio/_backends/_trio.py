@@ -1,4 +1,4 @@
-from typing import Callable, Optional, List
+from typing import Callable, Optional, List, Union
 
 import trio.hazmat
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
@@ -285,8 +285,11 @@ class Queue:
 
 
 class CapacityLimiter(abc.CapacityLimiter):
-    def __init__(self, total_tokens: int):
-        self._limiter = trio.CapacityLimiter(total_tokens)
+    def __init__(self, limiter_or_tokens: Union[float, trio.CapacityLimiter]):
+        if isinstance(limiter_or_tokens, trio.CapacityLimiter):
+            self._limiter = limiter_or_tokens
+        else:
+            self._limiter = trio.CapacityLimiter(limiter_or_tokens)
 
     async def __aenter__(self) -> 'CapacityLimiter':
         await self._limiter.__aenter__()
@@ -330,6 +333,11 @@ class CapacityLimiter(abc.CapacityLimiter):
 
     async def release_on_behalf_of(self, borrower):
         self._limiter.release_on_behalf_of(borrower)
+
+
+def current_default_thread_limiter():
+    native_limiter = trio.to_thread.current_default_thread_limiter()
+    return CapacityLimiter(native_limiter)
 
 
 abc.Lock.register(Lock)

@@ -38,6 +38,7 @@ Threads
 
 .. autofunction:: anyio.run_in_thread
 .. autofunction:: anyio.run_async_from_thread
+.. autofunction:: anyio.current_default_thread_limiter
 
 Async file I/O
 --------------
