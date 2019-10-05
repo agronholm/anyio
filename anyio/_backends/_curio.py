@@ -567,6 +567,10 @@ class CapacityLimiter:
             await event.set()
 
 
+def current_default_thread_limiter():
+    return _default_thread_limiter
+
+
 _default_thread_limiter = CapacityLimiter(40)
 
 abc.Lock.register(Lock)

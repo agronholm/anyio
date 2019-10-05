@@ -247,6 +247,16 @@ def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *a
     return asynclib.run_async_from_thread(func, *args)
 
 
+def current_default_thread_limiter() -> CapacityLimiter:
+    """
+    Return the capacity limiter that is used by default to limit the number of concurrent threads.
+
+    :return: a capacity limiter object
+
+    """
+    return _get_asynclib().current_default_thread_limiter()
+
+
 #
 # Async file I/O
 #
