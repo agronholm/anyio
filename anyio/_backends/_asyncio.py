@@ -653,13 +653,8 @@ class Queue(asyncio.Queue):
 
 
 class CapacityLimiter:
-    def __init__(self, total_tokens: int):
-        if not isinstance(total_tokens, int) and not math.isinf(total_tokens):
-            raise TypeError('total_tokens must be an int or math.inf')
-        if total_tokens < 1:
-            raise ValueError('total_tokens must be >= 1')
-
-        self._total_tokens = total_tokens
+    def __init__(self, total_tokens: float):
+        self._set_total_tokens(total_tokens)
         self._borrowers = set()  # type: Set[Any]
         self._wait_queue = OrderedDict()  # type: Dict[Any, asyncio.Event]
 
@@ -669,9 +664,32 @@ class CapacityLimiter:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.release()
 
+    def _set_total_tokens(self, value: float) -> None:
+        if not isinstance(value, int) and not math.isinf(value):
+            raise TypeError('total_tokens must be an int or math.inf')
+        if value < 1:
+            raise ValueError('total_tokens must be >= 1')
+
+        self._total_tokens = value
+
     @property
     def total_tokens(self) -> float:
         return self._total_tokens
+
+    async def set_total_tokens(self, value: float) -> None:
+        old_value = self._total_tokens
+        self._set_total_tokens(value)
+        events = []
+        for event in self._wait_queue.values():
+            if value <= old_value:
+                break
+
+            if not event.is_set():
+                events.append(event)
+                old_value += 1
+
+        for event in events:
+            event.set()
 
     @property
     def borrowed_tokens(self) -> int:

@@ -144,6 +144,17 @@ class CapacityLimiter(metaclass=ABCMeta):
     def total_tokens(self) -> float:
         """The total number of tokens available for borrowing."""
 
+    @abstractmethod
+    async def set_total_tokens(self, value: float) -> None:
+        """
+        Set the total number of tokens.
+
+        If the total number of tokens is increased, the proportionate number of tasks waiting on
+        this limiter will be granted their tokens.
+
+        :param value: the new total number of tokens (>= 1)
+        """
+
     @property
     @abstractmethod
     def borrowed_tokens(self) -> int:

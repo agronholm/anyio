@@ -299,6 +299,9 @@ class CapacityLimiter(abc.CapacityLimiter):
     def total_tokens(self) -> float:
         return self._limiter.total_tokens
 
+    async def set_total_tokens(self, value: float) -> None:
+        self._limiter.total_tokens = value
+
     @property
     def borrowed_tokens(self) -> int:
         return self._limiter.borrowed_tokens
