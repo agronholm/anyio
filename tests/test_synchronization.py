@@ -272,3 +272,29 @@ class TestCapacityLimiter:
             await limiter.release()
 
         exc.match("this borrower isn't holding any of this CapacityLimiter's tokens")
+
+    @pytest.mark.anyio
+    async def test_increase_tokens(self):
+        async def setter():
+            # Wait until waiter() is inside the limiter block
+            await event1.wait()
+            async with limiter:
+                # This can only happen when total_tokens has been increased
+                await event2.set()
+
+        async def waiter():
+            async with limiter:
+                await event1.set()
+                await event2.wait()
+
+        limiter = create_capacity_limiter(1)
+        event1, event2 = create_event(), create_event()
+        async with create_task_group() as tg:
+            await tg.spawn(setter)
+            await tg.spawn(waiter)
+            await wait_all_tasks_blocked()
+            assert event1.is_set()
+            assert not event2.is_set()
+            await limiter.set_total_tokens(2)
+
+        assert event2.is_set()

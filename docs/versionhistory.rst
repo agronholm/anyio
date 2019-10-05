@@ -7,6 +7,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added the possibility to parametrize regular pytest test functions against the selected list of
   backends
+- Added the ``set_total_tokens()`` method to ``CapacityLimiter``
 - Implemented the Happy Eyeballs (:rfc:`6555`) algorithm for ``anyio.connect_tcp()``
 - Fixed ``KeyError`` on asyncio and curio where entering and exiting a cancel scope happens in
   different tasks

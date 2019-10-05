@@ -186,3 +186,6 @@ Example::
                 await tg.spawn(use_resource, num, limiter)
 
     run(main)
+
+To adjust the number of total tokens, you can use the
+:meth:`~anyio.abc.CapacityLimiter.set_total_tokens` method.
