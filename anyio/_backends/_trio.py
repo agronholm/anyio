@@ -1,12 +1,12 @@
 from typing import Callable, Optional, List, Union
 
 import trio.hazmat
+import trio.from_thread
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
 from trio.to_thread import run_sync
-from trio.from_thread import run as run_async_from_thread
 from trio.hazmat import wait_readable, wait_writable, notify_closing
 
-from .. import abc, claim_worker_thread, T_Retval, _local, TaskInfo
+from .. import abc, claim_worker_thread, T_Retval, TaskInfo
 from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock)
 from .._networking import BaseSocket
@@ -141,29 +141,16 @@ abc.TaskGroup.register(TaskGroup)
 # Threads
 #
 
-if run_async_from_thread:
-    async def run_in_thread(func: Callable[..., T_Retval], *args,
-                            limiter: Optional['CapacityLimiter'] = None) -> T_Retval:
-        def wrapper():
-            with claim_worker_thread('trio'):
-                return func(*args)
+async def run_in_thread(func: Callable[..., T_Retval], *args,
+                        limiter: Optional['CapacityLimiter'] = None) -> T_Retval:
+    def wrapper():
+        with claim_worker_thread('trio'):
+            return func(*args)
 
-        trio_limiter = getattr(limiter, '_limiter', None)
-        return await run_sync(wrapper, limiter=trio_limiter)
-else:
-    async def run_in_thread(func: Callable[..., T_Retval], *args,
-                            limiter: Optional['CapacityLimiter'] = None) -> T_Retval:
-        def wrapper():
-            with claim_worker_thread('trio'):
-                _local.portal = portal
-                return func(*args)
+    trio_limiter = getattr(limiter, '_limiter', None)
+    return await run_sync(wrapper, limiter=trio_limiter)
 
-        portal = trio.BlockingTrioPortal()
-        trio_limiter = getattr(limiter, '_limiter', None)
-        return await run_sync(wrapper, limiter=trio_limiter)
-
-    def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
-        return _local.portal.run(func, *args)
+run_async_from_thread = trio.from_thread.run
 
 
 #
