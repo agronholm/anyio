@@ -141,14 +141,14 @@ abc.TaskGroup.register(TaskGroup)
 # Threads
 #
 
-async def run_in_thread(func: Callable[..., T_Retval], *args,
+async def run_in_thread(func: Callable[..., T_Retval], *args, cancellable: bool = False,
                         limiter: Optional['CapacityLimiter'] = None) -> T_Retval:
     def wrapper():
         with claim_worker_thread('trio'):
             return func(*args)
 
     trio_limiter = getattr(limiter, '_limiter', None)
-    return await run_sync(wrapper, limiter=trio_limiter)
+    return await run_sync(wrapper, cancellable=cancellable, limiter=trio_limiter)
 
 run_async_from_thread = trio.from_thread.run
 

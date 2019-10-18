@@ -215,19 +215,24 @@ def create_task_group() -> TaskGroup:
 # Threads
 #
 
-def run_in_thread(func: Callable[..., T_Retval], *args,
+def run_in_thread(func: Callable[..., T_Retval], *args, cancellable: bool = False,
                   limiter: Optional[CapacityLimiter] = None) -> Awaitable[T_Retval]:
     """
     Start a thread that calls the given function with the given arguments.
 
+    If the ``cancellable`` option is enabled and the task waiting for its completion is cancelled,
+    the thread will still run its course but its return value (or any raised exception) will be
+    ignored.
+
     :param func: a callable
     :param args: positional arguments for the callable
+    :param cancellable: ``True`` to allow cancellation of the operation
     :param limiter: capacity limiter to use to limit the total amount of threads running
         (if omitted, the default limiter is used)
     :return: an awaitable that yields the return value of the function.
 
     """
-    return _get_asynclib().run_in_thread(func, *args, limiter=limiter)
+    return _get_asynclib().run_in_thread(func, *args, cancellable=cancellable, limiter=limiter)
 
 
 def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args) -> T_Retval:
