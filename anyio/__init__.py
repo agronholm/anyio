@@ -358,7 +358,7 @@ async def connect_tcp(
     except ValueError:
         # getaddrinfo() will raise an exception if name resolution fails
         resolved = await run_in_thread(socket.getaddrinfo, target_host, port, family,
-                                       socket.SOCK_STREAM)
+                                       socket.SOCK_STREAM, cancellable=True)
 
         # Organize the list so that the first address is an IPv6 address (if available) and the
         # second one is an IPv4 addresses. The rest can be in whatever order.
