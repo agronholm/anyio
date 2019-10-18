@@ -15,6 +15,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed deprecation warnings on Python 3.8 about the ``loop`` argument of ``asyncio.Event()``
 - Forced the use ``WindowsSelectorEventLoopPolicy`` in ``asyncio.run`` when on Windows and asyncio
   to keep network functionality working
+- Worker threads are now spawned with ``daemon=True`` on all backends, not just trio
 - Dropped support for trio v0.11
 
 **1.1.0**
