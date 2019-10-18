@@ -410,7 +410,7 @@ async def run_in_thread(func: Callable[..., T_Retval], *args,
     async with (limiter or _default_thread_limiter):
         loop = get_running_loop()
         queue = asyncio.Queue(1)  # type: asyncio.Queue[_Retval_Queue_Type]
-        thread = Thread(target=thread_worker)
+        thread = Thread(target=thread_worker, daemon=True)
         thread.start()
         async with CancelScope(shield=True):
             retval, exception = await queue.get()

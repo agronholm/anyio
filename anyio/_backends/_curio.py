@@ -336,7 +336,7 @@ async def run_in_thread(func: Callable[..., T_Retval], *args,
 
     await check_cancelled()
     async with (limiter or _default_thread_limiter):
-        thread = await curio.spawn_thread(thread_worker)
+        thread = await curio.spawn_thread(thread_worker, daemon=True)
         try:
             async with CancelScope(shield=True):
                 return await thread.join()
