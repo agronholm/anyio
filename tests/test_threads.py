@@ -99,8 +99,12 @@ def test_run_async_from_unclaimed_thread():
     exc.match('This function can only be run from an AnyIO worker thread')
 
 
+@pytest.mark.parametrize('cancellable, expected_last_active', [
+    (False, 'task'),
+    (True, 'thread')
+], ids=['uncancellable', 'cancellable'])
 @pytest.mark.anyio
-async def test_cancel_worker_thread():
+async def test_cancel_worker_thread(cancellable, expected_last_active):
     """
     Test that when a task running a worker thread is cancelled, the cancellation is not acted on
     until the thread finishes.
@@ -116,7 +120,7 @@ async def test_cancel_worker_thread():
     async def task_worker():
         nonlocal last_active
         try:
-            await run_in_thread(thread_worker)
+            await run_in_thread(thread_worker, cancellable=cancellable)
         finally:
             last_active = 'task'
 
@@ -129,4 +133,4 @@ async def test_cancel_worker_thread():
         await tg.cancel_scope.cancel()
 
     await finish_event.wait()
-    assert last_active == 'task'
+    assert last_active == expected_last_active

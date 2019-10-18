@@ -9,6 +9,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   backends
 - Added the ``set_total_tokens()`` method to ``CapacityLimiter``
 - Added the ``anyio.current_default_thread_limiter()`` function
+- Added the ``cancellable`` parameter to ``anyio.run_in_thread()``
 - Implemented the Happy Eyeballs (:rfc:`6555`) algorithm for ``anyio.connect_tcp()``
 - Fixed ``KeyError`` on asyncio and curio where entering and exiting a cancel scope happens in
   different tasks

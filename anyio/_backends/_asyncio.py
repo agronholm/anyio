@@ -394,7 +394,7 @@ abc.TaskGroup.register(TaskGroup)
 _Retval_Queue_Type = Tuple[Optional[T_Retval], Optional[BaseException]]
 
 
-async def run_in_thread(func: Callable[..., T_Retval], *args,
+async def run_in_thread(func: Callable[..., T_Retval], *args, cancellable: bool = False,
                         limiter: Optional['CapacityLimiter'] = None) -> T_Retval:
     def thread_worker():
         try:
@@ -402,23 +402,35 @@ async def run_in_thread(func: Callable[..., T_Retval], *args,
                 _local.loop = loop
                 result = func(*args)
         except BaseException as exc:
-            loop.call_soon_threadsafe(queue.put_nowait, (None, exc))
+            if not loop.is_closed():
+                asyncio.run_coroutine_threadsafe(limiter.release_on_behalf_of(task), loop)
+                if not cancelled:
+                    loop.call_soon_threadsafe(queue.put_nowait, (None, exc))
         else:
-            loop.call_soon_threadsafe(queue.put_nowait, (result, None))
+            if not loop.is_closed():
+                asyncio.run_coroutine_threadsafe(limiter.release_on_behalf_of(task), loop)
+                if not cancelled:
+                    loop.call_soon_threadsafe(queue.put_nowait, (result, None))
 
     check_cancelled()
-    async with (limiter or _default_thread_limiter):
-        loop = get_running_loop()
-        queue = asyncio.Queue(1)  # type: asyncio.Queue[_Retval_Queue_Type]
-        thread = Thread(target=thread_worker, daemon=True)
-        thread.start()
-        async with CancelScope(shield=True):
+    loop = get_running_loop()
+    task = current_task()
+    queue = asyncio.Queue(1)  # type: asyncio.Queue[_Retval_Queue_Type]
+    cancelled = False
+    limiter = limiter or _default_thread_limiter
+    await limiter.acquire_on_behalf_of(task)
+    thread = Thread(target=thread_worker, daemon=True)
+    thread.start()
+    async with CancelScope(shield=not cancellable):
+        try:
             retval, exception = await queue.get()
+        finally:
+            cancelled = True
 
-        if exception is not None:
-            raise exception
-        else:
-            return cast(T_Retval, retval)
+    if exception is not None:
+        raise exception
+    else:
+        return cast(T_Retval, retval)
 
 
 def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args) -> T_Retval:

@@ -1,7 +1,9 @@
 import math
 import socket
 from collections import OrderedDict
+from concurrent.futures import Future
 from functools import partial
+from threading import Thread
 from typing import Callable, Set, Optional, Coroutine, Any, cast, Dict, List, Sequence
 from weakref import WeakKeyDictionary
 
@@ -12,7 +14,7 @@ import curio.ssl
 import curio.traps
 from async_generator import async_generator, asynccontextmanager, yield_
 
-from .. import abc, T_Retval, claim_worker_thread, TaskInfo
+from .. import abc, T_Retval, claim_worker_thread, TaskInfo, _local
 from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock)
 from .._networking import BaseSocket
@@ -328,24 +330,59 @@ abc.TaskGroup.register(TaskGroup)
 # Threads
 #
 
-async def run_in_thread(func: Callable[..., T_Retval], *args,
+async def run_in_thread(func: Callable[..., T_Retval], *args, cancellable: bool = False,
                         limiter: Optional['CapacityLimiter'] = None) -> T_Retval:
+    async def async_call_helper():
+        while True:
+            item = await queue.get()
+            if item is None:
+                await limiter.release_on_behalf_of(task)
+                await finish_event.set()
+                return
+
+            func_, args_, f = item  # type: Callable, tuple, Future
+            try:
+                retval_ = await func_(*args_)
+            except BaseException as exc_:
+                f.set_exception(exc_)
+            else:
+                f.set_result(retval_)
+
     def thread_worker():
-        with claim_worker_thread('curio'):
-            return func(*args)
+        nonlocal retval, exception
+        try:
+            with claim_worker_thread('curio'):
+                _local.queue = queue
+                retval = func(*args)
+        except BaseException as exc:
+            exception = exc
+        finally:
+            if not helper_task.cancelled:
+                queue.put(None)
 
     await check_cancelled()
-    async with (limiter or _default_thread_limiter):
-        thread = await curio.spawn_thread(thread_worker, daemon=True)
-        try:
-            async with CancelScope(shield=True):
-                return await thread.join()
-        except curio.TaskError as exc:
-            raise exc.__cause__ from None
+    task = await curio.current_task()
+    queue = curio.UniversalQueue(maxsize=1)
+    finish_event = curio.Event()
+    retval, exception = None, None
+    limiter = limiter or _default_thread_limiter
+    await limiter.acquire_on_behalf_of(task)
+    thread = Thread(target=thread_worker, daemon=True)
+    helper_task = await curio.spawn(async_call_helper, daemon=True, report_crash=False)
+    thread.start()
+    async with CancelScope(shield=not cancellable):
+        await finish_event.wait()
+
+    if exception is not None:
+        raise exception
+    else:
+        return cast(T_Retval, retval)
 
 
 def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
-    return curio.AWAIT(func(*args))
+    future = Future()  # type: Future[T_Retval]
+    _local.queue.put((func, args, future))
+    return future.result()
 
 
 #
