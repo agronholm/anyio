@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**1.2.0**
 
 - Added the possibility to parametrize regular pytest test functions against the selected list of
   backends
