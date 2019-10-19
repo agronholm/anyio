@@ -41,6 +41,9 @@ stages:
         Win-Py35:
           imageName: 'vs2017-win2016'
           python.version: '3.5'
+        Win-Py37:
+          imageName: 'vs2017-win2016'
+          python.version: '3.7'
 
     pool:
       vmImage: '$(imageName)'

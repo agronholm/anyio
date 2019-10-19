@@ -458,7 +458,7 @@ class TestTLSStream:
 
     @pytest.mark.parametrize('server_compatible, client_compatible, exc_class', [
         (True, True, IncompleteRead),
-        (True, False, ssl.SSLEOFError),
+        (True, False, (ssl.SSLEOFError, ConnectionResetError)),
         (False, True, IncompleteRead),
         (False, False, IncompleteRead)
     ], ids=['both_standard', 'server_standard', 'client_standard', 'neither_standard'])
@@ -468,6 +468,7 @@ class TestTLSStream:
         async def server():
             async with await stream_server.accept() as stream:
                 chunks.append(await stream.receive_exactly(2))
+                await stream.send_all(b'OK\n')
                 with pytest.raises(exc_class):
                     await stream.receive_exactly(2)
 
@@ -481,6 +482,7 @@ class TestTLSStream:
                         'localhost', stream_server.port, ssl_context=client_context,
                         autostart_tls=True, tls_standard_compatible=client_compatible) as client:
                     await client.send_all(b'bl')
+                    assert await client.receive_exactly(3) == b'OK\n'
 
         assert chunks == [b'bl']
 
