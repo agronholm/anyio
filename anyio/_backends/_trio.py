@@ -51,7 +51,7 @@ class CancelScope:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         return self.__original.__exit__(exc_type, exc_val, exc_tb)
 
-    async def cancel(self):
+    async def cancel(self) -> None:
         self.__original.cancel()
 
     @property

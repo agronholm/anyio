@@ -216,7 +216,7 @@ class CancelScope:
 
         return False
 
-    async def cancel(self):
+    async def cancel(self) -> None:
         if self._cancel_called:
             return
 
