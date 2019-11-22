@@ -247,7 +247,7 @@ class TaskGroup(metaclass=ABCMeta):
 
 class CancelScope(metaclass=ABCMeta):
     @abstractmethod
-    async def cancel(self):
+    async def cancel(self) -> None:
         """Cancel this scope immediately."""
 
     @property
