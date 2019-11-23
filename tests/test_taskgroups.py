@@ -482,3 +482,28 @@ def test_task_group_in_generator(anyio_backend):
     gen = task_group_generator()
     anyio.run(gen.__anext__, backend=anyio_backend)
     pytest.raises(StopAsyncIteration, anyio.run, gen.__anext__, backend=anyio_backend)
+
+
+@pytest.mark.anyio
+async def test_exception_group_filtering():
+    """Test that CancelledErrors are filtered out of nested exception groups."""
+
+    async def fail(name):
+        try:
+            await anyio.sleep(.1)
+        finally:
+            raise Exception('%s task failed' % name)
+
+    async def fn():
+        async with anyio.create_task_group() as task_group:
+            await task_group.spawn(fail, 'parent')
+            async with anyio.create_task_group() as task_group2:
+                await task_group2.spawn(fail, 'child')
+                await anyio.sleep(1)
+
+    with pytest.raises(anyio.exceptions.ExceptionGroup) as exc:
+        await fn()
+
+    assert len(exc.value.exceptions) == 2
+    assert str(exc.value.exceptions[0]) == 'parent task failed'
+    assert str(exc.value.exceptions[1]) == 'child task failed'

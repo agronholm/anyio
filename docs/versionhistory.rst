@@ -3,6 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed cancellation errors leaking from a task group when they are contained in an exception group
+
 **1.2.0**
 
 - Added the possibility to parametrize regular pytest test functions against the selected list of

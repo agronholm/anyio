@@ -347,7 +347,7 @@ class TaskGroup:
 
         self._active = False
         if not self.cancel_scope._parent_cancelled():
-            exceptions = [exc for exc in self._exceptions if not isinstance(exc, CancelledError)]
+            exceptions = self._filter_cancellation_errors(self._exceptions)
         else:
             exceptions = self._exceptions
 
@@ -357,6 +357,21 @@ class TaskGroup:
             raise exceptions[0]
 
         return ignore_exception
+
+    @staticmethod
+    def _filter_cancellation_errors(exceptions: List[BaseException]) -> List[BaseException]:
+        filtered_exceptions = []  # type: List[BaseException]
+        for exc in exceptions:
+            if isinstance(exc, ExceptionGroup):
+                exc.exceptions = TaskGroup._filter_cancellation_errors(exc.exceptions)
+                if len(exc.exceptions) > 1:
+                    filtered_exceptions.append(exc)
+                else:
+                    filtered_exceptions.append(exc.exceptions[0])
+            elif not isinstance(exc, CancelledError):
+                filtered_exceptions.append(exc)
+
+        return filtered_exceptions
 
     async def _run_wrapped_task(self, func: Callable[..., Coroutine], args: tuple) -> None:
         task = current_task()
