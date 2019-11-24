@@ -177,7 +177,8 @@ class Socket(BaseSocket):
         return wait_socket_writable(self._raw_socket)
 
     async def _notify_close(self):
-        notify_closing(self._raw_socket)
+        if self._raw_socket.fileno() >= 0:
+            notify_closing(self._raw_socket)
 
     def _check_cancelled(self):
         return trio.hazmat.checkpoint_if_cancelled()

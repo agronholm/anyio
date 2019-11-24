@@ -6,6 +6,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **UNRELEASED**
 
 - Fixed cancellation errors leaking from a task group when they are contained in an exception group
+- Fixed trio v0.13 compatibility on Windows
 
 **1.2.0**
 
