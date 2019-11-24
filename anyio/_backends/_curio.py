@@ -298,7 +298,7 @@ class TaskGroup:
         return ignore_exception
 
     @staticmethod
-    def _filter_cancellation_errors(exceptions: List[BaseException]) -> List[BaseException]:
+    def _filter_cancellation_errors(exceptions: Sequence[BaseException]) -> List[BaseException]:
         filtered_exceptions = []  # type: List[BaseException]
         for exc in exceptions:
             if isinstance(exc, ExceptionGroup):
