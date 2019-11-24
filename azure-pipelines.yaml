@@ -29,21 +29,24 @@ stages:
         Linux-Py35:
           imageName: 'ubuntu-16.04'
           python.version: '3.5'
-        Linux-Py37:
-          imageName: 'ubuntu-16.04'
-          python.version: '3.7'
+        Linux-Py38:
+          imageName: 'ubuntu-latest'
+          python.version: '3.8'
         Linux-PyPy3:
-          imageName: 'ubuntu-16.04'
+          imageName: 'ubuntu-latest'
           python.version: 'pypy3'
         Mac-Py35:
           imageName: 'macos-10.13'
           python.version: '3.5'
+        Mac-Py38:
+          imageName: 'macos-latest'
+          python.version: '3.8'
         Win-Py35:
           imageName: 'vs2017-win2016'
           python.version: '3.5'
-        Win-Py37:
-          imageName: 'vs2017-win2016'
-          python.version: '3.7'
+        Win-Py38:
+          imageName: 'windows-latest'
+          python.version: '3.8'
 
     pool:
       vmImage: '$(imageName)'
