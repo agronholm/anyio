@@ -1,9 +1,8 @@
-type: sphinx
-
-build:
-  image: latest
-
+version: 2
+formats: [htmlzip, pdf]
 python:
-  version: "3.6"
-  pip_install: true
-  extra_requirements: [doc]
+   version: 3.6
+   install:
+      - method: pip
+        path: .
+        extra_requirements: [doc]
