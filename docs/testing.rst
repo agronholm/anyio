@@ -63,6 +63,30 @@ For example, to run your test suite against the curio and trio backends:
 
     pytest --anyio-backends=curio,trio
 
+If you need more precise control over which backend(s) you want to run particular tests on,
+you can pass the ``backend`` argument to ``@pytest.mark.anyio``. For example, if you need to run
+a particular test only on asyncio, you can do this::
+
+    @pytest.mark.anyio(backend='asyncio')
+    async def test_on_asyncio_only():
+        ...
+
+To run a test on more than one explicitly specified backends, you can do it like this::
+
+    @pytest.mark.anyio(backend=['asyncio', 'trio'])
+    async def test_on_asyncio_and_trio():
+        ...
+
+Or even like this::
+
+    @pytest.mark.parametrize('some_argument', [
+        pytest.param('value 1', marks=[pytest.mark.anyio(backend='trio')]),
+        pytest.param('value 2', marks=[pytest.mark.anyio(backend='curio')]),
+        pytest.param('third value', marks=[pytest.mark.anyio(backend='asyncio')])
+    ])
+    async def test_on_asyncio_and_trio(some_argument):
+        ...
+
 Using AnyIO from regular tests
 ------------------------------
 

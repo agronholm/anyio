@@ -5,6 +5,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added the ``backend`` argument to ``@pytest.mark.anyio`` for fine grained control over which
+  backend(s) to use with each test
+- Allowed regular functions to be marked with ``@pytest.mark.anyio``
 - Fixed ``CancelledError`` leaking from a cancel scope on asyncio if the task previously received a
   cancellation exception
 

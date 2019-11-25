@@ -58,45 +58,46 @@ def pytest_fixture_setup(fixturedef, request):
     yield
 
 
+@pytest.hookimpl(trylast=True)
 def pytest_generate_tests(metafunc):
     marker = metafunc.definition.get_closest_marker('anyio')
-    if marker:
-        metafunc.fixturenames.append('anyio_backend')
-
-    if 'anyio_backend' in metafunc.fixturenames:
-        backends = metafunc.config.getoption('anyio_backends')
-        if backends == 'all':
-            backends = BACKENDS
-        else:
+    if marker or 'anyio_backend' in metafunc.fixturenames:
+        backends = marker.kwargs.get('backend') if marker else []
+        if not backends:
+            backends = metafunc.config.getoption('anyio_backends')
+        if isinstance(backends, str):
             backends = backends.replace(' ', '').split(',')
+        if backends == ['all']:
+            backends = BACKENDS
 
-        metafunc.parametrize('anyio_backend', backends, scope='session')
+        if 'anyio_backend' not in metafunc.fixturenames:
+            metafunc.fixturenames.append('anyio_backend')
+
+        metafunc.parametrize('anyio_backend', backends)
 
 
-def check_test_function_type(func):
-    if not iscoroutinefunction(func):
-        funcname = '{}.{}'.format(func.__module__, func.__qualname__)
-        pytest.fail('{} is not a coroutine function'.format(funcname))
-
-
-@pytest.mark.tryfirst
+@pytest.hookimpl(tryfirst=True)
 def pytest_pyfunc_call(pyfuncitem):
     def run_with_hypothesis(**kwargs):
         run(partial(original_func, **kwargs), backend=backend)
 
-    if pyfuncitem.get_closest_marker('anyio'):
-        backend = pyfuncitem._request.getfixturevalue('anyio_backend')
+    marker = pyfuncitem.get_closest_marker('anyio')
+    if marker:
+        backend = marker.kwargs.get('backend')
+        if not isinstance(backend, str):
+            backend = pyfuncitem._request.getfixturevalue('anyio_backend')
+
         if hasattr(pyfuncitem.obj, 'hypothesis'):
             # Wrap the inner test function unless it's already wrapped
             original_func = pyfuncitem.obj.hypothesis.inner_test
             if original_func.__qualname__ != run_with_hypothesis.__qualname__:
-                check_test_function_type(original_func)
-                pyfuncitem.obj.hypothesis.inner_test = run_with_hypothesis
+                if iscoroutinefunction(pyfuncitem.obj):
+                    pyfuncitem.obj.hypothesis.inner_test = run_with_hypothesis
 
             return False
 
-        check_test_function_type(pyfuncitem.obj)
-        funcargs = pyfuncitem.funcargs
-        testargs = {arg: funcargs[arg] for arg in pyfuncitem._fixtureinfo.argnames}
-        run(partial(pyfuncitem.obj, **testargs), backend=backend)
-        return True
+        if iscoroutinefunction(pyfuncitem.obj):
+            funcargs = pyfuncitem.funcargs
+            testargs = {arg: funcargs[arg] for arg in pyfuncitem._fixtureinfo.argnames}
+            run(partial(pyfuncitem.obj, **testargs), backend=backend)
+            return True
