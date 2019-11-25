@@ -507,3 +507,19 @@ async def test_exception_group_filtering():
     assert len(exc.value.exceptions) == 2
     assert str(exc.value.exceptions[0]) == 'parent task failed'
     assert str(exc.value.exceptions[1]) == 'child task failed'
+
+
+@pytest.mark.anyio
+async def test_cancel_propagation_with_inner_spawn():
+
+    async def g():
+        async with anyio.create_task_group() as g:
+            await g.spawn(anyio.sleep, 10)
+            await anyio.sleep(5)
+
+        assert False
+
+    async with anyio.create_task_group() as group:
+        await group.spawn(g)
+        await anyio.sleep(0.1)
+        await group.cancel_scope.cancel()

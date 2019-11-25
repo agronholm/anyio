@@ -303,10 +303,11 @@ class TaskGroup:
         for exc in exceptions:
             if isinstance(exc, ExceptionGroup):
                 exc.exceptions = TaskGroup._filter_cancellation_errors(exc.exceptions)
-                if len(exc.exceptions) > 1:
-                    filtered_exceptions.append(exc)
-                else:
-                    filtered_exceptions.append(exc.exceptions[0])
+                if exc.exceptions:
+                    if len(exc.exceptions) > 1:
+                        filtered_exceptions.append(exc)
+                    else:
+                        filtered_exceptions.append(exc.exceptions[0])
             elif not isinstance(exc, CancelledError):
                 filtered_exceptions.append(exc)
 
