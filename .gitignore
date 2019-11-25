@@ -12,3 +12,4 @@ __pycache__
 .eggs/
 .tox
 .idea
+.pre-commit-config.yaml
