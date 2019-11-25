@@ -511,7 +511,6 @@ async def test_exception_group_filtering():
 
 @pytest.mark.anyio
 async def test_cancel_propagation_with_inner_spawn():
-
     async def g():
         async with anyio.create_task_group() as g:
             await g.spawn(anyio.sleep, 10)
