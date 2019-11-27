@@ -1,3 +1,4 @@
+import math
 from typing import Callable, Optional, List, Union
 
 import trio.hazmat
@@ -247,7 +248,8 @@ Semaphore = trio.Semaphore
 
 class Queue:
     def __init__(self, max_items: int) -> None:
-        self._send_channel, self._receive_channel = trio.open_memory_channel(max_items)
+        max_buffer_size = max_items if max_items > 0 else math.inf
+        self._send_channel, self._receive_channel = trio.open_memory_channel(max_buffer_size)
 
     def empty(self):
         return self._receive_channel.statistics().current_buffer_used == 0

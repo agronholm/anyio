@@ -630,7 +630,7 @@ def create_queue(capacity: int) -> Queue:
     """
     Create an asynchronous queue.
 
-    :param capacity: maximum number of items the queue will be able to store
+    :param capacity: maximum number of items the queue will be able to store (0 = infinite)
     :return: a queue object
 
     """

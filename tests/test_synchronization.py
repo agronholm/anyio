@@ -217,6 +217,12 @@ class TestQueue:
 
         assert queue.empty()
 
+    @pytest.mark.anyio
+    async def test_zero_capacity(self):
+        """Ensure that max_size=0 creates an infinite capacity queue on all backends."""
+        queue = create_queue(0)
+        assert not queue.full()
+
 
 class TestCapacityLimiter:
     @pytest.mark.anyio
