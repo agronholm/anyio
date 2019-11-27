@@ -9,6 +9,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed trio v0.13 compatibility on Windows
 - Fixed inconsistent queue capacity across backends when capacity was defined as 0
   (trio = 0, others = infinite)
+- Fixed socket creation failure crashing ``connect_tcp()``
 
 **1.2.0**
 

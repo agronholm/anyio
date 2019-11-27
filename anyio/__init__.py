@@ -325,7 +325,13 @@ async def connect_tcp(
 
     async def try_connect(af: int, addr: str, event: Event):
         nonlocal stream
-        raw_socket = socket.socket(af, socket.SOCK_STREAM)
+        try:
+            raw_socket = socket.socket(af, socket.SOCK_STREAM)
+        except OSError as exc:
+            oserrors.append(exc)
+            await event.set()
+            return
+
         sock = asynclib.Socket(raw_socket)
         try:
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)

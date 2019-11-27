@@ -318,6 +318,19 @@ class TestTCPStream:
             for exc in exc.value.__cause__.exceptions:
                 assert isinstance(exc, ConnectionRefusedError)
 
+    @pytest.mark.anyio
+    async def test_socket_creation_failure(self, monkeypatch):
+        def fake_create_socket(*args):
+            raise OSError('Bogus error')
+
+        monkeypatch.setattr(socket, 'socket', fake_create_socket)
+        with pytest.raises(OSError) as exc:
+            await connect_tcp('127.0.0.1', 1111)
+
+        exc.match('All connection attempts failed')
+        assert isinstance(exc.value.__cause__, OSError)
+        assert str(exc.value.__cause__) == 'Bogus error'
+
 
 class TestUNIXStream:
     @pytest.mark.skipif(sys.platform == 'win32',
