@@ -1,4 +1,3 @@
-import platform
 import socket
 import ssl
 import sys
@@ -235,8 +234,6 @@ class TestTCPStream:
                 client.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
                 assert client.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
 
-    @pytest.mark.xfail(condition=platform.system() == 'Darwin',
-                       reason='Occasionally fails on macOS')
     @pytest.mark.anyio
     async def test_concurrent_write(self, localhost):
         async def send_data():
@@ -250,7 +247,7 @@ class TestTCPStream:
                     await wait_all_tasks_blocked()
                     try:
                         with pytest.raises(ResourceBusyError) as exc:
-                            await client.send_all(b'foo')
+                            await client.send_all(b'\x00' * 1024000)
 
                         exc.match('already writing to')
                     finally:
