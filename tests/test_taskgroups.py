@@ -522,3 +522,13 @@ async def test_cancel_propagation_with_inner_spawn():
         await group.spawn(g)
         await anyio.sleep(0.1)
         await group.cancel_scope.cancel()
+
+
+@pytest.mark.anyio
+async def test_escaping_cancelled_error_from_cancelled_task():
+    """Regression test for issue #88. No CancelledError should escape the outer scope."""
+    async with open_cancel_scope() as scope:
+        async with move_on_after(0.1):
+            await sleep(1)
+
+        await scope.cancel()

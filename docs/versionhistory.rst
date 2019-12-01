@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed ``CancelledError`` leaking from a cancel scope on asyncio if the task previously received a
+  cancellation exception
+
 **1.2.1**
 
 - Fixed cancellation errors leaking from a task group when they are contained in an exception group
