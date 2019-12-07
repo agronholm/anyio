@@ -60,20 +60,24 @@ def pytest_fixture_setup(fixturedef, request):
 
 @pytest.hookimpl(trylast=True)
 def pytest_generate_tests(metafunc):
-    marker = metafunc.definition.get_closest_marker('anyio')
-    if marker or 'anyio_backend' in metafunc.fixturenames:
-        backends = marker.kwargs.get('backend') if marker else []
-        if not backends:
-            backends = metafunc.config.getoption('anyio_backends')
+    def get_backends():
+        backends = metafunc.config.getoption('anyio_backends')
         if isinstance(backends, str):
             backends = backends.replace(' ', '').split(',')
         if backends == ['all']:
             backends = BACKENDS
 
-        if 'anyio_backend' not in metafunc.fixturenames:
-            metafunc.fixturenames.append('anyio_backend')
+        return backends
 
-        metafunc.parametrize('anyio_backend', backends)
+    marker = metafunc.definition.get_closest_marker('anyio')
+    if marker and 'anyio_backend' not in metafunc.fixturenames:
+        metafunc.fixturenames.append('anyio_backend')
+        metafunc.parametrize('anyio_backend', get_backends())
+    elif 'anyio_backend' in metafunc.fixturenames:
+        try:
+            metafunc.parametrize('anyio_backend', get_backends())
+        except ValueError:
+            pass  # already using a fixture or has been explicit parametrized
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -81,12 +85,12 @@ def pytest_pyfunc_call(pyfuncitem):
     def run_with_hypothesis(**kwargs):
         run(partial(original_func, **kwargs), backend=backend)
 
-    marker = pyfuncitem.get_closest_marker('anyio')
-    if marker:
-        backend = marker.kwargs.get('backend')
-        if not isinstance(backend, str):
-            backend = pyfuncitem._request.getfixturevalue('anyio_backend')
+    try:
+        backend = pyfuncitem.callspec.getparam('anyio_backend')
+    except (AttributeError, ValueError):
+        return False
 
+    if backend:
         if hasattr(pyfuncitem.obj, 'hypothesis'):
             # Wrap the inner test function unless it's already wrapped
             original_func = pyfuncitem.obj.hypothesis.inner_test

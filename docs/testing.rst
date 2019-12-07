@@ -63,29 +63,19 @@ For example, to run your test suite against the curio and trio backends:
 
     pytest --anyio-backends=curio,trio
 
-If you need more precise control over which backend(s) you want to run particular tests on,
-you can pass the ``backend`` argument to ``@pytest.mark.anyio``. For example, if you need to run
-a particular test only on asyncio, you can do this::
+Behind the scenes, any function that uses the ``@pytest.mark.anyio`` marker gets parametrized by
+the plugin to use the ``anyio_backend`` fixture. One alternative is to do this parametrization on
+your own::
 
-    @pytest.mark.anyio(backend='asyncio')
-    async def test_on_asyncio_only():
+    @pytest.mark.parametrize('anyio_backend', ['asyncio'])
+    async def test_on_asyncio_only(anyio_backend):
         ...
 
-To run a test on more than one explicitly specified backends, you can do it like this::
+Or you can write a simple fixture by the same name that provides the back-end name::
 
-    @pytest.mark.anyio(backend=['asyncio', 'trio'])
-    async def test_on_asyncio_and_trio():
-        ...
-
-Or even like this::
-
-    @pytest.mark.parametrize('some_argument', [
-        pytest.param('value 1', marks=[pytest.mark.anyio(backend='trio')]),
-        pytest.param('value 2', marks=[pytest.mark.anyio(backend='curio')]),
-        pytest.param('third value', marks=[pytest.mark.anyio(backend='asyncio')])
-    ])
-    async def test_on_asyncio_and_trio(some_argument):
-        ...
+    @pytest.fixture(params=['asyncio'])
+    def anyio_backend(request):
+        return request.param
 
 Using AnyIO from regular tests
 ------------------------------
