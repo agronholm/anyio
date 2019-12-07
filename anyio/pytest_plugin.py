@@ -20,7 +20,6 @@ def pytest_addoption(parser):
     )
 
 
-@pytest.hookimpl(hookwrapper=True)
 def pytest_fixture_setup(fixturedef, request):
     def wrapper(*args, **kwargs):
         backend = kwargs['anyio_backend']
@@ -54,8 +53,6 @@ def pytest_fixture_setup(fixturedef, request):
             strip_backend = True
 
         fixturedef.func = wrapper
-
-    yield
 
 
 @pytest.hookimpl(trylast=True)
