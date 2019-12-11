@@ -240,8 +240,9 @@ class TaskGroup(metaclass=ABCMeta):
         """Enter the task group context and allow starting new tasks."""
 
     @abstractmethod
-    async def __aexit__(self, exc_type: Type[BaseException], exc_val: BaseException,
-                        exc_tb: TracebackType) -> Optional[bool]:
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
         """Exit the task group context waiting for all tasks to finish."""
 
 
