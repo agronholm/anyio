@@ -16,7 +16,9 @@ class Lock(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
         pass
 
     @abstractmethod
@@ -30,7 +32,9 @@ class Condition(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
         pass
 
     @abstractmethod
@@ -78,7 +82,9 @@ class Semaphore(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
         pass
 
     @property
@@ -136,7 +142,9 @@ class CapacityLimiter(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
         pass
 
     @property
@@ -279,7 +287,9 @@ class CancelScope(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
         pass
 
 
@@ -321,7 +331,9 @@ class AsyncFile(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
         pass
 
     @abstractmethod
@@ -385,7 +397,9 @@ class Stream(metaclass=ABCMeta):
     async def __aenter__(self):
         return self
 
-    async def __aexit__(self, *exc_info):
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> None:
         await self.close()
 
     @abstractmethod
@@ -604,7 +618,9 @@ class SocketStreamServer(metaclass=ABCMeta):
     async def __aenter__(self):
         return self
 
-    async def __aexit__(self, *exc_info):
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> None:
         await self.close()
 
     @abstractmethod
@@ -663,7 +679,9 @@ class UDPSocket(metaclass=ABCMeta):
     async def __aenter__(self):
         return self
 
-    async def __aexit__(self, *exc_info):
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> None:
         await self.close()
 
     @abstractmethod
