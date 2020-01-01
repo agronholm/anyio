@@ -9,6 +9,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   cancellation exception
 - Fixed ``AttributeError`` when cancelling a generator-based task (asyncio)
 - Fixed ``wait_all_tasks_blocked()`` not working with generator-based tasks (asyncio)
+- Fixed an unnecessary delay in ``connect_tcp()`` if an earlier attempt succeeds
+- Fixed ``AssertionError`` in ``connect_tcp()`` if multiple connection attempts succeed
+  simultaneously
 
 **1.2.1**
 
