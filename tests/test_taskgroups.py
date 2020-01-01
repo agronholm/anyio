@@ -534,8 +534,9 @@ async def test_escaping_cancelled_error_from_cancelled_task():
         await scope.cancel()
 
 
+@pytest.mark.filterwarnings('ignore:"@coroutine" decorator is deprecated:DeprecationWarning')
 def test_cancel_generator_based_task():
-    from asyncio import coroutine, get_event_loop
+    from asyncio import coroutine
 
     async def native_coro_part():
         async with open_cancel_scope() as scope:
@@ -545,4 +546,4 @@ def test_cancel_generator_based_task():
     def generator_part():
         yield from native_coro_part()
 
-    get_event_loop().run_until_complete(generator_part())
+    anyio.run(generator_part, backend='asyncio')
