@@ -351,6 +351,8 @@ async def connect_tcp(
                 stream = _networking.SocketStream(sock, ssl_context, target_host,
                                                   tls_standard_compatible)
                 await tg.cancel_scope.cancel()
+            else:
+                raw_socket.close()
         finally:
             await event.set()
 
