@@ -532,3 +532,17 @@ async def test_escaping_cancelled_error_from_cancelled_task():
             await sleep(1)
 
         await scope.cancel()
+
+
+def test_cancel_generator_based_task():
+    from asyncio import coroutine, get_event_loop
+
+    async def native_coro_part():
+        async with open_cancel_scope() as scope:
+            await scope.cancel()
+
+    @coroutine
+    def generator_part():
+        yield from native_coro_part()
+
+    get_event_loop().run_until_complete(generator_part())

@@ -188,7 +188,14 @@ class CancelScope:
             cancel_scope = _task_states[task].cancel_scope
             if cancel_scope is self:
                 # Only deliver the cancellation if the task is already running (but not this task!)
-                if not task._coro.cr_running and task._coro.cr_await is not None:
+                try:
+                    running = task._coro.cr_running
+                    awaitable = task._coro.cr_await
+                except AttributeError:
+                    running = task._coro.gi_running
+                    awaitable = task._coro.gi_yieldfrom
+
+                if not running and awaitable is not None:
                     task.cancel()
             elif not cancel_scope._shielded_to(self):
                 await cancel_scope._cancel()
@@ -844,8 +851,14 @@ async def wait_all_tasks_blocked() -> None:
     this_task = current_task()
     while True:
         for task in all_tasks():
-            if task._coro.cr_await is None and task is not this_task:  # type: ignore
-                await sleep(0)
-                break
+            if task is not this_task:
+                try:
+                    awaitable = task._coro.cr_await
+                except AttributeError:
+                    awaitable = task._coro.gi_yieldfrom
+
+                if awaitable is None:
+                    await sleep(0)
+                    break
         else:
             return

@@ -26,3 +26,22 @@ async def test_get_running_tasks():
         assert task.parent_id == host_task.id
         assert task.name == expected_name
         assert repr(task) == "TaskInfo(id={}, name={!r})".format(task.id, expected_name)
+
+
+def test_wait_generator_based_task_blocked():
+    from asyncio import coroutine, get_event_loop, Event
+
+    async def native_coro_part():
+        await wait_all_tasks_blocked()
+        assert not gen_task._coro.gi_running
+        assert gen_task._coro.gi_yieldfrom.gi_code.co_name == 'wait'
+        event.set()
+
+    @coroutine
+    def generator_part():
+        yield from event.wait()
+
+    loop = get_event_loop()
+    event = Event()
+    gen_task = loop.create_task(generator_part())
+    loop.run_until_complete(native_coro_part())
