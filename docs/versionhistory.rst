@@ -7,6 +7,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Fixed ``CancelledError`` leaking from a cancel scope on asyncio if the task previously received a
   cancellation exception
+- Fixed ``AttributeError`` when cancelling a generator-based task (asyncio)
+- Fixed ``wait_all_tasks_blocked()`` not working with generator-based tasks (asyncio)
 
 **1.2.1**
 
