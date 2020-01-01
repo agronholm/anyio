@@ -853,9 +853,9 @@ async def wait_all_tasks_blocked() -> None:
         for task in all_tasks():
             if task is not this_task:
                 try:
-                    awaitable = task._coro.cr_await
+                    awaitable = task._coro.cr_await  # type: ignore
                 except AttributeError:
-                    awaitable = task._coro.gi_yieldfrom
+                    awaitable = task._coro.gi_yieldfrom  # type: ignore
 
                 if awaitable is None:
                     await sleep(0)
