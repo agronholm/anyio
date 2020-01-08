@@ -85,7 +85,7 @@ def pytest_pyfunc_call(pyfuncitem):
     try:
         backend = pyfuncitem.callspec.getparam('anyio_backend')
     except (AttributeError, ValueError):
-        return False
+        return None
 
     if backend:
         if hasattr(pyfuncitem.obj, 'hypothesis'):
