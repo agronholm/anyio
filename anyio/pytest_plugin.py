@@ -20,7 +20,6 @@ def pytest_addoption(parser):
     )
 
 
-@pytest.hookimpl(hookwrapper=True)
 def pytest_fixture_setup(fixturedef, request):
     def wrapper(*args, **kwargs):
         backend = kwargs['anyio_backend']
@@ -55,48 +54,51 @@ def pytest_fixture_setup(fixturedef, request):
 
         fixturedef.func = wrapper
 
-    yield
 
-
+@pytest.hookimpl(trylast=True)
 def pytest_generate_tests(metafunc):
-    marker = metafunc.definition.get_closest_marker('anyio')
-    if marker:
-        metafunc.fixturenames.append('anyio_backend')
-
-    if 'anyio_backend' in metafunc.fixturenames:
+    def get_backends():
         backends = metafunc.config.getoption('anyio_backends')
-        if backends == 'all':
-            backends = BACKENDS
-        else:
+        if isinstance(backends, str):
             backends = backends.replace(' ', '').split(',')
+        if backends == ['all']:
+            backends = BACKENDS
 
-        metafunc.parametrize('anyio_backend', backends, scope='session')
+        return backends
+
+    marker = metafunc.definition.get_closest_marker('anyio')
+    if marker and 'anyio_backend' not in metafunc.fixturenames:
+        metafunc.fixturenames.append('anyio_backend')
+        metafunc.parametrize('anyio_backend', get_backends())
+    elif 'anyio_backend' in metafunc.fixturenames:
+        try:
+            metafunc.parametrize('anyio_backend', get_backends())
+        except ValueError:
+            pass  # already using a fixture or has been explicit parametrized
 
 
-def check_test_function_type(func):
-    if not iscoroutinefunction(func):
-        funcname = '{}.{}'.format(func.__module__, func.__qualname__)
-        pytest.fail('{} is not a coroutine function'.format(funcname))
-
-
-@pytest.mark.tryfirst
+@pytest.hookimpl(tryfirst=True)
 def pytest_pyfunc_call(pyfuncitem):
     def run_with_hypothesis(**kwargs):
         run(partial(original_func, **kwargs), backend=backend)
 
-    if pyfuncitem.get_closest_marker('anyio'):
-        backend = pyfuncitem._request.getfixturevalue('anyio_backend')
+    try:
+        backend = pyfuncitem.callspec.getparam('anyio_backend')
+    except (AttributeError, ValueError):
+        return None
+
+    if backend:
         if hasattr(pyfuncitem.obj, 'hypothesis'):
             # Wrap the inner test function unless it's already wrapped
             original_func = pyfuncitem.obj.hypothesis.inner_test
             if original_func.__qualname__ != run_with_hypothesis.__qualname__:
-                check_test_function_type(original_func)
-                pyfuncitem.obj.hypothesis.inner_test = run_with_hypothesis
+                if iscoroutinefunction(pyfuncitem.obj):
+                    pyfuncitem.obj.hypothesis.inner_test = run_with_hypothesis
 
             return False
 
-        check_test_function_type(pyfuncitem.obj)
-        funcargs = pyfuncitem.funcargs
-        testargs = {arg: funcargs[arg] for arg in pyfuncitem._fixtureinfo.argnames}
-        run(partial(pyfuncitem.obj, **testargs), backend=backend)
-        return True
+        if iscoroutinefunction(pyfuncitem.obj):
+            funcargs = pyfuncitem.funcargs
+            testargs = {arg: funcargs[arg] for arg in pyfuncitem._fixtureinfo.argnames}
+            run(partial(pyfuncitem.obj, **testargs), backend=backend)
+            return True
