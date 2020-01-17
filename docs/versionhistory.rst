@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Made it possible to assert fine grained control over which AnyIO backends are being used with
+  each test
+
 **1.2.3**
 
 - Repackaged release (v1.2.2 contained extra files from an experimental
@@ -10,8 +15,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **1.2.2**
 
-- Made it possible to assert fine grained control over which AnyIO backends are being used with
-  each test
 - Fixed ``CancelledError`` leaking from a cancel scope on asyncio if the task previously received a
   cancellation exception
 - Fixed ``AttributeError`` when cancelling a generator-based task (asyncio)
