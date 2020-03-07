@@ -6,8 +6,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **UNRELEASED**
 
 - Fixed compatibility with Curio 1.0
-- Made it possible to assert fine grained control over which AnyIO backends are being used with
-  each test
+- Made it possible to assert fine grained control over which AnyIO backends and backend options are
+  being used with each test
 
 **1.2.3**
 

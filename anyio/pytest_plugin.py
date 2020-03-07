@@ -88,6 +88,13 @@ def pytest_pyfunc_call(pyfuncitem):
         return None
 
     if backend:
+        if isinstance(backend, str):
+            backend, backend_options = backend, {}
+        else:
+            backend, backend_options = backend
+            if not isinstance(backend, str) or not isinstance(backend_options, dict):
+                raise TypeError('anyio_backend must be either a string or tuple of (string, dict)')
+
         if hasattr(pyfuncitem.obj, 'hypothesis'):
             # Wrap the inner test function unless it's already wrapped
             original_func = pyfuncitem.obj.hypothesis.inner_test
@@ -100,5 +107,5 @@ def pytest_pyfunc_call(pyfuncitem):
         if iscoroutinefunction(pyfuncitem.obj):
             funcargs = pyfuncitem.funcargs
             testargs = {arg: funcargs[arg] for arg in pyfuncitem._fixtureinfo.argnames}
-            run(partial(pyfuncitem.obj, **testargs), backend=backend)
+            run(partial(pyfuncitem.obj, **testargs), backend=backend, **backend_options)
             return True
