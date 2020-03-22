@@ -224,6 +224,14 @@ class SocketStream(abc.SocketStream):
         self._socket.setsockopt(level, optname, value, *args)
 
     @property
+    def address(self) -> Union[Tuple[str, int], Tuple[str, int, int, int], str]:
+        return self._socket.getsockname()
+
+    @property
+    def peer_address(self) -> Union[Tuple[str, int], Tuple[str, int, int, int], str]:
+        return self._socket.getpeername()
+
+    @property
     def buffered_data(self) -> bytes:
         return self._buffer
 
