@@ -1,5 +1,6 @@
 from functools import partial
 from inspect import iscoroutinefunction
+from typing import Dict, Any
 
 import pytest
 from async_generator import isasyncgenfunction
@@ -22,35 +23,39 @@ def pytest_addoption(parser):
 
 def pytest_fixture_setup(fixturedef, request):
     def wrapper(*args, **kwargs):
-        backend = kwargs['anyio_backend']
-        if strip_backend:
-            del kwargs['anyio_backend']
+        run_kwargs = {'backend': kwargs['anyio_backend_name'],
+                      'backend_options': kwargs['anyio_backend_options']}
+        if 'anyio_backend_name' in strip_argnames:
+            del kwargs['anyio_backend_name']
+        if 'anyio_backend_options' in strip_argnames:
+            del kwargs['anyio_backend_options']
 
         if isasyncgenfunction(func):
             gen = func(*args, **kwargs)
             try:
-                value = run(gen.__anext__, backend=backend)
+                value = run(gen.__anext__, **run_kwargs)
             except StopAsyncIteration:
                 raise RuntimeError('Async generator did not yield')
 
             yield value
 
             try:
-                run(gen.__anext__, backend=backend)
+                run(gen.__anext__, **run_kwargs)
             except StopAsyncIteration:
                 pass
             else:
-                run(gen.aclose, backend=backend)
+                run(gen.aclose, **run_kwargs)
                 raise RuntimeError('Async generator fixture did not stop')
         else:
-            yield run(partial(func, *args, **kwargs), backend=backend)
+            yield run(partial(func, *args, **kwargs), **run_kwargs)
 
     func = fixturedef.func
     if (isasyncgenfunction(func) or iscoroutinefunction(func)) and 'anyio' in request.keywords:
-        strip_backend = False
-        if 'anyio_backend' not in fixturedef.argnames:
-            fixturedef.argnames += ('anyio_backend',)
-            strip_backend = True
+        strip_argnames = []
+        for argname in ('anyio_backend_name', 'anyio_backend_options'):
+            if argname not in fixturedef.argnames:
+                fixturedef.argnames += (argname,)
+                strip_argnames.append(argname)
 
         fixturedef.func = wrapper
 
@@ -107,5 +112,22 @@ def pytest_pyfunc_call(pyfuncitem):
         if iscoroutinefunction(pyfuncitem.obj):
             funcargs = pyfuncitem.funcargs
             testargs = {arg: funcargs[arg] for arg in pyfuncitem._fixtureinfo.argnames}
-            run(partial(pyfuncitem.obj, **testargs), backend=backend, **backend_options)
+            run(partial(pyfuncitem.obj, **testargs), backend=backend,
+                backend_options=backend_options)
             return True
+
+
+@pytest.fixture
+def anyio_backend_name(anyio_backend) -> str:
+    if isinstance(anyio_backend, str):
+        return anyio_backend
+    else:
+        return anyio_backend[0]
+
+
+@pytest.fixture
+def anyio_backend_options(anyio_backend) -> Dict[str, Any]:
+    if isinstance(anyio_backend, str):
+        return {}
+    else:
+        return anyio_backend[1]

@@ -30,20 +30,20 @@ async def test_asyncgen_fixture(asyncgen_fixture):
 
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
-async def test_explicit_backend(anyio_backend):
-    assert anyio_backend == 'asyncio'
+async def test_explicit_backend(anyio_backend_name):
+    assert anyio_backend_name == 'asyncio'
     assert sniffio.current_async_library() == 'asyncio'
 
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
-def test_explicit_backend_regular_function(anyio_backend):
-    assert anyio_backend == 'asyncio'
+def test_explicit_backend_regular_function(anyio_backend_name):
+    assert anyio_backend_name == 'asyncio'
 
 
 @pytest.mark.parametrize('anyio_backend', ['trio', 'curio', 'asyncio'])
-async def test_multiple_explicit_backend_params(anyio_backend):
-    assert anyio_backend in ('trio', 'curio', 'asyncio')
-    assert anyio_backend == sniffio.current_async_library()
+async def test_multiple_explicit_backend_params(anyio_backend_name):
+    assert anyio_backend_name in ('trio', 'curio', 'asyncio')
+    assert anyio_backend_name == sniffio.current_async_library()
 
 
 class TestAnyIOBackendsFixture:

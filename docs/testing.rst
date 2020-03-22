@@ -81,12 +81,20 @@ If you want to specify different options for the selected backend, you can do so
 of (backend name, options dict). The latter is passed as keyword arguments to :func:`anyio.run`::
 
     @pytest.fixture(params=[
-        ('asyncio', {'use_uvloop': True}),
-        ('asyncio', {'use_uvloop': False}),
-        ('trio', {'restrict_keyboard_interrupt_to_checkpoints': True})
+        pytest.param(('asyncio', {'use_uvloop': True}), id='asyncio+uvloop'),
+        pytest.param(('asyncio', {'use_uvloop': False}), id='asyncio'),
+        pytest.param('curio'),
+        pytest.param(('trio', {'restrict_keyboard_interrupt_to_checkpoints': True}), id='trio')
     ])
     def anyio_backend(request):
         return request.param
+
+Because the ``anyio_backend`` fixture can return either a string or a tuple, there are two
+additional fixtures (which themselves depend on the ``anyio_backend`` fixture) provided for your
+convenience:
+
+* ``anyio_backend_name``: the name of the backend (e.g. ``asyncio``)
+* ``anyio_backend_options``: the dictionary of option keywords used to run the backend
 
 Using AnyIO from regular tests
 ------------------------------
