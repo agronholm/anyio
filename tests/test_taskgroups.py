@@ -61,6 +61,9 @@ def test_run_natively(module, as_coro_obj):
     else:
         module.run(testfunc)
 
+    if module is asyncio:
+        asyncio.set_event_loop(asyncio.new_event_loop())
+
 
 @pytest.mark.anyio
 async def test_spawn_while_running():
@@ -473,15 +476,16 @@ async def test_nested_shield():
                         await sleep(2)
 
 
-def test_task_group_in_generator(anyio_backend):
+def test_task_group_in_generator(anyio_backend_name, anyio_backend_options):
     @async_generator
     async def task_group_generator():
         async with create_task_group():
             await yield_()
 
     gen = task_group_generator()
-    anyio.run(gen.__anext__, backend=anyio_backend)
-    pytest.raises(StopAsyncIteration, anyio.run, gen.__anext__, backend=anyio_backend)
+    anyio.run(gen.__anext__, backend=anyio_backend_name, backend_options=anyio_backend_options)
+    pytest.raises(StopAsyncIteration, anyio.run, gen.__anext__, backend=anyio_backend_name,
+                  backend_options=anyio_backend_options)
 
 
 @pytest.mark.anyio
