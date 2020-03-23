@@ -283,7 +283,7 @@ class TestTCPStream:
     @pytest.mark.anyio
     async def test_happy_eyeballs(self, interface, expected_addr, fake_localhost_dns):
         async def handle_client(stream):
-            addr, port, *rest = stream._socket._raw_socket.getpeername()
+            addr, port, *rest = stream.peer_address
             await stream.send_all(addr.encode() + b'\n')
 
         async def server():
@@ -295,6 +295,7 @@ class TestTCPStream:
                 await tg.spawn(server)
                 async with await connect_tcp('localhost', stream_server.port) as client:
                     assert await client.receive_until(b'\n', 100) == expected_addr
+                    assert client.address[0] == expected_addr.decode()
 
                 await stream_server.close()
 

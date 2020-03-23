@@ -1,5 +1,6 @@
 from functools import partial
 from inspect import iscoroutinefunction
+from typing import Dict, Any
 
 import pytest
 from async_generator import isasyncgenfunction
@@ -20,83 +21,113 @@ def pytest_addoption(parser):
     )
 
 
-@pytest.hookimpl(hookwrapper=True)
 def pytest_fixture_setup(fixturedef, request):
     def wrapper(*args, **kwargs):
-        backend = kwargs['anyio_backend']
-        if strip_backend:
-            del kwargs['anyio_backend']
+        run_kwargs = {'backend': kwargs['anyio_backend_name'],
+                      'backend_options': kwargs['anyio_backend_options']}
+        if 'anyio_backend_name' in strip_argnames:
+            del kwargs['anyio_backend_name']
+        if 'anyio_backend_options' in strip_argnames:
+            del kwargs['anyio_backend_options']
 
         if isasyncgenfunction(func):
             gen = func(*args, **kwargs)
             try:
-                value = run(gen.__anext__, backend=backend)
+                value = run(gen.__anext__, **run_kwargs)
             except StopAsyncIteration:
                 raise RuntimeError('Async generator did not yield')
 
             yield value
 
             try:
-                run(gen.__anext__, backend=backend)
+                run(gen.__anext__, **run_kwargs)
             except StopAsyncIteration:
                 pass
             else:
-                run(gen.aclose, backend=backend)
+                run(gen.aclose, **run_kwargs)
                 raise RuntimeError('Async generator fixture did not stop')
         else:
-            yield run(partial(func, *args, **kwargs), backend=backend)
+            yield run(partial(func, *args, **kwargs), **run_kwargs)
 
     func = fixturedef.func
     if (isasyncgenfunction(func) or iscoroutinefunction(func)) and 'anyio' in request.keywords:
-        strip_backend = False
-        if 'anyio_backend' not in fixturedef.argnames:
-            fixturedef.argnames += ('anyio_backend',)
-            strip_backend = True
+        strip_argnames = []
+        for argname in ('anyio_backend_name', 'anyio_backend_options'):
+            if argname not in fixturedef.argnames:
+                fixturedef.argnames += (argname,)
+                strip_argnames.append(argname)
 
         fixturedef.func = wrapper
 
-    yield
 
-
+@pytest.hookimpl(trylast=True)
 def pytest_generate_tests(metafunc):
-    marker = metafunc.definition.get_closest_marker('anyio')
-    if marker:
-        metafunc.fixturenames.append('anyio_backend')
-
-    if 'anyio_backend' in metafunc.fixturenames:
+    def get_backends():
         backends = metafunc.config.getoption('anyio_backends')
-        if backends == 'all':
-            backends = BACKENDS
-        else:
+        if isinstance(backends, str):
             backends = backends.replace(' ', '').split(',')
+        if backends == ['all']:
+            backends = BACKENDS
 
-        metafunc.parametrize('anyio_backend', backends, scope='session')
+        return backends
+
+    marker = metafunc.definition.get_closest_marker('anyio')
+    if marker and 'anyio_backend' not in metafunc.fixturenames:
+        metafunc.fixturenames.append('anyio_backend')
+        metafunc.parametrize('anyio_backend', get_backends())
+    elif 'anyio_backend' in metafunc.fixturenames:
+        try:
+            metafunc.parametrize('anyio_backend', get_backends())
+        except ValueError:
+            pass  # already using a fixture or has been explicit parametrized
 
 
-def check_test_function_type(func):
-    if not iscoroutinefunction(func):
-        funcname = '{}.{}'.format(func.__module__, func.__qualname__)
-        pytest.fail('{} is not a coroutine function'.format(funcname))
-
-
-@pytest.mark.tryfirst
+@pytest.hookimpl(tryfirst=True)
 def pytest_pyfunc_call(pyfuncitem):
     def run_with_hypothesis(**kwargs):
         run(partial(original_func, **kwargs), backend=backend)
 
-    if pyfuncitem.get_closest_marker('anyio'):
-        backend = pyfuncitem._request.getfixturevalue('anyio_backend')
+    try:
+        backend = pyfuncitem.callspec.getparam('anyio_backend')
+    except (AttributeError, ValueError):
+        return None
+
+    if backend:
+        if isinstance(backend, str):
+            backend, backend_options = backend, {}
+        else:
+            backend, backend_options = backend
+            if not isinstance(backend, str) or not isinstance(backend_options, dict):
+                raise TypeError('anyio_backend must be either a string or tuple of (string, dict)')
+
         if hasattr(pyfuncitem.obj, 'hypothesis'):
             # Wrap the inner test function unless it's already wrapped
             original_func = pyfuncitem.obj.hypothesis.inner_test
             if original_func.__qualname__ != run_with_hypothesis.__qualname__:
-                check_test_function_type(original_func)
-                pyfuncitem.obj.hypothesis.inner_test = run_with_hypothesis
+                if iscoroutinefunction(pyfuncitem.obj):
+                    pyfuncitem.obj.hypothesis.inner_test = run_with_hypothesis
 
             return False
 
-        check_test_function_type(pyfuncitem.obj)
-        funcargs = pyfuncitem.funcargs
-        testargs = {arg: funcargs[arg] for arg in pyfuncitem._fixtureinfo.argnames}
-        run(partial(pyfuncitem.obj, **testargs), backend=backend)
-        return True
+        if iscoroutinefunction(pyfuncitem.obj):
+            funcargs = pyfuncitem.funcargs
+            testargs = {arg: funcargs[arg] for arg in pyfuncitem._fixtureinfo.argnames}
+            run(partial(pyfuncitem.obj, **testargs), backend=backend,
+                backend_options=backend_options)
+            return True
+
+
+@pytest.fixture
+def anyio_backend_name(anyio_backend) -> str:
+    if isinstance(anyio_backend, str):
+        return anyio_backend
+    else:
+        return anyio_backend[0]
+
+
+@pytest.fixture
+def anyio_backend_options(anyio_backend) -> Dict[str, Any]:
+    if isinstance(anyio_backend, str):
+        return {}
+    else:
+        return anyio_backend[1]

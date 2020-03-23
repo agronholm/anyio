@@ -347,9 +347,12 @@ async def connect_tcp(
             await sock.close()
             raise
         else:
-            assert stream is None
-            stream = _networking.SocketStream(sock, ssl_context, target_host,
-                                              tls_standard_compatible)
+            if stream is None:
+                stream = _networking.SocketStream(sock, ssl_context, target_host,
+                                                  tls_standard_compatible)
+                await tg.cancel_scope.cancel()
+            else:
+                raw_socket.close()
         finally:
             await event.set()
 
@@ -392,10 +395,6 @@ async def connect_tcp(
             await tg.spawn(try_connect, af, addr, event)
             async with move_on_after(happy_eyeballs_delay):
                 await event.wait()
-
-            if stream is not None:
-                await tg.cancel_scope.cancel()
-                break
 
     if stream is None:
         cause = oserrors[0] if len(oserrors) == 1 else asynclib.ExceptionGroup(oserrors)

@@ -63,6 +63,39 @@ For example, to run your test suite against the curio and trio backends:
 
     pytest --anyio-backends=curio,trio
 
+Behind the scenes, any function that uses the ``@pytest.mark.anyio`` marker gets parametrized by
+the plugin to use the ``anyio_backend`` fixture. One alternative is to do this parametrization on
+your own::
+
+    @pytest.mark.parametrize('anyio_backend', ['asyncio'])
+    async def test_on_asyncio_only(anyio_backend):
+        ...
+
+Or you can write a simple fixture by the same name that provides the back-end name::
+
+    @pytest.fixture(params=['asyncio'])
+    def anyio_backend(request):
+        return request.param
+
+If you want to specify different options for the selected backend, you can do so by passing a tuple
+of (backend name, options dict). The latter is passed as keyword arguments to :func:`anyio.run`::
+
+    @pytest.fixture(params=[
+        pytest.param(('asyncio', {'use_uvloop': True}), id='asyncio+uvloop'),
+        pytest.param(('asyncio', {'use_uvloop': False}), id='asyncio'),
+        pytest.param('curio'),
+        pytest.param(('trio', {'restrict_keyboard_interrupt_to_checkpoints': True}), id='trio')
+    ])
+    def anyio_backend(request):
+        return request.param
+
+Because the ``anyio_backend`` fixture can return either a string or a tuple, there are two
+additional fixtures (which themselves depend on the ``anyio_backend`` fixture) provided for your
+convenience:
+
+* ``anyio_backend_name``: the name of the backend (e.g. ``asyncio``)
+* ``anyio_backend_options``: the dictionary of option keywords used to run the backend
+
 Using AnyIO from regular tests
 ------------------------------
 

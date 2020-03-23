@@ -511,6 +511,30 @@ class SocketStream(Stream):
         This calls :meth:`~socket.socket.setsockopt` on the underlying socket.
         """
 
+    @property
+    def address(self) -> Union[Tuple[str, int], Tuple[str, int, int, int], str]:
+        """
+        Return the bound address of the underlying local socket.
+
+        For IPv4 TCP streams, this is a tuple of (IP address, port).
+        For IPv6 TCP streams, this is a tuple of (IP address, port, flowinfo, scopeid).
+        For UNIX socket streams, this is the path to the socket.
+
+        """
+        raise NotImplementedError
+
+    @property
+    def peer_address(self) -> Union[Tuple[str, int], Tuple[str, int, int, int], str]:
+        """
+        Return the address this socket is connected to.
+
+        For IPv4 TCP streams, this is a tuple of (IP address, port).
+        For IPv6 TCP streams, this is a tuple of (IP address, port, flowinfo, scopeid).
+        For UNIX socket streams, this is the path to the socket.
+
+        """
+        raise NotImplementedError
+
     @abstractmethod
     async def start_tls(self, context: Optional[SSLContext] = None) -> None:
         """

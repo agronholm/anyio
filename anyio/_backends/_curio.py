@@ -1,11 +1,14 @@
+import inspect
 import math
 import socket
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from concurrent.futures import Future
 from functools import partial
+from signal import signal
 from threading import Thread
 from types import TracebackType
-from typing import Callable, Set, Optional, Coroutine, Any, cast, Dict, List, Sequence, Type
+from typing import (
+    Callable, Set, Optional, Coroutine, Any, cast, Dict, List, Sequence, DefaultDict, Type)
 from weakref import WeakKeyDictionary
 
 import curio.io
@@ -19,6 +22,11 @@ from .. import abc, T_Retval, claim_worker_thread, TaskInfo, _local
 from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock)
 from .._networking import BaseSocket
+
+if 'report_crash' in inspect.signature(curio.spawn).parameters:
+    spawn_kwargs = {'report_crash': False}
+else:
+    spawn_kwargs = {}
 
 
 #
@@ -335,8 +343,7 @@ class TaskGroup:
         if not self._active:
             raise RuntimeError('This task group is not active; no new tasks can be spawned.')
 
-        task = await curio.spawn(self._run_wrapped_task, func, args, daemon=True,
-                                 report_crash=False)
+        task = await curio.spawn(self._run_wrapped_task, func, args, daemon=True, **spawn_kwargs)
         task.parentid = (await curio.current_task()).id
         if name is not None:
             task.name = name
@@ -391,7 +398,7 @@ async def run_in_thread(func: Callable[..., T_Retval], *args, cancellable: bool 
     limiter = limiter or _default_thread_limiter
     await limiter.acquire_on_behalf_of(task)
     thread = Thread(target=thread_worker, daemon=True)
-    helper_task = await curio.spawn(async_call_helper, daemon=True, report_crash=False)
+    helper_task = await curio.spawn(async_call_helper, daemon=True, **spawn_kwargs)
     thread.start()
     async with CancelScope(shield=not cancellable):
         await finish_event.wait()
@@ -647,11 +654,48 @@ abc.CapacityLimiter.register(CapacityLimiter)
 # Operating system signals
 #
 
+_signal_queues = defaultdict(list)  # type: DefaultDict[int, List[curio.UniversalQueue]]
+_original_signal_handlers = {}  # type:  Dict[int, Any]
+
+
+def _receive_signal(sig: int, frame) -> None:
+    for queue in _signal_queues[sig]:
+        queue.put(sig)
+
+
+@async_generator
+async def _iterate_signals(queue: curio.UniversalQueue):
+    while True:
+        sig = await queue.get()
+        await yield_(sig)
+
+
 @asynccontextmanager
 @async_generator
 async def receive_signals(*signals: int):
-    async with curio.SignalQueue(*signals) as queue:
-        await yield_(queue)
+    queue = curio.UniversalQueue()
+    try:
+        for sig in signals:
+            _signal_queues[sig].append(queue)
+            previous_handler = signal(sig, _receive_signal)
+            if sig not in _original_signal_handlers:
+                _original_signal_handlers[sig] = previous_handler
+
+        gen = _iterate_signals(queue)
+        await yield_(gen)
+    finally:
+        await gen.aclose()
+
+        for sig in signals:
+            try:
+                del _signal_queues[sig]
+            except ValueError:
+                pass
+
+            if not _signal_queues[sig]:
+                previous_handler = _original_signal_handlers.pop(sig)
+                signal(sig, previous_handler)
+                del _signal_queues[sig]
 
 
 #

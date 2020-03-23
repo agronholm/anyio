@@ -5,10 +5,25 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed compatibility with Curio 1.0
+- Made it possible to assert fine grained control over which AnyIO backends and backend options are
+  being used with each test
+- Added the ``address`` and ``peer_address`` properties to the ``SocketStream`` interface
+
+**1.2.3**
+
+- Repackaged release (v1.2.2 contained extra files from an experimental
+  branch which broke imports)
+
+**1.2.2**
+
 - Fixed ``CancelledError`` leaking from a cancel scope on asyncio if the task previously received a
   cancellation exception
 - Fixed ``AttributeError`` when cancelling a generator-based task (asyncio)
 - Fixed ``wait_all_tasks_blocked()`` not working with generator-based tasks (asyncio)
+- Fixed an unnecessary delay in ``connect_tcp()`` if an earlier attempt succeeds
+- Fixed ``AssertionError`` in ``connect_tcp()`` if multiple connection attempts succeed
+  simultaneously
 
 **1.2.1**
 
