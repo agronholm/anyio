@@ -133,6 +133,7 @@ class CancelScope:
                 elif not self._parent_cancelled():
                     # This scope was directly cancelled
                     return True
+
         return None
 
     async def _cancel(self):
