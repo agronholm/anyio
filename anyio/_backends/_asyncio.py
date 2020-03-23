@@ -8,9 +8,10 @@ import sys
 from collections import OrderedDict
 from functools import partial
 from threading import Thread
+from types import TracebackType
 from typing import (
     Callable, Set, Optional, Union, Tuple, cast, Coroutine, Any, Awaitable, TypeVar, Generator,
-    List, Dict, Sequence)
+    List, Dict, Sequence, Type)
 from weakref import WeakKeyDictionary
 
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
@@ -163,23 +164,29 @@ class CancelScope:
         self._active = True
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
         self._active = False
         if self._timeout_task:
             self._timeout_task.cancel()
 
+        assert self._host_task is not None
         self._tasks.remove(self._host_task)
         host_task_state = _task_states.get(self._host_task)
         if host_task_state is not None and host_task_state.cancel_scope is self:
             host_task_state.cancel_scope = self._parent_scope
 
-        exceptions = exc_val.exceptions if isinstance(exc_val, ExceptionGroup) else [exc_val]
-        if all(isinstance(exc, CancelledError) for exc in exceptions):
-            if self._timeout_expired:
-                return True
-            elif not self._parent_cancelled():
-                # This scope was directly cancelled
-                return True
+        if exc_val is not None:
+            exceptions = exc_val.exceptions if isinstance(exc_val, ExceptionGroup) else [exc_val]
+            if all(isinstance(exc, CancelledError) for exc in exceptions):
+                if self._timeout_expired:
+                    return True
+                elif not self._parent_cancelled():
+                    # This scope was directly cancelled
+                    return True
+
+        return None
 
     async def _cancel(self):
         # Deliver cancellation to directly contained tasks and nested cancel scopes
@@ -342,7 +349,9 @@ class TaskGroup:
         self._active = True
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
         ignore_exception = await self.cancel_scope.__aexit__(exc_type, exc_val, exc_tb)
         if exc_val is not None:
             await self.cancel_scope.cancel()
@@ -476,7 +485,9 @@ class AsyncFile:
     async def __aenter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> None:
         await self.close()
 
     @async_generator
@@ -631,7 +642,9 @@ class Lock(asyncio.Lock):
         check_cancelled()
         await self.acquire()
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> None:
         self.release()
 
 
@@ -696,7 +709,9 @@ class CapacityLimiter:
     async def __aenter__(self):
         await self.acquire()
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> None:
         await self.release()
 
     def _set_total_tokens(self, value: float) -> None:

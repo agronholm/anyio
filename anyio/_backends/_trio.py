@@ -1,5 +1,6 @@
 import math
-from typing import Callable, Optional, List, Union
+from types import TracebackType
+from typing import Callable, Optional, List, Type, Union
 
 import trio.hazmat
 import trio.from_thread
@@ -49,7 +50,9 @@ class CancelScope:
         self.__original.__enter__()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
         return self.__original.__exit__(exc_type, exc_val, exc_tb)
 
     async def cancel(self) -> None:
@@ -120,7 +123,9 @@ class TaskGroup:
         self.cancel_scope = CancelScope(self._nursery.cancel_scope)
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
         try:
             return await self._nursery_manager.__aexit__(exc_type, exc_val, exc_tb)
         except trio.MultiError as exc:
@@ -285,7 +290,9 @@ class CapacityLimiter(abc.CapacityLimiter):
         await self._limiter.__aenter__()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> None:
         await self._limiter.__aexit__(exc_type, exc_val, exc_tb)
 
     @property
