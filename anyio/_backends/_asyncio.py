@@ -186,7 +186,7 @@ class CancelScope:
                     # This scope was directly cancelled
                     return True
 
-       return None
+        return None
 
     async def _cancel(self):
         # Deliver cancellation to directly contained tasks and nested cancel scopes
