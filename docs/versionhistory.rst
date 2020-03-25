@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**1.3.0**
 
 - Fixed compatibility with Curio 1.0
 - Made it possible to assert fine grained control over which AnyIO backends and backend options are
