@@ -36,7 +36,7 @@ stages:
           imageName: 'ubuntu-latest'
           python.version: 'pypy3'
         Mac-Py35:
-          imageName: 'macos-10.13'
+          imageName: 'macos-10.14'
           python.version: '3.5'
         Mac-Py38:
           imageName: 'macos-latest'
