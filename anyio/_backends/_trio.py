@@ -2,11 +2,11 @@ import math
 from types import TracebackType
 from typing import Callable, Optional, List, Type, Union
 
-import trio.hazmat
+import trio.lowlevel
 import trio.from_thread
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
 from trio.to_thread import run_sync
-from trio.hazmat import wait_readable, wait_writable, notify_closing
+from trio.lowlevel import wait_readable, wait_writable, notify_closing
 
 from .. import abc, claim_worker_thread, T_Retval, TaskInfo
 from ..exceptions import (
@@ -187,7 +187,7 @@ class Socket(BaseSocket):
             notify_closing(self._raw_socket)
 
     def _check_cancelled(self):
-        return trio.hazmat.checkpoint_if_cancelled()
+        return trio.lowlevel.checkpoint_if_cancelled()
 
     def _run_in_thread(self, func: Callable, *args):
         return run_in_thread(func, *args)
@@ -361,7 +361,7 @@ async def receive_signals(*signals: int):
 #
 
 async def get_current_task() -> TaskInfo:
-    task = trio.hazmat.current_task()
+    task = trio.lowlevel.current_task()
 
     parent_id = None
     if task.parent_nursery and task.parent_nursery.parent_task:
@@ -371,7 +371,7 @@ async def get_current_task() -> TaskInfo:
 
 
 async def get_running_tasks() -> List[TaskInfo]:
-    root_task = trio.hazmat.current_root_task()
+    root_task = trio.lowlevel.current_root_task()
     task_infos = [TaskInfo(id(root_task), None, root_task.name, root_task.coro)]
     nurseries = root_task.child_nurseries
     while nurseries:
