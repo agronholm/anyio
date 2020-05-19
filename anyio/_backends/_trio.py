@@ -247,7 +247,7 @@ class Condition:
         self.__aexit__ = cond.__aexit__
         self.locked = cond.locked
         self.wait = cond.wait
-    
+
     async def notify(self, n: int = 1) -> None:
         self._cond.notify(n)
 
