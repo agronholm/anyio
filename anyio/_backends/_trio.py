@@ -2,12 +2,18 @@ import math
 from types import TracebackType
 from typing import Callable, Optional, List, Type, Union
 
-import trio.lowlevel
+try:
+    import trio.lowlevel
+except ImportError:
+    import trio.hazmat
+    trio.lowlevel = trio.hazmat
 import trio.from_thread
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
 from trio.to_thread import run_sync
-from trio.lowlevel import wait_readable, wait_writable, notify_closing
-
+try:
+    from trio.lowlevel import wait_readable, wait_writable, notify_closing
+except ImportError:
+    from trio.hazmat import wait_readable, wait_writable, notify_closing
 from .. import abc, claim_worker_thread, T_Retval, TaskInfo
 from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock)
