@@ -247,8 +247,8 @@ class Event:
 
 
 class Condition:
-    def __init__(self):
-        self._cond = cond = trio.Condition()
+    def __init__(self, lock: Lock = None):
+        self._cond = cond = trio.Condition(lock=lock)
         self.__aenter__ = cond.__aenter__
         self.__aexit__ = cond.__aexit__
         self.locked = cond.locked
