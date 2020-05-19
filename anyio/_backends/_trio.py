@@ -240,12 +240,19 @@ class Event:
         await self._event.wait()
 
 
-class Condition(trio.Condition):
+class Condition:
+    def __init__(self):
+        self._cond = cond = trio.Condition()
+        self.__aenter__ = cond.__aenter__
+        self.__aexit__ = cond.__aexit__
+        self.locked = cond.locked
+        self.wait = cond.wait
+    
     async def notify(self, n: int = 1) -> None:
-        super().notify(n)
+        self._cond.notify(n)
 
     async def notify_all(self) -> None:
-        super().notify_all()
+        self._cond.notify_all()
 
 
 Semaphore = trio.Semaphore
