@@ -191,7 +191,7 @@ class Socket(BaseSocket):
             notify_closing(self._raw_socket)
 
     def _check_cancelled(self):
-        return trio.lowlevel.checkpoint_if_cancelled()
+        return trio_lowlevel.checkpoint_if_cancelled()
 
     def _run_in_thread(self, func: Callable, *args):
         return run_in_thread(func, *args)
@@ -245,7 +245,7 @@ class Event:
 
 
 class Condition:
-    def __init__(self, lock: trio.Lock = None):
+    def __init__(self, lock: Optional[trio.Lock] = None):
         self._cond = cond = trio.Condition(lock=lock)
         self.__aenter__ = cond.__aenter__
         self.__aexit__ = cond.__aexit__
@@ -372,7 +372,7 @@ async def receive_signals(*signals: int):
 #
 
 async def get_current_task() -> TaskInfo:
-    task = trio.lowlevel.current_task()
+    task = trio_lowlevel.current_task()
 
     parent_id = None
     if task.parent_nursery and task.parent_nursery.parent_task:
@@ -382,7 +382,7 @@ async def get_current_task() -> TaskInfo:
 
 
 async def get_running_tasks() -> List[TaskInfo]:
-    root_task = trio.lowlevel.current_root_task()
+    root_task = trio_lowlevel.current_root_task()
     task_infos = [TaskInfo(id(root_task), None, root_task.name, root_task.coro)]
     nurseries = root_task.child_nurseries
     while nurseries:
