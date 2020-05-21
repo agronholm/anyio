@@ -2,17 +2,21 @@ import math
 from types import TracebackType
 from typing import Callable, Optional, List, Type, Union
 
-import trio.hazmat
 import trio.from_thread
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
 from trio.to_thread import run_sync
-from trio.hazmat import wait_readable, wait_writable, notify_closing
-
 from .. import abc, claim_worker_thread, T_Retval, TaskInfo
 from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock)
 from .._networking import BaseSocket
 
+try:
+    import trio.lowlevel as trio_lowlevel
+except ImportError:
+    import trio.hazmat as trio_lowlevel
+    from trio.hazmat import wait_readable, wait_writable, notify_closing
+else:
+    from trio.lowlevel import wait_readable, wait_writable, notify_closing
 #
 # Event loop
 #
@@ -187,7 +191,7 @@ class Socket(BaseSocket):
             notify_closing(self._raw_socket)
 
     def _check_cancelled(self):
-        return trio.hazmat.checkpoint_if_cancelled()
+        return trio_lowlevel.checkpoint_if_cancelled()
 
     def _run_in_thread(self, func: Callable, *args):
         return run_in_thread(func, *args)
@@ -240,12 +244,27 @@ class Event:
         await self._event.wait()
 
 
-class Condition(trio.Condition):
+class Condition:
+    def __init__(self, lock: Optional[trio.Lock] = None):
+        self._cond = trio.Condition(lock=lock)
+
+    async def __aenter__(self):
+        await self._cond.__aenter__()
+
+    async def __aexit__(self, *exc_info):
+        return await self._cond.__aexit__(*exc_info)
+
     async def notify(self, n: int = 1) -> None:
-        super().notify(n)
+        self._cond.notify(n)
 
     async def notify_all(self) -> None:
-        super().notify_all()
+        self._cond.notify_all()
+
+    def locked(self):
+        return self._cond.locked()
+
+    async def wait(self):
+        return await self._cond.wait()
 
 
 Semaphore = trio.Semaphore
@@ -361,7 +380,7 @@ async def receive_signals(*signals: int):
 #
 
 async def get_current_task() -> TaskInfo:
-    task = trio.hazmat.current_task()
+    task = trio_lowlevel.current_task()
 
     parent_id = None
     if task.parent_nursery and task.parent_nursery.parent_task:
@@ -371,7 +390,7 @@ async def get_current_task() -> TaskInfo:
 
 
 async def get_running_tasks() -> List[TaskInfo]:
-    root_task = trio.hazmat.current_root_task()
+    root_task = trio_lowlevel.current_root_task()
     task_infos = [TaskInfo(id(root_task), None, root_task.name, root_task.coro)]
     nurseries = root_task.child_nurseries
     while nurseries:
