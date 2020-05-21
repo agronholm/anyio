@@ -247,16 +247,24 @@ class Event:
 class Condition:
     def __init__(self, lock: Optional[trio.Lock] = None):
         self._cond = cond = trio.Condition(lock=lock)
-        self.__aenter__ = cond.__aenter__
-        self.__aexit__ = cond.__aexit__
-        self.locked = cond.locked
-        self.wait = cond.wait
+
+    async def __aenter__(self):
+        await self._cond.__aenter__()
+
+    async def __aexit__(self, *exc_info):
+        return await self._cond.__aexit__(*exc_info)
 
     async def notify(self, n: int = 1) -> None:
         self._cond.notify(n)
 
     async def notify_all(self) -> None:
         self._cond.notify_all()
+
+    def locked(self):
+        return self._cond.locked()
+
+    async def wait(self):
+        return await self._cond.wait()
 
 
 Semaphore = trio.Semaphore
