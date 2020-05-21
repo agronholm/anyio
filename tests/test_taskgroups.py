@@ -44,20 +44,21 @@ async def test_success():
     assert results == {'a', 'b'}
 
 
-@pytest.mark.parametrize('module, as_coro_obj', [
-    pytest.param(asyncio, True, marks=[
+@pytest.mark.parametrize('module', [
+    pytest.param(asyncio, id='asyncio', marks=[
         pytest.mark.skipif(not hasattr(asyncio, 'run'), reason='asyncio.run() is not available')]
     ),
-    (curio, False),
-    (trio, False)
-], ids=['asyncio', 'curio', 'trio'])
-def test_run_natively(module, as_coro_obj):
+    pytest.param(curio, id='curio'),
+    pytest.param(trio, id='trio')
+])
+def test_run_natively(module):
     async def testfunc():
         async with create_task_group() as tg:
             await tg.spawn(sleep, 0)
 
-    if as_coro_obj:
+    if module is asyncio:
         module.run(testfunc())
+        asyncio.set_event_loop(asyncio.new_event_loop())
     else:
         module.run(testfunc)
 
