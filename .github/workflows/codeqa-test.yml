@@ -57,7 +57,7 @@ jobs:
     - name: Test with pytest
       run: coverage run -m pytest
     - name: Coveralls Parallel
-      uses: coverallsapp/github-action@master
+      uses: AndreMiras/coveralls-python-action@develop
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         flag-name: run-${{ matrix.test_number }}
@@ -68,7 +68,7 @@ jobs:
     needs: test
     steps:
     - name: Tell Coveralls that the parallel build is finished
-      uses: coverallsapp/github-action@master
+      uses: AndreMiras/coveralls-python-action@develop
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         parallel-finished: true
