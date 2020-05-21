@@ -1,4 +1,4 @@
-name: Python codeqa/test/tag
+name: Python codeqa/test
 
 on:
   push:
@@ -29,7 +29,7 @@ jobs:
     - name: Install dependencies
       run: pip install mypy
     - name: Check types with Mypy
-      run: mypy src
+      run: mypy anyio
 
   test:
     needs: [flake8, mypy]
