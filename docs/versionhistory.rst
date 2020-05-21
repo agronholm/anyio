@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed warnings caused by trio 0.15
+
+
 **1.3.0**
 
 - Fixed compatibility with Curio 1.0

@@ -17,7 +17,8 @@ def pytest_ignore_collect(path, config):
     pytest.param(('asyncio', {'use_uvloop': True}), id='asyncio+uvloop',
                  marks=[pytest.mark.skipif(uvloop is None, reason='uvloop not available')]),
     pytest.param('curio'),
-    pytest.param('trio')
+    pytest.param('trio', marks=[pytest.mark.skipif(sys.version_info < (3, 6),
+                                                   reason='trio only supports py3.6+')])
 ], autouse=True)
 def anyio_backend(request):
     return request.param
