@@ -1,6 +1,5 @@
 import asyncio
 import concurrent.futures
-import inspect
 import math
 import os
 import socket
@@ -26,7 +25,8 @@ try:
 except ImportError:
     _T = TypeVar('_T')
 
-    def create_task(coro: Union[Generator[Any, None, _T], Awaitable[_T]]) -> asyncio.Task:
+    def create_task(coro: Union[Generator[Any, None, _T], Awaitable[_T]], *,
+                    name: Optional[str] = None) -> asyncio.Task:
         return get_running_loop().create_task(coro)
 
     def get_running_loop() -> asyncio.AbstractEventLoop:
@@ -52,7 +52,7 @@ except ImportError:
         return asyncio.Task.current_task(loop)
 
 # Check whether there is native support for task names in asyncio (3.8+)
-_native_task_names = 'name' in inspect.signature(create_task).parameters
+_native_task_names = hasattr(asyncio.Task, 'get_name')
 
 
 #
