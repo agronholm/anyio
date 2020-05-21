@@ -246,7 +246,7 @@ class Event:
 
 class Condition:
     def __init__(self, lock: Optional[trio.Lock] = None):
-        self._cond = cond = trio.Condition(lock=lock)
+        self._cond = trio.Condition(lock=lock)
 
     async def __aenter__(self):
         await self._cond.__aenter__()
