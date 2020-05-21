@@ -1,0 +1,74 @@
+name: Python codeqa/test/tag
+
+on:
+  push:
+    branches:
+      - "*"
+  pull_request:
+    branches:
+      - "*"
+
+jobs:
+  flake8:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Check code style with Flake8
+      uses: TrueBrain/actions-flake8@v1.2
+      with:
+        path: src tests
+
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.x
+    - name: Install dependencies
+      run: pip install mypy
+    - name: Check types with Mypy
+      run: mypy src
+
+  test:
+    needs: [flake8, mypy]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: [3.5, 3.6, 3.7, 3.8, pypy3]
+        exclude:
+        - os: macos-latest
+          python-version: 3.7
+        - os: windows-latest
+          python-version: 3.7
+        - os: windows-latest
+          python-version: pypy3  # https://github.com/python-trio/trio/issues/1361
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: pip install .[test,curio,trio]
+    - name: Test with pytest
+      run: coverage run -m pytest
+    - name: Coveralls Parallel
+      uses: coverallsapp/github-action@master
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        flag-name: run-${{ matrix.test_number }}
+        parallel: true
+
+  coveralls:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+    - name: Tell Coveralls that the parallel build is finished
+      uses: coverallsapp/github-action@master
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        parallel-finished: true
