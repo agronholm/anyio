@@ -59,8 +59,24 @@ _native_task_names = hasattr(asyncio.Task, 'get_name')
 # Event loop
 #
 
+# Must be explicitly set on Python 3.8 for now or wait_socket_(readable|writable) won't work
+if sys.platform == 'win32' and sys.version_info >= (3, 8):
+    _default_policy = asyncio.WindowsSelectorEventLoopPolicy()  # type: ignore
+else:
+    _default_policy = asyncio.DefaultEventLoopPolicy()
+_uvloop_policy = None
+# Use uvloop on CPython only
+if sys.implementation.name == 'cpython':
+    try:
+        import uvloop
+    except ImportError:
+        pass
+    else:
+        _uvloop_policy = uvloop.EventLoopPolicy()
+
+
 def run(func: Callable[..., T_Retval], *args, debug: bool = False, use_uvloop: bool = True,
-        policy: Optional[asyncio.AbstractEventLoopPolicy] = None) -> T_Retval:
+        policy: asyncio.AbstractEventLoopPolicy = _default_policy) -> T_Retval:
     async def wrapper():
         nonlocal exception, retval
         try:
@@ -68,22 +84,12 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False, use_uvloop: b
         except BaseException as exc:
             exception = exc
 
-    # On CPython, use uvloop when possible if no other policy has been given and if not explicitly
+    # Use uvloop when possible if no other policy has been given and if not explicitly
     # disabled
-    if policy is None and use_uvloop and sys.implementation.name == 'cpython':
-        try:
-            import uvloop
-        except ImportError:
-            pass
-        else:
-            policy = uvloop.EventLoopPolicy()
+    if policy is _default_policy and use_uvloop and _uvloop_policy is not None:
+        policy = _uvloop_policy
 
-    # Must be explicitly set on Python 3.8 for now or wait_socket_(readable|writable) won't work
-    if policy is None and sys.platform == 'win32' and sys.version_info >= (3, 8):
-        policy = asyncio.WindowsSelectorEventLoopPolicy()  # type: ignore
-
-    if policy is not None:
-        asyncio.set_event_loop_policy(policy)
+    asyncio.set_event_loop_policy(policy)
 
     # We use loop.run_until_complete() instead of asyncio.run() because the latter cancels all
     # tasks and shuts down all async generators, making it unsuitable for things like pytest

@@ -54,3 +54,21 @@ class TestAnyIOBackendsFixture:
     async def test_anyio_backend_fixture(self, anyio_backend):
         assert anyio_backend in ('asyncio', 'trio')
         assert anyio_backend == sniffio.current_async_library()
+
+
+@pytest.fixture
+async def loop():
+    import asyncio
+    return asyncio.get_event_loop()
+
+
+async def test_consistent_asyncio_loop(loop, anyio_backend_name, anyio_backend_options):
+    if anyio_backend_name != 'asyncio':
+        pytest.skip()
+    import asyncio
+    if anyio_backend_options.get("use_uvloop"):
+        import uvloop
+        assert isinstance(loop, uvloop.Loop)
+    else:
+        assert isinstance(loop, asyncio.BaseEventLoop)
+    assert asyncio.get_event_loop() is loop
