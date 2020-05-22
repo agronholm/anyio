@@ -56,19 +56,3 @@ jobs:
       run: pip install .[test,curio,trio]
     - name: Test with pytest
       run: coverage run -m pytest
-    - name: Coveralls Parallel
-      uses: AndreMiras/coveralls-python-action@develop
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        flag-name: run-${{ matrix.test_number }}
-        parallel: true
-
-  coveralls:
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-    - name: Tell Coveralls that the parallel build is finished
-      uses: AndreMiras/coveralls-python-action@develop
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        parallel-finished: true
