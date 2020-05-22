@@ -1,6 +1,8 @@
 .. image:: https://github.com/agronholm/anyio/workflows/Python%20codeqa/test/badge.svg?branch=master
+  :target: https://github.com/agronholm/anyio/actions?query=workflow%3A%22Python+codeqa%2Ftest%22+branch%3Amaster
   :alt: Build Status
 .. image:: https://coveralls.io/repos/github/agronholm/anyio/badge.svg?branch=master
+  :target: https://coveralls.io/github/agronholm/anyio?branch=master
   :alt: Code Coverage
 .. image:: https://readthedocs.org/projects/anyio/badge/?version=latest
   :target: https://anyio.readthedocs.io/en/latest/?badge=latest
