@@ -76,7 +76,9 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False, use_uvloop: b
         except ImportError:
             pass
         else:
-            policy = uvloop.EventLoopPolicy()
+            if (not hasattr(asyncio.AbstractEventLoop, 'shutdown_default_executor')
+                    or hasattr(uvloop.loop.Loop, 'shutdown_default_executor')):
+                policy = uvloop.EventLoopPolicy()
 
     # Must be explicitly set on Python 3.8 for now or wait_socket_(readable|writable) won't work
     if policy is None and sys.platform == 'win32' and sys.version_info >= (3, 8):

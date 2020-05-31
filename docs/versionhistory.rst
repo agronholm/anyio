@@ -6,7 +6,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **UNRELEASED**
 
 - Fixed warnings caused by trio 0.15
-
+- Worked around a compatibility issue between uvloop and Python 3.9 (missing
+  ``shutdown_default_executor()`` method)
 
 **1.3.0**
 
