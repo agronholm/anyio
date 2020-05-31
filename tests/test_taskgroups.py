@@ -57,13 +57,12 @@ def test_run_natively(module):
             await tg.spawn(sleep, 0)
 
     if module is asyncio:
-        module.run(testfunc())
-        asyncio.set_event_loop(asyncio.new_event_loop())
+        try:
+            module.run(testfunc())
+        finally:
+            asyncio.set_event_loop(asyncio.new_event_loop())
     else:
         module.run(testfunc)
-
-    if module is asyncio:
-        asyncio.set_event_loop(asyncio.new_event_loop())
 
 
 @pytest.mark.anyio
