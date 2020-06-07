@@ -533,10 +533,7 @@ async def create_udp_socket(
     raw_socket = socket.socket(family=family, type=socket.SOCK_DGRAM)
     sock = _get_asynclib().Socket(raw_socket)
     try:
-        if sys.platform == 'win32':
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-        else:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
         if interface is not None or port is not None:
             await sock.bind((interface or '', port or 0))
