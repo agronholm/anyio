@@ -534,7 +534,8 @@ class TestUDPSocket:
 
     @pytest.mark.anyio
     async def test_udp_rebind(self, localhost):
-        async with await create_udp_socket(address_family=socket.AF_INET, port=0) as udp:
+        async with await create_udp_socket(address_family=socket.AF_INET, port=0,
+                target_host="8.8.8.8", target_port=9999) as udp:
             port = udp.address[1]
             assert port != 0
             async with await create_udp_socket(address_family=socket.AF_INET, port=port) as udp2:
