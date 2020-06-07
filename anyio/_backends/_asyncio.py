@@ -686,13 +686,13 @@ class Semaphore(asyncio.Semaphore):
 
 
 class Queue(asyncio.Queue):
-    def get(self):
+    async def get(self):
         check_cancelled()
-        return super().get()
+        return await super().get()
 
-    def put(self, item):
+    async def put(self, item):
         check_cancelled()
-        return super().put(item)
+        return await super().put(item)
 
     def __aiter__(self):
         return self
