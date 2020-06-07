@@ -26,7 +26,7 @@ except ImportError:
     _T = TypeVar('_T')
 
     def create_task(coro: Union[Generator[Any, None, _T], Awaitable[_T]], *,
-                    name: Optional[str] = None) -> asyncio.Task:
+                    name: Optional[str] = None) -> asyncio.Task[_T]:
         return get_running_loop().create_task(coro)
 
     def get_running_loop() -> asyncio.AbstractEventLoop:
