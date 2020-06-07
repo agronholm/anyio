@@ -520,7 +520,7 @@ async def create_udp_socket(
     if interface:
         interface, family, _v6only = await _networking.get_bind_address(interface)
     else:
-        interface, family = None, address_family
+        interface, family = None, address_family or socket.AF_UNSPEC
 
     if target_host:
         res = await run_in_thread(socket.getaddrinfo, target_host, target_port, family)
