@@ -661,24 +661,24 @@ class Condition(asyncio.Condition):
     async def notify_all(self):
         super().notify(len(self._waiters))
 
-    def wait(self):
+    async def wait(self):
         check_cancelled()
-        return super().wait()
+        return await super().wait()
 
 
 class Event(asyncio.Event):
     async def set(self):
         super().set()
 
-    def wait(self):
+    async def wait(self):
         check_cancelled()
-        return super().wait()
+        return await super().wait()
 
 
 class Semaphore(asyncio.Semaphore):
-    def __aenter__(self):
+    async def __aenter__(self):
         check_cancelled()
-        return super().__aenter__()
+        return await super().__aenter__()
 
     @property
     def value(self):
@@ -697,9 +697,9 @@ class Queue(asyncio.Queue):
     def __aiter__(self):
         return self
 
-    def __anext__(self):
+    async def __anext__(self):
         check_cancelled()
-        return super().get()
+        return await super().get()
 
 
 class CapacityLimiter:
