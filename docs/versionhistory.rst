@@ -3,6 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed ``fail.after(0)`` not raising a timeout error on asyncio and curio
+
 **1.3.1**
 
 - Fixed warnings caused by trio 0.15

@@ -106,9 +106,11 @@ class CancelScope:
             task_state.cancel_scope = self
 
         if self._deadline != math.inf:
-            self._timeout_task = await curio.spawn(timeout)
             if await curio.clock() >= self._deadline:
                 self._cancel_called = True
+                self._timeout_expired = True
+            else:
+                self._timeout_task = await curio.spawn(timeout)
 
         self._active = True
         return self

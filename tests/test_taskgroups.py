@@ -233,10 +233,11 @@ async def test_cancel_scope_cleared():
     await sleep(0)
 
 
+@pytest.mark.parametrize('delay', [0, 0.1], ids=['instant', 'delayed'])
 @pytest.mark.anyio
-async def test_fail_after():
+async def test_fail_after(delay):
     with pytest.raises(TimeoutError):
-        async with fail_after(0.1) as scope:
+        async with fail_after(delay) as scope:
             await sleep(1)
 
     assert scope.cancel_called
@@ -251,10 +252,11 @@ async def test_fail_after_no_timeout():
     assert not scope.cancel_called
 
 
+@pytest.mark.parametrize('delay', [0, 0.1], ids=['instant', 'delayed'])
 @pytest.mark.anyio
-async def test_move_on_after():
+async def test_move_on_after(delay):
     result = False
-    async with move_on_after(0.1) as scope:
+    async with move_on_after(delay) as scope:
         await sleep(1)
         result = True
 
