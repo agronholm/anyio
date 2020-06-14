@@ -5,6 +5,7 @@ from typing import Callable, Optional, List, Type, Union
 import trio.from_thread
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
 from trio.to_thread import run_sync
+
 from .. import abc, claim_worker_thread, T_Retval, TaskInfo
 from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock)
@@ -17,6 +18,8 @@ except ImportError:
     from trio.hazmat import wait_readable, wait_writable, notify_closing
 else:
     from trio.lowlevel import wait_readable, wait_writable, notify_closing
+
+
 #
 # Event loop
 #

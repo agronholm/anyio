@@ -29,6 +29,12 @@ else:
     spawn_kwargs = {}
 
 
+def get_callable_name(func: Callable) -> str:
+    module = getattr(func, '__module__', None)
+    qualname = getattr(func, '__qualname__', None)
+    return '.'.join([x for x in (module, qualname) if x])
+
+
 #
 # Event loop
 #
@@ -42,7 +48,9 @@ def run(func: Callable[..., T_Retval], *args, **curio_options) -> T_Retval:
             exception = exc
 
     exception = retval = None
-    curio.run(wrapper, **curio_options)
+    coro = wrapper()
+    coro.__qualname__ = get_callable_name(func)
+    curio.run(coro, **curio_options)
     if exception is not None:
         raise exception
     else:
@@ -348,8 +356,7 @@ class TaskGroup:
 
         task = await curio.spawn(self._run_wrapped_task, func, args, daemon=True, **spawn_kwargs)
         task.parentid = (await curio.current_task()).id
-        if name is not None:
-            task.name = name
+        task.name = name or get_callable_name(func)
 
         # Make the spawned task inherit the task group's cancel scope
         _task_states[task] = TaskState(cancel_scope=self.cancel_scope)
