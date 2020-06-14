@@ -48,3 +48,39 @@ If you need to call a coroutine function from a worker thread, you can do this::
 
 .. note:: The worker thread must have been spawned using :func:`~anyio.run_sync_in_worker_thread`
    for this to work.
+
+Calling asynchronous code from an external thread
+-------------------------------------------------
+
+If you need to run async code from a thread that is not a worker thread spawned by the event loop,
+you need a *blocking portal*. This needs to be obtained from within the event loop thread.
+
+One way to do this is to start a new event loop with a portal, using
+:func:`~anyio.start_blocking_portal` (which takes mostly the same arguments as :func:`~anyio.run`::
+
+    from anyio import start_blocking_portal
+
+
+    portal = start_blocking_portal(backend='trio')
+    portal.call(...)
+
+    # At the end of your application, stop the portal
+    portal.stop_from_external_thread()
+
+Or, you can it as a context manager if that suits your use case::
+
+    with start_blocking_portal(backend='trio') as portal:
+        portal.call(...)
+
+If you already have an event loop running and wish to grant access to external threads, you can
+use :func:`~anyio.create_blocking_portal` directly::
+
+    from anyio import create_blocking_portal, run
+
+
+    async def main():
+        async with create_blocking_portal() as portal:
+            # ...hand off the portal to external threads...
+            await portal.sleep_until_stopped()
+
+    anyio.run(main)

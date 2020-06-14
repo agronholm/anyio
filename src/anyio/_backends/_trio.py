@@ -1,5 +1,6 @@
 import socket
 import sys
+from concurrent.futures import Future
 from dataclasses import dataclass
 from types import TracebackType
 from typing import (
@@ -177,6 +178,18 @@ async def run_sync_in_worker_thread(
     return await run_sync(wrapper, cancellable=cancellable, limiter=trio_limiter)
 
 run_async_from_thread = trio.from_thread.run
+
+
+class BlockingPortal(abc.BlockingPortal):
+    __slots__ = '_token'
+
+    def __init__(self):
+        super().__init__()
+        self._token = trio.lowlevel.current_trio_token()
+
+    def _spawn_task_from_thread(self, func: Callable, args: tuple, future: Future) -> None:
+        return trio.from_thread.run(self._task_group.spawn, self._call_func, func, args, future,
+                                    trio_token=self._token)
 
 
 #

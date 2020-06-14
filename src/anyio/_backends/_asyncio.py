@@ -4,6 +4,7 @@ import math
 import socket
 import sys
 from collections import OrderedDict, deque
+from concurrent.futures import Future
 from functools import wraps
 from inspect import isgenerator
 from threading import Thread
@@ -531,6 +532,18 @@ def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *a
     f: concurrent.futures.Future[T_Retval] = asyncio.run_coroutine_threadsafe(
         func(*args), _local.loop)
     return f.result()
+
+
+class BlockingPortal(abc.BlockingPortal):
+    __slots__ = '_loop'
+
+    def __init__(self):
+        super().__init__()
+        self._loop = get_running_loop()
+
+    def _spawn_task_from_thread(self, func: Callable, args: tuple, future: Future) -> None:
+        asyncio.run_coroutine_threadsafe(
+            self._task_group.spawn(self._call_func, func, args, future), self._loop)
 
 
 #

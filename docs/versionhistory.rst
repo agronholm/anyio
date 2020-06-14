@@ -65,6 +65,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Removed the ``--anyio-backends`` command line option for the pytest plugin. Use the ``-k`` option
   to do ad-hoc filtering, and the ``anyio_backend`` fixture to control which backends you wish to
   run the tests by default.
+- Added support for "blocking portals" which allow running functions in the event loop thread from
+  external threads
 
 **1.4.0**
 

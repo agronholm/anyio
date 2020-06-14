@@ -446,6 +446,37 @@ def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
     return future.result()
 
 
+class BlockingPortal(abc.BlockingPortal):
+    __slots__ = '_queue'
+
+    def __init__(self):
+        super().__init__()
+        self._queue = curio.UniversalQueue()
+
+    async def _process_queue(self) -> None:
+        while self._event_loop_thread_id or not self._queue.empty():
+            func, args, future = await self._queue.get()
+            if func is not None:
+                await self._task_group.spawn(self._call_func, func, args, future)
+
+    async def __aenter__(self) -> 'BlockingPortal':
+        await super().__aenter__()
+        await self._task_group.spawn(self._process_queue)
+        return self
+
+    async def stop(self, cancel_remaining: bool = False) -> None:
+        if self._event_loop_thread_id is None:
+            return
+
+        await super().stop(cancel_remaining)
+
+        # Wake up from queue.get()
+        await self._queue.put((None, None, None))
+
+    def _spawn_task_from_thread(self, func: Callable, args: tuple, future: Future) -> None:
+        self._queue.put((func, args, future))
+
+
 #
 # Subprocesses
 #
