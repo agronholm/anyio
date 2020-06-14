@@ -8,7 +8,7 @@ from async_generator import async_generator, yield_
 import anyio
 from anyio import (
     create_task_group, sleep, move_on_after, fail_after, open_cancel_scope, wait_all_tasks_blocked,
-    current_effective_deadline, current_time, get_cancelled_exc_class)
+    current_effective_deadline, current_time)
 from anyio.exceptions import ExceptionGroup
 
 
@@ -252,6 +252,22 @@ async def test_fail_after_no_timeout():
     assert not scope.cancel_called
 
 
+@pytest.mark.anyio
+async def test_fail_after_after_cancellation():
+    event = anyio.create_event()
+    async with anyio.create_task_group() as tg:
+        await tg.spawn(tg.cancel_scope.cancel)
+        await event.wait()
+
+    block_complete = False
+    with pytest.raises(TimeoutError):
+        async with anyio.fail_after(0.1):
+            await anyio.sleep(0.5)
+            block_complete = True
+
+    assert not block_complete
+
+
 @pytest.mark.parametrize('delay', [0, 0.1], ids=['instant', 'delayed'])
 @pytest.mark.anyio
 async def test_move_on_after(delay):
@@ -427,19 +443,6 @@ async def test_timeout_error_with_multiple_cancellations():
             async with create_task_group() as tg:
                 await tg.spawn(sleep, 2)
                 await sleep(2)
-
-
-@pytest.mark.anyio
-async def test_catch_cancellation():
-    finalizer_done = False
-    async with move_on_after(0.1):
-        try:
-            await sleep(1)
-        except get_cancelled_exc_class():
-            finalizer_done = True
-            raise
-
-    assert finalizer_done
 
 
 @pytest.mark.anyio

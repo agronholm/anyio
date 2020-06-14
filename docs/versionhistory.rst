@@ -6,6 +6,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **UNRELEASED**
 
 - Fixed ``fail.after(0)`` not raising a timeout error on asyncio and curio
+- Fixed ``move_on_after()`` and ``fail_after()`` getting stuck on curio in some cicrumstances
 
 **1.3.1**
 
