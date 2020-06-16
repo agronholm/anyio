@@ -587,7 +587,7 @@ class Socket(BaseSocket):
     def _notify_close(self):
         return notify_socket_close(self._raw_socket)
 
-    def _check_cancelled(self) -> None:
+    def _check_cancelled(self):
         return sleep(0)
 
     def _run_in_thread(self, func: Callable, *args):
