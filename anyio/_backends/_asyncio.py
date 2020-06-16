@@ -889,6 +889,16 @@ async def wait_all_tasks_blocked() -> None:
                 except AttributeError:
                     awaitable = task._coro.gi_yieldfrom  # type: ignore
 
+                # Consider any task doing sleep(0) as not being blocked
+                while asyncio.iscoroutine(awaitable) and hasattr(awaitable, 'cr_code'):
+                    if (awaitable.cr_code is sleep.__code__
+                            and awaitable.cr_frame.f_locals['delay'] == 0):
+                        awaitable = None
+                    elif awaitable.cr_await:
+                        awaitable = awaitable.cr_await
+                    else:
+                        break
+
                 if awaitable is None:
                     await sleep(0)
                     break

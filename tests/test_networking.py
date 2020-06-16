@@ -556,9 +556,13 @@ class TestUDPSocket:
 
     @pytest.mark.anyio
     async def test_udp_close_socket_from_other_task(self, localhost):
+        async def close_when_blocked():
+            await wait_all_tasks_blocked()
+            await udp.close()
+
         async with create_task_group() as tg:
             async with await create_udp_socket(interface=localhost) as udp:
-                await tg.spawn(udp.close)
+                await tg.spawn(close_when_blocked)
                 with pytest.raises(ClosedResourceError):
                     await udp.receive(100)
 

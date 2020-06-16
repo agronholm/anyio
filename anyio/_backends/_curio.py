@@ -737,7 +737,21 @@ async def wait_all_tasks_blocked() -> None:
     kernel = await curio.traps._get_kernel()
     while True:
         for task in kernel._tasks.values():
-            if task.id != this_task.id and task.coro.cr_await is None:
+            if task.id == this_task.id:
+                continue
+
+            # Consider any task doing sleep(0) as not being blocked
+            awaitable = task.coro.cr_await
+            while inspect.iscoroutine(awaitable) and hasattr(awaitable, 'cr_code'):
+                if (awaitable.cr_code is sleep.__code__
+                        and awaitable.cr_frame.f_locals['delay'] == 0):
+                    awaitable = None
+                elif awaitable.cr_await:
+                    awaitable = awaitable.cr_await
+                else:
+                    break
+
+            if awaitable is None:
                 await curio.sleep(0)
                 break
         else:
