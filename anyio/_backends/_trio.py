@@ -194,7 +194,7 @@ class Socket(BaseSocket):
             notify_closing(self._raw_socket)
 
     def _check_cancelled(self):
-        return trio_lowlevel.checkpoint_if_cancelled()
+        return trio_lowlevel.checkpoint()
 
     def _run_in_thread(self, func: Callable, *args):
         return run_in_thread(func, *args)

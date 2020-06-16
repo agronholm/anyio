@@ -2,14 +2,16 @@ import platform
 import socket
 import ssl
 import sys
+import time
 import warnings
 from pathlib import Path
+from threading import Thread
 
 import pytest
 
 from anyio import (
     create_task_group, connect_tcp, create_udp_socket, connect_unix, create_unix_server,
-    create_tcp_server, wait_all_tasks_blocked)
+    create_tcp_server, wait_all_tasks_blocked, move_on_after)
 from anyio.exceptions import (
     IncompleteRead, DelimiterNotFound, ClosedResourceError, ResourceBusyError, ExceptionGroup)
 
@@ -334,6 +336,26 @@ class TestTCPStream:
         exc.match('All connection attempts failed')
         assert isinstance(exc.value.__cause__, OSError)
         assert str(exc.value.__cause__) == 'Bogus error'
+
+    @pytest.mark.anyio
+    async def test_receive_timeout(self):
+        def server():
+            conn, _ = sock.accept()
+            conn.close()
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind(('127.0.0.1', 0))
+        sock.listen()
+        addr = sock.getsockname()
+        thread = Thread(target=server, daemon=True)
+        thread.start()
+        stream = await connect_tcp(*addr)
+        start_time = time.monotonic()
+        async with move_on_after(0.1):
+            while time.monotonic() - start_time < 0.3:
+                await stream.receive_some(1)
+
+            pytest.fail('The timeout was not respected')
 
 
 class TestUNIXStream:

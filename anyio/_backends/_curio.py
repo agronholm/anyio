@@ -460,7 +460,7 @@ class Socket(BaseSocket):
         return notify_socket_close(self._raw_socket)
 
     def _check_cancelled(self) -> Coroutine[Any, Any, None]:
-        return check_cancelled()
+        return sleep(0)
 
     def _run_in_thread(self, func: Callable, *args):
         return run_in_thread(func, *args)
