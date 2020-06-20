@@ -514,13 +514,12 @@ async def create_udp_socket(
     :param port: port to bind to
     :param target_host: remote host to set as the default target
     :param target_port: port on the remote host to set as the default target
+    :param address_family: the new socket's address family. Required if
+        neither ``interface`` nor ``target_host`` are specified.
     :return: a UDP socket
 
     """
-    if interface:
-        interface, family, _v6only = await _networking.get_bind_address(interface)
-    else:
-        interface, family = None, address_family or socket.AF_UNSPEC
+    family = address_family or socket.AF_UNSPEC
 
     if target_host:
         res = await run_in_thread(socket.getaddrinfo, target_host, target_port, family)
@@ -529,6 +528,11 @@ async def create_udp_socket(
             target_host, target_port = sa[:2]
         else:
             raise ValueError('{!r} cannot be resolved to an IP address'.format(target_host))
+
+    if interface:
+        interface, family, _v6only = await _networking.get_bind_address(interface, family)
+    else:
+        interface, family = None, address_family or socket.AF_UNSPEC
 
     raw_socket = socket.socket(family=family, type=socket.SOCK_DGRAM)
     sock = _get_asynclib().Socket(raw_socket)
