@@ -8,6 +8,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``fail.after(0)`` not raising a timeout error on asyncio and curio
 - Fixed ``move_on_after()`` and ``fail_after()`` getting stuck on curio in some circumstances
 - Fixed socket operations not allowing timeouts to cancel the task
+- Fixed API documentation on ``Stream.receive_until()`` which claimed that the delimiter will be
+  included in the returned data when it really isn't
 - Harmonized the default task names across all backends
 - ``wait_all_tasks_blocked()`` no longer considers tasks waiting on ``sleep(0)`` to be blocked
   on asyncio and curio
