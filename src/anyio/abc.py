@@ -765,7 +765,7 @@ class UDPSocket(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    async def send(self, data: bytes, address: Optional[str] = None,
+    async def send(self, data: bytes, address: Optional[IPAddressType] = None,
                    port: Optional[int] = None) -> None:
         """
         Send a datagram.
