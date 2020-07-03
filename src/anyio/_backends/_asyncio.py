@@ -6,6 +6,7 @@ import socket
 import sys
 from collections import OrderedDict
 from functools import partial
+from socket import AddressFamily, SocketKind
 from threading import Thread
 from types import TracebackType
 from typing import (
@@ -15,7 +16,9 @@ from weakref import WeakKeyDictionary
 
 from async_generator import async_generator, yield_, asynccontextmanager, aclosing
 
-from .. import abc, claim_worker_thread, _local, T_Retval, TaskInfo
+from .. import (
+    abc, claim_worker_thread, _local, T_Retval, TaskInfo, GetAddrInfoReturnType,
+    SockaddrType)
 from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock)
 from .._networking import BaseSocket
@@ -592,6 +595,28 @@ class Socket(BaseSocket):
 
     def _run_in_thread(self, func: Callable, *args):
         return run_in_thread(func, *args)
+
+
+async def getaddrinfo(host: str, port: int, *, family: Union[int, AddressFamily] = 0,
+                      type: Union[int, SocketKind] = 0, proto: int = 0,
+                      flags: int = 0) -> GetAddrInfoReturnType:
+    # Handle unicode hostnames
+    try:
+        host.encode('ascii')
+    except UnicodeEncodeError:
+        import idna
+        host = idna.encode(host).decode('ascii')
+
+    # https://github.com/python/typeshed/pull/4304
+    result = await get_running_loop().getaddrinfo(host, port, family=family, type=type,
+                                                  proto=proto, flags=flags)
+    return cast(GetAddrInfoReturnType, result)
+
+
+async def getnameinfo(sockaddr: SockaddrType, flags: int = 0) -> Tuple[str, str]:
+    # https://github.com/python/typeshed/pull/4305
+    result = await get_running_loop().getnameinfo(sockaddr, flags)
+    return cast(Tuple[str, str], result)
 
 
 async def wait_socket_readable(sock: socket.SocketType) -> None:

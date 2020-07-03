@@ -6,7 +6,8 @@ import threading
 import typing
 from contextlib import contextmanager
 from importlib import import_module
-from ipaddress import ip_address, IPv6Address
+from ipaddress import ip_address, IPv6Address, IPv4Address
+from socket import AddressFamily, SocketKind
 from ssl import SSLContext
 from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any, Dict, List, Tuple
 
@@ -22,6 +23,9 @@ IPPROTO_IPV6 = getattr(socket, 'IPPROTO_IPV6', 41)  # https://bugs.python.org/is
 
 T_Retval = TypeVar('T_Retval', covariant=True)
 T_Agen = TypeVar('T_Agen')
+SockaddrType = Union[Tuple[str, int], Tuple[str, int, int, int]]
+GetAddrInfoReturnType = List[Tuple[AddressFamily, SocketKind, int, str,
+                             Union[Tuple[str, int], Tuple[str, int, int, int]]]]
 _local = threading.local()
 
 
@@ -521,13 +525,19 @@ async def create_udp_socket(
     else:
         interface, family = None, 0
 
-    if target_host:
-        res = await run_in_thread(socket.getaddrinfo, target_host, target_port, family)
+    if isinstance(target_host, str) and target_port is not None:
+        res = await getaddrinfo(target_host, target_port, family=family)
         if res:
             family, type_, proto, _cn, sa = res[0]
             target_host, target_port = sa[:2]
         else:
             raise ValueError('{!r} cannot be resolved to an IP address'.format(target_host))
+    elif isinstance(target_host, IPv6Address):
+        family = AddressFamily.AF_INET6
+        target_host = str(target_host)
+    elif isinstance(target_host, IPv4Address):
+        family = AddressFamily.AF_INET
+        target_host = str(target_host)
 
     raw_socket = socket.socket(family=family, type=socket.SOCK_DGRAM)
     sock = _get_asynclib().Socket(raw_socket)
@@ -542,6 +552,44 @@ async def create_udp_socket(
     except BaseException:
         await sock.close()
         raise
+
+
+def getaddrinfo(host: str, port: int, *, family: Union[int, AddressFamily] = 0,
+                type: Union[int, SocketKind] = 0, proto: int = 0,
+                flags: int = 0) -> Awaitable[GetAddrInfoReturnType]:
+    """
+    Look up a numeric IP address given a host name.
+
+    Internationalized domain names are translated according to the (non-transitional) IDNA 2008
+    standard.
+
+    :param host: host name
+    :param port: port number
+    :param family: socket family (`'AF_INET``, ...)
+    :param type: socket type (``SOCK_STREAM``, ...)
+    :param proto: protocol number
+    :param flags: flags to pass to upstream ``getaddrinfo()``
+    :return: list of tuples containing (family, type, proto, canonname, sockaddr)
+
+    .. seealso:: :func:`socket.getaddrinfo`
+
+    """
+    return _get_asynclib().getaddrinfo(host, port, family=family, type=type, proto=proto,
+                                       flags=flags)
+
+
+def getnameinfo(sockaddr: SockaddrType, flags: int = 0) -> Awaitable[Tuple[str, str]]:
+    """
+    Look up the host name of an IP address.
+
+    :param sockaddr: socket address (e.g. (ipaddress, port) for IPv4)
+    :param flags: flags to pass to upstream ``getnameinfo()``
+    :return: a tuple of (host name, service name)
+
+    .. seealso:: :func:`socket.getnameinfo`
+
+    """
+    return _get_asynclib().getnameinfo(sockaddr, flags)
 
 
 def wait_socket_readable(sock: Union[socket.SocketType, ssl.SSLSocket]) -> Awaitable[None]:

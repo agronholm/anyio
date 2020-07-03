@@ -8,7 +8,8 @@ from signal import signal
 from threading import Thread
 from types import TracebackType
 from typing import (
-    Callable, Set, Optional, Coroutine, Any, cast, Dict, List, Sequence, DefaultDict, Type)
+    Callable, Set, Optional, Coroutine, Any, cast, Dict, List, Sequence, DefaultDict, Type,
+    Awaitable)
 from weakref import WeakKeyDictionary
 
 import curio.io
@@ -18,7 +19,7 @@ import curio.ssl
 import curio.traps
 from async_generator import async_generator, asynccontextmanager, yield_
 
-from .. import abc, T_Retval, claim_worker_thread, TaskInfo, _local
+from .. import abc, T_Retval, claim_worker_thread, TaskInfo, _local, GetAddrInfoReturnType
 from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock)
 from .._networking import BaseSocket
@@ -464,6 +465,21 @@ class Socket(BaseSocket):
 
     def _run_in_thread(self, func: Callable, *args):
         return run_in_thread(func, *args)
+
+
+def getaddrinfo(host: str, port: int, *, family: int = 0, type: int = 0, proto: int = 0,
+                flags: int = 0) -> Awaitable[GetAddrInfoReturnType]:
+    # Handle unicode hostnames
+    try:
+        host.encode('ascii')
+    except UnicodeEncodeError:
+        import idna
+        host = idna.encode(host).decode('ascii')
+
+    return curio.socket.getaddrinfo(host, port, family, type, proto, flags)
+
+
+getnameinfo = curio.socket.getnameinfo
 
 
 async def wait_socket_readable(sock):
