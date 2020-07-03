@@ -608,4 +608,4 @@ async def test_getaddrinfo_ipv6addr(sock_type):
 
 @pytest.mark.anyio
 async def test_getnameinfo():
-    assert await getnameinfo(('127.0.0.1', 6666)) == ('localhost', 'ircu-2')
+    assert await getnameinfo(('127.0.0.1', 6666), socket.NI_NUMERICSERV) == ('localhost', '6666')
