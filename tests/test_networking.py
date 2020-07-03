@@ -612,4 +612,5 @@ async def test_getaddrinfo_ipv6addr(sock_type):
 @pytest.mark.anyio
 async def test_getnameinfo():
     host = socket.gethostname() if platform.system() == 'Windows' else 'localhost'
-    assert await getnameinfo(('127.0.0.1', 6666), socket.NI_NUMERICSERV) == (host, '6666')
+    result = await getnameinfo(('127.0.0.1', 6666), socket.NI_NUMERICSERV | socket.NI_NOFQDN)
+    assert result == (host, '6666')
