@@ -471,12 +471,12 @@ def getaddrinfo(host: str, port: int, *, family: int = 0, type: int = 0, proto: 
                 flags: int = 0) -> Awaitable[GetAddrInfoReturnType]:
     # Handle unicode hostnames
     try:
-        host.encode('ascii')
+        encoded_host = host.encode('ascii')
     except UnicodeEncodeError:
         import idna
-        host = idna.encode(host).decode('ascii')
+        encoded_host = idna.encode(host, uts46=True)
 
-    return curio.socket.getaddrinfo(host, port, family, type, proto, flags)
+    return curio.socket.getaddrinfo(encoded_host, port, family, type, proto, flags)
 
 
 getnameinfo = curio.socket.getnameinfo

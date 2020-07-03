@@ -602,14 +602,15 @@ async def getaddrinfo(host: str, port: int, *, family: Union[int, AddressFamily]
                       flags: int = 0) -> GetAddrInfoReturnType:
     # Handle unicode hostnames
     try:
-        host.encode('ascii')
+        encoded_host = host.encode('ascii')
     except UnicodeEncodeError:
         import idna
-        host = idna.encode(host).decode('ascii')
+        encoded_host = idna.encode(host, uts46=True)
 
     # https://github.com/python/typeshed/pull/4304
-    result = await get_running_loop().getaddrinfo(host, port, family=family, type=type,
-                                                  proto=proto, flags=flags)
+    result = await get_running_loop().getaddrinfo(
+        encoded_host, port, family=family, type=type, proto=proto,  # type: ignore[arg-type]
+        flags=flags)
     return cast(GetAddrInfoReturnType, result)
 
 
