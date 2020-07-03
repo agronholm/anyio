@@ -3,7 +3,8 @@ name: Python codeqa/test
 on:
   push:
     branches:
-      - "*"
+      - master
+  pull_request:
 
 jobs:
   flake8:
