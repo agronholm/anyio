@@ -602,8 +602,11 @@ async def test_getaddrinfo():
 @pytest.mark.parametrize('sock_type', [socket.SOCK_STREAM, socket.SocketKind.SOCK_STREAM])
 async def test_getaddrinfo_ipv6addr(sock_type):
     # IDNA trips up over raw IPv6 addresses
+    proto = 0 if platform.system() == 'Windows' else 6
     assert await getaddrinfo('::1', 0, type=sock_type) == [
-        (socket.AddressFamily.AF_INET6, socket.SocketKind.SOCK_STREAM, 6, '', ('::1', 0, 0, 0))]
+        (socket.AddressFamily.AF_INET6, socket.SocketKind.SOCK_STREAM, proto, '',
+         ('::1', 0, 0, 0))
+    ]
 
 
 @pytest.mark.anyio
