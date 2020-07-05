@@ -200,6 +200,10 @@ class Socket(BaseSocket):
         return run_in_thread(func, *args)
 
 
+getaddrinfo = trio.socket.getaddrinfo
+getnameinfo = trio.socket.getnameinfo
+
+
 async def wait_socket_readable(sock):
     try:
         await wait_readable(sock)

@@ -11,7 +11,7 @@ import pytest
 
 from anyio import (
     create_task_group, connect_tcp, create_udp_socket, connect_unix, create_unix_server,
-    create_tcp_server, wait_all_tasks_blocked, move_on_after)
+    create_tcp_server, wait_all_tasks_blocked, move_on_after, getaddrinfo, getnameinfo)
 from anyio.exceptions import (
     IncompleteRead, DelimiterNotFound, ClosedResourceError, ResourceBusyError, ExceptionGroup)
 
@@ -588,3 +588,29 @@ class TestUDPSocket:
         async with await create_udp_socket(interface=localhost) as udp:
             udp.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
             assert udp.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
+
+
+@pytest.mark.anyio
+async def test_getaddrinfo():
+    # IDNA 2003 gets this wrong
+    correct = await getaddrinfo('faß.de', 0)
+    wrong = await getaddrinfo('fass.de', 0)
+    assert correct != wrong
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize('sock_type', [socket.SOCK_STREAM, socket.SocketKind.SOCK_STREAM])
+async def test_getaddrinfo_ipv6addr(sock_type):
+    # IDNA trips up over raw IPv6 addresses
+    proto = 0 if platform.system() == 'Windows' else 6
+    assert await getaddrinfo('::1', 0, type=sock_type) == [
+        (socket.AddressFamily.AF_INET6, socket.SocketKind.SOCK_STREAM, proto, '',
+         ('::1', 0, 0, 0))
+    ]
+
+
+@pytest.mark.anyio
+async def test_getnameinfo():
+    expected_result = socket.getnameinfo(('127.0.0.1', 6666), 0)
+    result = await getnameinfo(('127.0.0.1', 6666))
+    assert result == expected_result

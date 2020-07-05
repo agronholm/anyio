@@ -55,6 +55,8 @@ Sockets and networking
 .. autofunction:: anyio.create_tcp_server
 .. autofunction:: anyio.create_unix_server
 .. autofunction:: anyio.create_udp_socket
+.. autofunction:: anyio.getaddrinfo
+.. autofunction:: anyio.getnameinfo
 .. autofunction:: anyio.wait_socket_readable
 .. autofunction:: anyio.wait_socket_writable
 .. autofunction:: anyio.notify_socket_close

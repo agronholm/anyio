@@ -12,7 +12,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Check code style with Flake8
-      uses: TrueBrain/actions-flake8@v1.2
+      uses: TrueBrain/actions-flake8@master
       with:
         path: src tests
 

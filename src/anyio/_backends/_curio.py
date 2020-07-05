@@ -5,10 +5,12 @@ from collections import OrderedDict, defaultdict
 from concurrent.futures import Future
 from functools import partial
 from signal import signal
+from socket import AddressFamily, SocketKind
 from threading import Thread
 from types import TracebackType
 from typing import (
-    Callable, Set, Optional, Coroutine, Any, cast, Dict, List, Sequence, DefaultDict, Type)
+    Callable, Set, Optional, Coroutine, Any, cast, Dict, List, Sequence, DefaultDict, Type,
+    Awaitable, Union)
 from weakref import WeakKeyDictionary
 
 import curio.io
@@ -18,7 +20,7 @@ import curio.ssl
 import curio.traps
 from async_generator import async_generator, asynccontextmanager, yield_
 
-from .. import abc, T_Retval, claim_worker_thread, TaskInfo, _local
+from .. import abc, T_Retval, claim_worker_thread, TaskInfo, _local, GetAddrInfoReturnType
 from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock)
 from .._networking import BaseSocket
@@ -464,6 +466,15 @@ class Socket(BaseSocket):
 
     def _run_in_thread(self, func: Callable, *args):
         return run_in_thread(func, *args)
+
+
+def getaddrinfo(host: Union[bytearray, bytes, str], port: Union[str, int, None], *,
+                family: Union[int, AddressFamily] = 0, type: Union[int, SocketKind] = 0,
+                proto: int = 0, flags: int = 0) -> Awaitable[GetAddrInfoReturnType]:
+    return curio.socket.getaddrinfo(host, port, family, type, proto, flags)
+
+
+getnameinfo = curio.socket.getnameinfo
 
 
 async def wait_socket_readable(sock):
