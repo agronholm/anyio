@@ -597,20 +597,12 @@ class Socket(BaseSocket):
         return run_in_thread(func, *args)
 
 
-async def getaddrinfo(host: str, port: int, *, family: Union[int, AddressFamily] = 0,
-                      type: Union[int, SocketKind] = 0, proto: int = 0,
-                      flags: int = 0) -> GetAddrInfoReturnType:
-    # Handle unicode hostnames
-    try:
-        encoded_host = host.encode('ascii')
-    except UnicodeEncodeError:
-        import idna
-        encoded_host = idna.encode(host, uts46=True)
-
+async def getaddrinfo(host: Union[bytearray, bytes, str], port: Union[str, int, None], *,
+                      family: Union[int, AddressFamily] = 0, type: Union[int, SocketKind] = 0,
+                      proto: int = 0, flags: int = 0) -> GetAddrInfoReturnType:
     # https://github.com/python/typeshed/pull/4304
     result = await get_running_loop().getaddrinfo(
-        encoded_host, port, family=family, type=type, proto=proto,  # type: ignore[arg-type]
-        flags=flags)
+        host, port, family=family, type=type, proto=proto, flags=flags)  # type: ignore[arg-type]
     return cast(GetAddrInfoReturnType, result)
 
 

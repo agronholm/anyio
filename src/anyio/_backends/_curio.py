@@ -5,11 +5,12 @@ from collections import OrderedDict, defaultdict
 from concurrent.futures import Future
 from functools import partial
 from signal import signal
+from socket import AddressFamily, SocketKind
 from threading import Thread
 from types import TracebackType
 from typing import (
     Callable, Set, Optional, Coroutine, Any, cast, Dict, List, Sequence, DefaultDict, Type,
-    Awaitable)
+    Awaitable, Union)
 from weakref import WeakKeyDictionary
 
 import curio.io
@@ -467,16 +468,10 @@ class Socket(BaseSocket):
         return run_in_thread(func, *args)
 
 
-def getaddrinfo(host: str, port: int, *, family: int = 0, type: int = 0, proto: int = 0,
-                flags: int = 0) -> Awaitable[GetAddrInfoReturnType]:
-    # Handle unicode hostnames
-    try:
-        encoded_host = host.encode('ascii')
-    except UnicodeEncodeError:
-        import idna
-        encoded_host = idna.encode(host, uts46=True)
-
-    return curio.socket.getaddrinfo(encoded_host, port, family, type, proto, flags)
+def getaddrinfo(host: Union[bytearray, bytes, str], port: Union[str, int, None], *,
+                family: Union[int, AddressFamily] = 0, type: Union[int, SocketKind] = 0,
+                proto: int = 0, flags: int = 0) -> Awaitable[GetAddrInfoReturnType]:
+    return curio.socket.getaddrinfo(host, port, family, type, proto, flags)
 
 
 getnameinfo = curio.socket.getnameinfo

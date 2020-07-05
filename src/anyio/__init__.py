@@ -553,9 +553,9 @@ async def create_udp_socket(
         raise
 
 
-def getaddrinfo(host: str, port: int, *, family: Union[int, AddressFamily] = 0,
-                type: Union[int, SocketKind] = 0, proto: int = 0,
-                flags: int = 0) -> Awaitable[GetAddrInfoReturnType]:
+def getaddrinfo(host: Union[bytearray, bytes, str], port: Union[str, int, None], *,
+                family: Union[int, AddressFamily] = 0, type: Union[int, SocketKind] = 0,
+                proto: int = 0, flags: int = 0) -> Awaitable[GetAddrInfoReturnType]:
     """
     Look up a numeric IP address given a host name.
 
@@ -573,7 +573,17 @@ def getaddrinfo(host: str, port: int, *, family: Union[int, AddressFamily] = 0,
     .. seealso:: :func:`socket.getaddrinfo`
 
     """
-    return _get_asynclib().getaddrinfo(host, port, family=family, type=type, proto=proto,
+    # Handle unicode hostnames
+    if isinstance(host, str):
+        try:
+            encoded_host = host.encode('ascii')
+        except UnicodeEncodeError:
+            import idna
+            encoded_host = idna.encode(host, uts46=True)
+    else:
+        encoded_host = host
+
+    return _get_asynclib().getaddrinfo(encoded_host, port, family=family, type=type, proto=proto,
                                        flags=flags)
 
 
