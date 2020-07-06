@@ -58,9 +58,6 @@ def run(func: Callable[..., T_Retval], *args, **curio_options) -> T_Retval:
 # Miscellaneous functions
 #
 
-finalize = curio.meta.finalize
-
-
 async def sleep(delay: float):
     await check_cancelled()
     await curio.sleep(delay)

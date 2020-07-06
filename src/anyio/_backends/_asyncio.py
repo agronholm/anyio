@@ -14,7 +14,7 @@ from typing import (
     List, Dict, Sequence, Type)
 from weakref import WeakKeyDictionary
 
-from async_generator import async_generator, yield_, asynccontextmanager, aclosing
+from async_generator import async_generator, yield_, asynccontextmanager
 
 from .. import (
     abc, claim_worker_thread, _local, T_Retval, TaskInfo, GetAddrInfoReturnType,
@@ -119,9 +119,6 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False, use_uvloop: b
 #
 # Miscellaneous
 #
-
-finalize = aclosing
-
 
 async def sleep(delay: float) -> None:
     check_cancelled()

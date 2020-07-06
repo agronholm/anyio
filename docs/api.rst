@@ -9,7 +9,6 @@ Event loop
 Miscellaneous
 -------------
 
-.. autofunction:: anyio.finalize
 .. autofunction:: anyio.sleep(delay)
 .. autofunction:: anyio.get_cancelled_exc_class
 

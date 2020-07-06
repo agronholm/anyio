@@ -100,19 +100,6 @@ def _get_asynclib():
 # Miscellaneous
 #
 
-def finalize(resource: T_Agen) -> 'typing.AsyncContextManager[T_Agen]':
-    """
-    Return a context manager that automatically closes an asynchronous resource on exit.
-
-    :param resource: an asynchronous generator or other resource with an ``aclose()`` method
-    :return: an asynchronous context manager that yields the given object
-
-    """
-    # This exists solely because curio is being a special snowflake and doesn't accept
-    # async_generator.aclosing(). See https://github.com/dabeaz/curio/issues/176.
-    return _get_asynclib().finalize(resource)
-
-
 def sleep(delay: float) -> Coroutine[Any, Any, None]:
     """
     Pause the current task for the specified duration.
