@@ -3,6 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Bumped minimum versions of trio and curio to v0.16 and v1.2, respectively
+
 **1.4.0**
 
 - Added async name resolution functions (``anyio.getaddrinfo()`` and ``anyio.getnameinfo()``)

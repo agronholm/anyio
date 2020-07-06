@@ -25,11 +25,6 @@ from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock)
 from .._networking import BaseSocket
 
-if 'report_crash' in inspect.signature(curio.spawn).parameters:
-    spawn_kwargs = {'report_crash': False}
-else:
-    spawn_kwargs = {}
-
 
 def get_callable_name(func: Callable) -> str:
     module = getattr(func, '__module__', None)
@@ -361,7 +356,7 @@ class TaskGroup:
         if not self._active:
             raise RuntimeError('This task group is not active; no new tasks can be spawned.')
 
-        task = await curio.spawn(self._run_wrapped_task, func, args, daemon=True, **spawn_kwargs)
+        task = await curio.spawn(self._run_wrapped_task, func, args, daemon=True)
         task.parentid = (await curio.current_task()).id
         task.name = name or get_callable_name(func)
 
@@ -415,7 +410,7 @@ async def run_in_thread(func: Callable[..., T_Retval], *args, cancellable: bool 
     limiter = limiter or _default_thread_limiter
     await limiter.acquire_on_behalf_of(task)
     thread = Thread(target=thread_worker, daemon=True)
-    helper_task = await curio.spawn(async_call_helper, daemon=True, **spawn_kwargs)
+    helper_task = await curio.spawn(async_call_helper, daemon=True)
     thread.start()
     async with CancelScope(shield=not cancellable):
         await finish_event.wait()
