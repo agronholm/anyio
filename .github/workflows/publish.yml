@@ -21,7 +21,7 @@ jobs:
     - name: Create packages
       run: python -m pep517.build --source --binary --out-dir dist/ .
     - name: Upload packages
-      uses: pypa/gh-action-pypi-publish@v1.1.0
+      uses: pypa/gh-action-pypi-publish@master
       with:
         user: __token__
         password: ${{ secrets.pypi_password }}
