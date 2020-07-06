@@ -6,6 +6,7 @@ import time
 import warnings
 from pathlib import Path
 from threading import Thread
+from unittest.mock import patch
 
 import pytest
 
@@ -311,12 +312,11 @@ class TestTCPStream:
             for exc in exc.value.__cause__.exceptions:
                 assert isinstance(exc, ConnectionRefusedError)
 
-    async def test_socket_creation_failure(self, monkeypatch):
+    async def test_socket_creation_failure(self):
         def fake_create_socket(*args):
             raise OSError('Bogus error')
 
-        monkeypatch.setattr(socket, 'socket', fake_create_socket)
-        with pytest.raises(OSError) as exc:
+        with pytest.raises(OSError) as exc, patch.object(socket, 'socket', fake_create_socket):
             await connect_tcp('127.0.0.1', 1111)
 
         exc.match('All connection attempts failed')
