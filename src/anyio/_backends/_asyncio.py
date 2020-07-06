@@ -14,14 +14,17 @@ from typing import (
     List, Dict, Sequence, Type)
 from weakref import WeakKeyDictionary
 
-from async_generator import async_generator, yield_, asynccontextmanager
-
 from .. import (
     abc, claim_worker_thread, _local, T_Retval, TaskInfo, GetAddrInfoReturnType,
     SockaddrType)
 from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock)
 from .._networking import BaseSocket
+
+if sys.version_info >= (3, 7):
+    from contextlib import asynccontextmanager
+else:
+    from async_generator import asynccontextmanager
 
 try:
     from asyncio import create_task, get_running_loop, current_task, all_tasks
@@ -143,8 +146,8 @@ class CancelScope:
         self._cancel_called = False
         self._active = False
         self._timeout_task = None
-        self._tasks = set()  # type: Set[asyncio.Task]
-        self._host_task = None  # type: Optional[asyncio.Task]
+        self._tasks: Set[asyncio.Task] = set()
+        self._host_task: Optional[asyncio.Task] = None
         self._timeout_expired = False
 
     async def __aenter__(self):
@@ -226,7 +229,7 @@ class CancelScope:
     def _shielded_to(self, parent: Optional['CancelScope']) -> bool:
         # Check whether this task or any parent up to (but not including) the "parent" argument is
         # shielded
-        cancel_scope = self  # type: Optional[CancelScope]
+        cancel_scope: Optional[CancelScope] = self
         while cancel_scope is not None and cancel_scope is not parent:
             if cancel_scope._shield:
                 return True
@@ -285,22 +288,20 @@ def check_cancelled():
 
 
 @asynccontextmanager
-@async_generator
 async def fail_after(delay: float, shield: bool):
     deadline = get_running_loop().time() + delay
     async with CancelScope(deadline, shield) as scope:
-        await yield_(scope)
+        yield scope
 
     if scope._timeout_expired:
         raise TimeoutError
 
 
 @asynccontextmanager
-@async_generator
 async def move_on_after(delay: float, shield: bool):
     deadline = get_running_loop().time() + delay
     async with CancelScope(deadline=deadline, shield=shield) as scope:
-        await yield_(scope)
+        yield scope
 
 
 async def current_effective_deadline():
@@ -358,7 +359,7 @@ class TaskGroup:
     def __init__(self):
         self.cancel_scope = CancelScope()
         self._active = False
-        self._exceptions = []  # type: List[BaseException]
+        self._exceptions: List[BaseException] = []
 
     async def __aenter__(self):
         await self.cancel_scope.__aenter__()
@@ -392,7 +393,7 @@ class TaskGroup:
 
     @staticmethod
     def _filter_cancellation_errors(exceptions: Sequence[BaseException]) -> List[BaseException]:
-        filtered_exceptions = []  # type: List[BaseException]
+        filtered_exceptions: List[BaseException] = []
         for exc in exceptions:
             if isinstance(exc, ExceptionGroup):
                 exc.exceptions = TaskGroup._filter_cancellation_errors(exc.exceptions)
@@ -464,7 +465,7 @@ async def run_in_thread(func: Callable[..., T_Retval], *args, cancellable: bool 
     check_cancelled()
     loop = get_running_loop()
     task = current_task()
-    queue = asyncio.Queue(1)  # type: asyncio.Queue[_Retval_Queue_Type]
+    queue: asyncio.Queue[_Retval_Queue_Type] = asyncio.Queue(1)
     cancelled = False
     limiter = limiter or _default_thread_limiter
     await limiter.acquire_on_behalf_of(task)
@@ -483,8 +484,8 @@ async def run_in_thread(func: Callable[..., T_Retval], *args, cancellable: bool 
 
 
 def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args) -> T_Retval:
-    f = asyncio.run_coroutine_threadsafe(
-        func(*args), _local.loop)  # type: concurrent.futures.Future[T_Retval]
+    f: concurrent.futures.Future[T_Retval] = asyncio.run_coroutine_threadsafe(
+        func(*args), _local.loop)
     return f.result()
 
 
@@ -507,12 +508,11 @@ class AsyncFile:
                         exc_tb: Optional[TracebackType]) -> None:
         await self.close()
 
-    @async_generator
     async def __aiter__(self):
         while True:
             line = await self.readline()
             if line:
-                await yield_(line)
+                yield line
             else:
                 break
 
@@ -565,8 +565,8 @@ async def aopen(*args, **kwargs):
 # Sockets and networking
 #
 
-_read_events = {}  # type: Dict[socket.SocketType, asyncio.Event]
-_write_events = {}  # type: Dict[socket.SocketType, asyncio.Event]
+_read_events: Dict[socket.SocketType, asyncio.Event] = {}
+_write_events: Dict[socket.SocketType, asyncio.Event] = {}
 
 
 class Socket(BaseSocket):
@@ -735,8 +735,8 @@ class Queue(asyncio.Queue):
 class CapacityLimiter:
     def __init__(self, total_tokens: float):
         self._set_total_tokens(total_tokens)
-        self._borrowers = set()  # type: Set[Any]
-        self._wait_queue = OrderedDict()  # type: Dict[Any, asyncio.Event]
+        self._borrowers: Set[Any] = set()
+        self._wait_queue: Dict[Any, asyncio.Event] = OrderedDict()
 
     async def __aenter__(self):
         await self.acquire()
@@ -846,13 +846,11 @@ abc.CapacityLimiter.register(CapacityLimiter)
 #
 
 @asynccontextmanager
-@async_generator
 async def receive_signals(*signals: int):
-    @async_generator
     async def process_signal_queue():
         while True:
             signum = await queue.get()
-            await yield_(signum)
+            yield signum
 
     loop = get_running_loop()
     queue = asyncio.Queue()  # type: asyncio.Queue[int]
@@ -863,7 +861,7 @@ async def receive_signals(*signals: int):
             loop.add_signal_handler(sig, queue.put_nowait, sig)
             handled_signals.add(sig)
 
-        await yield_(agen)
+        yield agen
     finally:
         await agen.aclose()
         for sig in handled_signals:

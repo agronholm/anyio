@@ -45,11 +45,6 @@ with the same backend as the test itself. Both plain coroutine functions and asy
 functions are supported in the same manner as pytest itself does with regular functions and
 generator functions.
 
-.. note:: If you need Python 3.5 compatibility, please use the async_generator_ library to replace
-          the async generator syntax that was introduced in Python 3.6.
-
-.. _async_generator: https://github.com/python-trio/async_generator
-
 Specifying the backend to run on
 --------------------------------
 

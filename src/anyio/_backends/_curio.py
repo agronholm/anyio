@@ -1,6 +1,7 @@
 import inspect
 import math
 import socket
+import sys
 from collections import OrderedDict, defaultdict
 from concurrent.futures import Future
 from functools import partial
@@ -18,12 +19,16 @@ import curio.meta
 import curio.socket
 import curio.ssl
 import curio.traps
-from async_generator import async_generator, asynccontextmanager, yield_
 
 from .. import abc, T_Retval, claim_worker_thread, TaskInfo, _local, GetAddrInfoReturnType
 from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock)
 from .._networking import BaseSocket
+
+if sys.version_info >= (3, 7):
+    from contextlib import asynccontextmanager
+else:
+    from async_generator import asynccontextmanager
 
 
 def get_callable_name(func: Callable) -> str:
@@ -82,8 +87,8 @@ class CancelScope:
         self._active = False
         self._timeout_task = None
         self._previous_timeout = None
-        self._tasks = set()  # type: Set[curio.Task]
-        self._host_task = None  # type: Optional[curio.Task]
+        self._tasks: Set[curio.Task] = set()
+        self._host_task: Optional[curio.Task] = None
         self._timeout_expired = False
 
     async def __aenter__(self):
@@ -160,7 +165,7 @@ class CancelScope:
     def _shielded_to(self, parent: 'CancelScope') -> bool:
         # Check whether this task or any parent up to (but not including) the "parent" argument is
         # shielded
-        cancel_scope = self  # type: Optional[CancelScope]
+        cancel_scope: Optional[CancelScope] = self
         while cancel_scope is not None and cancel_scope is not parent:
             if cancel_scope._shield:
                 return True
@@ -219,22 +224,20 @@ async def check_cancelled():
 
 
 @asynccontextmanager
-@async_generator
 async def fail_after(delay: float, shield: bool):
     deadline = await curio.clock() + delay
     async with CancelScope(deadline, shield) as scope:
-        await yield_(scope)
+        yield scope
 
     if scope._timeout_expired:
         raise TimeoutError from None
 
 
 @asynccontextmanager
-@async_generator
 async def move_on_after(delay: float, shield: bool):
     deadline = await curio.clock() + delay
     async with CancelScope(deadline=deadline, shield=shield) as scope:
-        await yield_(scope)
+        yield scope
 
 
 async def current_effective_deadline():
@@ -289,7 +292,7 @@ class TaskGroup:
     def __init__(self) -> None:
         self.cancel_scope = CancelScope()
         self._active = False
-        self._exceptions = []  # type: List[BaseException]
+        self._exceptions: List[BaseException] = []
 
     async def __aenter__(self):
         await self.cancel_scope.__aenter__()
@@ -324,7 +327,7 @@ class TaskGroup:
 
     @staticmethod
     def _filter_cancellation_errors(exceptions: Sequence[BaseException]) -> List[BaseException]:
-        filtered_exceptions = []  # type: List[BaseException]
+        filtered_exceptions: List[BaseException] = []
         for exc in exceptions:
             if isinstance(exc, ExceptionGroup):
                 exc.exceptions = TaskGroup._filter_cancellation_errors(exc.exceptions)
@@ -379,13 +382,16 @@ async def run_in_thread(func: Callable[..., T_Retval], *args, cancellable: bool 
                 await finish_event.set()
                 return
 
-            func_, args_, f = item  # type: Callable, tuple, Future
+            func_: Callable
+            args_: tuple
+            future: Future
+            func_, args_, future = item
             try:
                 retval_ = await func_(*args_)
             except BaseException as exc_:
-                f.set_exception(exc_)
+                future.set_exception(exc_)
             else:
-                f.set_result(retval_)
+                future.set_result(retval_)
 
     def thread_worker():
         nonlocal retval, exception
@@ -419,7 +425,7 @@ async def run_in_thread(func: Callable[..., T_Retval], *args, cancellable: bool 
 
 
 def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
-    future = Future()  # type: Future[T_Retval]
+    future: Future[T_Retval] = Future()
     _local.queue.put((func, args, future))
     return future.result()
 
@@ -437,8 +443,8 @@ async def aopen(*args, **kwargs):
 # Sockets and networking
 #
 
-_reader_tasks = {}  # type: Dict[socket.SocketType, curio.Task]
-_writer_tasks = {}  # type: Dict[socket.SocketType, curio.Task]
+_reader_tasks: Dict[socket.SocketType, curio.Task] = {}
+_writer_tasks: Dict[socket.SocketType, curio.Task] = {}
 
 
 class Socket(BaseSocket):
@@ -562,8 +568,8 @@ class Queue(curio.Queue):
 class CapacityLimiter:
     def __init__(self, total_tokens: float):
         self._set_total_tokens(total_tokens)
-        self._borrowers = set()  # type: Set[Any]
-        self._wait_queue = OrderedDict()  # type: Dict[Any, curio.Event]
+        self._borrowers: Set[Any] = set()
+        self._wait_queue: Dict[Any, curio.Event] = OrderedDict()
 
     async def __aenter__(self):
         await self.acquire()
@@ -672,8 +678,8 @@ abc.CapacityLimiter.register(CapacityLimiter)
 # Operating system signals
 #
 
-_signal_queues = defaultdict(list)  # type: DefaultDict[int, List[curio.UniversalQueue]]
-_original_signal_handlers = {}  # type:  Dict[int, Any]
+_signal_queues: DefaultDict[int, List[curio.UniversalQueue]] = defaultdict(list)
+_original_signal_handlers:  Dict[int, Any] = {}
 
 
 def _receive_signal(sig: int, frame) -> None:
@@ -681,15 +687,13 @@ def _receive_signal(sig: int, frame) -> None:
         queue.put(sig)
 
 
-@async_generator
 async def _iterate_signals(queue: curio.UniversalQueue):
     while True:
         sig = await queue.get()
-        await yield_(sig)
+        yield sig
 
 
 @asynccontextmanager
-@async_generator
 async def receive_signals(*signals: int):
     queue = curio.UniversalQueue()
     try:
@@ -700,7 +704,7 @@ async def receive_signals(*signals: int):
                 _original_signal_handlers[sig] = previous_handler
 
         gen = _iterate_signals(queue)
-        await yield_(gen)
+        yield gen
     finally:
         await gen.aclose()
 

@@ -231,7 +231,7 @@ class TaskGroup(metaclass=ABCMeta):
     :vartype cancel_scope: CancelScope
     """
 
-    cancel_scope = None  # type: CancelScope
+    cancel_scope: 'CancelScope'
 
     @abstractmethod
     async def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:

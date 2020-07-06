@@ -7,17 +7,16 @@ class ExceptionGroup(BaseException):
 
     SEPARATOR = '----------------------------\n'
 
-    exceptions = ()  # type: Sequence[BaseException]
-    del exceptions  # Needed for trio 0.12+ compatibility
+    exceptions: Sequence[BaseException]
 
     def __str__(self):
         tracebacks = ['\n'.join(format_exception(type(exc), exc, exc.__traceback__))
                       for exc in self.exceptions]
-        return '{} exceptions were raised in the task group:\n{}{}'.\
-            format(len(self.exceptions), self.SEPARATOR, self.SEPARATOR.join(tracebacks))
+        return f'{len(self.exceptions)} exceptions were raised in the task group:\n' \
+               f'{self.SEPARATOR}{self.SEPARATOR.join(tracebacks)}'
 
     def __repr__(self) -> str:
-        return '<{} ({} exceptions)>'.format(self.__class__.__name__, len(self.exceptions))
+        return f'<{self.__class__.__name__} ({len(self.exceptions)} exceptions)>'
 
 
 class IncompleteRead(Exception):
@@ -41,7 +40,7 @@ class DelimiterNotFound(Exception):
     """
 
     def __init__(self, max_bytes: int) -> None:
-        super().__init__('The delimiter was not found among the first {} bytes'.format(max_bytes))
+        super().__init__(f'The delimiter was not found among the first {max_bytes} bytes')
 
 
 class ClosedResourceError(Exception):
@@ -56,7 +55,7 @@ class ResourceBusyError(Exception):
     """Raised when two tasks are trying to read from or write to the same resource concurrently."""
 
     def __init__(self, action: str):
-        super().__init__('Another task is already {} this resource'.format(action))
+        super().__init__(f'Another task is already {action} this resource')
 
 
 class WouldBlock(Exception):

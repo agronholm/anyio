@@ -7,6 +7,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - **BACKWARDS INCOMPATIBLE** Removed the ``anyio.finalize()`` context manager since as of curio
   1.0, it is no longer necessary. Use ``async_generator.aclosing()`` instead.
+- Dropped support for Python 3.5
 - Bumped minimum versions of trio and curio to v0.16 and v1.2, respectively
 
 **1.4.0**

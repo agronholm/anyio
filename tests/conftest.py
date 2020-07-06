@@ -1,5 +1,4 @@
 import asyncio
-import sys
 
 import pytest
 
@@ -19,8 +18,7 @@ else:
     pytest.param(('asyncio', {'use_uvloop': False}), id='asyncio'),
     pytest.param(('asyncio', {'use_uvloop': True}), id='asyncio+uvloop', marks=uvloop_marks),
     pytest.param('curio'),
-    pytest.param('trio', marks=[pytest.mark.skipif(sys.version_info < (3, 6),
-                                                   reason='trio only supports py3.6+')])
+    pytest.param('trio')
 ], autouse=True)
 def anyio_backend(request):
     return request.param

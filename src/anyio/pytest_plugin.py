@@ -1,11 +1,16 @@
+import sys
 from functools import partial
 from inspect import iscoroutinefunction
 from typing import Dict, Any
 
 import pytest
-from async_generator import isasyncgenfunction
 
 from . import run, BACKENDS
+
+if sys.version_info >= (3, 7):
+    from inspect import isasyncgenfunction
+else:
+    from async_generator import isasyncgenfunction
 
 
 def pytest_configure(config):

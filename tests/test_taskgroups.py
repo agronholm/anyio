@@ -3,7 +3,6 @@ import asyncio
 import curio
 import pytest
 import trio
-from async_generator import async_generator, yield_
 
 import anyio
 from anyio import (
@@ -453,10 +452,9 @@ async def test_nested_shield():
 
 
 def test_task_group_in_generator(anyio_backend_name, anyio_backend_options):
-    @async_generator
     async def task_group_generator():
         async with create_task_group():
-            await yield_()
+            yield
 
     gen = task_group_generator()
     anyio.run(gen.__anext__, backend=anyio_backend_name, backend_options=anyio_backend_options)

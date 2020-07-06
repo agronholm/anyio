@@ -1,6 +1,5 @@
 import pytest
 import sniffio
-from async_generator import async_generator, yield_
 
 from anyio import sleep
 
@@ -14,10 +13,9 @@ async def async_fixture():
 
 
 @pytest.fixture
-@async_generator
 async def asyncgen_fixture():
     await sleep(0)
-    await yield_('foo')
+    yield 'foo'
     await sleep(0)
 
 

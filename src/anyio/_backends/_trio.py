@@ -1,9 +1,9 @@
 import math
+import sys
 from types import TracebackType
 from typing import Callable, Optional, List, Type, Union
 
 import trio.from_thread
-from async_generator import async_generator, yield_, asynccontextmanager
 from trio.to_thread import run_sync
 
 from .. import abc, claim_worker_thread, T_Retval, TaskInfo
@@ -18,6 +18,11 @@ except ImportError:
     from trio.hazmat import wait_readable, wait_writable, notify_closing
 else:
     from trio.lowlevel import wait_readable, wait_writable, notify_closing
+
+if sys.version_info >= (3, 7):
+    from contextlib import asynccontextmanager
+else:
+    from async_generator import asynccontextmanager
 
 
 #
@@ -81,20 +86,18 @@ abc.CancelScope.register(CancelScope)
 
 
 @asynccontextmanager
-@async_generator
 async def move_on_after(seconds, shield):
     with trio.move_on_after(seconds) as scope:
         scope.shield = shield
-        await yield_(CancelScope(scope))
+        yield CancelScope(scope)
 
 
 @asynccontextmanager
-@async_generator
 async def fail_after(seconds, shield):
     try:
         with trio.fail_after(seconds) as cancel_scope:
             cancel_scope.shield = shield
-            await yield_(CancelScope(cancel_scope))
+            yield CancelScope(cancel_scope)
     except trio.TooSlowError as exc:
         raise TimeoutError().with_traceback(exc.__traceback__) from None
 
@@ -375,10 +378,9 @@ abc.CapacityLimiter.register(CapacityLimiter)
 #
 
 @asynccontextmanager
-@async_generator
 async def receive_signals(*signals: int):
     with trio.open_signal_receiver(*signals) as cm:
-        await yield_(cm)
+        yield cm
 
 
 #
@@ -400,7 +402,7 @@ async def get_running_tasks() -> List[TaskInfo]:
     task_infos = [TaskInfo(id(root_task), None, root_task.name, root_task.coro)]
     nurseries = root_task.child_nurseries
     while nurseries:
-        new_nurseries = []  # type: List[trio.Nursery]
+        new_nurseries: List[trio.Nursery] = []
         for nursery in nurseries:
             for task in nursery.child_tasks:
                 task_infos.append(

@@ -6,8 +6,6 @@ from abc import ABCMeta, abstractmethod
 from ipaddress import ip_address, IPv6Address
 from typing import Union, Tuple, Any, Optional, Callable, Dict, List, cast
 
-from async_generator import async_generator, yield_
-
 from . import abc
 from .abc import IPAddressType
 from .exceptions import DelimiterNotFound, IncompleteRead, TLSRequired, ClosedResourceError
@@ -281,16 +279,14 @@ class SocketStream(abc.SocketStream):
             offset = max(len(self._buffer) - delimiter_size + 1, 0)
             self._buffer += data
 
-    @async_generator
     async def receive_chunks(self, max_size: int):
         while True:
             data = await self.receive_some(max_size)
             if data:
-                await yield_(data)
+                yield data
             else:
                 break
 
-    @async_generator
     async def receive_delimited_chunks(self, delimiter: bytes, max_chunk_size: int):
         while True:
             try:
@@ -301,7 +297,7 @@ class SocketStream(abc.SocketStream):
                 else:
                     break
 
-            await yield_(chunk)
+            yield chunk
 
     async def send_all(self, data: bytes) -> None:
         return await self._socket.sendall(data)
@@ -407,11 +403,10 @@ class SocketStreamServer(abc.SocketStreamServer):
             await sock.close()
             raise
 
-    @async_generator
     async def accept_connections(self):
         while self._socket.fileno() != -1:
             try:
-                await yield_(await self.accept())
+                yield await self.accept()
             except ClosedResourceError:
                 break
 
@@ -443,12 +438,11 @@ class UDPSocket(abc.UDPSocket):
         data, addr = await self._socket.recvfrom(max_bytes)
         return data, addr[:2]
 
-    @async_generator
     async def receive_packets(self, max_size: int):
         while self._socket.fileno() != -1:
             packet, address = await self.receive(max_size)
             if packet:
-                await yield_((packet, address))
+                yield (packet, address)
             else:
                 break
 

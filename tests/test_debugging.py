@@ -40,7 +40,7 @@ async def test_get_running_tasks():
     for task, expected_name in zip(task_infos, expected_names):
         assert task.parent_id == host_task.id
         assert task.name == expected_name
-        assert repr(task) == "TaskInfo(id={}, name={!r})".format(task.id, expected_name)
+        assert repr(task) == f'TaskInfo(id={task.id}, name={expected_name!r})'
 
 
 @pytest.mark.filterwarnings('ignore:"@coroutine" decorator is deprecated:DeprecationWarning')

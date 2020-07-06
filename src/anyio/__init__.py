@@ -55,12 +55,12 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
     except sniffio.AsyncLibraryNotFoundError:
         pass
     else:
-        raise RuntimeError('Already running {} in this thread'.format(asynclib_name))
+        raise RuntimeError(f'Already running {asynclib_name} in this thread')
 
     try:
-        asynclib = import_module('{}._backends._{}'.format(__name__, backend))
+        asynclib = import_module(f'{__name__}._backends._{backend}')
     except ImportError as exc:
-        raise LookupError('No such backend: {}'.format(backend)) from exc
+        raise LookupError(f'No such backend: {backend}') from exc
 
     token = None
     if sniffio.current_async_library_cvar.get(None) is None:
@@ -270,9 +270,6 @@ def aopen(file: Union[str, 'os.PathLike', int], mode: str = 'r', buffering: int 
     :rtype: AsyncFile
 
     """
-    if sys.version_info < (3, 6) and hasattr(file, '__fspath__'):
-        file = str(file)
-
     return _get_asynclib().aopen(file, mode, buffering, encoding, errors, newline, closefd, opener)
 
 
@@ -312,7 +309,7 @@ async def connect_tcp(
 
     """
     # Placed here due to https://github.com/python/mypy/issues/7057
-    stream = None  # type: Optional[SocketStream]
+    stream: Optional[SocketStream] = None
 
     async def try_connect(af: int, addr: str, event: Event):
         nonlocal stream
@@ -348,7 +345,8 @@ async def connect_tcp(
             await event.set()
 
     asynclib = _get_asynclib()
-    interface, family = None, 0  # type: Optional[str], int
+    interface: Optional[str] = None
+    family: int = 0
     if bind_host:
         interface, family, _v6only = await _networking.get_bind_address(bind_host)
 
@@ -362,7 +360,7 @@ async def connect_tcp(
         # Organize the list so that the first address is an IPv6 address (if available) and the
         # second one is an IPv4 addresses. The rest can be in whatever order.
         v6_found = v4_found = False
-        target_addrs = []  # type: List[Tuple[socket.AddressFamily, str]]
+        target_addrs: List[Tuple[socket.AddressFamily, str]] = []
         for af, *rest, sa in resolved:
             if af == socket.AF_INET6 and not v6_found:
                 v6_found = True
@@ -378,7 +376,7 @@ async def connect_tcp(
         else:
             target_addrs = [(socket.AF_INET, addr_obj.compressed)]
 
-    oserrors = []  # type: List[OSError]
+    oserrors: List[OSError] = []
     async with create_task_group() as tg:
         for i, (af, addr) in enumerate(target_addrs):
             event = create_event()
@@ -524,7 +522,7 @@ async def create_udp_socket(
             family, type_, proto, _cn, sa = res[0]
             target_host, target_port = sa[:2]
         else:
-            raise ValueError('{!r} cannot be resolved to an IP address'.format(target_host))
+            raise ValueError(f'{target_host!r} cannot be resolved to an IP address')
     elif isinstance(target_host, IPv6Address):
         family = AddressFamily.AF_INET6
         target_host = str(target_host)
@@ -760,7 +758,7 @@ class TaskInfo:
         return hash(self.id)
 
     def __repr__(self):
-        return '{}(id={self.id!r}, name={self.name!r})'.format(self.__class__.__name__, self=self)
+        return f'{self.__class__.__name__}(id={self.id!r}, name={self.name!r})'
 
 
 async def get_current_task() -> TaskInfo:
