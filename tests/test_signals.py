@@ -6,9 +6,10 @@ import pytest
 
 from anyio import receive_signals, run_in_thread
 
+pytestmark = pytest.mark.anyio
+
 
 @pytest.mark.skipif(sys.platform == 'win32', reason='Signal delivery cannot be tested on Windows')
-@pytest.mark.anyio
 async def test_receive_signals():
     async with receive_signals(signal.SIGUSR1, signal.SIGUSR2) as sigiter:
         await run_in_thread(os.kill, os.getpid(), signal.SIGUSR1)

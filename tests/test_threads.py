@@ -7,8 +7,9 @@ from anyio import (
     run_async_from_thread, run_in_thread, create_task_group, sleep, create_capacity_limiter,
     create_event)
 
+pytestmark = pytest.mark.anyio
 
-@pytest.mark.anyio
+
 async def test_run_async_from_thread():
     async def add(a, b):
         assert threading.get_ident() == event_loop_thread_id
@@ -23,7 +24,6 @@ async def test_run_async_from_thread():
     assert result == 3
 
 
-@pytest.mark.anyio
 async def test_run_anyio_async_func_from_thread():
     def worker(*args):
         run_async_from_thread(sleep, *args)
@@ -32,7 +32,6 @@ async def test_run_anyio_async_func_from_thread():
     assert await run_in_thread(worker, 0)
 
 
-@pytest.mark.anyio
 async def test_run_in_thread_cancelled():
     def thread_worker():
         nonlocal state
@@ -52,7 +51,6 @@ async def test_run_in_thread_cancelled():
     assert state == 1
 
 
-@pytest.mark.anyio
 async def test_run_in_thread_exception():
     def thread_worker():
         raise ValueError('foo')
@@ -63,7 +61,6 @@ async def test_run_in_thread_exception():
     exc.match('^foo$')
 
 
-@pytest.mark.anyio
 async def test_run_in_custom_limiter():
     def thread_worker():
         nonlocal num_active_threads, max_active_threads
@@ -103,7 +100,6 @@ def test_run_async_from_unclaimed_thread():
     (False, 'task'),
     (True, 'thread')
 ], ids=['uncancellable', 'cancellable'])
-@pytest.mark.anyio
 async def test_cancel_worker_thread(cancellable, expected_last_active):
     """
     Test that when a task running a worker thread is cancelled, the cancellation is not acted on

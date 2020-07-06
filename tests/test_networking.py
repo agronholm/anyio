@@ -15,6 +15,8 @@ from anyio import (
 from anyio.exceptions import (
     IncompleteRead, DelimiterNotFound, ClosedResourceError, ResourceBusyError, ExceptionGroup)
 
+pytestmark = pytest.mark.anyio
+
 
 @pytest.fixture(scope='module')
 def localhost():
@@ -30,7 +32,6 @@ def fake_localhost_dns(monkeypatch):
 
 
 class TestTCPStream:
-    @pytest.mark.anyio
     async def test_receive_some(self, localhost):
         async def server():
             async with await stream_server.accept() as stream:
@@ -48,7 +49,6 @@ class TestTCPStream:
 
         assert response == b'halb'
 
-    @pytest.mark.anyio
     async def test_receive_some_from_cache(self, localhost):
         async def server():
             async with await stream_server.accept() as stream:
@@ -69,7 +69,6 @@ class TestTCPStream:
         ('receive_until', [b'\n', 100]),
         ('receive_exactly', [5])
     ], ids=['read_until', 'read_exactly'])
-    @pytest.mark.anyio
     async def test_read_partial(self, localhost, method_name, params):
         async def server():
             async with await stream_server.accept() as stream:
@@ -89,7 +88,6 @@ class TestTCPStream:
 
         assert response == b'blahbleh'
 
-    @pytest.mark.anyio
     async def test_send_large_buffer(self, localhost):
         async def server():
             async with await stream_server.accept() as stream:
@@ -110,7 +108,6 @@ class TestTCPStream:
         ('receive_until', [b'\n', 100]),
         ('receive_exactly', [5])
     ], ids=['read_until', 'read_exactly'])
-    @pytest.mark.anyio
     async def test_incomplete_read(self, localhost, method_name, params):
         async def server():
             async with await stream_server.accept() as stream:
@@ -124,7 +121,6 @@ class TestTCPStream:
                     with pytest.raises(IncompleteRead):
                         await method(*params)
 
-    @pytest.mark.anyio
     async def test_delimiter_not_found(self, localhost):
         async def server():
             async with await stream_server.accept() as stream:
@@ -139,7 +135,6 @@ class TestTCPStream:
 
                     assert exc.match(' first 3 bytes$')
 
-    @pytest.mark.anyio
     async def test_receive_chunks(self, localhost):
         async def server():
             async with await stream_server.accept() as stream:
@@ -155,7 +150,6 @@ class TestTCPStream:
 
         assert chunks == [b'bl', b'ah']
 
-    @pytest.mark.anyio
     async def test_buffer(self, localhost):
         async def server():
             async with await stream_server.accept() as stream:
@@ -172,7 +166,6 @@ class TestTCPStream:
 
         assert chunks == [b'blah', b'foob', b'ar']
 
-    @pytest.mark.anyio
     async def test_receive_delimited_chunks(self, localhost):
         async def server():
             async with await stream_server.accept() as stream:
@@ -196,7 +189,6 @@ class TestTCPStream:
         ('::1', '::1'),
         ('localhost', 'localhost'),
     ], ids=['any_ipv4', 'any_ipv6', 'only_ipv4', 'only_ipv6', 'localhost'])
-    @pytest.mark.anyio
     async def test_accept_connections(self, interface, target):
         async def handle_client(stream):
             async with stream:
@@ -228,7 +220,6 @@ class TestTCPStream:
 
         assert lines == {b'client1', b'client2'}
 
-    @pytest.mark.anyio
     async def test_socket_options(self, localhost):
         async with await create_tcp_server(interface=localhost) as stream_server:
             stream_server.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
@@ -239,7 +230,6 @@ class TestTCPStream:
 
     @pytest.mark.xfail(condition=platform.system() == 'Darwin',
                        reason='Occasionally fails on macOS')
-    @pytest.mark.anyio
     async def test_concurrent_write(self, localhost):
         async def send_data():
             while True:
@@ -258,7 +248,6 @@ class TestTCPStream:
                     finally:
                         await tg.cancel_scope.cancel()
 
-    @pytest.mark.anyio
     async def test_concurrent_read(self, localhost):
         async def receive_data():
             await client.receive_exactly(1)
@@ -282,7 +271,6 @@ class TestTCPStream:
         ('127.0.0.1', b'127.0.0.1'),
         ('::1', b'::1')
     ])
-    @pytest.mark.anyio
     async def test_happy_eyeballs(self, interface, expected_addr, fake_localhost_dns):
         async def handle_client(stream):
             addr, port, *rest = stream.peer_address
@@ -308,7 +296,6 @@ class TestTCPStream:
         ),
         ('127.0.0.1', ConnectionRefusedError)
     ], ids=['multi', 'single'])
-    @pytest.mark.anyio
     async def test_connrefused(self, target, exception_class, fake_localhost_dns):
         dummy_socket = socket.socket(socket.AF_INET6)
         dummy_socket.bind(('::', 0))
@@ -324,7 +311,6 @@ class TestTCPStream:
             for exc in exc.value.__cause__.exceptions:
                 assert isinstance(exc, ConnectionRefusedError)
 
-    @pytest.mark.anyio
     async def test_socket_creation_failure(self, monkeypatch):
         def fake_create_socket(*args):
             raise OSError('Bogus error')
@@ -337,7 +323,6 @@ class TestTCPStream:
         assert isinstance(exc.value.__cause__, OSError)
         assert str(exc.value.__cause__) == 'Bogus error'
 
-    @pytest.mark.anyio
     async def test_receive_timeout(self):
         def server():
             conn, _ = sock.accept()
@@ -362,7 +347,6 @@ class TestUNIXStream:
     @pytest.mark.skipif(sys.platform == 'win32',
                         reason='UNIX sockets are not available on Windows')
     @pytest.mark.parametrize('as_path', [False])
-    @pytest.mark.anyio
     async def test_connect_unix(self, tmp_path_factory, as_path):
         async def server():
             async with await stream_server.accept() as stream:
@@ -397,7 +381,6 @@ class TestTLSStream:
         client_context.load_verify_locations(cafile=str(Path(__file__).with_name('cert.pem')))
         return client_context
 
-    @pytest.mark.anyio
     async def test_handshake_on_connect(self, server_context, client_context):
         async def server():
             nonlocal server_binding
@@ -432,7 +415,6 @@ class TestTLSStream:
         assert isinstance(client_binding, bytes)
 
     @pytest.mark.skipif(not ssl.HAS_ALPN, reason='ALPN support not available')
-    @pytest.mark.anyio
     async def test_alpn_negotiation(self, server_context, client_context):
         async def server():
             async with await stream_server.accept() as stream:
@@ -448,7 +430,6 @@ class TestTLSStream:
                         autostart_tls=True) as client:
                     assert client.alpn_protocol == 'dummy2'
 
-    @pytest.mark.anyio
     async def test_manual_handshake(self, server_context, client_context):
         async def server():
             async with await stream_server.accept() as stream:
@@ -476,7 +457,6 @@ class TestTLSStream:
                     assert client.tls_version.startswith('TLSv')
                     await client.send_all(b'CLOSE')  # arbitrary string
 
-    @pytest.mark.anyio
     async def test_buffer(self, server_context, client_context):
         async def server():
             async with await stream_server.accept() as stream:
@@ -501,7 +481,6 @@ class TestTLSStream:
         (False, True, IncompleteRead),
         (False, False, IncompleteRead)
     ], ids=['both_standard', 'server_standard', 'client_standard', 'neither_standard'])
-    @pytest.mark.anyio
     async def test_ragged_eofs(self, server_context, client_context, server_compatible,
                                client_compatible, exc_class):
         async def server():
@@ -527,7 +506,6 @@ class TestTLSStream:
 
 
 class TestUDPSocket:
-    @pytest.mark.anyio
     async def test_udp(self, localhost):
         async with await create_udp_socket(port=5000, interface=localhost,
                                            target_port=5000, target_host=localhost) as socket:
@@ -541,7 +519,6 @@ class TestUDPSocket:
             assert response == b'halb'
             assert addr[:2] == (localhost, 5000)
 
-    @pytest.mark.anyio
     async def test_udp_noconnect(self, localhost):
         async with await create_udp_socket(interface=localhost) as socket:
             await socket.send(b'blah', localhost, socket.port)
@@ -554,7 +531,6 @@ class TestUDPSocket:
             assert response == b'halb'
             assert addr[:2] == (localhost, socket.port)
 
-    @pytest.mark.anyio
     async def test_udp_close_socket_from_other_task(self, localhost):
         async def close_when_blocked():
             await wait_all_tasks_blocked()
@@ -566,7 +542,6 @@ class TestUDPSocket:
                 with pytest.raises(ClosedResourceError):
                     await udp.receive(100)
 
-    @pytest.mark.anyio
     async def test_udp_receive_packets(self, localhost):
         async def serve():
             async for packet, addr in server.receive_packets(10000):
@@ -583,13 +558,11 @@ class TestUDPSocket:
                     assert await client.receive(100) == (b'654321', (localhost, server.port))
                     await tg.cancel_scope.cancel()
 
-    @pytest.mark.anyio
     async def test_socket_options(self, localhost):
         async with await create_udp_socket(interface=localhost) as udp:
             udp.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
             assert udp.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
 
-    @pytest.mark.anyio
     async def test_reuse_address(self):
         async with await create_udp_socket(family=socket.AF_INET, port=0, target_host='8.8.8.8',
                                            target_port=9999, reuse_address=True) as udp:
@@ -600,7 +573,6 @@ class TestUDPSocket:
                 assert port == udp2.address[1]
 
 
-@pytest.mark.anyio
 async def test_getaddrinfo():
     # IDNA 2003 gets this wrong
     correct = await getaddrinfo('faß.de', 0)
@@ -608,7 +580,6 @@ async def test_getaddrinfo():
     assert correct != wrong
 
 
-@pytest.mark.anyio
 @pytest.mark.parametrize('sock_type', [socket.SOCK_STREAM, socket.SocketKind.SOCK_STREAM])
 async def test_getaddrinfo_ipv6addr(sock_type):
     # IDNA trips up over raw IPv6 addresses
@@ -619,7 +590,6 @@ async def test_getaddrinfo_ipv6addr(sock_type):
     ]
 
 
-@pytest.mark.anyio
 async def test_getnameinfo():
     expected_result = socket.getnameinfo(('127.0.0.1', 6666), 0)
     result = await getnameinfo(('127.0.0.1', 6666))

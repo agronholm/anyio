@@ -4,6 +4,8 @@ from async_generator import async_generator, yield_
 
 from anyio import sleep
 
+pytestmark = pytest.mark.anyio
+
 
 @pytest.fixture
 async def async_fixture():
@@ -19,12 +21,10 @@ async def asyncgen_fixture():
     await sleep(0)
 
 
-@pytest.mark.anyio
 async def test_fixture(async_fixture):
     assert async_fixture == 'foo'
 
 
-@pytest.mark.anyio
 async def test_asyncgen_fixture(asyncgen_fixture):
     assert asyncgen_fixture == 'foo'
 

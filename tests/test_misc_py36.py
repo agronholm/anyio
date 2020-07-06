@@ -2,8 +2,9 @@ import pytest
 
 from anyio import finalize, sleep
 
+pytestmark = pytest.mark.anyio
 
-@pytest.mark.anyio
+
 async def test_finalize():
     async def iterable():
         try:

@@ -5,9 +5,10 @@ from anyio import (
     open_cancel_scope, wait_all_tasks_blocked, create_capacity_limiter,
     current_default_thread_limiter, CapacityLimiter)
 
+pytestmark = pytest.mark.anyio
+
 
 class TestLock:
-    @pytest.mark.anyio
     async def test_lock(self):
         async def task():
             assert lock.locked()
@@ -25,7 +26,6 @@ class TestLock:
         assert not lock.locked()
         assert results == ['1', '2']
 
-    @pytest.mark.anyio
     async def test_lock_cancel(self):
         async def task():
             nonlocal task_started, got_lock
@@ -45,7 +45,6 @@ class TestLock:
 
 
 class TestEvent:
-    @pytest.mark.anyio
     async def test_event(self):
         async def setter():
             assert not event.is_set()
@@ -59,7 +58,6 @@ class TestEvent:
 
         assert not event.is_set()
 
-    @pytest.mark.anyio
     async def test_event_cancel(self):
         async def task():
             nonlocal task_started, event_set
@@ -79,7 +77,6 @@ class TestEvent:
 
 
 class TestCondition:
-    @pytest.mark.anyio
     async def test_condition(self):
         async def notifier():
             async with condition:
@@ -92,7 +89,6 @@ class TestCondition:
                 await tg.spawn(notifier)
                 await condition.wait()
 
-    @pytest.mark.anyio
     async def test_wait_cancel(self):
         async def task():
             nonlocal task_started, notified
@@ -118,7 +114,6 @@ class TestCondition:
 
 
 class TestSemaphore:
-    @pytest.mark.anyio
     async def test_semaphore(self):
         async def acquire():
             async with semaphore:
@@ -131,7 +126,6 @@ class TestSemaphore:
 
         assert semaphore.value == 2
 
-    @pytest.mark.anyio
     async def test_acquire_cancel(self):
         async def task():
             nonlocal local_scope, acquired
@@ -150,7 +144,6 @@ class TestSemaphore:
 
 
 class TestQueue:
-    @pytest.mark.anyio
     async def test_queue(self):
         queue = create_queue(1)
         assert queue.empty()
@@ -160,7 +153,6 @@ class TestQueue:
         assert await queue.get() == '1'
         assert queue.empty()
 
-    @pytest.mark.anyio
     async def test_get_cancel(self):
         async def task():
             nonlocal local_scope
@@ -177,7 +169,6 @@ class TestQueue:
 
         assert queue.full()
 
-    @pytest.mark.anyio
     async def test_get_iter(self):
         async def task():
             nonlocal total
@@ -199,7 +190,6 @@ class TestQueue:
         assert queue.empty()
         assert total == 6
 
-    @pytest.mark.anyio
     async def test_put_cancel(self):
         async def task():
             nonlocal local_scope
@@ -217,7 +207,6 @@ class TestQueue:
 
         assert queue.empty()
 
-    @pytest.mark.anyio
     async def test_zero_capacity(self):
         """Ensure that max_size=0 creates an infinite capacity queue on all backends."""
         queue = create_queue(0)
@@ -225,17 +214,14 @@ class TestQueue:
 
 
 class TestCapacityLimiter:
-    @pytest.mark.anyio
     async def test_bad_init_type(self):
         pytest.raises(TypeError, create_capacity_limiter, 1.0).\
             match('total_tokens must be an int or math.inf')
 
-    @pytest.mark.anyio
     async def test_bad_init_value(self):
         pytest.raises(ValueError, create_capacity_limiter, 0).\
             match('total_tokens must be >= 1')
 
-    @pytest.mark.anyio
     async def test_borrow(self):
         limiter = create_capacity_limiter(2)
         assert limiter.total_tokens == 2
@@ -246,7 +232,6 @@ class TestCapacityLimiter:
             assert limiter.available_tokens == 1
             assert limiter.borrowed_tokens == 1
 
-    @pytest.mark.anyio
     async def test_limit(self):
         async def taskfunc():
             nonlocal value
@@ -263,7 +248,6 @@ class TestCapacityLimiter:
             for _ in range(3):
                 await tg.spawn(taskfunc)
 
-    @pytest.mark.anyio
     async def test_borrow_twice(self):
         limiter = create_capacity_limiter(1)
         await limiter.acquire()
@@ -272,7 +256,6 @@ class TestCapacityLimiter:
 
         exc.match("this borrower is already holding one of this CapacityLimiter's tokens")
 
-    @pytest.mark.anyio
     async def test_bad_release(self):
         limiter = create_capacity_limiter(1)
         with pytest.raises(RuntimeError) as exc:
@@ -280,7 +263,6 @@ class TestCapacityLimiter:
 
         exc.match("this borrower isn't holding any of this CapacityLimiter's tokens")
 
-    @pytest.mark.anyio
     async def test_increase_tokens(self):
         async def setter():
             # Wait until waiter() is inside the limiter block
@@ -306,7 +288,6 @@ class TestCapacityLimiter:
 
         assert event2.is_set()
 
-    @pytest.mark.anyio
     async def test_current_default_thread_limiter(self):
         limiter = current_default_thread_limiter()
         assert isinstance(limiter, CapacityLimiter)

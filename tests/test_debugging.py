@@ -6,6 +6,8 @@ import anyio
 from anyio import (
     create_task_group, create_event, wait_all_tasks_blocked, get_running_tasks, get_current_task)
 
+pytestmark = pytest.mark.anyio
+
 
 def test_main_task_name(anyio_backend_name, anyio_backend_options):
     async def main():
@@ -17,7 +19,6 @@ def test_main_task_name(anyio_backend_name, anyio_backend_options):
     assert task_name == 'test_debugging.test_main_task_name.<locals>.main'
 
 
-@pytest.mark.anyio
 async def test_get_running_tasks():
     async def inspect():
         await wait_all_tasks_blocked()
