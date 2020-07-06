@@ -18,6 +18,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   on asyncio and curio
 - Fixed the type of the ``address`` parameter in ``UDPSocket.send()`` to include ``IPAddress``
   objects (which were already supported by the backing implementation)
+- Fixed ``UDPSocket.send()`` to resolve host names using ``anyio.getaddrinfo()`` before calling
+  ``socket.sendto()`` to avoid blocking on synchronous name resolution
 - Switched to using ``anyio.getaddrinfo()`` for name lookups
 
 **1.3.1**

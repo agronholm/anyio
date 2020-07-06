@@ -455,7 +455,11 @@ class UDPSocket(abc.UDPSocket):
     async def send(self, data: bytes, address: Optional[IPAddressType] = None,
                    port: Optional[int] = None) -> None:
         if address is not None and port is not None:
-            await self._socket.sendto(data, (str(address), port))
+            from . import getaddrinfo
+
+            gai_res = await getaddrinfo(str(address), port)
+            sock_addr = gai_res[0][-1]
+            await self._socket.sendto(data, sock_addr)
         else:
             await self._socket.send(data)
 
