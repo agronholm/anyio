@@ -589,6 +589,16 @@ class TestUDPSocket:
             udp.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
             assert udp.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
 
+    @pytest.mark.anyio
+    async def test_reuse_address(self):
+        async with await create_udp_socket(family=socket.AF_INET, port=0, target_host='8.8.8.8',
+                                           target_port=9999, reuse_address=True) as udp:
+            port = udp.address[1]
+            assert port != 0
+            async with await create_udp_socket(family=socket.AF_INET, port=port,
+                                               reuse_address=True) as udp2:
+                assert port == udp2.address[1]
+
 
 @pytest.mark.anyio
 async def test_getaddrinfo():

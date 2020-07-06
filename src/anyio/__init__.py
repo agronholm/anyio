@@ -503,8 +503,10 @@ async def create_unix_server(
 
 
 async def create_udp_socket(
-    *, interface: Optional[IPAddressType] = None, port: Optional[int] = None,
-    target_host: Optional[IPAddressType] = None, target_port: Optional[int] = None
+    *, family: Union[int, AddressFamily] = AddressFamily.AF_UNSPEC,
+    interface: Optional[IPAddressType] = None, port: Optional[int] = None,
+    target_host: Optional[IPAddressType] = None, target_port: Optional[int] = None,
+    reuse_address: bool = False
 ) -> UDPSocket:
     """
     Create a UDP socket.
@@ -512,17 +514,22 @@ async def create_udp_socket(
     If ``port`` has been given, the socket will be bound to this port on the local machine,
     making this socket suitable for providing UDP based services.
 
+    :param family: address family (``AF_INET`` or ``AF_INET6``) – automatically determined from
+        ``interface`` or ``target_host`` if omitted
     :param interface: IP address of the interface to bind to
     :param port: port to bind to
     :param target_host: remote host to set as the default target
     :param target_port: port on the remote host to set as the default target
+    :param reuse_address: ``True`` to allow multiple sockets to bind to the same address/port
     :return: a UDP socket
 
     """
     if interface:
-        interface, family, _v6only = await _networking.get_bind_address(interface)
+        interface, if_family, _v6only = await _networking.get_bind_address(interface)
+        if family is AddressFamily.AF_UNSPEC:
+            family = if_family
     else:
-        interface, family = None, 0
+        interface = None
 
     if isinstance(target_host, str) and target_port is not None:
         res = await getaddrinfo(target_host, target_port, family=family)
@@ -540,6 +547,9 @@ async def create_udp_socket(
 
     raw_socket = socket.socket(family=family, type=socket.SOCK_DGRAM)
     sock = _get_asynclib().Socket(raw_socket)
+    if reuse_address:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
     try:
         if interface is not None or port is not None:
             await sock.bind((interface or '', port or 0))

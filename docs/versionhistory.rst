@@ -6,6 +6,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **1.4.0**
 
 - Added async name resolution functions (``anyio.getaddrinfo()`` and ``anyio.getnameinfo()``)
+- Added the ``family`` and ``reuse_address`` parameters to ``anyio.create_udp_socket()``
+  (Enables multicast support; test contributed by Matthias Urlichs)
 - Fixed ``fail.after(0)`` not raising a timeout error on asyncio and curio
 - Fixed ``move_on_after()`` and ``fail_after()`` getting stuck on curio in some circumstances
 - Fixed socket operations not allowing timeouts to cancel the task
