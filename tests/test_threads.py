@@ -4,8 +4,8 @@ import time
 import pytest
 
 from anyio import (
-    run_async_from_thread, run_in_thread, create_task_group, sleep, create_capacity_limiter,
-    create_event)
+    run_async_from_thread, run_sync_in_worker_thread, create_task_group, sleep,
+    create_capacity_limiter, create_event)
 
 pytestmark = pytest.mark.anyio
 
@@ -20,7 +20,7 @@ async def test_run_async_from_thread():
         return run_async_from_thread(add, a, b)
 
     event_loop_thread_id = threading.get_ident()
-    result = await run_in_thread(worker, 1, 2)
+    result = await run_sync_in_worker_thread(worker, 1, 2)
     assert result == 3
 
 
@@ -29,7 +29,7 @@ async def test_run_anyio_async_func_from_thread():
         run_async_from_thread(sleep, *args)
         return True
 
-    assert await run_in_thread(worker, 0)
+    assert await run_sync_in_worker_thread(worker, 0)
 
 
 async def test_run_in_thread_cancelled():
@@ -40,7 +40,7 @@ async def test_run_in_thread_cancelled():
     async def worker():
         nonlocal state
         state = 1
-        await run_in_thread(thread_worker)
+        await run_sync_in_worker_thread(thread_worker)
         state = 3
 
     state = 0
@@ -56,7 +56,7 @@ async def test_run_in_thread_exception():
         raise ValueError('foo')
 
     with pytest.raises(ValueError) as exc:
-        await run_in_thread(thread_worker)
+        await run_sync_in_worker_thread(thread_worker)
 
     exc.match('^foo$')
 
@@ -70,7 +70,7 @@ async def test_run_in_custom_limiter():
         num_active_threads -= 1
 
     async def task_worker():
-        await run_in_thread(thread_worker, limiter=limiter)
+        await run_sync_in_worker_thread(thread_worker, limiter=limiter)
 
     event = threading.Event()
     num_active_threads = max_active_threads = 0
@@ -116,7 +116,7 @@ async def test_cancel_worker_thread(cancellable, expected_last_active):
     async def task_worker():
         nonlocal last_active
         try:
-            await run_in_thread(thread_worker, cancellable=cancellable)
+            await run_sync_in_worker_thread(thread_worker, cancellable=cancellable)
         finally:
             last_active = 'task'
 

@@ -156,8 +156,9 @@ abc.TaskGroup.register(TaskGroup)
 # Threads
 #
 
-async def run_in_thread(func: Callable[..., T_Retval], *args, cancellable: bool = False,
-                        limiter: Optional['CapacityLimiter'] = None) -> T_Retval:
+async def run_sync_in_worker_thread(
+        func: Callable[..., T_Retval], *args, cancellable: bool = False,
+        limiter: Optional['CapacityLimiter'] = None) -> T_Retval:
     def wrapper():
         with claim_worker_thread('trio'):
             return func(*args)
@@ -188,8 +189,8 @@ class Socket(BaseSocket):
     def _check_cancelled(self):
         return trio_lowlevel.checkpoint()
 
-    def _run_in_thread(self, func: Callable, *args):
-        return run_in_thread(func, *args)
+    def _run_sync_in_worker_thread(self, func: Callable, *args):
+        return run_sync_in_worker_thread(func, *args)
 
 
 getaddrinfo = trio.socket.getaddrinfo

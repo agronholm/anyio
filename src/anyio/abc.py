@@ -299,10 +299,10 @@ class Stream(metaclass=ABCMeta):
     async def __aexit__(self, exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
-        await self.close()
+        await self.aclose()
 
     @abstractmethod
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         """Close the stream."""
 
     @property
@@ -544,10 +544,10 @@ class SocketStreamServer(metaclass=ABCMeta):
     async def __aexit__(self, exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
-        await self.close()
+        await self.aclose()
 
     @abstractmethod
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         """Close the underlying socket."""
 
     @abstractmethod
@@ -605,10 +605,10 @@ class UDPSocket(metaclass=ABCMeta):
     async def __aexit__(self, exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
-        await self.close()
+        await self.aclose()
 
     @abstractmethod
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         """Close the underlying socket."""
 
     @property

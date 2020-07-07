@@ -9,6 +9,15 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   1.0, it is no longer necessary. Use ``async_generator.aclosing()`` instead.
 - **BACKWARDS INCOMPATIBLE** Asynchronous file I/O functionality now uses a common code base
   (``anyio.fileio.AsyncFile``) instead of backend-native classes
+- **BACKWARDS INCOMPATIBLE** Renamed some functions and methods to match their corresponding names
+  in Trio:
+
+  - ``Stream.close()`` -> ``Stream.aclose()``
+  - ``AsyncFile.close()`` -> ``AsyncFile.aclose()``
+  - ``anyio.aopen()`` -> ``anyio.open_file()``
+  - ``anyio.receive_signals()`` -> ``anyio.open_signal_receiver()``
+  - ``anyio.run_in_thread()`` -> ``anyio.run_sync_in_worker_thread()``
+  - ``anyio.current_default_thread_limiter()`` -> ``anyio.current_default_worker_thread_limiter()``
 - Dropped support for Python 3.5
 - Bumped minimum versions of trio and curio to v0.16 and v1.2, respectively
 

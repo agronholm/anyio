@@ -371,8 +371,9 @@ abc.TaskGroup.register(TaskGroup)
 # Threads
 #
 
-async def run_in_thread(func: Callable[..., T_Retval], *args, cancellable: bool = False,
-                        limiter: Optional['CapacityLimiter'] = None) -> T_Retval:
+async def run_sync_in_worker_thread(
+        func: Callable[..., T_Retval], *args, cancellable: bool = False,
+        limiter: Optional['CapacityLimiter'] = None) -> T_Retval:
     async def async_call_helper():
         while True:
             item = await queue.get()
@@ -452,8 +453,8 @@ class Socket(BaseSocket):
     def _check_cancelled(self) -> Coroutine[Any, Any, None]:
         return sleep(0)
 
-    def _run_in_thread(self, func: Callable, *args):
-        return run_in_thread(func, *args)
+    def _run_sync_in_worker_thread(self, func: Callable, *args):
+        return run_sync_in_worker_thread(func, *args)
 
 
 def getaddrinfo(host: Union[bytearray, bytes, str], port: Union[str, int, None], *,

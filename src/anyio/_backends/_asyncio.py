@@ -442,8 +442,9 @@ abc.TaskGroup.register(TaskGroup)
 _Retval_Queue_Type = Tuple[Optional[T_Retval], Optional[BaseException]]
 
 
-async def run_in_thread(func: Callable[..., T_Retval], *args, cancellable: bool = False,
-                        limiter: Optional['CapacityLimiter'] = None) -> T_Retval:
+async def run_sync_in_worker_thread(
+        func: Callable[..., T_Retval], *args, cancellable: bool = False,
+        limiter: Optional['CapacityLimiter'] = None) -> T_Retval:
     def thread_worker():
         try:
             with claim_worker_thread('asyncio'):
@@ -516,8 +517,8 @@ class Socket(BaseSocket):
     def _check_cancelled(self):
         return sleep(0)
 
-    def _run_in_thread(self, func: Callable, *args):
-        return run_in_thread(func, *args)
+    def _run_sync_in_worker_thread(self, func: Callable, *args):
+        return run_sync_in_worker_thread(func, *args)
 
 
 async def getaddrinfo(host: Union[bytearray, bytes, str], port: Union[str, int, None], *,

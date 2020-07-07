@@ -197,7 +197,7 @@ class TestTCPStream:
                 lines.add(line)
 
             if len(lines) == 2:
-                await stream_server.close()
+                await stream_server.aclose()
 
         async def server():
             async for stream in stream_server.accept_connections():
@@ -288,7 +288,7 @@ class TestTCPStream:
                     assert await client.receive_until(b'\n', 100) == expected_addr
                     assert client.address[0] == expected_addr.decode()
 
-                await stream_server.close()
+                await stream_server.aclose()
 
     @pytest.mark.parametrize('target, exception_class', [
         pytest.param(
@@ -326,7 +326,7 @@ class TestTCPStream:
     async def test_receive_timeout(self):
         def server():
             conn, _ = sock.accept()
-            conn.close()
+            conn.aclose()
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.bind(('127.0.0.1', 0))
@@ -534,7 +534,7 @@ class TestUDPSocket:
     async def test_udp_close_socket_from_other_task(self, localhost):
         async def close_when_blocked():
             await wait_all_tasks_blocked()
-            await udp.close()
+            await udp.aclose()
 
         async with create_task_group() as tg:
             async with await create_udp_socket(interface=localhost) as udp:

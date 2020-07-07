@@ -38,7 +38,7 @@ class BaseSocket(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    async def _run_in_thread(self, func: Callable, *args):
+    async def _run_sync_in_worker_thread(self, func: Callable, *args):
         pass
 
     async def accept(self):
@@ -67,9 +67,9 @@ class BaseSocket(metaclass=ABCMeta):
                 return
 
         # In all other cases, do this in a worker thread to avoid blocking the event loop thread
-        await self._run_in_thread(self._raw_socket.bind, address)
+        await self._run_sync_in_worker_thread(self._raw_socket.bind, address)
 
-    async def close(self):
+    async def aclose(self):
         await self._notify_close()
         self._raw_socket.close()
 
@@ -205,7 +205,7 @@ class SocketStream(abc.SocketStream):
         self._tls_standard_compatible = tls_standard_compatible
         self._buffer = b''
 
-    async def close(self):
+    async def aclose(self):
         from . import move_on_after
 
         try:
@@ -213,7 +213,7 @@ class SocketStream(abc.SocketStream):
                 async with move_on_after(5, shield=True):
                     await self._socket.unwrap_tls()
         finally:
-            await self._socket.close()
+            await self._socket.aclose()
 
     def getsockopt(self, level, optname, *args):
         return self._socket.getsockopt(level, optname, *args)
@@ -370,8 +370,8 @@ class SocketStreamServer(abc.SocketStreamServer):
         self._autostart_tls = autostart_tls
         self._tls_standard_compatible = tls_standard_compatible
 
-    async def close(self) -> None:
-        await self._socket.close()
+    async def aclose(self) -> None:
+        await self._socket.aclose()
 
     def getsockopt(self, level, optname, *args):
         return self._socket.getsockopt(level, optname, *args)
@@ -400,7 +400,7 @@ class SocketStreamServer(abc.SocketStreamServer):
 
             return stream
         except BaseException:
-            await sock.close()
+            await sock.aclose()
             raise
 
     async def accept_connections(self):
@@ -417,8 +417,8 @@ class UDPSocket(abc.UDPSocket):
     def __init__(self, sock: BaseSocket) -> None:
         self._socket = sock
 
-    async def close(self):
-        await self._socket.close()
+    async def aclose(self):
+        await self._socket.aclose()
 
     @property
     def address(self) -> Union[Tuple[str, int], Tuple[str, int, int, int]]:

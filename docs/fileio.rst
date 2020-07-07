@@ -6,11 +6,11 @@ operations in worker threads.
 
 Example::
 
-    from anyio import aopen, run
+    from anyio import open_file, run
 
 
     async def main():
-        async with await aopen('/some/path/somewhere') as f:
+        async with await open_file('/some/path/somewhere') as f:
             contents = await f.read()
             print(contents)
 
@@ -19,11 +19,11 @@ Example::
 The wrappers also support asynchronous iteration of the file line by line, just as the standard
 file objects support synchronous iteration::
 
-    from anyio import aopen, run
+    from anyio import open_file, run
 
 
     async def main():
-        async with await aopen('/some/path/somewhere') as f:
+        async with await open_file('/some/path/somewhere') as f:
             async for line in f:
                 print(line, end='')
 

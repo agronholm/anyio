@@ -46,7 +46,7 @@ class AsyncFile:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()
+        await self.aclose()
 
     @property
     def wrapped(self):
@@ -60,41 +60,41 @@ class AsyncFile:
             else:
                 break
 
-    async def close(self) -> None:
-        return await anyio.run_in_thread(self._fp.close)
+    async def aclose(self) -> None:
+        return await anyio.run_sync_in_worker_thread(self._fp.close)
 
     async def read(self, size: int = -1) -> Union[bytes, str]:
-        return await anyio.run_in_thread(self._fp.read, size)
+        return await anyio.run_sync_in_worker_thread(self._fp.read, size)
 
     async def read1(self, size: int = -1) -> Union[bytes, str]:
-        return await anyio.run_in_thread(self._fp.read1, size)
+        return await anyio.run_sync_in_worker_thread(self._fp.read1, size)
 
     async def readline(self) -> bytes:
-        return await anyio.run_in_thread(self._fp.readline)
+        return await anyio.run_sync_in_worker_thread(self._fp.readline)
 
     async def readlines(self) -> bytes:
-        return await anyio.run_in_thread(self._fp.readlines)
+        return await anyio.run_sync_in_worker_thread(self._fp.readlines)
 
     async def readinto(self, b: Union[bytes, memoryview]) -> bytes:
-        return await anyio.run_in_thread(self._fp.readinto, b)
+        return await anyio.run_sync_in_worker_thread(self._fp.readinto, b)
 
     async def readinto1(self, b: Union[bytes, memoryview]) -> bytes:
-        return await anyio.run_in_thread(self._fp.readinto1, b)
+        return await anyio.run_sync_in_worker_thread(self._fp.readinto1, b)
 
     async def write(self, b: bytes) -> None:
-        return await anyio.run_in_thread(self._fp.write, b)
+        return await anyio.run_sync_in_worker_thread(self._fp.write, b)
 
     async def writelines(self, lines: bytes) -> None:
-        return await anyio.run_in_thread(self._fp.writelines, lines)
+        return await anyio.run_sync_in_worker_thread(self._fp.writelines, lines)
 
     async def truncate(self, size: Optional[int] = None) -> int:
-        return await anyio.run_in_thread(self._fp.truncate, size)
+        return await anyio.run_sync_in_worker_thread(self._fp.truncate, size)
 
     async def seek(self, offset: int, whence: Optional[int] = os.SEEK_SET) -> int:
-        return await anyio.run_in_thread(self._fp.seek, offset, whence)
+        return await anyio.run_sync_in_worker_thread(self._fp.seek, offset, whence)
 
     async def tell(self) -> int:
-        return await anyio.run_in_thread(self._fp.tell)
+        return await anyio.run_sync_in_worker_thread(self._fp.tell)
 
     async def flush(self) -> None:
-        return await anyio.run_in_thread(self._fp.flush)
+        return await anyio.run_sync_in_worker_thread(self._fp.flush)

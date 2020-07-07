@@ -17,11 +17,11 @@ To run a (synchronous) callable in a worker thread::
 
     import time
 
-    from anyio import run_in_thread, run
+    from anyio import run_sync_in_worker_thread, run
 
 
     async def main():
-        await run_in_thread(time.sleep, 5)
+        await run_sync_in_worker_thread(time.sleep, 5)
 
     run(main)
 
@@ -34,7 +34,7 @@ Calling asynchronous code from a worker thread
 
 If you need to call a coroutine function from a worker thread, you can do this::
 
-    from anyio import run_async_from_thread, sleep, run_in_thread, run
+    from anyio import run_async_from_thread, sleep, run_sync_in_worker_thread, run
 
 
     def blocking_function():
@@ -42,9 +42,9 @@ If you need to call a coroutine function from a worker thread, you can do this::
 
 
     async def main():
-        await run_in_thread(blocking_function)
+        await run_sync_in_worker_thread(blocking_function)
 
     run(main)
 
-.. note:: The worker thread must have been spawned using :func:`~anyio.run_in_thread` for this to
-   work.
+.. note:: The worker thread must have been spawned using :func:`~anyio.run_sync_in_worker_thread`
+   for this to work.

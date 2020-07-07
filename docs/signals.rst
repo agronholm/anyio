@@ -10,11 +10,11 @@ AnyIO provides a simple mechanism for you to receive the signals you're interest
 
     import signal
 
-    from anyio import receive_signals, run
+    from anyio import open_signal_receiver, run
 
 
     async def main():
-        async with receive_signals(signal.SIGTERM, signal.SIGHUP) as signals:
+        async with open_signal_receiver(signal.SIGTERM, signal.SIGHUP) as signals:
             async for signum in signals:
                 if signum == signal.SIGTERM:
                     return

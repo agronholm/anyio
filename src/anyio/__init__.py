@@ -207,8 +207,8 @@ def create_task_group() -> TaskGroup:
 # Threads
 #
 
-def run_in_thread(func: Callable[..., T_Retval], *args, cancellable: bool = False,
-                  limiter: Optional[CapacityLimiter] = None) -> Awaitable[T_Retval]:
+def run_sync_in_worker_thread(func: Callable[..., T_Retval], *args, cancellable: bool = False,
+                              limiter: Optional[CapacityLimiter] = None) -> Awaitable[T_Retval]:
     """
     Start a thread that calls the given function with the given arguments.
 
@@ -224,7 +224,8 @@ def run_in_thread(func: Callable[..., T_Retval], *args, cancellable: bool = Fals
     :return: an awaitable that yields the return value of the function.
 
     """
-    return _get_asynclib().run_in_thread(func, *args, cancellable=cancellable, limiter=limiter)
+    return _get_asynclib().run_sync_in_worker_thread(func, *args, cancellable=cancellable,
+                                                     limiter=limiter)
 
 
 def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args) -> T_Retval:
@@ -244,7 +245,7 @@ def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *a
     return asynclib.run_async_from_thread(func, *args)
 
 
-def current_default_thread_limiter() -> CapacityLimiter:
+def current_default_worker_thread_limiter() -> CapacityLimiter:
     """
     Return the capacity limiter that is used by default to limit the number of concurrent threads.
 
@@ -258,10 +259,10 @@ def current_default_thread_limiter() -> CapacityLimiter:
 # Async file I/O
 #
 
-async def aopen(file: Union[str, 'os.PathLike', int], mode: str = 'r', buffering: int = -1,
-                encoding: Optional[str] = None, errors: Optional[str] = None,
-                newline: Optional[str] = None, closefd: bool = True,
-                opener: Optional[Callable] = None) -> AsyncFile:
+async def open_file(file: Union[str, 'os.PathLike', int], mode: str = 'r', buffering: int = -1,
+                    encoding: Optional[str] = None, errors: Optional[str] = None,
+                    newline: Optional[str] = None, closefd: bool = True,
+                    opener: Optional[Callable] = None) -> AsyncFile:
     """
     Open a file asynchronously.
 
@@ -270,8 +271,8 @@ async def aopen(file: Union[str, 'os.PathLike', int], mode: str = 'r', buffering
     :return: an asynchronous file object
 
     """
-    fp = await run_in_thread(open, file, mode, buffering, encoding, errors, newline, closefd,
-                             opener)
+    fp = await run_sync_in_worker_thread(open, file, mode, buffering, encoding, errors, newline,
+                                         closefd, opener)
     return AsyncFile(fp)
 
 
@@ -331,10 +332,10 @@ async def connect_tcp(
             await sock.connect((addr, port))
         except OSError as exc:
             oserrors.append(exc)
-            await sock.close()
+            await sock.aclose()
             return
         except BaseException:
-            await sock.close()
+            await sock.aclose()
             raise
         else:
             if stream is None:
@@ -412,7 +413,7 @@ async def connect_unix(path: Union[str, 'os.PathLike']) -> SocketStream:
         await sock.connect(path)
         return _networking.SocketStream(sock)
     except BaseException:
-        await sock.close()
+        await sock.aclose()
         raise
 
 
@@ -458,7 +459,7 @@ async def create_tcp_server(
         return _networking.SocketStreamServer(sock, ssl_context, autostart_tls,
                                               tls_standard_compatible)
     except BaseException:
-        await sock.close()
+        await sock.aclose()
         raise
 
 
@@ -485,7 +486,7 @@ async def create_unix_server(
         sock.listen()
         return _networking.SocketStreamServer(sock, None, False, True)
     except BaseException:
-        await sock.close()
+        await sock.aclose()
         raise
 
 
@@ -546,7 +547,7 @@ async def create_udp_socket(
 
         return _networking.UDPSocket(sock)
     except BaseException:
-        await sock.close()
+        await sock.aclose()
         raise
 
 
@@ -712,7 +713,7 @@ def create_capacity_limiter(total_tokens: float) -> CapacityLimiter:
 # Operating system signals
 #
 
-def receive_signals(*signals: int) -> 'typing.AsyncContextManager[typing.AsyncIterator[int]]':
+def open_signal_receiver(*signals: int) -> 'typing.AsyncContextManager[typing.AsyncIterator[int]]':
     """
     Start receiving operating system signals.
 
