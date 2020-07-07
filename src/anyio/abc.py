@@ -71,11 +71,7 @@ class Event(metaclass=ABCMeta):
         """Set the flag, notifying all listeners."""
 
     @abstractmethod
-    def clear(self) -> None:
-        """Clear the flag, so that listeners can receive another notification."""
-
-    @abstractmethod
-    def is_set(self) -> None:
+    def is_set(self) -> bool:
         """Return ``True`` if the flag is set, ``False`` if not."""
 
     @abstractmethod

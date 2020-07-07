@@ -20,6 +20,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   - ``anyio.current_default_thread_limiter()`` -> ``anyio.current_default_worker_thread_limiter()``
 - **BACKWARDS INCOMPATIBLE** Added the ``acquire()`` and ``release()`` methods to the ``Lock``,
   ``Condition`` and ``Semaphore`` classes
+- **BACKWARDS INCOMPATIBLE** Removed the ``Event.clear()`` method. You must now replace the event
+  object with a new one rather than clear the old one.
 - Dropped support for Python 3.5
 - Bumped minimum versions of trio and curio to v0.16 and v1.2, respectively
 

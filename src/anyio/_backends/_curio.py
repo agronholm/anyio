@@ -552,10 +552,19 @@ class Condition(abc.Condition):
         return await super().wait()
 
 
-class Event(curio.Event):
+class Event(abc.Event):
+    def __init__(self):
+        self._event = curio.Event()
+
+    async def set(self) -> None:
+        await self._event.set()
+
+    def is_set(self) -> bool:
+        return self._event.is_set()
+
     async def wait(self):
         await check_cancelled()
-        return await super().wait()
+        return await self._event.wait()
 
 
 class Semaphore(abc.Semaphore):

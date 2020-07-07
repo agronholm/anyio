@@ -637,13 +637,19 @@ class Condition(abc.Condition):
         return await super().wait()
 
 
-class Event(asyncio.Event):
+class Event(abc.Event):
+    def __init__(self):
+        self._event = asyncio.Event()
+
     async def set(self):
-        super().set()
+        self._event.set()
+
+    def is_set(self) -> bool:
+        return self._event.is_set()
 
     async def wait(self):
         check_cancelled()
-        return await super().wait()
+        await self._event.wait()
 
 
 class Semaphore(abc.Semaphore):

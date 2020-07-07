@@ -245,10 +245,6 @@ class Event:
     async def set(self) -> None:
         self._event.set()
 
-    def clear(self):
-        if self._event.is_set():
-            self._event = trio.Event()
-
     def is_set(self) -> bool:
         return self._event.is_set()
 
