@@ -596,27 +596,41 @@ async def notify_socket_close(sock: socket.SocketType) -> None:
 # Synchronization
 #
 
-class Lock(asyncio.Lock):
-    async def __aenter__(self):
+class Lock(abc.Lock):
+    def __init__(self):
+        self._lock = asyncio.Lock()
+
+    def locked(self) -> bool:
+        return self._lock.locked()
+
+    async def acquire(self) -> None:
         check_cancelled()
-        await self.acquire()
+        await self._lock.acquire()
 
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
-        self.release()
+    async def release(self) -> None:
+        self._lock.release()
 
 
-class Condition(asyncio.Condition):
-    async def __aenter__(self):
+class Condition(abc.Condition):
+    def __init__(self, lock: Optional[Lock]):
+        asyncio_lock = lock._lock if lock else None
+        self._condition = asyncio.Condition(asyncio_lock)
+
+    async def acquire(self) -> None:
         check_cancelled()
-        return await super().__aenter__()
+        await self._condition.acquire()
+
+    async def release(self) -> None:
+        self._condition.release()
+
+    def locked(self) -> bool:
+        return self._condition.locked()
 
     async def notify(self, n=1):
-        super().notify(n)
+        self._condition.notify(n)
 
     async def notify_all(self):
-        super().notify(len(self._waiters))
+        self._condition.notify_all()
 
     async def wait(self):
         check_cancelled()
@@ -632,14 +646,20 @@ class Event(asyncio.Event):
         return await super().wait()
 
 
-class Semaphore(asyncio.Semaphore):
-    async def __aenter__(self):
+class Semaphore(abc.Semaphore):
+    def __init__(self, value: int):
+        self._semaphore = asyncio.Semaphore(value)
+
+    async def acquire(self) -> None:
         check_cancelled()
-        return await super().__aenter__()
+        await self._semaphore.acquire()
+
+    async def release(self) -> None:
+        self._semaphore.release()
 
     @property
     def value(self):
-        return self._value
+        return self._semaphore._value
 
 
 class Queue(asyncio.Queue):

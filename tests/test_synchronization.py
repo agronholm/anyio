@@ -9,7 +9,7 @@ pytestmark = pytest.mark.anyio
 
 
 class TestLock:
-    async def test_lock(self):
+    async def test_contextmanager(self):
         async def task():
             assert lock.locked()
             async with lock:
@@ -26,7 +26,30 @@ class TestLock:
         assert not lock.locked()
         assert results == ['1', '2']
 
-    async def test_lock_cancel(self):
+    async def test_manual_acquire(self):
+        async def task():
+            assert lock.locked()
+            await lock.acquire()
+            try:
+                results.append('2')
+            finally:
+                await lock.release()
+
+        results = []
+        lock = create_lock()
+        async with create_task_group() as tg:
+            await lock.acquire()
+            try:
+                await tg.spawn(task)
+                await wait_all_tasks_blocked()
+                results.append('1')
+            finally:
+                await lock.release()
+
+        assert not lock.locked()
+        assert results == ['1', '2']
+
+    async def test_cancel(self):
         async def task():
             nonlocal task_started, got_lock
             task_started = True
@@ -77,7 +100,7 @@ class TestEvent:
 
 
 class TestCondition:
-    async def test_condition(self):
+    async def test_contextmanager(self):
         async def notifier():
             async with condition:
                 await condition.notify_all()
@@ -88,6 +111,24 @@ class TestCondition:
                 assert condition.locked()
                 await tg.spawn(notifier)
                 await condition.wait()
+
+    async def test_manual_acquire(self):
+        async def notifier():
+            await condition.acquire()
+            try:
+                await condition.notify_all()
+            finally:
+                await condition.release()
+
+        condition = create_condition()
+        async with create_task_group() as tg:
+            await condition.acquire()
+            try:
+                assert condition.locked()
+                await tg.spawn(notifier)
+                await condition.wait()
+            finally:
+                await condition.release()
 
     async def test_wait_cancel(self):
         async def task():
@@ -114,10 +155,25 @@ class TestCondition:
 
 
 class TestSemaphore:
-    async def test_semaphore(self):
+    async def test_contextmanager(self):
         async def acquire():
             async with semaphore:
                 assert semaphore.value in (0, 1)
+
+        semaphore = create_semaphore(2)
+        async with create_task_group() as tg:
+            await tg.spawn(acquire, name='task 1')
+            await tg.spawn(acquire, name='task 2')
+
+        assert semaphore.value == 2
+
+    async def test_manual_acquire(self):
+        async def acquire():
+            await semaphore.acquire()
+            try:
+                assert semaphore.value in (0, 1)
+            finally:
+                await semaphore.release()
 
         semaphore = create_semaphore(2)
         async with create_task_group() as tg:

@@ -18,6 +18,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   - ``anyio.receive_signals()`` -> ``anyio.open_signal_receiver()``
   - ``anyio.run_in_thread()`` -> ``anyio.run_sync_in_worker_thread()``
   - ``anyio.current_default_thread_limiter()`` -> ``anyio.current_default_worker_thread_limiter()``
+- **BACKWARDS INCOMPATIBLE** Added the ``acquire()`` and ``release()`` methods to the ``Lock``,
+  ``Condition`` and ``Semaphore`` classes
 - Dropped support for Python 3.5
 - Bumped minimum versions of trio and curio to v0.16 and v1.2, respectively
 

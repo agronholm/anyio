@@ -511,16 +511,41 @@ async def notify_socket_close(sock: socket.SocketType):
 # Synchronization
 #
 
-class Lock(curio.Lock):
-    async def __aenter__(self):
+class Lock(abc.Lock):
+    def __init__(self):
+        self._lock = curio.Lock()
+
+    def locked(self) -> bool:
+        return self._lock.locked()
+
+    async def acquire(self) -> None:
         await check_cancelled()
-        return await super().__aenter__()
+        await self._lock.acquire()
+
+    async def release(self) -> None:
+        await self._lock.release()
 
 
-class Condition(curio.Condition):
-    async def __aenter__(self):
+class Condition(abc.Condition):
+    def __init__(self, lock: Optional[Lock]):
+        curio_lock = lock._lock if lock else None
+        self._condition = curio.Condition(curio_lock)
+
+    async def acquire(self) -> None:
         await check_cancelled()
-        return await super().__aenter__()
+        await self._condition.acquire()
+
+    async def release(self) -> None:
+        await self._condition.release()
+
+    def locked(self) -> bool:
+        return self._condition.locked()
+
+    async def notify(self, n=1):
+        await self._condition.notify(n)
+
+    async def notify_all(self):
+        await self._condition.notify_all()
 
     async def wait(self):
         await check_cancelled()
@@ -533,10 +558,20 @@ class Event(curio.Event):
         return await super().wait()
 
 
-class Semaphore(curio.Semaphore):
-    async def __aenter__(self):
+class Semaphore(abc.Semaphore):
+    def __init__(self, value: int):
+        self._semaphore = curio.Semaphore(value)
+
+    async def acquire(self) -> None:
         await check_cancelled()
-        return await super().__aenter__()
+        await self._semaphore.acquire()
+
+    async def release(self) -> None:
+        await self._semaphore.release()
+
+    @property
+    def value(self):
+        return self._semaphore.value
 
 
 class Queue(curio.Queue):

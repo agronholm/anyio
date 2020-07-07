@@ -223,7 +223,19 @@ async def notify_socket_close(sock):
 # Synchronization
 #
 
-Lock = trio.Lock
+class Lock(abc.Lock):
+    def __init__(self):
+        self._lock = trio.Lock()
+
+    def locked(self) -> bool:
+        return self._lock.locked()
+
+    async def acquire(self) -> None:
+        await trio.lowlevel.checkpoint()
+        await self._lock.acquire()
+
+    async def release(self) -> None:
+        self._lock.release()
 
 
 class Event:
@@ -244,15 +256,18 @@ class Event:
         await self._event.wait()
 
 
-class Condition:
+class Condition(abc.Condition):
     def __init__(self, lock: Optional[trio.Lock] = None):
         self._cond = trio.Condition(lock=lock)
 
-    async def __aenter__(self):
-        await self._cond.__aenter__()
+    async def acquire(self) -> None:
+        return await self._cond.acquire()
 
-    async def __aexit__(self, *exc_info):
-        return await self._cond.__aexit__(*exc_info)
+    async def release(self) -> None:
+        self._cond.release()
+
+    def locked(self):
+        return self._cond.locked()
 
     async def notify(self, n: int = 1) -> None:
         self._cond.notify(n)
@@ -260,14 +275,23 @@ class Condition:
     async def notify_all(self) -> None:
         self._cond.notify_all()
 
-    def locked(self):
-        return self._cond.locked()
-
     async def wait(self):
         return await self._cond.wait()
 
 
-Semaphore = trio.Semaphore
+class Semaphore(abc.Semaphore):
+    def __init__(self, value: int):
+        self._semaphore = trio.Semaphore(value)
+
+    async def acquire(self) -> None:
+        await self._semaphore.acquire()
+
+    async def release(self) -> None:
+        self._semaphore.release()
+
+    @property
+    def value(self) -> int:
+        return self._semaphore.value
 
 
 class Queue:

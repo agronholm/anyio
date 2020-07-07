@@ -10,15 +10,21 @@ IPAddressType = Union[str, IPv4Address, IPv6Address]
 
 
 class Lock(metaclass=ABCMeta):
-    @abstractmethod
     async def __aenter__(self):
-        pass
+        await self.acquire()
 
-    @abstractmethod
     async def __aexit__(self, exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
-        pass
+                        exc_tb: Optional[TracebackType]) -> None:
+        await self.release()
+
+    @abstractmethod
+    async def acquire(self) -> None:
+        """Acquire the lock."""
+
+    @abstractmethod
+    async def release(self) -> None:
+        """Release the lock."""
 
     @abstractmethod
     def locked(self) -> bool:
@@ -26,15 +32,21 @@ class Lock(metaclass=ABCMeta):
 
 
 class Condition(metaclass=ABCMeta):
-    @abstractmethod
     async def __aenter__(self):
-        pass
+        await self.acquire()
 
-    @abstractmethod
     async def __aexit__(self, exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
-        pass
+                        exc_tb: Optional[TracebackType]) -> None:
+        await self.release()
+
+    @abstractmethod
+    async def acquire(self) -> None:
+        """Acquire the underlying lock."""
+
+    @abstractmethod
+    async def release(self) -> None:
+        """Release the underlying lock."""
 
     @abstractmethod
     def locked(self) -> bool:
@@ -76,15 +88,22 @@ class Event(metaclass=ABCMeta):
 
 
 class Semaphore(metaclass=ABCMeta):
-    @abstractmethod
-    async def __aenter__(self):
-        pass
+    async def __aenter__(self) -> 'Semaphore':
+        await self.acquire()
+        return self
 
-    @abstractmethod
     async def __aexit__(self, exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
-        pass
+                        exc_tb: Optional[TracebackType]) -> None:
+        await self.release()
+
+    @abstractmethod
+    async def acquire(self) -> None:
+        """Decrement the semaphore value, blocking if necessary."""
+
+    @abstractmethod
+    async def release(self) -> None:
+        """Increment the semaphore value."""
 
     @property
     @abstractmethod
