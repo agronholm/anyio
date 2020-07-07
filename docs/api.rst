@@ -80,7 +80,6 @@ Synchronization
 .. autofunction:: anyio.create_lock
 .. autofunction:: anyio.create_event
 .. autofunction:: anyio.create_condition
-.. autofunction:: anyio.create_queue
 .. autofunction:: anyio.create_capacity_limiter
 
 .. autoclass:: anyio.abc.Semaphore
@@ -93,9 +92,6 @@ Synchronization
     :members:
 
 .. autoclass:: anyio.abc.Condition
-    :members:
-
-.. autoclass:: anyio.abc.Queue
     :members:
 
 .. autoclass:: anyio.abc.CapacityLimiter

@@ -1,7 +1,7 @@
 import pytest
 
 from anyio import (
-    create_lock, create_task_group, create_queue, create_event, create_semaphore, create_condition,
+    create_lock, create_task_group, create_event, create_semaphore, create_condition,
     open_cancel_scope, wait_all_tasks_blocked, create_capacity_limiter,
     current_default_worker_thread_limiter, CapacityLimiter)
 
@@ -196,76 +196,6 @@ class TestSemaphore:
                 await local_scope.cancel()
 
         assert not acquired
-
-
-class TestQueue:
-    async def test_queue(self):
-        queue = create_queue(1)
-        assert queue.empty()
-        await queue.put('1')
-        assert queue.full()
-        assert queue.qsize() == 1
-        assert await queue.get() == '1'
-        assert queue.empty()
-
-    async def test_get_cancel(self):
-        async def task():
-            nonlocal local_scope
-            async with open_cancel_scope() as local_scope:
-                await queue.get()
-
-        local_scope = None
-        queue = create_queue(1)
-        async with create_task_group() as tg:
-            await tg.spawn(task)
-            await wait_all_tasks_blocked()
-            await local_scope.cancel()
-            await queue.put(None)
-
-        assert queue.full()
-
-    async def test_get_iter(self):
-        async def task():
-            nonlocal total
-            async for msg in queue:
-                if msg is None:
-                    return
-                else:
-                    total += msg
-
-        total = 0
-        queue = create_queue(1)
-        async with create_task_group() as tg:
-            await tg.spawn(task)
-            await queue.put(1)
-            await queue.put(2)
-            await queue.put(3)
-            await queue.put(None)
-
-        assert queue.empty()
-        assert total == 6
-
-    async def test_put_cancel(self):
-        async def task():
-            nonlocal local_scope
-            async with open_cancel_scope() as local_scope:
-                await queue.put(None)
-
-        local_scope = None
-        queue = create_queue(1)
-        await queue.put(None)
-        async with create_task_group() as tg:
-            await tg.spawn(task)
-            await wait_all_tasks_blocked()
-            await local_scope.cancel()
-            await queue.get()
-
-        assert queue.empty()
-
-    async def test_zero_capacity(self):
-        """Ensure that max_size=0 creates an infinite capacity queue on all backends."""
-        queue = create_queue(0)
-        assert not queue.full()
 
 
 class TestCapacityLimiter:

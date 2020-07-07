@@ -1,4 +1,3 @@
-import math
 import sys
 from types import TracebackType
 from typing import Callable, Optional, List, Type, Union
@@ -290,34 +289,6 @@ class Semaphore(abc.Semaphore):
         return self._semaphore.value
 
 
-class Queue:
-    def __init__(self, max_items: int) -> None:
-        max_buffer_size = max_items if max_items > 0 else math.inf
-        self._send_channel, self._receive_channel = trio.open_memory_channel(max_buffer_size)
-
-    def empty(self):
-        return self._receive_channel.statistics().current_buffer_used == 0
-
-    def full(self):
-        statistics = self._receive_channel.statistics()
-        return statistics.current_buffer_used >= statistics.max_buffer_size
-
-    def qsize(self) -> int:
-        return self._receive_channel.statistics().current_buffer_used
-
-    async def put(self, item) -> None:
-        await self._send_channel.send(item)
-
-    async def get(self):
-        return await self._receive_channel.receive()
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        return await self._receive_channel.receive()
-
-
 class CapacityLimiter(abc.CapacityLimiter):
     def __init__(self, limiter_or_tokens: Union[float, trio.CapacityLimiter]):
         if isinstance(limiter_or_tokens, trio.CapacityLimiter):
@@ -374,14 +345,6 @@ class CapacityLimiter(abc.CapacityLimiter):
 def current_default_thread_limiter():
     native_limiter = trio.to_thread.current_default_thread_limiter()
     return CapacityLimiter(native_limiter)
-
-
-abc.Lock.register(Lock)
-abc.Condition.register(Condition)
-abc.Event.register(Event)
-abc.Semaphore.register(Semaphore)
-abc.Queue.register(Queue)
-abc.CapacityLimiter.register(CapacityLimiter)
 
 
 #

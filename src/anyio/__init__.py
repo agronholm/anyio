@@ -14,8 +14,8 @@ from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any
 import sniffio
 
 from .abc import (  # noqa: F401
-    IPAddressType, CancelScope, UDPSocket, Lock, Condition, Event, Semaphore, Queue, TaskGroup,
-    Stream, SocketStreamServer, SocketStream, CapacityLimiter)
+    IPAddressType, CancelScope, UDPSocket, Lock, Condition, Event, Semaphore, TaskGroup, Stream,
+    SocketStreamServer, SocketStream, CapacityLimiter)
 from .fileio import AsyncFile
 from . import _networking
 
@@ -684,17 +684,6 @@ def create_semaphore(value: int) -> Semaphore:
 
     """
     return _get_asynclib().Semaphore(value)
-
-
-def create_queue(capacity: int) -> Queue:
-    """
-    Create an asynchronous queue.
-
-    :param capacity: maximum number of items the queue will be able to store (0 = infinite)
-    :return: a queue object
-
-    """
-    return _get_asynclib().Queue(capacity)
 
 
 def create_capacity_limiter(total_tokens: float) -> CapacityLimiter:

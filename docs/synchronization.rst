@@ -121,46 +121,6 @@ Example::
 
     run(main)
 
-Queues
-------
-
-Queues are used to send objects between tasks. Queues have two central concepts:
-
-* Producers add things to the queue
-* Consumers take things from the queue
-
-When an item is inserted into the queue, it will be given to the next consumer that tries to get
-an item from the queue. Each item is only ever given to a single consumer.
-
-Queues have a maximum capacity which is determined on creation and cannot be changed later.
-When the queue is full, any attempt to put an item to it will block until a consumer retrieves an
-item from the queue. If you wish to avoid blocking on either operation, you can use the
-:meth:`~anyio.abc.Queue.full` and :meth:`~anyio.abc.Queue.empty` methods to find out about either
-condition.
-
-Example::
-
-    from anyio import create_task_group, create_queue, sleep, run
-
-
-    async def produce(queue):
-        for number in range(10):
-            await queue.put(number)
-            await sleep(1)
-
-
-    async def main():
-        queue = create_queue(100)
-        async with create_task_group() as tg:
-            await tg.spawn(produce, queue)
-            while True:
-                number = await queue.get()
-                print(number)
-                if number == 9:
-                    break
-
-    run(main)
-
 Capacity limiters
 -----------------
 

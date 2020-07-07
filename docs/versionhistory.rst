@@ -22,6 +22,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``Condition`` and ``Semaphore`` classes
 - **BACKWARDS INCOMPATIBLE** Removed the ``Event.clear()`` method. You must now replace the event
   object with a new one rather than clear the old one.
+- **BACKWARDS INCOMPATIBLE** Removed the ``anyio.create_queue`` function and the ``Queue`` class
 - Dropped support for Python 3.5
 - Bumped minimum versions of trio and curio to v0.16 and v1.2, respectively
 

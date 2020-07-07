@@ -107,49 +107,6 @@ class Semaphore(metaclass=ABCMeta):
         """The current value of the semaphore."""
 
 
-class Queue(metaclass=ABCMeta):
-    @abstractmethod
-    def empty(self) -> bool:
-        """Return ``True`` if the queue is not holding any items."""
-
-    @abstractmethod
-    def full(self) -> bool:
-        """Return ``True`` if the queue is holding the maximum number of items."""
-
-    @abstractmethod
-    def qsize(self) -> int:
-        """Return the number of items the queue is currently holding."""
-
-    @abstractmethod
-    async def put(self, item) -> None:
-        """
-        Put an item into the queue.
-
-        If the queue is currently full, this method will block until there is at least one free
-        slot available.
-
-        :param item: the object to put into the queue
-        """
-
-    @abstractmethod
-    async def get(self):
-        """
-        Get an item from the queue.
-
-        If there are no items in the queue, this method will block until one is available.
-
-        :return: the removed item
-        """
-
-    @abstractmethod
-    def __aiter__(self):
-        return self
-
-    @abstractmethod
-    def __anext__(self) -> Coroutine:
-        """Return the next item in the queue."""
-
-
 class CapacityLimiter(metaclass=ABCMeta):
     @abstractmethod
     async def __aenter__(self):

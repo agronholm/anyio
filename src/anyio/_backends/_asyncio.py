@@ -685,7 +685,7 @@ class Queue(asyncio.Queue):
         return await super().get()
 
 
-class CapacityLimiter:
+class CapacityLimiter(abc.CapacityLimiter):
     def __init__(self, total_tokens: float):
         self._set_total_tokens(total_tokens)
         self._borrowers: Set[Any] = set()
@@ -785,13 +785,6 @@ def current_default_thread_limiter():
 
 
 _default_thread_limiter = CapacityLimiter(40)
-
-abc.Lock.register(Lock)
-abc.Condition.register(Condition)
-abc.Event.register(Event)
-abc.Semaphore.register(Semaphore)
-abc.Queue.register(Queue)
-abc.CapacityLimiter.register(CapacityLimiter)
 
 
 #

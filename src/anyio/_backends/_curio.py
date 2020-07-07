@@ -583,24 +583,7 @@ class Semaphore(abc.Semaphore):
         return self._semaphore.value
 
 
-class Queue(curio.Queue):
-    async def get(self):
-        await check_cancelled()
-        return await super().get()
-
-    async def put(self, item):
-        await check_cancelled()
-        return await super().put(item)
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        await check_cancelled()
-        return await super().get()
-
-
-class CapacityLimiter:
+class CapacityLimiter(abc.CapacityLimiter):
     def __init__(self, total_tokens: float):
         self._set_total_tokens(total_tokens)
         self._borrowers: Set[Any] = set()
@@ -700,13 +683,6 @@ def current_default_thread_limiter():
 
 
 _default_thread_limiter = CapacityLimiter(40)
-
-abc.Lock.register(Lock)
-abc.Condition.register(Condition)
-abc.Event.register(Event)
-abc.Semaphore.register(Semaphore)
-abc.Queue.register(Queue)
-abc.CapacityLimiter.register(CapacityLimiter)
 
 
 #
