@@ -1,13 +1,11 @@
 import asyncio
 import concurrent.futures
 import math
-import os
 import socket
 import sys
 from collections import OrderedDict
-from functools import partial
-from socket import AddressFamily, SocketKind
 from threading import Thread
+from socket import AddressFamily, SocketKind
 from types import TracebackType
 from typing import (
     Callable, Set, Optional, Union, Tuple, cast, Coroutine, Any, Awaitable, TypeVar, Generator,
@@ -487,78 +485,6 @@ def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *a
     f: concurrent.futures.Future[T_Retval] = asyncio.run_coroutine_threadsafe(
         func(*args), _local.loop)
     return f.result()
-
-
-#
-# Async file I/O
-#
-
-class AsyncFile:
-    def __init__(self, fp) -> None:
-        self._fp = fp
-
-    def __getattr__(self, name):
-        return getattr(self._fp, name)
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
-        await self.close()
-
-    async def __aiter__(self):
-        while True:
-            line = await self.readline()
-            if line:
-                yield line
-            else:
-                break
-
-    async def read(self, size: int = -1) -> Union[bytes, str]:
-        return await run_in_thread(self._fp.read, size)
-
-    async def read1(self, size: int = -1) -> Union[bytes, str]:
-        return await run_in_thread(self._fp.read1, size)
-
-    async def readline(self) -> bytes:
-        return await run_in_thread(self._fp.readline)
-
-    async def readlines(self) -> bytes:
-        return await run_in_thread(self._fp.readlines)
-
-    async def readinto(self, b: Union[bytes, memoryview]) -> bytes:
-        return await run_in_thread(self._fp.readinto, b)
-
-    async def readinto1(self, b: Union[bytes, memoryview]) -> bytes:
-        return await run_in_thread(self._fp.readinto1, b)
-
-    async def write(self, b: bytes) -> None:
-        return await run_in_thread(self._fp.write, b)
-
-    async def writelines(self, lines: bytes) -> None:
-        return await run_in_thread(self._fp.writelines, lines)
-
-    async def truncate(self, size: Optional[int] = None) -> int:
-        return await run_in_thread(self._fp.truncate, size)
-
-    async def seek(self, offset: int, whence: Optional[int] = os.SEEK_SET) -> int:
-        return await run_in_thread(self._fp.seek, offset, whence)
-
-    async def tell(self) -> int:
-        return await run_in_thread(self._fp.tell)
-
-    async def flush(self) -> None:
-        return await run_in_thread(self._fp.flush)
-
-    async def close(self) -> None:
-        return await run_in_thread(self._fp.close)
-
-
-async def aopen(*args, **kwargs):
-    fp = await run_in_thread(partial(open, *args, **kwargs))
-    return AsyncFile(fp)
 
 
 #

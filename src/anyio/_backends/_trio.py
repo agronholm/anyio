@@ -169,16 +169,6 @@ run_async_from_thread = trio.from_thread.run
 
 
 #
-# Async file I/O
-#
-
-async def aopen(*args, **kwargs):
-    f = await trio.open_file(*args, **kwargs)
-    f.close = f.aclose
-    return f
-
-
-#
 # Sockets and networking
 #
 

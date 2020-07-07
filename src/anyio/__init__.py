@@ -15,7 +15,8 @@ import sniffio
 
 from .abc import (  # noqa: F401
     IPAddressType, CancelScope, UDPSocket, Lock, Condition, Event, Semaphore, Queue, TaskGroup,
-    Stream, SocketStreamServer, SocketStream, AsyncFile, CapacityLimiter)
+    Stream, SocketStreamServer, SocketStream, CapacityLimiter)
+from .fileio import AsyncFile
 from . import _networking
 
 BACKENDS = 'asyncio', 'curio', 'trio'
@@ -257,20 +258,21 @@ def current_default_thread_limiter() -> CapacityLimiter:
 # Async file I/O
 #
 
-def aopen(file: Union[str, 'os.PathLike', int], mode: str = 'r', buffering: int = -1,
-          encoding: Optional[str] = None, errors: Optional[str] = None,
-          newline: Optional[str] = None, closefd: bool = True,
-          opener: Optional[Callable] = None) -> Coroutine[Any, Any, AsyncFile]:
+async def aopen(file: Union[str, 'os.PathLike', int], mode: str = 'r', buffering: int = -1,
+                encoding: Optional[str] = None, errors: Optional[str] = None,
+                newline: Optional[str] = None, closefd: bool = True,
+                opener: Optional[Callable] = None) -> AsyncFile:
     """
     Open a file asynchronously.
 
     The arguments are exactly the same as for the builtin :func:`open`.
 
     :return: an asynchronous file object
-    :rtype: AsyncFile
 
     """
-    return _get_asynclib().aopen(file, mode, buffering, encoding, errors, newline, closefd, opener)
+    fp = await run_in_thread(open, file, mode, buffering, encoding, errors, newline, closefd,
+                             opener)
+    return AsyncFile(fp)
 
 
 #

@@ -4,7 +4,6 @@ import socket
 import sys
 from collections import OrderedDict, defaultdict
 from concurrent.futures import Future
-from functools import partial
 from signal import signal
 from socket import AddressFamily, SocketKind
 from threading import Thread
@@ -428,15 +427,6 @@ def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
     future: Future[T_Retval] = Future()
     _local.queue.put((func, args, future))
     return future.result()
-
-
-#
-# Async file I/O
-#
-
-async def aopen(*args, **kwargs):
-    fp = await run_in_thread(partial(open, *args, **kwargs))
-    return curio.file.AsyncFile(fp)
 
 
 #
