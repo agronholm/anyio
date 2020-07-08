@@ -46,6 +46,19 @@ Async file I/O
 
 .. autoclass:: anyio.fileio.AsyncFile
 
+Streams
+-------
+
+.. autoclass:: anyio.abc.UnreliableObjectReceiveStream
+.. autoclass:: anyio.abc.UnreliableObjectSendStream
+.. autoclass:: anyio.abc.UnreliableObjectStream
+.. autoclass:: anyio.abc.ObjectReceiveStream
+.. autoclass:: anyio.abc.ObjectSendStream
+.. autoclass:: anyio.abc.ObjectStream
+.. autoclass:: anyio.abc.ByteReceiveStream
+.. autoclass:: anyio.abc.ByteSendStream
+.. autoclass:: anyio.abc.ByteStream
+
 Sockets and networking
 ----------------------
 
@@ -59,9 +72,6 @@ Sockets and networking
 .. autofunction:: anyio.wait_socket_readable
 .. autofunction:: anyio.wait_socket_writable
 .. autofunction:: anyio.notify_socket_close
-
-.. autoclass:: anyio.abc.Stream
-    :members:
 
 .. autoclass:: anyio.abc.SocketStream
     :members:
