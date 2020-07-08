@@ -2,7 +2,7 @@ from abc import abstractmethod
 from typing import Generic, TypeVar, Union
 
 from .resource import AsyncResource
-from ..exceptions import EndOfStream
+from ..exceptions import EndOfStream, ClosedResourceError
 
 T_Item = TypeVar('T_Item')
 T_Stream = TypeVar('T_Stream', bound='AnyByteStream', covariant=True)
@@ -33,7 +33,8 @@ class UnreliableObjectReceiveStream(Generic[T_Item], AsyncResource):
         """
         Receive the next item.
 
-        :raises ClosedResourceError: if the receive stream has been explicitly closed
+        :raises anyio.exceptions.ClosedResourceError: if the receive stream has been explicitly
+            closed
         :raises EndOfStream: if this stream has been closed from the other end
         :raises BrokenResourceError: if this stream has been rendered unusable due to external
             causes
@@ -54,7 +55,7 @@ class UnreliableObjectSendStream(Generic[T_Item], AsyncResource):
         Send an item to the peer(s).
 
         :param item: the item to send
-        :raises ClosedResourceError: if the send stream has been explicitly closed
+        :raises anyio.exceptions.ClosedResourceError: if the send stream has been explicitly closed
         :raises BrokenResourceError: if this stream has been rendered unusable due to external
             causes
         """
@@ -133,9 +134,37 @@ class ByteStream(ByteReceiveStream, ByteSendStream):
     """A bidirectional byte stream."""
 
 
+#: type alias for all unreliable bytes-oriented receive streams
 AnyUnreliableByteReceiveStream = Union[UnreliableObjectReceiveStream[bytes], ByteReceiveStream]
+#: type alias for all unreliable bytes-oriented send streams
 AnyUnreliableByteSendStream = Union[UnreliableObjectSendStream[bytes], ByteSendStream]
+#: type alias for all unreliable bytes-oriented streams
 AnyUnreliableByteStream = Union[UnreliableObjectStream[bytes], ByteStream]
+#: type alias for all bytes-oriented receive streams
 AnyByteReceiveStream = Union[ObjectReceiveStream[bytes], ByteReceiveStream]
+#: type alias for all bytes-oriented send streams
 AnyByteSendStream = Union[ObjectSendStream[bytes], ByteSendStream]
+#: type alias for all bytes-oriented streams
 AnyByteStream = Union[ObjectStream[bytes], ByteStream]
+
+
+class Listener(Generic[T_Stream], AsyncResource):
+    """
+    An interface for objects that let you accept incoming connections.
+
+    Asynchronously iterating over this object will yield streams matching the type parameter
+    given for this interface.
+    """
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self) -> T_Stream:
+        try:
+            return await self.accept()
+        except ClosedResourceError:
+            raise StopAsyncIteration
+
+    @abstractmethod
+    async def accept(self) -> T_Stream:
+        """Accept an incoming connection."""

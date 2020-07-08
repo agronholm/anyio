@@ -7,20 +7,24 @@ import threading
 import typing
 from contextlib import contextmanager
 from importlib import import_module
-from ipaddress import ip_address, IPv6Address, IPv4Address
+from ipaddress import ip_address, IPv6Address
+from pathlib import Path
 from socket import AddressFamily, SocketKind
-from ssl import SSLContext
 from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any, Dict, List, Tuple
 
 import sniffio
 
 from .abc import (
     Lock, Condition, Event, Semaphore, CapacityLimiter, CancelScope, TaskGroup, IPAddressType,
-    SocketStreamServer, SocketStream, UDPSocket)
+    SocketStream, UDPSocket, ConnectedUDPSocket, IPSockAddrType, Listener, SocketListener)
 from .fileio import AsyncFile
-from . import _networking
-from .synchronization import (
-    _MemoryObjectStreamState, MemoryObjectReceiveStream, MemoryObjectSendStream)
+from .streams.tls import TLSStream
+from .streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 BACKENDS = 'asyncio', 'curio', 'trio'
 IPPROTO_IPV6 = getattr(socket, 'IPPROTO_IPV6', 41)  # https://bugs.python.org/issue29515
@@ -28,9 +32,11 @@ IPPROTO_IPV6 = getattr(socket, 'IPPROTO_IPV6', 41)  # https://bugs.python.org/is
 T_Retval = TypeVar('T_Retval', covariant=True)
 T_Agen = TypeVar('T_Agen')
 T_Item = TypeVar('T_Item')
-SockaddrType = Union[Tuple[str, int], Tuple[str, int, int, int]]
 GetAddrInfoReturnType = List[Tuple[AddressFamily, SocketKind, int, str,
                              Union[Tuple[str, int], Tuple[str, int, int, int]]]]
+AnyIPAddressFamily = Literal[AddressFamily.AF_UNSPEC, AddressFamily.AF_INET,
+                             AddressFamily.AF_INET6]
+IPAddressFamily = Literal[AddressFamily.AF_INET, AddressFamily.AF_INET6]
 _local = threading.local()
 
 
@@ -285,10 +291,8 @@ async def open_file(file: Union[str, 'os.PathLike', int], mode: str = 'r', buffe
 #
 
 async def connect_tcp(
-    address: IPAddressType, port: int, *, ssl_context: Optional[SSLContext] = None,
-    autostart_tls: bool = False, bind_host: Optional[IPAddressType] = None,
-    bind_port: Optional[int] = None, tls_standard_compatible: bool = True,
-    happy_eyeballs_delay: float = 0.25
+    remote_host: IPAddressType, remote_port: int, *, local_host: Optional[IPAddressType] = None,
+    local_port: Optional[int] = None, happy_eyeballs_delay: float = 0.25
 ) -> SocketStream:
     """
     Connect to a host using the TCP protocol.
@@ -299,76 +303,54 @@ async def connect_tcp(
     milliseconds, a second attempt is started using the next address in the list, and so on.
     For IPv6 enabled systems, IPv6 addresses are tried first.
 
-    :param address: the IP address or host name to connect to
-    :param port: port on the target host to connect to
-    :param ssl_context: default SSL context to use for TLS handshakes
-    :param autostart_tls: ``True`` to do a TLS handshake on connect
-    :param bind_host: the interface address or name to bind the socket to before connecting
-    :param bind_port: the port to bind the socket to before connecting
-    :param tls_standard_compatible: If ``True``, performs the TLS shutdown handshake before closing
-        the stream and requires that the server does this as well. Otherwise,
-        :exc:`~ssl.SSLEOFError` may be raised during reads from the stream.
-        Some protocols, such as HTTP, require this option to be ``False``.
-        See :meth:`~ssl.SSLContext.wrap_socket` for details.
+    :param remote_host: the IP address or host name to connect to
+    :param remote_port: port on the target host to connect to
+    :param local_host: the interface address or name to bind the socket to before connecting
+    :param local_port: the port to bind the socket to before connecting
     :param happy_eyeballs_delay: delay (in seconds) before starting the next connection attempt
     :return: a socket stream object
     :raises OSError: if the connection attempt fails
 
     """
     # Placed here due to https://github.com/python/mypy/issues/7057
-    stream: Optional[SocketStream] = None
+    connected_stream: Optional[SocketStream] = None
 
-    async def try_connect(af: int, addr: str, event: Event):
-        nonlocal stream
+    async def try_connect(remote_host: str, event: Event):
+        nonlocal connected_stream
         try:
-            raw_socket = socket.socket(af, socket.SOCK_STREAM)
+            stream = await asynclib.connect_tcp(remote_host, remote_port, local_address)
         except OSError as exc:
             oserrors.append(exc)
-            await event.set()
             return
-
-        sock = asynclib.Socket(raw_socket)
-        try:
-            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            if interface is not None and bind_port is not None:
-                await sock.bind((interface, bind_port))
-
-            await sock.connect((addr, port))
-        except OSError as exc:
-            oserrors.append(exc)
-            await sock.aclose()
-            return
-        except BaseException:
-            await sock.aclose()
-            raise
         else:
-            if stream is None:
-                stream = _networking.SocketStream(sock, ssl_context, target_host,
-                                                  tls_standard_compatible)
+            if connected_stream is None:
+                connected_stream = stream
                 await tg.cancel_scope.cancel()
             else:
-                raw_socket.close()
+                await stream.aclose()
         finally:
             await event.set()
 
     asynclib = _get_asynclib()
-    interface: Optional[str] = None
-    family: int = 0
-    if bind_host:
-        interface, family, _v6only = await _networking.get_bind_address(bind_host)
+    local_address: Optional[IPSockAddrType] = None
+    family = socket.AF_UNSPEC
+    if local_host:
+        gai_res = await getaddrinfo(str(local_host), local_port)
+        family, *_, local_address = gai_res[0]
 
-    target_host = str(address)
+    target_host = str(remote_host)
     try:
-        addr_obj = ip_address(address)
+        addr_obj = ip_address(remote_host)
     except ValueError:
         # getaddrinfo() will raise an exception if name resolution fails
-        resolved = await getaddrinfo(target_host, port, family=family, type=socket.SOCK_STREAM)
+        gai_res = await getaddrinfo(target_host, remote_port, family=family,
+                                    type=socket.SOCK_STREAM)
 
         # Organize the list so that the first address is an IPv6 address (if available) and the
         # second one is an IPv4 addresses. The rest can be in whatever order.
         v6_found = v4_found = False
         target_addrs: List[Tuple[socket.AddressFamily, str]] = []
-        for af, *rest, sa in resolved:
+        for af, *rest, sa in gai_res:
             if af == socket.AF_INET6 and not v6_found:
                 v6_found = True
                 target_addrs.insert(0, (af, sa[0]))
@@ -387,18 +369,46 @@ async def connect_tcp(
     async with create_task_group() as tg:
         for i, (af, addr) in enumerate(target_addrs):
             event = create_event()
-            await tg.spawn(try_connect, af, addr, event)
+            await tg.spawn(try_connect, addr, event)
             async with move_on_after(happy_eyeballs_delay):
                 await event.wait()
 
-    if stream is None:
+    if connected_stream is None:
         cause = oserrors[0] if len(oserrors) == 1 else asynclib.ExceptionGroup(oserrors)
         raise OSError('All connection attempts failed') from cause
 
-    if autostart_tls:
-        await stream.start_tls()
+    return connected_stream
 
-    return stream
+
+async def connect_tcp_with_tls(
+    remote_host: IPAddressType, remote_port: int, *, local_host: Optional[IPAddressType] = None,
+    local_port: Optional[int] = None, happy_eyeballs_delay: float = 0.25,
+    server_hostname: Optional[str] = None, ssl_context: Optional[ssl.SSLContext] = None
+) -> TLSStream:
+    """
+    Connect to a host using TCP and establish a TLS encrypted session over it.
+
+    This is a shortcut to first  :func:`connect_tcp` and then wrapping it using
+    :meth:`~anyio.streams.tls.TLSStream.wrap`.
+
+    :param remote_host: the IP address or host name to connect to
+    :param remote_port: port on the target host to connect to
+    :param local_host: the interface address or name to bind the socket to before connecting
+    :param local_port: the port to bind the socket to before connecting
+    :param happy_eyeballs_delay: delay (in seconds) before starting the next connection attempt
+    :param server_hostname: host name to use for checking against the server certificate
+        (defaults to the value of ``remote_host``)
+    :param ssl_context: the SSL context object to use (if omitted, a default context is created)
+    :return: a socket stream object
+    :raises OSError: if the connection attempt fails
+    :raises ssl.SSLError: if the TLS handshake fails
+
+    """
+    stream = await connect_tcp(remote_host, remote_port, local_host=local_host,
+                               local_port=local_port, happy_eyeballs_delay=happy_eyeballs_delay)
+    hostname = server_hostname or str(remote_host)
+    return await TLSStream.wrap(stream, server_side=False, hostname=hostname,
+                                ssl_context=ssl_context)
 
 
 async def connect_unix(path: Union[str, 'os.PathLike']) -> SocketStream:
@@ -411,94 +421,123 @@ async def connect_unix(path: Union[str, 'os.PathLike']) -> SocketStream:
     :return: a socket stream object
 
     """
-    raw_socket = socket.socket(socket.AF_UNIX)
-    sock = _get_asynclib().Socket(raw_socket)
-    try:
-        await sock.connect(path)
-        return _networking.SocketStream(sock)
-    except BaseException:
-        await sock.aclose()
-        raise
+    path = str(Path(path))
+    return await _get_asynclib().connect_unix(path)
 
 
-async def create_tcp_server(
-    port: int = 0, interface: Optional[IPAddressType] = None,
-    ssl_context: Optional[SSLContext] = None, autostart_tls: bool = True,
-    tls_standard_compatible: bool = True,
-) -> SocketStreamServer:
+async def create_tcp_listeners(
+    *, local_host: Optional[IPAddressType] = None, local_port: int = 0,
+    family: AnyIPAddressFamily = socket.AddressFamily.AF_UNSPEC, backlog: int = 65536,
+    reuse_port: bool = False
+) -> List[SocketListener[IPSockAddrType]]:
     """
-    Start a TCP socket server.
+    Create a TCP socket listener.
 
-    :param port: port number to listen on
-    :param interface: IP address of the interface to listen on. If omitted, listen on all IPv4
+    :param local_port: port number to listen on
+    :param local_host: IP address of the interface to listen on. If omitted, listen on all IPv4
         and IPv6 interfaces. To listen on all interfaces on a specific address family, use
         ``0.0.0.0`` for IPv4 or ``::`` for IPv6.
-    :param ssl_context: an SSL context object for TLS negotiation
-    :param autostart_tls: automatically do the TLS handshake on new connections if ``ssl_context``
-        has been provided
-    :param tls_standard_compatible: If ``True``, performs the TLS shutdown handshake before closing
-        a connected stream and requires that the client does this as well. Otherwise,
-        :exc:`~ssl.SSLEOFError` may be raised during reads from a client stream.
-        Some protocols, such as HTTP, require this option to be ``False``.
-        See :meth:`~ssl.SSLContext.wrap_socket` for details.
-    :return: a server object
+    :param family: address family (used if ``interface`` was omitted)
+    :param backlog: maximum number of queued incoming connections (up to a maximum of 2**16, or
+        65536)
+    :param reuse_port: ``True`` to allow multiple sockets to bind to the same address/port
+        (not supported on Windows)
+    :return: a list of listener objects
 
     """
-    interface, family, v6only = await _networking.get_bind_address(interface)
-    raw_socket = socket.socket(family)
-
-    # Enable/disable dual stack operation as needed
-    if family == socket.AF_INET6:
-        raw_socket.setsockopt(IPPROTO_IPV6, socket.IPV6_V6ONLY, v6only)
-
-    sock = _get_asynclib().Socket(raw_socket)
+    asynclib = _get_asynclib()
+    backlog = min(backlog, 65536)
+    local_host = str(local_host) if local_host is not None else None
+    gai_res = await getaddrinfo(local_host, local_port, family=family,  # type: ignore[arg-type]
+                                type=socket.SOCK_STREAM,
+                                flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG)
+    listeners = []
     try:
-        if sys.platform == 'win32':
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-        else:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # The set() is here to work around a glibc bug:
+        # https://sourceware.org/bugzilla/show_bug.cgi?id=14969
+        for fam, *_, sockaddr in sorted(set(gai_res)):
+            raw_socket = socket.socket(fam)
+            raw_socket.setblocking(False)
 
-        await sock.bind((interface or '', port))
-        sock.listen()
-        return _networking.SocketStreamServer(sock, ssl_context, autostart_tls,
-                                              tls_standard_compatible)
+            # For Windows, enable exclusive address use. For others, enable address reuse.
+            if sys.platform == 'win32':
+                raw_socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            else:
+                raw_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+            if reuse_port:
+                raw_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+
+            # If only IPv6 was requested, disable dual stack operation
+            if fam == socket.AF_INET6:
+                raw_socket.setsockopt(IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+
+            raw_socket.bind(sockaddr)
+            raw_socket.listen(backlog)
+            listener = asynclib.SocketListener(raw_socket)
+            listeners.append(listener)
     except BaseException:
-        await sock.aclose()
+        for listener in listeners:
+            await listener.aclose()
+
         raise
 
+    return listeners
 
-async def create_unix_server(
-        path: Union[str, 'os.PathLike'], *, mode: Optional[int] = None) -> SocketStreamServer:
+
+async def create_unix_listener(
+        path: Union[str, 'os.PathLike'], *, mode: Optional[int] = None,
+        backlog: int = 65536) -> SocketListener[str]:
     """
-    Start a UNIX socket server.
+    Create a UNIX socket listener.
 
     Not available on Windows.
 
     :param path: path of the socket
     :param mode: permissions to set on the socket
-    :return: a server object
+    :param backlog: maximum number of queued incoming connections (up to a maximum of 2**16, or
+        65536)
+    :return: a listener object
 
     """
+    path = str(Path(path))
+    backlog = min(backlog, 65536)
     raw_socket = socket.socket(socket.AF_UNIX)
-    sock = _get_asynclib().Socket(raw_socket)
+    raw_socket.setblocking(False)
     try:
-        await sock.bind(path)
-
+        await run_sync_in_worker_thread(raw_socket.bind, path, cancellable=True)
         if mode is not None:
-            os.chmod(path, mode)
+            await run_sync_in_worker_thread(os.chmod, path, mode, cancellable=True)
 
-        sock.listen()
-        return _networking.SocketStreamServer(sock, None, False, True)
+        raw_socket.listen(backlog)
+        return _get_asynclib().SocketListener(raw_socket)
     except BaseException:
-        await sock.aclose()
+        raw_socket.close()
         raise
 
 
+async def serve_listeners(handler: Callable[[Any], Any], listeners: typing.Iterable[Listener], *,
+                          handler_task_group: Optional[TaskGroup] = None) -> None:
+    async def serve_listener(listener: Listener) -> typing.NoReturn:
+        async with listener:
+            while True:
+                # TODO: handle the same OSErrors as trio does
+                stream = await listener.accept()
+                try:
+                    await listener_task_group.spawn(handler, stream)
+                except BaseException:
+                    await stream.aclose()
+                    raise
+
+    async with create_task_group() as tg:
+        listener_task_group = handler_task_group or tg
+        for listener in listeners:
+            await tg.spawn(serve_listener, listener)
+
+
 async def create_udp_socket(
-    *, family: Union[int, AddressFamily] = AddressFamily.AF_UNSPEC,
-    interface: Optional[IPAddressType] = None, port: Optional[int] = None,
-    target_host: Optional[IPAddressType] = None, target_port: Optional[int] = None,
-    reuse_address: bool = False
+    family: AnyIPAddressFamily = AddressFamily.AF_UNSPEC, *,
+    local_host: Optional[IPAddressType] = None, local_port: int = 0, reuse_port: bool = False
 ) -> UDPSocket:
     """
     Create a UDP socket.
@@ -508,51 +547,64 @@ async def create_udp_socket(
 
     :param family: address family (``AF_INET`` or ``AF_INET6``) – automatically determined from
         ``interface`` or ``target_host`` if omitted
-    :param interface: IP address of the interface to bind to
-    :param port: port to bind to
-    :param target_host: remote host to set as the default target
-    :param target_port: port on the remote host to set as the default target
-    :param reuse_address: ``True`` to allow multiple sockets to bind to the same address/port
+    :param local_host: IP address or host name of the local interface to bind to
+    :param local_port: local port to bind to
+    :param reuse_port: ``True`` to allow multiple sockets to bind to the same address/port
+        (not supported on Windows)
     :return: a UDP socket
 
     """
-    if interface:
-        interface, if_family, _v6only = await _networking.get_bind_address(interface)
-        if family is AddressFamily.AF_UNSPEC:
-            family = if_family
-    else:
-        interface = None
+    if family is AddressFamily.AF_UNSPEC and not local_host:
+        raise ValueError('Either "family" or "local_host" must be given')
 
-    if isinstance(target_host, str) and target_port is not None:
-        res = await getaddrinfo(target_host, target_port, family=family)
-        if res:
-            family, type_, proto, _cn, sa = res[0]
-            target_host, target_port = sa[:2]
-        else:
-            raise ValueError(f'{target_host!r} cannot be resolved to an IP address')
-    elif isinstance(target_host, IPv6Address):
-        family = AddressFamily.AF_INET6
-        target_host = str(target_host)
-    elif isinstance(target_host, IPv4Address):
-        family = AddressFamily.AF_INET
-        target_host = str(target_host)
+    local_address: Optional[IPSockAddrType] = None
+    if local_host:
+        gai_res = await getaddrinfo(str(local_host), local_port, family=family,
+                                    type=socket.SOCK_DGRAM,
+                                    flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG)
+        family = typing.cast(AnyIPAddressFamily, gai_res[0][0])
+        local_address = gai_res[0][-1]
 
-    raw_socket = socket.socket(family=family, type=socket.SOCK_DGRAM)
-    sock = _get_asynclib().Socket(raw_socket)
-    if reuse_address:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    return await _get_asynclib().create_udp_socket(family, local_address, None, reuse_port)
 
-    try:
-        if interface is not None or port is not None:
-            await sock.bind((interface or '', port or 0))
 
-        if target_host is not None and target_port is not None:
-            await sock.connect((target_host, target_port))
+async def create_connected_udp_socket(
+    remote_host: IPAddressType, remote_port: int, *,
+    family: AnyIPAddressFamily = AddressFamily.AF_UNSPEC,
+    local_host: Optional[IPAddressType] = None, local_port: int = 0, reuse_port: bool = False
+) -> ConnectedUDPSocket:
+    """
+    Create a connected UDP socket.
 
-        return _networking.UDPSocket(sock)
-    except BaseException:
-        await sock.aclose()
-        raise
+    Connected UDP sockets can only communicate with the specified remote host/port, and any packets
+    sent from other sources are dropped.
+
+    :param remote_host: remote host to set as the default target
+    :param remote_port: port on the remote host to set as the default target
+    :param family: address family (``AF_INET`` or ``AF_INET6``) – automatically determined from
+        ``local_host`` or ``remote_host`` if omitted
+    :param local_host: IP address or host name of the local interface to bind to
+    :param local_port: local port to bind to
+    :param reuse_port: ``True`` to allow multiple sockets to bind to the same address/port
+        (not supported on Windows)
+    :return: a connected UDP socket
+
+    """
+    local_address = None
+    if local_host:
+        gai_res = await getaddrinfo(str(local_host), local_port, family=family,
+                                    type=socket.SOCK_DGRAM,
+                                    flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG)
+        family = typing.cast(AnyIPAddressFamily, gai_res[0][0])
+        local_address = gai_res[0][-1]
+
+    gai_res = await getaddrinfo(str(remote_host), remote_port, family=family,
+                                type=socket.SOCK_DGRAM)
+    family = typing.cast(AnyIPAddressFamily, gai_res[0][0])
+    remote_address = gai_res[0][-1]
+
+    return await _get_asynclib().create_udp_socket(family, local_address, remote_address,
+                                                   reuse_port)
 
 
 def getaddrinfo(host: Union[bytearray, bytes, str], port: Union[str, int, None], *,
@@ -589,7 +641,7 @@ def getaddrinfo(host: Union[bytearray, bytes, str], port: Union[str, int, None],
                                        flags=flags)
 
 
-def getnameinfo(sockaddr: SockaddrType, flags: int = 0) -> Awaitable[Tuple[str, str]]:
+def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Awaitable[Tuple[str, str]]:
     """
     Look up the host name of an IP address.
 
@@ -607,10 +659,13 @@ def wait_socket_readable(sock: Union[socket.SocketType, ssl.SSLSocket]) -> Await
     """
     Wait until the given socket has data to be read.
 
+    This does **NOT** work on Windows when using the asyncio backend with a proactor event loop
+    (default on py3.8+).
+
     :param sock: a socket object
     :raises anyio.exceptions.ClosedResourceError: if the socket was closed while waiting for the
         socket to become readable
-    :raises anyio.exceptions.ResourceBusyError: if another task is already waiting for the socket
+    :raises anyio.exceptions.BusyResourceError: if another task is already waiting for the socket
         to become readable
 
     """
@@ -621,27 +676,17 @@ def wait_socket_writable(sock: Union[socket.SocketType, ssl.SSLSocket]) -> Await
     """
     Wait until the given socket can be written to.
 
+    This does **NOT** work on Windows when using the asyncio backend with a proactor event loop
+    (default on py3.8+).
+
     :param sock: a socket object
     :raises anyio.exceptions.ClosedResourceError: if the socket was closed while waiting for the
         socket to become writable
-    :raises anyio.exceptions.ResourceBusyError: if another task is already waiting for the socket
+    :raises anyio.exceptions.BusyResourceError: if another task is already waiting for the socket
         to become writable
 
     """
     return _get_asynclib().wait_socket_writable(sock)
-
-
-def notify_socket_close(sock: socket.SocketType) -> Awaitable[None]:
-    """
-    Notify any relevant tasks that you are about to close a socket.
-
-    This will cause :exc:`~anyio.exceptions.ClosedResourceError` to be raised on any task waiting
-    for the socket to become readable or writable.
-
-    :param sock: the socket to be closed after this
-
-    """
-    return _get_asynclib().notify_socket_close(sock)
 
 
 #
@@ -705,14 +750,14 @@ def create_capacity_limiter(total_tokens: float) -> CapacityLimiter:
 @typing.overload
 def create_memory_object_stream(
     max_buffer_size: float, item_type: typing.Type[T_Item]
-) -> Tuple[MemoryObjectSendStream[T_Item], MemoryObjectReceiveStream[T_Item]]:
+) -> Tuple['MemoryObjectSendStream[T_Item]', 'MemoryObjectReceiveStream[T_Item]']:
     ...
 
 
 @typing.overload
 def create_memory_object_stream(
     max_buffer_size: float = 0
-) -> Tuple[MemoryObjectSendStream[Any], MemoryObjectReceiveStream[Any]]:
+) -> Tuple['MemoryObjectSendStream[Any]', 'MemoryObjectReceiveStream[Any]']:
     ...
 
 
@@ -726,6 +771,9 @@ def create_memory_object_stream(max_buffer_size=0, item_type=None):
     :return: a tuple of (send stream, receive stream)
 
     """
+    from .streams.memory import (
+        _MemoryObjectStreamState, MemoryObjectSendStream, MemoryObjectReceiveStream)
+
     if max_buffer_size != math.inf and not isinstance(max_buffer_size, int):
         raise ValueError('max_buffer_size must be either an integer or math.inf')
     if max_buffer_size < 0:

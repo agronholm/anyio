@@ -3,7 +3,7 @@ import concurrent.futures
 import math
 import socket
 import sys
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from functools import wraps
 from inspect import isgenerator
 from threading import Thread
@@ -11,15 +11,16 @@ from socket import AddressFamily, SocketKind
 from types import TracebackType
 from typing import (
     Callable, Set, Optional, Union, Tuple, cast, Coroutine, Any, Awaitable, TypeVar, Generator,
-    List, Dict, Sequence, Type)
+    List, Dict, Sequence, Type, Deque)
 from weakref import WeakKeyDictionary
 
 from .. import (
-    abc, claim_worker_thread, _local, T_Retval, TaskInfo, GetAddrInfoReturnType,
-    SockaddrType)
+    abc, claim_worker_thread, _local, T_Retval, TaskInfo, GetAddrInfoReturnType)
+from ..abc import IPSockAddrType, SockAddrType
 from ..exceptions import (
-    ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock)
-from .._networking import BaseSocket
+    ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock,
+    BrokenResourceError)
+from .._utils import ResourceGuard
 
 if sys.version_info >= (3, 7):
     from asyncio import create_task, get_running_loop, current_task, all_tasks, run as native_run
@@ -142,10 +143,6 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False, use_uvloop: b
             if (not hasattr(asyncio.AbstractEventLoop, 'shutdown_default_executor')
                     or hasattr(uvloop.loop.Loop, 'shutdown_default_executor')):
                 policy = uvloop.EventLoopPolicy()
-
-    # Must be explicitly set on Python 3.8 for now or wait_socket_(readable|writable) won't work
-    if policy is None and sys.platform == 'win32' and sys.version_info >= (3, 8):
-        policy = asyncio.WindowsSelectorEventLoopPolicy()  # type: ignore
 
     if policy is not None:
         asyncio.set_event_loop_policy(policy)
@@ -537,29 +534,370 @@ _read_events: Dict[socket.SocketType, asyncio.Event] = {}
 _write_events: Dict[socket.SocketType, asyncio.Event] = {}
 
 
-class Socket(BaseSocket):
-    __slots__ = '_loop', '_read_event', '_write_event'
+class StreamProtocol(asyncio.Protocol):
+    read_queue: Deque[bytes]
+    read_event: asyncio.Event
+    write_event: asyncio.Event
+    exception: Optional[Exception] = None
 
-    def __init__(self, raw_socket: socket.SocketType) -> None:
-        super().__init__(raw_socket)
-        self._loop = get_running_loop()
-        self._read_event = asyncio.Event()
-        self._write_event = asyncio.Event()
+    def connection_made(self, transport: asyncio.BaseTransport) -> None:
+        self.read_queue = deque()
+        self.read_event = asyncio.Event()
+        self.write_event = asyncio.Event()
+        self.write_event.set()
+        cast(asyncio.Transport, transport).set_write_buffer_limits(0)
 
-    def _wait_readable(self):
-        return wait_socket_readable(self._raw_socket)
+    def connection_lost(self, exc: Optional[Exception]) -> None:
+        self.exception = exc
+        self.read_event.set()
+        self.write_event.set()
 
-    def _wait_writable(self):
-        return wait_socket_writable(self._raw_socket)
+    def data_received(self, data: bytes) -> None:
+        self.read_queue.append(data)
+        self.read_event.set()
 
-    def _notify_close(self):
-        return notify_socket_close(self._raw_socket)
+    def eof_received(self) -> Optional[bool]:
+        self.read_event.set()
+        return None
 
-    def _check_cancelled(self):
-        return sleep(0)
+    def pause_writing(self) -> None:
+        self.write_event.clear()
 
-    def _run_sync_in_worker_thread(self, func: Callable, *args):
-        return run_sync_in_worker_thread(func, *args)
+    def resume_writing(self) -> None:
+        self.write_event.set()
+
+
+class DatagramProtocol(asyncio.DatagramProtocol):
+    read_queue: Deque[Tuple[bytes, IPSockAddrType]]
+    read_event: asyncio.Event
+    write_event: asyncio.Event
+    exception: Optional[Exception] = None
+
+    def connection_made(self, transport: asyncio.BaseTransport) -> None:
+        self.read_queue = deque(maxlen=100)  # arbitrary value
+        self.read_event = asyncio.Event()
+        self.write_event = asyncio.Event()
+        self.write_event.set()
+
+    def connection_lost(self, exc: Optional[Exception]) -> None:
+        self.read_event.set()
+        self.write_event.set()
+
+    def datagram_received(self, data: bytes, addr: IPSockAddrType) -> None:
+        self.read_queue.append((data, addr))
+        self.read_event.set()
+
+    def error_received(self, exc: Exception) -> None:
+        self.exception = exc
+
+    def pause_writing(self) -> None:
+        self.write_event.clear()
+
+    def resume_writing(self) -> None:
+        self.write_event.set()
+
+
+class SocketStream(abc.SocketStream):
+    def __init__(self, transport: asyncio.Transport, protocol: StreamProtocol):
+        self._transport = transport
+        self._protocol = protocol
+        self._receive_guard = ResourceGuard('reading from')
+        self._send_guard = ResourceGuard('writing to')
+        self._closed = False
+
+    async def receive(self, max_bytes: int = 65536) -> bytes:
+        with self._receive_guard:
+            await check_cancelled()
+            if not self._protocol.read_queue and not self._transport.is_closing():
+                self._protocol.read_event.clear()
+                self._transport.resume_reading()
+                await self._protocol.read_event.wait()
+                self._transport.pause_reading()
+
+            try:
+                chunk = self._protocol.read_queue.popleft()
+            except IndexError:
+                if self._closed:
+                    raise ClosedResourceError from None
+                elif self._protocol.exception:
+                    raise BrokenResourceError from self._protocol.exception
+                else:
+                    return b''
+
+            if len(chunk) > max_bytes:
+                # Split the oversized chunk
+                chunk, leftover = chunk[:max_bytes], chunk[max_bytes:]
+                self._protocol.read_queue.appendleft(leftover)
+
+        return chunk
+
+    async def send(self, item: bytes) -> None:
+        with self._send_guard:
+            await check_cancelled()
+            try:
+                self._transport.write(item)
+            except RuntimeError as exc:
+                if self._closed:
+                    raise ClosedResourceError from None
+                elif self._transport.is_closing():
+                    raise BrokenResourceError from exc
+                else:
+                    raise
+
+            await self._protocol.write_event.wait()
+
+    async def aclose(self) -> None:
+        if not self._transport.is_closing():
+            self._closed = True
+            try:
+                self._transport.write_eof()
+            except OSError:
+                pass
+
+            self._transport.close()
+            await asyncio.sleep(0)
+            self._transport.abort()
+
+    def getsockopt(self, level, optname, *args):
+        sock: socket.SocketType = self._transport.get_extra_info('socket')
+        return sock.getsockopt(level, optname, *args)
+
+    def setsockopt(self, level, optname, value, *args) -> None:
+        sock: socket.SocketType = self._transport.get_extra_info('socket')
+        sock.setsockopt(level, optname, value, *args)
+
+    @property
+    def family(self) -> AddressFamily:
+        sock: socket.SocketType = self._transport.get_extra_info('socket')
+        return sock.family
+
+    @property
+    def local_address(self) -> Union[IPSockAddrType, str]:
+        return self._transport.get_extra_info('sockname')
+
+    @property
+    def remote_address(self) -> Union[IPSockAddrType, str]:
+        return self._transport.get_extra_info('peername')
+
+
+class SocketListener(abc.SocketListener):
+    def __init__(self, raw_socket: socket.SocketType):
+        self._raw_socket = raw_socket
+        self._loop = cast(asyncio.BaseEventLoop, get_running_loop())
+        self._accept_guard = ResourceGuard('accepting connections from')
+
+    def getsockopt(self, level, optname, *args):
+        return self._raw_socket.getsockopt(level, optname, *args)
+
+    def setsockopt(self, level, optname, value, *args) -> None:
+        self._raw_socket.setsockopt(level, optname, value, *args)
+
+    @property
+    def family(self) -> AddressFamily:
+        return self._raw_socket.family
+
+    @property
+    def local_address(self) -> SockAddrType:
+        return self._raw_socket.getsockname()
+
+    async def accept(self) -> abc.SocketStream:
+        with self._accept_guard:
+            await check_cancelled()
+            try:
+                client_sock, _addr = await self._loop.sock_accept(self._raw_socket)
+            except asyncio.CancelledError:
+                # Workaround for https://bugs.python.org/issue41317
+                try:
+                    self._loop.remove_reader(self._raw_socket)
+                except NotImplementedError:
+                    pass
+
+                raise
+
+        if client_sock.family in (socket.AF_INET, socket.AF_INET6):
+            client_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
+        transport, protocol = await self._loop.connect_accepted_socket(StreamProtocol, client_sock)
+        return SocketStream(cast(asyncio.Transport, transport), cast(StreamProtocol, protocol))
+
+    async def aclose(self) -> None:
+        self._raw_socket.close()
+
+
+class UDPSocket(abc.UDPSocket):
+    def __init__(self, transport: asyncio.DatagramTransport, protocol: DatagramProtocol):
+        self._transport = transport
+        self._protocol = protocol
+        self._receive_guard = ResourceGuard('reading from')
+        self._send_guard = ResourceGuard('writing to')
+        self._closed = False
+
+    async def aclose(self) -> None:
+        if not self._transport.is_closing():
+            self._closed = True
+            self._transport.close()
+
+    @property
+    def family(self) -> AddressFamily:
+        sock: socket.SocketType = self._transport.get_extra_info('socket')
+        return sock.family
+
+    @property
+    def local_address(self) -> IPSockAddrType:
+        return self._transport.get_extra_info('sockname')
+
+    def getsockopt(self, level, optname, *args):
+        sock: socket.SocketType = self._transport.get_extra_info('socket')
+        return sock.getsockopt(level, optname, *args)
+
+    def setsockopt(self, level, optname, value, *args) -> None:
+        sock: socket.SocketType = self._transport.get_extra_info('socket')
+        sock.setsockopt(level, optname, value, *args)
+
+    async def receive(self) -> Tuple[bytes, IPSockAddrType]:
+        with self._receive_guard:
+            await check_cancelled()
+
+            # If the buffer is empty, ask for more data
+            if not self._protocol.read_queue and not self._transport.is_closing():
+                self._protocol.read_event.clear()
+                await self._protocol.read_event.wait()
+
+            try:
+                return self._protocol.read_queue.popleft()
+            except IndexError:
+                if self._closed:
+                    raise ClosedResourceError from None
+                else:
+                    raise BrokenResourceError from None
+
+    async def send(self, item: abc.UDPPacketType) -> None:
+        with self._send_guard:
+            await check_cancelled()
+            await self._protocol.write_event.wait()
+            if self._closed:
+                raise ClosedResourceError
+            elif self._transport.is_closing():
+                raise BrokenResourceError
+            else:
+                self._transport.sendto(*item)
+
+
+class ConnectedUDPSocket(abc.ConnectedUDPSocket):
+    def __init__(self, transport: asyncio.DatagramTransport, protocol: DatagramProtocol):
+        self._transport = transport
+        self._protocol = protocol
+        self._receive_guard = ResourceGuard('reading from')
+        self._send_guard = ResourceGuard('writing to')
+        self._closed = False
+
+    async def aclose(self) -> None:
+        if not self._transport.is_closing():
+            self._closed = True
+            self._transport.close()
+
+    @property
+    def family(self) -> AddressFamily:
+        sock: socket.SocketType = self._transport.get_extra_info('socket')
+        return sock.family
+
+    @property
+    def local_address(self) -> IPSockAddrType:
+        return self._transport.get_extra_info('sockname')
+
+    @property
+    def remote_address(self) -> IPSockAddrType:
+        return self._transport.get_extra_info('peername')
+
+    def getsockopt(self, level, optname, *args):
+        sock: socket.SocketType = self._transport.get_extra_info('socket')
+        return sock.getsockopt(level, optname, *args)
+
+    def setsockopt(self, level, optname, value, *args) -> None:
+        sock: socket.SocketType = self._transport.get_extra_info('socket')
+        sock.setsockopt(level, optname, value, *args)
+
+    async def receive(self) -> bytes:
+        with self._receive_guard:
+            await check_cancelled()
+
+            # If the buffer is empty, ask for more data
+            if not self._protocol.read_queue and not self._transport.is_closing():
+                self._protocol.read_event.clear()
+                await self._protocol.read_event.wait()
+
+            try:
+                packet = self._protocol.read_queue.popleft()
+            except IndexError:
+                if self._closed:
+                    raise ClosedResourceError from None
+                else:
+                    raise BrokenResourceError from None
+
+            return packet[0]
+
+    async def send(self, item: bytes) -> None:
+        with self._send_guard:
+            await check_cancelled()
+            await self._protocol.write_event.wait()
+            if self._closed:
+                raise ClosedResourceError
+            elif self._transport.is_closing():
+                raise BrokenResourceError
+            else:
+                self._transport.sendto(item)
+
+
+def _convert_ipv6_sockaddr(sockaddr: Optional[IPSockAddrType]) -> Optional[Tuple[str, int]]:
+    # This is more complicated than it should be because of MyPy
+    if sockaddr is None:
+        return None
+    elif len(sockaddr) == 4 and sockaddr[-1]:
+        # Add scopeid to the address
+        return sockaddr[0] + '%' + str(sockaddr[-1]), sockaddr[1]
+    else:
+        return sockaddr[:2]
+
+
+async def connect_tcp(host: str, port: int,
+                      local_addr: Optional[IPSockAddrType] = None) -> SocketStream:
+    transport, protocol = cast(
+        Tuple[asyncio.Transport, StreamProtocol],
+        await get_running_loop().create_connection(StreamProtocol, host, port,
+                                                   local_addr=_convert_ipv6_sockaddr(local_addr))
+    )
+    transport.pause_reading()
+    return SocketStream(transport, protocol)
+
+
+async def connect_unix(path: str) -> SocketStream:
+    transport, protocol = cast(
+        Tuple[asyncio.Transport, StreamProtocol],
+        await get_running_loop().create_unix_connection(StreamProtocol, path)
+    )
+    transport.pause_reading()
+    return SocketStream(transport, protocol)
+
+
+async def create_udp_socket(
+    family: socket.AddressFamily,
+    local_address: Optional[IPSockAddrType],
+    remote_address: Optional[IPSockAddrType],
+    reuse_port: bool
+) -> Union[UDPSocket, ConnectedUDPSocket]:
+    result = await get_running_loop().create_datagram_endpoint(
+        DatagramProtocol, local_addr=_convert_ipv6_sockaddr(local_address),
+        remote_addr=_convert_ipv6_sockaddr(remote_address), family=family, reuse_port=reuse_port)
+    transport = cast(asyncio.DatagramTransport, result[0])
+    protocol = cast(DatagramProtocol, result[1])
+    if protocol.exception:
+        transport.close()
+        raise protocol.exception
+
+    if not remote_address:
+        return UDPSocket(transport, protocol)
+    else:
+        return ConnectedUDPSocket(transport, protocol)
 
 
 async def getaddrinfo(host: Union[bytearray, bytes, str], port: Union[str, int, None], *,
@@ -571,7 +909,7 @@ async def getaddrinfo(host: Union[bytearray, bytes, str], port: Union[str, int, 
     return cast(GetAddrInfoReturnType, result)
 
 
-async def getnameinfo(sockaddr: SockaddrType, flags: int = 0) -> Tuple[str, str]:
+async def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Tuple[str, str]:
     # https://github.com/python/typeshed/pull/4305
     result = await get_running_loop().getnameinfo(sockaddr, flags)
     return cast(Tuple[str, str], result)
@@ -617,20 +955,6 @@ async def wait_socket_writable(sock: socket.SocketType) -> None:
 
     if not writable:
         raise ClosedResourceError
-
-
-async def notify_socket_close(sock: socket.SocketType) -> None:
-    loop = get_running_loop()
-
-    event = _read_events.pop(sock, None)
-    if event is not None:
-        loop.remove_reader(sock)
-        event.set()
-
-    event = _write_events.pop(sock, None)
-    if event is not None:
-        loop.remove_writer(sock)
-        event.set()
 
 
 #

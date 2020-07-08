@@ -13,9 +13,10 @@ The manual
    tasks
    cancellation
    synchronization
+   streams
+   networking
    threads
    fileio
-   networking
    signals
    testing
    api

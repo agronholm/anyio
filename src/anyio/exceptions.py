@@ -58,10 +58,6 @@ class EndOfStream(Exception):
     """Raised when trying to read from a stream that has been closed from the other end."""
 
 
-class TLSRequired(Exception):
-    """Raised when a TLS related stream method is called before the TLS handshake has been done."""
-
-
 class BusyResourceError(Exception):
     """Raised when two tasks are trying to read from or write to the same resource concurrently."""
 
@@ -70,4 +66,4 @@ class BusyResourceError(Exception):
 
 
 class WouldBlock(Exception):
-    """Raised by ``X_nowait``functions if ``X()``would block."""
+    """Raised by ``X_nowait`` functions if ``X()`` would block."""

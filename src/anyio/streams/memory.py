@@ -3,10 +3,9 @@ from dataclasses import dataclass, field
 from typing import TypeVar, Generic, List, Deque
 
 import anyio
-from .abc import AsyncResource
-from .abc.synchronization import Event
-from .abc.streams import ObjectSendStream, ObjectReceiveStream
-from .exceptions import ClosedResourceError, BrokenResourceError, WouldBlock, EndOfStream
+from ..abc.synchronization import Event
+from ..abc.streams import ObjectSendStream, ObjectReceiveStream
+from ..exceptions import ClosedResourceError, BrokenResourceError, WouldBlock, EndOfStream
 
 T_Item = TypeVar('T_Item')
 
@@ -23,7 +22,7 @@ class _MemoryObjectStreamState(Generic[T_Item]):
 
 
 @dataclass
-class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item], AsyncResource):
+class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
     _state: _MemoryObjectStreamState[T_Item]
     _closed: bool = field(init=False, default=False)
 
@@ -35,18 +34,19 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item], As
         Receive the next item if it can be done without waiting.
 
         :return: the received item
-        :raises ClosedResourceError: if this send stream has been closed
-        :raises EndOfStream: if this stream has been closed from the sending end
+        :raises anyio.exceptions.ClosedResourceError: if this send stream has been closed
+        :raises EndOfStream: if the buffer is empty and this stream has been closed from the
+            sending end
         :raises WouldBlock: if there are no items in the buffer and no tasks waiting to send
 
         """
         if self._closed:
             raise ClosedResourceError
-        if not self._state.open_send_channels:
-            raise EndOfStream
 
         if self._state.buffer:
             return self._state.buffer.popleft()
+        elif not self._state.open_send_channels:
+            raise EndOfStream
         elif self._state.waiting_senders:
             # Get the item from the next sender
             send_event, item = self._state.waiting_senders.popitem(last=False)
@@ -103,7 +103,7 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item], As
 
 
 @dataclass
-class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item], AsyncResource):
+class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
     _state: _MemoryObjectStreamState[T_Item]
     _closed: bool = field(init=False, default=False)
 
@@ -115,7 +115,7 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item], AsyncRes
         Send an item immediately if it can be done without waiting.
 
         :param item: the item to send
-        :raises ClosedResourceError: if this send stream has been closed
+        :raises anyio.exceptions.ClosedResourceError: if this send stream has been closed
         :raises BrokenResourceError: if the stream has been closed from the receiving end
         :raises WouldBlock: if the buffer is full and there are no tasks waiting to receive
 

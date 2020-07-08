@@ -10,7 +10,7 @@ from threading import Thread
 from types import TracebackType
 from typing import (
     Callable, Set, Optional, Coroutine, Any, cast, Dict, List, Sequence, DefaultDict, Type,
-    Awaitable, Union)
+    Awaitable, Union, Tuple, TYPE_CHECKING, TypeVar, Generic)
 from weakref import WeakKeyDictionary
 
 import curio.io
@@ -19,15 +19,22 @@ import curio.socket
 import curio.ssl
 import curio.traps
 
-from .. import abc, T_Retval, claim_worker_thread, TaskInfo, _local, GetAddrInfoReturnType
+from .. import (
+    abc, T_Retval, claim_worker_thread, TaskInfo, _local, GetAddrInfoReturnType, IPSockAddrType)
 from ..exceptions import (
-    ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock)
-from .._networking import BaseSocket
+    ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock,
+    BrokenResourceError)
+from .._utils import ResourceGuard
 
 if sys.version_info >= (3, 7):
     from contextlib import asynccontextmanager
 else:
     from async_generator import asynccontextmanager
+
+if TYPE_CHECKING:
+    from typing import NoReturn
+
+T_SockAddr = TypeVar('T_SockAddr', str, IPSockAddrType)
 
 
 def get_callable_name(func: Callable) -> str:
@@ -445,23 +452,187 @@ _reader_tasks: Dict[socket.SocketType, curio.Task] = {}
 _writer_tasks: Dict[socket.SocketType, curio.Task] = {}
 
 
-class Socket(BaseSocket):
-    __slots__ = ()
+class _CurioSocketMixin(Generic[T_SockAddr]):
+    def __init__(self, curio_socket: curio.io.Socket):
+        self._curio_socket = curio_socket
+        self._closed = False
 
-    def _wait_readable(self):
-        return wait_socket_readable(self._raw_socket)
+    def getsockopt(self, level, optname, *args):
+        try:
+            return self._curio_socket.getsockopt(level, optname, *args)
+        except OSError as exc:
+            self._convert_socket_error(exc)
 
-    def _wait_writable(self):
-        return wait_socket_writable(self._raw_socket)
+    def setsockopt(self, level, optname, value, *args) -> None:
+        try:
+            self._curio_socket.setsockopt(level, optname, value, *args)
+        except OSError as exc:
+            self._convert_socket_error(exc)
 
-    def _notify_close(self):
-        return notify_socket_close(self._raw_socket)
+    @property
+    def family(self) -> socket.AddressFamily:
+        return self._curio_socket.family
 
-    def _check_cancelled(self) -> Coroutine[Any, Any, None]:
-        return sleep(0)
+    @property
+    def local_address(self) -> T_SockAddr:
+        try:
+            return self._curio_socket.getsockname()
+        except OSError as exc:
+            self._convert_socket_error(exc)
 
-    def _run_sync_in_worker_thread(self, func: Callable, *args):
-        return run_sync_in_worker_thread(func, *args)
+    async def aclose(self) -> None:
+        if self._curio_socket.fileno() >= 0:
+            self._closed = True
+            rtask, wtask = await curio.traps._io_waiting(self._curio_socket)
+            await self._curio_socket.close()
+            if rtask:
+                await rtask.cancel(blocking=False, exc=ClosedResourceError)
+            if wtask:
+                await wtask.cancel(blocking=False, exc=ClosedResourceError)
+
+    def _convert_socket_error(self, exc: Union[OSError, AttributeError]) -> 'NoReturn':
+        if self._curio_socket.fileno() < 0:
+            if self._closed:
+                raise ClosedResourceError from None
+            else:
+                raise BrokenResourceError from exc
+
+        raise exc
+
+
+class SocketStream(_CurioSocketMixin, abc.SocketStream):
+    def __init__(self, curio_socket: curio.io.Socket):
+        super().__init__(curio_socket)
+        self._receive_guard = ResourceGuard('reading from')
+        self._send_guard = ResourceGuard('writing to')
+
+    @property
+    def remote_address(self) -> Union[IPSockAddrType, str]:
+        try:
+            return self._curio_socket.getpeername()
+        except (OSError, AttributeError) as exc:
+            self._convert_socket_error(exc)
+
+    async def receive(self, max_bytes: int = 65536) -> bytes:
+        with self._receive_guard:
+            await check_cancelled()
+            try:
+                return await self._curio_socket.recv(max_bytes)
+            except (OSError, AttributeError) as exc:
+                self._convert_socket_error(exc)
+
+    async def send(self, item: bytes) -> None:
+        with self._send_guard:
+            await check_cancelled()
+            try:
+                await self._curio_socket.sendall(item)
+            except (OSError, AttributeError) as exc:
+                self._convert_socket_error(exc)
+
+
+class SocketListener(_CurioSocketMixin, abc.SocketListener):
+    def __init__(self, raw_socket: socket.SocketType):
+        super().__init__(curio.io.Socket(raw_socket))
+        self._accept_guard = ResourceGuard('accepting connections from')
+
+    async def accept(self) -> SocketStream:
+        with self._accept_guard:
+            await check_cancelled()
+            try:
+                curio_socket, _addr = await self._curio_socket.accept()
+            except (OSError, AttributeError) as exc:
+                self._convert_socket_error(exc)
+
+        if curio_socket.family in (socket.AF_INET, socket.AF_INET6):
+            curio_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
+        return SocketStream(curio_socket)
+
+
+class UDPSocket(_CurioSocketMixin[IPSockAddrType], abc.UDPSocket):
+    def __init__(self, curio_socket: curio.io.Socket):
+        super().__init__(curio_socket)
+        self._receive_guard = ResourceGuard('reading from')
+        self._send_guard = ResourceGuard('writing to')
+
+    async def receive(self) -> Tuple[bytes, IPSockAddrType]:
+        with self._receive_guard:
+            await check_cancelled()
+            try:
+                return await self._curio_socket.recvfrom(65536)
+            except (OSError, AttributeError) as exc:
+                self._convert_socket_error(exc)
+
+    async def send(self, item: abc.UDPPacketType) -> None:
+        with self._send_guard:
+            await check_cancelled()
+            try:
+                await self._curio_socket.sendto(*item)
+            except (OSError, AttributeError) as exc:
+                self._convert_socket_error(exc)
+
+
+class ConnectedUDPSocket(_CurioSocketMixin[IPSockAddrType], abc.ConnectedUDPSocket):
+    def __init__(self, curio_socket: curio.io.Socket):
+        super().__init__(curio_socket)
+        self._receive_guard = ResourceGuard('reading from')
+        self._send_guard = ResourceGuard('writing to')
+
+    @property
+    def remote_address(self) -> IPSockAddrType:
+        try:
+            return self._curio_socket.getpeername()
+        except (OSError, AttributeError) as exc:
+            self._convert_socket_error(exc)
+
+    async def receive(self) -> bytes:
+        with self._receive_guard:
+            await check_cancelled()
+            try:
+                return await self._curio_socket.recv(65536)
+            except (OSError, AttributeError) as exc:
+                self._convert_socket_error(exc)
+
+    async def send(self, item: bytes) -> None:
+        with self._send_guard:
+            await check_cancelled()
+            try:
+                await self._curio_socket.send(item)
+            except (OSError, AttributeError) as exc:
+                self._convert_socket_error(exc)
+
+
+async def connect_tcp(host: str, port: int,
+                      bind_addr: Optional[IPSockAddrType] = None) -> SocketStream:
+    curio_socket = await curio.open_connection(host, port, source_addr=bind_addr)
+    curio_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    return SocketStream(curio_socket)
+
+
+async def connect_unix(path: str) -> SocketStream:
+    curio_socket = await curio.open_unix_connection(path)
+    return SocketStream(curio_socket)
+
+
+async def create_udp_socket(
+    family: socket.AddressFamily,
+    local_address: Optional[IPSockAddrType],
+    remote_address: Optional[IPSockAddrType],
+    reuse_port: bool
+) -> Union[UDPSocket, ConnectedUDPSocket]:
+    curio_socket = curio.socket.socket(family=family, type=socket.SOCK_DGRAM)
+
+    if reuse_port:
+        curio_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+
+    if local_address:
+        curio_socket.bind(local_address)
+
+    if remote_address:
+        await curio_socket.connect(remote_address)
+        return ConnectedUDPSocket(curio_socket)
+    else:
+        return UDPSocket(curio_socket)
 
 
 def getaddrinfo(host: Union[bytearray, bytes, str], port: Union[str, int, None], *,
@@ -505,13 +676,6 @@ async def wait_socket_writable(sock):
             raise
     finally:
         del _writer_tasks[sock]
-
-
-async def notify_socket_close(sock: socket.SocketType):
-    for tasks_map in _reader_tasks, _writer_tasks:
-        task = tasks_map.get(sock)
-        if task is not None:
-            await task.cancel(blocking=False)
 
 
 #
