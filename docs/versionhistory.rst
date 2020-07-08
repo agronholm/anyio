@@ -9,6 +9,24 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   1.0, it is no longer necessary. Use ``async_generator.aclosing()`` instead.
 - **BACKWARDS INCOMPATIBLE** Asynchronous file I/O functionality now uses a common code base
   (``anyio.fileio.AsyncFile``) instead of backend-native classes
+- **BACKWARDS INCOMPATIBLE** Socket code has been refactored:
+
+  - Support for ``ProactorEventLoop`` on the asyncio backend has been added. This allows asyncio
+    applications to use AnyIO on Windows even without using AnyIO as the entry point.
+  - TLS functionality has been split off from ``SocketStream`` and can now work over arbitrary
+    streams – you can now establish a TLS encrypted communications pathway using any bytes-based
+    receive/send stream pair.
+  - ``connect_tcp()`` has been split into ``connect_tcp()`` and ``connect_tcp_with_tls()``
+  - Socket server functionality has been refactored into a trio-like listener system which is
+    network agnostic
+  - Support for the ``SO_REUSEPORT`` option (allows binding more than one socket to the same
+    address/port combination, as long as they all have this option set) has been added to TCP
+    listeners and UDP sockets
+  - The ``reuse_address`` option was replaced with ``reuse_port`` in ``create_udp_socket()``.
+    This switches on the ``SO_REUSEPORT`` option. The ``SO_REUSEADDR`` is not used under any
+    circumstances with UDP sockets.
+  - Added the ``family`` attribute to socket streams and listeners (for getting the address family)
+  - Removed the ``notify_socket_closing()`` function as it is no longer used by AnyIO
 - **BACKWARDS INCOMPATIBLE** Renamed some functions and methods to match their corresponding names
   in Trio:
 
