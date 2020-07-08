@@ -1,3 +1,4 @@
+import math
 import os
 import socket
 import ssl
@@ -18,12 +19,15 @@ from .abc import (
     SocketStreamServer, SocketStream, UDPSocket)
 from .fileio import AsyncFile
 from . import _networking
+from .synchronization import (
+    _MemoryObjectStreamState, MemoryObjectReceiveStream, MemoryObjectSendStream)
 
 BACKENDS = 'asyncio', 'curio', 'trio'
 IPPROTO_IPV6 = getattr(socket, 'IPPROTO_IPV6', 41)  # https://bugs.python.org/issue29515
 
 T_Retval = TypeVar('T_Retval', covariant=True)
 T_Agen = TypeVar('T_Agen')
+T_Item = TypeVar('T_Item')
 SockaddrType = Union[Tuple[str, int], Tuple[str, int, int, int]]
 GetAddrInfoReturnType = List[Tuple[AddressFamily, SocketKind, int, str,
                              Union[Tuple[str, int], Tuple[str, int, int, int]]]]
@@ -696,6 +700,39 @@ def create_capacity_limiter(total_tokens: float) -> CapacityLimiter:
 
     """
     return _get_asynclib().CapacityLimiter(total_tokens)
+
+
+@typing.overload
+def create_memory_object_stream(
+    max_buffer_size: float, item_type: typing.Type[T_Item]
+) -> Tuple[MemoryObjectSendStream[T_Item], MemoryObjectReceiveStream[T_Item]]:
+    ...
+
+
+@typing.overload
+def create_memory_object_stream(
+    max_buffer_size: float = 0
+) -> Tuple[MemoryObjectSendStream[Any], MemoryObjectReceiveStream[Any]]:
+    ...
+
+
+def create_memory_object_stream(max_buffer_size=0, item_type=None):
+    """
+    Create a memory object stream.
+
+    :param max_buffer_size: number of items held in the buffer until ``send()`` starts blocking
+    :param item_type: type of item, for marking the streams with the right generic type for
+        static typing (not used at run time)
+    :return: a tuple of (send stream, receive stream)
+
+    """
+    if max_buffer_size != math.inf and not isinstance(max_buffer_size, int):
+        raise ValueError('max_buffer_size must be either an integer or math.inf')
+    if max_buffer_size < 0:
+        raise ValueError('max_buffer_size cannot be negative')
+
+    state: _MemoryObjectStreamState = _MemoryObjectStreamState(max_buffer_size)
+    return MemoryObjectSendStream(state), MemoryObjectReceiveStream(state)
 
 
 #

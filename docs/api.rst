@@ -91,6 +91,7 @@ Synchronization
 .. autofunction:: anyio.create_event
 .. autofunction:: anyio.create_condition
 .. autofunction:: anyio.create_capacity_limiter
+.. autofunction:: anyio.create_memory_object_stream
 
 .. autoclass:: anyio.abc.Semaphore
     :members:
@@ -105,6 +106,12 @@ Synchronization
     :members:
 
 .. autoclass:: anyio.abc.CapacityLimiter
+    :members:
+
+.. autoclass:: anyio.synchronization.MemoryObjectReceiveStream
+    :members:
+
+.. autoclass:: anyio.synchronization.MemoryObjectSendStream
     :members:
 
 Operating system signals
