@@ -229,12 +229,10 @@ class TestTCPStream:
                 client.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
                 assert client.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
 
-    @pytest.mark.xfail(condition=platform.system() == 'Darwin',
-                       reason='Occasionally fails on macOS')
     async def test_concurrent_write(self, localhost):
         async def send_data():
             while True:
-                await client.send(b'\x00' * 1024000)
+                await client.send(b'\x00' * 4096)
 
         async with await create_tcp_server(interface=localhost) as stream_server:
             async with await connect_tcp(localhost, stream_server.port) as client:
