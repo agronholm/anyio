@@ -271,12 +271,13 @@ class UDPSocket(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def receive_packets(self, max_size: int) -> AsyncIterable[Tuple[bytes, str]]:
+    def receive_packets(self, max_bytes: int) -> AsyncIterable[Tuple[bytes, str]]:
         """
         Return an async iterable which yields packets read from the socket.
 
         The iterable exits if the socket is closed.
 
+        :param max_bytes: maximum number of bytes to return
         :return: an async iterable yielding (bytes, source address) tuples
         """
 

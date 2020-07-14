@@ -259,7 +259,7 @@ class SocketStream(abc.SocketStream):
         self._buffer = self._buffer[nbytes:]
         return result
 
-    async def receive_until(self, delimiter: bytes, max_size: int) -> bytes:
+    async def receive_until(self, delimiter: bytes, max_bytes: int) -> bytes:
         delimiter_size = len(delimiter)
         offset = 0
         while True:
@@ -271,11 +271,11 @@ class SocketStream(abc.SocketStream):
                 return found
 
             # Check if the buffer is already at or over the limit
-            if len(self._buffer) >= max_size:
-                raise DelimiterNotFound(max_size)
+            if len(self._buffer) >= max_bytes:
+                raise DelimiterNotFound(max_bytes)
 
             # Read more data into the buffer from the socket
-            read_size = max_size - len(self._buffer)
+            read_size = max_bytes - len(self._buffer)
             data = await self._socket.recv(read_size)
             if not data:
                 raise IncompleteRead
@@ -284,9 +284,9 @@ class SocketStream(abc.SocketStream):
             offset = max(len(self._buffer) - delimiter_size + 1, 0)
             self._buffer += data
 
-    async def receive_chunks(self, max_size: int):
+    async def receive_chunks(self, max_bytes: int):
         while True:
-            data = await self.receive(max_size)
+            data = await self.receive(max_bytes)
             if data:
                 yield data
             else:
@@ -447,9 +447,9 @@ class UDPSocket(abc.UDPSocket):
         data, addr = await self._socket.recvfrom(max_bytes)
         return data, addr[:2]
 
-    async def receive_packets(self, max_size: int):
+    async def receive_packets(self, max_bytes: int):
         while self._socket.fileno() != -1:
-            packet, address = await self.receive(max_size)
+            packet, address = await self.receive(max_bytes)
             if packet:
                 yield (packet, address)
             else:

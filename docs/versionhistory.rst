@@ -24,6 +24,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   object with a new one rather than clear the old one.
 - **BACKWARDS INCOMPATIBLE** Removed the ``anyio.create_queue`` function and the ``Queue`` class.
   Use memory object streams instead.
+- **BACKWARDS INCOMPATIBLE** Renamed the ``max_size`` parameter to ``max_bytes`` wherever it
+  occurred (this was inconsistently named ``max_bytes`` in some subclasses before)
 - Unified checkpoint behavior: a cancellation check now calls ``sleep(0)`` on asyncio and curio,
   allowing the scheduler to switch to a different task
 - Added memory object streams
