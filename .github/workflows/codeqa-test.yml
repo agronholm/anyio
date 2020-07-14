@@ -51,6 +51,25 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
-      run: pip install .[test,curio,trio]
+      run: pip install .[test,curio,trio] coveralls
     - name: Test with pytest
       run: coverage run -m pytest
+    - name: Upload Coverage
+      run: coveralls
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        COVERALLS_FLAG_NAME: ${{ matrix.test-name }}
+        COVERALLS_PARALLEL: true
+
+  coveralls:
+    name: Finish Coveralls
+    needs: test
+    runs-on: ubuntu-latest
+    container: python:3-slim
+    steps:
+    - name: Finished
+      run: |
+        pip install coveralls
+        coveralls --finish
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
