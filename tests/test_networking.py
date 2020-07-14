@@ -33,35 +33,35 @@ def fake_localhost_dns(monkeypatch):
 
 
 class TestTCPStream:
-    async def test_receive_some(self, localhost):
+    async def test_receive(self, localhost):
         async def server():
             async with await stream_server.accept() as stream:
                 assert stream.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
-                command = await stream.receive_some(100)
-                await stream.send_all(command[::-1])
+                command = await stream.receive(100)
+                await stream.send(command[::-1])
 
         async with create_task_group() as tg:
             async with await create_tcp_server(interface=localhost) as stream_server:
                 await tg.spawn(server)
                 async with await connect_tcp(localhost, stream_server.port) as client:
                     assert client.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
-                    await client.send_all(b'blah')
-                    response = await client.receive_some(100)
+                    await client.send(b'blah')
+                    response = await client.receive(100)
 
         assert response == b'halb'
 
-    async def test_receive_some_from_cache(self, localhost):
+    async def test_receive_from_cache(self, localhost):
         async def server():
             async with await stream_server.accept() as stream:
                 await stream.receive_until(b'a', 10)
-                request = await stream.receive_some(1)
-                await stream.send_all(request + b'\n')
+                request = await stream.receive(1)
+                await stream.send(request + b'\n')
 
         async with create_task_group() as tg:
             async with await create_tcp_server(interface=localhost) as stream_server:
                 await tg.spawn(server)
                 async with await connect_tcp(localhost, stream_server.port) as client:
-                    await client.send_all(b'abc')
+                    await client.send(b'abc')
                     received = await client.receive_until(b'\n', 3)
 
         assert received == b'b'
@@ -76,23 +76,23 @@ class TestTCPStream:
                 method = getattr(stream, method_name)
                 line1 = await method(*params)
                 line2 = await method(*params)
-                await stream.send_all(line1.strip() + line2.strip())
+                await stream.send(line1.strip() + line2.strip())
 
         async with create_task_group() as tg:
             async with await create_tcp_server(interface=localhost) as stream_server:
                 await tg.spawn(server)
                 async with await connect_tcp(localhost, stream_server.port) as client:
-                    await client.send_all(b'bla')
-                    await client.send_all(b'h\nb')
-                    await client.send_all(b'leh\n')
-                    response = await client.receive_some(100)
+                    await client.send(b'bla')
+                    await client.send(b'h\nb')
+                    await client.send(b'leh\n')
+                    response = await client.receive(100)
 
         assert response == b'blahbleh'
 
     async def test_send_large_buffer(self, localhost):
         async def server():
             async with await stream_server.accept() as stream:
-                await stream.send_all(buffer)
+                await stream.send(buffer)
 
         buffer = b'\xff' * 1024 * 1024  # should exceed the maximum kernel send buffer size
         async with create_task_group() as tg:
@@ -112,7 +112,7 @@ class TestTCPStream:
     async def test_incomplete_read(self, localhost, method_name, params):
         async def server():
             async with await stream_server.accept() as stream:
-                await stream.send_all(b'bla')
+                await stream.send(b'bla')
 
         async with create_task_group() as tg:
             async with await create_tcp_server(interface=localhost) as stream_server:
@@ -125,7 +125,7 @@ class TestTCPStream:
     async def test_delimiter_not_found(self, localhost):
         async def server():
             async with await stream_server.accept() as stream:
-                await stream.send_all(b'blah\n')
+                await stream.send(b'blah\n')
 
         async with create_task_group() as tg:
             async with await create_tcp_server(interface=localhost) as stream_server:
@@ -147,7 +147,7 @@ class TestTCPStream:
             async with create_task_group() as tg:
                 await tg.spawn(server)
                 async with await connect_tcp(localhost, stream_server.port) as client:
-                    await client.send_all(b'blah')
+                    await client.send(b'blah')
 
         assert chunks == [b'bl', b'ah']
 
@@ -163,7 +163,7 @@ class TestTCPStream:
             async with create_task_group() as tg:
                 await tg.spawn(server)
                 async with await connect_tcp(localhost, stream_server.port) as client:
-                    await client.send_all(b'blah\nfoobar')
+                    await client.send(b'blah\nfoobar')
 
         assert chunks == [b'blah', b'foob', b'ar']
 
@@ -179,7 +179,7 @@ class TestTCPStream:
                 await tg.spawn(server)
                 async with await connect_tcp(localhost, stream_server.port) as client:
                     for chunk in (b'bl', b'ah', b'\r', b'\nfoo', b'bar\r\n'):
-                        await client.send_all(chunk)
+                        await client.send(chunk)
 
         assert chunks == [b'blah', b'foobar']
 
@@ -214,10 +214,10 @@ class TestTCPStream:
                 await tg.spawn(server)
 
                 async with await connect_tcp(target, stream_server.port) as client:
-                    await client.send_all(b'client1\n')
+                    await client.send(b'client1\n')
 
                 async with await connect_tcp(target, stream_server.port) as client:
-                    await client.send_all(b'client2\n')
+                    await client.send(b'client2\n')
 
         assert lines == {b'client1', b'client2'}
 
@@ -234,7 +234,7 @@ class TestTCPStream:
     async def test_concurrent_write(self, localhost):
         async def send_data():
             while True:
-                await client.send_all(b'\x00' * 1024000)
+                await client.send(b'\x00' * 1024000)
 
         async with await create_tcp_server(interface=localhost) as stream_server:
             async with await connect_tcp(localhost, stream_server.port) as client:
@@ -243,7 +243,7 @@ class TestTCPStream:
                     await wait_all_tasks_blocked()
                     try:
                         with pytest.raises(ResourceBusyError) as exc:
-                            await client.send_all(b'foo')
+                            await client.send(b'foo')
 
                         exc.match('already writing to')
                     finally:
@@ -275,7 +275,7 @@ class TestTCPStream:
     async def test_happy_eyeballs(self, interface, expected_addr, fake_localhost_dns):
         async def handle_client(stream):
             addr, port, *rest = stream.peer_address
-            await stream.send_all(addr.encode() + b'\n')
+            await stream.send(addr.encode() + b'\n')
 
         async def server():
             async for stream in stream_server.accept_connections():
@@ -338,7 +338,7 @@ class TestTCPStream:
         start_time = time.monotonic()
         async with move_on_after(0.1):
             while time.monotonic() - start_time < 0.3:
-                await stream.receive_some(1)
+                await stream.receive(1)
 
             pytest.fail('The timeout was not respected')
 
@@ -350,8 +350,8 @@ class TestUNIXStream:
     async def test_connect_unix(self, tmp_path_factory, as_path):
         async def server():
             async with await stream_server.accept() as stream:
-                command = await stream.receive_some(100)
-                await stream.send_all(command[::-1])
+                command = await stream.receive(100)
+                await stream.send(command[::-1])
 
         async with create_task_group() as tg:
             path = str(tmp_path_factory.mktemp('unix').joinpath('socket'))
@@ -361,8 +361,8 @@ class TestUNIXStream:
             async with await create_unix_server(path) as stream_server:
                 await tg.spawn(server)
                 async with await connect_unix(path) as client:
-                    await client.send_all(b'blah')
-                    response = await client.receive_some(100)
+                    await client.send(b'blah')
+                    response = await client.receive(100)
 
         assert response == b'halb'
 
@@ -391,8 +391,8 @@ class TestTLSStream:
                 assert stream.cipher in stream.shared_ciphers
                 server_binding = stream.get_channel_binding()
 
-                command = await stream.receive_some(100)
-                await stream.send_all(command[::-1])
+                command = await stream.receive(100)
+                await stream.send(command[::-1])
 
         server_binding = None
         async with create_task_group() as tg:
@@ -407,8 +407,8 @@ class TestTLSStream:
                     assert client.cipher in client.shared_ciphers
                     client_binding = client.get_channel_binding()
 
-                    await client.send_all(b'blah')
-                    response = await client.receive_some(100)
+                    await client.send(b'blah')
+                    response = await client.receive(100)
 
         assert response == b'halb'
         assert client_binding == server_binding
@@ -451,11 +451,11 @@ class TestTLSStream:
                                              ssl_context=client_context) as client:
                     assert client.tls_version is None
 
-                    await client.send_all(b'START')  # arbitrary string
+                    await client.send(b'START')  # arbitrary string
                     await client.start_tls()
 
                     assert client.tls_version.startswith('TLSv')
-                    await client.send_all(b'CLOSE')  # arbitrary string
+                    await client.send(b'CLOSE')  # arbitrary string
 
     async def test_buffer(self, server_context, client_context):
         async def server():
@@ -471,7 +471,7 @@ class TestTLSStream:
                 async with await connect_tcp(
                         'localhost', stream_server.port, ssl_context=client_context,
                         autostart_tls=True) as client:
-                    await client.send_all(b'blah\nfoobar')
+                    await client.send(b'blah\nfoobar')
 
         assert chunks == [b'blah', b'foob', b'ar']
 
@@ -486,7 +486,7 @@ class TestTLSStream:
         async def server():
             async with await stream_server.accept() as stream:
                 chunks.append(await stream.receive_exactly(2))
-                await stream.send_all(b'OK\n')
+                await stream.send(b'OK\n')
                 with pytest.raises(exc_class):
                     await stream.receive_exactly(2)
 
@@ -499,7 +499,7 @@ class TestTLSStream:
                 async with await connect_tcp(
                         'localhost', stream_server.port, ssl_context=client_context,
                         autostart_tls=True, tls_standard_compatible=client_compatible) as client:
-                    await client.send_all(b'bl')
+                    await client.send(b'bl')
                     assert await client.receive_exactly(3) == b'OK\n'
 
         assert chunks == [b'bl']

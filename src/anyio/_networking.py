@@ -5,6 +5,7 @@ import warnings
 from abc import ABCMeta, abstractmethod
 from ipaddress import ip_address, IPv6Address
 from typing import Union, Tuple, Any, Optional, Callable, Dict, List, cast
+from warnings import warn
 
 from . import abc
 from .abc import IPAddressType
@@ -233,12 +234,16 @@ class SocketStream(abc.SocketStream):
     def buffered_data(self) -> bytes:
         return self._buffer
 
-    async def receive_some(self, max_bytes: int) -> bytes:
+    async def receive(self, max_bytes: int = 65536) -> bytes:
         if self._buffer:
             data, self._buffer = self._buffer[:max_bytes], self._buffer[max_bytes:]
             return data
 
         return await self._socket.recv(max_bytes)
+
+    async def receive_some(self, max_bytes: int) -> bytes:
+        warn('receive_some() is deprecated; use receive() instead')
+        return await self.receive(max_bytes)
 
     async def receive_exactly(self, nbytes: int) -> bytes:
         bytes_left = nbytes - len(self._buffer)
@@ -281,7 +286,7 @@ class SocketStream(abc.SocketStream):
 
     async def receive_chunks(self, max_size: int):
         while True:
-            data = await self.receive_some(max_size)
+            data = await self.receive(max_size)
             if data:
                 yield data
             else:
@@ -299,8 +304,12 @@ class SocketStream(abc.SocketStream):
 
             yield chunk
 
+    async def send(self, item: bytes) -> None:
+        return await self._socket.sendall(item)
+
     async def send_all(self, data: bytes) -> None:
-        return await self._socket.sendall(data)
+        warn('send_all() is deprecated; use send() instead')
+        return await self.send(data)
 
     #
     # TLS methods

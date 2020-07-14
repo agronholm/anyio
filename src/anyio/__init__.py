@@ -13,9 +13,9 @@ from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any
 
 import sniffio
 
-from .abc import (  # noqa: F401
-    IPAddressType, CancelScope, UDPSocket, Lock, Condition, Event, Semaphore, TaskGroup, Stream,
-    SocketStreamServer, SocketStream, CapacityLimiter)
+from .abc import (
+    Lock, Condition, Event, Semaphore, CapacityLimiter, CancelScope, TaskGroup, IPAddressType,
+    SocketStreamServer, SocketStream, UDPSocket)
 from .fileio import AsyncFile
 from . import _networking
 

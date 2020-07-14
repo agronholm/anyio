@@ -44,7 +44,18 @@ class DelimiterNotFound(Exception):
 
 
 class ClosedResourceError(Exception):
-    """Raised when a resource is closed by another task."""
+    """Raised when trying to use a resource that has been closed."""
+
+
+class BrokenResourceError(Exception):
+    """
+    Raised when trying to use a resource that has been rendered unusuable due to external causes
+    (e.g. a send stream whose peer has disconnected).
+    """
+
+
+class EndOfStream(Exception):
+    """Raised when trying to read from a stream that has been closed from the other end."""
 
 
 class TLSRequired(Exception):
