@@ -4,6 +4,7 @@ import math
 import socket
 import sys
 from collections import OrderedDict
+from inspect import isgenerator
 from threading import Thread
 from socket import AddressFamily, SocketKind
 from types import TracebackType
@@ -122,7 +123,7 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False, use_uvloop: b
 #
 
 async def sleep(delay: float) -> None:
-    check_cancelled()
+    await check_cancelled()
     await asyncio.sleep(delay)
 
 
@@ -270,19 +271,21 @@ class CancelScope:
 abc.CancelScope.register(CancelScope)
 
 
-def check_cancelled():
+async def check_cancelled():
     try:
         cancel_scope = _task_states[current_task()].cancel_scope
     except KeyError:
-        return
+        cancel_scope = None
 
     while cancel_scope:
         if cancel_scope.cancel_called:
             raise CancelledError
         elif cancel_scope.shield:
-            return
+            break
         else:
             cancel_scope = cancel_scope._parent_scope
+
+    await asyncio.sleep(0)
 
 
 @asynccontextmanager
@@ -461,7 +464,7 @@ async def run_sync_in_worker_thread(
                 if not cancelled:
                     loop.call_soon_threadsafe(queue.put_nowait, (result, None))
 
-    check_cancelled()
+    await check_cancelled()
     loop = get_running_loop()
     task = current_task()
     queue: asyncio.Queue[_Retval_Queue_Type] = asyncio.Queue(1)
@@ -537,7 +540,7 @@ async def getnameinfo(sockaddr: SockaddrType, flags: int = 0) -> Tuple[str, str]
 
 
 async def wait_socket_readable(sock: socket.SocketType) -> None:
-    check_cancelled()
+    await check_cancelled()
     if _read_events.get(sock):
         raise ResourceBusyError('reading from') from None
 
@@ -558,7 +561,7 @@ async def wait_socket_readable(sock: socket.SocketType) -> None:
 
 
 async def wait_socket_writable(sock: socket.SocketType) -> None:
-    check_cancelled()
+    await check_cancelled()
     if _write_events.get(sock):
         raise ResourceBusyError('writing to') from None
 
@@ -604,7 +607,7 @@ class Lock(abc.Lock):
         return self._lock.locked()
 
     async def acquire(self) -> None:
-        check_cancelled()
+        await check_cancelled()
         await self._lock.acquire()
 
     async def release(self) -> None:
@@ -617,7 +620,7 @@ class Condition(abc.Condition):
         self._condition = asyncio.Condition(asyncio_lock)
 
     async def acquire(self) -> None:
-        check_cancelled()
+        await check_cancelled()
         await self._condition.acquire()
 
     async def release(self) -> None:
@@ -633,7 +636,7 @@ class Condition(abc.Condition):
         self._condition.notify_all()
 
     async def wait(self):
-        check_cancelled()
+        await check_cancelled()
         return await super().wait()
 
 
@@ -648,7 +651,7 @@ class Event(abc.Event):
         return self._event.is_set()
 
     async def wait(self):
-        check_cancelled()
+        await check_cancelled()
         await self._event.wait()
 
 
@@ -657,7 +660,7 @@ class Semaphore(abc.Semaphore):
         self._semaphore = asyncio.Semaphore(value)
 
     async def acquire(self) -> None:
-        check_cancelled()
+        await check_cancelled()
         await self._semaphore.acquire()
 
     async def release(self) -> None:
@@ -670,18 +673,18 @@ class Semaphore(abc.Semaphore):
 
 class Queue(asyncio.Queue):
     async def get(self):
-        check_cancelled()
+        await check_cancelled()
         return await super().get()
 
     async def put(self, item):
-        check_cancelled()
+        await check_cancelled()
         return await super().put(item)
 
     def __aiter__(self):
         return self
 
     async def __anext__(self):
-        check_cancelled()
+        await check_cancelled()
         return await super().get()
 
 
@@ -842,24 +845,34 @@ async def wait_all_tasks_blocked() -> None:
     this_task = current_task()
     while True:
         for task in all_tasks():
-            if task is not this_task:
-                try:
-                    awaitable = task._coro.cr_await  # type: ignore
-                except AttributeError:
-                    awaitable = task._coro.gi_yieldfrom  # type: ignore
+            if task is this_task:
+                continue
 
-                # Consider any task doing sleep(0) as not being blocked
-                while asyncio.iscoroutine(awaitable) and hasattr(awaitable, 'cr_code'):
-                    if (awaitable.cr_code is sleep.__code__
-                            and awaitable.cr_frame.f_locals['delay'] == 0):
-                        awaitable = None
-                    elif awaitable.cr_await:
-                        awaitable = awaitable.cr_await
-                    else:
-                        break
+            if isgenerator(task._coro):  # type: ignore
+                awaitable = task._coro.gi_yieldfrom  # type: ignore
+            else:
+                awaitable = task._coro.cr_await  # type: ignore
 
-                if awaitable is None:
-                    await sleep(0)
+            # If the first awaitable is None, the task has not started running yet
+            task_running = bool(awaitable)
+
+            # Consider any task doing sleep(0) as not being blocked
+            while asyncio.iscoroutine(awaitable):
+                if isgenerator(awaitable):
+                    code = awaitable.gi_code
+                    f_locals = awaitable.gi_frame.f_locals
+                    awaitable = awaitable.gi_yieldfrom
+                else:
+                    code = awaitable.cr_code
+                    f_locals = awaitable.cr_frame.f_locals
+                    awaitable = awaitable.cr_await
+
+                if code is asyncio.sleep.__code__ and f_locals['delay'] == 0:
+                    task_running = False
                     break
+
+            if not task_running:
+                await sleep(0.1)
+                break
         else:
             return

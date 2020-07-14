@@ -24,6 +24,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   object with a new one rather than clear the old one.
 - **BACKWARDS INCOMPATIBLE** Removed the ``anyio.create_queue`` function and the ``Queue`` class.
   Use memory object streams instead.
+- Unified checkpoint behavior: a cancellation check now calls ``sleep(0)`` on asyncio and curio,
+  allowing the scheduler to switch to a different task
 - Added memory object streams
 - Dropped support for Python 3.5
 - Bumped minimum versions of trio and curio to v0.16 and v1.2, respectively

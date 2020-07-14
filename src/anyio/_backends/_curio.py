@@ -211,15 +211,17 @@ async def check_cancelled():
     try:
         cancel_scope = _task_states[await curio.current_task()].cancel_scope
     except KeyError:
-        return
+        cancel_scope = None
 
     while cancel_scope:
         if cancel_scope.cancel_called:
             raise CancelledError
         elif cancel_scope.shield:
-            return
+            break
         else:
             cancel_scope = cancel_scope._parent_scope
+
+    await curio.sleep(0)
 
 
 @asynccontextmanager
@@ -761,8 +763,8 @@ async def wait_all_tasks_blocked() -> None:
             # Consider any task doing sleep(0) as not being blocked
             awaitable = task.coro.cr_await
             while inspect.iscoroutine(awaitable) and hasattr(awaitable, 'cr_code'):
-                if (awaitable.cr_code is sleep.__code__
-                        and awaitable.cr_frame.f_locals['delay'] == 0):
+                if (awaitable.cr_code is curio.sleep.__code__
+                        and awaitable.cr_frame.f_locals['seconds'] == 0):
                     awaitable = None
                 elif awaitable.cr_await:
                     awaitable = awaitable.cr_await
