@@ -311,7 +311,10 @@ class TaskGroup:
 
         while self.cancel_scope._tasks:
             for task in self.cancel_scope._tasks.copy():
-                await task.wait()
+                try:
+                    await task.wait()
+                except curio.TaskCancelled:
+                    await self.cancel_scope.cancel()
 
         self._active = False
         if not self.cancel_scope._parent_cancelled():

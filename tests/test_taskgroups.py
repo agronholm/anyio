@@ -182,6 +182,32 @@ async def test_cancel_propagation():
         await group.cancel_scope.cancel()
 
 
+async def test_cancel_exiting_task_group():
+    """
+    Test that if a task group is waiting for subtasks to finish and it receives a cancellation, the
+    subtasks are also cancelled and the waiting continues.
+
+    """
+    async def waiter():
+        nonlocal cancel_received
+        try:
+            await sleep(5)
+        finally:
+            cancel_received = True
+
+    async def subgroup():
+        async with create_task_group() as tg2:
+            await tg2.spawn(waiter)
+
+    cancel_received = False
+    async with create_task_group() as tg:
+        await tg.spawn(subgroup)
+        await wait_all_tasks_blocked()
+        await tg.cancel_scope.cancel()
+
+    assert cancel_received
+
+
 async def test_multi_error_children():
     with pytest.raises(ExceptionGroup) as exc:
         async with create_task_group() as tg:

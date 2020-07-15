@@ -377,7 +377,10 @@ class TaskGroup:
                 self._exceptions.append(exc_val)
 
         while self.cancel_scope._tasks:
-            await asyncio.wait(self.cancel_scope._tasks)
+            try:
+                await asyncio.wait(self.cancel_scope._tasks)
+            except asyncio.CancelledError:
+                await self.cancel_scope.cancel()
 
         self._active = False
         if not self.cancel_scope._parent_cancelled():

@@ -31,6 +31,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added memory object streams
 - Dropped support for Python 3.5
 - Bumped minimum versions of trio and curio to v0.16 and v1.2, respectively
+- Fixed a bug where a task group would abandon its subtasks if its own cancel scope was cancelled
+  while it was waiting for subtasks to finish
 
 **1.4.0**
 
