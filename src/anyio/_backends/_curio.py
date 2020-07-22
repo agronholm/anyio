@@ -76,7 +76,7 @@ CancelledError = curio.TaskCancelled
 
 class CancelScope:
     __slots__ = ('_deadline', '_shield', '_parent_scope', '_cancel_called', '_active',
-                 '_timeout_task', '_previous_timeout', '_tasks', '_host_task', '_timeout_expired')
+                 '_previous_timeout', '_tasks', '_host_task', '_timeout_expired')
 
     def __init__(self, deadline: float = math.inf, shield: bool = False):
         self._deadline = deadline
@@ -84,7 +84,6 @@ class CancelScope:
         self._parent_scope = None
         self._cancel_called = False
         self._active = False
-        self._timeout_task = None
         self._previous_timeout = None
         self._tasks: Set[curio.Task] = set()
         self._host_task: Optional[curio.Task] = None
@@ -158,6 +157,9 @@ class CancelScope:
                 # Only deliver the cancellation if the task is already running (but not this task!)
                 if not task.coro.cr_running and task.coro.cr_await is not None:
                     await task.cancel(blocking=False)
+
+                    # Enable the task to be cancelled again
+                    task.cancelled = False
             elif not cancel_scope._shielded_to(self):
                 await cancel_scope._cancel()
 

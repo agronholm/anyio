@@ -182,6 +182,23 @@ async def test_cancel_propagation():
         await group.cancel_scope.cancel()
 
 
+async def test_cancel_twice():
+    """
+    Test that the same task can receive two cancellations. This is mostly to test the workaround
+    for curio's philosophy that a task should not be cancelled twice.
+
+    """
+    async def cancel_group():
+        await wait_all_tasks_blocked()
+        await group.cancel_scope.cancel()
+
+    for _ in range(2):
+        async with create_task_group() as group:
+            await group.spawn(cancel_group)
+            await sleep(1)
+            pytest.fail('Execution should not reach this point')
+
+
 async def test_cancel_exiting_task_group():
     """
     Test that if a task group is waiting for subtasks to finish and it receives a cancellation, the
