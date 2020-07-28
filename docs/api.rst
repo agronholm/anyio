@@ -126,3 +126,16 @@ Testing and debugging
 .. autofunction:: anyio.get_current_task
 .. autofunction:: anyio.get_running_tasks
 .. autofunction:: anyio.wait_all_tasks_blocked
+
+Exceptions
+----------
+
+.. autoexception:: anyio.exceptions.BrokenResourceError
+.. autoexception:: anyio.exceptions.BusyResourceError
+.. autoexception:: anyio.exceptions.ClosedResourceError
+.. autoexception:: anyio.exceptions.DelimiterNotFound
+.. autoexception:: anyio.exceptions.EndOfStream
+.. autoexception:: anyio.exceptions.ExceptionGroup
+.. autoexception:: anyio.exceptions.IncompleteRead
+.. autoexception:: anyio.exceptions.TLSRequired
+.. autoexception:: anyio.exceptions.WouldBlock
