@@ -17,7 +17,7 @@ from .. import (
     abc, claim_worker_thread, _local, T_Retval, TaskInfo, GetAddrInfoReturnType,
     SockaddrType)
 from ..exceptions import (
-    ExceptionGroup as BaseExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock)
+    ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock)
 from .._networking import BaseSocket
 
 if sys.version_info >= (3, 7):
@@ -545,7 +545,7 @@ async def getnameinfo(sockaddr: SockaddrType, flags: int = 0) -> Tuple[str, str]
 async def wait_socket_readable(sock: socket.SocketType) -> None:
     await check_cancelled()
     if _read_events.get(sock):
-        raise ResourceBusyError('reading from') from None
+        raise BusyResourceError('reading from') from None
 
     loop = get_running_loop()
     event = _read_events[sock] = asyncio.Event()
@@ -566,7 +566,7 @@ async def wait_socket_readable(sock: socket.SocketType) -> None:
 async def wait_socket_writable(sock: socket.SocketType) -> None:
     await check_cancelled()
     if _write_events.get(sock):
-        raise ResourceBusyError('writing to') from None
+        raise BusyResourceError('writing to') from None
 
     loop = get_running_loop()
     event = _write_events[sock] = asyncio.Event()

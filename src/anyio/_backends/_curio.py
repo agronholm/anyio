@@ -21,7 +21,7 @@ import curio.traps
 
 from .. import abc, T_Retval, claim_worker_thread, TaskInfo, _local, GetAddrInfoReturnType
 from ..exceptions import (
-    ExceptionGroup as BaseExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock)
+    ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock)
 from .._networking import BaseSocket
 
 if sys.version_info >= (3, 7):
@@ -476,7 +476,7 @@ getnameinfo = curio.socket.getnameinfo
 async def wait_socket_readable(sock):
     await check_cancelled()
     if _reader_tasks.get(sock):
-        raise ResourceBusyError('reading from') from None
+        raise BusyResourceError('reading from') from None
 
     _reader_tasks[sock] = await curio.current_task()
     try:
@@ -493,7 +493,7 @@ async def wait_socket_readable(sock):
 async def wait_socket_writable(sock):
     await check_cancelled()
     if _writer_tasks.get(sock):
-        raise ResourceBusyError('writing to') from None
+        raise BusyResourceError('writing to') from None
 
     _writer_tasks[sock] = await curio.current_task()
     try:

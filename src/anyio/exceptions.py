@@ -62,7 +62,7 @@ class TLSRequired(Exception):
     """Raised when a TLS related stream method is called before the TLS handshake has been done."""
 
 
-class ResourceBusyError(Exception):
+class BusyResourceError(Exception):
     """Raised when two tasks are trying to read from or write to the same resource concurrently."""
 
     def __init__(self, action: str):

@@ -7,7 +7,7 @@ from trio.to_thread import run_sync
 
 from .. import abc, claim_worker_thread, T_Retval, TaskInfo
 from ..exceptions import (
-    ExceptionGroup as BaseExceptionGroup, ClosedResourceError, ResourceBusyError, WouldBlock)
+    ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock)
 from .._networking import BaseSocket
 
 try:
@@ -202,7 +202,7 @@ async def wait_socket_readable(sock):
     except trio.ClosedResourceError as exc:
         raise ClosedResourceError().with_traceback(exc.__traceback__) from None
     except trio.BusyResourceError:
-        raise ResourceBusyError('reading from') from None
+        raise BusyResourceError('reading from') from None
 
 
 async def wait_socket_writable(sock):
@@ -211,7 +211,7 @@ async def wait_socket_writable(sock):
     except trio.ClosedResourceError as exc:
         raise ClosedResourceError().with_traceback(exc.__traceback__) from None
     except trio.BusyResourceError:
-        raise ResourceBusyError('writing to') from None
+        raise BusyResourceError('writing to') from None
 
 
 async def notify_socket_close(sock):

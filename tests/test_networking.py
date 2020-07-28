@@ -14,7 +14,7 @@ from anyio import (
     create_task_group, connect_tcp, create_udp_socket, connect_unix, create_unix_server,
     create_tcp_server, wait_all_tasks_blocked, move_on_after, getaddrinfo, getnameinfo)
 from anyio.exceptions import (
-    IncompleteRead, DelimiterNotFound, ClosedResourceError, ResourceBusyError, ExceptionGroup)
+    IncompleteRead, DelimiterNotFound, ClosedResourceError, BusyResourceError, ExceptionGroup)
 
 pytestmark = pytest.mark.anyio
 
@@ -240,7 +240,7 @@ class TestTCPStream:
                     await tg.spawn(send_data)
                     await wait_all_tasks_blocked()
                     try:
-                        with pytest.raises(ResourceBusyError) as exc:
+                        with pytest.raises(BusyResourceError) as exc:
                             await client.send(b'foo')
 
                         exc.match('already writing to')
@@ -257,7 +257,7 @@ class TestTCPStream:
                     await tg.spawn(receive_data)
                     await wait_all_tasks_blocked()
                     try:
-                        with pytest.raises(ResourceBusyError) as exc:
+                        with pytest.raises(BusyResourceError) as exc:
                             await client.receive_exactly(1)
 
                         exc.match('already reading from')
