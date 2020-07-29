@@ -352,7 +352,7 @@ def current_default_thread_limiter():
 #
 
 @asynccontextmanager
-async def receive_signals(*signals: int):
+async def open_signal_receiver(*signals: int):
     with trio.open_signal_receiver(*signals) as cm:
         yield cm
 

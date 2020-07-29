@@ -712,7 +712,7 @@ async def _iterate_signals(queue: curio.UniversalQueue):
 
 
 @asynccontextmanager
-async def receive_signals(*signals: int):
+async def open_signal_receiver(*signals: int):
     queue = curio.UniversalQueue()
     try:
         for sig in signals:

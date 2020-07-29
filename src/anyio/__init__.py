@@ -751,7 +751,7 @@ def open_signal_receiver(*signals: int) -> 'typing.AsyncContextManager[typing.As
         in cross-platform applications.
 
     """
-    return _get_asynclib().receive_signals(*signals)
+    return _get_asynclib().open_signal_receiver(*signals)
 
 
 #

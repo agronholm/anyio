@@ -798,7 +798,7 @@ _default_thread_limiter = CapacityLimiter(40)
 #
 
 @asynccontextmanager
-async def receive_signals(*signals: int):
+async def open_signal_receiver(*signals: int):
     async def process_signal_queue():
         while True:
             signum = await queue.get()
