@@ -529,6 +529,9 @@ class SocketStream(_CurioSocketMixin, abc.SocketStream):
             except (OSError, AttributeError) as exc:
                 self._convert_socket_error(exc)
 
+    async def send_eof(self) -> None:
+        await self._curio_socket.shutdown(socket.SHUT_WR)
+
 
 class SocketListener(_CurioSocketMixin, abc.SocketListener):
     def __init__(self, raw_socket: socket.SocketType):

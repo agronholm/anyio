@@ -27,6 +27,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     circumstances with UDP sockets.
   - Added the ``family`` attribute to socket streams and listeners (for getting the address family)
   - Removed the ``notify_socket_closing()`` function as it is no longer used by AnyIO
+  - The ``send_eof()`` method was added to all (bidirectional) streams
 - **BACKWARDS INCOMPATIBLE** Renamed some functions and methods to match their corresponding names
   in Trio:
 

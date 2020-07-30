@@ -129,6 +129,14 @@ class TLSStream(ByteStream):
     async def send(self, item: bytes) -> None:
         await self._call_sslobject_method(self._ssl_object.write, item)
 
+    async def send_eof(self) -> None:
+        version_tuple = tuple(int(part) for part in self.tls_version.split('.'))
+        if version_tuple < (1, 3):
+            raise NotImplementedError(f'send_eof() requires at least TLS v1.3; current session '
+                                      f'uses {self.tls_version}')
+
+        raise NotImplementedError('send_eof() has not yet been implemented for TLS streams')
+
     @property
     def alpn_protocol(self) -> Optional[str]:
         return self._ssl_object.selected_alpn_protocol()  # type: ignore
