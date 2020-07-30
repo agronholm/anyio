@@ -3,6 +3,7 @@ import asyncio
 import pytest
 
 uvloop_marks = []
+uvloop_policy = None
 try:
     import uvloop
 except ImportError:
@@ -12,11 +13,13 @@ else:
             and not hasattr(uvloop.loop.Loop, 'shutdown_default_executor')):
         uvloop_marks.append(
             pytest.mark.skip(reason='uvloop is missing shutdown_default_executor()'))
+    else:
+        uvloop_policy = uvloop.EventLoopPolicy()
 
 
 @pytest.fixture(params=[
-    pytest.param(('asyncio', {'use_uvloop': False}), id='asyncio'),
-    pytest.param(('asyncio', {'use_uvloop': True}), id='asyncio+uvloop', marks=uvloop_marks),
+    pytest.param(('asyncio', {'policy': asyncio.DefaultEventLoopPolicy()}), id='asyncio'),
+    pytest.param(('asyncio', {'policy': uvloop_policy}), id='asyncio+uvloop', marks=uvloop_marks),
     pytest.param('curio'),
     pytest.param('trio')
 ], autouse=True)
