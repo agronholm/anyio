@@ -44,9 +44,7 @@ async def test_success():
 
 
 @pytest.mark.parametrize('module', [
-    pytest.param(asyncio, id='asyncio', marks=[
-        pytest.mark.skipif(not hasattr(asyncio, 'run'), reason='asyncio.run() is not available')]
-    ),
+    pytest.param(asyncio, id='asyncio'),
     pytest.param(curio, id='curio'),
     pytest.param(trio, id='trio')
 ])
@@ -56,8 +54,9 @@ def test_run_natively(module):
             await tg.spawn(sleep, 0)
 
     if module is asyncio:
+        from anyio._backends._asyncio import native_run
         try:
-            module.run(testfunc())
+            native_run(testfunc())
         finally:
             asyncio.set_event_loop(asyncio.new_event_loop())
     else:

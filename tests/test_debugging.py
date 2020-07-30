@@ -45,7 +45,7 @@ async def test_get_running_tasks():
 
 @pytest.mark.filterwarnings('ignore:"@coroutine" decorator is deprecated:DeprecationWarning')
 def test_wait_generator_based_task_blocked():
-    from asyncio import coroutine, get_event_loop, Event
+    from asyncio import coroutine, DefaultEventLoopPolicy, set_event_loop, Event
 
     async def native_coro_part():
         await wait_all_tasks_blocked()
@@ -61,7 +61,9 @@ def test_wait_generator_based_task_blocked():
     def generator_part():
         yield from event.wait()
 
-    loop = get_event_loop()
+    loop = DefaultEventLoopPolicy().new_event_loop()
+    set_event_loop(loop)
     event = Event()
     gen_task = loop.create_task(generator_part())
     loop.run_until_complete(native_coro_part())
+    loop.close()

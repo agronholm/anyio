@@ -4,6 +4,7 @@ import math
 import socket
 import sys
 from collections import OrderedDict
+from functools import wraps
 from inspect import isgenerator
 from threading import Thread
 from socket import AddressFamily, SocketKind
@@ -21,14 +22,59 @@ from ..exceptions import (
 from .._networking import BaseSocket
 
 if sys.version_info >= (3, 7):
+    from asyncio import create_task, get_running_loop, current_task, all_tasks, run as native_run
     from contextlib import asynccontextmanager
 else:
     from async_generator import asynccontextmanager
 
-try:
-    from asyncio import create_task, get_running_loop, current_task, all_tasks
-except ImportError:
     _T = TypeVar('_T')
+
+    def native_run(main, *, debug=False):
+        # Snatched from Python 3.7
+        from asyncio import coroutines
+        from asyncio import events
+        from asyncio import tasks
+
+        def _cancel_all_tasks(loop):
+            to_cancel = all_tasks(loop)
+            if not to_cancel:
+                return
+
+            for task in to_cancel:
+                task.cancel()
+
+            loop.run_until_complete(
+                tasks.gather(*to_cancel, loop=loop, return_exceptions=True))
+
+            for task in to_cancel:
+                if task.cancelled():
+                    continue
+                if task.exception() is not None:
+                    loop.call_exception_handler({
+                        'message': 'unhandled exception during asyncio.run() shutdown',
+                        'exception': task.exception(),
+                        'task': task,
+                    })
+
+        if events._get_running_loop() is not None:
+            raise RuntimeError(
+                "asyncio.run() cannot be called from a running event loop")
+
+        if not coroutines.iscoroutine(main):
+            raise ValueError("a coroutine was expected, got {!r}".format(main))
+
+        loop = events.new_event_loop()
+        try:
+            events.set_event_loop(loop)
+            loop.set_debug(debug)
+            return loop.run_until_complete(main)
+        finally:
+            try:
+                _cancel_all_tasks(loop)
+                loop.run_until_complete(loop.shutdown_asyncgens())
+            finally:
+                events.set_event_loop(None)
+                loop.close()
 
     def create_task(coro: Union[Generator[Any, None, _T], Awaitable[_T]], *,  # type: ignore
                     name: Optional[str] = None) -> asyncio.Task:
@@ -72,12 +118,18 @@ def get_callable_name(func: Callable) -> str:
 
 def run(func: Callable[..., T_Retval], *args, debug: bool = False, use_uvloop: bool = True,
         policy: Optional[asyncio.AbstractEventLoopPolicy] = None) -> T_Retval:
+    @wraps(func)
     async def wrapper():
-        nonlocal exception, retval
+        task = current_task()
+        task_state = TaskState(None, get_callable_name(func), None)
+        _task_states[task] = task_state
+        if _native_task_names:
+            task.set_name(task_state.name)
+
         try:
-            retval = await func(*args)
-        except BaseException as exc:
-            exception = exc
+            return await func(*args)
+        finally:
+            del _task_states[task]
 
     # On CPython, use uvloop when possible if no other policy has been given and if not explicitly
     # disabled
@@ -98,24 +150,7 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False, use_uvloop: b
     if policy is not None:
         asyncio.set_event_loop_policy(policy)
 
-    # We use loop.run_until_complete() instead of asyncio.run() because the latter cancels all
-    # tasks and shuts down all async generators, making it unsuitable for things like pytest
-    # fixtures which require one run() call for setup, one for the actual test and one for
-    # teardown.
-    exception = retval = None
-    loop = asyncio.get_event_loop()
-    loop.set_debug(debug)
-    task = loop.create_task(wrapper())
-    task_state = TaskState(None, get_callable_name(func), None)
-    _task_states[task] = task_state
-    if _native_task_names:
-        task.set_name(task_state.name)
-
-    loop.run_until_complete(task)
-    if exception is not None:
-        raise exception
-    else:
-        return cast(T_Retval, retval)
+    return native_run(wrapper(), debug=debug)
 
 
 #

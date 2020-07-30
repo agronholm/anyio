@@ -36,6 +36,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   while it was waiting for subtasks to finish
 - Worked around curio's limitation where a task can only be cancelled twice (any cancellations
   beyond that were ignored)
+- The asyncio back-end now uses ``asyncio.run()`` behind the scenes which properly shuts down
+  async generators and cancels any leftover native tasks
 
 **1.4.0**
 
