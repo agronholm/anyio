@@ -14,6 +14,8 @@ from typing import (
     List, Dict, Sequence, Type, Deque)
 from weakref import WeakKeyDictionary
 
+from dataclasses import dataclass
+
 from .. import (
     abc, claim_worker_thread, _local, T_Retval, TaskInfo, GetAddrInfoReturnType)
 from ..abc import IPSockAddrType, SockAddrType
@@ -524,6 +526,102 @@ def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *a
     f: concurrent.futures.Future[T_Retval] = asyncio.run_coroutine_threadsafe(
         func(*args), _local.loop)
     return f.result()
+
+
+#
+# Subprocesses
+#
+
+@dataclass
+class StreamReaderWrapper(abc.ByteReceiveStream):
+    _stream: asyncio.StreamReader
+
+    async def receive(self, max_bytes: int = 65536) -> bytes:
+        data = await self._stream.read(max_bytes)
+        if data:
+            return data
+        else:
+            raise EndOfStream
+
+    async def aclose(self) -> None:
+        self._stream.feed_eof()
+
+
+@dataclass
+class StreamWriterWrapper(abc.ByteSendStream):
+    _stream: asyncio.StreamWriter
+
+    async def send(self, item: bytes) -> None:
+        self._stream.write(item)
+        await self._stream.drain()
+
+    async def aclose(self) -> None:
+        self._stream.close()
+
+
+@dataclass
+class Process(abc.Process):
+    _process: asyncio.subprocess.Process
+    _stdin: Optional[abc.ByteSendStream]
+    _stdout: Optional[abc.ByteReceiveStream]
+    _stderr: Optional[abc.ByteReceiveStream]
+
+    async def aclose(self) -> None:
+        if self._stdin:
+            await self._stdin.aclose()
+        if self._stdout:
+            await self._stdout.aclose()
+        if self._stderr:
+            await self._stderr.aclose()
+
+        await self.wait()
+
+    async def wait(self) -> int:
+        return await self._process.wait()
+
+    def terminate(self) -> None:
+        self._process.terminate()
+
+    def kill(self) -> None:
+        self._process.kill()
+
+    def send_signal(self, signal: int) -> None:
+        self._process.send_signal(signal)
+
+    @property
+    def pid(self) -> int:
+        return self._process.pid
+
+    @property
+    def returncode(self) -> Optional[int]:
+        return self._process.returncode
+
+    @property
+    def stdin(self) -> Optional[abc.ByteSendStream]:
+        return self._stdin
+
+    @property
+    def stdout(self) -> Optional[abc.ByteReceiveStream]:
+        return self._stdout
+
+    @property
+    def stderr(self) -> Optional[abc.ByteReceiveStream]:
+        return self._stderr
+
+
+async def open_process(command, *, shell: bool, stdin: int, stdout: int, stderr: int):
+    await check_cancelled()
+    if shell:
+        process = await asyncio.create_subprocess_shell(command, stdin=stdin, stdout=stdout,
+                                                        stderr=stderr)
+    else:
+        process = await asyncio.create_subprocess_exec(*command, stdin=stdin, stdout=stdout,
+                                                       stderr=stderr)
+
+    stdin_stream = StreamWriterWrapper(process.stdin) if process.stdin else None
+    stdout_stream = StreamReaderWrapper(process.stdout) if process.stdout else None
+    stderr_stream = StreamReaderWrapper(process.stderr) if process.stderr else None
+    return Process(process, stdin_stream, stdout_stream, stderr_stream)
 
 
 #

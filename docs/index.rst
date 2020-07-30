@@ -16,6 +16,7 @@ The manual
    streams
    networking
    threads
+   subprocesses
    fileio
    signals
    testing
