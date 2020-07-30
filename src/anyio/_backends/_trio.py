@@ -4,6 +4,7 @@ from types import TracebackType
 from typing import Callable, Optional, List, Type, Union, Tuple, TYPE_CHECKING, TypeVar, Generic
 
 import trio.from_thread
+from dataclasses import dataclass
 from trio.to_thread import run_sync
 
 from .. import abc, claim_worker_thread, T_Retval, TaskInfo
@@ -174,6 +175,95 @@ async def run_sync_in_worker_thread(
     return await run_sync(wrapper, cancellable=cancellable, limiter=trio_limiter)
 
 run_async_from_thread = trio.from_thread.run
+
+
+#
+# Subprocesses
+#
+
+@dataclass
+class ReceiveStreamWrapper(abc.ByteReceiveStream):
+    _stream: trio.abc.ReceiveStream
+
+    async def receive(self, max_bytes: Optional[int] = None) -> bytes:
+        data = await self._stream.receive_some(max_bytes)
+        if data:
+            return data
+        else:
+            raise EndOfStream
+
+    async def aclose(self) -> None:
+        await self._stream.aclose()
+
+
+@dataclass
+class SendStreamWrapper(abc.ByteSendStream):
+    _stream: trio.abc.SendStream
+
+    async def send(self, item: bytes) -> None:
+        await self._stream.send_all(item)
+
+    async def aclose(self) -> None:
+        await self._stream.aclose()
+
+
+@dataclass
+class Process(abc.Process):
+    _process: trio.Process
+    _stdin: Optional[abc.ByteSendStream]
+    _stdout: Optional[abc.ByteReceiveStream]
+    _stderr: Optional[abc.ByteReceiveStream]
+
+    async def aclose(self) -> None:
+        if self._stdin:
+            await self._stdin.aclose()
+        if self._stdout:
+            await self._stdout.aclose()
+        if self._stderr:
+            await self._stderr.aclose()
+
+        await self.wait()
+
+    async def wait(self) -> int:
+        return await self._process.wait()
+
+    def terminate(self) -> None:
+        self._process.terminate()
+
+    def kill(self) -> None:
+        self._process.kill()
+
+    def send_signal(self, signal: int) -> None:
+        self._process.send_signal(signal)
+
+    @property
+    def pid(self) -> int:
+        return self._process.pid
+
+    @property
+    def returncode(self) -> Optional[int]:
+        return self._process.returncode
+
+    @property
+    def stdin(self) -> Optional[abc.ByteSendStream]:
+        return self._stdin
+
+    @property
+    def stdout(self) -> Optional[abc.ByteReceiveStream]:
+        return self._stdout
+
+    @property
+    def stderr(self) -> Optional[abc.ByteReceiveStream]:
+        return self._stderr
+
+
+async def open_process(command, *, shell: bool, stdin: int, stdout: int, stderr: int):
+    process = await trio.open_process(command, stdin=stdin, stdout=stdout, stderr=stderr,
+                                      shell=shell)
+    stdin_stream = SendStreamWrapper(process.stdin) if process.stdin else None
+    stdout_stream = ReceiveStreamWrapper(process.stdout) if process.stdout else None
+    stderr_stream = ReceiveStreamWrapper(process.stderr) if process.stderr else None
+    return Process(process, stdin_stream, stdout_stream, stderr_stream)
 
 
 #

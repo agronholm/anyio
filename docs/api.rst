@@ -131,6 +131,15 @@ Sockets and networking
 .. autoclass:: anyio.abc.sockets.ConnectedUDPSocket
     :members:
 
+Subprocesses
+------------
+
+.. autofunction:: anyio.run_process
+.. autofunction:: anyio.open_process
+
+.. autoclass:: anyio.abc.subprocesses.Process
+    :members:
+
 Synchronization
 ---------------
 
