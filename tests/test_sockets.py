@@ -195,15 +195,13 @@ class TestTCPStream:
 
         thread = Thread(target=serve, daemon=True)
         thread.start()
-        stream = await connect_tcp(*server_addr)
-        start_time = time.monotonic()
-        async with move_on_after(0.1):
-            while time.monotonic() - start_time < 0.3:
-                await stream.receive(1)
+        async with await connect_tcp(*server_addr) as stream:
+            start_time = time.monotonic()
+            async with move_on_after(0.1):
+                while time.monotonic() - start_time < 0.3:
+                    await stream.receive(1)
 
-            pytest.fail('The timeout was not respected')
-
-        # await stream.aclose()
+                pytest.fail('The timeout was not respected')
 
     async def test_concurrent_send(self, server_addr):
         async def send_data():
