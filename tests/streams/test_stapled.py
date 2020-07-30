@@ -8,6 +8,8 @@ from anyio.abc import ByteReceiveStream, ByteSendStream, ObjectReceiveStream, Ob
 from anyio.exceptions import ClosedResourceError, EndOfStream
 from anyio.streams.stapled import StapledByteStream, StapledObjectStream
 
+pytestmark = pytest.mark.anyio
+
 
 class TestStapledByteStream:
     @dataclass

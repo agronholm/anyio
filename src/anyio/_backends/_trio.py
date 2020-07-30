@@ -1,10 +1,12 @@
 import socket
 import sys
+from dataclasses import dataclass
 from types import TracebackType
-from typing import Callable, Optional, List, Type, Union, Tuple, TYPE_CHECKING, TypeVar, Generic
+from typing import (
+    Callable, Optional, List, Type, Union, Tuple, TYPE_CHECKING, TypeVar, Generic, Awaitable)
 
 import trio.from_thread
-from dataclasses import dataclass
+from outcome import Error, Value
 from trio.to_thread import run_sync
 
 from .. import abc, claim_worker_thread, T_Retval, TaskInfo
@@ -672,3 +674,53 @@ async def get_running_tasks() -> List[TaskInfo]:
 def wait_all_tasks_blocked():
     import trio.testing
     return trio.testing.wait_all_tasks_blocked()
+
+
+class TestRunner(abc.TestRunner):
+    def __init__(self, **options):
+        from collections import deque
+        from queue import Queue
+
+        self._call_queue = Queue()
+        self._result_queue = deque()
+        self._stop_event: Optional[trio.Event] = None
+        self._nursery: Optional[trio.Nursery] = None
+        self._options = options
+
+    async def _trio_main(self) -> None:
+        self._stop_event = trio.Event()
+        async with trio.open_nursery() as self._nursery:
+            await self._stop_event.wait()
+
+    async def _call_func(self, func, args, kwargs):
+        try:
+            retval = await func(*args, **kwargs)
+        except BaseException as exc:
+            self._result_queue.append(Error(exc))
+            raise
+        else:
+            self._result_queue.append(Value(retval))
+
+    def _main_task_finished(self, outcome) -> None:
+        self._nursery = None
+
+    def close(self) -> None:
+        if self._stop_event:
+            self._stop_event.set()
+            while self._nursery is not None:
+                self._call_queue.get()()
+
+    def call(self, func: Callable[..., Awaitable], *args, **kwargs):
+        if self._nursery is None:
+            trio.lowlevel.start_guest_run(
+                self._trio_main, run_sync_soon_threadsafe=self._call_queue.put,
+                done_callback=self._main_task_finished, **self._options)
+            while self._nursery is None:
+                self._call_queue.get()()
+
+        self._nursery.start_soon(self._call_func, func, args, kwargs)
+        while not self._result_queue:
+            self._call_queue.get()()
+
+        outcome = self._result_queue.pop()
+        return outcome.unwrap()

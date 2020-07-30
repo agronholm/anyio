@@ -5,7 +5,7 @@ __all__ = ('IPAddressType', 'IPSockAddrType', 'SockAddrType', 'UDPPacketType', '
            'ByteSendStream', 'ByteStream', 'AnyUnreliableByteReceiveStream',
            'AnyUnreliableByteSendStream', 'AnyUnreliableByteStream', 'AnyByteReceiveStream',
            'AnyByteSendStream', 'AnyByteStream', 'Listener', 'Process', 'Event', 'Lock',
-           'Condition', 'Semaphore', 'CapacityLimiter', 'CancelScope', 'TaskGroup')
+           'Condition', 'Semaphore', 'CapacityLimiter', 'CancelScope', 'TaskGroup', 'TestRunner')
 
 from .sockets import (
     IPAddressType, IPSockAddrType, SockAddrType, UDPPacketType, SocketStream, SocketListener,
@@ -19,3 +19,4 @@ from .streams import (
 from .subprocesses import Process
 from .synchronization import Event, Lock, Condition, Semaphore, CapacityLimiter
 from .tasks import CancelScope, TaskGroup
+from .testing import TestRunner

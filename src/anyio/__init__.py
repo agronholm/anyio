@@ -100,8 +100,10 @@ def claim_worker_thread(backend) -> typing.Generator[Any, None, None]:
         del _local.current_async_module
 
 
-def _get_asynclib():
-    asynclib_name = sniffio.current_async_library()
+def _get_asynclib(asynclib_name: Optional[str] = None):
+    if asynclib_name is None:
+        asynclib_name = sniffio.current_async_library()
+
     modulename = 'anyio._backends._' + asynclib_name
     try:
         return sys.modules[modulename]
