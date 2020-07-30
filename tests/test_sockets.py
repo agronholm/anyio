@@ -87,6 +87,30 @@ class TestTCPStream:
         thread.join()
         assert response == buffer
 
+    async def test_send_eof(self, server_sock, server_addr):
+        def serve():
+            client, _ = server_sock.accept()
+            request = b''
+            while True:
+                data = client.recv(100)
+                request += data
+                if not data:
+                    break
+
+            client.sendall(request[::-1])
+            client.close()
+
+        async with await connect_tcp(*server_addr) as stream:
+            thread = Thread(target=serve, daemon=True)
+            thread.start()
+            await stream.send(b'hello, ')
+            await stream.send(b'world\n')
+            await stream.send_eof()
+            response = await stream.receive()
+
+        thread.join()
+        assert response == b'\ndlrow ,olleh'
+
     async def test_iterate(self, server_sock, server_addr):
         def serve():
             client, _ = server_sock.accept()
@@ -365,6 +389,30 @@ class TestUNIXStream:
 
         thread.join()
         assert response == buffer
+
+    async def test_send_eof(self, server_sock, socket_path):
+        def serve():
+            client, _ = server_sock.accept()
+            request = b''
+            while True:
+                data = client.recv(100)
+                request += data
+                if not data:
+                    break
+
+            client.sendall(request[::-1])
+            client.close()
+
+        async with await connect_unix(socket_path) as stream:
+            thread = Thread(target=serve, daemon=True)
+            thread.start()
+            await stream.send(b'hello, ')
+            await stream.send(b'world\n')
+            await stream.send_eof()
+            response = await stream.receive()
+
+        thread.join()
+        assert response == b'\ndlrow ,olleh'
 
     async def test_iterate(self, server_sock, socket_path):
         def serve():

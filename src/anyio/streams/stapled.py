@@ -26,6 +26,9 @@ class StapledByteStream(ByteStream):
     async def send(self, item: bytes) -> None:
         await self.send_stream.send(item)
 
+    async def send_eof(self) -> None:
+        await self.send_stream.aclose()
+
     async def aclose(self) -> None:
         await self.send_stream.aclose()
         await self.receive_stream.aclose()
@@ -48,6 +51,9 @@ class StapledObjectStream(Generic[T_Item], ObjectStream[T_Item]):
 
     async def send(self, item: T_Item) -> None:
         await self.send_stream.send(item)
+
+    async def send_eof(self) -> None:
+        await self.send_stream.aclose()
 
     async def aclose(self) -> None:
         await self.send_stream.aclose()

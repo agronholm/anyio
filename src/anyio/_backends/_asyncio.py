@@ -646,6 +646,12 @@ class SocketStream(abc.SocketStream):
 
             await self._protocol.write_event.wait()
 
+    async def send_eof(self) -> None:
+        try:
+            self._transport.write_eof()
+        except OSError:
+            pass
+
     async def aclose(self) -> None:
         if not self._transport.is_closing():
             self._closed = True

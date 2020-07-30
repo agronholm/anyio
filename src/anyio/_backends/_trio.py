@@ -262,6 +262,9 @@ class SocketStream(_TrioSocketMixin, abc.SocketStream):
 
                 view = view[bytes_sent:]
 
+    async def send_eof(self) -> None:
+        self._trio_socket.shutdown(socket.SHUT_WR)
+
 
 class SocketListener(_TrioSocketMixin, abc.SocketListener):
     def __init__(self, raw_socket: socket.SocketType):

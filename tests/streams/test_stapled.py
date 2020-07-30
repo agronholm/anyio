@@ -59,6 +59,14 @@ class TestStapledByteStream:
         await stapled.send(b'today?')
         assert bytes(stapled.send_stream.buffer) == b'how are you today?'
 
+    async def test_send_eof(self, stapled):
+        await stapled.send_eof()
+        await stapled.send_eof()
+        with pytest.raises(ClosedResourceError):
+            await stapled.send(b'world')
+
+        assert await stapled.receive() == b'hello, world'
+
     async def test_aclose(self, stapled):
         await stapled.aclose()
         with pytest.raises(ClosedResourceError):
@@ -117,6 +125,15 @@ class TestStapledObjectStream:
         await stapled.send('how are you ')
         await stapled.send('today?')
         assert stapled.send_stream.buffer == ['how are you ', 'today?']
+
+    async def test_send_eof(self, stapled):
+        await stapled.send_eof()
+        await stapled.send_eof()
+        with pytest.raises(ClosedResourceError):
+            await stapled.send('world')
+
+        assert await stapled.receive() == 'hello'
+        assert await stapled.receive() == 'world'
 
     async def test_aclose(self, stapled):
         await stapled.aclose()

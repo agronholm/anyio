@@ -94,22 +94,25 @@ class TextStream(ObjectStream[str]):
     .. _codecs module documentation: https://docs.python.org/3/library/codecs.html#codec-objects
     """
 
-    transport_stream: InitVar[AnyByteStream]
+    transport_stream: AnyByteStream
     encoding: InitVar[str] = 'utf-8'
     errors: InitVar[str] = 'strict'
     _receive_stream: TextReceiveStream = field(init=False)
     _send_stream: TextSendStream = field(init=False)
 
-    def __post_init__(self, transport_stream, encoding, errors):
-        self._receive_stream = TextReceiveStream(transport_stream, encoding=encoding,
+    def __post_init__(self, encoding, errors):
+        self._receive_stream = TextReceiveStream(self.transport_stream, encoding=encoding,
                                                  errors=errors)
-        self._send_stream = TextSendStream(transport_stream, encoding=encoding, errors=errors)
+        self._send_stream = TextSendStream(self.transport_stream, encoding=encoding, errors=errors)
 
     async def receive(self) -> str:
         return await self._receive_stream.receive()
 
     async def send(self, item: str) -> None:
         await self._send_stream.send(item)
+
+    async def send_eof(self) -> None:
+        await self.transport_stream.send_eof()
 
     async def aclose(self) -> None:
         await self._send_stream.aclose()
