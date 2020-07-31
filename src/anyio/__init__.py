@@ -14,6 +14,7 @@ from typing import TypeVar, Callable, Union, Optional, Awaitable, Coroutine, Any
 
 import sniffio
 
+from ._utils import convert_ipv6_sockaddr
 from .abc import (
     Lock, Condition, Event, Semaphore, CapacityLimiter, CancelScope, TaskGroup, IPAddressType,
     SocketStream, UDPSocket, ConnectedUDPSocket, IPSockAddrType, Listener, SocketListener)
@@ -32,8 +33,7 @@ IPPROTO_IPV6 = getattr(socket, 'IPPROTO_IPV6', 41)  # https://bugs.python.org/is
 T_Retval = TypeVar('T_Retval', covariant=True)
 T_Agen = TypeVar('T_Agen')
 T_Item = TypeVar('T_Item')
-GetAddrInfoReturnType = List[Tuple[AddressFamily, SocketKind, int, str,
-                             Union[Tuple[str, int], Tuple[str, int, int, int]]]]
+GetAddrInfoReturnType = List[Tuple[AddressFamily, SocketKind, int, str, Tuple[str, int]]]
 AnyIPAddressFamily = Literal[AddressFamily.AF_UNSPEC, AddressFamily.AF_INET,
                              AddressFamily.AF_INET6]
 IPAddressFamily = Literal[AddressFamily.AF_INET, AddressFamily.AF_INET6]
@@ -607,14 +607,17 @@ async def create_connected_udp_socket(
                                                    reuse_port)
 
 
-def getaddrinfo(host: Union[bytearray, bytes, str], port: Union[str, int, None], *,
-                family: Union[int, AddressFamily] = 0, type: Union[int, SocketKind] = 0,
-                proto: int = 0, flags: int = 0) -> Awaitable[GetAddrInfoReturnType]:
+async def getaddrinfo(host: Union[bytearray, bytes, str], port: Union[str, int, None], *,
+                      family: Union[int, AddressFamily] = 0, type: Union[int, SocketKind] = 0,
+                      proto: int = 0, flags: int = 0) -> GetAddrInfoReturnType:
     """
     Look up a numeric IP address given a host name.
 
     Internationalized domain names are translated according to the (non-transitional) IDNA 2008
     standard.
+
+    .. note:: 4-tuple IPv6 socket addresses are automatically converted to 2-tuples of
+        (host, port), unlike what :func:`socket.getaddrinfo` does.
 
     :param host: host name
     :param port: port number
@@ -637,8 +640,10 @@ def getaddrinfo(host: Union[bytearray, bytes, str], port: Union[str, int, None],
     else:
         encoded_host = host
 
-    return _get_asynclib().getaddrinfo(encoded_host, port, family=family, type=type, proto=proto,
-                                       flags=flags)
+    gai_res = await _get_asynclib().getaddrinfo(encoded_host, port, family=family, type=type,
+                                                proto=proto, flags=flags)
+    return [(family, type, proto, canonname, convert_ipv6_sockaddr(sockaddr))
+            for family, type, proto, canonname, sockaddr in gai_res]
 
 
 def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Awaitable[Tuple[str, str]]:
