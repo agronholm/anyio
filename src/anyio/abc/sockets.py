@@ -6,7 +6,7 @@ from typing import TypeVar, Tuple, Union, Generic
 from .streams import UnreliableObjectStream, ByteStream, Listener
 
 IPAddressType = Union[str, IPv4Address, IPv6Address]
-IPSockAddrType = Union[Tuple[str, int], Tuple[str, int, int, int]]
+IPSockAddrType = Tuple[str, int]
 SockAddrType = Union[IPSockAddrType, str]
 UDPPacketType = Tuple[bytes, IPSockAddrType]
 T_Retval = TypeVar('T_Retval')

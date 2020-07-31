@@ -854,23 +854,12 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
                 self._transport.sendto(item)
 
 
-def _convert_ipv6_sockaddr(sockaddr: Optional[IPSockAddrType]) -> Optional[Tuple[str, int]]:
-    # This is more complicated than it should be because of MyPy
-    if sockaddr is None:
-        return None
-    elif len(sockaddr) == 4 and sockaddr[-1]:
-        # Add scopeid to the address
-        return sockaddr[0] + '%' + str(sockaddr[-1]), sockaddr[1]
-    else:
-        return sockaddr[:2]
-
-
 async def connect_tcp(host: str, port: int,
-                      local_addr: Optional[IPSockAddrType] = None) -> SocketStream:
+                      local_addr: Optional[Tuple[str, int]] = None) -> SocketStream:
     transport, protocol = cast(
         Tuple[asyncio.Transport, StreamProtocol],
         await get_running_loop().create_connection(StreamProtocol, host, port,
-                                                   local_addr=_convert_ipv6_sockaddr(local_addr))
+                                                   local_addr=local_addr)
     )
     transport.pause_reading()
     return SocketStream(transport, protocol)
@@ -892,8 +881,8 @@ async def create_udp_socket(
     reuse_port: bool
 ) -> Union[UDPSocket, ConnectedUDPSocket]:
     result = await get_running_loop().create_datagram_endpoint(
-        DatagramProtocol, local_addr=_convert_ipv6_sockaddr(local_address),
-        remote_addr=_convert_ipv6_sockaddr(remote_address), family=family, reuse_port=reuse_port)
+        DatagramProtocol, local_addr=local_address, remote_addr=remote_address, family=family,
+        reuse_port=reuse_port)
     transport = cast(asyncio.DatagramTransport, result[0])
     protocol = cast(DatagramProtocol, result[1])
     if protocol.exception:
