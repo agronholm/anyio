@@ -135,19 +135,17 @@ class TestCondition:
             task_started = True
             async with condition:
                 await event.set()
-                await event2.wait()
                 await condition.wait()
                 notified = True
 
         task_started = notified = False
         event = create_event()
-        event2 = create_event()
         condition = create_condition()
         async with create_task_group() as tg:
             await tg.spawn(task)
             await event.wait()
+            await wait_all_tasks_blocked()
             await tg.cancel_scope.cancel()
-            await event2.set()
 
         assert task_started
         assert not notified

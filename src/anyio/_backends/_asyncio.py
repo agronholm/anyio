@@ -1005,7 +1005,7 @@ class Condition(abc.Condition):
 
     async def wait(self):
         await check_cancelled()
-        return await super().wait()
+        return await self._condition.wait()
 
 
 class Event(abc.Event):
