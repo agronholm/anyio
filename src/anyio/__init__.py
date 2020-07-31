@@ -17,7 +17,8 @@ import sniffio
 from ._utils import convert_ipv6_sockaddr
 from .abc import (
     Lock, Condition, Event, Semaphore, CapacityLimiter, CancelScope, TaskGroup, IPAddressType,
-    SocketStream, UDPSocket, ConnectedUDPSocket, IPSockAddrType, Listener, SocketListener)
+    SocketStream, UDPSocket, ConnectedUDPSocket, IPSockAddrType, Listener, SocketListener,
+    AsyncResource)
 from .fileio import AsyncFile
 from .streams.tls import TLSStream
 from .streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
@@ -124,6 +125,20 @@ def sleep(delay: float) -> Coroutine[Any, Any, None]:
 def get_cancelled_exc_class() -> typing.Type[BaseException]:
     """Return the current async library's cancellation exception class."""
     return _get_asynclib().CancelledError
+
+
+async def aclose_forcefully(resource: AsyncResource) -> None:
+    """
+    Close an asynchronous resource in a cancelled scope.
+
+    Doing this closes the resource without waiting on anything.
+
+    :param resource: the resource to close
+
+    """
+    async with open_cancel_scope() as scope:
+        await scope.cancel()
+        await resource.aclose()
 
 
 #

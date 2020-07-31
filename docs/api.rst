@@ -11,6 +11,7 @@ Miscellaneous
 
 .. autofunction:: anyio.sleep(delay)
 .. autofunction:: anyio.get_cancelled_exc_class
+.. autofunction:: anyio.aclose_forcefully
 
 Timeouts and cancellation
 -------------------------

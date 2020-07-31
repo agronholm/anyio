@@ -58,6 +58,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - The asyncio back-end now uses ``asyncio.run()`` behind the scenes which properly shuts down
   async generators and cancels any leftover native tasks
 - Fixed ``Condition.wait()`` not working on asyncio and curio (PR by Matt Westcott)
+- Added the ``anyio.aclose_forcefully()`` to close asynchronous resources as quickly as possible
 
 **1.4.0**
 
