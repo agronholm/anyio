@@ -114,11 +114,15 @@ class TLSStream(ByteStream):
         return self.transport_stream, self._read_bio.read()
 
     async def aclose(self) -> None:
-        try:
-            if self.standard_compatible:
+        if self.standard_compatible:
+            try:
                 await self.unwrap()
-        finally:
-            await self.transport_stream.aclose()
+            except BaseException:
+                from .. import aclose_forcefully
+                await aclose_forcefully(self.transport_stream)
+                raise
+
+        await self.transport_stream.aclose()
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
         return await self._call_sslobject_method(self._ssl_object.read, max_bytes)
