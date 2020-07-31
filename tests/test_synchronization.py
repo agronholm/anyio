@@ -2,7 +2,7 @@ import pytest
 
 from anyio import (
     create_lock, create_task_group, create_event, create_semaphore, create_condition,
-    open_cancel_scope, wait_all_tasks_blocked, create_capacity_limiter, sleep,
+    open_cancel_scope, wait_all_tasks_blocked, create_capacity_limiter,
     current_default_worker_thread_limiter, CapacityLimiter, create_memory_object_stream)
 from anyio.exceptions import EndOfStream, ClosedResourceError, BrokenResourceError, WouldBlock
 
@@ -145,7 +145,7 @@ class TestCondition:
         async with create_task_group() as tg:
             await tg.spawn(task)
             await event.wait()
-            await sleep(0)
+            await wait_all_tasks_blocked()
             await tg.cancel_scope.cancel()
 
         assert task_started
