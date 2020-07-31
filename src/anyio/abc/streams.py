@@ -111,10 +111,9 @@ class ByteReceiveStream(AsyncResource):
         return self
 
     async def __anext__(self) -> bytes:
-        data = await self.receive()
-        if data:
-            return data
-        else:
+        try:
+            return await self.receive()
+        except EndOfStream:
             raise StopAsyncIteration
 
     @abstractmethod
@@ -124,6 +123,7 @@ class ByteReceiveStream(AsyncResource):
 
         :param max_bytes: maximum number of bytes to receive
         :return: the received bytes
+        :raises EndOfStream: if this stream has been closed from the other end
         """
 
 

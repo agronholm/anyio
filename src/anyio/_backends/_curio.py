@@ -23,7 +23,7 @@ from .. import (
     abc, T_Retval, claim_worker_thread, TaskInfo, _local, GetAddrInfoReturnType, IPSockAddrType)
 from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock,
-    BrokenResourceError)
+    BrokenResourceError, EndOfStream)
 from .._utils import ResourceGuard
 
 if sys.version_info >= (3, 7):
@@ -517,9 +517,14 @@ class SocketStream(_CurioSocketMixin, abc.SocketStream):
         with self._receive_guard:
             await check_cancelled()
             try:
-                return await self._curio_socket.recv(max_bytes)
+                data = await self._curio_socket.recv(max_bytes)
             except (OSError, AttributeError) as exc:
                 self._convert_socket_error(exc)
+
+            if data:
+                return data
+            else:
+                raise EndOfStream
 
     async def send(self, item: bytes) -> None:
         with self._send_guard:

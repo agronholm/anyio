@@ -73,27 +73,28 @@ class TLSStream(ByteStream):
 
     async def _call_sslobject_method(self, func: Callable[..., T_Retval], *args) -> T_Retval:
         while True:
+            print('calling', func.__name__)
             try:
                 result = func(*args)
             except ssl.SSLWantReadError:
+                print('need to receive more data')
                 try:
                     # Flush any pending writes first
                     if self._write_bio.pending:
                         await self.transport_stream.send(self._write_bio.read())
 
                     data = await self.transport_stream.receive()
+                    print('received:', data)
                 except EndOfStream:
-                    data = b''
+                    self._read_bio.write_eof()
                 except OSError as exc:
                     self._read_bio.write_eof()
                     self._write_bio.write_eof()
                     raise BrokenResourceError from exc
-
-                if data:
-                    self._read_bio.write(data)
                 else:
-                    self._read_bio.write_eof()
+                    self._read_bio.write(data)
             except ssl.SSLWantWriteError:
+                print('need to write data')
                 await self.transport_stream.send(self._write_bio.read())
             except (ssl.SSLEOFError, ssl.SSLSyscallError) as exc:
                 raise BrokenResourceError from exc
@@ -102,6 +103,7 @@ class TLSStream(ByteStream):
                 if self._write_bio.pending:
                     await self.transport_stream.send(self._write_bio.read())
 
+                print('result:', result)
                 return result
 
     async def unwrap(self) -> Tuple[AnyByteStream, bytes]:

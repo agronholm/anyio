@@ -19,7 +19,7 @@ from .. import (
 from ..abc import IPSockAddrType, SockAddrType
 from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock,
-    BrokenResourceError)
+    BrokenResourceError, EndOfStream)
 from .._utils import ResourceGuard
 
 if sys.version_info >= (3, 7):
@@ -622,7 +622,7 @@ class SocketStream(abc.SocketStream):
                 elif self._protocol.exception:
                     raise BrokenResourceError from self._protocol.exception
                 else:
-                    return b''
+                    raise EndOfStream
 
             if len(chunk) > max_bytes:
                 # Split the oversized chunk

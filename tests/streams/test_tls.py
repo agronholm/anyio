@@ -61,7 +61,8 @@ class TestTLSStream:
                                            ssl_context=client_context)
             msg1 = await wrapper.receive()
             stream, msg2 = await wrapper.unwrap()
-            msg2 += await stream.receive()
+            if msg2 != b'unencrypted':
+                msg2 += await stream.receive()
 
         server_thread.join()
         server_sock.close()

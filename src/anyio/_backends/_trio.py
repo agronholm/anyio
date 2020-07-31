@@ -10,7 +10,7 @@ from .. import abc, claim_worker_thread, T_Retval, TaskInfo
 from ..abc import IPSockAddrType
 from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock,
-    BrokenResourceError)
+    BrokenResourceError, EndOfStream)
 from .._utils import ResourceGuard
 
 try:
@@ -247,9 +247,14 @@ class SocketStream(_TrioSocketMixin, abc.SocketStream):
     async def receive(self, max_bytes: int = 65536) -> bytes:
         with self._receive_guard:
             try:
-                return await self._trio_socket.recv(max_bytes)
+                data = await self._trio_socket.recv(max_bytes)
             except BaseException as exc:
                 self._convert_socket_error(exc)
+
+            if data:
+                return data
+            else:
+                raise EndOfStream
 
     async def send(self, item: bytes) -> None:
         with self._send_guard:
