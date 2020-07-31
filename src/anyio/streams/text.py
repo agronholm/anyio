@@ -5,7 +5,6 @@ from typing import Callable, Tuple
 from ..abc import (
     AnyByteReceiveStream, ObjectReceiveStream, ObjectSendStream, AnyByteSendStream, ObjectStream)
 from ..abc.streams import AnyByteStream
-from ..exceptions import EndOfStream
 
 
 @dataclass
@@ -37,9 +36,6 @@ class TextReceiveStream(ObjectReceiveStream[str]):
     async def receive(self) -> str:
         while True:
             chunk = await self.transport_stream.receive()
-            if not chunk:
-                raise EndOfStream
-
             decoded = self._decoder.decode(chunk)
             if decoded:
                 return decoded

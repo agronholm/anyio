@@ -36,11 +36,7 @@ class BufferedByteReceiveStream(ByteReceiveStream):
         else:
             # With a bytes-oriented object stream, we need to handle any surplus bytes we get from
             # the receive() call
-            try:
-                chunk = await self.receive_stream.receive()
-            except EndOfStream:
-                return b''
-
+            chunk = await self.receive_stream.receive()
             if len(chunk) > max_bytes:
                 # Save the surplus bytes in the buffer
                 self._buffer.extend(chunk[max_bytes:])
@@ -70,11 +66,8 @@ class BufferedByteReceiveStream(ByteReceiveStream):
                     chunk = await self.receive_stream.receive(remaining)
                 else:
                     chunk = await self.receive_stream.receive()
-            except EndOfStream:
-                chunk = b''
-
-            if not chunk:
-                raise IncompleteRead
+            except EndOfStream as exc:
+                raise IncompleteRead from exc
 
             self._buffer.extend(chunk)
 
@@ -109,11 +102,8 @@ class BufferedByteReceiveStream(ByteReceiveStream):
             # Read more data into the buffer from the socket
             try:
                 data = await self.receive_stream.receive()
-            except EndOfStream:
-                data = b''
-
-            if not data:
-                raise IncompleteRead
+            except EndOfStream as exc:
+                raise IncompleteRead from exc
 
             # Move the offset forward and add the new data to the buffer
             offset = max(len(self._buffer) - delimiter_size + 1, 0)
