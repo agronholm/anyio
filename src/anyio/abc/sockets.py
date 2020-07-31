@@ -41,8 +41,7 @@ class _SocketMixin(Generic[T_SockAddr]):
         """
         The bound address of the underlying local socket.
 
-        For IPv4 TCP streams, this is a tuple of (IP address, port).
-        For IPv6 TCP streams, this is a tuple of (IP address, port, flowinfo, scopeid).
+        For TCP streams, this is a tuple of (IP address, port).
         For UNIX socket streams, this is the path to the socket.
         """
 
@@ -56,8 +55,7 @@ class SocketStream(Generic[T_SockAddr], ByteStream, _SocketMixin[T_SockAddr]):
         """
         The address this socket is connected to.
 
-        For IPv4 TCP streams, this is a tuple of (IP address, port).
-        For IPv6 TCP streams, this is a tuple of (IP address, port, flowinfo, scopeid).
+        For TCP streams, this is a tuple of (IP address, port).
         For UNIX socket streams, this is the path to the socket.
         """
 
@@ -80,9 +78,4 @@ class ConnectedUDPSocket(UnreliableObjectStream[bytes], _SocketMixin[IPSockAddrT
     @property
     @abstractmethod
     def remote_address(self) -> IPSockAddrType:
-        """
-        The address this socket is connected to.
-
-        For IPv4 sockets, this is a tuple of (IP address, port).
-        For IPv6 sockets, this is a tuple of (IP address, port, flowinfo, scopeid).
-        """
+        """The address this socket is connected to."""
