@@ -1,9 +1,9 @@
 import ssl
 import sys
 from dataclasses import dataclass
-from typing import Optional, Callable, Tuple, overload, List, Dict, Union, TypeVar
+from typing import Optional, Callable, Tuple, overload, List, Dict, Union, TypeVar, Any
 
-from ..abc import ByteStream, AnyByteStream, Listener
+from ..abc import ByteStream, AnyByteStream, Listener, TaskGroup
 from ..exceptions import EndOfStream, BrokenResourceError
 
 if sys.version_info >= (3, 8):
@@ -197,10 +197,14 @@ class TLSListener(Listener[TLSStream]):
         if self.context is None:
             self.context = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
 
-    async def accept(self) -> TLSStream:
-        transport_stream = await self.listener.accept()
-        return await TLSStream.wrap(transport_stream, ssl_context=self.context,
-                                    standard_compatible=self.standard_compatible)
+    async def serve(self, handler: Callable[[TLSStream], Any],
+                    task_group: Optional[TaskGroup] = None) -> None:
+        async def handler_wrapper(stream: AnyByteStream):
+            wrapped_stream = await TLSStream.wrap(stream, ssl_context=self.context,
+                                                  standard_compatible=self.standard_compatible)
+            await handler(wrapped_stream)
+
+        await self.listener.serve(handler_wrapper, task_group)
 
     async def aclose(self) -> None:
         await self.listener.aclose()

@@ -18,9 +18,10 @@ import sniffio
 from ._utils import convert_ipv6_sockaddr
 from .abc import (
     Lock, Condition, Event, Semaphore, CapacityLimiter, CancelScope, TaskGroup, IPAddressType,
-    SocketStream, UDPSocket, ConnectedUDPSocket, IPSockAddrType, Listener, SocketListener, Process,
+    SocketStream, UDPSocket, ConnectedUDPSocket, IPSockAddrType, SocketListener, Process,
     AsyncResource)
 from .fileio import AsyncFile
+from .streams.stapled import MultiListener
 from .streams.tls import TLSStream
 from .streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
@@ -518,11 +519,11 @@ async def connect_unix(path: Union[str, 'os.PathLike']) -> SocketStream:
     return await _get_asynclib().connect_unix(path)
 
 
-async def create_tcp_listeners(
+async def create_tcp_listener(
     *, local_host: Optional[IPAddressType] = None, local_port: int = 0,
     family: AnyIPAddressFamily = socket.AddressFamily.AF_UNSPEC, backlog: int = 65536,
     reuse_port: bool = False
-) -> List[SocketListener[IPSockAddrType]]:
+) -> MultiListener[SocketStream[IPSockAddrType]]:
     """
     Create a TCP socket listener.
 
@@ -544,7 +545,7 @@ async def create_tcp_listeners(
     gai_res = await getaddrinfo(local_host, local_port, family=family,  # type: ignore[arg-type]
                                 type=socket.SOCK_STREAM,
                                 flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG)
-    listeners = []
+    listeners: List[SocketListener[IPSockAddrType]] = []
     try:
         # The set() is here to work around a glibc bug:
         # https://sourceware.org/bugzilla/show_bug.cgi?id=14969
@@ -575,7 +576,7 @@ async def create_tcp_listeners(
 
         raise
 
-    return listeners
+    return MultiListener(listeners)
 
 
 async def create_unix_listener(
@@ -607,25 +608,6 @@ async def create_unix_listener(
     except BaseException:
         raw_socket.close()
         raise
-
-
-async def serve_listeners(handler: Callable[[Any], Any], listeners: typing.Iterable[Listener], *,
-                          handler_task_group: Optional[TaskGroup] = None) -> None:
-    async def serve_listener(listener: Listener) -> typing.NoReturn:
-        async with listener:
-            while True:
-                # TODO: handle the same OSErrors as trio does
-                stream = await listener.accept()
-                try:
-                    await listener_task_group.spawn(handler, stream)
-                except BaseException:
-                    await stream.aclose()
-                    raise
-
-    async with create_task_group() as tg:
-        listener_task_group = handler_task_group or tg
-        for listener in listeners:
-            await tg.spawn(serve_listener, listener)
 
 
 async def create_udp_socket(

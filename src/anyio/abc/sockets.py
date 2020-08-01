@@ -1,9 +1,11 @@
 from abc import abstractmethod
 from ipaddress import IPv4Address, IPv6Address
 from socket import AddressFamily
-from typing import TypeVar, Tuple, Union, Generic
+from typing import (
+    TypeVar, Tuple, Union, Generic, Callable, Any, Optional, AsyncContextManager)
 
-from .streams import UnreliableObjectStream, ByteStream, Listener
+from .tasks import TaskGroup
+from .streams import UnreliableObjectStream, ByteStream, Listener, T_Stream
 
 IPAddressType = Union[str, IPv4Address, IPv6Address]
 IPSockAddrType = Tuple[str, int]
@@ -63,6 +65,28 @@ class SocketStream(Generic[T_SockAddr], ByteStream, _SocketMixin[T_SockAddr]):
 class SocketListener(Generic[T_SockAddr], Listener[SocketStream[T_SockAddr]],
                      _SocketMixin[T_SockAddr]):
     """Listens to incoming socket connections."""
+
+    @abstractmethod
+    async def accept(self) -> SocketStream[T_SockAddr]:
+        """Accept an incoming connection."""
+
+    async def serve(self, handler: Callable[[T_Stream], Any],
+                    task_group: Optional[TaskGroup] = None) -> None:
+        from .. import create_task_group
+        from .._utils import NullAsyncContextManager
+
+        context_manager: AsyncContextManager
+        if task_group is None:
+            task_group = context_manager = create_task_group()
+        else:
+            # Can be replaced with AsyncExitStack once on py3.7+
+            context_manager = NullAsyncContextManager()
+
+        # There is a mypy bug here
+        async with context_manager:  # type: ignore[attr-defined]
+            while True:
+                stream = await self.accept()
+                await task_group.spawn(handler, stream)
 
 
 class UDPSocket(UnreliableObjectStream[UDPPacketType], _SocketMixin[IPSockAddrType]):
