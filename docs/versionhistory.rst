@@ -5,68 +5,85 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
-- **BACKWARDS INCOMPATIBLE** Removed the ``anyio.finalize()`` context manager since as of curio
-  1.0, it is no longer necessary. Use ``async_generator.aclosing()`` instead.
-- **BACKWARDS INCOMPATIBLE** Asynchronous file I/O functionality now uses a common code base
-  (``anyio.fileio.AsyncFile``) instead of backend-native classes
-- **BACKWARDS INCOMPATIBLE** Socket code has been refactored:
+- New features:
 
-  - Support for ``ProactorEventLoop`` on the asyncio backend has been added. This allows asyncio
+  - Added support for subprocesses
+  - Added support for "blocking portals" which allow running functions in the event loop thread
+    from external threads
+  - Added the ``anyio.aclose_forcefully()`` function for closing asynchronous resources as quickly
+    as possible
+  - Added support for ``ProactorEventLoop`` on the asyncio backend. This allows asyncio
     applications to use AnyIO on Windows even without using AnyIO as the entry point.
-  - TLS functionality has been split off from ``SocketStream`` and can now work over arbitrary
-    streams – you can now establish a TLS encrypted communications pathway using any bytes-based
-    receive/send stream pair.
+  - Added memory object streams as a replacement for queues
+  - The pytest plugin was refactored to run the test and all its related async fixtures inside the
+    same event loop, making async fixtures much more useful
+
+- General changes/fixes:
+
+  - Dropped support for Python 3.5
+  - Bumped minimum versions of trio and curio to v0.16 and v1.2, respectively
+  - Unified checkpoint behavior: a cancellation check now calls ``sleep(0)`` on asyncio and
+    curio, allowing the scheduler to switch to a different task
+  - Fixed a bug where a task group would abandon its subtasks if its own cancel scope was
+    cancelled while it was waiting for subtasks to finish
+  - The asyncio backend now uses ``asyncio.run()`` behind the scenes which properly shuts down
+    async generators and cancels any leftover native tasks
+  - Worked around curio's limitation where a task can only be cancelled twice (any cancellations
+    beyond that were ignored)
+  - **BACKWARDS INCOMPATIBLE** Removed the ``anyio.finalize()`` context manager since as of curio
+    1.0, it is no longer necessary. Use ``async_generator.aclosing()`` instead.
+  - **BACKWARDS INCOMPATIBLE** Renamed some functions and methods to match their corresponding
+    names in Trio:
+
+    - ``Stream.close()`` -> ``Stream.aclose()``
+    - ``AsyncFile.close()`` -> ``AsyncFile.aclose()``
+    - ``anyio.aopen()`` -> ``anyio.open_file()``
+    - ``anyio.receive_signals()`` -> ``anyio.open_signal_receiver()``
+    - ``anyio.run_in_thread()`` -> ``anyio.run_sync_in_worker_thread()``
+    - ``anyio.current_default_thread_limiter()`` -> ``anyio.current_default_worker_thread_limiter()``
+    - ``anyio.exceptions.ResourceBusyError`` -> ``anyio.exceptions.BusyResourceError``
+
+- Socket/stream changes:
+
+  - **BACKWARDS INCOMPATIBLE** Renamed the ``max_size`` parameter to ``max_bytes`` wherever it
+    occurred (this was inconsistently named ``max_bytes`` in some subclasses before)
+  - **BACKWARDS INCOMPATIBLE** TLS functionality has been split off from ``SocketStream`` and can
+    now work over arbitrary streams – you can now establish a TLS encrypted communications pathway
+    using any bytes-based receive/send stream pair.
   - ``connect_tcp()`` has been split into ``connect_tcp()`` and ``connect_tcp_with_tls()``
-  - Socket server functionality has been refactored into a trio-like listener system which is
-    network agnostic
+  - **BACKWARDS INCOMPATIBLE** Socket server functionality has been refactored into a
+    network-agnostic listener system
   - Support for the ``SO_REUSEPORT`` option (allows binding more than one socket to the same
     address/port combination, as long as they all have this option set) has been added to TCP
     listeners and UDP sockets
-  - The ``reuse_address`` option was replaced with ``reuse_port`` in ``create_udp_socket()``.
-    This switches on the ``SO_REUSEPORT`` option. The ``SO_REUSEADDR`` is not used under any
-    circumstances with UDP sockets.
+  - **BACKWARDS INCOMPATIBLE** The ``reuse_address`` option was replaced with ``reuse_port`` in
+    ``create_udp_socket()``. This switches on the ``SO_REUSEPORT`` option. The ``SO_REUSEADDR`` is
+    no longer used under any circumstances with UDP sockets.
   - Added the ``family`` attribute to socket streams and listeners (for getting the address family)
-  - Removed the ``notify_socket_closing()`` function as it is no longer used by AnyIO
+  - **BACKWARDS INCOMPATIBLE** Removed the ``notify_socket_closing()`` function as it is no longer
+    used by AnyIO
   - The ``send_eof()`` method was added to all (bidirectional) streams
-- **BACKWARDS INCOMPATIBLE** Renamed some functions and methods to match their corresponding names
-  in Trio:
 
-  - ``Stream.close()`` -> ``Stream.aclose()``
-  - ``AsyncFile.close()`` -> ``AsyncFile.aclose()``
-  - ``anyio.aopen()`` -> ``anyio.open_file()``
-  - ``anyio.receive_signals()`` -> ``anyio.open_signal_receiver()``
-  - ``anyio.run_in_thread()`` -> ``anyio.run_sync_in_worker_thread()``
-  - ``anyio.current_default_thread_limiter()`` -> ``anyio.current_default_worker_thread_limiter()``
-  - ``anyio.exceptions.ResourceBusyError`` -> ``anyio.exceptions.BusyResourceError``
-- **BACKWARDS INCOMPATIBLE** Added the ``acquire()`` and ``release()`` methods to the ``Lock``,
-  ``Condition`` and ``Semaphore`` classes
-- **BACKWARDS INCOMPATIBLE** Removed the ``Event.clear()`` method. You must now replace the event
-  object with a new one rather than clear the old one.
-- **BACKWARDS INCOMPATIBLE** Removed the ``anyio.create_queue`` function and the ``Queue`` class.
-  Use memory object streams instead.
-- **BACKWARDS INCOMPATIBLE** Renamed the ``max_size`` parameter to ``max_bytes`` wherever it
-  occurred (this was inconsistently named ``max_bytes`` in some subclasses before)
-- Unified checkpoint behavior: a cancellation check now calls ``sleep(0)`` on asyncio and curio,
-  allowing the scheduler to switch to a different task
-- Added memory object streams
-- Added support for subprocesses
-- Dropped support for Python 3.5
-- Bumped minimum versions of trio and curio to v0.16 and v1.2, respectively
-- Fixed a bug where a task group would abandon its subtasks if its own cancel scope was cancelled
-  while it was waiting for subtasks to finish
-- Worked around curio's limitation where a task can only be cancelled twice (any cancellations
-  beyond that were ignored)
-- The asyncio back-end now uses ``asyncio.run()`` behind the scenes which properly shuts down
-  async generators and cancels any leftover native tasks
-- Fixed ``Condition.wait()`` not working on asyncio and curio (PR by Matt Westcott)
-- Added the ``anyio.aclose_forcefully()`` to close asynchronous resources as quickly as possible
-- Added ``open_test_runner()`` which is used by the pytest plugin to ensure that all fixtures are
-  run inside the same event loop as the test itself
-- Removed the ``--anyio-backends`` command line option for the pytest plugin. Use the ``-k`` option
-  to do ad-hoc filtering, and the ``anyio_backend`` fixture to control which backends you wish to
-  run the tests by default.
-- Added support for "blocking portals" which allow running functions in the event loop thread from
-  external threads
+- File I/O changes:
+
+  - **BACKWARDS INCOMPATIBLE** Asynchronous file I/O functionality now uses a common code base
+    (``anyio.fileio.AsyncFile``) instead of backend-native classes
+
+- Task synchronization changes:
+
+  - **BACKWARDS INCOMPATIBLE** Added the ``acquire()`` and ``release()`` methods to the ``Lock``,
+    ``Condition`` and ``Semaphore`` classes
+  - **BACKWARDS INCOMPATIBLE** Removed the ``Event.clear()`` method. You must now replace the event
+    object with a new one rather than clear the old one.
+  - **BACKWARDS INCOMPATIBLE** Removed the ``anyio.create_queue()`` function and the ``Queue``
+    class. Use memory object streams instead.
+  - Fixed ``Condition.wait()`` not working on asyncio and curio (PR by Matt Westcott)
+
+- Testing changes:
+
+  - **BACKWARDS INCOMPATIBLE** Removed the ``--anyio-backends`` command line option for the pytest
+    plugin. Use the ``-k`` option to do ad-hoc filtering, and the ``anyio_backend`` fixture to
+    control which backends you wish to run the tests by default.
 
 **1.4.0**
 
