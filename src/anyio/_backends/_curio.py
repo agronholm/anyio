@@ -1041,3 +1041,19 @@ async def wait_all_tasks_blocked() -> None:
                 break
         else:
             return
+
+
+class TestRunner(abc.TestRunner):
+    def __init__(self, **options):
+        self._kernel = curio.Kernel(**options)
+
+    def close(self) -> None:
+        self._kernel.run(shutdown=True)
+
+    def call(self, func: Callable[..., Awaitable], *args, **kwargs):
+        async def call():
+            # This wrapper is needed because curio kernels cannot run() the asend() method of async
+            # generators because it's neither a coroutine object or a coroutine function
+            return await func(*args, **kwargs)
+
+        return self._kernel.run(call)

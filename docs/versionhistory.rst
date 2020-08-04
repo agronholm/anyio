@@ -60,6 +60,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   async generators and cancels any leftover native tasks
 - Fixed ``Condition.wait()`` not working on asyncio and curio (PR by Matt Westcott)
 - Added the ``anyio.aclose_forcefully()`` to close asynchronous resources as quickly as possible
+- Added ``open_test_runner()`` which is used by the pytest plugin to ensure that all fixtures are
+  run inside the same event loop as the test itself
+- Removed the ``--anyio-backends`` command line option for the pytest plugin. Use the ``-k`` option
+  to do ad-hoc filtering, and the ``anyio_backend`` fixture to control which backends you wish to
+  run the tests by default.
 
 **1.4.0**
 

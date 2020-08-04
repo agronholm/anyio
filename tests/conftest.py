@@ -18,13 +18,15 @@ else:
     else:
         uvloop_policy = uvloop.EventLoopPolicy()
 
+pytest_plugins = ['pytester']
+
 
 @pytest.fixture(params=[
     pytest.param(('asyncio', {'policy': asyncio.DefaultEventLoopPolicy()}), id='asyncio'),
     pytest.param(('asyncio', {'policy': uvloop_policy}), id='asyncio+uvloop', marks=uvloop_marks),
     pytest.param('curio'),
     pytest.param('trio')
-], autouse=True)
+])
 def anyio_backend(request):
     return request.param
 

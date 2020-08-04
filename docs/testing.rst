@@ -9,71 +9,50 @@ plugin.
 Creating asynchronous tests
 ---------------------------
 
-To mark a coroutine function to be run via :func:`anyio.run`, simply add the ``@pytest.mark.anyio``
-decorator::
+Pytest does not natively support running asynchronous test functions, so they have to be marked
+for the AnyIO pytest plugin to pick them up. This can be done in one of two ways:
+
+#. Using the ``pytest.mark.anyio`` marker
+#. Using the ``anyio_backend`` fixture, either directly or via another fixture
+
+The simplest way is thus the following::
 
     import pytest
 
+    # This is the same as using the @pytest.mark.anyio on all test functions in the module
+    pytestmark = pytest.mark.anyio
 
-    @pytest.mark.anyio
+
     async def test_something():
-        pass
-
-Asynchronous fixtures
----------------------
-
-The plugin also supports coroutine functions as fixtures, for the purpose of setting up and tearing
-down asynchronous services used for tests::
-
-    import pytest
-
-
-    @pytest.fixture
-    async def server():
-        server = await setup_server()
-        yield server
-        await server.shutdown()
-
-
-    @pytest.mark.anyio
-    async def test_server(server):
-        result = await server.do_something()
-        assert result == 'foo'
-
-Any coroutine fixture that is activated by a test marked with ``@pytest.mark.anyio`` will be run
-with the same backend as the test itself. Both plain coroutine functions and asynchronous generator
-functions are supported in the same manner as pytest itself does with regular functions and
-generator functions.
-
-Specifying the backend to run on
---------------------------------
-
-By default, all tests are run against the default backend (asyncio). The pytest plugin provides a
-command line switch (``--anyio-backends``) for selecting which backend(s) to run your tests
-against. By specifying a special value, ``all``, it will run against all available backends.
-
-For example, to run your test suite against the curio and trio backends:
-
-.. code-block:: bash
-
-    pytest --anyio-backends=curio,trio
-
-Behind the scenes, any function that uses the ``@pytest.mark.anyio`` marker gets parametrized by
-the plugin to use the ``anyio_backend`` fixture. One alternative is to do this parametrization on
-your own::
-
-    @pytest.mark.parametrize('anyio_backend', ['asyncio'])
-    async def test_on_asyncio_only(anyio_backend):
         ...
 
-Or you can write a simple fixture by the same name that provides the back-end name::
+Marking modules, classes or functions with this marker has the same effect as applying the
+``pytest.mark.usefixtures('anyio_backend')`` on them.
 
-    @pytest.fixture(params=['asyncio'])
-    def anyio_backend(request):
-        return request.param
+Thus, you can also require the fixture directly in your tests and fixtures::
+
+    import pytest
+
+
+    async def test_something(anyio_backend):
+        ...
+
+Specifying the backends to run on
+---------------------------------
+
+The ``anyio_backend`` fixture determines the backends and their options that tests and fixtures
+are run with. The AnyIO pytest plugin comes with a function scoped fixture with this name which
+runs everything on all supported backends.
+
+If you change the backends/options for the entire project, then put something like this in your top
+level ``conftest.py``::
+
+    @pytest.fixture
+    def anyio_backend():
+        return 'asyncio'
 
 If you want to specify different options for the selected backend, you can do so by passing a tuple
-of (backend name, options dict). The latter is passed as keyword arguments to :func:`anyio.run`::
+of (backend name, options dict)::
 
     @pytest.fixture(params=[
         pytest.param(('asyncio', {'use_uvloop': True}), id='asyncio+uvloop'),
@@ -84,19 +63,91 @@ of (backend name, options dict). The latter is passed as keyword arguments to :f
     def anyio_backend(request):
         return request.param
 
+If you need to run a single test on a specific backend, you can use ``@pytest.mark.parametrize``
+(remember to add the ``anyio_backend`` parameter to the actual test function, or pytest will
+complain)::
+
+    @pytest.mark.parametrize('anyio_backend', ['asyncio'])
+    async def test_on_asyncio_only(anyio_backend):
+        ...
+
 Because the ``anyio_backend`` fixture can return either a string or a tuple, there are two
-additional fixtures (which themselves depend on the ``anyio_backend`` fixture) provided for your
-convenience:
+additional function-scoped fixtures (which themselves depend on the ``anyio_backend`` fixture)
+provided for your convenience:
 
 * ``anyio_backend_name``: the name of the backend (e.g. ``asyncio``)
 * ``anyio_backend_options``: the dictionary of option keywords used to run the backend
 
-Using AnyIO from regular tests
-------------------------------
+Asynchronous fixtures
+---------------------
 
-In rare cases, you may need to have tests that run against whatever backends you have chosen to
-work with. For this, you can add the ``anyio_backend`` parameter to your test. It will be filled
-in with the name of each of the selected backends in turn::
+The plugin also supports coroutine functions as fixtures, for the purpose of setting up and tearing
+down asynchronous services used for tests.
 
-    def test_something(anyio_backend):
-        assert anyio_backend in ('asyncio', 'curio', 'trio')
+There are two ways to get the AnyIO pytest plugin to run your asynchronous fixtures:
+
+#. Use them in AnyIO enabled tests (see the first section)
+#. Use the ``anyio_backend`` fixture (or any other fixture using it) in the fixture itself
+
+The simplest way is using the first option::
+
+    import pytest
+
+    pytestmark = pytest.mark.anyio
+
+
+    @pytest.fixture
+    async def server():
+        server = await setup_server()
+        yield server
+        await server.shutdown()
+
+
+    async def test_server(server):
+        result = await server.do_something()
+        assert result == 'foo'
+
+
+For ``autouse=True`` fixtures, you may need to use the other approach::
+
+    @pytest.fixture(autouse=True)
+    async def server(anyio_backend):
+        server = await setup_server()
+        yield
+        await server.shutdown()
+
+
+    async def test_server():
+        result = await client.do_something_on_the_server()
+        assert result == 'foo'
+
+
+Using async fixtures with higher scopes
+---------------------------------------
+
+For async fixtures with scopes other than ``function``, you will need to define your own
+``anyio_backend`` fixture because the default ``anyio_backend`` fixture is function scoped::
+
+    @pytest.fixture(scope='module')
+    def anyio_backend():
+        return 'asyncio'
+
+
+    @pytest.fixture(scope='module')
+    async def server(anyio_backend):
+        server = await setup_server()
+        yield
+        await server.shutdown()
+
+Technical details
+-----------------
+
+The fixtures and tests are run by a "test runner", implemented separately for each backend.
+The test runner keeps an event loop open during the request, making it possible for code in
+fixtures to communicate with the code in the tests (and each other).
+
+The test runner is created when the first matching async test or fixture is about to be run, and
+shut down when that same fixture is being torn down or the test has finished running. As such,
+if no async fixtures are used, a separate test runner is created for each test. Conversely, if
+even one async fixture (scoped higher than ``function``) is shared across all tests, only one test
+runner will be created during the test session.

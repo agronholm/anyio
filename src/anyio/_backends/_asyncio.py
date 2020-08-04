@@ -119,6 +119,25 @@ def get_callable_name(func: Callable) -> str:
 # Event loop
 #
 
+def _maybe_set_event_loop_policy(policy: Optional[asyncio.AbstractEventLoopPolicy],
+                                 use_uvloop: bool) -> None:
+    # On CPython, use uvloop when possible if no other policy has been given and if not
+    # explicitly disabled
+    if policy is None and use_uvloop and sys.implementation.name == 'cpython':
+        try:
+            import uvloop
+        except ImportError:
+            pass
+        else:
+            # Test for missing shutdown_default_executor() (uvloop 0.14.0 and earlier)
+            if (not hasattr(asyncio.AbstractEventLoop, 'shutdown_default_executor')
+                    or hasattr(uvloop.loop.Loop, 'shutdown_default_executor')):
+                policy = uvloop.EventLoopPolicy()
+
+    if policy is not None:
+        asyncio.set_event_loop_policy(policy)
+
+
 def run(func: Callable[..., T_Retval], *args, debug: bool = False, use_uvloop: bool = True,
         policy: Optional[asyncio.AbstractEventLoopPolicy] = None) -> T_Retval:
     @wraps(func)
@@ -134,21 +153,7 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False, use_uvloop: b
         finally:
             del _task_states[task]
 
-    # On CPython, use uvloop when possible if no other policy has been given and if not explicitly
-    # disabled
-    if policy is None and use_uvloop and sys.implementation.name == 'cpython':
-        try:
-            import uvloop
-        except ImportError:
-            pass
-        else:
-            if (not hasattr(asyncio.AbstractEventLoop, 'shutdown_default_executor')
-                    or hasattr(uvloop.loop.Loop, 'shutdown_default_executor')):
-                policy = uvloop.EventLoopPolicy()
-
-    if policy is not None:
-        asyncio.set_event_loop_policy(policy)
-
+    _maybe_set_event_loop_policy(policy, use_uvloop)
     return native_run(wrapper(), debug=debug)
 
 
@@ -1331,3 +1336,40 @@ async def wait_all_tasks_blocked() -> None:
                 break
         else:
             return
+
+
+class TestRunner(abc.TestRunner):
+    def __init__(self, debug: bool = False, use_uvloop: bool = True,
+                 policy: Optional[asyncio.AbstractEventLoopPolicy] = None):
+        _maybe_set_event_loop_policy(policy, use_uvloop)
+        self._loop = asyncio.new_event_loop()
+        self._loop.set_debug(debug)
+        asyncio.set_event_loop(self._loop)
+
+    def _cancel_all_tasks(self):
+        to_cancel = all_tasks(self._loop)
+        if not to_cancel:
+            return
+
+        for task in to_cancel:
+            task.cancel()
+
+        self._loop.run_until_complete(
+            asyncio.gather(*to_cancel, loop=self._loop, return_exceptions=True))
+
+        for task in to_cancel:
+            if task.cancelled():
+                continue
+            if task.exception() is not None:
+                raise task.exception()
+
+    def close(self) -> None:
+        try:
+            self._cancel_all_tasks()
+            self._loop.run_until_complete(self._loop.shutdown_asyncgens())
+        finally:
+            asyncio.set_event_loop(None)
+            self._loop.close()
+
+    def call(self, func: Callable[..., Awaitable], *args, **kwargs):
+        return self._loop.run_until_complete(func(*args, **kwargs))
