@@ -40,21 +40,21 @@ If you need to establish a TLS session over TCP, you can use :func:`~anyio.conne
 a convenience (instead of wrapping the stream with :meth:`anyio.streams.tls.TLSStream.wrap` after
 a successful connection).
 
-To receive incoming TCP connections, you first create TCP listeners with
-:func:`anyio.create_tcp_listeners` and then pass them to :func:`~anyio.serve_listeners`::
+To receive incoming TCP connections, you first create a TCP listener with
+:func:`anyio.create_tcp_listener` and call :meth:`~anyio.abc.streamsListener.serve` on it::
 
-    from anyio import create_tcp_listeners, serve_listeners, run
+    from anyio import create_tcp_listeners, run
 
 
     async def handle(client):
         async with client:
             name = await client.receive(1024)
-            await client.send_all(b'Hello, %s\n' % name)
+            await client.send(b'Hello, %s\n' % name)
 
 
     async def main():
-        listeners = create_tcp_listeners(local_port=1234)
-        await serve_listeners(handle, listeners)
+        listener = create_tcp_listener(local_port=1234)
+        await listener.serve(handle)
 
     run(main)
 
@@ -76,26 +76,26 @@ This is what the client from the TCP example looks like when converted to use UN
 
     async def main():
         async with await connect_unix('/tmp/mysock') as client:
-            await client.send_all(b'Client\n')
-            response = await client.receive_until(b'\n', 1024)
+            await client.send(b'Client\n')
+            response = await client.receive(1024)
             print(response)
 
     run(main)
 
 And the listener::
 
-    from anyio import create_unix_listener, serve_listeners, run
+    from anyio import create_unix_listener, run
 
 
     async def handle(client):
         async with client:
-            name = await client.receive_until(b'\n', 1024)
-            await client.send_all(b'Hello, %s\n' % name)
+            name = await client.receive(1024)
+            await client.send(b'Hello, %s\n' % name)
 
 
     async def main():
         listener = await create_unix_listener('/tmp/mysock')
-        await serve_listeners(handle, [listener])
+        await listener.serve(handle)
 
     run(main)
 

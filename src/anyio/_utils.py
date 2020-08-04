@@ -39,3 +39,11 @@ def convert_ipv6_sockaddr(sockaddr):
             return sockaddr[:2]
     else:
         return sockaddr
+
+
+class NullAsyncContextManager:
+    async def __aenter__(self):
+        pass
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass

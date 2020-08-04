@@ -9,8 +9,8 @@ import pytest
 
 from anyio import (
     create_task_group, connect_tcp, create_udp_socket, connect_unix, create_unix_listener,
-    create_tcp_listeners, wait_all_tasks_blocked, move_on_after, getaddrinfo, getnameinfo,
-    serve_listeners, create_connected_udp_socket, connect_tcp_with_tls, create_event)
+    create_tcp_listener, wait_all_tasks_blocked, move_on_after, getaddrinfo, getnameinfo,
+    create_connected_udp_socket, connect_tcp_with_tls, create_event, MultiListener)
 from anyio.exceptions import ExceptionGroup, BusyResourceError, ClosedResourceError
 
 pytestmark = pytest.mark.anyio
@@ -293,9 +293,8 @@ class TestTCPListener:
                      marks=[pytest.mark.skipif(not socket.has_ipv6, reason='no IPv6 support')])
     ])
     async def test_accept(self, family):
-        listeners = await create_tcp_listeners(local_host='localhost', family=family)
-        for listener in listeners:
-            async with listener:
+        async with await create_tcp_listener(local_host='localhost', family=family) as multi:
+            for listener in multi.listeners:
                 client = socket.socket(listener.family)
                 client.settimeout(1)
                 client.connect(listener.local_address)
@@ -308,39 +307,39 @@ class TestTCPListener:
                 await stream.aclose()
 
     async def test_socket_options(self, family):
-        listener = (await create_tcp_listeners(local_host='localhost', family=family))[0]
-        async with listener:
-            if sys.platform == 'win32':
-                assert listener.getsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE) != 0
-            else:
-                assert listener.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR) != 0
+        async with await create_tcp_listener(local_host='localhost', family=family) as multi:
+            for listener in multi.listeners:
+                if sys.platform == 'win32':
+                    assert listener.getsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE) != 0
+                else:
+                    assert listener.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR) != 0
 
-            listener.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
-            assert listener.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
+                listener.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
+                assert listener.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
 
-            client = socket.socket(listener.family)
-            client.settimeout(1)
-            client.connect(listener.local_address)
+                client = socket.socket(listener.family)
+                client.settimeout(1)
+                client.connect(listener.local_address)
 
-            async with await listener.accept() as stream:
-                assert stream.family == listener.family
-                assert stream.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
+                async with await listener.accept() as stream:
+                    assert stream.family == listener.family
+                    assert stream.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
 
-            client.close()
+                client.close()
 
     @pytest.mark.skipif(sys.platform == 'win32', reason='Not supported on Windows')
     async def test_reuse_port(self, family):
-        listeners = await create_tcp_listeners(local_host='localhost', family=family,
-                                               reuse_port=True)
-        assert len(listeners) == 1
+        multi1 = await create_tcp_listener(local_host='localhost', family=family, reuse_port=True)
+        assert len(multi1.listeners) == 1
 
-        listeners.extend(await create_tcp_listeners(
-                local_host='localhost', local_port=listeners[0].local_address[1],
-                family=family, reuse_port=True))
-        assert len(listeners) == 2
-        assert listeners[0].local_address == listeners[1].local_address
-        for listener in listeners:
-            await listener.aclose()
+        multi2 = await create_tcp_listener(
+            local_host='localhost', local_port=multi1.listeners[0].local_address[1],
+            family=family, reuse_port=True)
+        assert len(multi2.listeners) == 1
+
+        assert multi1.listeners[0].local_address == multi1.listeners[0].local_address
+        await multi1.aclose()
+        await multi2.aclose()
 
 
 @pytest.mark.skipif(sys.platform == 'win32',
@@ -528,22 +527,23 @@ class TestUNIXListener:
             client.close()
 
 
-async def test_serve_listeners(tmp_path_factory):
+async def test_multi_listener(tmp_path_factory):
     async def handle(stream):
         client_addresses.append(stream.remote_address)
         await event.set()
         await stream.aclose()
 
     client_addresses = []
-    listeners = await create_tcp_listeners(local_host='localhost')
+    listeners = [await create_tcp_listener(local_host='localhost')]
     if sys.platform != 'win32':
         socket_path = tmp_path_factory.mktemp('unix').joinpath('socket')
         listeners.append(await create_unix_listener(socket_path))
 
     expected_addresses = []
+    multi_listener = MultiListener(listeners)
     async with create_task_group() as tg:
-        await tg.spawn(serve_listeners, handle, listeners)
-        for listener in listeners:
+        await tg.spawn(multi_listener.serve, handle)
+        for listener in multi_listener.listeners:
             event = create_event()
             if sys.platform != 'win32' and listener.family == socket.AddressFamily.AF_UNIX:
                 stream = await connect_unix(listener.local_address)

@@ -70,8 +70,6 @@ Streams and stream wrappers
 
 .. autofunction:: anyio.create_memory_object_stream
 
-.. autofunction:: anyio.serve_listeners
-
 .. autoclass:: anyio.streams.buffered.BufferedByteReceiveStream
     :members:
 
@@ -79,6 +77,9 @@ Streams and stream wrappers
     :members:
 
 .. autoclass:: anyio.streams.memory.MemoryObjectSendStream
+    :members:
+
+.. autoclass:: anyio.streams.stapled.MultiListener
     :members:
 
 .. autoclass:: anyio.streams.stapled.StapledByteStream

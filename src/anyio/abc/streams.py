@@ -1,11 +1,12 @@
 from abc import abstractmethod
-from typing import Generic, TypeVar, Union
+from typing import Generic, TypeVar, Union, Callable, Any, Optional
 
 from .resource import AsyncResource
-from ..exceptions import EndOfStream, ClosedResourceError
+from .tasks import TaskGroup
+from ..exceptions import EndOfStream
 
 T_Item = TypeVar('T_Item')
-T_Stream = TypeVar('T_Stream', bound='AnyByteStream', covariant=True)
+T_Stream = TypeVar('T_Stream')
 
 
 class UnreliableObjectReceiveStream(Generic[T_Item], AsyncResource):
@@ -167,22 +168,15 @@ AnyByteStream = Union[ObjectStream[bytes], ByteStream]
 
 
 class Listener(Generic[T_Stream], AsyncResource):
-    """
-    An interface for objects that let you accept incoming connections.
-
-    Asynchronously iterating over this object will yield streams matching the type parameter
-    given for this interface.
-    """
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self) -> T_Stream:
-        try:
-            return await self.accept()
-        except ClosedResourceError:
-            raise StopAsyncIteration
+    """An interface for objects that let you accept incoming connections."""
 
     @abstractmethod
-    async def accept(self) -> T_Stream:
-        """Accept an incoming connection."""
+    async def serve(self, handler: Callable[[T_Stream], Any],
+                    task_group: Optional[TaskGroup] = None) -> None:
+        """
+        Accept incoming connections as they come in and spawn tasks to handle them.
+
+        :param handler: a callable that will be used to handle each accepted connection
+        :param task_group: the task group that will be used to spawn tasks for handling each
+            accepted connection (if omitted, an ad-hoc task group will be created)
+        """
