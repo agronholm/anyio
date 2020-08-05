@@ -46,8 +46,8 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
         if self._state.waiting_senders:
             # Get the item from the next sender
             send_event, item = self._state.waiting_senders.popitem(last=False)
-            await send_event.set()
             self._state.buffer.append(item)
+            await send_event.set()
 
         if self._state.buffer:
             return self._state.buffer.popleft()
