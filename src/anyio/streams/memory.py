@@ -43,15 +43,16 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
         if self._closed:
             raise ClosedResourceError
 
+        if self._state.waiting_senders:
+            # Get the item from the next sender
+            send_event, item = self._state.waiting_senders.popitem(last=False)
+            await send_event.set()
+            self._state.buffer.append(item)
+
         if self._state.buffer:
             return self._state.buffer.popleft()
         elif not self._state.open_send_channels:
             raise EndOfStream
-        elif self._state.waiting_senders:
-            # Get the item from the next sender
-            send_event, item = self._state.waiting_senders.popitem(last=False)
-            await send_event.set()
-            return item
 
         raise WouldBlock
 

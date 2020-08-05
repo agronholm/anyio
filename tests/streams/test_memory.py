@@ -56,6 +56,17 @@ async def test_send_then_receive_nowait():
         assert await receive.receive_nowait() == 'hello'
 
 
+async def test_send_is_unblocked_after_receive_nowait():
+    send, receive = create_memory_object_stream(1)
+    await send.send_nowait('hello')
+    async with create_task_group() as tg:
+        await tg.spawn(send.send, 'anyio')
+        await wait_all_tasks_blocked()
+        assert await receive.receive_nowait() == 'hello'
+        await wait_all_tasks_blocked()
+        assert len(receive._state.buffer) == 1
+
+
 async def test_send_nowait_then_receive_nowait():
     send, receive = create_memory_object_stream(2)
     await send.send_nowait('hello')
