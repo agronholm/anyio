@@ -1,6 +1,7 @@
 import pytest
 
-from anyio import create_task_group, wait_all_tasks_blocked, create_memory_object_stream
+from anyio import (
+    create_task_group, wait_all_tasks_blocked, create_memory_object_stream, fail_after)
 from anyio.exceptions import EndOfStream, ClosedResourceError, BrokenResourceError, WouldBlock
 
 pytestmark = pytest.mark.anyio
@@ -54,6 +55,19 @@ async def test_send_then_receive_nowait():
         await tg.spawn(send.send, 'hello')
         await wait_all_tasks_blocked()
         assert await receive.receive_nowait() == 'hello'
+
+
+async def test_send_is_unblocked_after_receive_nowait():
+    send, receive = create_memory_object_stream(1)
+    await send.send_nowait('hello')
+
+    async with fail_after(1):
+        async with create_task_group() as tg:
+            await tg.spawn(send.send, 'anyio')
+            await wait_all_tasks_blocked()
+            assert await receive.receive_nowait() == 'hello'
+
+    assert await receive.receive_nowait() == 'anyio'
 
 
 async def test_send_nowait_then_receive_nowait():
