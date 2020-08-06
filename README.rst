@@ -18,7 +18,9 @@ It bridges the following functionality:
 * Threads
 * Signal handling
 * Asynchronous file I/O
-* Synchronization primitives (locks, conditions, events, semaphores, queues)
+* Subprocesses
+* Inter-task synchronization and communication (locks, conditions, events, semaphores, object
+  streams)
 * High level networking (TCP, UDP and UNIX sockets)
 
 You can even use it together with native libraries from your selected backend in applications.
