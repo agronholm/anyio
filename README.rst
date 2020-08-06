@@ -7,6 +7,9 @@
 .. image:: https://readthedocs.org/projects/anyio/badge/?version=latest
   :target: https://anyio.readthedocs.io/en/latest/?badge=latest
   :alt: Documentation
+.. image:: https://badges.gitter.im/gitterHQ/gitter.png
+  :target: https://gitter.im/python-trio/AnyIO
+  :alt: Gitter chat
 
 AnyIO is a asynchronous compatibility API that allows applications and libraries written against
 it to run unmodified on asyncio_, curio_ and trio_.
