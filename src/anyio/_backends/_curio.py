@@ -4,13 +4,14 @@ import socket
 import sys
 from collections import OrderedDict, defaultdict
 from concurrent.futures import Future
+from dataclasses import dataclass
 from signal import signal
 from socket import AddressFamily, SocketKind
 from threading import Thread
 from types import TracebackType
 from typing import (
     Callable, Set, Optional, Coroutine, Any, cast, Dict, List, Sequence, DefaultDict, Type,
-    Awaitable, Union, Tuple, TYPE_CHECKING, TypeVar, Generic)
+    Awaitable, Union, Tuple, NoReturn, TypeVar, Generic)
 from weakref import WeakKeyDictionary
 
 import curio.io
@@ -19,23 +20,22 @@ import curio.socket
 import curio.ssl
 import curio.subprocess
 import curio.traps
-from dataclasses import dataclass
 
-from .. import (
-    abc, T_Retval, claim_worker_thread, TaskInfo, _local, GetAddrInfoReturnType, IPSockAddrType)
+from .. import abc, TaskInfo
+from .._core._eventloop import threadlocals, claim_worker_thread
+from .._core._sockets import GetAddrInfoReturnType
+from .._core._synchronization import ResourceGuard
+from ..abc.sockets import IPSockAddrType, UDPPacketType
 from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock,
     BrokenResourceError, EndOfStream)
-from .._utils import ResourceGuard
 
 if sys.version_info >= (3, 7):
     from contextlib import asynccontextmanager
 else:
     from async_generator import asynccontextmanager
 
-if TYPE_CHECKING:
-    from typing import NoReturn
-
+T_Retval = TypeVar('T_Retval')
 T_SockAddr = TypeVar('T_SockAddr', str, IPSockAddrType)
 
 
@@ -413,7 +413,7 @@ async def run_sync_in_worker_thread(
         nonlocal retval, exception
         try:
             with claim_worker_thread('curio'):
-                _local.queue = queue
+                threadlocals.queue = queue
                 retval = func(*args)
         except BaseException as exc:
             exception = exc
@@ -442,7 +442,7 @@ async def run_sync_in_worker_thread(
 
 def run_async_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
     future: Future[T_Retval] = Future()
-    _local.queue.put((func, args, future))
+    threadlocals.queue.put((func, args, future))
     return future.result()
 
 
@@ -609,7 +609,7 @@ class _CurioSocketMixin(Generic[T_SockAddr]):
             if wtask:
                 await wtask.cancel(blocking=False, exc=ClosedResourceError)
 
-    def _convert_socket_error(self, exc: Union[OSError, AttributeError]) -> 'NoReturn':
+    def _convert_socket_error(self, exc: Union[OSError, AttributeError]) -> NoReturn:
         if self._curio_socket.fileno() < 0:
             if self._closed:
                 raise ClosedResourceError from None
@@ -690,7 +690,7 @@ class UDPSocket(_CurioSocketMixin[IPSockAddrType], abc.UDPSocket):
             except (OSError, AttributeError) as exc:
                 self._convert_socket_error(exc)
 
-    async def send(self, item: abc.UDPPacketType) -> None:
+    async def send(self, item: UDPPacketType) -> None:
         with self._send_guard:
             await check_cancelled()
             try:

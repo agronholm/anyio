@@ -1,4 +1,4 @@
-from anyio import BACKENDS
+from anyio import get_all_backends
 
 
 def test_plugin(testdir):
@@ -21,7 +21,7 @@ def test_plugin(testdir):
         import pytest
 
         import sniffio
-        from anyio import BACKENDS, sleep
+        from anyio import get_all_backends, sleep
 
 
         @pytest.mark.anyio
@@ -32,7 +32,7 @@ def test_plugin(testdir):
         @pytest.mark.anyio
         async def test_async_fixture_from_marked_test(async_fixture):
             # Test that async functions can use async fixtures
-            assert async_fixture in BACKENDS
+            assert async_fixture in get_all_backends()
 
         @pytest.mark.parametrize('anyio_backend', ['curio'])
         async def test_explicit_backend(anyio_backend):
@@ -59,7 +59,7 @@ def test_plugin(testdir):
     )
 
     result = testdir.runpytest('-v', '-p', 'no:curio')
-    result.assert_outcomes(passed=3 * len(BACKENDS) + 2)
+    result.assert_outcomes(passed=3 * len(get_all_backends()) + 2)
 
 
 def test_autouse_async_fixture(testdir):
@@ -86,17 +86,17 @@ def test_autouse_async_fixture(testdir):
         import pytest
 
         import sniffio
-        from anyio import BACKENDS, sleep
+        from anyio import get_all_backends, sleep
 
 
         def test_autouse_backend(autouse_backend_name):
             # Test that async autouse fixtures are triggered
-            assert autouse_backend_name in BACKENDS
+            assert autouse_backend_name in get_all_backends()
         """
     )
 
     result = testdir.runpytest('-v', '-p', 'no:curio')
-    result.assert_outcomes(passed=len(BACKENDS))
+    result.assert_outcomes(passed=len(get_all_backends()))
 
 
 def test_hypothesis_module_mark(testdir):
@@ -121,7 +121,7 @@ def test_hypothesis_module_mark(testdir):
     )
 
     result = testdir.runpytest('-v', '-p', 'no:curio')
-    result.assert_outcomes(passed=len(BACKENDS) + 1)
+    result.assert_outcomes(passed=len(get_all_backends()) + 1)
 
 
 def test_hypothesis_function_mark(testdir):
@@ -146,4 +146,4 @@ def test_hypothesis_function_mark(testdir):
     )
 
     result = testdir.runpytest('-v', '-p', 'no:curio')
-    result.assert_outcomes(passed=2 * len(BACKENDS))
+    result.assert_outcomes(passed=2 * len(get_all_backends()))

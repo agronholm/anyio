@@ -15,6 +15,14 @@ T_Retval = TypeVar('T_Retval')
 T_SockAddr = TypeVar('T_SockAddr', str, IPSockAddrType)
 
 
+class _NullAsyncContextManager:
+    async def __aenter__(self):
+        pass
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
 class _SocketMixin(Generic[T_SockAddr]):
     @abstractmethod
     def getsockopt(self, level, optname, *args):
@@ -73,14 +81,13 @@ class SocketListener(Generic[T_SockAddr], Listener[SocketStream[T_SockAddr]],
     async def serve(self, handler: Callable[[T_Stream], Any],
                     task_group: Optional[TaskGroup] = None) -> None:
         from .. import create_task_group
-        from .._utils import NullAsyncContextManager
 
         context_manager: AsyncContextManager
         if task_group is None:
             task_group = context_manager = create_task_group()
         else:
             # Can be replaced with AsyncExitStack once on py3.7+
-            context_manager = NullAsyncContextManager()
+            context_manager = _NullAsyncContextManager()
 
         # There is a mypy bug here
         async with context_manager:  # type: ignore[attr-defined]

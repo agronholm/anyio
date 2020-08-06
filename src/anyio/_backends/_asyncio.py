@@ -5,6 +5,7 @@ import socket
 import sys
 from collections import OrderedDict, deque
 from concurrent.futures import Future
+from dataclasses import dataclass
 from functools import wraps
 from inspect import isgenerator
 from threading import Thread
@@ -15,15 +16,14 @@ from typing import (
     List, Dict, Sequence, Type, Deque)
 from weakref import WeakKeyDictionary
 
-from dataclasses import dataclass
-
-from .. import (
-    abc, claim_worker_thread, _local, T_Retval, TaskInfo, GetAddrInfoReturnType)
-from ..abc import IPSockAddrType, SockAddrType
+from .. import abc, TaskInfo
+from .._core._eventloop import threadlocals, claim_worker_thread
+from .._core._sockets import GetAddrInfoReturnType
+from .._core._synchronization import ResourceGuard
+from ..abc.sockets import IPSockAddrType, SockAddrType, UDPPacketType
 from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock,
     BrokenResourceError, EndOfStream)
-from .._utils import ResourceGuard
 
 if sys.version_info >= (3, 7):
     from asyncio import create_task, get_running_loop, current_task, all_tasks, run as native_run
@@ -105,6 +105,8 @@ else:
             loop = get_running_loop()
 
         return asyncio.Task.current_task(loop)
+
+T_Retval = TypeVar('T_Retval')
 
 # Check whether there is native support for task names in asyncio (3.8+)
 _native_task_names = hasattr(asyncio.Task, 'get_name')
@@ -494,7 +496,7 @@ async def run_sync_in_worker_thread(
     def thread_worker():
         try:
             with claim_worker_thread('asyncio'):
-                _local.loop = loop
+                threadlocals.loop = loop
                 result = func(*args)
         except BaseException as exc:
             if not loop.is_closed():
@@ -530,7 +532,7 @@ async def run_sync_in_worker_thread(
 
 def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args) -> T_Retval:
     f: concurrent.futures.Future[T_Retval] = asyncio.run_coroutine_threadsafe(
-        func(*args), _local.loop)
+        func(*args), threadlocals.loop)
     return f.result()
 
 
@@ -893,7 +895,7 @@ class UDPSocket(abc.UDPSocket):
                 else:
                     raise BrokenResourceError from None
 
-    async def send(self, item: abc.UDPPacketType) -> None:
+    async def send(self, item: UDPPacketType) -> None:
         with self._send_guard:
             await check_cancelled()
             await self._protocol.write_event.wait()

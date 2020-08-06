@@ -6,7 +6,7 @@ from typing import cast, Dict, Any, Tuple, Iterator, Optional
 import pytest
 import sniffio
 
-from . import BACKENDS, _get_asynclib
+from ._core._eventloop import get_asynclib, get_all_backends
 from .abc import TestRunner
 
 if sys.version_info >= (3, 7):
@@ -34,7 +34,7 @@ def get_runner(backend_name: str, backend_options: Dict[str, Any]) -> Iterator[T
         yield _current_runner
         return
 
-    asynclib = _get_asynclib(backend_name)
+    asynclib = get_asynclib(backend_name)
     token = None
     if sniffio.current_async_library_cvar.get(None) is None:
         # Since we're in control of the event loop, we can cache the name of the async library
@@ -132,7 +132,7 @@ def pytest_pyfunc_call(pyfuncitem):
             return True
 
 
-@pytest.fixture(params=BACKENDS)
+@pytest.fixture(params=get_all_backends())
 def anyio_backend(request):
     return request.param
 

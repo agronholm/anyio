@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Optional
 
-from .resource import AsyncResource
+from .resources import AsyncResource
 from .streams import ByteSendStream, ByteReceiveStream
 
 

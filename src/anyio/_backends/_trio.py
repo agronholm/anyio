@@ -4,18 +4,19 @@ from concurrent.futures import Future
 from dataclasses import dataclass
 from types import TracebackType
 from typing import (
-    Callable, Optional, List, Type, Union, Tuple, TYPE_CHECKING, TypeVar, Generic, Awaitable)
+    Callable, Optional, List, Type, Union, Tuple, NoReturn, TypeVar, Generic, Awaitable)
 
 import trio.from_thread
 from outcome import Error, Value
 from trio.to_thread import run_sync
 
-from .. import abc, claim_worker_thread, T_Retval, TaskInfo
-from ..abc import IPSockAddrType
+from .. import abc, TaskInfo
+from .._core._eventloop import claim_worker_thread
+from .._core._synchronization import ResourceGuard
+from ..abc.sockets import IPSockAddrType, UDPPacketType
 from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock,
     BrokenResourceError, EndOfStream)
-from .._utils import ResourceGuard
 
 try:
     import trio.lowlevel as trio_lowlevel
@@ -30,9 +31,7 @@ if sys.version_info >= (3, 7):
 else:
     from async_generator import asynccontextmanager
 
-if TYPE_CHECKING:
-    from typing import NoReturn
-
+T_Retval = TypeVar('T_Retval')
 T_SockAddr = TypeVar('T_SockAddr', str, IPSockAddrType)
 
 
@@ -407,7 +406,7 @@ class UDPSocket(_TrioSocketMixin[IPSockAddrType], abc.UDPSocket):
             except BaseException as exc:
                 self._convert_socket_error(exc)
 
-    async def send(self, item: abc.UDPPacketType) -> None:
+    async def send(self, item: UDPPacketType) -> None:
         with self._send_guard:
             try:
                 await self._trio_socket.sendto(*item)

@@ -11,7 +11,7 @@ T_Item = TypeVar('T_Item')
 
 
 @dataclass
-class _MemoryObjectStreamState(Generic[T_Item]):
+class MemoryObjectStreamState(Generic[T_Item]):
     max_buffer_size: float = field()
     buffer: Deque[T_Item] = field(init=False, default_factory=deque)
     open_send_channels: int = field(init=False, default=0)
@@ -23,7 +23,7 @@ class _MemoryObjectStreamState(Generic[T_Item]):
 
 @dataclass
 class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
-    _state: _MemoryObjectStreamState[T_Item]
+    _state: MemoryObjectStreamState[T_Item]
     _closed: bool = field(init=False, default=False)
 
     def __post_init__(self):
@@ -105,7 +105,7 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
 
 @dataclass
 class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
-    _state: _MemoryObjectStreamState[T_Item]
+    _state: MemoryObjectStreamState[T_Item]
     _closed: bool = field(init=False, default=False)
 
     def __post_init__(self):

@@ -1,5 +1,4 @@
-__all__ = ('IPAddressType', 'IPSockAddrType', 'SockAddrType', 'UDPPacketType', 'SocketStream',
-           'SocketListener', 'UDPSocket', 'ConnectedUDPSocket', 'AsyncResource',
+__all__ = ('AsyncResource', 'SocketStream', 'SocketListener', 'UDPSocket', 'ConnectedUDPSocket',
            'UnreliableObjectReceiveStream', 'UnreliableObjectSendStream', 'UnreliableObjectStream',
            'ObjectReceiveStream', 'ObjectSendStream', 'ObjectStream', 'ByteReceiveStream',
            'ByteSendStream', 'ByteStream', 'AnyUnreliableByteReceiveStream',
@@ -8,10 +7,8 @@ __all__ = ('IPAddressType', 'IPSockAddrType', 'SockAddrType', 'UDPPacketType', '
            'Condition', 'Semaphore', 'CapacityLimiter', 'CancelScope', 'TaskGroup', 'TestRunner',
            'BlockingPortal')
 
-from .sockets import (
-    IPAddressType, IPSockAddrType, SockAddrType, UDPPacketType, SocketStream, SocketListener,
-    UDPSocket, ConnectedUDPSocket)
-from .resource import AsyncResource
+from .resources import AsyncResource
+from .sockets import SocketStream, SocketListener, UDPSocket, ConnectedUDPSocket
 from .streams import (
     UnreliableObjectReceiveStream, UnreliableObjectSendStream, UnreliableObjectStream,
     ObjectReceiveStream, ObjectSendStream, ObjectStream, ByteReceiveStream, ByteSendStream,

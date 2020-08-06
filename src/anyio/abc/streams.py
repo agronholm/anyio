@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Generic, TypeVar, Union, Callable, Any, Optional
 
-from .resource import AsyncResource
+from .resources import AsyncResource
 from .tasks import TaskGroup
 from ..exceptions import EndOfStream
 
