@@ -1,5 +1,7 @@
 import ssl
 import sys
+from functools import wraps
+
 from dataclasses import dataclass
 from typing import Optional, Callable, Tuple, overload, List, Dict, Union, TypeVar, Any
 
@@ -199,6 +201,7 @@ class TLSListener(Listener[TLSStream]):
 
     async def serve(self, handler: Callable[[TLSStream], Any],
                     task_group: Optional[TaskGroup] = None) -> None:
+        @wraps(handler)
         async def handler_wrapper(stream: AnyByteStream):
             wrapped_stream = await TLSStream.wrap(stream, ssl_context=self.context,
                                                   standard_compatible=self.standard_compatible)
