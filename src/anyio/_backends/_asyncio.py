@@ -1146,23 +1146,6 @@ class Semaphore(abc.Semaphore):
         return self._semaphore._value
 
 
-class Queue(asyncio.Queue):
-    async def get(self):
-        await check_cancelled()
-        return await super().get()
-
-    async def put(self, item):
-        await check_cancelled()
-        return await super().put(item)
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        await check_cancelled()
-        return await super().get()
-
-
 class CapacityLimiter(abc.CapacityLimiter):
     def __init__(self, total_tokens: float):
         self._set_total_tokens(total_tokens)
