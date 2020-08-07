@@ -46,7 +46,7 @@ Async file I/O
 
 .. autofunction:: anyio.open_file
 
-.. autoclass:: anyio.fileio.AsyncFile
+.. autoclass:: anyio.AsyncFile
 
 
 Streams and stream wrappers
@@ -110,7 +110,7 @@ Sockets and networking
 .. autofunction:: anyio.connect_tcp
 .. autofunction:: anyio.connect_tcp_with_tls
 .. autofunction:: anyio.connect_unix
-.. autofunction:: anyio.create_tcp_listeners
+.. autofunction:: anyio.create_tcp_listener
 .. autofunction:: anyio.create_unix_listener
 .. autofunction:: anyio.create_udp_socket
 .. autofunction:: anyio.create_connected_udp_socket

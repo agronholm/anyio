@@ -7,6 +7,7 @@ class ExceptionGroup(BaseException):
 
     SEPARATOR = '----------------------------\n'
 
+    #: the sequence of exceptions raised together
     exceptions: Sequence[BaseException]
 
     def __str__(self):
@@ -20,11 +21,10 @@ class ExceptionGroup(BaseException):
 
 
 class IncompleteRead(Exception):
-    """"
-    Raised during ``read_exactly()`` if the connection is closed before the requested amount of
-    bytes has been read.
-
-    :ivar bytes data: bytes read before the stream was closed
+    """
+    Raised during :meth:`~anyio.streams.buffered.BufferedByteReceiveStream.receive_exactly` or
+    :meth:`~anyio.streams.buffered.BufferedByteReceiveStream.receive_until` if the
+    connection is closed before the requested amount of bytes has been read.
     """
 
     def __init__(self) -> None:
@@ -33,10 +33,8 @@ class IncompleteRead(Exception):
 
 class DelimiterNotFound(Exception):
     """
-    Raised during ``read_until()`` if the maximum number of bytes has been read without the
-    delimiter being found.
-
-    :ivar bytes data: bytes read before giving up
+    Raised during :meth:`~anyio.streams.buffered.BufferedByteReceiveStream.receive_until` if the
+    maximum number of bytes has been read without the delimiter being found.
     """
 
     def __init__(self, max_bytes: int) -> None:
