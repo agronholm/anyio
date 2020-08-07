@@ -35,7 +35,7 @@ IPAddressFamily = Literal[AddressFamily.AF_INET, AddressFamily.AF_INET6]
 
 async def connect_tcp(
     remote_host: IPAddressType, remote_port: int, *, local_host: Optional[IPAddressType] = None,
-    local_port: Optional[int] = None, happy_eyeballs_delay: float = 0.25
+    happy_eyeballs_delay: float = 0.25
 ) -> SocketStream:
     """
     Connect to a host using the TCP protocol.
@@ -49,7 +49,6 @@ async def connect_tcp(
     :param remote_host: the IP address or host name to connect to
     :param remote_port: port on the target host to connect to
     :param local_host: the interface address or name to bind the socket to before connecting
-    :param local_port: the port to bind the socket to before connecting
     :param happy_eyeballs_delay: delay (in seconds) before starting the next connection attempt
     :return: a socket stream object
     :raises OSError: if the connection attempt fails
@@ -78,7 +77,7 @@ async def connect_tcp(
     local_address: Optional[IPSockAddrType] = None
     family = socket.AF_UNSPEC
     if local_host:
-        gai_res = await getaddrinfo(str(local_host), local_port)
+        gai_res = await getaddrinfo(str(local_host), None)
         family, *_, local_address = gai_res[0]
 
     target_host = str(remote_host)
@@ -125,8 +124,8 @@ async def connect_tcp(
 
 async def connect_tcp_with_tls(
     remote_host: IPAddressType, remote_port: int, *, local_host: Optional[IPAddressType] = None,
-    local_port: Optional[int] = None, happy_eyeballs_delay: float = 0.25,
-    server_hostname: Optional[str] = None, ssl_context: Optional[ssl.SSLContext] = None
+    happy_eyeballs_delay: float = 0.25, server_hostname: Optional[str] = None,
+    ssl_context: Optional[ssl.SSLContext] = None
 ) -> TLSStream:
     """
     Connect to a host using TCP and establish a TLS encrypted session over it.
@@ -137,7 +136,6 @@ async def connect_tcp_with_tls(
     :param remote_host: the IP address or host name to connect to
     :param remote_port: port on the target host to connect to
     :param local_host: the interface address or name to bind the socket to before connecting
-    :param local_port: the port to bind the socket to before connecting
     :param happy_eyeballs_delay: delay (in seconds) before starting the next connection attempt
     :param server_hostname: host name to use for checking against the server certificate
         (defaults to the value of ``remote_host``)
@@ -148,7 +146,7 @@ async def connect_tcp_with_tls(
 
     """
     stream = await connect_tcp(remote_host, remote_port, local_host=local_host,
-                               local_port=local_port, happy_eyeballs_delay=happy_eyeballs_delay)
+                               happy_eyeballs_delay=happy_eyeballs_delay)
     hostname = server_hostname or str(remote_host)
     return await TLSStream.wrap(stream, server_side=False, hostname=hostname,
                                 ssl_context=ssl_context)
