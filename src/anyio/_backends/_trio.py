@@ -56,7 +56,7 @@ sleep = trio.sleep
 CancelledError = trio.Cancelled
 
 
-class CancelScope:
+class CancelScope(abc.CancelScope):
     __slots__ = '__original'
 
     def __init__(self, original: Optional[trio.CancelScope] = None, **kwargs):
@@ -90,9 +90,6 @@ class CancelScope:
     @property
     def shield(self) -> bool:
         return self.__original.shield
-
-
-abc.CancelScope.register(CancelScope)
 
 
 @asynccontextmanager

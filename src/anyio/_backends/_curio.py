@@ -83,7 +83,7 @@ async def sleep(delay: float):
 CancelledError = curio.TaskCancelled
 
 
-class CancelScope:
+class CancelScope(abc.CancelScope):
     __slots__ = ('_deadline', '_shield', '_parent_scope', '_cancel_called', '_active',
                  '_previous_timeout', '_tasks', '_host_task', '_timeout_expired')
 
@@ -215,9 +215,6 @@ class CancelScope:
         return self._shield
 
 
-abc.CancelScope.register(CancelScope)
-
-
 async def check_cancelled():
     try:
         cancel_scope = _task_states[await curio.current_task()].cancel_scope
@@ -298,11 +295,11 @@ class ExceptionGroup(BaseExceptionGroup):
         self.exceptions = exceptions
 
 
-class TaskGroup:
+class TaskGroup(abc.TaskGroup):
     __slots__ = 'cancel_scope', '_active', '_exceptions'
 
     def __init__(self) -> None:
-        self.cancel_scope = CancelScope()
+        self.cancel_scope: CancelScope = CancelScope()
         self._active = False
         self._exceptions: List[BaseException] = []
 
@@ -378,9 +375,6 @@ class TaskGroup:
         # Make the spawned task inherit the task group's cancel scope
         _task_states[task] = TaskState(cancel_scope=self.cancel_scope)
         self.cancel_scope._tasks.add(task)
-
-
-abc.TaskGroup.register(TaskGroup)
 
 
 #

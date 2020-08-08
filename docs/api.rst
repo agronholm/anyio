@@ -188,5 +188,7 @@ Exceptions
 .. autoexception:: anyio.exceptions.DelimiterNotFound
 .. autoexception:: anyio.exceptions.EndOfStream
 .. autoexception:: anyio.exceptions.ExceptionGroup
+    :members:
+
 .. autoexception:: anyio.exceptions.IncompleteRead
 .. autoexception:: anyio.exceptions.WouldBlock

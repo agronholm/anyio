@@ -176,7 +176,7 @@ async def sleep(delay: float) -> None:
 CancelledError = asyncio.CancelledError
 
 
-class CancelScope:
+class CancelScope(abc.CancelScope):
     __slots__ = ('_deadline', '_shield', '_parent_scope', '_cancel_called', '_active',
                  '_timeout_task', '_tasks', '_host_task', '_timeout_expired')
 
@@ -310,9 +310,6 @@ class CancelScope:
         return self._shield
 
 
-abc.CancelScope.register(CancelScope)
-
-
 async def check_cancelled():
     try:
         cancel_scope = _task_states[current_task()].cancel_scope
@@ -396,11 +393,11 @@ class ExceptionGroup(BaseExceptionGroup):
         self.exceptions = exceptions
 
 
-class TaskGroup:
+class TaskGroup(abc.TaskGroup):
     __slots__ = 'cancel_scope', '_active', '_exceptions'
 
     def __init__(self):
-        self.cancel_scope = CancelScope()
+        self.cancel_scope: CancelScope = CancelScope()
         self._active = False
         self._exceptions: List[BaseException] = []
 
@@ -454,7 +451,7 @@ class TaskGroup:
         return filtered_exceptions
 
     async def _run_wrapped_task(self, func: Callable[..., Coroutine], args: tuple) -> None:
-        task = current_task()
+        task = cast(asyncio.Task, current_task())
         try:
             await func(*args)
         except BaseException as exc:
@@ -478,9 +475,6 @@ class TaskGroup:
         _task_states[task] = TaskState(parent_id=id(current_task()), name=name,
                                        cancel_scope=self.cancel_scope)
         self.cancel_scope._tasks.add(task)
-
-
-abc.TaskGroup.register(TaskGroup)
 
 
 #
