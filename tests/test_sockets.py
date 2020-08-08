@@ -541,21 +541,21 @@ async def test_multi_listener(tmp_path_factory):
         listeners.append(await create_unix_listener(socket_path))
 
     expected_addresses = []
-    multi_listener = MultiListener(listeners)
-    async with create_task_group() as tg:
-        await tg.spawn(multi_listener.serve, handle)
-        for listener in multi_listener.listeners:
-            event = create_event()
-            if sys.platform != 'win32' and listener.family == socket.AddressFamily.AF_UNIX:
-                stream = await connect_unix(listener.local_address)
-            else:
-                stream = await connect_tcp(*listener.local_address[:2])
+    async with MultiListener(listeners) as multi_listener:
+        async with create_task_group() as tg:
+            await tg.spawn(multi_listener.serve, handle)
+            for listener in multi_listener.listeners:
+                event = create_event()
+                if sys.platform != 'win32' and listener.family == socket.AddressFamily.AF_UNIX:
+                    stream = await connect_unix(listener.local_address)
+                else:
+                    stream = await connect_tcp(*listener.local_address[:2])
 
-            expected_addresses.append(stream.local_address)
-            await event.wait()
-            await stream.aclose()
+                expected_addresses.append(stream.local_address)
+                await event.wait()
+                await stream.aclose()
 
-        await tg.cancel_scope.cancel()
+            await tg.cancel_scope.cancel()
 
     assert client_addresses == expected_addresses
 
