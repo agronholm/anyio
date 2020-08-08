@@ -18,6 +18,14 @@ def test_main_task_name(anyio_backend_name, anyio_backend_options):
     anyio.run(main, backend=anyio_backend_name, backend_options=anyio_backend_options)
     assert task_name == 'test_debugging.test_main_task_name.<locals>.main'
 
+    # Work around sniffio/asyncio bug that leaves behind an unclosed event loop
+    if anyio_backend_name == 'asyncio':
+        import gc
+        import asyncio
+        for loop in [obj for obj in gc.get_objects()
+                     if isinstance(obj, asyncio.AbstractEventLoop)]:
+            loop.close()
+
 
 async def test_get_running_tasks():
     async def inspect():
