@@ -564,3 +564,19 @@ def test_cancel_generator_based_task():
         yield from native_coro_part()
 
     anyio.run(generator_part, backend='asyncio')
+
+
+async def test_suppress_exception_context():
+    """
+    Test that the __context__ attribute has been cleared when the exception is re-raised in the
+    exception group. This prevents recursive tracebacks.
+
+    """
+    with pytest.raises(ValueError) as exc:
+        async with create_task_group() as tg:
+            await tg.cancel_scope.cancel()
+            async with create_task_group() as inner:
+                await inner.spawn(sleep, 1)
+                raise ValueError
+
+    assert exc.value.__context__ is None

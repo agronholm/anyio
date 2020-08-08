@@ -427,10 +427,16 @@ class TaskGroup(abc.TaskGroup):
         else:
             exceptions = self._exceptions
 
-        if len(exceptions) > 1:
-            raise ExceptionGroup(exceptions)
-        elif exceptions and exceptions[0] is not exc_val:
-            raise exceptions[0]
+        try:
+            if len(exceptions) > 1:
+                raise ExceptionGroup(exceptions)
+            elif exceptions and exceptions[0] is not exc_val:
+                raise exceptions[0]
+        except BaseException as exc:
+            # Clear the context here, as it can only be done in-flight.
+            # If the context is not cleared, it can result in recursive tracebacks (see #145).
+            exc.__context__ = None
+            raise
 
         return ignore_exception
 

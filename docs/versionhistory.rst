@@ -26,6 +26,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     curio, allowing the scheduler to switch to a different task
   - Fixed a bug where a task group would abandon its subtasks if its own cancel scope was
     cancelled while it was waiting for subtasks to finish
+  - Fixed recursive tracebacks when a single exception from an inner task group is reraised in an
+    outer task group
   - The asyncio backend now uses ``asyncio.run()`` behind the scenes which properly shuts down
     async generators and cancels any leftover native tasks
   - Worked around curio's limitation where a task can only be cancelled twice (any cancellations
