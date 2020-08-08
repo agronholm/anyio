@@ -25,8 +25,8 @@ async def run_process(command: Union[str, Sequence[str]], *, input: Optional[byt
     :param check: if ``True``, raise :exc:`~subprocess.CalledProcessError` if the process
         terminates with a return code other than 0
     :return: an object representing the completed process
-    :raises CalledProcessError: if ``check`` is ``True`` and the process exits with a nonzero
-        return code
+    :raises ~subprocess.CalledProcessError: if ``check`` is ``True`` and the process exits with a
+        nonzero return code
 
     """
     async def drain_stream(stream, index):

@@ -21,6 +21,7 @@ class BufferedByteReceiveStream(ByteReceiveStream):
 
     @property
     def buffer(self) -> bytes:
+        """The bytes currently in the buffer."""
         return bytes(self._buffer)
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
@@ -50,7 +51,7 @@ class BufferedByteReceiveStream(ByteReceiveStream):
 
         :param nbytes: the number of bytes to read
         :return: the bytes read
-        :raises anyio.exceptions.IncompleteRead: if the stream was closed before the requested
+        :raises ~anyio.exceptions.IncompleteRead: if the stream was closed before the requested
             amount of bytes could be read from the stream
 
         """
@@ -79,9 +80,9 @@ class BufferedByteReceiveStream(ByteReceiveStream):
         :param max_bytes: maximum number of bytes that will be read before raising
             :exc:`~anyio.exceptions.DelimiterNotFound`
         :return: the bytes read, including the delimiter
-        :raises anyio.exceptions.IncompleteRead: if the stream was closed before the delimiter
+        :raises ~anyio.exceptions.IncompleteRead: if the stream was closed before the delimiter
             was found
-        :raises anyio.exceptions.DelimiterNotFound: if the delimiter is not found within the
+        :raises ~anyio.exceptions.DelimiterNotFound: if the delimiter is not found within the
             bytes read up to the maximum allowed
 
         """

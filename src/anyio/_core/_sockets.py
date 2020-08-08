@@ -142,7 +142,7 @@ async def connect_tcp_with_tls(
     :param ssl_context: the SSL context object to use (if omitted, a default context is created)
     :return: a socket stream object
     :raises OSError: if the connection attempt fails
-    :raises ssl.SSLError: if the TLS handshake fails
+    :raises ~ssl.SSLError: if the TLS handshake fails
 
     """
     stream = await connect_tcp(remote_host, remote_port, local_host=local_host,
@@ -390,9 +390,9 @@ def wait_socket_readable(sock: Union[socket.SocketType, ssl.SSLSocket]) -> Await
     (default on py3.8+).
 
     :param sock: a socket object
-    :raises anyio.exceptions.ClosedResourceError: if the socket was closed while waiting for the
+    :raises ~anyio.exceptions.ClosedResourceError: if the socket was closed while waiting for the
         socket to become readable
-    :raises anyio.exceptions.BusyResourceError: if another task is already waiting for the socket
+    :raises ~anyio.exceptions.BusyResourceError: if another task is already waiting for the socket
         to become readable
 
     """
@@ -407,9 +407,9 @@ def wait_socket_writable(sock: Union[socket.SocketType, ssl.SSLSocket]) -> Await
     (default on py3.8+).
 
     :param sock: a socket object
-    :raises anyio.exceptions.ClosedResourceError: if the socket was closed while waiting for the
+    :raises ~anyio.exceptions.ClosedResourceError: if the socket was closed while waiting for the
         socket to become writable
-    :raises anyio.exceptions.BusyResourceError: if another task is already waiting for the socket
+    :raises ~anyio.exceptions.BusyResourceError: if another task is already waiting for the socket
         to become writable
 
     """

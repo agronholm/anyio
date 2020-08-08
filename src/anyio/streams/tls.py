@@ -53,7 +53,7 @@ class TLSStream(ByteStream):
             created)
         :param standard_compatible: if ``False``, skip the closing handshake when closing the
             connection, and don't raise an exception if the peer does the same
-        :raises ssl.SSLError: if the TLS handshake fails
+        :raises ~ssl.SSLError: if the TLS handshake fails
 
         """
         if server_side is None:
