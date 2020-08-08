@@ -62,8 +62,11 @@ def test_wait_generator_based_task_blocked():
         yield from event.wait()
 
     loop = DefaultEventLoopPolicy().new_event_loop()
-    set_event_loop(loop)
-    event = Event()
-    gen_task = loop.create_task(generator_part())
-    loop.run_until_complete(native_coro_part())
-    loop.close()
+    try:
+        set_event_loop(loop)
+        event = Event()
+        gen_task = loop.create_task(generator_part())
+        loop.run_until_complete(native_coro_part())
+    finally:
+        set_event_loop(None)
+        loop.close()
