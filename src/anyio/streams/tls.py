@@ -187,23 +187,19 @@ class TLSListener(Listener[TLSStream]):
     accepted connection.
 
     :param Listener listener: the listener to wrap
-    :param context: a custom SSL context object
+    :param ssl_context: the SSL context object
     :param standard_compatible: a flag passed through to :meth:`TLSStream.wrap`
-
     """
-    listener: Listener
-    context: Optional[ssl.SSLContext] = None
-    standard_compatible: bool = True
 
-    def __post_init__(self):
-        if self.context is None:
-            self.context = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
+    listener: Listener
+    ssl_context: ssl.SSLContext
+    standard_compatible: bool = True
 
     async def serve(self, handler: Callable[[TLSStream], Any],
                     task_group: Optional[TaskGroup] = None) -> None:
         @wraps(handler)
         async def handler_wrapper(stream: AnyByteStream):
-            wrapped_stream = await TLSStream.wrap(stream, ssl_context=self.context,
+            wrapped_stream = await TLSStream.wrap(stream, ssl_context=self.ssl_context,
                                                   standard_compatible=self.standard_compatible)
             await handler(wrapped_stream)
 
