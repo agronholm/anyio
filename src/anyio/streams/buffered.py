@@ -60,7 +60,7 @@ class BufferedByteReceiveStream(ByteReceiveStream):
             if remaining <= 0:
                 retval = self._buffer[:nbytes]
                 del self._buffer[:nbytes]
-                return retval
+                return bytes(retval)
 
             try:
                 if isinstance(self.receive_stream, ByteReceiveStream):
@@ -94,7 +94,7 @@ class BufferedByteReceiveStream(ByteReceiveStream):
             if index >= 0:
                 found = self._buffer[:index]
                 del self._buffer[:index + len(delimiter):]
-                return found
+                return bytes(found)
 
             # Check if the buffer is already at or over the limit
             if len(self._buffer) >= max_bytes:

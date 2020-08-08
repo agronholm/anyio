@@ -12,7 +12,9 @@ async def test_receive_exactly():
     buffered_stream = BufferedByteReceiveStream(receive_stream)
     await send_stream.send(b'abcd')
     await send_stream.send(b'efgh')
-    assert await buffered_stream.receive_exactly(8) == b'abcdefgh'
+    result = await buffered_stream.receive_exactly(8)
+    assert result == b'abcdefgh'
+    assert isinstance(result, bytes)
 
 
 async def test_receive_exactly_incomplete():
@@ -29,8 +31,14 @@ async def test_receive_until():
     buffered_stream = BufferedByteReceiveStream(receive_stream)
     await send_stream.send(b'abcd')
     await send_stream.send(b'efgh')
-    assert await buffered_stream.receive_until(b'de', 10) == b'abc'
-    assert await buffered_stream.receive_until(b'h', 10) == b'fg'
+
+    result = await buffered_stream.receive_until(b'de', 10)
+    assert result == b'abc'
+    assert isinstance(result, bytes)
+
+    result = await buffered_stream.receive_until(b'h', 10)
+    assert result == b'fg'
+    assert isinstance(result, bytes)
 
 
 async def test_receive_until_incomplete():
