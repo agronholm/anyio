@@ -1,4 +1,9 @@
+import pytest
+
 from anyio import get_all_backends
+
+pytestmark = pytest.mark.filterwarnings(
+    'ignore:The TerminalReporter.writer attribute is deprecated:pytest.PytestDeprecationWarning:')
 
 
 def test_plugin(testdir):
