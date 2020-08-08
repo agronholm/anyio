@@ -1,7 +1,7 @@
 import threading
 from abc import ABCMeta, abstractmethod
+from collections import Coroutine
 from concurrent.futures import Future
-from inspect import iscoroutine
 from typing import TypeVar, Callable
 
 T_Retval = TypeVar('T_Retval')
@@ -62,7 +62,7 @@ class BlockingPortal(metaclass=ABCMeta):
     async def _call_func(self, func: Callable, args: tuple, future: Future) -> None:
         try:
             retval = func(*args)
-            if iscoroutine(retval):
+            if isinstance(retval, Coroutine):
                 future.set_result(await retval)
             else:
                 future.set_result(retval)

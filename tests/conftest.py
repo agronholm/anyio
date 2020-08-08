@@ -22,8 +22,10 @@ pytest_plugins = ['pytester']
 
 
 @pytest.fixture(params=[
-    pytest.param(('asyncio', {'policy': asyncio.DefaultEventLoopPolicy()}), id='asyncio'),
-    pytest.param(('asyncio', {'policy': uvloop_policy}), id='asyncio+uvloop', marks=uvloop_marks),
+    pytest.param(('asyncio', {'debug': True, 'policy': asyncio.DefaultEventLoopPolicy()}),
+                 id='asyncio'),
+    pytest.param(('asyncio', {'debug': True, 'policy': uvloop_policy}), marks=uvloop_marks,
+                 id='asyncio+uvloop'),
     pytest.param('curio'),
     pytest.param('trio')
 ])
