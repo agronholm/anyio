@@ -1,7 +1,3 @@
-__all__ = ('connect_tcp', 'connect_tcp_with_tls', 'connect_unix', 'create_tcp_listener',
-           'create_unix_listener', 'create_udp_socket', 'create_connected_udp_socket',
-           'getaddrinfo', 'getnameinfo', 'wait_socket_readable', 'wait_socket_writable')
-
 import socket
 import ssl
 import sys
@@ -382,7 +378,7 @@ def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Awaitable[Tuple[str
     return get_asynclib().getnameinfo(sockaddr, flags)
 
 
-def wait_socket_readable(sock: Union[socket.SocketType, ssl.SSLSocket]) -> Awaitable[None]:
+def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
     """
     Wait until the given socket has data to be read.
 
@@ -399,7 +395,7 @@ def wait_socket_readable(sock: Union[socket.SocketType, ssl.SSLSocket]) -> Await
     return get_asynclib().wait_socket_readable(sock)
 
 
-def wait_socket_writable(sock: Union[socket.SocketType, ssl.SSLSocket]) -> Awaitable[None]:
+def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
     """
     Wait until the given socket can be written to.
 

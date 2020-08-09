@@ -18,34 +18,6 @@ streams vary a lot by implementation.
 Many stream implementations wrap other streams. Of these, some can wrap any bytes-oriented streams,
 meaning ``ObjectStream[bytes]`` and ``ByteStream``. This enables many interesting use cases.
 
-Stapled streams
----------------
-
-A stapled stream combines any mutually compatible receive and send stream together, forming a
-single bidirectional stream.
-
-It comes in two variants:
-
-* :class:`~anyio.streams.stapled.StapledByteStream` (combines a
-    :class:`~anyio.abc.streams.ByteReceiveStream` with a
-    :class:`~anyio.abc.streams.ByteSendStream`)
-* :class:`~anyio.streams.stapled.StapledObjectStream` (combines an
-    :class:`~anyio.abc.streams.ObjectReceiveStream` with a compatible
-    :class:`~anyio.abc.streams.ObjectSendStream`)
-
-Buffered byte streams
----------------------
-
-A buffered byte stream wraps an existing bytes-oriented receive stream and provides certain
-amenities that require buffering, such as receiving an exact number of bytes, or receiving until
-the given delimiter is found.
-
-Text streams
-------------
-
-Text streams wrap existing receive/send streams and encode/decode strings to bytes and vice versa.
-
-
 Memory object streams
 ---------------------
 
@@ -91,6 +63,82 @@ Example::
                     await send_stream.send(f'number {num}')
 
     run(main)
+
+Stapled streams
+---------------
+
+A stapled stream combines any mutually compatible receive and send stream together, forming a
+single bidirectional stream.
+
+It comes in two variants:
+
+* :class:`~anyio.streams.stapled.StapledByteStream` (combines a
+  :class:`~anyio.abc.streams.ByteReceiveStream` with a :class:`~anyio.abc.streams.ByteSendStream`)
+* :class:`~anyio.streams.stapled.StapledObjectStream` (combines an
+  :class:`~anyio.abc.streams.ObjectReceiveStream` with a compatible
+  :class:`~anyio.abc.streams.ObjectSendStream`)
+
+Buffered byte streams
+---------------------
+
+A buffered byte stream wraps an existing bytes-oriented receive stream and provides certain
+amenities that require buffering, such as receiving an exact number of bytes, or receiving until
+the given delimiter is found.
+
+Example::
+
+    from anyio import run, create_memory_object_stream
+    from anyio.streams.buffered import BufferedByteReceiveStream
+
+
+    async def main():
+        send, receive = create_memory_object_stream(4)
+        buffered = BufferedByteReceiveStream(receive)
+        for part in b'hel', b'lo, ', b'wo', b'rld!':
+            await send.send(part)
+
+        result = await buffered.receive_exactly(8)
+        print(repr(result))
+
+        result = await buffered.receive_until(b'!', 10)
+        print(repr(result))
+
+    run(main)
+
+The above script gives the following output::
+
+    b'hello, w'
+    b'orld'
+
+Text streams
+------------
+
+Text streams wrap existing receive/send streams and encode/decode strings to bytes and vice versa.
+
+Example::
+
+    from anyio import run, create_memory_object_stream
+    from anyio.streams.text import TextReceiveStream, TextSendStream
+
+
+    async def main():
+        bytes_send, bytes_receive = create_memory_object_stream(1)
+        text_send = TextSendStream(bytes_send)
+        await text_send.send('åäö')
+        result = await bytes_receive.receive()
+        print(repr(result))
+
+        text_receive = TextReceiveStream(bytes_receive)
+        await bytes_send.send(result)
+        result = await text_receive.receive()
+        print(repr(result))
+
+    run(main)
+
+The above script gives the following output::
+
+    b'\xc3\xa5\xc3\xa4\xc3\xb6'
+    'åäö'
 
 .. _TLS:
 
@@ -147,13 +195,14 @@ To set up a server using this key-certificate pair::
 
     import ssl
 
-    from anyio import create_task_group, create_tcp_server, run
+    from anyio import create_tcp_listener, run
+    from anyio.streams.tls import TLSListener
 
 
-    async def serve(client):
+    async def handle(client):
         async with client:
-            name = await client.receive_until(b'\n', 1024)
-            await client.send_all(b'Hello, %s\n' % name)
+            name = await client.receive()
+            await client.send(b'Hello, %s\n' % name)
 
 
     async def main():
@@ -163,10 +212,9 @@ To set up a server using this key-certificate pair::
         # Load the server certificate and private key
         context.load_cert_chain(certfile='cert.pem', keyfile='key.pem')
 
-        async with create_task_group() as tg:
-            async with await create_tcp_server(1234, ssl_context=context) as server:
-                async for client in server.accept_connections():
-                    await tg.spawn(serve, client)
+        # Create the listener and start serving connections
+        listener = TLSListener(await create_tcp_listener(local_port=1234), context)
+        await listener.serve(handle)
 
     run(main)
 
@@ -174,7 +222,7 @@ Connecting to this server can then be done as follows::
 
     import ssl
 
-    from anyio import connect_tcp, run
+    from anyio import connect_tcp_with_tls, run
 
 
     async def main():
@@ -184,15 +232,50 @@ Connecting to this server can then be done as follows::
         context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
         context.load_verify_locations(cafile='cert.pem')
 
-        async with await connect_tcp('localhost', 1234, ssl_context=context, autostart_tls=True) as client:
-            await client.send_all(b'Client\n')
-            response = await client.receive_until(b'\n', 1024)
+        async with await connect_tcp_with_tls('localhost', 1234, ssl_context=context) as client:
+            await client.send(b'Client\n')
+            response = await client.receive()
             print(response)
 
     run(main)
 
-
 .. _openssl: https://www.openssl.org/
+
+Creating self-signed certificates on the fly
+********************************************
+
+When testing your TLS enabled service, it would be convenient to generate the certificates on the
+fly. To this end, you can use the trustme_ library::
+
+    import ssl
+
+    import pytest
+    import trustme
+
+
+    @pytest.fixture(scope='session')
+    def ca():
+        return trustme.CA()
+
+
+    @pytest.fixture(scope='session')
+    def server_context(ca):
+        server_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        ca.issue_cert('localhost').configure_cert(server_context)
+        return server_context
+
+
+    @pytest.fixture(scope='session')
+    def client_context(ca):
+        client_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
+        ca.configure_trust(client_context)
+        return client_context
+
+You can then pass the server and client contexts from the above fixtures to
+:class:`~anyio.streams.tls.TLSListener`, :meth:`~anyio.streams.tls.TLSStream.wrap` or whatever you
+use on either side.
+
+.. _trustme: https://pypi.org/project/trustme/
 
 Dealing with ragged EOFs
 ************************

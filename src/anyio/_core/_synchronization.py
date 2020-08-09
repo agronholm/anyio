@@ -1,6 +1,3 @@
-__all__ = ('create_lock', 'create_condition', 'create_event', 'create_semaphore',
-           'create_capacity_limiter')
-
 from ._eventloop import get_asynclib
 from ..abc import Lock, Condition, Event, Semaphore, CapacityLimiter
 from ..exceptions import BusyResourceError

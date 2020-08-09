@@ -1,5 +1,3 @@
-__all__ = 'aclose_forcefully',
-
 from ._tasks import open_cancel_scope
 from ..abc import AsyncResource
 

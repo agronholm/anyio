@@ -1,6 +1,3 @@
-__all__ = ('open_cancel_scope', 'fail_after', 'move_on_after', 'current_effective_deadline',
-           'create_task_group')
-
 from typing import Optional, AsyncContextManager, Coroutine, Any
 
 from ..abc import CancelScope, TaskGroup
@@ -27,6 +24,7 @@ def fail_after(delay: Optional[float], *,
         disable the timeout
     :param shield: ``True`` to shield the cancel scope from external cancellation
     :return: an asynchronous context manager that yields a cancel scope
+    :rtype: :class:`~typing.AsyncContextManager`\\[:class:`~anyio.abc.tasks.CancelScope`\\]
     :raises TimeoutError: if the block does not complete within the allotted time
 
     """
@@ -45,6 +43,7 @@ def move_on_after(delay: Optional[float], *,
         to disable the timeout
     :param shield: ``True`` to shield the cancel scope from external cancellation
     :return: an asynchronous context manager that yields a cancel scope
+    :rtype: :class:`~typing.AsyncContextManager`\\[:class:`~anyio.abc.tasks.CancelScope`\\]
 
     """
     if delay is None:

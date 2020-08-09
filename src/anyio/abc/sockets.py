@@ -23,7 +23,9 @@ class _NullAsyncContextManager:
         pass
 
 
-class _SocketMixin(Generic[T_SockAddr]):
+class SocketProvider(Generic[T_SockAddr]):
+    """Abstract base class for socket-based streams and listeners."""
+
     @abstractmethod
     def getsockopt(self, level, optname, *args):
         """
@@ -56,7 +58,7 @@ class _SocketMixin(Generic[T_SockAddr]):
         """
 
 
-class SocketStream(Generic[T_SockAddr], ByteStream, _SocketMixin[T_SockAddr]):
+class SocketStream(Generic[T_SockAddr], ByteStream, SocketProvider[T_SockAddr]):
     """Transports bytes over a socket."""
 
     @property
@@ -71,7 +73,7 @@ class SocketStream(Generic[T_SockAddr], ByteStream, _SocketMixin[T_SockAddr]):
 
 
 class SocketListener(Generic[T_SockAddr], Listener[SocketStream[T_SockAddr]],
-                     _SocketMixin[T_SockAddr]):
+                     SocketProvider[T_SockAddr]):
     """Listens to incoming socket connections."""
 
     @abstractmethod
@@ -96,14 +98,14 @@ class SocketListener(Generic[T_SockAddr], Listener[SocketStream[T_SockAddr]],
                 await task_group.spawn(handler, stream)
 
 
-class UDPSocket(UnreliableObjectStream[UDPPacketType], _SocketMixin[IPSockAddrType]):
+class UDPSocket(UnreliableObjectStream[UDPPacketType], SocketProvider[IPSockAddrType]):
     """Represents an unconnected UDP socket."""
 
     async def sendto(self, data: bytes, host: str, port: int) -> None:
         return await self.send((data, (host, port)))
 
 
-class ConnectedUDPSocket(UnreliableObjectStream[bytes], _SocketMixin[IPSockAddrType]):
+class ConnectedUDPSocket(UnreliableObjectStream[bytes], SocketProvider[IPSockAddrType]):
     """Represents an connected UDP socket."""
 
     @property

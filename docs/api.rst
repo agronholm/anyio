@@ -7,12 +7,15 @@ Event loop
 .. autofunction:: anyio.run
 .. autofunction:: anyio.get_all_backends
 .. autofunction:: anyio.get_cancelled_exc_class
-
-Miscellaneous
--------------
-
 .. autofunction:: anyio.sleep(delay)
+.. autofunction:: anyio.current_time
+
+Asynchronous resources
+----------------------
+
 .. autofunction:: anyio.aclose_forcefully
+
+.. autoclass:: anyio.abc.resources.AsyncResource
 
 Timeouts and cancellation
 -------------------------
@@ -21,10 +24,8 @@ Timeouts and cancellation
 .. autofunction:: anyio.move_on_after
 .. autofunction:: anyio.fail_after
 .. autofunction:: anyio.current_effective_deadline
-.. autofunction:: anyio.current_time
 
 .. autoclass:: anyio.abc.tasks.CancelScope
-    :members:
 
 Task groups
 -----------
@@ -32,7 +33,6 @@ Task groups
 .. autofunction:: anyio.create_task_group
 
 .. autoclass:: anyio.abc.tasks.TaskGroup
-    :members:
 
 Threads
 -------
@@ -52,16 +52,19 @@ Async file I/O
 Streams and stream wrappers
 ---------------------------
 
-.. autoclass:: anyio.abc.streams.UnreliableObjectReceiveStream
-.. autoclass:: anyio.abc.streams.UnreliableObjectSendStream
-.. autoclass:: anyio.abc.streams.UnreliableObjectStream
-.. autoclass:: anyio.abc.streams.ObjectReceiveStream
-.. autoclass:: anyio.abc.streams.ObjectSendStream
-.. autoclass:: anyio.abc.streams.ObjectStream
+.. autofunction:: anyio.create_memory_object_stream
+
+.. autoclass:: anyio.abc.streams.UnreliableObjectReceiveStream()
+.. autoclass:: anyio.abc.streams.UnreliableObjectSendStream()
+.. autoclass:: anyio.abc.streams.UnreliableObjectStream()
+.. autoclass:: anyio.abc.streams.ObjectReceiveStream()
+.. autoclass:: anyio.abc.streams.ObjectSendStream()
+.. autoclass:: anyio.abc.streams.ObjectStream()
 .. autoclass:: anyio.abc.streams.ByteReceiveStream
 .. autoclass:: anyio.abc.streams.ByteSendStream
 .. autoclass:: anyio.abc.streams.ByteStream
 .. autoclass:: anyio.abc.streams.Listener
+
 .. autodata:: anyio.abc.streams.AnyUnreliableByteReceiveStream
 .. autodata:: anyio.abc.streams.AnyUnreliableByteSendStream
 .. autodata:: anyio.abc.streams.AnyUnreliableByteStream
@@ -69,40 +72,17 @@ Streams and stream wrappers
 .. autodata:: anyio.abc.streams.AnyByteSendStream
 .. autodata:: anyio.abc.streams.AnyByteStream
 
-.. autofunction:: anyio.create_memory_object_stream
-
 .. autoclass:: anyio.streams.buffered.BufferedByteReceiveStream
-    :members:
-
 .. autoclass:: anyio.streams.memory.MemoryObjectReceiveStream
-    :members:
-
 .. autoclass:: anyio.streams.memory.MemoryObjectSendStream
-    :members:
-
 .. autoclass:: anyio.streams.stapled.MultiListener
-    :members:
-
 .. autoclass:: anyio.streams.stapled.StapledByteStream
-    :members:
-
 .. autoclass:: anyio.streams.stapled.StapledObjectStream
-    :members:
-
 .. autoclass:: anyio.streams.text.TextReceiveStream
-    :members:
-
 .. autoclass:: anyio.streams.text.TextSendStream
-    :members:
-
 .. autoclass:: anyio.streams.text.TextStream
-    :members:
-
 .. autoclass:: anyio.streams.tls.TLSStream
-    :members:
-
 .. autoclass:: anyio.streams.tls.TLSListener
-    :members:
 
 Sockets and networking
 ----------------------
@@ -119,19 +99,11 @@ Sockets and networking
 .. autofunction:: anyio.wait_socket_readable
 .. autofunction:: anyio.wait_socket_writable
 
-.. autoclass:: anyio.abc.sockets.SocketStream
-    :members:
-    :show-inheritance:
-
-.. autoclass:: anyio.abc.sockets.SocketListener
-    :members:
-    :show-inheritance:
-
-.. autoclass:: anyio.abc.sockets.UDPSocket
-    :members:
-
-.. autoclass:: anyio.abc.sockets.ConnectedUDPSocket
-    :members:
+.. autoclass:: anyio.abc.sockets.SocketProvider()
+.. autoclass:: anyio.abc.sockets.SocketStream()
+.. autoclass:: anyio.abc.sockets.SocketListener()
+.. autoclass:: anyio.abc.sockets.UDPSocket()
+.. autoclass:: anyio.abc.sockets.ConnectedUDPSocket()
 
 Subprocesses
 ------------
@@ -140,7 +112,6 @@ Subprocesses
 .. autofunction:: anyio.open_process
 
 .. autoclass:: anyio.abc.subprocesses.Process
-    :members:
 
 Synchronization
 ---------------
@@ -152,19 +123,10 @@ Synchronization
 .. autofunction:: anyio.create_capacity_limiter
 
 .. autoclass:: anyio.abc.synchronization.Semaphore
-    :members:
-
 .. autoclass:: anyio.abc.synchronization.Lock
-    :members:
-
 .. autoclass:: anyio.abc.synchronization.Event
-    :members:
-
 .. autoclass:: anyio.abc.synchronization.Condition
-    :members:
-
 .. autoclass:: anyio.abc.synchronization.CapacityLimiter
-    :members:
 
 Operating system signals
 ------------------------
@@ -188,7 +150,5 @@ Exceptions
 .. autoexception:: anyio.exceptions.DelimiterNotFound
 .. autoexception:: anyio.exceptions.EndOfStream
 .. autoexception:: anyio.exceptions.ExceptionGroup
-    :members:
-
 .. autoexception:: anyio.exceptions.IncompleteRead
 .. autoexception:: anyio.exceptions.WouldBlock

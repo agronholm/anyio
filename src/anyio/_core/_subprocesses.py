@@ -1,5 +1,3 @@
-__all__ = 'run_process', 'open_process'
-
 from subprocess import PIPE, CompletedProcess, DEVNULL, CalledProcessError
 from typing import Union, Sequence, Optional, cast
 

@@ -1,5 +1,3 @@
-__all__ = 'run', 'sleep', 'current_time', 'get_all_backends', 'get_cancelled_exc_class'
-
 import sys
 import threading
 from contextlib import contextmanager
@@ -57,25 +55,24 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
             sniffio.current_async_library_cvar.reset(token)
 
 
-def sleep(delay: float) -> Coroutine[Any, Any, None]:
+async def sleep(delay: float) -> None:
     """
     Pause the current task for the specified duration.
 
     :param delay: the duration, in seconds
 
     """
-    return get_asynclib().sleep(delay)
+    return await get_asynclib().sleep(delay)
 
 
-def current_time() -> Coroutine[Any, Any, float]:
+async def current_time() -> float:
     """
     Return the current value of the event loop's internal clock.
 
-    :return the clock value (seconds)
-    :rtype: float
+    :return: the clock value (seconds)
 
     """
-    return get_asynclib().current_time()
+    return await get_asynclib().current_time()
 
 
 def get_all_backends() -> Tuple[str, ...]:

@@ -1,5 +1,3 @@
-__all__ = 'open_signal_receiver',
-
 from typing import AsyncContextManager, AsyncIterator
 
 from ._eventloop import get_asynclib

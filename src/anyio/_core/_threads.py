@@ -1,20 +1,17 @@
-__all__ = ('run_sync_in_worker_thread', 'run_async_from_thread',
-           'current_default_worker_thread_limiter', 'create_blocking_portal',
-           'start_blocking_portal')
-
 import threading
-from typing import TypeVar, Callable, Optional, Coroutine, Any, Dict, Awaitable, cast
+from typing import TypeVar, Callable, Optional, Coroutine, Any, Dict, cast
 
 from ._eventloop import get_asynclib, threadlocals, run
 from ..abc import CapacityLimiter, BlockingPortal
 
-T_Retval = TypeVar('T_Retval', covariant=True)
+T_Retval = TypeVar('T_Retval')
 
 
-def run_sync_in_worker_thread(func: Callable[..., T_Retval], *args, cancellable: bool = False,
-                              limiter: Optional[CapacityLimiter] = None) -> Awaitable[T_Retval]:
+async def run_sync_in_worker_thread(
+        func: Callable[..., T_Retval], *args, cancellable: bool = False,
+        limiter: Optional[CapacityLimiter] = None) -> T_Retval:
     """
-    Start a thread that calls the given function with the given arguments.
+    Call the given function with the given arguments in a worker thread.
 
     If the ``cancellable`` option is enabled and the task waiting for its completion is cancelled,
     the thread will still run its course but its return value (or any raised exception) will be
@@ -28,8 +25,8 @@ def run_sync_in_worker_thread(func: Callable[..., T_Retval], *args, cancellable:
     :return: an awaitable that yields the return value of the function.
 
     """
-    return get_asynclib().run_sync_in_worker_thread(func, *args, cancellable=cancellable,
-                                                    limiter=limiter)
+    return await get_asynclib().run_sync_in_worker_thread(func, *args, cancellable=cancellable,
+                                                          limiter=limiter)
 
 
 def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args) -> T_Retval:

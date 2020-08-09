@@ -22,7 +22,10 @@ language = None
 
 exclude_patterns = ['_build']
 pygments_style = 'sphinx'
-highlight_language = 'python3'
+autodoc_default_options = {
+    'members': True,
+    'show-inheritance': True
+}
 todo_include_todos = False
 
 html_theme = 'sphinx_rtd_theme'

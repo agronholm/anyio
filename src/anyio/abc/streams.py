@@ -154,17 +154,17 @@ class ByteStream(ByteReceiveStream, ByteSendStream):
         """
 
 
-#: type alias for all unreliable bytes-oriented receive streams
+#: Type alias for all unreliable bytes-oriented receive streams.
 AnyUnreliableByteReceiveStream = Union[UnreliableObjectReceiveStream[bytes], ByteReceiveStream]
-#: type alias for all unreliable bytes-oriented send streams
+#: Type alias for all unreliable bytes-oriented send streams.
 AnyUnreliableByteSendStream = Union[UnreliableObjectSendStream[bytes], ByteSendStream]
-#: type alias for all unreliable bytes-oriented streams
+#: Type alias for all unreliable bytes-oriented streams.
 AnyUnreliableByteStream = Union[UnreliableObjectStream[bytes], ByteStream]
-#: type alias for all bytes-oriented receive streams
+#: Type alias for all bytes-oriented receive streams.
 AnyByteReceiveStream = Union[ObjectReceiveStream[bytes], ByteReceiveStream]
-#: type alias for all bytes-oriented send streams
+#: Type alias for all bytes-oriented send streams.
 AnyByteSendStream = Union[ObjectSendStream[bytes], ByteSendStream]
-#: type alias for all bytes-oriented streams
+#: Type alias for all bytes-oriented streams.
 AnyByteStream = Union[ObjectStream[bytes], ByteStream]
 
 

@@ -45,4 +45,4 @@ block and raises an exception there. This raises the question: which exception i
 the task group context manager? The answer is "both". In practice this means that a special
 exception, :exc:`~anyio.exceptions.ExceptionGroup` is raised which contains both exception objects.
 Unfortunately this complicates any code that wishes to catch a specific exception because it could
-be wrapped in a :exc:`~anyio.exceptions.ExceptionGroup`.
+be wrapped in an :exc:`~anyio.exceptions.ExceptionGroup`.

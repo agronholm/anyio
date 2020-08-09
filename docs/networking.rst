@@ -41,9 +41,9 @@ a convenience (instead of wrapping the stream with :meth:`anyio.streams.tls.TLSS
 a successful connection).
 
 To receive incoming TCP connections, you first create a TCP listener with
-:func:`anyio.create_tcp_listener` and call :meth:`~anyio.abc.streamsListener.serve` on it::
+:func:`anyio.create_tcp_listener` and call :meth:`~anyio.abc.streams.Listener.serve` on it::
 
-    from anyio import create_tcp_listeners, run
+    from anyio import create_tcp_listener, run
 
 
     async def handle(client):
@@ -53,7 +53,7 @@ To receive incoming TCP connections, you first create a TCP listener with
 
 
     async def main():
-        listener = create_tcp_listener(local_port=1234)
+        listener = await create_tcp_listener(local_port=1234)
         await listener.serve(handle)
 
     run(main)
@@ -108,13 +108,15 @@ connections, retries or error correction.
 For example, if you wanted to create a UDP "hello" service that just reads a packet and then
 sends a packet to the sender with the contents prepended with "Hello, ", you would do this::
 
+    import socket
+
     from anyio import create_udp_socket, run
 
 
     async def main():
-        async with await create_udp_socket(port=1234) as socket:
-            async for packet, (host, port) in socket.receive_packets(1024):
-                await socket.sendto(b'Hello, ' + packet, host, port)
+        async with await create_udp_socket(family=socket.AF_INET, local_port=1234) as udp:
+            async for packet, (host, port) in udp:
+                await udp.sendto(b'Hello, ' + packet, host, port)
 
     run(main)
 
@@ -127,7 +129,7 @@ you send data to the peer::
 
     async def main():
         async with await create_connected_udp_socket(
-                remote_host='hostname', remote_port=1234) as socket:
-            await socket.send(b'Hi there!\n')
+                remote_host='hostname', remote_port=1234) as udp:
+            await udp.send(b'Hi there!\n')
 
     run(main)

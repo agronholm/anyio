@@ -1,5 +1,3 @@
-__all__ = 'create_memory_object_stream',
-
 import math
 from typing import overload, Type, Tuple, TypeVar, Any
 

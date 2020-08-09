@@ -1,13 +1,12 @@
-__all__ = 'AsyncFile', 'open_file'
-
 import os
 from os import PathLike
 from typing import Union, Optional, Callable
 
 from ._threads import run_sync_in_worker_thread
+from ..abc import AsyncResource
 
 
-class AsyncFile:
+class AsyncFile(AsyncResource):
     """
     An asynchronous file object.
 
@@ -45,14 +44,9 @@ class AsyncFile:
     def __getattr__(self, name):
         return getattr(self._fp, name)
 
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.aclose()
-
     @property
     def wrapped(self):
+        """The wrapped file object."""
         return self._fp
 
     async def __aiter__(self):
