@@ -1,7 +1,7 @@
 The basics
 ==========
 
-AnyIO requires Python 3.6 or later to run. It is recommended that you set up a virtualenv_ when
+AnyIO requires Python 3.6.2 or later to run. It is recommended that you set up a virtualenv_ when
 developing or playing around with AnyIO.
 
 Installation
