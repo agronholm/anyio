@@ -3,7 +3,7 @@ import socket
 import sys
 import time
 from contextlib import suppress
-from threading import Thread
+from threading import Thread, Event
 
 import pytest
 
@@ -116,16 +116,18 @@ class TestTCPStream:
         def serve():
             client, _ = server_sock.accept()
             client.sendall(b'bl')
-            time.sleep(0.05)
+            event.wait(1)
             client.sendall(b'ah')
             client.close()
 
+        event = Event()
         thread = Thread(target=serve, daemon=True)
         thread.start()
         chunks = []
         async with await connect_tcp(*server_addr) as stream:
             async for chunk in stream:
                 chunks.append(chunk)
+                event.set()
 
         thread.join()
         assert chunks == [b'bl', b'ah']
