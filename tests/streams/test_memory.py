@@ -1,7 +1,8 @@
 import pytest
 
 from anyio import (
-    create_task_group, wait_all_tasks_blocked, create_memory_object_stream, fail_after)
+    create_task_group, wait_all_tasks_blocked, create_memory_object_stream, fail_after,
+    open_cancel_scope)
 from anyio.exceptions import EndOfStream, ClosedResourceError, BrokenResourceError, WouldBlock
 
 pytestmark = pytest.mark.anyio
@@ -177,3 +178,99 @@ async def test_receive_after_send_closed():
     await send.send('hello')
     await send.aclose()
     assert await receive.receive() == 'hello'
+
+
+async def test_receive_when_cancelled():
+    """
+    Test that calling receive() in a cancelled scope prevents it from going through with the
+    operation.
+
+    """
+    send, receive = create_memory_object_stream()
+    async with create_task_group() as tg:
+        await tg.spawn(send.send, 'hello')
+        await wait_all_tasks_blocked()
+        await tg.spawn(send.send, 'world')
+        await wait_all_tasks_blocked()
+
+        async with open_cancel_scope() as scope:
+            await scope.cancel()
+            await receive.receive()
+
+        assert await receive.receive() == 'hello'
+        assert await receive.receive() == 'world'
+
+
+async def test_send_when_cancelled():
+    """
+    Test that calling send() in a cancelled scope prevents it from going through with the
+    operation.
+
+    """
+    async def receiver():
+        received.append(await receive.receive())
+
+    received = []
+    send, receive = create_memory_object_stream()
+    async with create_task_group() as tg:
+        await tg.spawn(receiver)
+        async with open_cancel_scope() as scope:
+            await scope.cancel()
+            await send.send('hello')
+
+        await send.send('world')
+
+    assert received == ['world']
+
+
+async def test_cancel_during_receive():
+    """
+    Test that cancelling a pending receive() operation does not cause an item in the stream to be
+    lost.
+
+    """
+    async def scoped_receiver():
+        nonlocal receiver_scope
+        async with open_cancel_scope() as receiver_scope:
+            await receive.receive()
+
+    async def receiver():
+        received.append(await receive.receive())
+
+    receiver_scope = None
+    received = []
+    send, receive = create_memory_object_stream()
+    async with create_task_group() as tg:
+        await tg.spawn(scoped_receiver)
+        await wait_all_tasks_blocked()
+        await tg.spawn(receiver)
+        await receiver_scope.cancel()
+        await send.send('hello')
+
+    assert received == ['hello']
+
+
+async def test_cancel_during_receive_last_receiver():
+    """
+    Test that cancelling a pending receive() operation does not cause an item in the stream to be
+    lost, even if there are no other receivers waiting.
+
+    """
+    async def scoped_receiver():
+        nonlocal receiver_scope
+        async with open_cancel_scope() as receiver_scope:
+            await receive.receive()
+            pytest.fail('This point should never be reached')
+
+    receiver_scope = None
+    send, receive = create_memory_object_stream()
+    async with create_task_group() as tg:
+        await tg.spawn(scoped_receiver)
+        await wait_all_tasks_blocked()
+        await receiver_scope.cancel()
+        await send.send_nowait('hello')
+
+    with pytest.raises(WouldBlock):
+        await send.send_nowait('world')
+
+    assert await receive.receive_nowait() == 'hello'
