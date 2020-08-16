@@ -5,13 +5,11 @@ import socket
 import sys
 from collections import OrderedDict, deque
 from concurrent.futures import Future
-
-from anyio._core._sockets import convert_ipv6_sockaddr
 from dataclasses import dataclass
 from functools import wraps
 from inspect import isgenerator
-from threading import Thread
 from socket import AddressFamily, SocketKind, SocketType
+from threading import Thread
 from types import TracebackType
 from typing import (
     Callable, Set, Optional, Union, Tuple, cast, Coroutine, Any, Awaitable, TypeVar, Generator,
@@ -20,12 +18,12 @@ from weakref import WeakKeyDictionary
 
 from .. import abc, TaskInfo
 from .._core._eventloop import threadlocals, claim_worker_thread
-from .._core._sockets import GetAddrInfoReturnType
-from .._core._synchronization import ResourceGuard
-from ..abc.sockets import IPSockAddrType, UDPPacketType
-from ..exceptions import (
+from .._core._exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock,
     BrokenResourceError, EndOfStream)
+from .._core._sockets import GetAddrInfoReturnType, convert_ipv6_sockaddr
+from .._core._synchronization import ResourceGuard
+from ..abc.sockets import IPSockAddrType, UDPPacketType
 
 if sys.version_info >= (3, 7):
     from asyncio import create_task, get_running_loop, current_task, all_tasks, run as native_run

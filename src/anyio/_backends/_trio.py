@@ -1,8 +1,6 @@
 import socket
 import sys
 from concurrent.futures import Future
-
-from anyio._core._sockets import convert_ipv6_sockaddr
 from dataclasses import dataclass
 from types import TracebackType
 from typing import (
@@ -14,11 +12,12 @@ from trio.to_thread import run_sync
 
 from .. import abc, TaskInfo
 from .._core._eventloop import claim_worker_thread
-from .._core._synchronization import ResourceGuard
-from ..abc.sockets import IPSockAddrType, UDPPacketType
-from ..exceptions import (
+from .._core._exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock,
     BrokenResourceError, EndOfStream)
+from .._core._sockets import convert_ipv6_sockaddr
+from .._core._synchronization import ResourceGuard
+from ..abc.sockets import IPSockAddrType, UDPPacketType
 
 try:
     import trio.lowlevel as trio_lowlevel

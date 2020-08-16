@@ -1,6 +1,6 @@
 from ._eventloop import get_asynclib
 from ..abc import Lock, Condition, Event, Semaphore, CapacityLimiter
-from ..exceptions import BusyResourceError
+from ._exceptions import BusyResourceError
 
 
 def create_lock() -> Lock:

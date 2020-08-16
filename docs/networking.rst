@@ -15,7 +15,7 @@ More exotic forms of networking such as raw sockets and SCTP are currently not s
 
 .. warning:: Unlike the standard BSD sockets interface and most other networking libraries, AnyIO
     (from 2.0 onwards) signals the end of any stream by raising the
-    :exc:`~anyio.exceptions.EndOfStream` exception instead of returning an empty bytes object.
+    :exc:`~anyio.EndOfStream` exception instead of returning an empty bytes object.
 
 Working with TCP sockets
 ------------------------

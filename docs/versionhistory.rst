@@ -43,7 +43,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     - ``anyio.receive_signals()`` -> ``anyio.open_signal_receiver()``
     - ``anyio.run_in_thread()`` -> ``anyio.run_sync_in_worker_thread()``
     - ``anyio.current_default_thread_limiter()`` -> ``anyio.current_default_worker_thread_limiter()``
-    - ``anyio.exceptions.ResourceBusyError`` -> ``anyio.exceptions.BusyResourceError``
+    - ``anyio.exceptions.ResourceBusyError`` -> ``anyio.BusyResourceError``
+  - **BACKWARDS INCOMPATIBLE** Exception classes were moved to the top level package
 
 - Socket/stream changes:
 

@@ -3,7 +3,7 @@ from typing import Generic, TypeVar, Union, Callable, Any, Optional
 
 from .resources import AsyncResource
 from .tasks import TaskGroup
-from ..exceptions import EndOfStream
+from .._core._exceptions import EndOfStream
 
 T_Item = TypeVar('T_Item')
 T_Stream = TypeVar('T_Stream')

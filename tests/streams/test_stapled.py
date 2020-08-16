@@ -4,8 +4,8 @@ from typing import Iterable
 
 import pytest
 
+from anyio import ClosedResourceError, EndOfStream
 from anyio.abc import ByteReceiveStream, ByteSendStream, ObjectReceiveStream, ObjectSendStream
-from anyio.exceptions import ClosedResourceError, EndOfStream
 from anyio.streams.stapled import StapledByteStream, StapledObjectStream
 
 pytestmark = pytest.mark.anyio

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Optional, Callable, Tuple, overload, List, Dict, Union, TypeVar, Any
 
 from ..abc import ByteStream, AnyByteStream, Listener, TaskGroup
-from ..exceptions import EndOfStream, BrokenResourceError
+from .. import EndOfStream, BrokenResourceError
 
 if sys.version_info >= (3, 8):
     from typing import Literal

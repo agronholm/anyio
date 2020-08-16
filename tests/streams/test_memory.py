@@ -2,8 +2,7 @@ import pytest
 
 from anyio import (
     create_task_group, wait_all_tasks_blocked, create_memory_object_stream, fail_after,
-    open_cancel_scope)
-from anyio.exceptions import EndOfStream, ClosedResourceError, BrokenResourceError, WouldBlock
+    open_cancel_scope, EndOfStream, ClosedResourceError, BrokenResourceError, WouldBlock)
 
 pytestmark = pytest.mark.anyio
 

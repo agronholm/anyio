@@ -34,7 +34,7 @@ buffer by passing :data:``math.inf`` as the buffer size but this is not recommen
 Memory object streams can be cloned by calling the ``clone()`` method. Each clone can be closed
 separately, but each end of the stream is only considered closed once all of its clones have been
 closed. For example, if you have two clones of the receive stream, the send stream will start
-raising :exc:`~anyio.exceptions.BrokenResourceError` only when both receive streams have been
+raising :exc:`~anyio.BrokenResourceError` only when both receive streams have been
 closed.
 
 Multiple tasks can send and receive on the same memory object stream (or its clones) but each sent

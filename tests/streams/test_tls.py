@@ -5,8 +5,7 @@ from threading import Thread
 
 import pytest
 
-from anyio import connect_tcp
-from anyio.exceptions import BrokenResourceError
+from anyio import connect_tcp, BrokenResourceError
 from anyio.streams.tls import TLSStream
 
 

@@ -2,6 +2,38 @@ from traceback import format_exception
 from typing import Sequence
 
 
+class BrokenResourceError(Exception):
+    """
+    Raised when trying to use a resource that has been rendered unusuable due to external causes
+    (e.g. a send stream whose peer has disconnected).
+    """
+
+
+class BusyResourceError(Exception):
+    """Raised when two tasks are trying to read from or write to the same resource concurrently."""
+
+    def __init__(self, action: str):
+        super().__init__(f'Another task is already {action} this resource')
+
+
+class ClosedResourceError(Exception):
+    """Raised when trying to use a resource that has been closed."""
+
+
+class DelimiterNotFound(Exception):
+    """
+    Raised during :meth:`~anyio.streams.buffered.BufferedByteReceiveStream.receive_until` if the
+    maximum number of bytes has been read without the delimiter being found.
+    """
+
+    def __init__(self, max_bytes: int) -> None:
+        super().__init__(f'The delimiter was not found among the first {max_bytes} bytes')
+
+
+class EndOfStream(Exception):
+    """Raised when trying to read from a stream that has been closed from the other end."""
+
+
 class ExceptionGroup(BaseException):
     """Raised when multiple exceptions have been raised in a task group."""
 
@@ -29,38 +61,6 @@ class IncompleteRead(Exception):
 
     def __init__(self) -> None:
         super().__init__('The stream was closed before the read operation could be completed')
-
-
-class DelimiterNotFound(Exception):
-    """
-    Raised during :meth:`~anyio.streams.buffered.BufferedByteReceiveStream.receive_until` if the
-    maximum number of bytes has been read without the delimiter being found.
-    """
-
-    def __init__(self, max_bytes: int) -> None:
-        super().__init__(f'The delimiter was not found among the first {max_bytes} bytes')
-
-
-class ClosedResourceError(Exception):
-    """Raised when trying to use a resource that has been closed."""
-
-
-class BrokenResourceError(Exception):
-    """
-    Raised when trying to use a resource that has been rendered unusuable due to external causes
-    (e.g. a send stream whose peer has disconnected).
-    """
-
-
-class EndOfStream(Exception):
-    """Raised when trying to read from a stream that has been closed from the other end."""
-
-
-class BusyResourceError(Exception):
-    """Raised when two tasks are trying to read from or write to the same resource concurrently."""
-
-    def __init__(self, action: str):
-        super().__init__(f'Another task is already {action} this resource')
 
 
 class WouldBlock(Exception):

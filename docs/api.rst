@@ -144,11 +144,11 @@ Testing and debugging
 Exceptions
 ----------
 
-.. autoexception:: anyio.exceptions.BrokenResourceError
-.. autoexception:: anyio.exceptions.BusyResourceError
-.. autoexception:: anyio.exceptions.ClosedResourceError
-.. autoexception:: anyio.exceptions.DelimiterNotFound
-.. autoexception:: anyio.exceptions.EndOfStream
-.. autoexception:: anyio.exceptions.ExceptionGroup
-.. autoexception:: anyio.exceptions.IncompleteRead
-.. autoexception:: anyio.exceptions.WouldBlock
+.. autoexception:: anyio.BrokenResourceError
+.. autoexception:: anyio.BusyResourceError
+.. autoexception:: anyio.ClosedResourceError
+.. autoexception:: anyio.DelimiterNotFound
+.. autoexception:: anyio.EndOfStream
+.. autoexception:: anyio.ExceptionGroup
+.. autoexception:: anyio.IncompleteRead
+.. autoexception:: anyio.WouldBlock

@@ -7,8 +7,7 @@ import trio
 import anyio
 from anyio import (
     create_task_group, sleep, move_on_after, fail_after, open_cancel_scope, wait_all_tasks_blocked,
-    current_effective_deadline, current_time)
-from anyio.exceptions import ExceptionGroup
+    current_effective_deadline, current_time, ExceptionGroup)
 
 pytestmark = pytest.mark.anyio
 
@@ -520,7 +519,7 @@ async def test_exception_group_filtering():
                 await task_group2.spawn(fail, 'child')
                 await anyio.sleep(1)
 
-    with pytest.raises(anyio.exceptions.ExceptionGroup) as exc:
+    with pytest.raises(ExceptionGroup) as exc:
         await fn()
 
     assert len(exc.value.exceptions) == 2

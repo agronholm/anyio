@@ -1,5 +1,7 @@
 __all__ = ('run', 'sleep', 'current_time', 'get_all_backends', 'get_cancelled_exc_class',
-           'AsyncFile', 'open_file', 'aclose_forcefully', 'open_signal_receiver', 'connect_tcp',
+           'BrokenResourceError', 'BusyResourceError', 'ClosedResourceError', 'DelimiterNotFound',
+           'EndOfStream', 'ExceptionGroup', 'IncompleteRead', 'WouldBlock', 'AsyncFile',
+           'open_file', 'aclose_forcefully', 'open_signal_receiver', 'connect_tcp',
            'connect_tcp_with_tls', 'connect_unix', 'create_tcp_listener', 'create_unix_listener',
            'create_udp_socket', 'create_connected_udp_socket', 'getaddrinfo', 'getnameinfo',
            'wait_socket_readable', 'wait_socket_writable', 'create_memory_object_stream',
@@ -12,6 +14,9 @@ __all__ = ('run', 'sleep', 'current_time', 'get_all_backends', 'get_cancelled_ex
            'start_blocking_portal')
 
 from ._core._eventloop import run, sleep, current_time, get_all_backends, get_cancelled_exc_class
+from ._core._exceptions import (
+    BrokenResourceError, BusyResourceError, ClosedResourceError, DelimiterNotFound, EndOfStream,
+    ExceptionGroup, IncompleteRead, WouldBlock)
 from ._core._fileio import AsyncFile, open_file
 from ._core._resources import aclose_forcefully
 from ._core._signals import open_signal_receiver

@@ -25,10 +25,10 @@ from .. import abc, TaskInfo
 from .._core._eventloop import threadlocals, claim_worker_thread
 from .._core._sockets import GetAddrInfoReturnType, convert_ipv6_sockaddr
 from .._core._synchronization import ResourceGuard
-from ..abc.sockets import IPSockAddrType, UDPPacketType
-from ..exceptions import (
+from .._core._exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock,
     BrokenResourceError, EndOfStream)
+from ..abc.sockets import IPSockAddrType, UDPPacketType
 
 if sys.version_info >= (3, 7):
     from contextlib import asynccontextmanager

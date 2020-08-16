@@ -10,8 +10,8 @@ import pytest
 from anyio import (
     create_task_group, connect_tcp, create_udp_socket, connect_unix, create_unix_listener,
     create_tcp_listener, wait_all_tasks_blocked, move_on_after, getaddrinfo, getnameinfo,
-    create_connected_udp_socket, connect_tcp_with_tls, create_event)
-from anyio.exceptions import ExceptionGroup, BusyResourceError, ClosedResourceError
+    create_connected_udp_socket, connect_tcp_with_tls, create_event, ExceptionGroup,
+    BusyResourceError, ClosedResourceError)
 from anyio.streams.stapled import MultiListener
 
 pytestmark = pytest.mark.anyio
