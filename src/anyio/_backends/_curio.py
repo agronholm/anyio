@@ -72,7 +72,7 @@ def run(func: Callable[..., T_Retval], *args, **curio_options) -> T_Retval:
 #
 
 async def sleep(delay: float):
-    await check_cancelled()
+    await checkpoint()
     await curio.sleep(delay)
 
 
@@ -215,7 +215,7 @@ class CancelScope(abc.CancelScope):
         return self._shield
 
 
-async def check_cancelled():
+async def checkpoint():
     try:
         cancel_scope = _task_states[await curio.current_task()].cancel_scope
     except KeyError:
@@ -421,7 +421,7 @@ async def run_sync_in_worker_thread(
             if not helper_task.cancelled:
                 queue.put(None)
 
-    await check_cancelled()
+    await checkpoint()
     task = await curio.current_task()
     queue = curio.UniversalQueue(maxsize=1)
     finish_event = curio.Event()
@@ -554,7 +554,7 @@ class Process(abc.Process):
 
 
 async def open_process(command, *, shell: bool, stdin: int, stdout: int, stderr: int):
-    await check_cancelled()
+    await checkpoint()
     process = curio.subprocess.Popen(command, stdin=stdin, stdout=stdout, stderr=stderr,
                                      shell=shell)
     stdin_stream = FileStreamWrapper(process.stdin) if process.stdin else None
@@ -634,7 +634,7 @@ class SocketStream(_CurioSocketMixin, abc.SocketStream):
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
         with self._receive_guard:
-            await check_cancelled()
+            await checkpoint()
             try:
                 data = await self._curio_socket.recv(max_bytes)
             except (OSError, AttributeError) as exc:
@@ -647,7 +647,7 @@ class SocketStream(_CurioSocketMixin, abc.SocketStream):
 
     async def send(self, item: bytes) -> None:
         with self._send_guard:
-            await check_cancelled()
+            await checkpoint()
             try:
                 await self._curio_socket.sendall(item)
             except (OSError, AttributeError) as exc:
@@ -664,7 +664,7 @@ class SocketListener(_CurioSocketMixin, abc.SocketListener):
 
     async def accept(self) -> SocketStream:
         with self._accept_guard:
-            await check_cancelled()
+            await checkpoint()
             try:
                 curio_socket, _addr = await self._curio_socket.accept()
             except (OSError, AttributeError) as exc:
@@ -684,7 +684,7 @@ class UDPSocket(_CurioSocketMixin[IPSockAddrType], abc.UDPSocket):
 
     async def receive(self) -> Tuple[bytes, IPSockAddrType]:
         with self._receive_guard:
-            await check_cancelled()
+            await checkpoint()
             try:
                 return await self._curio_socket.recvfrom(65536)
             except (OSError, AttributeError) as exc:
@@ -692,7 +692,7 @@ class UDPSocket(_CurioSocketMixin[IPSockAddrType], abc.UDPSocket):
 
     async def send(self, item: UDPPacketType) -> None:
         with self._send_guard:
-            await check_cancelled()
+            await checkpoint()
             try:
                 await self._curio_socket.sendto(*item)
             except (OSError, AttributeError) as exc:
@@ -714,7 +714,7 @@ class ConnectedUDPSocket(_CurioSocketMixin[IPSockAddrType], abc.ConnectedUDPSock
 
     async def receive(self) -> bytes:
         with self._receive_guard:
-            await check_cancelled()
+            await checkpoint()
             try:
                 return await self._curio_socket.recv(65536)
             except (OSError, AttributeError) as exc:
@@ -722,7 +722,7 @@ class ConnectedUDPSocket(_CurioSocketMixin[IPSockAddrType], abc.ConnectedUDPSock
 
     async def send(self, item: bytes) -> None:
         with self._send_guard:
-            await check_cancelled()
+            await checkpoint()
             try:
                 await self._curio_socket.send(item)
             except (OSError, AttributeError) as exc:
@@ -772,7 +772,7 @@ getnameinfo = curio.socket.getnameinfo
 
 
 async def wait_socket_readable(sock):
-    await check_cancelled()
+    await checkpoint()
     if _reader_tasks.get(sock):
         raise BusyResourceError('reading from') from None
 
@@ -789,7 +789,7 @@ async def wait_socket_readable(sock):
 
 
 async def wait_socket_writable(sock):
-    await check_cancelled()
+    await checkpoint()
     if _writer_tasks.get(sock):
         raise BusyResourceError('writing to') from None
 
@@ -817,7 +817,7 @@ class Lock(abc.Lock):
         return self._lock.locked()
 
     async def acquire(self) -> None:
-        await check_cancelled()
+        await checkpoint()
         await self._lock.acquire()
 
     async def release(self) -> None:
@@ -830,7 +830,7 @@ class Condition(abc.Condition):
         self._condition = curio.Condition(curio_lock)
 
     async def acquire(self) -> None:
-        await check_cancelled()
+        await checkpoint()
         await self._condition.acquire()
 
     async def release(self) -> None:
@@ -846,7 +846,7 @@ class Condition(abc.Condition):
         await self._condition.notify_all()
 
     async def wait(self):
-        await check_cancelled()
+        await checkpoint()
         return await self._condition.wait()
 
 
@@ -861,7 +861,7 @@ class Event(abc.Event):
         return self._event.is_set()
 
     async def wait(self):
-        await check_cancelled()
+        await checkpoint()
         return await self._event.wait()
 
 
@@ -870,7 +870,7 @@ class Semaphore(abc.Semaphore):
         self._semaphore = curio.Semaphore(value)
 
     async def acquire(self) -> None:
-        await check_cancelled()
+        await checkpoint()
         await self._semaphore.acquire()
 
     async def release(self) -> None:
