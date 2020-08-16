@@ -58,8 +58,7 @@ async def test_terminate(tmp_path):
         import signal, sys, time
 
         def terminate(signum, frame):
-            print('exited with SIGTERM', flush=True)
-            sys.exit()
+            sys.exit(2)
 
         signal.signal(signal.SIGTERM, terminate)
         print('ready', flush=True)
@@ -71,6 +70,4 @@ async def test_terminate(tmp_path):
         assert line.rstrip() == b'ready'
 
         process.terminate()
-        line = await buffered_stdout.receive_until(b'\n', 100)
-        assert line.rstrip() == b'exited with SIGTERM'
-        assert await process.wait() == 0
+        assert await process.wait() == 2
