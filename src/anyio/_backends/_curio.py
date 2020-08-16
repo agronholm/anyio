@@ -23,7 +23,7 @@ import curio.traps
 
 from .. import abc, TaskInfo
 from .._core._eventloop import threadlocals, claim_worker_thread
-from .._core._sockets import GetAddrInfoReturnType
+from .._core._sockets import GetAddrInfoReturnType, convert_ipv6_sockaddr
 from .._core._synchronization import ResourceGuard
 from ..abc.sockets import IPSockAddrType, UDPPacketType
 from ..exceptions import (
@@ -576,28 +576,9 @@ class _CurioSocketMixin(Generic[T_SockAddr]):
         self._curio_socket = curio_socket
         self._closed = False
 
-    def getsockopt(self, level, optname, *args):
-        try:
-            return self._curio_socket.getsockopt(level, optname, *args)
-        except OSError as exc:
-            self._convert_socket_error(exc)
-
-    def setsockopt(self, level, optname, value, *args) -> None:
-        try:
-            self._curio_socket.setsockopt(level, optname, value, *args)
-        except OSError as exc:
-            self._convert_socket_error(exc)
-
     @property
-    def family(self) -> socket.AddressFamily:
-        return self._curio_socket.family
-
-    @property
-    def local_address(self) -> T_SockAddr:
-        try:
-            return self._curio_socket.getsockname()
-        except OSError as exc:
-            self._convert_socket_error(exc)
+    def raw_socket(self) -> socket.socket:
+        return self._curio_socket._socket
 
     async def aclose(self) -> None:
         if self._curio_socket.fileno() >= 0:
@@ -624,13 +605,6 @@ class SocketStream(_CurioSocketMixin, abc.SocketStream):
         super().__init__(curio_socket)
         self._receive_guard = ResourceGuard('reading from')
         self._send_guard = ResourceGuard('writing to')
-
-    @property
-    def remote_address(self) -> Union[IPSockAddrType, str]:
-        try:
-            return self._curio_socket.getpeername()
-        except (OSError, AttributeError) as exc:
-            self._convert_socket_error(exc)
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
         with self._receive_guard:
@@ -686,7 +660,8 @@ class UDPSocket(_CurioSocketMixin[IPSockAddrType], abc.UDPSocket):
         with self._receive_guard:
             await checkpoint()
             try:
-                return await self._curio_socket.recvfrom(65536)
+                data, addr = await self._curio_socket.recvfrom(65536)
+                return data, convert_ipv6_sockaddr(addr)
             except (OSError, AttributeError) as exc:
                 self._convert_socket_error(exc)
 
@@ -704,13 +679,6 @@ class ConnectedUDPSocket(_CurioSocketMixin[IPSockAddrType], abc.ConnectedUDPSock
         super().__init__(curio_socket)
         self._receive_guard = ResourceGuard('reading from')
         self._send_guard = ResourceGuard('writing to')
-
-    @property
-    def remote_address(self) -> IPSockAddrType:
-        try:
-            return self._curio_socket.getpeername()
-        except (OSError, AttributeError) as exc:
-            self._convert_socket_error(exc)
 
     async def receive(self) -> bytes:
         with self._receive_guard:

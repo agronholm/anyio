@@ -55,16 +55,17 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   - ``connect_tcp()`` has been split into ``connect_tcp()`` and ``connect_tcp_with_tls()``
   - **BACKWARDS INCOMPATIBLE** Socket server functionality has been refactored into a
     network-agnostic listener system
-  - Support for the ``SO_REUSEPORT`` option (allows binding more than one socket to the same
-    address/port combination, as long as they all have this option set) has been added to TCP
-    listeners and UDP sockets
   - **BACKWARDS INCOMPATIBLE** The ``reuse_address`` option was replaced with ``reuse_port`` in
     ``create_udp_socket()``. This switches on the ``SO_REUSEPORT`` option. The ``SO_REUSEADDR`` is
     no longer used under any circumstances with UDP sockets.
   - Added the ``family`` attribute to socket streams and listeners (for getting the address family)
   - **BACKWARDS INCOMPATIBLE** Removed the ``notify_socket_closing()`` function as it is no longer
     used by AnyIO
+  - Support for the ``SO_REUSEPORT`` option (allows binding more than one socket to the same
+    address/port combination, as long as they all have this option set) has been added to TCP
+    listeners and UDP sockets
   - The ``send_eof()`` method was added to all (bidirectional) streams
+  - Added the ``raw_socket`` property on socket streams, UDP sockets and socket listeners
 
 - File I/O changes:
 

@@ -551,7 +551,7 @@ async def test_multi_listener(tmp_path_factory):
                 if sys.platform != 'win32' and listener.family == socket.AddressFamily.AF_UNIX:
                     stream = await connect_unix(listener.local_address)
                 else:
-                    stream = await connect_tcp(*listener.local_address[:2])
+                    stream = await connect_tcp(*listener.local_address)
 
                 expected_addresses.append(stream.local_address)
                 await event.wait()
@@ -566,12 +566,12 @@ async def test_multi_listener(tmp_path_factory):
 class TestUDPSocket:
     async def test_send_receive(self, family):
         async with await create_udp_socket(local_host='localhost', family=family) as sock:
-            await sock.sendto(b'blah', *sock.local_address[:2])
+            await sock.sendto(b'blah', *sock.local_address)
             request, addr = await sock.receive()
             assert request == b'blah'
             assert addr == sock.local_address
 
-            await sock.sendto(b'halb', *sock.local_address[:2])
+            await sock.sendto(b'halb', *sock.local_address)
             response, addr = await sock.receive()
             assert response == b'halb'
             assert addr == sock.local_address
@@ -579,10 +579,10 @@ class TestUDPSocket:
     async def test_iterate(self, family):
         async def serve():
             async for packet, addr in server:
-                await server.send((packet[::-1], addr[:2]))
+                await server.send((packet[::-1], addr))
 
         async with await create_udp_socket(family=family, local_host='localhost') as server:
-            host, port = server.local_address[:2]
+            host, port = server.local_address
             async with await create_udp_socket(family=family, local_host='localhost') as client:
                 async with create_task_group() as tg:
                     await tg.spawn(serve)
@@ -640,7 +640,7 @@ class TestUDPSocket:
 
     async def test_send_after_close(self):
         udp = await create_udp_socket(family=socket.AF_INET, local_host='localhost')
-        host, port = udp.local_address[:2]
+        host, port = udp.local_address
         await udp.aclose()
         with pytest.raises(ClosedResourceError):
             await udp.sendto(b'foo', host, port)
@@ -666,9 +666,9 @@ class TestConnectedUDPSocket:
                 await udp2.send(packet[::-1])
 
         async with await create_udp_socket(family=family, local_host='localhost') as udp1:
-            host, port = udp1.local_address[:2]
+            host, port = udp1.local_address
             async with await create_connected_udp_socket(host, port) as udp2:
-                host, port = udp2.local_address[:2]
+                host, port = udp2.local_address
                 async with create_task_group() as tg:
                     await tg.spawn(serve)
                     await udp1.sendto(b'FOOBAR', host, port)

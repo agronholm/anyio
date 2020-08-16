@@ -1,6 +1,8 @@
 import socket
 import sys
 from concurrent.futures import Future
+
+from anyio._core._sockets import convert_ipv6_sockaddr
 from dataclasses import dataclass
 from types import TracebackType
 from typing import (
@@ -293,28 +295,9 @@ class _TrioSocketMixin(Generic[T_SockAddr]):
         if self._trio_socket.fileno() < 0:
             raise BrokenResourceError
 
-    def getsockopt(self, level, optname, *args):
-        try:
-            return self._trio_socket.getsockopt(level, optname, *args)
-        except OSError as exc:
-            self._convert_socket_error(exc)
-
-    def setsockopt(self, level, optname, value, *args) -> None:
-        try:
-            self._trio_socket.setsockopt(level, optname, value, *args)
-        except OSError as exc:
-            self._convert_socket_error(exc)
-
     @property
-    def family(self) -> socket.AddressFamily:
-        return self._trio_socket.family
-
-    @property
-    def local_address(self) -> T_SockAddr:
-        try:
-            return self._trio_socket.getsockname()
-        except OSError as exc:
-            self._convert_socket_error(exc)
+    def raw_socket(self) -> socket.socket:
+        return self._trio_socket._sock
 
     async def aclose(self) -> None:
         if self._trio_socket.fileno() >= 0:
@@ -338,13 +321,6 @@ class SocketStream(_TrioSocketMixin, abc.SocketStream):
         super().__init__(trio_socket)
         self._receive_guard = ResourceGuard('reading from')
         self._send_guard = ResourceGuard('writing to')
-
-    @property
-    def remote_address(self) -> Union[IPSockAddrType, str]:
-        try:
-            return self._trio_socket.getpeername()
-        except BaseException as exc:
-            self._convert_socket_error(exc)
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
         with self._receive_guard:
@@ -400,7 +376,8 @@ class UDPSocket(_TrioSocketMixin[IPSockAddrType], abc.UDPSocket):
     async def receive(self) -> Tuple[bytes, IPSockAddrType]:
         with self._receive_guard:
             try:
-                return await self._trio_socket.recvfrom(65536)
+                data, addr = await self._trio_socket.recvfrom(65536)
+                return data, convert_ipv6_sockaddr(addr)
             except BaseException as exc:
                 self._convert_socket_error(exc)
 
@@ -417,13 +394,6 @@ class ConnectedUDPSocket(_TrioSocketMixin[IPSockAddrType], abc.ConnectedUDPSocke
         super().__init__(trio_socket)
         self._receive_guard = ResourceGuard('reading from')
         self._send_guard = ResourceGuard('writing to')
-
-    @property
-    def remote_address(self) -> IPSockAddrType:
-        try:
-            return self._trio_socket.getpeername()
-        except BaseException as exc:
-            self._convert_socket_error(exc)
 
     async def receive(self) -> bytes:
         with self._receive_guard:

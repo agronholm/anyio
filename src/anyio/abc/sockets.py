@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from ipaddress import IPv4Address, IPv6Address
-from socket import AddressFamily
+from socket import AddressFamily, SocketType
 from typing import (
     TypeVar, Tuple, Union, Generic, Callable, Any, Optional, AsyncContextManager)
 
@@ -26,50 +26,66 @@ class _NullAsyncContextManager:
 class SocketProvider(Generic[T_SockAddr]):
     """Abstract base class for socket-based streams and listeners."""
 
+    @property
     @abstractmethod
+    def raw_socket(self) -> SocketType:
+        """
+        The underlying raw socket object.
+
+        .. warning:: This should only be used for advanced use cases, so only use this if you know
+            what you're doing. Otherwise you might break things in subtle ways.
+        """
+
     def getsockopt(self, level, optname, *args):
         """
         Get a socket option from the underlying socket.
 
         :return: the return value of :meth:`~socket.socket.getsockopt`
-        """
 
-    @abstractmethod
+        """
+        return self.raw_socket.getsockopt(level, optname, *args)
+
     def setsockopt(self, level, optname, value, *args) -> None:
         """
         Set a socket option on the underlying socket.
 
         This calls :meth:`~socket.socket.setsockopt` on the underlying socket.
+
         """
+        self.raw_socket.setsockopt(level, optname, value, *args)
 
     @property
-    @abstractmethod
     def family(self) -> AddressFamily:
         """The address family of the underlying socket."""
+        return self.raw_socket.family
 
     @property
-    @abstractmethod
     def local_address(self) -> T_SockAddr:
         """
         The bound address of the underlying local socket.
 
         For TCP streams, this is a tuple of (IP address, port).
         For UNIX socket streams, this is the path to the socket.
+
         """
+        from anyio._core._sockets import convert_ipv6_sockaddr
+        return convert_ipv6_sockaddr(self.raw_socket.getsockname())
 
 
 class SocketStream(Generic[T_SockAddr], ByteStream, SocketProvider[T_SockAddr]):
     """Transports bytes over a socket."""
 
     @property
-    @abstractmethod
     def remote_address(self) -> T_SockAddr:
         """
         The address this socket is connected to.
 
         For TCP streams, this is a tuple of (IP address, port).
         For UNIX socket streams, this is the path to the socket.
+
         """
+        from anyio._core._sockets import convert_ipv6_sockaddr
+        return convert_ipv6_sockaddr(self.raw_socket.getpeername())
 
 
 class SocketListener(Generic[T_SockAddr], Listener[SocketStream[T_SockAddr]],
@@ -109,6 +125,7 @@ class ConnectedUDPSocket(UnreliableObjectStream[bytes], SocketProvider[IPSockAdd
     """Represents an connected UDP socket."""
 
     @property
-    @abstractmethod
     def remote_address(self) -> IPSockAddrType:
         """The address this socket is connected to."""
+        from anyio._core._sockets import convert_ipv6_sockaddr
+        return convert_ipv6_sockaddr(self.raw_socket.getpeername())

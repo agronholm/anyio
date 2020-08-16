@@ -5,11 +5,13 @@ import socket
 import sys
 from collections import OrderedDict, deque
 from concurrent.futures import Future
+
+from anyio._core._sockets import convert_ipv6_sockaddr
 from dataclasses import dataclass
 from functools import wraps
 from inspect import isgenerator
 from threading import Thread
-from socket import AddressFamily, SocketKind
+from socket import AddressFamily, SocketKind, SocketType
 from types import TracebackType
 from typing import (
     Callable, Set, Optional, Union, Tuple, cast, Coroutine, Any, Awaitable, TypeVar, Generator,
@@ -20,7 +22,7 @@ from .. import abc, TaskInfo
 from .._core._eventloop import threadlocals, claim_worker_thread
 from .._core._sockets import GetAddrInfoReturnType
 from .._core._synchronization import ResourceGuard
-from ..abc.sockets import IPSockAddrType, SockAddrType, UDPPacketType
+from ..abc.sockets import IPSockAddrType, UDPPacketType
 from ..exceptions import (
     ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock,
     BrokenResourceError, EndOfStream)
@@ -702,6 +704,7 @@ class DatagramProtocol(asyncio.DatagramProtocol):
         self.write_event.set()
 
     def datagram_received(self, data: bytes, addr: IPSockAddrType) -> None:
+        addr = convert_ipv6_sockaddr(addr)
         self.read_queue.append((data, addr))
         self.read_event.set()
 
@@ -782,26 +785,9 @@ class SocketStream(abc.SocketStream):
             await asyncio.sleep(0)
             self._transport.abort()
 
-    def getsockopt(self, level, optname, *args):
-        sock: socket.SocketType = self._transport.get_extra_info('socket')
-        return sock.getsockopt(level, optname, *args)
-
-    def setsockopt(self, level, optname, value, *args) -> None:
-        sock: socket.SocketType = self._transport.get_extra_info('socket')
-        sock.setsockopt(level, optname, value, *args)
-
     @property
-    def family(self) -> AddressFamily:
-        sock: socket.SocketType = self._transport.get_extra_info('socket')
-        return sock.family
-
-    @property
-    def local_address(self) -> Union[IPSockAddrType, str]:
-        return self._transport.get_extra_info('sockname')
-
-    @property
-    def remote_address(self) -> Union[IPSockAddrType, str]:
-        return self._transport.get_extra_info('peername')
+    def raw_socket(self) -> socket.socket:
+        return self._transport.get_extra_info('socket')
 
 
 class SocketListener(abc.SocketListener):
@@ -810,19 +796,9 @@ class SocketListener(abc.SocketListener):
         self._loop = cast(asyncio.BaseEventLoop, get_running_loop())
         self._accept_guard = ResourceGuard('accepting connections from')
 
-    def getsockopt(self, level, optname, *args):
-        return self._raw_socket.getsockopt(level, optname, *args)
-
-    def setsockopt(self, level, optname, value, *args) -> None:
-        self._raw_socket.setsockopt(level, optname, value, *args)
-
     @property
-    def family(self) -> AddressFamily:
-        return self._raw_socket.family
-
-    @property
-    def local_address(self) -> SockAddrType:
-        return self._raw_socket.getsockname()
+    def raw_socket(self) -> socket.socket:
+        return self._raw_socket
 
     async def accept(self) -> abc.SocketStream:
         with self._accept_guard:
@@ -862,21 +838,8 @@ class UDPSocket(abc.UDPSocket):
             self._transport.close()
 
     @property
-    def family(self) -> AddressFamily:
-        sock: socket.SocketType = self._transport.get_extra_info('socket')
-        return sock.family
-
-    @property
-    def local_address(self) -> IPSockAddrType:
-        return self._transport.get_extra_info('sockname')
-
-    def getsockopt(self, level, optname, *args):
-        sock: socket.SocketType = self._transport.get_extra_info('socket')
-        return sock.getsockopt(level, optname, *args)
-
-    def setsockopt(self, level, optname, value, *args) -> None:
-        sock: socket.SocketType = self._transport.get_extra_info('socket')
-        sock.setsockopt(level, optname, value, *args)
+    def raw_socket(self) -> socket.socket:
+        return self._transport.get_extra_info('socket')
 
     async def receive(self) -> Tuple[bytes, IPSockAddrType]:
         with self._receive_guard:
@@ -921,25 +884,8 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
             self._transport.close()
 
     @property
-    def family(self) -> AddressFamily:
-        sock: socket.SocketType = self._transport.get_extra_info('socket')
-        return sock.family
-
-    @property
-    def local_address(self) -> IPSockAddrType:
-        return self._transport.get_extra_info('sockname')
-
-    @property
-    def remote_address(self) -> IPSockAddrType:
-        return self._transport.get_extra_info('peername')
-
-    def getsockopt(self, level, optname, *args):
-        sock: socket.SocketType = self._transport.get_extra_info('socket')
-        return sock.getsockopt(level, optname, *args)
-
-    def setsockopt(self, level, optname, value, *args) -> None:
-        sock: socket.SocketType = self._transport.get_extra_info('socket')
-        sock.setsockopt(level, optname, value, *args)
+    def raw_socket(self) -> SocketType:
+        return self._transport.get_extra_info('socket')
 
     async def receive(self) -> bytes:
         with self._receive_guard:
