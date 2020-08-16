@@ -34,3 +34,8 @@ from ._core._testing import TaskInfo, get_current_task, get_running_tasks, wait_
 from ._core._threads import (
     run_sync_in_worker_thread, run_async_from_thread, current_default_worker_thread_limiter,
     create_blocking_portal, start_blocking_portal)
+
+# Re-export imports so they look like they live directly in this package
+for key, value in list(locals().items()):
+    if getattr(value, '__module__', '').startswith('anyio.'):
+        value.__module__ = __name__

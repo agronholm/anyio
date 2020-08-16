@@ -15,7 +15,7 @@ Asynchronous resources
 
 .. autofunction:: anyio.aclose_forcefully
 
-.. autoclass:: anyio.abc.resources.AsyncResource
+.. autoclass:: anyio.abc.AsyncResource
 
 Timeouts and cancellation
 -------------------------
@@ -25,14 +25,14 @@ Timeouts and cancellation
 .. autofunction:: anyio.fail_after
 .. autofunction:: anyio.current_effective_deadline
 
-.. autoclass:: anyio.abc.tasks.CancelScope
+.. autoclass:: anyio.abc.CancelScope
 
 Task groups
 -----------
 
 .. autofunction:: anyio.create_task_group
 
-.. autoclass:: anyio.abc.tasks.TaskGroup
+.. autoclass:: anyio.abc.TaskGroup
 
 Threads
 -------
@@ -54,23 +54,23 @@ Streams and stream wrappers
 
 .. autofunction:: anyio.create_memory_object_stream
 
-.. autoclass:: anyio.abc.streams.UnreliableObjectReceiveStream()
-.. autoclass:: anyio.abc.streams.UnreliableObjectSendStream()
-.. autoclass:: anyio.abc.streams.UnreliableObjectStream()
-.. autoclass:: anyio.abc.streams.ObjectReceiveStream()
-.. autoclass:: anyio.abc.streams.ObjectSendStream()
-.. autoclass:: anyio.abc.streams.ObjectStream()
-.. autoclass:: anyio.abc.streams.ByteReceiveStream
-.. autoclass:: anyio.abc.streams.ByteSendStream
-.. autoclass:: anyio.abc.streams.ByteStream
-.. autoclass:: anyio.abc.streams.Listener
+.. autoclass:: anyio.abc.UnreliableObjectReceiveStream()
+.. autoclass:: anyio.abc.UnreliableObjectSendStream()
+.. autoclass:: anyio.abc.UnreliableObjectStream()
+.. autoclass:: anyio.abc.ObjectReceiveStream()
+.. autoclass:: anyio.abc.ObjectSendStream()
+.. autoclass:: anyio.abc.ObjectStream()
+.. autoclass:: anyio.abc.ByteReceiveStream
+.. autoclass:: anyio.abc.ByteSendStream
+.. autoclass:: anyio.abc.ByteStream
+.. autoclass:: anyio.abc.Listener
 
-.. autodata:: anyio.abc.streams.AnyUnreliableByteReceiveStream
-.. autodata:: anyio.abc.streams.AnyUnreliableByteSendStream
-.. autodata:: anyio.abc.streams.AnyUnreliableByteStream
-.. autodata:: anyio.abc.streams.AnyByteReceiveStream
-.. autodata:: anyio.abc.streams.AnyByteSendStream
-.. autodata:: anyio.abc.streams.AnyByteStream
+.. autodata:: anyio.abc.AnyUnreliableByteReceiveStream
+.. autodata:: anyio.abc.AnyUnreliableByteSendStream
+.. autodata:: anyio.abc.AnyUnreliableByteStream
+.. autodata:: anyio.abc.AnyByteReceiveStream
+.. autodata:: anyio.abc.AnyByteSendStream
+.. autodata:: anyio.abc.AnyByteStream
 
 .. autoclass:: anyio.streams.buffered.BufferedByteReceiveStream
 .. autoclass:: anyio.streams.memory.MemoryObjectReceiveStream
@@ -99,11 +99,11 @@ Sockets and networking
 .. autofunction:: anyio.wait_socket_readable
 .. autofunction:: anyio.wait_socket_writable
 
-.. autoclass:: anyio.abc.sockets.SocketProvider()
-.. autoclass:: anyio.abc.sockets.SocketStream()
-.. autoclass:: anyio.abc.sockets.SocketListener()
-.. autoclass:: anyio.abc.sockets.UDPSocket()
-.. autoclass:: anyio.abc.sockets.ConnectedUDPSocket()
+.. autoclass:: anyio.abc.SocketProvider()
+.. autoclass:: anyio.abc.SocketStream()
+.. autoclass:: anyio.abc.SocketListener()
+.. autoclass:: anyio.abc.UDPSocket()
+.. autoclass:: anyio.abc.ConnectedUDPSocket()
 
 Subprocesses
 ------------
@@ -111,7 +111,7 @@ Subprocesses
 .. autofunction:: anyio.run_process
 .. autofunction:: anyio.open_process
 
-.. autoclass:: anyio.abc.subprocesses.Process
+.. autoclass:: anyio.abc.Process
 
 Synchronization
 ---------------
@@ -122,11 +122,11 @@ Synchronization
 .. autofunction:: anyio.create_condition
 .. autofunction:: anyio.create_capacity_limiter
 
-.. autoclass:: anyio.abc.synchronization.Semaphore
-.. autoclass:: anyio.abc.synchronization.Lock
-.. autoclass:: anyio.abc.synchronization.Event
-.. autoclass:: anyio.abc.synchronization.Condition
-.. autoclass:: anyio.abc.synchronization.CapacityLimiter
+.. autoclass:: anyio.abc.Semaphore
+.. autoclass:: anyio.abc.Lock
+.. autoclass:: anyio.abc.Event
+.. autoclass:: anyio.abc.Condition
+.. autoclass:: anyio.abc.CapacityLimiter
 
 Operating system signals
 ------------------------
