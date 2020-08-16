@@ -54,6 +54,7 @@ sleep = trio.sleep
 #
 
 CancelledError = trio.Cancelled
+checkpoint = trio.lowlevel.checkpoint
 
 
 class CancelScope(abc.CancelScope):

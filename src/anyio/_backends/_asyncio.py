@@ -165,7 +165,7 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False, use_uvloop: b
 #
 
 async def sleep(delay: float) -> None:
-    await check_cancelled()
+    await checkpoint()
     await asyncio.sleep(delay)
 
 
@@ -310,7 +310,7 @@ class CancelScope(abc.CancelScope):
         return self._shield
 
 
-async def check_cancelled():
+async def checkpoint():
     try:
         cancel_scope = _task_states[current_task()].cancel_scope
     except KeyError:
@@ -509,7 +509,7 @@ async def run_sync_in_worker_thread(
                 if not cancelled:
                     loop.call_soon_threadsafe(queue.put_nowait, (result, None))
 
-    await check_cancelled()
+    await checkpoint()
     loop = get_running_loop()
     task = current_task()
     queue: asyncio.Queue[_Retval_Queue_Type] = asyncio.Queue(1)
@@ -630,7 +630,7 @@ class Process(abc.Process):
 
 
 async def open_process(command, *, shell: bool, stdin: int, stdout: int, stderr: int):
-    await check_cancelled()
+    await checkpoint()
     if shell:
         process = await asyncio.create_subprocess_shell(command, stdin=stdin, stdout=stdout,
                                                         stderr=stderr)
@@ -725,7 +725,7 @@ class SocketStream(abc.SocketStream):
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
         with self._receive_guard:
-            await check_cancelled()
+            await checkpoint()
             if not self._protocol.read_queue and not self._transport.is_closing():
                 self._protocol.read_event.clear()
                 self._transport.resume_reading()
@@ -751,7 +751,7 @@ class SocketStream(abc.SocketStream):
 
     async def send(self, item: bytes) -> None:
         with self._send_guard:
-            await check_cancelled()
+            await checkpoint()
             try:
                 self._transport.write(item)
             except RuntimeError as exc:
@@ -826,7 +826,7 @@ class SocketListener(abc.SocketListener):
 
     async def accept(self) -> abc.SocketStream:
         with self._accept_guard:
-            await check_cancelled()
+            await checkpoint()
             try:
                 client_sock, _addr = await self._loop.sock_accept(self._raw_socket)
             except asyncio.CancelledError:
@@ -880,7 +880,7 @@ class UDPSocket(abc.UDPSocket):
 
     async def receive(self) -> Tuple[bytes, IPSockAddrType]:
         with self._receive_guard:
-            await check_cancelled()
+            await checkpoint()
 
             # If the buffer is empty, ask for more data
             if not self._protocol.read_queue and not self._transport.is_closing():
@@ -897,7 +897,7 @@ class UDPSocket(abc.UDPSocket):
 
     async def send(self, item: UDPPacketType) -> None:
         with self._send_guard:
-            await check_cancelled()
+            await checkpoint()
             await self._protocol.write_event.wait()
             if self._closed:
                 raise ClosedResourceError
@@ -943,7 +943,7 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
 
     async def receive(self) -> bytes:
         with self._receive_guard:
-            await check_cancelled()
+            await checkpoint()
 
             # If the buffer is empty, ask for more data
             if not self._protocol.read_queue and not self._transport.is_closing():
@@ -962,7 +962,7 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
 
     async def send(self, item: bytes) -> None:
         with self._send_guard:
-            await check_cancelled()
+            await checkpoint()
             await self._protocol.write_event.wait()
             if self._closed:
                 raise ClosedResourceError
@@ -1029,7 +1029,7 @@ async def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Tuple[str, st
 
 
 async def wait_socket_readable(sock: socket.SocketType) -> None:
-    await check_cancelled()
+    await checkpoint()
     if _read_events.get(sock):
         raise BusyResourceError('reading from') from None
 
@@ -1050,7 +1050,7 @@ async def wait_socket_readable(sock: socket.SocketType) -> None:
 
 
 async def wait_socket_writable(sock: socket.SocketType) -> None:
-    await check_cancelled()
+    await checkpoint()
     if _write_events.get(sock):
         raise BusyResourceError('writing to') from None
 
@@ -1082,7 +1082,7 @@ class Lock(abc.Lock):
         return self._lock.locked()
 
     async def acquire(self) -> None:
-        await check_cancelled()
+        await checkpoint()
         await self._lock.acquire()
 
     async def release(self) -> None:
@@ -1095,7 +1095,7 @@ class Condition(abc.Condition):
         self._condition = asyncio.Condition(asyncio_lock)
 
     async def acquire(self) -> None:
-        await check_cancelled()
+        await checkpoint()
         await self._condition.acquire()
 
     async def release(self) -> None:
@@ -1111,7 +1111,7 @@ class Condition(abc.Condition):
         self._condition.notify_all()
 
     async def wait(self):
-        await check_cancelled()
+        await checkpoint()
         return await self._condition.wait()
 
 
@@ -1126,7 +1126,7 @@ class Event(abc.Event):
         return self._event.is_set()
 
     async def wait(self):
-        await check_cancelled()
+        await checkpoint()
         await self._event.wait()
 
 
@@ -1135,7 +1135,7 @@ class Semaphore(abc.Semaphore):
         self._semaphore = asyncio.Semaphore(value)
 
     async def acquire(self) -> None:
-        await check_cancelled()
+        await checkpoint()
         await self._semaphore.acquire()
 
     async def release(self) -> None:
