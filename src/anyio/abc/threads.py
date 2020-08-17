@@ -1,8 +1,7 @@
 import threading
 from abc import ABCMeta, abstractmethod
-from collections import Coroutine
 from concurrent.futures import Future
-from typing import TypeVar, Callable, overload, Any
+from typing import TypeVar, Callable, overload, Any, Coroutine
 
 T_Retval = TypeVar('T_Retval')
 
