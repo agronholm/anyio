@@ -2,7 +2,7 @@ import threading
 from abc import ABCMeta, abstractmethod
 from collections import Coroutine
 from concurrent.futures import Future
-from typing import TypeVar, Callable
+from typing import TypeVar, Callable, overload, Any
 
 T_Retval = TypeVar('T_Retval')
 
@@ -82,7 +82,15 @@ class BlockingPortal(metaclass=ABCMeta):
     def _spawn_task_from_thread(self, func: Callable, args: tuple, future: Future) -> None:
         pass
 
+    @overload
+    def call(self, func: Callable[..., Coroutine[Any, Any, T_Retval]], *args) -> T_Retval:
+        ...
+
+    @overload
     def call(self, func: Callable[..., T_Retval], *args) -> T_Retval:
+        ...
+
+    def call(self, func, *args):
         """
         Call the given function in the event loop thread.
 
