@@ -57,7 +57,12 @@ def current_default_worker_thread_limiter() -> CapacityLimiter:
 
 
 def create_blocking_portal() -> BlockingPortal:
-    """Create a portal for running functions in the event loop thread."""
+    """
+    Create a portal for running functions in the event loop thread from external threads.
+
+    Use this function in asynchronous code when you need to allow external threads access to the
+    event loop where your asynchronous code is currently running.
+    """
     return get_asynclib().BlockingPortal()
 
 
@@ -67,8 +72,10 @@ def start_blocking_portal(
     """
     Start a new event loop in a new thread and run a blocking portal in its main task.
 
-    :param backend:
-    :param backend_options:
+    The parameters are the same as for :func:`~anyio.run`.
+
+    :param backend: name of the backend
+    :param backend_options: backend options
     :return: a blocking portal object
 
     """

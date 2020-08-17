@@ -55,6 +55,13 @@ class BlockingPortal(metaclass=ABCMeta):
             await self._task_group.cancel_scope.cancel()
 
     def stop_from_external_thread(self, cancel_remaining: bool = False) -> None:
+        """
+        Signal the portal to stop and wait for the event loop thread to finish.
+
+        :param cancel_remaining: ``True`` to cancel all the remaining tasks, ``False`` to let them
+            finish before returning
+
+        """
         thread = self.call(threading.current_thread)
         self.call(self.stop, cancel_remaining)
         thread.join()
