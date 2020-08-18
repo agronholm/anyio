@@ -3,6 +3,15 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**2.0.0b2**
+
+- Simplified the cancellation logic in curio's cancel scopes (fixes runaway ``curio.TaskTimeout``
+  exceptions)
+- Fixed return type annotation for ``BlockingPortal.call()`` to return the coroutine function's
+  return value and not the coroutine object
+- Changed the logic in ``MemoryObjectReceiveStream.receive()`` to ignore the cancellation exception
+  instead of passing the item to the next receiver or the buffer
+
 **2.0.0b1**
 
 - New features:
