@@ -85,20 +85,25 @@ CancelledError = curio.TaskCancelled
 
 class CancelScope(abc.CancelScope):
     __slots__ = ('_deadline', '_shield', '_parent_scope', '_cancel_called', '_active',
-                 '_previous_timeout', '_tasks', '_host_task', '_timeout_expired')
+                 '_timeout_task', '_tasks', '_host_task', '_timeout_expired')
 
     def __init__(self, deadline: float = math.inf, shield: bool = False):
         self._deadline = deadline
         self._shield = shield
-        self._parent_scope = None
+        self._parent_scope: Optional[CancelScope] = None
         self._cancel_called = False
         self._active = False
-        self._previous_timeout = None
+        self._timeout_task: Optional[curio.Task] = None
         self._tasks: Set[curio.Task] = set()
         self._host_task: Optional[curio.Task] = None
         self._timeout_expired = False
 
     async def __aenter__(self):
+        async def timeout():
+            await curio.sleep(self._deadline - await curio.clock())
+            self._timeout_expired = True
+            await self.cancel()
+
         if self._active:
             raise RuntimeError(
                 "Each CancelScope may only be used for a single 'async with' block"
@@ -120,7 +125,7 @@ class CancelScope(abc.CancelScope):
                 self._cancel_called = True
                 self._timeout_expired = True
             else:
-                self._previous_timeout = await curio.traps._set_timeout(self._deadline)
+                self._timeout_task = await curio.spawn(timeout)
 
         self._active = True
         return self
@@ -129,14 +134,12 @@ class CancelScope(abc.CancelScope):
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> Optional[bool]:
         self._active = False
-        if self._previous_timeout:
-            await curio.traps._unset_timeout(self._previous_timeout)
+        if self._timeout_task:
+            await self._timeout_task.cancel(blocking=False)
 
         if exc_type is curio.errors.TaskTimeout:
             if self._deadline != math.inf and await curio.clock() >= self._deadline:
-                self._cancel_called = True
                 self._timeout_expired = True
-                exc_val = CancelledError().with_traceback(exc_tb)
 
         self._tasks.remove(self._host_task)
         host_task_state = _task_states.get(self._host_task)
@@ -152,10 +155,7 @@ class CancelScope(abc.CancelScope):
                     # This scope was directly cancelled
                     return True
 
-        if exc_val is not None and self._timeout_expired:
-            raise exc_val
-        else:
-            return None
+        return None
 
     async def _cancel(self):
         # Deliver cancellation to directly contained tasks and nested cancel scopes

@@ -183,10 +183,10 @@ class CancelScope(abc.CancelScope):
     def __init__(self, deadline: float = math.inf, shield: bool = False):
         self._deadline = deadline
         self._shield = shield
-        self._parent_scope = None
+        self._parent_scope: Optional[CancelScope] = None
         self._cancel_called = False
         self._active = False
-        self._timeout_task = None
+        self._timeout_task: Optional[asyncio.Task] = None
         self._tasks: Set[asyncio.Task] = set()
         self._host_task: Optional[asyncio.Task] = None
         self._timeout_expired = False
