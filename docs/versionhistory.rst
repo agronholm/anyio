@@ -30,7 +30,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - General changes/fixes:
 
   - Dropped support for Python 3.5
-  - Bumped minimum versions of trio and curio to v0.16 and v1.3, respectively
+  - Bumped minimum versions of trio and curio to v0.16 and v1.2, respectively
   - Unified checkpoint behavior: a cancellation check now calls ``sleep(0)`` on asyncio and
     curio, allowing the scheduler to switch to a different task
   - Fixed a bug where a task group would abandon its subtasks if its own cancel scope was
