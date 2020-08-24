@@ -121,7 +121,7 @@ async def connect_tcp(
 async def connect_tcp_with_tls(
     remote_host: IPAddressType, remote_port: int, *, local_host: Optional[IPAddressType] = None,
     happy_eyeballs_delay: float = 0.25, server_hostname: Optional[str] = None,
-    ssl_context: Optional[ssl.SSLContext] = None
+    ssl_context: Optional[ssl.SSLContext] = None, tls_standard_compatible: bool = True
 ) -> TLSStream:
     """
     Connect to a host using TCP and establish a TLS encrypted session over it.
@@ -136,6 +136,11 @@ async def connect_tcp_with_tls(
     :param server_hostname: host name to use for checking against the server certificate
         (defaults to the value of ``remote_host``)
     :param ssl_context: the SSL context object to use (if omitted, a default context is created)
+    :param tls_standard_compatible: If ``True``, performs the TLS shutdown handshake before closing
+        the stream and requires that the server does this as well. Otherwise,
+        :exc:`~ssl.SSLEOFError` may be raised during reads from the stream.
+        Some protocols, such as HTTP, require this option to be ``False``.
+        See :meth:`~ssl.SSLContext.wrap_socket` for details.
     :return: a socket stream object
     :raises OSError: if the connection attempt fails
     :raises ~ssl.SSLError: if the TLS handshake fails
@@ -145,7 +150,8 @@ async def connect_tcp_with_tls(
                                happy_eyeballs_delay=happy_eyeballs_delay)
     hostname = server_hostname or str(remote_host)
     return await TLSStream.wrap(stream, server_side=False, hostname=hostname,
-                                ssl_context=ssl_context)
+                                ssl_context=ssl_context,
+                                standard_compatible=tls_standard_compatible)
 
 
 async def connect_unix(path: Union[str, PathLike]) -> SocketStream:

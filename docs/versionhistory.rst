@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Added the ``tls_standard_compatible`` argument to ``connect_tcp_with_tls()`` (this was mistakenly
+  omitted when ``connect_tcp()`` was split in two)
+
 **2.0.0b2**
 
 - Simplified the cancellation logic in curio's cancel scopes (fixes runaway ``curio.TaskTimeout``
