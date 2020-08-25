@@ -7,7 +7,7 @@
 .. image:: https://readthedocs.org/projects/anyio/badge/?version=latest
   :target: https://anyio.readthedocs.io/en/latest/?badge=latest
   :alt: Documentation
-.. image:: https://badges.gitter.im/gitterHQ/gitter.png
+.. image:: https://badges.gitter.im/gitterHQ/gitter.svg
   :target: https://gitter.im/python-trio/AnyIO
   :alt: Gitter chat
 
