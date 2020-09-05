@@ -1,8 +1,8 @@
 import threading
-from typing import TypeVar, Callable, Optional, Coroutine, Any, Dict, cast
+from typing import Any, Callable, Coroutine, Dict, Optional, TypeVar, cast
 
-from ._eventloop import get_asynclib, threadlocals, run
-from ..abc import CapacityLimiter, BlockingPortal
+from ..abc import BlockingPortal, CapacityLimiter
+from ._eventloop import get_asynclib, run, threadlocals
 
 T_Retval = TypeVar('T_Retval')
 

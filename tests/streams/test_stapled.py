@@ -1,5 +1,5 @@
 from collections import deque
-from dataclasses import dataclass, field, InitVar
+from dataclasses import InitVar, dataclass, field
 from typing import Iterable
 
 import pytest

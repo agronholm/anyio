@@ -1,5 +1,5 @@
+from ..abc import CapacityLimiter, Condition, Event, Lock, Semaphore
 from ._eventloop import get_asynclib
-from ..abc import Lock, Condition, Event, Semaphore, CapacityLimiter
 from ._exceptions import BusyResourceError
 
 

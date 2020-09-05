@@ -4,17 +4,18 @@ from concurrent.futures import Future
 from dataclasses import dataclass
 from types import TracebackType
 from typing import (
-    Callable, Optional, List, Type, Union, Tuple, NoReturn, TypeVar, Generic, Awaitable)
+    Awaitable, Callable, Generic, List, NoReturn, Optional, Tuple, Type, TypeVar, Union)
 
 import trio.from_thread
 from outcome import Error, Value
 from trio.to_thread import run_sync
 
-from .. import abc, TaskInfo
+from .. import TaskInfo, abc
 from .._core._eventloop import claim_worker_thread
 from .._core._exceptions import (
-    ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock,
-    BrokenResourceError, EndOfStream)
+    BrokenResourceError, BusyResourceError, ClosedResourceError, EndOfStream)
+from .._core._exceptions import ExceptionGroup as BaseExceptionGroup
+from .._core._exceptions import WouldBlock
 from .._core._sockets import convert_ipv6_sockaddr
 from .._core._synchronization import ResourceGuard
 from ..abc.sockets import IPSockAddrType, UDPPacketType

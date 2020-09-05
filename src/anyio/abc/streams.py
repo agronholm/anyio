@@ -1,9 +1,9 @@
 from abc import abstractmethod
-from typing import Generic, TypeVar, Union, Callable, Any, Optional
+from typing import Any, Callable, Generic, Optional, TypeVar, Union
 
+from .._core._exceptions import EndOfStream
 from .resources import AsyncResource
 from .tasks import TaskGroup
-from .._core._exceptions import EndOfStream
 
 T_Item = TypeVar('T_Item')
 T_Stream = TypeVar('T_Stream')

@@ -4,7 +4,7 @@ import pytest
 
 import anyio
 from anyio import (
-    create_task_group, create_event, wait_all_tasks_blocked, get_running_tasks, get_current_task)
+    create_event, create_task_group, get_current_task, get_running_tasks, wait_all_tasks_blocked)
 
 pytestmark = pytest.mark.anyio
 
@@ -20,8 +20,8 @@ def test_main_task_name(anyio_backend_name, anyio_backend_options):
 
     # Work around sniffio/asyncio bug that leaves behind an unclosed event loop
     if anyio_backend_name == 'asyncio':
-        import gc
         import asyncio
+        import gc
         for loop in [obj for obj in gc.get_objects()
                      if isinstance(obj, asyncio.AbstractEventLoop)]:
             loop.close()
@@ -53,7 +53,7 @@ async def test_get_running_tasks():
 
 @pytest.mark.filterwarnings('ignore:"@coroutine" decorator is deprecated:DeprecationWarning')
 def test_wait_generator_based_task_blocked():
-    from asyncio import coroutine, DefaultEventLoopPolicy, set_event_loop, Event
+    from asyncio import DefaultEventLoopPolicy, Event, coroutine, set_event_loop
 
     async def native_coro_part():
         await wait_all_tasks_blocked()

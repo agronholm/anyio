@@ -3,15 +3,15 @@ import socket
 import sys
 import time
 from contextlib import suppress
-from threading import Thread, Event
+from threading import Event, Thread
 
 import pytest
 
 from anyio import (
-    create_task_group, connect_tcp, create_udp_socket, connect_unix, create_unix_listener,
-    create_tcp_listener, wait_all_tasks_blocked, move_on_after, getaddrinfo, getnameinfo,
-    create_connected_udp_socket, connect_tcp_with_tls, create_event, ExceptionGroup,
-    BusyResourceError, ClosedResourceError)
+    BusyResourceError, ClosedResourceError, ExceptionGroup, connect_tcp, connect_tcp_with_tls,
+    connect_unix, create_connected_udp_socket, create_event, create_task_group,
+    create_tcp_listener, create_udp_socket, create_unix_listener, getaddrinfo, getnameinfo,
+    move_on_after, wait_all_tasks_blocked)
 from anyio.streams.stapled import MultiListener
 
 pytestmark = pytest.mark.anyio

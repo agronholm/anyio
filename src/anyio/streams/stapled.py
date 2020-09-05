@@ -1,9 +1,9 @@
 from dataclasses import dataclass
-from typing import TypeVar, Generic, Callable, Any, Optional, Sequence
+from typing import Any, Callable, Generic, Optional, Sequence, TypeVar
 
 from ..abc import (
-    ByteReceiveStream, ByteStream, ByteSendStream, ObjectStream, ObjectReceiveStream,
-    ObjectSendStream, Listener, TaskGroup)
+    ByteReceiveStream, ByteSendStream, ByteStream, Listener, ObjectReceiveStream, ObjectSendStream,
+    ObjectStream, TaskGroup)
 
 T_Item = TypeVar('T_Item')
 T_Stream = TypeVar('T_Stream')

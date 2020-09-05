@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
+from .. import ClosedResourceError, DelimiterNotFound, EndOfStream, IncompleteRead
 from ..abc import AnyByteReceiveStream, ByteReceiveStream
-from .. import IncompleteRead, DelimiterNotFound, EndOfStream, ClosedResourceError
 
 
 @dataclass

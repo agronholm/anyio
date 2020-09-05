@@ -1,9 +1,9 @@
-from subprocess import PIPE, CompletedProcess, DEVNULL, CalledProcessError
-from typing import Union, Sequence, Optional, cast
+from subprocess import DEVNULL, PIPE, CalledProcessError, CompletedProcess
+from typing import Optional, Sequence, Union, cast
 
+from ..abc import Process
 from ._eventloop import get_asynclib
 from ._tasks import create_task_group
-from ..abc import Process
 
 
 async def run_process(command: Union[str, Sequence[str]], *, input: Optional[bytes] = None,

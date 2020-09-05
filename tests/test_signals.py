@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from anyio import open_signal_receiver, run_sync_in_worker_thread, fail_after
+from anyio import fail_after, open_signal_receiver, run_sync_in_worker_thread
 
 pytestmark = pytest.mark.anyio
 

@@ -2,7 +2,7 @@ from abc import abstractmethod
 from typing import Optional
 
 from .resources import AsyncResource
-from .streams import ByteSendStream, ByteReceiveStream
+from .streams import ByteReceiveStream, ByteSendStream
 
 
 class Process(AsyncResource):

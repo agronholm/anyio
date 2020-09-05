@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod
-from typing import Awaitable, Dict, Any, Callable
+from typing import Any, Awaitable, Callable, Dict
 
 
 class TestRunner(metaclass=ABCMeta):

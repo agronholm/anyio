@@ -6,8 +6,8 @@ import trio
 
 import anyio
 from anyio import (
-    create_task_group, sleep, move_on_after, fail_after, open_cancel_scope, wait_all_tasks_blocked,
-    current_effective_deadline, current_time, ExceptionGroup)
+    ExceptionGroup, create_task_group, current_effective_deadline, current_time, fail_after,
+    move_on_after, open_cancel_scope, sleep, wait_all_tasks_blocked)
 
 pytestmark = pytest.mark.anyio
 

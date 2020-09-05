@@ -12,21 +12,23 @@ from socket import AddressFamily, SocketKind, SocketType
 from threading import Thread
 from types import TracebackType
 from typing import (
-    Callable, Set, Optional, Union, Tuple, cast, Coroutine, Any, Awaitable, TypeVar, Generator,
-    List, Dict, Sequence, Type, Deque)
+    Any, Awaitable, Callable, Coroutine, Deque, Dict, Generator, List, Optional, Sequence, Set,
+    Tuple, Type, TypeVar, Union, cast)
 from weakref import WeakKeyDictionary
 
-from .. import abc, TaskInfo
-from .._core._eventloop import threadlocals, claim_worker_thread
+from .. import TaskInfo, abc
+from .._core._eventloop import claim_worker_thread, threadlocals
 from .._core._exceptions import (
-    ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock,
-    BrokenResourceError, EndOfStream)
+    BrokenResourceError, BusyResourceError, ClosedResourceError, EndOfStream)
+from .._core._exceptions import ExceptionGroup as BaseExceptionGroup
+from .._core._exceptions import WouldBlock
 from .._core._sockets import GetAddrInfoReturnType, convert_ipv6_sockaddr
 from .._core._synchronization import ResourceGuard
 from ..abc.sockets import IPSockAddrType, UDPPacketType
 
 if sys.version_info >= (3, 7):
-    from asyncio import create_task, get_running_loop, current_task, all_tasks, run as native_run
+    from asyncio import all_tasks, create_task, current_task, get_running_loop
+    from asyncio import run as native_run
     from contextlib import asynccontextmanager
 else:
     from async_generator import asynccontextmanager
@@ -35,9 +37,7 @@ else:
 
     def native_run(main, *, debug=False):
         # Snatched from Python 3.7
-        from asyncio import coroutines
-        from asyncio import events
-        from asyncio import tasks
+        from asyncio import coroutines, events, tasks
 
         def _cancel_all_tasks(loop):
             to_cancel = all_tasks(loop)

@@ -6,8 +6,8 @@ from contextlib import suppress
 import pytest
 
 from anyio import (
-    run_async_from_thread, run_sync_in_worker_thread, create_task_group, sleep,
-    create_capacity_limiter, create_event, create_blocking_portal, start_blocking_portal)
+    create_blocking_portal, create_capacity_limiter, create_event, create_task_group,
+    run_async_from_thread, run_sync_in_worker_thread, sleep, start_blocking_portal)
 
 pytestmark = pytest.mark.anyio
 

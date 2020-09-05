@@ -8,14 +8,14 @@ __all__ = ('AsyncResource', 'SocketProvider', 'SocketStream', 'SocketListener', 
            'BlockingPortal')
 
 from .resources import AsyncResource
-from .sockets import SocketProvider, SocketStream, SocketListener, UDPSocket, ConnectedUDPSocket
+from .sockets import ConnectedUDPSocket, SocketListener, SocketProvider, SocketStream, UDPSocket
 from .streams import (
-    UnreliableObjectReceiveStream, UnreliableObjectSendStream, UnreliableObjectStream,
-    ObjectReceiveStream, ObjectSendStream, ObjectStream, ByteReceiveStream, ByteSendStream,
-    ByteStream, AnyUnreliableByteReceiveStream, AnyUnreliableByteSendStream,
-    AnyUnreliableByteStream, AnyByteReceiveStream, AnyByteSendStream, AnyByteStream, Listener)
+    AnyByteReceiveStream, AnyByteSendStream, AnyByteStream, AnyUnreliableByteReceiveStream,
+    AnyUnreliableByteSendStream, AnyUnreliableByteStream, ByteReceiveStream, ByteSendStream,
+    ByteStream, Listener, ObjectReceiveStream, ObjectSendStream, ObjectStream,
+    UnreliableObjectReceiveStream, UnreliableObjectSendStream, UnreliableObjectStream)
 from .subprocesses import Process
-from .synchronization import Event, Lock, Condition, Semaphore, CapacityLimiter
+from .synchronization import CapacityLimiter, Condition, Event, Lock, Semaphore
 from .tasks import CancelScope, TaskGroup
 from .testing import TestRunner
 from .threads import BlockingPortal

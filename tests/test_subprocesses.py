@@ -5,7 +5,7 @@ from textwrap import dedent
 
 import pytest
 
-from anyio import run_process, open_process
+from anyio import open_process, run_process
 from anyio.streams.buffered import BufferedByteReceiveStream
 
 pytestmark = pytest.mark.anyio

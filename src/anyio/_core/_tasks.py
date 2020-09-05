@@ -1,4 +1,4 @@
-from typing import Optional, AsyncContextManager, Coroutine, Any
+from typing import Any, AsyncContextManager, Coroutine, Optional
 
 from ..abc import CancelScope, TaskGroup
 from ._eventloop import get_asynclib

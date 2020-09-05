@@ -1,6 +1,6 @@
 import pytest
 
-from anyio import create_memory_object_stream, IncompleteRead
+from anyio import IncompleteRead, create_memory_object_stream
 from anyio.streams.buffered import BufferedByteReceiveStream
 
 pytestmark = pytest.mark.anyio

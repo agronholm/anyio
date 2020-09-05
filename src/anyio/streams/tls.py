@@ -1,12 +1,11 @@
 import ssl
 import sys
-from functools import wraps
-
 from dataclasses import dataclass
-from typing import Optional, Callable, Tuple, overload, List, Dict, Union, TypeVar, Any
+from functools import wraps
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union, overload
 
-from ..abc import ByteStream, AnyByteStream, Listener, TaskGroup
-from .. import EndOfStream, BrokenResourceError
+from .. import BrokenResourceError, EndOfStream
+from ..abc import AnyByteStream, ByteStream, Listener, TaskGroup
 
 if sys.version_info >= (3, 8):
     from typing import Literal

@@ -1,9 +1,9 @@
 import pytest
 
 from anyio import (
-    create_lock, create_task_group, create_event, create_semaphore, create_condition,
-    open_cancel_scope, wait_all_tasks_blocked, create_capacity_limiter,
-    current_default_worker_thread_limiter)
+    create_capacity_limiter, create_condition, create_event, create_lock, create_semaphore,
+    create_task_group, current_default_worker_thread_limiter, open_cancel_scope,
+    wait_all_tasks_blocked)
 from anyio.abc import CapacityLimiter
 
 pytestmark = pytest.mark.anyio

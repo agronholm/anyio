@@ -1,13 +1,13 @@
-from collections import deque, OrderedDict
+from collections import OrderedDict, deque
 from dataclasses import dataclass, field
-from typing import TypeVar, Generic, List, Deque
+from typing import Deque, Generic, List, TypeVar
 
-from .. import get_cancelled_exc_class
+from .. import (
+    BrokenResourceError, ClosedResourceError, EndOfStream, WouldBlock, get_cancelled_exc_class)
 from .._core._lowlevel import checkpoint
 from .._core._synchronization import create_event
+from ..abc.streams import ObjectReceiveStream, ObjectSendStream
 from ..abc.synchronization import Event
-from ..abc.streams import ObjectSendStream, ObjectReceiveStream
-from .. import ClosedResourceError, BrokenResourceError, WouldBlock, EndOfStream
 
 T_Item = TypeVar('T_Item')
 

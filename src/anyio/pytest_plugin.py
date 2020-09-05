@@ -1,12 +1,12 @@
 import sys
 from contextlib import contextmanager
 from inspect import iscoroutinefunction
-from typing import cast, Dict, Any, Tuple, Iterator, Optional
+from typing import Any, Dict, Iterator, Optional, Tuple, cast
 
 import pytest
 import sniffio
 
-from ._core._eventloop import get_asynclib, get_all_backends
+from ._core._eventloop import get_all_backends, get_asynclib
 from .abc import TestRunner
 
 if sys.version_info >= (3, 7):

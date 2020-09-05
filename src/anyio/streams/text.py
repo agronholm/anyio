@@ -1,9 +1,9 @@
 import codecs
-from dataclasses import dataclass, field, InitVar
+from dataclasses import InitVar, dataclass, field
 from typing import Callable, Tuple
 
 from ..abc import (
-    AnyByteReceiveStream, ObjectReceiveStream, ObjectSendStream, AnyByteSendStream, ObjectStream)
+    AnyByteReceiveStream, AnyByteSendStream, ObjectReceiveStream, ObjectSendStream, ObjectStream)
 from ..abc.streams import AnyByteStream
 
 

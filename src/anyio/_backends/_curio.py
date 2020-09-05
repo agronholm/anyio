@@ -10,8 +10,8 @@ from socket import AddressFamily, SocketKind
 from threading import Thread
 from types import TracebackType
 from typing import (
-    Callable, Set, Optional, Coroutine, Any, cast, Dict, List, Sequence, DefaultDict, Type,
-    Awaitable, Union, Tuple, NoReturn, TypeVar, Generic)
+    Any, Awaitable, Callable, Coroutine, DefaultDict, Dict, Generic, List, NoReturn, Optional,
+    Sequence, Set, Tuple, Type, TypeVar, Union, cast)
 from weakref import WeakKeyDictionary
 
 import curio.io
@@ -21,13 +21,14 @@ import curio.ssl
 import curio.subprocess
 import curio.traps
 
-from .. import abc, TaskInfo
-from .._core._eventloop import threadlocals, claim_worker_thread
+from .. import TaskInfo, abc
+from .._core._eventloop import claim_worker_thread, threadlocals
+from .._core._exceptions import (
+    BrokenResourceError, BusyResourceError, ClosedResourceError, EndOfStream)
+from .._core._exceptions import ExceptionGroup as BaseExceptionGroup
+from .._core._exceptions import WouldBlock
 from .._core._sockets import GetAddrInfoReturnType, convert_ipv6_sockaddr
 from .._core._synchronization import ResourceGuard
-from .._core._exceptions import (
-    ExceptionGroup as BaseExceptionGroup, ClosedResourceError, BusyResourceError, WouldBlock,
-    BrokenResourceError, EndOfStream)
 from ..abc.sockets import IPSockAddrType, UDPPacketType
 
 if sys.version_info >= (3, 7):

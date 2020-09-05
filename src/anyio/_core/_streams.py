@@ -1,8 +1,8 @@
 import math
-from typing import overload, Type, Tuple, TypeVar, Any
+from typing import Any, Tuple, Type, TypeVar, overload
 
 from ..streams.memory import (
-    MemoryObjectSendStream, MemoryObjectReceiveStream, MemoryObjectStreamState)
+    MemoryObjectReceiveStream, MemoryObjectSendStream, MemoryObjectStreamState)
 
 T_Item = TypeVar('T_Item')
 

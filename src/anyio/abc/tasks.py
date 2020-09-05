@@ -1,6 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from types import TracebackType
-from typing import Callable, TypeVar, Optional, Coroutine, Type
+from typing import Callable, Coroutine, Optional, Type, TypeVar
 
 T_Retval = TypeVar('T_Retval')
 

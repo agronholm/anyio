@@ -1,4 +1,4 @@
-from typing import Optional, Coroutine, List
+from typing import Coroutine, List, Optional
 
 from anyio._core._eventloop import get_asynclib
 

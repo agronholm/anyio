@@ -2,7 +2,7 @@ import sys
 import threading
 from contextlib import contextmanager
 from importlib import import_module
-from typing import TypeVar, Callable, Optional, Coroutine, Any, Dict, Generator, Type, Tuple
+from typing import Any, Callable, Coroutine, Dict, Generator, Optional, Tuple, Type, TypeVar
 
 import sniffio
 

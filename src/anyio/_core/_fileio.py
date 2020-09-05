@@ -1,9 +1,9 @@
 import os
 from os import PathLike
-from typing import Union, Optional, Callable
+from typing import Callable, Optional, Union
 
-from ._threads import run_sync_in_worker_thread
 from ..abc import AsyncResource
+from ._threads import run_sync_in_worker_thread
 
 
 class AsyncFile(AsyncResource):
