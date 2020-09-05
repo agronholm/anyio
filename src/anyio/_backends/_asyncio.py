@@ -724,6 +724,10 @@ class SocketStream(abc.SocketStream):
         self._send_guard = ResourceGuard('writing to')
         self._closed = False
 
+    @property
+    def _raw_socket(self) -> socket.socket:
+        return self._transport.get_extra_info('socket')
+
     async def receive(self, max_bytes: int = 65536) -> bytes:
         with self._receive_guard:
             await checkpoint()
@@ -783,20 +787,16 @@ class SocketStream(abc.SocketStream):
             await asyncio.sleep(0)
             self._transport.abort()
 
-    @property
-    def raw_socket(self) -> socket.socket:
-        return self._transport.get_extra_info('socket')
-
 
 class SocketListener(abc.SocketListener):
     def __init__(self, raw_socket: socket.SocketType):
-        self._raw_socket = raw_socket
+        self.__raw_socket = raw_socket
         self._loop = cast(asyncio.BaseEventLoop, get_running_loop())
         self._accept_guard = ResourceGuard('accepting connections from')
 
     @property
-    def raw_socket(self) -> socket.socket:
-        return self._raw_socket
+    def _raw_socket(self) -> socket.socket:
+        return self.__raw_socket
 
     async def accept(self) -> abc.SocketStream:
         with self._accept_guard:
@@ -830,14 +830,14 @@ class UDPSocket(abc.UDPSocket):
         self._send_guard = ResourceGuard('writing to')
         self._closed = False
 
+    @property
+    def _raw_socket(self) -> SocketType:
+        return self._transport.get_extra_info('socket')
+
     async def aclose(self) -> None:
         if not self._transport.is_closing():
             self._closed = True
             self._transport.close()
-
-    @property
-    def raw_socket(self) -> socket.socket:
-        return self._transport.get_extra_info('socket')
 
     async def receive(self) -> Tuple[bytes, IPSockAddrType]:
         with self._receive_guard:
@@ -876,14 +876,14 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
         self._send_guard = ResourceGuard('writing to')
         self._closed = False
 
+    @property
+    def _raw_socket(self) -> SocketType:
+        return self._transport.get_extra_info('socket')
+
     async def aclose(self) -> None:
         if not self._transport.is_closing():
             self._closed = True
             self._transport.close()
-
-    @property
-    def raw_socket(self) -> SocketType:
-        return self._transport.get_extra_info('socket')
 
     async def receive(self) -> bytes:
         with self._receive_guard:

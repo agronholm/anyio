@@ -6,7 +6,7 @@ from threading import Thread
 import pytest
 
 from anyio import BrokenResourceError, connect_tcp
-from anyio.streams.tls import TLSStream
+from anyio.streams.tls import TLSAttribute, TLSStream
 
 
 class TestTLSStream:
@@ -95,7 +95,7 @@ class TestTLSStream:
 
         server_thread.join()
         server_sock.close()
-        assert wrapper.alpn_protocol == 'dummy2'
+        assert wrapper.extra(TLSAttribute.alpn_protocol) == 'dummy2'
         assert server_alpn_protocol == b'dummy2'
 
     @pytest.mark.parametrize('server_compatible, client_compatible', [

@@ -24,6 +24,10 @@ class BufferedByteReceiveStream(ByteReceiveStream):
         """The bytes currently in the buffer."""
         return bytes(self._buffer)
 
+    @property
+    def extra_attributes(self):
+        return self.receive_stream.extra_attributes
+
     async def receive(self, max_bytes: int = 65536) -> bytes:
         if self._closed:
             raise ClosedResourceError

@@ -578,7 +578,7 @@ class _CurioSocketMixin(Generic[T_SockAddr]):
         self._closed = False
 
     @property
-    def raw_socket(self) -> socket.socket:
+    def _raw_socket(self) -> socket.socket:
         return self._curio_socket._socket
 
     async def aclose(self) -> None:

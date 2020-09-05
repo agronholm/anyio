@@ -12,6 +12,7 @@ from anyio import (
     connect_unix, create_connected_udp_socket, create_event, create_task_group,
     create_tcp_listener, create_udp_socket, create_unix_listener, getaddrinfo, getnameinfo,
     move_on_after, wait_all_tasks_blocked)
+from anyio.abc.sockets import SocketAttribute
 from anyio.streams.stapled import MultiListener
 
 pytestmark = pytest.mark.anyio
@@ -134,10 +135,8 @@ class TestTCPStream:
 
     async def test_socket_options(self, family, server_addr):
         async with await connect_tcp(*server_addr) as stream:
-            assert stream.family == family
-            assert stream.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
-            stream.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
-            assert stream.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
+            raw_socket = stream.extra(SocketAttribute.raw_socket)
+            assert raw_socket.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
 
     @pytest.mark.skipif(not socket.has_ipv6, reason='IPv6 is not available')
     @pytest.mark.parametrize('local_addr, expected_client_addr', [
@@ -298,9 +297,9 @@ class TestTCPListener:
     async def test_accept(self, family):
         async with await create_tcp_listener(local_host='localhost', family=family) as multi:
             for listener in multi.listeners:
-                client = socket.socket(listener.family)
+                client = socket.socket(listener.extra(SocketAttribute.family))
                 client.settimeout(1)
-                client.connect(listener.local_address)
+                client.connect(listener.extra(SocketAttribute.local_address))
                 stream = await listener.accept()
                 client.sendall(b'blah')
                 request = await stream.receive()
@@ -312,21 +311,25 @@ class TestTCPListener:
     async def test_socket_options(self, family):
         async with await create_tcp_listener(local_host='localhost', family=family) as multi:
             for listener in multi.listeners:
+                raw_socket = listener.extra(SocketAttribute.raw_socket)
                 if sys.platform == 'win32':
-                    assert listener.getsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE) != 0
+                    assert raw_socket.getsockopt(
+                        socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE) != 0
                 else:
-                    assert listener.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR) != 0
+                    assert raw_socket.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR) != 0
 
-                listener.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
-                assert listener.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
+                raw_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
+                assert raw_socket.getsockopt(
+                    socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
 
-                client = socket.socket(listener.family)
+                client = socket.socket(raw_socket.family)
                 client.settimeout(1)
-                client.connect(listener.local_address)
+                client.connect(raw_socket.getsockname())
 
                 async with await listener.accept() as stream:
-                    assert stream.family == listener.family
-                    assert stream.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
+                    raw_socket = stream.extra(SocketAttribute.raw_socket)
+                    assert raw_socket.family == listener.extra(SocketAttribute.family)
+                    assert raw_socket.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
 
                 client.close()
 
@@ -336,11 +339,13 @@ class TestTCPListener:
         assert len(multi1.listeners) == 1
 
         multi2 = await create_tcp_listener(
-            local_host='localhost', local_port=multi1.listeners[0].local_address[1],
+            local_host='localhost',
+            local_port=multi1.listeners[0].extra(SocketAttribute.local_port),
             family=family, reuse_port=True)
         assert len(multi2.listeners) == 1
 
-        assert multi1.listeners[0].local_address == multi1.listeners[0].local_address
+        assert multi1.listeners[0].extra(SocketAttribute.local_address) == \
+               multi2.listeners[0].extra(SocketAttribute.local_address)
         await multi1.aclose()
         await multi2.aclose()
 
@@ -432,12 +437,6 @@ class TestUNIXStream:
         thread.join()
         assert chunks == [b'bl', b'ah']
 
-    async def test_socket_options(self, server_sock, socket_path):
-        async with await connect_unix(socket_path) as stream:
-            assert stream.family == socket.AddressFamily.AF_UNIX
-            stream.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
-            assert stream.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
-
     async def test_concurrent_send(self, server_sock, socket_path):
         async def send_data():
             while True:
@@ -516,23 +515,25 @@ class TestUNIXListener:
 
     async def test_socket_options(self, socket_path):
         async with await create_unix_listener(socket_path) as listener:
-            assert listener.family == socket.AddressFamily.AF_UNIX
-            listener.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
-            assert listener.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
+            listener_socket = listener.extra(SocketAttribute.raw_socket)
+            assert listener_socket.family == socket.AddressFamily.AF_UNIX
+            listener_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
+            assert listener_socket.getsockopt(
+                socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
 
-            client = socket.socket(listener.family)
+            client = socket.socket(listener_socket.family)
             client.settimeout(1)
-            client.connect(listener.local_address)
+            client.connect(listener_socket.getsockname())
 
             async with await listener.accept() as stream:
-                assert stream.family == listener.family
+                assert stream.extra(SocketAttribute.family) == listener_socket.family
 
             client.close()
 
 
 async def test_multi_listener(tmp_path_factory):
     async def handle(stream):
-        client_addresses.append(stream.remote_address)
+        client_addresses.append(stream.extra(SocketAttribute.remote_address))
         await event.set()
         await stream.aclose()
 
@@ -548,12 +549,14 @@ async def test_multi_listener(tmp_path_factory):
             await tg.spawn(multi_listener.serve, handle)
             for listener in multi_listener.listeners:
                 event = create_event()
-                if sys.platform != 'win32' and listener.family == socket.AddressFamily.AF_UNIX:
-                    stream = await connect_unix(listener.local_address)
+                local_address = listener.extra(SocketAttribute.local_address)
+                if sys.platform != 'win32' and listener.extra(SocketAttribute.family) == \
+                        socket.AddressFamily.AF_UNIX:
+                    stream = await connect_unix(local_address)
                 else:
-                    stream = await connect_tcp(*listener.local_address)
+                    stream = await connect_tcp(*local_address)
 
-                expected_addresses.append(stream.local_address)
+                expected_addresses.append(stream.extra(SocketAttribute.local_address))
                 await event.wait()
                 await stream.aclose()
 
@@ -566,15 +569,16 @@ async def test_multi_listener(tmp_path_factory):
 class TestUDPSocket:
     async def test_send_receive(self, family):
         async with await create_udp_socket(local_host='localhost', family=family) as sock:
-            await sock.sendto(b'blah', *sock.local_address)
+            host, port = sock.extra(SocketAttribute.local_address)
+            await sock.sendto(b'blah', host, port)
             request, addr = await sock.receive()
             assert request == b'blah'
-            assert addr == sock.local_address
+            assert addr == sock.extra(SocketAttribute.local_address)
 
-            await sock.sendto(b'halb', *sock.local_address)
+            await sock.sendto(b'halb', host, port)
             response, addr = await sock.receive()
             assert response == b'halb'
-            assert addr == sock.local_address
+            assert addr == (host, port)
 
     async def test_iterate(self, family):
         async def serve():
@@ -582,31 +586,25 @@ class TestUDPSocket:
                 await server.send((packet[::-1], addr))
 
         async with await create_udp_socket(family=family, local_host='localhost') as server:
-            host, port = server.local_address
+            host, port = server.extra(SocketAttribute.local_address)
             async with await create_udp_socket(family=family, local_host='localhost') as client:
                 async with create_task_group() as tg:
                     await tg.spawn(serve)
                     await client.sendto(b'FOOBAR', host, port)
-                    assert await client.receive() == (b'RABOOF', server.local_address)
+                    assert await client.receive() == (b'RABOOF', (host, port))
                     await client.sendto(b'123456', host, port)
-                    assert await client.receive() == (b'654321', server.local_address)
+                    assert await client.receive() == (b'654321', (host, port))
                     await tg.cancel_scope.cancel()
-
-    async def test_socket_options(self, family):
-        async with await create_udp_socket(family=family, local_host='localhost') as udp:
-            assert udp.family == family
-            udp.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
-            assert udp.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
 
     @pytest.mark.skipif(sys.platform == 'win32', reason='Not supported on Windows')
     async def test_reuse_port(self, family):
         async with await create_udp_socket(family=family, local_host='localhost',
                                            reuse_port=True) as udp:
-            port = udp.local_address[1]
+            port = udp.extra(SocketAttribute.local_port)
             assert port != 0
             async with await create_udp_socket(family=family, local_host='localhost',
                                                local_port=port, reuse_port=True) as udp2:
-                assert port == udp2.local_address[1]
+                assert port == udp2.extra(SocketAttribute.local_port)
 
     async def test_concurrent_receive(self):
         async with await create_udp_socket(family=socket.AF_INET, local_host='localhost') as udp:
@@ -640,7 +638,7 @@ class TestUDPSocket:
 
     async def test_send_after_close(self):
         udp = await create_udp_socket(family=socket.AF_INET, local_host='localhost')
-        host, port = udp.local_address
+        host, port = udp.extra(SocketAttribute.local_address)
         await udp.aclose()
         with pytest.raises(ClosedResourceError):
             await udp.sendto(b'foo', host, port)
@@ -666,34 +664,27 @@ class TestConnectedUDPSocket:
                 await udp2.send(packet[::-1])
 
         async with await create_udp_socket(family=family, local_host='localhost') as udp1:
-            host, port = udp1.local_address
+            host, port = udp1.extra(SocketAttribute.local_address)
             async with await create_connected_udp_socket(host, port) as udp2:
-                host, port = udp2.local_address
+                host, port = udp2.extra(SocketAttribute.local_address)
                 async with create_task_group() as tg:
                     await tg.spawn(serve)
                     await udp1.sendto(b'FOOBAR', host, port)
-                    assert await udp1.receive() == (b'RABOOF', udp2.local_address)
+                    assert await udp1.receive() == (b'RABOOF', (host, port))
                     await udp1.sendto(b'123456', host, port)
-                    assert await udp1.receive() == (b'654321', udp2.local_address)
+                    assert await udp1.receive() == (b'654321', (host, port))
                     await tg.cancel_scope.cancel()
-
-    async def test_socket_options(self, family):
-        async with await create_connected_udp_socket(
-                'localhost', 5000, family=family, local_host='localhost') as udp:
-            assert udp.family == family
-            udp.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
-            assert udp.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (80000, 160000)
 
     @pytest.mark.skipif(sys.platform == 'win32', reason='Not supported on Windows')
     async def test_reuse_port(self, family):
         async with await create_connected_udp_socket(
                 'localhost', 6000, family=family, local_host='localhost', reuse_port=True) as udp:
-            port = udp.local_address[1]
+            port = udp.extra(SocketAttribute.local_port)
             assert port != 0
             async with await create_connected_udp_socket(
                     'localhost', 6001, family=family, local_host='localhost', local_port=port,
                     reuse_port=True) as udp2:
-                assert port == udp2.local_address[1]
+                assert port == udp2.extra(SocketAttribute.local_port)
 
     async def test_concurrent_receive(self):
         async with await create_connected_udp_socket(

@@ -14,6 +14,9 @@ class StapledByteStream(ByteStream):
     """
     Combines two byte streams into a single, bidirectional byte stream.
 
+    Extra attributes will be provided from both streams, with the receive stream providing the
+    values in case of a conflict.
+
     :param ByteSendStream send_stream: the sending byte stream
     :param ByteReceiveStream receive_stream: the receiving byte stream
     """
@@ -34,11 +37,18 @@ class StapledByteStream(ByteStream):
         await self.send_stream.aclose()
         await self.receive_stream.aclose()
 
+    @property
+    def extra_attributes(self):
+        return dict(**self.send_stream.extra_attributes, **self.receive_stream.extra_attributes)
+
 
 @dataclass
 class StapledObjectStream(Generic[T_Item], ObjectStream[T_Item]):
     """
     Combines two object streams into a single, bidirectional object stream.
+
+    Extra attributes will be provided from both streams, with the receive stream providing the
+    values in case of a conflict.
 
     :param ObjectSendStream send_stream: the sending object stream
     :param ObjectReceiveStream receive_stream: the receiving object stream
@@ -60,6 +70,10 @@ class StapledObjectStream(Generic[T_Item], ObjectStream[T_Item]):
         await self.send_stream.aclose()
         await self.receive_stream.aclose()
 
+    @property
+    def extra_attributes(self):
+        return dict(**self.send_stream.extra_attributes, **self.receive_stream.extra_attributes)
+
 
 @dataclass
 class MultiListener(Generic[T_Stream], Listener[T_Stream]):
@@ -68,6 +82,9 @@ class MultiListener(Generic[T_Stream], Listener[T_Stream]):
 
     Any MultiListeners in the given collection of listeners will have their listeners moved into
     this one.
+
+    Extra attributes are provided from each listener, with each successive listener overriding any
+    conflicting attributes from the previous one.
 
     :param listeners: listeners to serve
     :type listeners: Sequence[Listener[T_Stream]]
@@ -98,3 +115,11 @@ class MultiListener(Generic[T_Stream], Listener[T_Stream]):
     async def aclose(self) -> None:
         for listener in self.listeners:
             await listener.aclose()
+
+    @property
+    def extra_attributes(self):
+        attributes = {}
+        for listener in self.listeners:
+            attributes.update(listener)
+
+        return attributes
