@@ -7,6 +7,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added the ``tls_standard_compatible`` argument to ``connect_tcp_with_tls()`` (this was mistakenly
   omitted when ``connect_tcp()`` was split in two)
+- Fixed Hypothesis support in the pytest plugin (it was not actually running the Hypothesis tests
+  at all)
 
 **2.0.0b2**
 

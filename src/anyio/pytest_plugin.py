@@ -118,10 +118,10 @@ def pytest_pyfunc_call(pyfuncitem):
             # Wrap the inner test function unless it's already wrapped
             original_func = pyfuncitem.obj.hypothesis.inner_test
             if original_func.__qualname__ != run_with_hypothesis.__qualname__:
-                if iscoroutinefunction(pyfuncitem.obj):
+                if iscoroutinefunction(original_func):
                     pyfuncitem.obj.hypothesis.inner_test = run_with_hypothesis
 
-            return False
+            return None
 
         if iscoroutinefunction(pyfuncitem.obj):
             funcargs = pyfuncitem.funcargs

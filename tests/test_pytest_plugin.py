@@ -27,6 +27,7 @@ def test_plugin(testdir):
 
         import sniffio
         from anyio import get_all_backends, sleep
+        from hypothesis import strategies, given
 
 
         @pytest.mark.anyio
@@ -122,11 +123,17 @@ def test_hypothesis_module_mark(testdir):
         @given(x=just(1))
         def test_hypothesis_wrapper_regular(x):
             assert isinstance(x, int)
+
+
+        @pytest.mark.xfail(strict=True)
+        @given(x=just(1))
+        async def test_hypothesis_wrapper_failing(x):
+            pytest.fail('This test failed successfully')
         """
     )
 
-    result = testdir.runpytest('-v', '-p', 'no:curio')
-    result.assert_outcomes(passed=len(get_all_backends()) + 1)
+    result = testdir.runpytest('-v')
+    result.assert_outcomes(passed=len(get_all_backends()) + 1, xfailed=len(get_all_backends()))
 
 
 def test_hypothesis_function_mark(testdir):
@@ -147,8 +154,22 @@ def test_hypothesis_function_mark(testdir):
         @pytest.mark.anyio
         async def test_anyio_mark_last(x):
             assert isinstance(x, int)
+
+
+        @pytest.mark.xfail(strict=True)
+        @pytest.mark.anyio
+        @given(x=just(1))
+        async def test_anyio_mark_first_fail(x):
+            pytest.fail('This test failed successfully')
+
+
+        @given(x=just(1))
+        @pytest.mark.xfail(strict=True)
+        @pytest.mark.anyio
+        async def test_anyio_mark_last_fail(x):
+            pytest.fail('This test failed successfully')
         """
     )
 
-    result = testdir.runpytest('-v', '-p', 'no:curio')
-    result.assert_outcomes(passed=2 * len(get_all_backends()))
+    result = testdir.runpytest('-v')
+    result.assert_outcomes(passed=2 * len(get_all_backends()), xfailed=2 * len(get_all_backends()))
