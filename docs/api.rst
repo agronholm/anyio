@@ -17,6 +17,13 @@ Asynchronous resources
 
 .. autoclass:: anyio.abc.AsyncResource
 
+Typed attributes
+----------------
+
+.. autofunction:: anyio.typed_attribute
+.. autoclass:: anyio.TypedAttributeSet
+.. autoclass:: anyio.TypedAttributeProvider
+
 Timeouts and cancellation
 -------------------------
 
@@ -85,6 +92,7 @@ Streams and stream wrappers
 .. autoclass:: anyio.streams.text.TextReceiveStream
 .. autoclass:: anyio.streams.text.TextSendStream
 .. autoclass:: anyio.streams.text.TextStream
+.. autoclass:: anyio.streams.tls.TLSAttribute
 .. autoclass:: anyio.streams.tls.TLSStream
 .. autoclass:: anyio.streams.tls.TLSListener
 
@@ -103,7 +111,7 @@ Sockets and networking
 .. autofunction:: anyio.wait_socket_readable
 .. autofunction:: anyio.wait_socket_writable
 
-.. autoclass:: anyio.abc.SocketProvider()
+.. autoclass:: anyio.abc.SocketAttribute
 .. autoclass:: anyio.abc.SocketStream()
 .. autoclass:: anyio.abc.SocketListener()
 .. autoclass:: anyio.abc.UDPSocket()

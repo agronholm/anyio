@@ -14,6 +14,7 @@ The manual
    cancellation
    synchronization
    streams
+   typedattrs
    networking
    threads
    subprocesses

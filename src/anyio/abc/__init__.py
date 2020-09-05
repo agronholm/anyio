@@ -1,4 +1,4 @@
-__all__ = ('AsyncResource', 'SocketProvider', 'SocketStream', 'SocketListener', 'UDPSocket',
+__all__ = ('AsyncResource', 'SocketAttribute', 'SocketStream', 'SocketListener', 'UDPSocket',
            'ConnectedUDPSocket', 'UnreliableObjectReceiveStream', 'UnreliableObjectSendStream',
            'UnreliableObjectStream', 'ObjectReceiveStream', 'ObjectSendStream', 'ObjectStream',
            'ByteReceiveStream', 'ByteSendStream', 'ByteStream', 'AnyUnreliableByteReceiveStream',
@@ -8,7 +8,7 @@ __all__ = ('AsyncResource', 'SocketProvider', 'SocketStream', 'SocketListener', 
            'BlockingPortal')
 
 from .resources import AsyncResource
-from .sockets import ConnectedUDPSocket, SocketListener, SocketProvider, SocketStream, UDPSocket
+from .sockets import ConnectedUDPSocket, SocketAttribute, SocketListener, SocketStream, UDPSocket
 from .streams import (
     AnyByteReceiveStream, AnyByteSendStream, AnyByteStream, AnyUnreliableByteReceiveStream,
     AnyUnreliableByteSendStream, AnyUnreliableByteStream, ByteReceiveStream, ByteSendStream,

@@ -5,6 +5,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- **BACKWARDS INCOMPATIBLE** Replaced individual stream/listener attributes with a system of
+  typed extra attributes which traverses the entire chain of wrapped streams/listeners to find the
+  attribute being looked for
 - Added the ``tls_standard_compatible`` argument to ``connect_tcp_with_tls()`` (this was mistakenly
   omitted when ``connect_tcp()`` was split in two)
 - Fixed Hypothesis support in the pytest plugin (it was not actually running the Hypothesis tests

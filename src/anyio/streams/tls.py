@@ -1,18 +1,37 @@
 import ssl
-import sys
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union, overload
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
 
 from .. import BrokenResourceError, EndOfStream
+from .._core._typedattr import TypedAttributeSet, typed_attribute
 from ..abc import AnyByteStream, ByteStream, Listener, TaskGroup
 
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
-
 T_Retval = TypeVar('T_Retval')
+
+
+class TLSAttribute(TypedAttributeSet):
+    """Contains Transport Layer Security related attributes."""
+    #: the selected ALPN protocol
+    alpn_protocol: bool = typed_attribute()
+    #: the selected cipher
+    cipher: Tuple[str, str, int] = typed_attribute()
+    #: the peer certificate in dictionary form (see :meth:`ssl.SSLSocket.getpeercert` for more
+    #: information)
+    peer_certificate: Dict[str, Union[str, tuple]] = typed_attribute()
+    #: the peer certificate in binary form
+    peer_certificate_binary: bytes = typed_attribute()
+    #: ``True`` if this is the server side of the connection
+    server_side: bool = typed_attribute()
+    #: ciphers shared between both ends of the TLS connection
+    shared_ciphers: List[Tuple[str, str, int]] = typed_attribute()
+    #: the :class:`~ssl.SSLObject` used for encryption
+    ssl_object: ssl.SSLObject = typed_attribute()
+    #: ``True`` if this stream does (and expects) a closing TLS handshake when the stream is being
+    #: closed
+    standard_compatible: bool = typed_attribute()
+    #: the TLS protocol version (e.g. ``TLSv1.2``)
+    tls_version: str = typed_attribute()
 
 
 @dataclass
@@ -21,10 +40,9 @@ class TLSStream(ByteStream):
     A stream wrapper that encrypts all sent data and decrypts received data.
 
     This class has no public initializer; use :meth:`wrap` instead.
+    All extra attributes from :class:`~TLSAttribute` are supported.
 
     :var AnyByteStream transport_stream: the wrapped stream
-    :var bool standard_compatible: ``True`` if a closing handshake is expected from the peer and
-        done from this side, ``False`` if not
 
     """
     transport_stream: AnyByteStream
@@ -132,51 +150,27 @@ class TLSStream(ByteStream):
         await self._call_sslobject_method(self._ssl_object.write, item)
 
     async def send_eof(self) -> None:
-        version_tuple = tuple(int(part) for part in self.tls_version.split('.'))
+        tls_version = self.extra(TLSAttribute.tls_version)
+        version_tuple = tuple(int(part) for part in tls_version.split('.'))
         if version_tuple < (1, 3):
             raise NotImplementedError(f'send_eof() requires at least TLS v1.3; current session '
-                                      f'uses {self.tls_version}')
+                                      f'uses {tls_version}')
 
         raise NotImplementedError('send_eof() has not yet been implemented for TLS streams')
 
     @property
-    def alpn_protocol(self) -> Optional[str]:
-        return self._ssl_object.selected_alpn_protocol()  # type: ignore
-
-    def get_channel_binding(self, cb_type: str = 'tls-unique') -> bytes:
-        return self._ssl_object.get_channel_binding(cb_type)  # type: ignore
-
-    @property
-    def tls_version(self) -> str:
-        return self._ssl_object.version()  # type: ignore
-
-    @property
-    def cipher(self) -> Tuple[str, str, int]:
-        return self._ssl_object.cipher()  # type: ignore
-
-    @property
-    def shared_ciphers(self) -> List[Tuple[str, str, int]]:
-        return self._ssl_object.shared_ciphers()  # type: ignore
-
-    @property
-    def server_hostname(self) -> Optional[str]:
-        return self._ssl_object.server_hostname
-
-    @property
-    def server_side(self) -> bool:
-        return self._ssl_object.server_side
-
-    @overload
-    def getpeercert(self, binary_form: Literal[False] = False) -> Dict[str, Union[str, tuple]]:
-        ...
-
-    @overload
-    def getpeercert(self, binary_form: Literal[True]) -> bytes:
-        ...
-
-    def getpeercert(self, binary_form: bool = False) -> Union[Dict[str, Union[str, tuple]], bytes,
-                                                              None]:
-        return self._ssl_object.getpeercert(binary_form)
+    def extra_attributes(self):
+        return {
+            TLSAttribute.alpn_protocol: self._ssl_object.selected_alpn_protocol,
+            TLSAttribute.cipher: self._ssl_object.cipher,
+            TLSAttribute.peer_certificate: lambda: self._ssl_object.getpeercert(False),
+            TLSAttribute.peer_certificate_binary: lambda: self._ssl_object.getpeercert(True),
+            TLSAttribute.server_side: lambda: self._ssl_object.server_side,
+            TLSAttribute.shared_ciphers: lambda: self._ssl_object.shared_ciphers(),
+            TLSAttribute.standard_compatible: lambda: self.standard_compatible,
+            TLSAttribute.ssl_object: lambda: self._ssl_object,
+            TLSAttribute.tls_version: self._ssl_object.version
+        }
 
 
 @dataclass
@@ -184,6 +178,8 @@ class TLSListener(Listener[TLSStream]):
     """
     A convenience listener that wraps another listener and auto-negotiates a TLS session on every
     accepted connection.
+
+    Supports only the :attr:`~TLSAttribute.standard_compatible` extra attribute.
 
     :param Listener listener: the listener to wrap
     :param ssl_context: the SSL context object
@@ -206,3 +202,9 @@ class TLSListener(Listener[TLSStream]):
 
     async def aclose(self) -> None:
         await self.listener.aclose()
+
+    @property
+    def extra_attributes(self):
+        return {
+            TLSAttribute.standard_compatible: lambda: self.standard_compatible,
+        }

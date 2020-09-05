@@ -2,6 +2,7 @@ from abc import abstractmethod
 from typing import Any, Callable, Generic, Optional, TypeVar, Union
 
 from .._core._exceptions import EndOfStream
+from .._core._typedattr import TypedAttributeProvider
 from .resources import AsyncResource
 from .tasks import TaskGroup
 
@@ -9,7 +10,7 @@ T_Item = TypeVar('T_Item')
 T_Stream = TypeVar('T_Stream')
 
 
-class UnreliableObjectReceiveStream(Generic[T_Item], AsyncResource):
+class UnreliableObjectReceiveStream(Generic[T_Item], AsyncResource, TypedAttributeProvider):
     """
     An interface for receiving objects.
 
@@ -42,7 +43,7 @@ class UnreliableObjectReceiveStream(Generic[T_Item], AsyncResource):
         """
 
 
-class UnreliableObjectSendStream(Generic[T_Item], AsyncResource):
+class UnreliableObjectSendStream(Generic[T_Item], AsyncResource, TypedAttributeProvider):
     """
     An interface for sending objects.
 
@@ -101,7 +102,7 @@ class ObjectStream(Generic[T_Item], ObjectReceiveStream[T_Item], ObjectSendStrea
         """
 
 
-class ByteReceiveStream(AsyncResource):
+class ByteReceiveStream(AsyncResource, TypedAttributeProvider):
     """
     An interface for receiving bytes from a single peer.
 
@@ -129,7 +130,7 @@ class ByteReceiveStream(AsyncResource):
         """
 
 
-class ByteSendStream(AsyncResource):
+class ByteSendStream(AsyncResource, TypedAttributeProvider):
     """An interface for sending bytes to a single peer."""
 
     @abstractmethod
@@ -168,7 +169,7 @@ AnyByteSendStream = Union[ObjectSendStream[bytes], ByteSendStream]
 AnyByteStream = Union[ObjectStream[bytes], ByteStream]
 
 
-class Listener(Generic[T_Stream], AsyncResource):
+class Listener(Generic[T_Stream], AsyncResource, TypedAttributeProvider):
     """An interface for objects that let you accept incoming connections."""
 
     @abstractmethod

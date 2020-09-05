@@ -44,6 +44,10 @@ class TextReceiveStream(ObjectReceiveStream[str]):
         await self.transport_stream.aclose()
         self._decoder.reset()
 
+    @property
+    def extra_attributes(self):
+        return self.transport_stream.extra_attributes
+
 
 @dataclass
 class TextSendStream(ObjectSendStream[str]):
@@ -74,12 +78,19 @@ class TextSendStream(ObjectSendStream[str]):
     async def aclose(self) -> None:
         await self.transport_stream.aclose()
 
+    @property
+    def extra_attributes(self):
+        return self.transport_stream.extra_attributes
+
 
 @dataclass
 class TextStream(ObjectStream[str]):
     """
     A bidirectional stream that decodes bytes to strings on receive and encodes strings to bytes on
     send.
+
+    Extra attributes will be provided from both streams, with the receive stream providing the
+    values in case of a conflict.
 
     :param AnyByteStream transport_stream: any bytes-based stream
     :param str encoding: character encoding to use for encoding/decoding strings to/from bytes
@@ -113,3 +124,7 @@ class TextStream(ObjectStream[str]):
     async def aclose(self) -> None:
         await self._send_stream.aclose()
         await self._receive_stream.aclose()
+
+    @property
+    def extra_attributes(self):
+        return dict(**self.send_stream.extra_attributes, **self.receive_stream.extra_attributes)

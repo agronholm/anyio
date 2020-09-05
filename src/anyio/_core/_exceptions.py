@@ -63,5 +63,12 @@ class IncompleteRead(Exception):
         super().__init__('The stream was closed before the read operation could be completed')
 
 
+class TypedAttributeLookupError(LookupError):
+    """
+    Raised by :meth:`~anyio.TypedAttributeProvider.extra` when the given typed attribute is not
+    found and no default value has been given.
+    """
+
+
 class WouldBlock(Exception):
     """Raised by ``X_nowait`` functions if ``X()`` would block."""

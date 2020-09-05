@@ -21,9 +21,9 @@ from .._core._synchronization import ResourceGuard
 from ..abc.sockets import IPSockAddrType, UDPPacketType
 
 try:
-    import trio.lowlevel as trio_lowlevel
+    from trio import lowlevel as trio_lowlevel
 except ImportError:
-    import trio.hazmat as trio_lowlevel
+    from trio import hazmat as trio_lowlevel
     from trio.hazmat import wait_readable, wait_writable
 else:
     from trio.lowlevel import wait_readable, wait_writable
@@ -296,7 +296,7 @@ class _TrioSocketMixin(Generic[T_SockAddr]):
             raise BrokenResourceError
 
     @property
-    def raw_socket(self) -> socket.socket:
+    def _raw_socket(self) -> socket.socket:
         return self._trio_socket._sock
 
     async def aclose(self) -> None:
