@@ -6,6 +6,7 @@ from threading import Thread
 import pytest
 
 from anyio import BrokenResourceError, connect_tcp
+from anyio.abc import SocketAttribute
 from anyio.streams.tls import TLSAttribute, TLSStream
 
 pytestmark = pytest.mark.anyio
@@ -37,6 +38,44 @@ class TestTLSStream:
         server_thread.join()
         server_sock.close()
         assert response == b'olleh'
+
+    async def test_extra_attributes(self, server_context, client_context):
+        def serve_sync():
+            conn, addr = server_sock.accept()
+            with conn:
+                conn.settimeout(1)
+                conn.recv(1)
+
+        server_context.set_alpn_protocols(['h2'])
+        client_context.set_alpn_protocols(['h2'])
+
+        server_sock = server_context.wrap_socket(socket.socket(), server_side=True,
+                                                 suppress_ragged_eofs=True)
+        server_sock.settimeout(1)
+        server_sock.bind(('127.0.0.1', 0))
+        server_sock.listen()
+        server_thread = Thread(target=serve_sync)
+        server_thread.start()
+
+        async with await connect_tcp(*server_sock.getsockname()) as stream:
+            wrapper = await TLSStream.wrap(stream, hostname='localhost',
+                                           ssl_context=client_context, standard_compatible=False)
+            for name, attribute in SocketAttribute.__dict__.items():
+                if not name.startswith('_'):
+                    assert wrapper.extra(attribute) == stream.extra(attribute)
+
+            assert wrapper.extra(TLSAttribute.alpn_protocol) == 'h2'
+            assert isinstance(wrapper.extra(TLSAttribute.cipher), tuple)
+            assert isinstance(wrapper.extra(TLSAttribute.peer_certificate), dict)
+            assert isinstance(wrapper.extra(TLSAttribute.peer_certificate_binary), bytes)
+            assert wrapper.extra(TLSAttribute.server_side) is False
+            assert isinstance(wrapper.extra(TLSAttribute.shared_ciphers), list)
+            assert isinstance(wrapper.extra(TLSAttribute.ssl_object), ssl.SSLObject)
+            assert wrapper.extra(TLSAttribute.standard_compatible) is False
+            assert wrapper.extra(TLSAttribute.tls_version).startswith('TLSv')
+
+        server_thread.join()
+        server_sock.close()
 
     async def test_unwrap(self, server_context, client_context):
         def serve_sync():
@@ -90,11 +129,11 @@ class TestTLSStream:
         async with await connect_tcp(*server_sock.getsockname()) as stream:
             wrapper = await TLSStream.wrap(stream, hostname='localhost',
                                            ssl_context=client_context)
+            assert wrapper.extra(TLSAttribute.alpn_protocol) == 'dummy2'
             server_alpn_protocol = await wrapper.receive()
 
         server_thread.join()
         server_sock.close()
-        assert wrapper.extra(TLSAttribute.alpn_protocol) == 'dummy2'
         assert server_alpn_protocol == b'dummy2'
 
     @pytest.mark.parametrize('server_compatible, client_compatible', [

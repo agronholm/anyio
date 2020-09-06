@@ -13,14 +13,14 @@ T_Retval = TypeVar('T_Retval')
 class TLSAttribute(TypedAttributeSet):
     """Contains Transport Layer Security related attributes."""
     #: the selected ALPN protocol
-    alpn_protocol: bool = typed_attribute()
+    alpn_protocol: Optional[str] = typed_attribute()
     #: the selected cipher
     cipher: Tuple[str, str, int] = typed_attribute()
     #: the peer certificate in dictionary form (see :meth:`ssl.SSLSocket.getpeercert` for more
     #: information)
-    peer_certificate: Dict[str, Union[str, tuple]] = typed_attribute()
+    peer_certificate: Optional[Dict[str, Union[str, tuple]]] = typed_attribute()
     #: the peer certificate in binary form
-    peer_certificate_binary: bytes = typed_attribute()
+    peer_certificate_binary: Optional[bytes] = typed_attribute()
     #: ``True`` if this is the server side of the connection
     server_side: bool = typed_attribute()
     #: ciphers shared between both ends of the TLS connection
@@ -161,6 +161,7 @@ class TLSStream(ByteStream):
     @property
     def extra_attributes(self):
         return {
+            **self.transport_stream.extra_attributes,
             TLSAttribute.alpn_protocol: self._ssl_object.selected_alpn_protocol,
             TLSAttribute.cipher: self._ssl_object.cipher,
             TLSAttribute.peer_certificate: lambda: self._ssl_object.getpeercert(False),
