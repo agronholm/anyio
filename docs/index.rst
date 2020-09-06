@@ -22,4 +22,5 @@ The manual
    testing
    api
    support
+   contributing
    versionhistory
