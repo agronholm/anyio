@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**2.0.0rc1**
 
 - **BACKWARDS INCOMPATIBLE** Replaced individual stream/listener attributes with a system of
   typed extra attributes which traverses the entire chain of wrapped streams/listeners to find the
