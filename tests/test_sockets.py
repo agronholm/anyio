@@ -8,10 +8,10 @@ from threading import Event, Thread
 import pytest
 
 from anyio import (
-    BusyResourceError, ClosedResourceError, ExceptionGroup, connect_tcp, connect_unix,
-    create_connected_udp_socket, create_event, create_task_group, create_tcp_listener,
-    create_udp_socket, create_unix_listener, getaddrinfo, getnameinfo, move_on_after,
-    wait_all_tasks_blocked)
+    BusyResourceError, ClosedResourceError, ExceptionGroup, TypedAttributeLookupError, connect_tcp,
+    connect_unix, create_connected_udp_socket, create_event, create_task_group,
+    create_tcp_listener, create_udp_socket, create_unix_listener, getaddrinfo, getnameinfo,
+    move_on_after, wait_all_tasks_blocked)
 from anyio.abc.sockets import SocketAttribute
 from anyio.streams.stapled import MultiListener
 
@@ -60,6 +60,15 @@ class TestTCPStream:
     @pytest.fixture
     def server_addr(self, server_sock):
         return server_sock.getsockname()[:2]
+
+    async def test_extra_attributes(self, server_sock, server_addr, family):
+        async with await connect_tcp(*server_addr) as stream:
+            raw_socket = stream.extra(SocketAttribute.raw_socket)
+            assert stream.extra(SocketAttribute.family) == family
+            assert stream.extra(SocketAttribute.local_address) == raw_socket.getsockname()[:2]
+            assert stream.extra(SocketAttribute.local_port) == raw_socket.getsockname()[1]
+            assert stream.extra(SocketAttribute.remote_address) == server_addr
+            assert stream.extra(SocketAttribute.remote_port) == server_addr[1]
 
     async def test_send_receive(self, server_sock, server_addr):
         async with await connect_tcp(*server_addr) as stream:
@@ -287,6 +296,19 @@ class TestTCPStream:
 
 
 class TestTCPListener:
+    async def test_extra_attributes(self, family):
+        async with await create_tcp_listener(local_host='localhost', family=family) as multi:
+            for listener in multi.listeners:
+                raw_socket = listener.extra(SocketAttribute.raw_socket)
+                assert listener.extra(SocketAttribute.family) == family
+                assert listener.extra(SocketAttribute.local_address) == \
+                    raw_socket.getsockname()[:2]
+                assert listener.extra(SocketAttribute.local_port) == raw_socket.getsockname()[1]
+                pytest.raises(TypedAttributeLookupError, listener.extra,
+                              SocketAttribute.remote_address)
+                pytest.raises(TypedAttributeLookupError, listener.extra,
+                              SocketAttribute.remote_port)
+
     @pytest.mark.parametrize('family', [
         pytest.param(socket.AF_INET, id='ipv4'),
         pytest.param(socket.AF_INET6, id='ipv6',
@@ -365,6 +387,15 @@ class TestUNIXStream:
         sock.listen()
         yield sock
         sock.close()
+
+    async def test_extra_attributes(self, server_sock, socket_path):
+        async with await connect_unix(socket_path) as stream:
+            raw_socket = stream.extra(SocketAttribute.raw_socket)
+            assert stream.extra(SocketAttribute.family) == socket.AF_UNIX
+            assert stream.extra(SocketAttribute.local_address) == raw_socket.getsockname()
+            assert stream.extra(SocketAttribute.remote_address) == str(socket_path)
+            pytest.raises(TypedAttributeLookupError, stream.extra, SocketAttribute.local_port)
+            pytest.raises(TypedAttributeLookupError, stream.extra, SocketAttribute.remote_port)
 
     @pytest.mark.parametrize('as_path', [False, True], ids=['str', 'path'])
     async def test_send_receive(self, server_sock, socket_path, as_path):
@@ -496,6 +527,16 @@ class TestUNIXListener:
     def socket_path(self, tmp_path_factory):
         return tmp_path_factory.mktemp('unix').joinpath('socket')
 
+    async def test_extra_attributes(self, socket_path):
+        async with await create_unix_listener(socket_path) as listener:
+            raw_socket = listener.extra(SocketAttribute.raw_socket)
+            assert listener.extra(SocketAttribute.family) == socket.AF_UNIX
+            assert listener.extra(SocketAttribute.local_address) == raw_socket.getsockname()
+            pytest.raises(TypedAttributeLookupError, listener.extra, SocketAttribute.local_port)
+            pytest.raises(TypedAttributeLookupError, listener.extra,
+                          SocketAttribute.remote_address)
+            pytest.raises(TypedAttributeLookupError, listener.extra, SocketAttribute.remote_port)
+
     @pytest.mark.parametrize('as_path', [False, True], ids=['str', 'path'])
     async def test_accept(self, socket_path, as_path):
         if not as_path:
@@ -567,6 +608,15 @@ async def test_multi_listener(tmp_path_factory):
 
 @pytest.mark.usefixtures('check_asyncio_bug')
 class TestUDPSocket:
+    async def test_extra_attributes(self, family):
+        async with await create_udp_socket(family=family, local_host='localhost') as udp:
+            raw_socket = udp.extra(SocketAttribute.raw_socket)
+            assert udp.extra(SocketAttribute.family) == family
+            assert udp.extra(SocketAttribute.local_address) == raw_socket.getsockname()[:2]
+            assert udp.extra(SocketAttribute.local_port) == raw_socket.getsockname()[1]
+            pytest.raises(TypedAttributeLookupError, udp.extra, SocketAttribute.remote_address)
+            pytest.raises(TypedAttributeLookupError, udp.extra, SocketAttribute.remote_port)
+
     async def test_send_receive(self, family):
         async with await create_udp_socket(local_host='localhost', family=family) as sock:
             host, port = sock.extra(SocketAttribute.local_address)
@@ -646,6 +696,15 @@ class TestUDPSocket:
 
 @pytest.mark.usefixtures('check_asyncio_bug')
 class TestConnectedUDPSocket:
+    async def test_extra_attributes(self, family):
+        async with await create_connected_udp_socket('localhost', 5000, family=family) as udp:
+            raw_socket = udp.extra(SocketAttribute.raw_socket)
+            assert udp.extra(SocketAttribute.family) == family
+            assert udp.extra(SocketAttribute.local_address) == raw_socket.getsockname()[:2]
+            assert udp.extra(SocketAttribute.local_port) == raw_socket.getsockname()[1]
+            assert udp.extra(SocketAttribute.remote_address) == raw_socket.getpeername()[:2]
+            assert udp.extra(SocketAttribute.remote_port) == 5000
+
     async def test_send_receive(self, family):
         async with await create_udp_socket(family=family, local_host='localhost') as udp1:
             host, port = udp1.extra(SocketAttribute.local_address)
