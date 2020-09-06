@@ -8,9 +8,10 @@ import pytest
 from anyio import BrokenResourceError, connect_tcp
 from anyio.streams.tls import TLSAttribute, TLSStream
 
+pytestmark = pytest.mark.anyio
+
 
 class TestTLSStream:
-    @pytest.mark.anyio
     async def test_send_receive(self, server_context, client_context):
         def serve_sync():
             conn, addr = server_sock.accept()
@@ -37,7 +38,6 @@ class TestTLSStream:
         server_sock.close()
         assert response == b'olleh'
 
-    @pytest.mark.anyio
     async def test_unwrap(self, server_context, client_context):
         def serve_sync():
             conn, addr = server_sock.accept()
@@ -69,7 +69,6 @@ class TestTLSStream:
         assert msg2 == b'unencrypted'
 
     @pytest.mark.skipif(not ssl.HAS_ALPN, reason='ALPN support not available')
-    @pytest.mark.anyio
     async def test_alpn_negotiation(self, server_context, client_context):
         def serve_sync():
             conn, addr = server_sock.accept()
@@ -104,7 +103,6 @@ class TestTLSStream:
         pytest.param(False, True, id='client_standard'),
         pytest.param(False, False, id='neither_standard')
     ])
-    @pytest.mark.anyio
     async def test_ragged_eofs(self, server_context, client_context, server_compatible,
                                client_compatible):
         def serve_sync():
