@@ -647,16 +647,18 @@ class TestUDPSocket:
 @pytest.mark.usefixtures('check_asyncio_bug')
 class TestConnectedUDPSocket:
     async def test_send_receive(self, family):
-        async with await create_connected_udp_socket(
-                'localhost', 5000, local_port=5000, local_host='localhost',
-                family=family) as udp:
-            await udp.send(b'blah')
-            request = await udp.receive()
-            assert request == b'blah'
+        async with await create_udp_socket(family=family, local_host='localhost') as udp1:
+            host, port = udp1.extra(SocketAttribute.local_address)
+            async with await create_connected_udp_socket(
+                    host, port, local_host='localhost', family=family) as udp2:
+                host, port = udp2.extra(SocketAttribute.local_address)
+                await udp2.send(b'blah')
+                request = await udp1.receive()
+                assert request == (b'blah', (host, port))
 
-            await udp.send(b'halb')
-            response = await udp.receive()
-            assert response == b'halb'
+                await udp1.sendto(b'halb', host, port)
+                response = await udp2.receive()
+                assert response == b'halb'
 
     async def test_iterate(self, family):
         async def serve():
@@ -688,8 +690,7 @@ class TestConnectedUDPSocket:
 
     async def test_concurrent_receive(self):
         async with await create_connected_udp_socket(
-                'localhost', 5000, local_port=5000, local_host='localhost',
-                family=socket.AF_INET) as udp:
+                'localhost', 5000, local_host='localhost', family=socket.AF_INET) as udp:
             async with create_task_group() as tg:
                 await tg.spawn(udp.receive)
                 await wait_all_tasks_blocked()
@@ -707,23 +708,22 @@ class TestConnectedUDPSocket:
             await udp.aclose()
 
         async with await create_connected_udp_socket(
-                'localhost', 5000, local_port=5000, local_host='localhost',
-                family=socket.AF_INET) as udp:
+                'localhost', 5000, local_host='localhost', family=socket.AF_INET) as udp:
             async with create_task_group() as tg:
                 await tg.spawn(close_when_blocked)
                 with pytest.raises(ClosedResourceError):
                     await udp.receive()
 
     async def test_receive_after_close(self, family):
-        udp = await create_connected_udp_socket('localhost', 5000, local_port=5000,
-                                                local_host='localhost', family=family)
+        udp = await create_connected_udp_socket('localhost', 5000, local_host='localhost',
+                                                family=family)
         await udp.aclose()
         with pytest.raises(ClosedResourceError):
             await udp.receive()
 
     async def test_send_after_close(self, family):
-        udp = await create_connected_udp_socket('localhost', 5000, local_port=5000,
-                                                local_host='localhost', family=family)
+        udp = await create_connected_udp_socket('localhost', 5000, local_host='localhost',
+                                                family=family)
         await udp.aclose()
         with pytest.raises(ClosedResourceError):
             await udp.send(b'foo')
