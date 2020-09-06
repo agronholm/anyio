@@ -3,6 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Changed the ``repr()`` of ``ExceptionGroup`` to match trio's ``MultiError``
+
 **2.0.0rc1**
 
 - **BACKWARDS INCOMPATIBLE** Replaced individual stream/listener attributes with a system of

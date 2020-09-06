@@ -223,19 +223,20 @@ async def test_cancel_exiting_task_group():
     assert cancel_received
 
 
-async def test_multi_error_children():
+async def test_exception_group_children():
     with pytest.raises(ExceptionGroup) as exc:
         async with create_task_group() as tg:
             await tg.spawn(async_error, 'task1')
-            await tg.spawn(async_error, 'task2')
+            await tg.spawn(async_error, 'task2', 0.15)
 
     assert len(exc.value.exceptions) == 2
     assert sorted(str(e) for e in exc.value.exceptions) == ['task1', 'task2']
     assert exc.match('^2 exceptions were raised in the task group:\n')
     assert exc.match(r'Exception: task\d\n----')
+    assert repr(exc.value) == "<ExceptionGroup: Exception('task1',), Exception('task2',)>"
 
 
-async def test_multi_error_host():
+async def test_exception_group_host():
     with pytest.raises(ExceptionGroup) as exc:
         async with create_task_group() as tg:
             await tg.spawn(async_error, 'child', 2)

@@ -49,7 +49,8 @@ class ExceptionGroup(BaseException):
                f'{self.SEPARATOR}{self.SEPARATOR.join(tracebacks)}'
 
     def __repr__(self) -> str:
-        return f'<{self.__class__.__name__} ({len(self.exceptions)} exceptions)>'
+        exception_reprs = ', '.join(repr(exc) for exc in self.exceptions)
+        return f'<{self.__class__.__name__}: {exception_reprs}>'
 
 
 class IncompleteRead(Exception):
