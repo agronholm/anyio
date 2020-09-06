@@ -1,6 +1,8 @@
 Receiving operating system signals
 ==================================
 
+.. py:currentmodule:: anyio
+
 You may occasionally find it useful to receive signals sent to your application in a meaningful
 way. For example, when you receive a ``signal.SIGTERM`` signal, your application is expected to
 shut down gracefully. Likewise, ``SIGHUP`` is often used as a means to ask the application to
@@ -24,7 +26,7 @@ AnyIO provides a simple mechanism for you to receive the signals you're interest
     run(main)
 
 .. note:: Signal handlers can only be installed in the main thread, so they will not work when the
-    event loop is being run through :func:`~anyio.start_blocking_portal`, for instance.
+    event loop is being run through :func:`~start_blocking_portal`, for instance.
 
 .. note:: Windows does not natively support signals so do not rely on this in a cross platform
     application.

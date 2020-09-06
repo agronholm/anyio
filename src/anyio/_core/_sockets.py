@@ -425,9 +425,9 @@ def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
     (default on py3.8+).
 
     :param sock: a socket object
-    :raises ~anyio.exceptions.ClosedResourceError: if the socket was closed while waiting for the
+    :raises ~anyio.ClosedResourceError: if the socket was closed while waiting for the
         socket to become readable
-    :raises ~anyio.exceptions.BusyResourceError: if another task is already waiting for the socket
+    :raises ~anyio.BusyResourceError: if another task is already waiting for the socket
         to become readable
 
     """
@@ -442,9 +442,9 @@ def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
     (default on py3.8+).
 
     :param sock: a socket object
-    :raises ~anyio.exceptions.ClosedResourceError: if the socket was closed while waiting for the
+    :raises ~anyio.ClosedResourceError: if the socket was closed while waiting for the
         socket to become writable
-    :raises ~anyio.exceptions.BusyResourceError: if another task is already waiting for the socket
+    :raises ~anyio.BusyResourceError: if another task is already waiting for the socket
         to become writable
 
     """

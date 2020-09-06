@@ -1,6 +1,8 @@
 Using subprocesses
 ==================
 
+.. py:currentmodule:: anyio
+
 AnyIO allows you to run arbitrary executables in subprocesses, either as a one-shot call or by
 opening a process handle for you that gives you more control over the subprocess.
 
@@ -16,7 +18,7 @@ arguments passed to it.
 Running one-shot commands
 -------------------------
 
-To run an external command with one call, use :func:`~anyio.run_process`::
+To run an external command with one call, use :func:`~run_process`::
 
     from anyio import run_process, run
 
@@ -42,7 +44,7 @@ Working with processes
 ----------------------
 
 When you have more complex requirements for your interaction with subprocesses, you can launch one
-with :func:`~anyio.open_process`::
+with :func:`~open_process`::
 
     from anyio import open_process, run
     from anyio.streams.text import TextReceiveStream
@@ -55,4 +57,4 @@ with :func:`~anyio.open_process`::
 
     run(main)
 
-See the API documentation of :class:`~anyio.abc.subprocesses.Process` for more information.
+See the API documentation of :class:`~.abc.Process` for more information.

@@ -1,6 +1,8 @@
 Cancellation and timeouts
 =========================
 
+.. py:currentmodule:: anyio
+
 The ability to cancel tasks is the foremost advantage of the asynchronous programming model.
 Threads, on the other hand, cannot be forcibly killed and shutting them down will require perfect
 cooperation from the code running in them.
@@ -9,7 +11,7 @@ Cancellation in AnyIO follows the model established by the trio_ framework. This
 cancellation of tasks is done via so called *cancel scopes*. Cancel scopes are used as context
 managers and can be nested. Cancelling a cancel scope cancels all cancel scopes nested within it.
 If a task is waiting on something, it is cancelled immediately. If the task is just starting, it
-will run until it first tries to run an operation requiring waiting, such as :func:`~anyio.sleep`.
+will run until it first tries to run an operation requiring waiting, such as :func:`~sleep`.
 
 A task group contains its own cancel scope. The entire task group can be cancelled by cancelling
 this scope.
@@ -21,14 +23,14 @@ Timeouts
 
 Networked operations can often take a long time, and you usually want to set up some kind of a
 timeout to ensure that your application doesn't stall forever. There are two principal ways to do
-this: :func:`~anyio.move_on_after` and :func:`~anyio.fail_after`. Both are used as asynchronous
+this: :func:`~move_on_after` and :func:`~fail_after`. Both are used as asynchronous
 context managers. The difference between these two is that the former simply exits the context
 block prematurely on a timeout, while the other raises a :exc:`TimeoutError`.
 
 Both methods create a new cancel scope, and you can check the deadline by accessing the
-:attr:`~anyio.abc.CancelScope.deadline` attribute. Note, however, that an outer cancel scope may
+:attr:`~.abc.CancelScope.deadline` attribute. Note, however, that an outer cancel scope may
 have an earlier deadline than your current cancel scope. To check the actual deadline, you can use
-the :func:`~anyio.current_effective_deadline` function.
+the :func:`~current_effective_deadline` function.
 
 Here's how you typically use timeouts::
 
@@ -76,8 +78,8 @@ To accomplish this, open a new cancel scope with the ``shield=True`` argument::
     run(main)
 
 The shielded block will be exempt from cancellation except when the shielded block itself is being
-cancelled. Shielding a cancel scope is often best combined with :func:`~anyio.move_on_after` or
-:func:`~anyio.fail_after`, both of which also accept ``shield=True``.
+cancelled. Shielding a cancel scope is often best combined with :func:`~move_on_after` or
+:func:`~fail_after`, both of which also accept ``shield=True``.
 
 Finalization
 ------------
@@ -95,7 +97,7 @@ In some specific cases, you might only want to catch the cancellation exception.
 because each async framework has its own exception class for that and AnyIO cannot control which
 exception is raised in the task when it's cancelled. To work around that, AnyIO provides a way to
 retrieve the exception class specific to the currently running async framework, using
-:func:`~anyio.get_cancelled_exc_class`::
+:func:`~get_cancelled_exc_class`::
 
     from anyio import get_cancelled_exc_class
 

@@ -1,6 +1,8 @@
 Streams
 =======
 
+.. py:currentmodule:: anyio
+
 A "stream" in AnyIO is a simple interface for transporting information from one place to another.
 It can mean either in-process communication or sending data over a network.
 AnyIO divides streams into two categories: byte streams and object streams.
@@ -22,19 +24,19 @@ Memory object streams
 ---------------------
 
 Memory object streams are intended for implementing a producer-consumer pattern with multiple
-tasks. Using :func:`~anyio.create_memory_object_stream`, you get a pair of object streams: one for
+tasks. Using :func:`~create_memory_object_stream`, you get a pair of object streams: one for
 sending, one for receiving.
 
 By default, memory object streams are created with a buffer size of 0. This means that
-:meth:`~anyio.streams.memory.MemoryObjectSendStream.send` will block until there's another task
-that calls :meth:`~anyio.streams.memory.MemoryObjectReceiveStream.receive`. You can set the buffer
+:meth:`~.streams.memory.MemoryObjectSendStream.send` will block until there's another task
+that calls :meth:`~.streams.memory.MemoryObjectReceiveStream.receive`. You can set the buffer
 size to a value of your choosing when creating the stream. It is also possible to have an unbounded
 buffer by passing :data:``math.inf`` as the buffer size but this is not recommended.
 
 Memory object streams can be cloned by calling the ``clone()`` method. Each clone can be closed
 separately, but each end of the stream is only considered closed once all of its clones have been
 closed. For example, if you have two clones of the receive stream, the send stream will start
-raising :exc:`~anyio.BrokenResourceError` only when both receive streams have been
+raising :exc:`~BrokenResourceError` only when both receive streams have been
 closed.
 
 Multiple tasks can send and receive on the same memory object stream (or its clones) but each sent
@@ -72,11 +74,10 @@ single bidirectional stream.
 
 It comes in two variants:
 
-* :class:`~anyio.streams.stapled.StapledByteStream` (combines a
-  :class:`~anyio.abc.streams.ByteReceiveStream` with a :class:`~anyio.abc.streams.ByteSendStream`)
-* :class:`~anyio.streams.stapled.StapledObjectStream` (combines an
-  :class:`~anyio.abc.streams.ObjectReceiveStream` with a compatible
-  :class:`~anyio.abc.streams.ObjectSendStream`)
+* :class:`~.streams.stapled.StapledByteStream` (combines a :class:`~.abc.ByteReceiveStream` with a
+  :class:`~.abc.ByteSendStream`)
+* :class:`~.streams.stapled.StapledObjectStream` (combines an :class:`~.abc.ObjectReceiveStream`
+  with a compatible :class:`~.abc.ObjectSendStream`)
 
 Buffered byte streams
 ---------------------
@@ -272,7 +273,7 @@ fly. To this end, you can use the trustme_ library::
         return client_context
 
 You can then pass the server and client contexts from the above fixtures to
-:class:`~anyio.streams.tls.TLSListener`, :meth:`~anyio.streams.tls.TLSStream.wrap` or whatever you
+:class:`~.streams.tls.TLSListener`, :meth:`~.streams.tls.TLSStream.wrap` or whatever you
 use on either side.
 
 .. _trustme: https://pypi.org/project/trustme/
@@ -288,7 +289,7 @@ would make the shutdown handshake redundant.
 AnyIO follows the standard by default (unlike the Python standard library's :mod:`ssl` module).
 The practical implication of this is that if you're implementing a protocol that is expected to
 skip the TLS closing handshake, you need to pass the ``standard_compatible=False`` option to
-:meth:`~anyio.streams.tls.TLSStream.wrap` or :class:`~anyio.streams.tls.TLSListener`.
+:meth:`~.streams.tls.TLSStream.wrap` or :class:`~.streams.tls.TLSListener`.
 
 .. _TLS standard: https://tools.ietf.org/html/draft-ietf-tls-tls13-28
 .. _truncation attacks: https://en.wikipedia.org/wiki/Transport_Layer_Security#Attacks_against_TLS/SSL

@@ -147,7 +147,7 @@ class CapacityLimiter(metaclass=ABCMeta):
         """
         Acquire a token for the current task without waiting for one to become available.
 
-        :raises ~anyio.exceptions.WouldBlock: if there are no tokens available for borrowing
+        :raises ~anyio.WouldBlock: if there are no tokens available for borrowing
         """
 
     @abstractmethod
@@ -156,7 +156,7 @@ class CapacityLimiter(metaclass=ABCMeta):
         Acquire a token without waiting for one to become available.
 
         :param borrower: the entity borrowing a token
-        :raises ~anyio.exceptions.WouldBlock: if there are no tokens available for borrowing
+        :raises ~anyio.WouldBlock: if there are no tokens available for borrowing
         """
 
     @abstractmethod
@@ -164,7 +164,7 @@ class CapacityLimiter(metaclass=ABCMeta):
         """
         Acquire a token for the current task, waiting if necessary for one to become available.
 
-        :raises ~anyio.exceptions.WouldBlock: if there are no tokens available for borrowing
+        :raises ~anyio.WouldBlock: if there are no tokens available for borrowing
         """
 
     @abstractmethod
@@ -173,7 +173,7 @@ class CapacityLimiter(metaclass=ABCMeta):
         Acquire a token, waiting if necessary for one to become available.
 
         :param borrower: the entity borrowing a token
-        :raises ~anyio.exceptions.WouldBlock: if there are no tokens available for borrowing
+        :raises ~anyio.WouldBlock: if there are no tokens available for borrowing
         """
 
     @abstractmethod

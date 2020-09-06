@@ -1,6 +1,8 @@
 Using synchronization primitives
 ================================
 
+.. py:currentmodule:: anyio
+
 Synchronization primitives are objects that are used by tasks to communicate and coordinate with
 each other. They are useful for things like distributing workload, notifying other tasks and
 guarding access to shared resources.
@@ -148,4 +150,4 @@ Example::
     run(main)
 
 To adjust the number of total tokens, you can use the
-:meth:`~anyio.abc.synchronization.CapacityLimiter.set_total_tokens` method.
+:meth:`~.abc.CapacityLimiter.set_total_tokens` method.

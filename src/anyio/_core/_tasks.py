@@ -24,7 +24,7 @@ def fail_after(delay: Optional[float], *,
         disable the timeout
     :param shield: ``True`` to shield the cancel scope from external cancellation
     :return: an asynchronous context manager that yields a cancel scope
-    :rtype: :class:`~typing.AsyncContextManager`\\[:class:`~anyio.abc.tasks.CancelScope`\\]
+    :rtype: :class:`~typing.AsyncContextManager`\\[:class:`~anyio.abc.CancelScope`\\]
     :raises TimeoutError: if the block does not complete within the allotted time
 
     """
@@ -43,7 +43,7 @@ def move_on_after(delay: Optional[float], *,
         to disable the timeout
     :param shield: ``True`` to shield the cancel scope from external cancellation
     :return: an asynchronous context manager that yields a cancel scope
-    :rtype: :class:`~typing.AsyncContextManager`\\[:class:`~anyio.abc.tasks.CancelScope`\\]
+    :rtype: :class:`~typing.AsyncContextManager`\\[:class:`~anyio.abc.CancelScope`\\]
 
     """
     if delay is None:

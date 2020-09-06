@@ -64,9 +64,10 @@ class TypedAttributeProvider:
 
         Return the value of the given typed extra attribute.
 
-        :param TypedAttribute attribute: the attribute to look for
+        :param attribute: the attribute (member of a :class:`~TypedAttributeSet`) to look for
         :param default: the value that should be returned if no value is found for the attribute
-        :raises TypedAttributeLookupError: if the search failed and no default value was given
+        :raises ~anyio.TypedAttributeLookupError: if the search failed and no default value was
+            given
 
         """
         try:

@@ -1,6 +1,8 @@
 The basics
 ==========
 
+.. py:currentmodule:: anyio
+
 AnyIO requires Python 3.6.2 or later to run. It is recommended that you set up a virtualenv_ when
 developing or playing around with AnyIO.
 
@@ -37,7 +39,7 @@ backend, say trio_, you can use the ``backend`` argument, like so::
 
     run(main, backend='trio')
 
-But AnyIO code is not required to be run via :func:`anyio.run`. You can just as well use the native
+But AnyIO code is not required to be run via :func:`run`. You can just as well use the native
 ``run()`` function of the backend library::
 
     import sniffio
@@ -62,7 +64,7 @@ of your choice. There are a few rules to keep in mind however:
   use a library written for trio together with a library written for asyncio.
 * Tasks spawned by these "native" libraries on backends other than trio_ are not subject to the
   cancellation rules enforced by AnyIO
-* Threads spawned outside of AnyIO cannot use :func:`~anyio.run_async_from_thread` to call
+* Threads spawned outside of AnyIO cannot use :func:`~run_async_from_thread` to call
   asynchronous code
 
 .. _virtualenv: https://docs.python-guide.org/dev/virtualenvs/

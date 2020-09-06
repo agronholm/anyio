@@ -55,7 +55,7 @@ class BufferedByteReceiveStream(ByteReceiveStream):
 
         :param nbytes: the number of bytes to read
         :return: the bytes read
-        :raises ~anyio.exceptions.IncompleteRead: if the stream was closed before the requested
+        :raises ~anyio.IncompleteRead: if the stream was closed before the requested
             amount of bytes could be read from the stream
 
         """
@@ -82,11 +82,11 @@ class BufferedByteReceiveStream(ByteReceiveStream):
 
         :param delimiter: the marker to look for in the stream
         :param max_bytes: maximum number of bytes that will be read before raising
-            :exc:`~anyio.exceptions.DelimiterNotFound`
+            :exc:`~anyio.DelimiterNotFound`
         :return: the bytes read, including the delimiter
-        :raises ~anyio.exceptions.IncompleteRead: if the stream was closed before the delimiter
+        :raises ~anyio.IncompleteRead: if the stream was closed before the delimiter
             was found
-        :raises ~anyio.exceptions.DelimiterNotFound: if the delimiter is not found within the
+        :raises ~anyio.DelimiterNotFound: if the delimiter is not found within the
             bytes read up to the maximum allowed
 
         """

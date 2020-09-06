@@ -1,6 +1,8 @@
 Using typed attributes
 ======================
 
+.. py:currentmodule:: anyio
+
 On AnyIO, streams and listeners can be layered on top of each other to provide extra functionality.
 But when you want to look up information from one of the layers down below, you might have to
 traverse the entire chain to find what you're looking for, which is highly inconvenient. To address
@@ -11,7 +13,7 @@ until the attribute is either found or the end of the chain is reached. This als
 override attributes from the wrapped objects when necessary.
 
 A common use case is finding the IP address of the remote side of a TCP connection when the
-stream may be either :class:`~anyio.abc.SocketStream` or :class:`~anyio.streams.tls.TLSStream`::
+stream may be either :class:`~.abc.SocketStream` or :class:`~.streams.tls.TLSStream`::
 
     from anyio import connect_tcp
 
@@ -36,7 +38,7 @@ the same category::
         some_float_attribute = TypedAttribute[float]()
 
 To provide values for these attributes, implement the
-:meth:`~anyio.TypedAttributeProvider.extra_attributes` property in your class::
+:meth:`~.TypedAttributeProvider.extra_attributes` property in your class::
 
     from anyio import TypedAttributeProvider
 

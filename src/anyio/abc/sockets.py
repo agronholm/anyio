@@ -117,6 +117,7 @@ class UDPSocket(UnreliableObjectStream[UDPPacketType], _SocketProvider[IPSockAdd
     """
 
     async def sendto(self, data: bytes, host: str, port: int) -> None:
+        """Alias for :meth:`~.UnreliableObjectSendStream.send` ((data, (host, port)))."""
         return await self.send((data, (host, port)))
 
 

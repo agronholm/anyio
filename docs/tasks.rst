@@ -1,6 +1,8 @@
 Creating and managing tasks
 ===========================
 
+.. py:currentmodule:: anyio
+
 A *task* is a unit of execution that lets you do many things concurrently that need waiting on.
 This works so that while you can have any number of tasks, the asynchronous event loop can only
 run one of them at a time. When the task encounters an ``await`` statement that requires the task
@@ -43,6 +45,6 @@ It is possible for more than one task to raise an exception in a task group. Thi
 a task reacts to cancellation by entering either an exception handler block or a ``finally:``
 block and raises an exception there. This raises the question: which exception is propagated from
 the task group context manager? The answer is "both". In practice this means that a special
-exception, :exc:`~anyio.ExceptionGroup` is raised which contains both exception objects.
+exception, :exc:`~ExceptionGroup` is raised which contains both exception objects.
 Unfortunately this complicates any code that wishes to catch a specific exception because it could
-be wrapped in an :exc:`~anyio.ExceptionGroup`.
+be wrapped in an :exc:`~ExceptionGroup`.

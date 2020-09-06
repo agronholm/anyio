@@ -6,7 +6,7 @@ from .streams import ByteReceiveStream, ByteSendStream
 
 
 class Process(AsyncResource):
-    """An asynchronous version of :class:`subprocess.Process`."""
+    """An asynchronous version of :class:`subprocess.Popen`."""
 
     @abstractmethod
     async def wait(self) -> int:

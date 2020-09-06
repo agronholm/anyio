@@ -7,7 +7,7 @@ Event loop
 .. autofunction:: anyio.run
 .. autofunction:: anyio.get_all_backends
 .. autofunction:: anyio.get_cancelled_exc_class
-.. autofunction:: anyio.sleep(delay)
+.. autofunction:: anyio.sleep
 .. autofunction:: anyio.current_time
 
 Asynchronous resources
@@ -21,6 +21,7 @@ Typed attributes
 ----------------
 
 .. autofunction:: anyio.typed_attribute
+
 .. autoclass:: anyio.TypedAttributeSet
 .. autoclass:: anyio.TypedAttributeProvider
 
@@ -162,4 +163,5 @@ Exceptions
 .. autoexception:: anyio.EndOfStream
 .. autoexception:: anyio.ExceptionGroup
 .. autoexception:: anyio.IncompleteRead
+.. autoexception:: anyio.TypedAttributeLookupError
 .. autoexception:: anyio.WouldBlock

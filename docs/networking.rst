@@ -1,6 +1,8 @@
 Using sockets and streams
 =========================
 
+.. py:currentmodule:: anyio
+
 Networking capabilities are arguably the most important part of any asynchronous library.
 AnyIO contains its own high level implementation of networking on top of low level primitives
 offered by each of its supported backends.
@@ -15,7 +17,7 @@ More exotic forms of networking such as raw sockets and SCTP are currently not s
 
 .. warning:: Unlike the standard BSD sockets interface and most other networking libraries, AnyIO
     (from 2.0 onwards) signals the end of any stream by raising the
-    :exc:`~anyio.EndOfStream` exception instead of returning an empty bytes object.
+    :exc:`~EndOfStream` exception instead of returning an empty bytes object.
 
 Working with TCP sockets
 ------------------------
@@ -23,7 +25,7 @@ Working with TCP sockets
 TCP (Transmission Control Protocol) is the most commonly used protocol on the Internet. It allows
 one to connect to a port on a remote host and send and receive data in a reliable manner.
 
-To connect to a listening TCP socket somewhere, you can use :func:`~anyio.connect_tcp`::
+To connect to a listening TCP socket somewhere, you can use :func:`~connect_tcp`::
 
     from anyio import connect_tcp, run
 
@@ -36,12 +38,12 @@ To connect to a listening TCP socket somewhere, you can use :func:`~anyio.connec
 
     run(main)
 
-As a convenience, you can also use :func:`~anyio.connect_tcp` to establish a TLS session with the
+As a convenience, you can also use :func:`~connect_tcp` to establish a TLS session with the
 peer after connection, by passing ``tls=True`` or by passing a nonempty value for either
 ``ssl_context`` or ``tls_hostname``.
 
 To receive incoming TCP connections, you first create a TCP listener with
-:func:`anyio.create_tcp_listener` and call :meth:`~anyio.abc.streams.Listener.serve` on it::
+:func:`create_tcp_listener` and call :meth:`~.abc.Listener.serve` on it::
 
     from anyio import create_tcp_listener, run
 

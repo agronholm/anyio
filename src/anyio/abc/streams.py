@@ -35,10 +35,10 @@ class UnreliableObjectReceiveStream(Generic[T_Item], AsyncResource, TypedAttribu
         """
         Receive the next item.
 
-        :raises ~anyio.exceptions.ClosedResourceError: if the receive stream has been explicitly
+        :raises ~anyio.ClosedResourceError: if the receive stream has been explicitly
             closed
-        :raises ~anyio.exceptions.EndOfStream: if this stream has been closed from the other end
-        :raises ~anyio.exceptions.BrokenResourceError: if this stream has been rendered unusable
+        :raises ~anyio.EndOfStream: if this stream has been closed from the other end
+        :raises ~anyio.BrokenResourceError: if this stream has been rendered unusable
             due to external causes
         """
 
@@ -57,9 +57,9 @@ class UnreliableObjectSendStream(Generic[T_Item], AsyncResource, TypedAttributeP
         Send an item to the peer(s).
 
         :param item: the item to send
-        :raises ~anyio.exceptions.ClosedResourceError: if the send stream has been explicitly
+        :raises ~anyio.ClosedResourceError: if the send stream has been explicitly
             closed
-        :raises ~anyio.exceptions.BrokenResourceError: if this stream has been rendered unusable
+        :raises ~anyio.BrokenResourceError: if this stream has been rendered unusable
             due to external causes
         """
 
@@ -126,7 +126,7 @@ class ByteReceiveStream(AsyncResource, TypedAttributeProvider):
 
         :param max_bytes: maximum number of bytes to receive
         :return: the received bytes
-        :raises ~anyio.exceptions.EndOfStream: if this stream has been closed from the other end
+        :raises ~anyio.EndOfStream: if this stream has been closed from the other end
         """
 
 
