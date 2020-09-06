@@ -1,4 +1,5 @@
 import asyncio
+import sys
 
 import curio
 import pytest
@@ -233,7 +234,10 @@ async def test_exception_group_children():
     assert sorted(str(e) for e in exc.value.exceptions) == ['task1', 'task2']
     assert exc.match('^2 exceptions were raised in the task group:\n')
     assert exc.match(r'Exception: task\d\n----')
-    assert repr(exc.value) == "<ExceptionGroup: Exception('task1',), Exception('task2',)>"
+    if sys.version_info < (3, 7):
+        assert repr(exc.value) == "<ExceptionGroup: Exception('task1',), Exception('task2',)>"
+    else:
+        assert repr(exc.value) == "<ExceptionGroup: Exception('task1'), Exception('task2')>"
 
 
 async def test_exception_group_host():
