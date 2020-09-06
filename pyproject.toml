@@ -15,3 +15,6 @@ src_paths = ["src"]
 skip_gitignore = true
 line_length = 99
 multi_line_output = 4
+
+[tool.autopep8]
+max_line_length = 99
