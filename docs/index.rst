@@ -21,4 +21,5 @@ The manual
    signals
    testing
    api
+   support
    versionhistory
