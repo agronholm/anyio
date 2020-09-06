@@ -13,15 +13,11 @@ override attributes from the wrapped objects when necessary.
 A common use case is finding the IP address of the remote side of a TCP connection when the
 stream may be either :class:`~anyio.abc.SocketStream` or :class:`~anyio.streams.tls.TLSStream`::
 
-    from anyio import connect_tcp, connect_tcp_with_tls
+    from anyio import connect_tcp
 
 
     async def connect(host, port, tls: bool):
-        if tls:
-            stream = await connect_tcp(host, port)
-        else:
-            stream = await connect_tcp_with_tls(host, port)
-
+        stream = await connect_tcp(host, port, tls=tls)
         print('Connected to', stream.extra(SocketAttribute.remote_address))
 
 Each typed attribute provider class should document the set of attributes it provides on its own.

@@ -5,7 +5,7 @@ from ipaddress import IPv6Address, ip_address
 from os import PathLike, chmod
 from pathlib import Path
 from socket import AddressFamily, SocketKind
-from typing import Awaitable, List, Optional, Tuple, Union, cast
+from typing import Awaitable, List, Optional, Tuple, Union, cast, overload
 
 from ..abc import ConnectedUDPSocket, Event, SocketListener, SocketStream, UDPSocket
 from ..abc.sockets import IPAddressType, IPSockAddrType
@@ -29,10 +29,61 @@ AnyIPAddressFamily = Literal[AddressFamily.AF_UNSPEC, AddressFamily.AF_INET,
 IPAddressFamily = Literal[AddressFamily.AF_INET, AddressFamily.AF_INET6]
 
 
+# tls_hostname given
+@overload
 async def connect_tcp(
-    remote_host: IPAddressType, remote_port: int, *, local_host: Optional[IPAddressType] = None,
-    happy_eyeballs_delay: float = 0.25
+    remote_host: IPAddressType, remote_port: int, *, local_host: Optional[IPAddressType] = ...,
+    ssl_context: Optional[ssl.SSLContext] = ..., tls_standard_compatible: bool = ...,
+    tls_hostname: str, happy_eyeballs_delay: float = ...
+) -> TLSStream:
+    ...
+
+
+# ssl_context given
+@overload
+async def connect_tcp(
+    remote_host: IPAddressType, remote_port: int, *, local_host: Optional[IPAddressType] = ...,
+    ssl_context: ssl.SSLContext, tls_standard_compatible: bool = ...,
+    tls_hostname: Optional[str] = ..., happy_eyeballs_delay: float = ...
+) -> TLSStream:
+    ...
+
+
+# tls=True
+@overload
+async def connect_tcp(
+    remote_host: IPAddressType, remote_port: int, *, local_host: Optional[IPAddressType] = ...,
+    tls: Literal[True], ssl_context: Optional[ssl.SSLContext] = ...,
+    tls_standard_compatible: bool = ..., tls_hostname: Optional[str] = ...,
+    happy_eyeballs_delay: float = ...
+) -> TLSStream:
+    ...
+
+
+# tls=False
+@overload
+async def connect_tcp(
+    remote_host: IPAddressType, remote_port: int, *, local_host: Optional[IPAddressType] = ...,
+    tls: Literal[False], ssl_context: Optional[ssl.SSLContext] = ...,
+    tls_standard_compatible: bool = ..., tls_hostname: Optional[str] = ...,
+    happy_eyeballs_delay: float = ...
 ) -> SocketStream:
+    ...
+
+
+# No TLS arguments
+@overload
+async def connect_tcp(
+    remote_host: IPAddressType, remote_port: int, *, local_host: Optional[IPAddressType] = ...,
+    happy_eyeballs_delay: float = ...
+) -> SocketStream:
+    ...
+
+
+async def connect_tcp(
+    remote_host, remote_port, *, local_host=None, tls=False, ssl_context=None,
+    tls_standard_compatible=True, tls_hostname=None, happy_eyeballs_delay=0.25
+):
     """
     Connect to a host using the TCP protocol.
 
@@ -40,13 +91,26 @@ async def connect_tcp(
     If ``address`` is a host name that resolves to multiple IP addresses, each one is tried until
     one connection attempt succeeds. If the first attempt does not connected within 250
     milliseconds, a second attempt is started using the next address in the list, and so on.
-    For IPv6 enabled systems, IPv6 addresses are tried first.
+    On IPv6 enabled systems, an IPv6 address (if available) is tried first.
+
+    When the connection has been established, a TLS handshake will be done if either
+    ``ssl_context`` or ``tls_hostname`` is not ``None``, or if ``tls`` is ``True``.
 
     :param remote_host: the IP address or host name to connect to
     :param remote_port: port on the target host to connect to
     :param local_host: the interface address or name to bind the socket to before connecting
+    :param tls: ``True`` to do a TLS handshake with the connected stream and return a
+        :class:`~anyio.streams.tls.TLSStream` instead
+    :param ssl_context: the SSL context object to use (if omitted, a default context is created)
+    :param tls_standard_compatible: If ``True``, performs the TLS shutdown handshake before closing
+        the stream and requires that the server does this as well. Otherwise,
+        :exc:`~ssl.SSLEOFError` may be raised during reads from the stream.
+        Some protocols, such as HTTP, require this option to be ``False``.
+        See :meth:`~ssl.SSLContext.wrap_socket` for details.
+    :param tls_hostname: host name to check the server certificate against (defaults to the value
+        of ``remote_host``)
     :param happy_eyeballs_delay: delay (in seconds) before starting the next connection attempt
-    :return: a socket stream object
+    :return: a socket stream object if no TLS handshake was done, otherwise a TLS stream
     :raises OSError: if the connection attempt fails
 
     """
@@ -115,43 +179,12 @@ async def connect_tcp(
         cause = oserrors[0] if len(oserrors) == 1 else asynclib.ExceptionGroup(oserrors)
         raise OSError('All connection attempts failed') from cause
 
+    if tls or tls_hostname or ssl_context:
+        return await TLSStream.wrap(connected_stream, server_side=False,
+                                    hostname=tls_hostname or remote_host, ssl_context=ssl_context,
+                                    standard_compatible=tls_standard_compatible)
+
     return connected_stream
-
-
-async def connect_tcp_with_tls(
-    remote_host: IPAddressType, remote_port: int, *, local_host: Optional[IPAddressType] = None,
-    happy_eyeballs_delay: float = 0.25, server_hostname: Optional[str] = None,
-    ssl_context: Optional[ssl.SSLContext] = None, tls_standard_compatible: bool = True
-) -> TLSStream:
-    """
-    Connect to a host using TCP and establish a TLS encrypted session over it.
-
-    This is a shortcut to first  :func:`connect_tcp` and then wrapping it using
-    :meth:`~anyio.streams.tls.TLSStream.wrap`.
-
-    :param remote_host: the IP address or host name to connect to
-    :param remote_port: port on the target host to connect to
-    :param local_host: the interface address or name to bind the socket to before connecting
-    :param happy_eyeballs_delay: delay (in seconds) before starting the next connection attempt
-    :param server_hostname: host name to use for checking against the server certificate
-        (defaults to the value of ``remote_host``)
-    :param ssl_context: the SSL context object to use (if omitted, a default context is created)
-    :param tls_standard_compatible: If ``True``, performs the TLS shutdown handshake before closing
-        the stream and requires that the server does this as well. Otherwise,
-        :exc:`~ssl.SSLEOFError` may be raised during reads from the stream.
-        Some protocols, such as HTTP, require this option to be ``False``.
-        See :meth:`~ssl.SSLContext.wrap_socket` for details.
-    :return: a socket stream object
-    :raises OSError: if the connection attempt fails
-    :raises ~ssl.SSLError: if the TLS handshake fails
-
-    """
-    stream = await connect_tcp(remote_host, remote_port, local_host=local_host,
-                               happy_eyeballs_delay=happy_eyeballs_delay)
-    hostname = server_hostname or str(remote_host)
-    return await TLSStream.wrap(stream, server_side=False, hostname=hostname,
-                                ssl_context=ssl_context,
-                                standard_compatible=tls_standard_compatible)
 
 
 async def connect_unix(path: Union[str, PathLike]) -> SocketStream:

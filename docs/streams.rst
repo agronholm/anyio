@@ -222,7 +222,7 @@ Connecting to this server can then be done as follows::
 
     import ssl
 
-    from anyio import connect_tcp_with_tls, run
+    from anyio import connect_tcp, run
 
 
     async def main():
@@ -232,7 +232,7 @@ Connecting to this server can then be done as follows::
         context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
         context.load_verify_locations(cafile='cert.pem')
 
-        async with await connect_tcp_with_tls('localhost', 1234, ssl_context=context) as client:
+        async with await connect_tcp('localhost', 1234, ssl_context=context) as client:
             await client.send(b'Client\n')
             response = await client.receive()
             print(response)

@@ -36,9 +36,9 @@ To connect to a listening TCP socket somewhere, you can use :func:`~anyio.connec
 
     run(main)
 
-If you need to establish a TLS session over TCP, you can use :func:`~anyio.connect_tcp_with_tls` as
-a convenience (instead of wrapping the stream with :meth:`anyio.streams.tls.TLSStream.wrap` after
-a successful connection).
+As a convenience, you can also use :func:`~anyio.connect_tcp` to establish a TLS session with the
+peer after connection, by passing ``tls=True`` or by passing a nonempty value for either
+``ssl_context`` or ``tls_hostname``.
 
 To receive incoming TCP connections, you first create a TCP listener with
 :func:`anyio.create_tcp_listener` and call :meth:`~anyio.abc.streams.Listener.serve` on it::

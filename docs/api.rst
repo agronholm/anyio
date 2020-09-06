@@ -100,7 +100,6 @@ Sockets and networking
 ----------------------
 
 .. autofunction:: anyio.connect_tcp
-.. autofunction:: anyio.connect_tcp_with_tls
 .. autofunction:: anyio.connect_unix
 .. autofunction:: anyio.create_tcp_listener
 .. autofunction:: anyio.create_unix_listener

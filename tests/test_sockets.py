@@ -8,10 +8,10 @@ from threading import Event, Thread
 import pytest
 
 from anyio import (
-    BusyResourceError, ClosedResourceError, ExceptionGroup, connect_tcp, connect_tcp_with_tls,
-    connect_unix, create_connected_udp_socket, create_event, create_task_group,
-    create_tcp_listener, create_udp_socket, create_unix_listener, getaddrinfo, getnameinfo,
-    move_on_after, wait_all_tasks_blocked)
+    BusyResourceError, ClosedResourceError, ExceptionGroup, connect_tcp, connect_unix,
+    create_connected_udp_socket, create_event, create_task_group, create_tcp_listener,
+    create_udp_socket, create_unix_listener, getaddrinfo, getnameinfo, move_on_after,
+    wait_all_tasks_blocked)
 from anyio.abc.sockets import SocketAttribute
 from anyio.streams.stapled import MultiListener
 
@@ -276,8 +276,8 @@ class TestTCPStream:
         server_addr = server_sock.getsockname()[:2]
         thread = Thread(target=serve, daemon=True)
         thread.start()
-        async with await connect_tcp_with_tls(*server_addr, server_hostname='localhost',
-                                              ssl_context=client_context) as stream:
+        async with await connect_tcp(*server_addr, tls_hostname='localhost',
+                                     ssl_context=client_context) as stream:
             await stream.send(b'hello')
             response = await stream.receive()
 
@@ -345,7 +345,7 @@ class TestTCPListener:
         assert len(multi2.listeners) == 1
 
         assert multi1.listeners[0].extra(SocketAttribute.local_address) == \
-               multi2.listeners[0].extra(SocketAttribute.local_address)
+            multi2.listeners[0].extra(SocketAttribute.local_address)
         await multi1.aclose()
         await multi2.aclose()
 
