@@ -3,6 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed TLS handshake failure in ``connect_tcp()`` not closing the connected socket
+
 **2.0.0rc2**
 
 - Changed the ``repr()`` of ``ExceptionGroup`` to match trio's ``MultiError``

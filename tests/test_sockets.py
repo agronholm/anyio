@@ -3,6 +3,7 @@ import socket
 import sys
 import time
 from contextlib import suppress
+from ssl import SSLError
 from threading import Event, Thread
 
 import pytest
@@ -265,24 +266,19 @@ class TestTCPStream:
         with pytest.raises(ClosedResourceError):
             await stream.send(b'foo')
 
-    async def test_connect_tcp_with_tls(self, family, server_context, client_context):
+    async def test_connect_tcp_with_tls(self, server_context, client_context, server_sock,
+                                        server_addr):
         def serve():
             with suppress(socket.timeout):
                 client, addr = server_sock.accept()
+                client.settimeout(1)
+                client = server_context.wrap_socket(client, server_side=True)
                 data = client.recv(100)
                 client.sendall(data[::-1])
-                try:
-                    client.unwrap()
-                finally:
-                    client.close()
+                client.unwrap()
+                client.close()
 
         # The TLSStream tests are more comprehensive than this one!
-        server_sock = server_context.wrap_socket(socket.socket(family), server_side=True,
-                                                 suppress_ragged_eofs=False)
-        server_sock.settimeout(1)
-        server_sock.bind(('localhost', 0))
-        server_sock.listen()
-        server_addr = server_sock.getsockname()[:2]
         thread = Thread(target=serve, daemon=True)
         thread.start()
         async with await connect_tcp(*server_addr, tls_hostname='localhost',
@@ -292,7 +288,29 @@ class TestTCPStream:
 
         assert response == b'olleh'
         thread.join()
-        server_sock.close()
+
+    async def test_connect_tcp_with_tls_cert_check_fail(self, server_context, server_sock,
+                                                        server_addr):
+        def serve():
+            nonlocal thread_exception
+            client, addr = server_sock.accept()
+            with client:
+                client.settimeout(1)
+                try:
+                    server_context.wrap_socket(client, server_side=True)
+                except OSError:
+                    pass
+                except BaseException as exc:
+                    thread_exception = exc
+
+        thread_exception = None
+        thread = Thread(target=serve, daemon=True)
+        thread.start()
+        with pytest.raises(SSLError):
+            await connect_tcp(*server_addr, tls_hostname='localhost')
+
+        thread.join()
+        assert thread_exception is None
 
 
 class TestTCPListener:

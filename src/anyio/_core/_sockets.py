@@ -12,6 +12,7 @@ from ..abc.sockets import IPAddressType, IPSockAddrType
 from ..streams.stapled import MultiListener
 from ..streams.tls import TLSStream
 from ._eventloop import get_asynclib
+from ._resources import aclose_forcefully
 from ._synchronization import create_event
 from ._tasks import create_task_group, move_on_after
 from ._threads import run_sync_in_worker_thread
@@ -180,9 +181,14 @@ async def connect_tcp(
         raise OSError('All connection attempts failed') from cause
 
     if tls or tls_hostname or ssl_context:
-        return await TLSStream.wrap(connected_stream, server_side=False,
-                                    hostname=tls_hostname or remote_host, ssl_context=ssl_context,
-                                    standard_compatible=tls_standard_compatible)
+        try:
+            return await TLSStream.wrap(connected_stream, server_side=False,
+                                        hostname=tls_hostname or remote_host,
+                                        ssl_context=ssl_context,
+                                        standard_compatible=tls_standard_compatible)
+        except BaseException:
+            await aclose_forcefully(connected_stream)
+            raise
 
     return connected_stream
 
