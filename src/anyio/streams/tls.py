@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
 
-from .. import BrokenResourceError, EndOfStream
+from .. import BrokenResourceError, EndOfStream, aclose_forcefully
 from .._core._typedattr import TypedAttributeSet, typed_attribute
 from ..abc import AnyByteStream, ByteStream, Listener, TaskGroup
 
@@ -139,7 +139,6 @@ class TLSStream(ByteStream):
             try:
                 await self.unwrap()
             except BaseException:
-                from .. import aclose_forcefully
                 await aclose_forcefully(self.transport_stream)
                 raise
 
