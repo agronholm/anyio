@@ -14,6 +14,8 @@ class TLSAttribute(TypedAttributeSet):
     """Contains Transport Layer Security related attributes."""
     #: the selected ALPN protocol
     alpn_protocol: Optional[str] = typed_attribute()
+    #: the channel binding for type ``tls-unique``
+    channel_binding_tls_unique: bytes = typed_attribute()
     #: the selected cipher
     cipher: Tuple[str, str, int] = typed_attribute()
     #: the peer certificate in dictionary form (see :meth:`ssl.SSLSocket.getpeercert` for more
@@ -163,6 +165,7 @@ class TLSStream(ByteStream):
         return {
             **self.transport_stream.extra_attributes,
             TLSAttribute.alpn_protocol: self._ssl_object.selected_alpn_protocol,
+            TLSAttribute.channel_binding_tls_unique: self._ssl_object.get_channel_binding,
             TLSAttribute.cipher: self._ssl_object.cipher,
             TLSAttribute.peer_certificate: lambda: self._ssl_object.getpeercert(False),
             TLSAttribute.peer_certificate_binary: lambda: self._ssl_object.getpeercert(True),

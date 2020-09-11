@@ -65,6 +65,7 @@ class TestTLSStream:
                     assert wrapper.extra(attribute) == stream.extra(attribute)
 
             assert wrapper.extra(TLSAttribute.alpn_protocol) == 'h2'
+            assert isinstance(wrapper.extra(TLSAttribute.channel_binding_tls_unique), bytes)
             assert isinstance(wrapper.extra(TLSAttribute.cipher), tuple)
             assert isinstance(wrapper.extra(TLSAttribute.peer_certificate), dict)
             assert isinstance(wrapper.extra(TLSAttribute.peer_certificate_binary), bytes)
