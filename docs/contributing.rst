@@ -7,7 +7,7 @@ When you make a pull request against the main AnyIO codebase, Github runs the An
 against your modified code. Before making a pull request, you should ensure that the modified code
 passes tests locally. To that end, the use of tox_ is recommended. The default tox run first runs
 code style fixing tools and then the actual test suite. To only run the code style fixers, run
-``tox -e lint``.
+``tox -e lint``. To run the checks on all environments in parallel, invoke tox with ``tox -p``.
 
 The use of pre-commit_ is also highly recommended. You can find a sample configuration file at the
 root of the repository.
