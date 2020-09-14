@@ -120,6 +120,6 @@ class MultiListener(Generic[T_Stream], Listener[T_Stream]):
     def extra_attributes(self):
         attributes = {}
         for listener in self.listeners:
-            attributes.update(listener)
+            attributes.update(listener.extra_attributes)
 
         return attributes

@@ -326,6 +326,7 @@ class TestTCPListener:
                               SocketAttribute.remote_address)
                 pytest.raises(TypedAttributeLookupError, listener.extra,
                               SocketAttribute.remote_port)
+            assert multi.extra(SocketAttribute.family) == family
 
     @pytest.mark.parametrize('family', [
         pytest.param(socket.AF_INET, id='ipv4'),
