@@ -316,6 +316,7 @@ class TestTCPStream:
 class TestTCPListener:
     async def test_extra_attributes(self, family):
         async with await create_tcp_listener(local_host='localhost', family=family) as multi:
+            assert multi.extra(SocketAttribute.family) == family
             for listener in multi.listeners:
                 raw_socket = listener.extra(SocketAttribute.raw_socket)
                 assert listener.extra(SocketAttribute.family) == family
