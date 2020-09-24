@@ -3,6 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed broken ``MultiListener.extra()`` (PR by daa)
+
 **2.0.0**
 
 - General new features:
