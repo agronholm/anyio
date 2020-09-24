@@ -5,7 +5,7 @@ from threading import Thread
 
 import pytest
 
-from anyio import BrokenResourceError, connect_tcp
+from anyio import BrokenResourceError, EndOfStream, connect_tcp
 from anyio.abc import SocketAttribute
 from anyio.streams.tls import TLSAttribute, TLSStream
 
@@ -168,7 +168,7 @@ class TestTLSStream:
         server_sock.settimeout(1)
         server_sock.bind(('127.0.0.1', 0))
         server_sock.listen()
-        server_thread = Thread(target=serve_sync)
+        server_thread = Thread(target=serve_sync, daemon=True)
         server_thread.start()
 
         stream = await connect_tcp(*server_sock.getsockname())
@@ -185,3 +185,28 @@ class TestTLSStream:
             assert not isinstance(server_exc, socket.timeout)
         else:
             assert server_exc is None
+
+    async def test_receive_send_after_eof(self, server_context, client_context):
+        def serve_sync():
+            conn, addr = server_sock.accept()
+            conn.sendall(b'hello')
+            conn.unwrap()
+            conn.close()
+
+        server_sock = server_context.wrap_socket(socket.socket(), server_side=True,
+                                                 suppress_ragged_eofs=False)
+        server_sock.settimeout(1)
+        server_sock.bind(('127.0.0.1', 0))
+        server_sock.listen()
+        server_thread = Thread(target=serve_sync, daemon=True)
+        server_thread.start()
+
+        stream = await connect_tcp(*server_sock.getsockname())
+        async with await TLSStream.wrap(stream, hostname='localhost',
+                                        ssl_context=client_context) as wrapper:
+            assert await wrapper.receive() == b'hello'
+            with pytest.raises(EndOfStream):
+                await wrapper.receive()
+
+        server_thread.join()
+        server_sock.close()

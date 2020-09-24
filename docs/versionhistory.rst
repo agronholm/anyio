@@ -6,6 +6,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **UNRELEASED**
 
 - Fixed broken ``MultiListener.extra()`` (PR by daa)
+- Fixed ``TLSStream`` returning an empty bytes object instead of raising ``EndOfStream`` when
+  trying to receive from the stream after a closing handshake
 
 **2.0.0**
 

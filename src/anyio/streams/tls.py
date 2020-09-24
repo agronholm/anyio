@@ -145,7 +145,11 @@ class TLSStream(ByteStream):
         await self.transport_stream.aclose()
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
-        return await self._call_sslobject_method(self._ssl_object.read, max_bytes)
+        data = await self._call_sslobject_method(self._ssl_object.read, max_bytes)
+        if not data:
+            raise EndOfStream
+
+        return data
 
     async def send(self, item: bytes) -> None:
         await self._call_sslobject_method(self._ssl_object.write, item)
