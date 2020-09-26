@@ -1,3 +1,4 @@
+import asyncio
 import sys
 
 import pytest
@@ -78,3 +79,18 @@ def test_wait_generator_based_task_blocked():
     finally:
         set_event_loop(None)
         loop.close()
+
+
+@pytest.mark.parametrize('anyio_backend', ['asyncio'])
+async def test_wait_all_tasks_blocked_asend(anyio_backend):
+    """Test that wait_all_tasks_blocked() does not crash on an `asend()` object."""
+
+    async def agen_func():
+        yield
+
+    agen = agen_func()
+    coro = agen.asend(None)
+    loop = asyncio.get_event_loop()
+    task = loop.create_task(coro)
+    await wait_all_tasks_blocked()
+    await task

@@ -10,6 +10,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   trying to receive from the stream after a closing handshake
 - Fixed ``AttributeError`` when cancelling a task group's scope inside an async test fixture on
   asyncio
+- Fixed ``wait_all_tasks_blocked()`` raising ``AttributeError`` on asyncio if a native task is
+  waiting on an async generator's ``asend()`` method
 
 **2.0.0**
 
