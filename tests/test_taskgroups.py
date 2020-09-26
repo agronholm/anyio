@@ -235,7 +235,7 @@ async def test_exception_group_children():
     assert exc.match('^2 exceptions were raised in the task group:\n')
     assert exc.match(r'Exception: task\d\n----')
     assert re.fullmatch(
-        r"<ExceptionGroup: Exception\('task[12]',\),? Exception\('task[12]',?\)>",
+        r"<ExceptionGroup: Exception\('task[12]',?\), Exception\('task[12]',?\)>",
         repr(exc.value))
 
 
