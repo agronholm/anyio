@@ -105,6 +105,32 @@ def test_autouse_async_fixture(testdir):
     result.assert_outcomes(passed=len(get_all_backends()))
 
 
+def test_cancel_scope_in_asyncgen_fixture(testdir):
+    testdir.makepyfile(
+        """
+        import pytest
+
+        from anyio import create_task_group
+
+
+        @pytest.fixture
+        async def asyncgen_fixture():
+            async with create_task_group() as tg:
+                await tg.cancel_scope.cancel()
+
+            yield 1
+
+
+        @pytest.mark.anyio
+        async def test_cancel_in_asyncgen_fixture(asyncgen_fixture):
+            assert asyncgen_fixture == 1
+        """
+    )
+
+    result = testdir.runpytest('-v')
+    result.assert_outcomes(passed=len(get_all_backends()))
+
+
 def test_hypothesis_module_mark(testdir):
     testdir.makepyfile(
         """

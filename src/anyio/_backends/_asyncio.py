@@ -250,19 +250,23 @@ class CancelScope(abc.CancelScope):
 
     async def _cancel(self):
         # Deliver cancellation to directly contained tasks and nested cancel scopes
+        this_task = current_task()
         for task in self._tasks:
             # Cancel the task directly, but only if it's blocked and isn't within a shielded scope
             cancel_scope = _task_states[task].cancel_scope
             if cancel_scope is self:
                 # Only deliver the cancellation if the task is already running (but not this task!)
-                try:
-                    running = task._coro.cr_running
-                    awaitable = task._coro.cr_await
-                except AttributeError:
-                    running = task._coro.gi_running
-                    awaitable = task._coro.gi_yieldfrom
+                if task is this_task:
+                    continue
 
-                if not running and awaitable is not None:
+                if isgenerator(task._coro):  # type: ignore
+                    awaitable = task._coro.gi_yieldfrom
+                elif asyncio.iscoroutine(task._coro):
+                    awaitable = task._coro.cr_await
+                else:
+                    awaitable = task._coro
+
+                if awaitable is not None:
                     task.cancel()
             elif not cancel_scope._shielded_to(self):
                 await cancel_scope._cancel()
