@@ -110,13 +110,14 @@ def test_cancel_scope_in_asyncgen_fixture(testdir):
         """
         import pytest
 
-        from anyio import create_task_group
+        from anyio import create_task_group, sleep
 
 
         @pytest.fixture
         async def asyncgen_fixture():
             async with create_task_group() as tg:
-                await tg.cancel_scope.cancel()
+                await tg.spawn(tg.cancel_scope.cancel)
+                await sleep(1)
 
             yield 1
 

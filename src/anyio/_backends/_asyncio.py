@@ -261,7 +261,7 @@ class CancelScope(abc.CancelScope):
 
                 if isgenerator(task._coro):  # type: ignore
                     awaitable = task._coro.gi_yieldfrom
-                elif asyncio.iscoroutine(task._coro):
+                elif asyncio.iscoroutine(task._coro) and hasattr(task._coro, 'cr_await'):
                     awaitable = task._coro.cr_await
                 else:
                     awaitable = task._coro

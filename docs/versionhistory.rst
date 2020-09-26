@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**2.0.2**
+
+- Fixed one more case of
+  ``AttributeError: 'async_generator_asend' object has no attribute 'cr_await'`` on asyncio
+
 **2.0.1**
 
 - Fixed broken ``MultiListener.extra()`` (PR by daa)
