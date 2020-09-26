@@ -248,7 +248,7 @@ async def test_exception_group_host():
             raise Exception('host')
 
     assert len(exc.value.exceptions) == 2
-    assert [str(e) for e in exc.value.exceptions] == ['host', 'child']
+    assert sorted(str(e) for e in exc.value.exceptions) == ['child', 'host']
     assert exc.match('^2 exceptions were raised in the task group:\n')
     assert exc.match(r'Exception: host\n----')
 
