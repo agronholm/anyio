@@ -94,3 +94,4 @@ async def test_wait_all_tasks_blocked_asend(anyio_backend):
     task = loop.create_task(coro)
     await wait_all_tasks_blocked()
     await task
+    await agen.aclose()
