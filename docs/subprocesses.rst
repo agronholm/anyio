@@ -52,7 +52,7 @@ with :func:`~open_process`::
 
     async def main():
         async with await open_process(['/usr/bin/ps']) as process:
-            for text in TextReceiveStream(process.stdout):
+            async for text in TextReceiveStream(process.stdout):
                 print(text)
 
     run(main)
