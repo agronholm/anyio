@@ -18,3 +18,15 @@ multi_line_output = 4
 
 [tool.autopep8]
 max_line_length = 99
+
+[tool.pytest]
+addopts = "-rsx --tb=short"
+testpaths = ["tests"]
+filterwarnings = "always"
+
+[tool.coverage.run]
+source = ["anyio"]
+relative_files = true
+
+[tool.coverage.report]
+show_missing = true
