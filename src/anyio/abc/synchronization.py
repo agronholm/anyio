@@ -163,8 +163,6 @@ class CapacityLimiter(metaclass=ABCMeta):
     async def acquire(self) -> None:
         """
         Acquire a token for the current task, waiting if necessary for one to become available.
-
-        :raises ~anyio.WouldBlock: if there are no tokens available for borrowing
         """
 
     @abstractmethod
@@ -173,7 +171,6 @@ class CapacityLimiter(metaclass=ABCMeta):
         Acquire a token, waiting if necessary for one to become available.
 
         :param borrower: the entity borrowing a token
-        :raises ~anyio.WouldBlock: if there are no tokens available for borrowing
         """
 
     @abstractmethod
