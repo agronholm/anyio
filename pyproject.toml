@@ -19,7 +19,7 @@ multi_line_output = 4
 [tool.autopep8]
 max_line_length = 99
 
-[tool.pytest]
+[tool.pytest.ini_options]
 addopts = "-rsx --tb=short"
 testpaths = ["tests"]
 filterwarnings = "always"
