@@ -522,6 +522,7 @@ async def run_sync_in_worker_thread(
     await limiter.acquire_on_behalf_of(task)
     thread = Thread(target=thread_worker, daemon=True)
     thread.start()
+    exception = None
     async with CancelScope(shield=not cancellable):
         try:
             retval, exception = await queue.get()
