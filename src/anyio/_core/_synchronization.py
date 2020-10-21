@@ -1,4 +1,4 @@
-from ..abc import CapacityLimiter, Condition, Event, Lock, Semaphore
+from ..abc import CapacityLimiter, Condition, Event, Lock, Semaphore, UniversalEvent
 from ._eventloop import get_asynclib
 from ._exceptions import BusyResourceError
 
@@ -32,6 +32,16 @@ def create_event() -> Event:
 
     """
     return get_asynclib().Event()
+
+
+def create_universal_event() -> UniversalEvent:
+    """
+    Create an asynchronous event object that we can set from sync code.
+
+    :return: a universal event object
+
+    """
+    return get_asynclib().UniversalEvent()
 
 
 def create_semaphore(value: int) -> Semaphore:

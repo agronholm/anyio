@@ -7,11 +7,7 @@ T_Retval = TypeVar('T_Retval')
 IPAddressType = Union[str, IPv4Address, IPv6Address]
 
 
-class Event(metaclass=ABCMeta):
-    @abstractmethod
-    async def set(self) -> None:
-        """Set the flag, notifying all listeners."""
-
+class BaseEvent(metaclass=ABCMeta):
     @abstractmethod
     def is_set(self) -> bool:
         """Return ``True`` if the flag is set, ``False`` if not."""
@@ -23,6 +19,18 @@ class Event(metaclass=ABCMeta):
 
         If the flag has already been set when this method is called, it returns immediately.
         """
+
+
+class Event(BaseEvent):
+    @abstractmethod
+    async def set(self) -> None:
+        """Set the flag, notifying all listeners."""
+
+
+class UniversalEvent(BaseEvent):
+    @abstractmethod
+    def set(self) -> None:
+        """Set the flag, notifying all listeners."""
 
 
 class Lock(metaclass=ABCMeta):

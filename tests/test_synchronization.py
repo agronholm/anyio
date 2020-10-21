@@ -2,8 +2,8 @@ import pytest
 
 from anyio import (
     create_capacity_limiter, create_condition, create_event, create_lock, create_semaphore,
-    create_task_group, current_default_worker_thread_limiter, open_cancel_scope,
-    wait_all_tasks_blocked)
+    create_task_group, create_universal_event, current_default_worker_thread_limiter,
+    open_cancel_scope, wait_all_tasks_blocked)
 from anyio.abc import CapacityLimiter
 
 pytestmark = pytest.mark.anyio
@@ -94,6 +94,37 @@ class TestEvent:
             await tg.spawn(task)
             await tg.cancel_scope.cancel()
             await event.set()
+
+        assert task_started
+        assert not event_set
+
+
+class TestUniversalEvent:
+    async def test_universal_event(self):
+        async def setter():
+            assert not event.is_set()
+            event.set()
+
+        event = create_universal_event()
+        async with create_task_group() as tg:
+            await tg.spawn(setter)
+            await event.wait()
+
+        assert event.is_set()
+
+    async def test_universal_event_cancel(self):
+        async def task():
+            nonlocal task_started, event_set
+            task_started = True
+            await event.wait()
+            event_set = True
+
+        task_started = event_set = False
+        event = create_universal_event()
+        async with create_task_group() as tg:
+            await tg.spawn(task)
+            await tg.cancel_scope.cancel()
+            event.set()
 
         assert task_started
         assert not event_set

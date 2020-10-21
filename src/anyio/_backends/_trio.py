@@ -500,18 +500,25 @@ class Lock(abc.Lock):
         self._lock.release()
 
 
-class Event:
+class BaseEvent(abc.BaseEvent):
     def __init__(self):
         self._event = trio.Event()
-
-    async def set(self) -> None:
-        self._event.set()
 
     def is_set(self) -> bool:
         return self._event.is_set()
 
     async def wait(self):
         await self._event.wait()
+
+
+class Event(abc.Event, BaseEvent):
+    async def set(self) -> None:
+        self._event.set()
+
+
+class UniversalEvent(abc.UniversalEvent, BaseEvent):
+    def set(self) -> None:
+        self._event.set()
 
 
 class Condition(abc.Condition):

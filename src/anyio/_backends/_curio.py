@@ -834,6 +834,21 @@ class Event(abc.Event):
         return await self._event.wait()
 
 
+class UniversalEvent(abc.UniversalEvent):
+    def __init__(self):
+        self._event = curio.UniversalEvent()
+
+    def set(self) -> None:
+        self._event.set()
+
+    def is_set(self) -> bool:
+        return self._event.is_set()
+
+    async def wait(self):
+        await checkpoint()
+        return await self._event.wait()
+
+
 class Semaphore(abc.Semaphore):
     def __init__(self, value: int):
         self._semaphore = curio.Semaphore(value)

@@ -3,9 +3,9 @@ __all__ = ('AsyncResource', 'SocketAttribute', 'SocketStream', 'SocketListener',
            'UnreliableObjectStream', 'ObjectReceiveStream', 'ObjectSendStream', 'ObjectStream',
            'ByteReceiveStream', 'ByteSendStream', 'ByteStream', 'AnyUnreliableByteReceiveStream',
            'AnyUnreliableByteSendStream', 'AnyUnreliableByteStream', 'AnyByteReceiveStream',
-           'AnyByteSendStream', 'AnyByteStream', 'Listener', 'Process', 'Event', 'Lock',
-           'Condition', 'Semaphore', 'CapacityLimiter', 'CancelScope', 'TaskGroup', 'TestRunner',
-           'BlockingPortal')
+           'AnyByteSendStream', 'AnyByteStream', 'Listener', 'Process', 'BaseEvent', 'Event',
+           'UniversalEvent', 'Lock', 'Condition', 'Semaphore', 'CapacityLimiter', 'CancelScope',
+           'TaskGroup', 'TestRunner', 'BlockingPortal')
 
 from .resources import AsyncResource
 from .sockets import ConnectedUDPSocket, SocketAttribute, SocketListener, SocketStream, UDPSocket
@@ -15,7 +15,8 @@ from .streams import (
     ByteStream, Listener, ObjectReceiveStream, ObjectSendStream, ObjectStream,
     UnreliableObjectReceiveStream, UnreliableObjectSendStream, UnreliableObjectStream)
 from .subprocesses import Process
-from .synchronization import CapacityLimiter, Condition, Event, Lock, Semaphore
+from .synchronization import (
+    BaseEvent, CapacityLimiter, Condition, Event, Lock, Semaphore, UniversalEvent)
 from .tasks import CancelScope, TaskGroup
 from .testing import TestRunner
 from .threads import BlockingPortal

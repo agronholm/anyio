@@ -6,10 +6,10 @@ __all__ = ('run', 'sleep', 'current_time', 'get_all_backends', 'get_cancelled_ex
            'create_udp_socket', 'create_connected_udp_socket', 'getaddrinfo', 'getnameinfo',
            'wait_socket_readable', 'wait_socket_writable', 'create_memory_object_stream',
            'run_process', 'open_process', 'create_lock', 'create_condition', 'create_event',
-           'create_semaphore', 'create_capacity_limiter', 'open_cancel_scope', 'fail_after',
-           'move_on_after', 'current_effective_deadline', 'create_task_group', 'TaskInfo',
-           'get_current_task', 'get_running_tasks', 'wait_all_tasks_blocked',
-           'run_sync_in_worker_thread', 'run_async_from_thread',
+           'create_universal_event', 'create_semaphore', 'create_capacity_limiter',
+           'open_cancel_scope', 'fail_after', 'move_on_after', 'current_effective_deadline',
+           'create_task_group', 'TaskInfo', 'get_current_task', 'get_running_tasks',
+           'wait_all_tasks_blocked', 'run_sync_in_worker_thread', 'run_async_from_thread',
            'current_default_worker_thread_limiter', 'create_blocking_portal',
            'start_blocking_portal', 'typed_attribute', 'TypedAttributeSet',
            'TypedAttributeProvider')
@@ -27,7 +27,8 @@ from ._core._sockets import (
 from ._core._streams import create_memory_object_stream
 from ._core._subprocesses import open_process, run_process
 from ._core._synchronization import (
-    create_capacity_limiter, create_condition, create_event, create_lock, create_semaphore)
+    create_capacity_limiter, create_condition, create_event, create_lock, create_semaphore,
+    create_universal_event)
 from ._core._tasks import (
     create_task_group, current_effective_deadline, fail_after, move_on_after, open_cancel_scope)
 from ._core._testing import TaskInfo, get_current_task, get_running_tasks, wait_all_tasks_blocked

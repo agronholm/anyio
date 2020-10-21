@@ -1063,12 +1063,9 @@ class Condition(abc.Condition):
         return await self._condition.wait()
 
 
-class Event(abc.Event):
+class BaseEvent(abc.BaseEvent):
     def __init__(self):
         self._event = asyncio.Event()
-
-    async def set(self):
-        self._event.set()
 
     def is_set(self) -> bool:
         return self._event.is_set()
@@ -1076,6 +1073,16 @@ class Event(abc.Event):
     async def wait(self):
         await checkpoint()
         await self._event.wait()
+
+
+class Event(abc.Event, BaseEvent):
+    async def set(self):
+        self._event.set()
+
+
+class UniversalEvent(abc.UniversalEvent, BaseEvent):
+    def set(self):
+        self._event.set()
 
 
 class Semaphore(abc.Semaphore):
