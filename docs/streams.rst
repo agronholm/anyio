@@ -25,7 +25,8 @@ Memory object streams
 
 Memory object streams are intended for implementing a producer-consumer pattern with multiple
 tasks. Using :func:`~create_memory_object_stream`, you get a pair of object streams: one for
-sending, one for receiving.
+sending, one for receiving. They essentially work like queues, but with support for closing
+and asynchronous iteration.
 
 By default, memory object streams are created with a buffer size of 0. This means that
 :meth:`~.streams.memory.MemoryObjectSendStream.send` will block until there's another task
