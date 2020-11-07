@@ -64,7 +64,8 @@ Events
 
 Events are used to notify tasks that something they've been waiting to happen has happened.
 An event object can have multiple listeners and they are all notified when the event is triggered.
-Events can also be reused by clearing the triggered state.
+Note that events cannot be reused unlike their implementation in many other asynchronous libraries.
+If you need to *reuse* one, just create a new one, it is cheap ;)
 
 Example::
 

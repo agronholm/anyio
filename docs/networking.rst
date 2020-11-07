@@ -122,6 +122,10 @@ sends a packet to the sender with the contents prepended with "Hello, ", you wou
 
     run(main)
 
+.. note:: If you are testing on your local machine or don't know which family socket to use, it is
+          a good idea to replace ``family=socket.AF_INET`` by ``local_host='localhost'`` in the
+          previous example.
+
 If your use case involves sending lots of packets to a single destination, you can still "connect"
 your UDP socket to a specific host and port to avoid having to pass the address and port every time
 you send data to the peer::
@@ -135,3 +139,4 @@ you send data to the peer::
             await udp.send(b'Hi there!\n')
 
     run(main)
+
