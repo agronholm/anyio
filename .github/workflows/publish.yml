@@ -19,7 +19,7 @@ jobs:
     - name: Install dependencies
       run: pip install build
     - name: Create packages
-      run: python -m build -s -w
+      run: python -m build -s -w .
     - name: Upload packages
       uses: pypa/gh-action-pypi-publish@master
       with:
