@@ -83,7 +83,7 @@ class BufferedByteReceiveStream(ByteReceiveStream):
         :param delimiter: the marker to look for in the stream
         :param max_bytes: maximum number of bytes that will be read before raising
             :exc:`~anyio.DelimiterNotFound`
-        :return: the bytes read, including the delimiter
+        :return: the bytes read (not including the delimiter)
         :raises ~anyio.IncompleteRead: if the stream was closed before the delimiter
             was found
         :raises ~anyio.DelimiterNotFound: if the delimiter is not found within the
