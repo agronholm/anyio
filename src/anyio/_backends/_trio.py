@@ -500,7 +500,7 @@ class Lock(abc.Lock):
         self._lock.release()
 
 
-class Event:
+class Event(abc.Event):
     def __init__(self):
         self._event = trio.Event()
 

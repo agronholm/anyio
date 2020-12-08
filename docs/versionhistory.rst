@@ -3,6 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed ``Event`` objects on the trio backend not inheriting from ``anyio.abc.Event``
+
 **2.0.2**
 
 - Fixed one more case of
