@@ -12,8 +12,8 @@ class TextReceiveStream(ObjectReceiveStream[str]):
     """
     Stream wrapper that decodes bytes to strings using the given encoding.
 
-    Receives from the wrapped stream until the given delimiter is found, and then returns the
-    string (without the delimiter).
+    Decoding is done using :class:`~codecs.IncrementalDecoder` which returns any completely
+    received unicode characters as soon as they come in.
 
     :param transport_stream: any bytes-based receive stream
     :param encoding: character encoding to use for decoding bytes to strings (defaults to
