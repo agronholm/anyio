@@ -673,7 +673,6 @@ class StreamProtocol(asyncio.Protocol):
         cast(asyncio.Transport, transport).set_write_buffer_limits(0)
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
-        print('connection lost')
         self.exception = exc
         self.read_event.set()
         self.write_event.set()
