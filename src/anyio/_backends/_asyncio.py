@@ -522,9 +522,12 @@ async def run_sync_in_worker_thread(
     await limiter.acquire_on_behalf_of(task)
     thread = Thread(target=thread_worker, daemon=True)
     thread.start()
+    exception: Optional[BaseException] = None
     async with CancelScope(shield=not cancellable):
         try:
             retval, exception = await queue.get()
+        except BaseException as exc:
+            exception = exc
         finally:
             cancelled = True
 
@@ -670,6 +673,7 @@ class StreamProtocol(asyncio.Protocol):
         cast(asyncio.Transport, transport).set_write_buffer_limits(0)
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
+        print('connection lost')
         self.exception = exc
         self.read_event.set()
         self.write_event.set()

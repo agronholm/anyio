@@ -1,3 +1,5 @@
+import asyncio
+import sys
 import threading
 import time
 from concurrent.futures import CancelledError
@@ -7,7 +9,13 @@ import pytest
 
 from anyio import (
     create_blocking_portal, create_capacity_limiter, create_event, create_task_group,
-    run_async_from_thread, run_sync_in_worker_thread, sleep, start_blocking_portal)
+    run_async_from_thread, run_sync_in_worker_thread, sleep, start_blocking_portal,
+    wait_all_tasks_blocked)
+
+if sys.version_info < (3, 9):
+    current_task = asyncio.Task.current_task
+else:
+    current_task = asyncio.current_task
 
 pytestmark = pytest.mark.anyio
 
@@ -132,6 +140,20 @@ async def test_cancel_worker_thread(cancellable, expected_last_active):
 
     await finish_event.wait()
     assert last_active == expected_last_active
+
+
+@pytest.mark.parametrize('anyio_backend', ['asyncio'])
+async def test_cancel_asyncio_native_task():
+    async def run_in_thread():
+        nonlocal task
+        task = current_task()
+        await run_sync_in_worker_thread(time.sleep, 1, cancellable=True)
+
+    task = None
+    async with create_task_group() as tg:
+        await tg.spawn(run_in_thread)
+        await wait_all_tasks_blocked()
+        task.cancel()
 
 
 class TestBlockingPortal:
