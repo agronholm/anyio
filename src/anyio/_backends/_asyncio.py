@@ -679,7 +679,10 @@ class StreamProtocol(asyncio.Protocol):
 
         self.read_event.set()
         self.write_future = asyncio.Future()
-        self.write_future.set_exception(self.exception)
+        if self.exception:
+            self.write_future.set_exception(self.exception)
+        else:
+            self.write_future.set_result(None)
 
     def data_received(self, data: bytes) -> None:
         self.read_queue.append(data)
