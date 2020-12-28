@@ -9,10 +9,10 @@ from threading import Event, Thread
 import pytest
 
 from anyio import (
-    BusyResourceError, ClosedResourceError, ExceptionGroup, TypedAttributeLookupError, connect_tcp,
-    connect_unix, create_connected_udp_socket, create_event, create_task_group,
-    create_tcp_listener, create_udp_socket, create_unix_listener, getaddrinfo, getnameinfo,
-    move_on_after, wait_all_tasks_blocked)
+    BrokenResourceError, BusyResourceError, ClosedResourceError, ExceptionGroup,
+    TypedAttributeLookupError, connect_tcp, connect_unix, create_connected_udp_socket,
+    create_event, create_task_group, create_tcp_listener, create_udp_socket, create_unix_listener,
+    getaddrinfo, getnameinfo, move_on_after, wait_all_tasks_blocked)
 from anyio.abc.sockets import SocketAttribute
 from anyio.streams.stapled import MultiListener
 
@@ -265,6 +265,27 @@ class TestTCPStream:
         await stream.aclose()
         with pytest.raises(ClosedResourceError):
             await stream.send(b'foo')
+
+    async def test_send_after_peer_closed(self, family):
+        def serve_once():
+            client_sock, _ = server_sock.accept()
+            client_sock.close()
+            server_sock.close()
+
+        server_sock = socket.socket(family, socket.SOCK_STREAM)
+        server_sock.settimeout(1)
+        server_sock.bind(('localhost', 0))
+        server_addr = server_sock.getsockname()[:2]
+        server_sock.listen()
+        thread = Thread(target=serve_once, daemon=True)
+        thread.start()
+
+        with pytest.raises(BrokenResourceError):
+            async with await connect_tcp(*server_addr) as stream:
+                for _ in range(1000):
+                    await stream.send(b'foo')
+
+        thread.join()
 
     async def test_connect_tcp_with_tls(self, server_context, client_context, server_sock,
                                         server_addr):

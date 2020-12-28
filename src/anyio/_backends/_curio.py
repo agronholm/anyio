@@ -592,13 +592,12 @@ class _CurioSocketMixin(Generic[T_SockAddr]):
                 await wtask.cancel(blocking=False, exc=ClosedResourceError)
 
     def _convert_socket_error(self, exc: Union[OSError, AttributeError]) -> NoReturn:
-        if self._curio_socket.fileno() < 0:
-            if self._closed:
-                raise ClosedResourceError from None
-            else:
-                raise BrokenResourceError from exc
-
-        raise exc
+        if self._curio_socket.fileno() < 0 and self._closed:
+            raise ClosedResourceError from None
+        elif isinstance(exc, OSError):
+            raise BrokenResourceError from exc
+        else:
+            raise exc
 
 
 class SocketStream(_CurioSocketMixin, abc.SocketStream):
