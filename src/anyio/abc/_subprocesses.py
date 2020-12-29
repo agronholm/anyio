@@ -1,8 +1,8 @@
 from abc import abstractmethod
 from typing import Optional
 
-from .resources import AsyncResource
-from .streams import ByteReceiveStream, ByteSendStream
+from ._resources import AsyncResource
+from ._streams import ByteReceiveStream, ByteSendStream
 
 
 class Process(AsyncResource):

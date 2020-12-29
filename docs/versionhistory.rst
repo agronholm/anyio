@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- **BACKWARDS INCOMPATIBLE** Submodules under ``anyio.abc.`` have been made private (use only
+  ``anyio.abc`` from now on).
+
 **2.1.0**
 
 - Added the ``spawn_task()`` and ``wrap_async_context_manager()`` methods to ``BlockingPortal``

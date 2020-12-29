@@ -3,8 +3,8 @@ from dataclasses import InitVar, dataclass, field
 from typing import Callable, Tuple
 
 from ..abc import (
-    AnyByteReceiveStream, AnyByteSendStream, ObjectReceiveStream, ObjectSendStream, ObjectStream)
-from ..abc.streams import AnyByteStream
+    AnyByteReceiveStream, AnyByteSendStream, AnyByteStream, ObjectReceiveStream, ObjectSendStream,
+    ObjectStream)
 
 
 @dataclass

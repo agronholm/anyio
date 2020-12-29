@@ -4,8 +4,8 @@ from socket import AddressFamily, SocketType
 from typing import Any, AsyncContextManager, Callable, Generic, Optional, Tuple, TypeVar, Union
 
 from .._core._typedattr import TypedAttributeProvider, TypedAttributeSet, typed_attribute
-from .streams import ByteStream, Listener, T_Stream, UnreliableObjectStream
-from .tasks import TaskGroup
+from ._streams import ByteStream, Listener, T_Stream, UnreliableObjectStream
+from ._tasks import TaskGroup
 
 IPAddressType = Union[str, IPv4Address, IPv6Address]
 IPSockAddrType = Tuple[str, int]

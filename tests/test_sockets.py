@@ -13,7 +13,7 @@ from anyio import (
     TypedAttributeLookupError, connect_tcp, connect_unix, create_connected_udp_socket,
     create_event, create_task_group, create_tcp_listener, create_udp_socket, create_unix_listener,
     getaddrinfo, getnameinfo, move_on_after, wait_all_tasks_blocked)
-from anyio.abc.sockets import SocketAttribute
+from anyio.abc import SocketAttribute
 from anyio.streams.stapled import MultiListener
 
 pytestmark = pytest.mark.anyio

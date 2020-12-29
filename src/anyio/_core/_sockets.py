@@ -7,8 +7,9 @@ from pathlib import Path
 from socket import AddressFamily, SocketKind
 from typing import Awaitable, List, Optional, Tuple, Union, cast, overload
 
-from ..abc import ConnectedUDPSocket, Event, SocketListener, SocketStream, UDPSocket
-from ..abc.sockets import IPAddressType, IPSockAddrType
+from ..abc import (
+    ConnectedUDPSocket, Event, IPAddressType, IPSockAddrType, SocketListener, SocketStream,
+    UDPSocket)
 from ..streams.stapled import MultiListener
 from ..streams.tls import TLSStream
 from ._eventloop import get_asynclib

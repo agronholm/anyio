@@ -6,8 +6,7 @@ from .. import (
     BrokenResourceError, ClosedResourceError, EndOfStream, WouldBlock, get_cancelled_exc_class)
 from .._core._lowlevel import checkpoint
 from .._core._synchronization import create_event
-from ..abc.streams import ObjectReceiveStream, ObjectSendStream
-from ..abc.synchronization import Event
+from ..abc import Event, ObjectReceiveStream, ObjectSendStream
 
 T_Item = TypeVar('T_Item')
 

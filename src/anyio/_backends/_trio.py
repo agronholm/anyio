@@ -18,7 +18,7 @@ from .._core._exceptions import ExceptionGroup as BaseExceptionGroup
 from .._core._exceptions import WouldBlock
 from .._core._sockets import convert_ipv6_sockaddr
 from .._core._synchronization import ResourceGuard
-from ..abc.sockets import IPSockAddrType, UDPPacketType
+from ..abc import IPSockAddrType, UDPPacketType
 
 try:
     from trio import lowlevel as trio_lowlevel

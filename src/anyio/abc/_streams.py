@@ -3,8 +3,8 @@ from typing import Any, Callable, Generic, Optional, TypeVar, Union
 
 from .._core._exceptions import EndOfStream
 from .._core._typedattr import TypedAttributeProvider
-from .resources import AsyncResource
-from .tasks import TaskGroup
+from ._resources import AsyncResource
+from ._tasks import TaskGroup
 
 T_Item = TypeVar('T_Item')
 T_Stream = TypeVar('T_Stream')
