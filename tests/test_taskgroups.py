@@ -1,7 +1,6 @@
 import asyncio
 import re
 
-import curio
 import pytest
 import trio
 
@@ -45,7 +44,6 @@ async def test_success():
 
 @pytest.mark.parametrize('module', [
     pytest.param(asyncio, id='asyncio'),
-    pytest.param(curio, id='curio'),
     pytest.param(trio, id='trio')
 ])
 def test_run_natively(module):
@@ -182,11 +180,7 @@ async def test_cancel_propagation():
 
 
 async def test_cancel_twice():
-    """
-    Test that the same task can receive two cancellations. This is mostly to test the workaround
-    for curio's philosophy that a task should not be cancelled twice.
-
-    """
+    """Test that the same task can receive two cancellations."""
     async def cancel_group():
         await wait_all_tasks_blocked()
         await group.cancel_scope.cancel()

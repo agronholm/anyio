@@ -12,7 +12,7 @@
   :alt: Gitter chat
 
 AnyIO is a asynchronous compatibility API that allows applications and libraries written against
-it to run unmodified on asyncio_, curio_ and trio_.
+it to run unmodified on either asyncio_ or trio_.
 
 It bridges the following functionality:
 
@@ -33,7 +33,6 @@ AnyIO comes with its own pytest_ plugin which also supports asynchronous fixture
 It even works with the popular Hypothesis_ library.
 
 .. _asyncio: https://docs.python.org/3/library/asyncio.html
-.. _curio: https://github.com/dabeaz/curio
 .. _trio: https://github.com/python-trio/trio
 .. _pytest: https://docs.pytest.org/en/latest/
 .. _Hypothesis: https://hypothesis.works/

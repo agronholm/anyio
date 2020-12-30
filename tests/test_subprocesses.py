@@ -13,12 +13,7 @@ pytestmark = pytest.mark.anyio
 
 @pytest.fixture(autouse=True)
 def check_compatibility(anyio_backend_name):
-    if anyio_backend_name == 'curio':
-        if platform.python_implementation() == 'PyPy':
-            pytest.skip('Using subprocesses causes Curio to crash PyPy')
-        elif platform.system() == 'Windows':
-            pytest.skip('Subprocess support on Curio+Windows is broken')
-    elif anyio_backend_name == 'asyncio':
+    if anyio_backend_name == 'asyncio':
         if platform.system() == 'Windows' and sys.version_info < (3, 8):
             pytest.skip('Python < 3.8 uses SelectorEventLoop by default and it does not support '
                         'subprocesses')
@@ -31,9 +26,6 @@ def check_compatibility(anyio_backend_name):
                  id='exec')
 ])
 async def test_run_process(shell, command, anyio_backend_name):
-    if anyio_backend_name == 'curio' and platform.python_implementation() == 'PyPy':
-        pytest.skip('This test causes Curio to crash PyPy')
-
     process = await run_process(command, input=b'abc')
     assert process.returncode == 0
     assert process.stdout.rstrip() == b'cba'
