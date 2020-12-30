@@ -24,6 +24,7 @@ from .._core._exceptions import ExceptionGroup as BaseExceptionGroup
 from .._core._exceptions import WouldBlock
 from .._core._sockets import GetAddrInfoReturnType, convert_ipv6_sockaddr
 from .._core._synchronization import ResourceGuard
+from .._core._utils import DeprecationWarner
 from ..abc import IPSockAddrType, UDPPacketType
 
 if sys.version_info >= (3, 7):
@@ -1099,8 +1100,9 @@ class Event(abc.Event):
     def __init__(self):
         self._event = asyncio.Event()
 
-    async def set(self):
+    def set(self) -> Awaitable:
         self._event.set()
+        return DeprecationWarner('Event.set()')
 
     def is_set(self) -> bool:
         return self._event.is_set()

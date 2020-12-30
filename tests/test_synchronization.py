@@ -72,7 +72,7 @@ class TestEvent:
     async def test_event(self):
         async def setter():
             assert not event.is_set()
-            await event.set()
+            event.set()
 
         event = create_event()
         async with create_task_group() as tg:
@@ -93,7 +93,7 @@ class TestEvent:
         async with create_task_group() as tg:
             await tg.spawn(task)
             await tg.cancel_scope.cancel()
-            await event.set()
+            event.set()
 
         assert task_started
         assert not event_set
@@ -135,7 +135,7 @@ class TestCondition:
             nonlocal task_started, notified
             task_started = True
             async with condition:
-                await event.set()
+                event.set()
                 await condition.wait()
                 notified = True
 
@@ -253,11 +253,11 @@ class TestCapacityLimiter:
             await event1.wait()
             async with limiter:
                 # This can only happen when total_tokens has been increased
-                await event2.set()
+                event2.set()
 
         async def waiter():
             async with limiter:
-                await event1.set()
+                event1.set()
                 await event2.wait()
 
         limiter = create_capacity_limiter(1)
