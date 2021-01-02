@@ -102,8 +102,7 @@ class SocketListener(Generic[T_SockAddr], Listener[SocketStream[T_SockAddr]],
             # Can be replaced with AsyncExitStack once on py3.7+
             context_manager = _NullAsyncContextManager()
 
-        # There is a mypy bug here
-        async with context_manager:  # type: ignore[attr-defined]
+        async with context_manager:
             while True:
                 stream = await self.accept()
                 await task_group.spawn(handler, stream)

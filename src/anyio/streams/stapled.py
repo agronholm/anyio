@@ -107,8 +107,7 @@ class MultiListener(Generic[T_Stream], Listener[T_Stream]):
                     task_group: Optional[TaskGroup] = None) -> None:
         from .. import create_task_group
 
-        # There is a mypy bug here
-        async with create_task_group() as tg:  # type: ignore[attr-defined]
+        async with create_task_group() as tg:
             for listener in self.listeners:
                 await tg.spawn(listener.serve, handler, task_group)
 
