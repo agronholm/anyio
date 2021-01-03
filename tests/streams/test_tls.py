@@ -5,9 +5,11 @@ from threading import Thread
 
 import pytest
 
-from anyio import BrokenResourceError, EndOfStream, connect_tcp
-from anyio.abc import SocketAttribute
-from anyio.streams.tls import TLSAttribute, TLSStream
+from anyio import (
+    BrokenResourceError, EndOfStream, connect_tcp, create_task_group, create_tcp_listener,
+    wait_all_tasks_blocked)
+from anyio.abc import SocketAttribute, SocketStream
+from anyio.streams.tls import TLSAttribute, TLSListener, TLSStream
 
 pytestmark = pytest.mark.anyio
 
@@ -210,3 +212,32 @@ class TestTLSStream:
 
         server_thread.join()
         server_sock.close()
+
+
+class TestTLSListener:
+    @pytest.mark.parametrize('use_custom_error_handler', [False, True])
+    async def test_handshake_fail(self, server_context, use_custom_error_handler):
+        def handler(stream):
+            pytest.fail('This function should never be called in this scenario')
+
+        async def exception_setter(stream, exc):
+            nonlocal exception
+            assert isinstance(stream, SocketStream)
+            exception = exc
+
+        exception = None
+        listener = await create_tcp_listener(local_host='127.0.0.1')
+        error_handler = exception_setter if use_custom_error_handler else None
+        tls_listener = TLSListener(listener, server_context, error_handler=error_handler)
+        async with tls_listener, create_task_group() as tg:
+            await tg.spawn(tls_listener.serve, handler)
+            sock = socket.socket()
+            sock.connect(listener.extra(SocketAttribute.local_address))
+            sock.close()
+            for _ in range(3):
+                await wait_all_tasks_blocked()
+
+            await tg.cancel_scope.cancel()
+
+        if use_custom_error_handler:
+            assert isinstance(exception, BrokenResourceError)
