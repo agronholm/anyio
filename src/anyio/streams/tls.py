@@ -189,8 +189,9 @@ class TLSListener(Listener[TLSStream]):
 
     If the TLS handshake times out or raises an exception, the error handler callback is called
     with the original stream object and the exception object as arguments. If no error handler
-    callback has explicitly been given, the default one is used which just prints the traceback on
-    the console.
+    callback has explicitly been given, the default one is used which just logs the exception on
+    the ``anyio.streams.tls`` logger. The original stream will be closed with
+    :func:`~anyio.aclose_forcefully` after the error handler has been called.
 
     Supports only the :attr:`~TLSAttribute.standard_compatible` extra attribute.
 
@@ -209,14 +210,19 @@ class TLSListener(Listener[TLSStream]):
     error_handler: Optional[Callable[[AnyByteStream, BaseException], Awaitable]] = None
 
     async def _default_error_handler(self, stream: AnyByteStream, exc: BaseException) -> None:
+        # Log all except cancellation exceptions
         if not isinstance(exc, get_cancelled_exc_class()):
             logging.getLogger(__name__).exception('Error during TLS handshake')
+
+        # Only reraise base exceptions and cancellation exceptions
+        if not isinstance(exc, Exception) or isinstance(exc, get_cancelled_exc_class()):
+            raise
 
     async def serve(self, handler: Callable[[TLSStream], Any],
                     task_group: Optional[TaskGroup] = None) -> None:
         @wraps(handler)
         async def handler_wrapper(stream: AnyByteStream):
-            from anyio import fail_after
+            from .. import fail_after
             try:
                 async with fail_after(self.handshake_timeout):
                     wrapped_stream = await TLSStream.wrap(
