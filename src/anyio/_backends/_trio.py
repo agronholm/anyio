@@ -307,13 +307,12 @@ class _TrioSocketMixin(Generic[T_SockAddr]):
     def _convert_socket_error(self, exc: BaseException) -> 'NoReturn':
         if isinstance(exc, trio.ClosedResourceError):
             raise ClosedResourceError from exc
-        elif isinstance(exc, OSError) and self._trio_socket.fileno() < 0:
-            if self._closed:
-                raise ClosedResourceError from None
-            else:
-                raise BrokenResourceError from exc
-
-        raise exc
+        elif self._trio_socket.fileno() < 0 and self._closed:
+            raise ClosedResourceError from None
+        elif isinstance(exc, OSError):
+            raise BrokenResourceError from exc
+        else:
+            raise exc
 
 
 class SocketStream(_TrioSocketMixin, abc.SocketStream):

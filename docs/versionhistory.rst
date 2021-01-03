@@ -7,6 +7,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Fixed ``Event`` objects on the trio backend not inheriting from ``anyio.abc.Event``
 - Fixed ``run_sync_in_worker_thread()`` raising ``UnboundLocalError`` on asyncio when cancelled
+- Fixed ``send()`` on socket streams not raising any exception on asyncio, and an unwrapped
+  ``BrokenPipeError`` on trio and curio when the peer has disconnected
 
 **2.0.2**
 

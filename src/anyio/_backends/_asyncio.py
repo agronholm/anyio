@@ -662,20 +662,27 @@ _write_events: Dict[socket.SocketType, asyncio.Event] = {}
 class StreamProtocol(asyncio.Protocol):
     read_queue: Deque[bytes]
     read_event: asyncio.Event
-    write_event: asyncio.Event
+    write_future: asyncio.Future
     exception: Optional[Exception] = None
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.read_queue = deque()
         self.read_event = asyncio.Event()
-        self.write_event = asyncio.Event()
-        self.write_event.set()
+        self.write_future = asyncio.Future()
+        self.write_future.set_result(None)
         cast(asyncio.Transport, transport).set_write_buffer_limits(0)
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
-        self.exception = exc
+        if exc:
+            self.exception = BrokenResourceError()
+            self.exception.__cause__ = exc
+
         self.read_event.set()
-        self.write_event.set()
+        self.write_future = asyncio.Future()
+        if self.exception:
+            self.write_future.set_exception(self.exception)
+        else:
+            self.write_future.set_result(None)
 
     def data_received(self, data: bytes) -> None:
         self.read_queue.append(data)
@@ -686,10 +693,10 @@ class StreamProtocol(asyncio.Protocol):
         return None
 
     def pause_writing(self) -> None:
-        self.write_event.clear()
+        self.write_future = asyncio.Future()
 
     def resume_writing(self) -> None:
-        self.write_event.set()
+        self.write_future.set_result(None)
 
 
 class DatagramProtocol(asyncio.DatagramProtocol):
@@ -750,7 +757,7 @@ class SocketStream(abc.SocketStream):
                 if self._closed:
                     raise ClosedResourceError from None
                 elif self._protocol.exception:
-                    raise BrokenResourceError from self._protocol.exception
+                    raise self._protocol.exception
                 else:
                     raise EndOfStream
 
@@ -774,7 +781,7 @@ class SocketStream(abc.SocketStream):
                 else:
                     raise
 
-            await self._protocol.write_event.wait()
+            await self._protocol.write_future
 
     async def send_eof(self) -> None:
         try:
