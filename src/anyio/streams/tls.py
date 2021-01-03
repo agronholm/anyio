@@ -2,7 +2,7 @@ import logging
 import ssl
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
 
 from .. import BrokenResourceError, EndOfStream, aclose_forcefully, get_cancelled_exc_class
 from .._core._typedattr import TypedAttributeSet, typed_attribute
@@ -187,29 +187,41 @@ class TLSListener(Listener[TLSStream]):
     A convenience listener that wraps another listener and auto-negotiates a TLS session on every
     accepted connection.
 
-    If the TLS handshake times out or raises an exception, the error handler callback is called
-    with the original stream object and the exception object as arguments. If no error handler
-    callback has explicitly been given, the default one is used which just logs the exception on
-    the ``anyio.streams.tls`` logger. The original stream will be closed with
-    :func:`~anyio.aclose_forcefully` after the error handler has been called.
+    If the TLS handshake times out or raises an exception, :meth:`handle_handshake_error` is
+    called to do whatever post-mortem processing is deemed necessary.
 
     Supports only the :attr:`~TLSAttribute.standard_compatible` extra attribute.
 
     :param Listener listener: the listener to wrap
     :param ssl_context: the SSL context object
     :param standard_compatible: a flag passed through to :meth:`TLSStream.wrap`
-    :param handshake_timeout: time limit for the TLS handshake (as per :func:`~anyio.fail_after`)
-    :param error_handler: callback called with (stream, exception) when an exception (other than
-        cancellation) occurs
+    :param handshake_timeout: time limit for the TLS handshake
+        (passed to :func:`~anyio.fail_after`)
     """
 
     listener: Listener
     ssl_context: ssl.SSLContext
     standard_compatible: bool = True
     handshake_timeout: float = 15
-    error_handler: Optional[Callable[[AnyByteStream, BaseException], Awaitable]] = None
 
-    async def _default_error_handler(self, stream: AnyByteStream, exc: BaseException) -> None:
+    @staticmethod
+    async def handle_handshake_error(exc: BaseException, stream: AnyByteStream) -> None:
+        f"""
+        Handle an exception raised during the TLS handshake.
+
+        This method does 3 things:
+
+        #. Forcefully closes the original stream
+        #. Logs the exception (unless it was a cancellation exception) using the ``{__name__}``
+           logger
+        #. Reraises the exception if it was a base exception or a cancellation exception
+
+        :param exc: the exception
+        :param stream: the original stream
+
+        """
+        await aclose_forcefully(stream)
+
         # Log all except cancellation exceptions
         if not isinstance(exc, get_cancelled_exc_class()):
             logging.getLogger(__name__).exception('Error during TLS handshake')
@@ -229,11 +241,7 @@ class TLSListener(Listener[TLSStream]):
                         stream, ssl_context=self.ssl_context,
                         standard_compatible=self.standard_compatible)
             except BaseException as exc:
-                try:
-                    error_handler = self.error_handler or self._default_error_handler
-                    await error_handler(stream, exc)
-                finally:
-                    await aclose_forcefully(stream)
+                await self.handle_handshake_error(exc, stream)
             else:
                 await handler(wrapped_stream)
 
