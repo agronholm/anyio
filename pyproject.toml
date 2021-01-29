@@ -23,6 +23,9 @@ max_line_length = 99
 addopts = "-rsx --tb=short"
 testpaths = ["tests"]
 filterwarnings = "always"
+markers = [
+    "network",
+]
 
 [tool.coverage.run]
 source = ["anyio"]

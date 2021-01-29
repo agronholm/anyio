@@ -828,6 +828,7 @@ class TestConnectedUDPSocket:
             await udp.send(b'foo')
 
 
+@pytest.mark.network
 async def test_getaddrinfo():
     # IDNA 2003 gets this wrong
     correct = await getaddrinfo('faß.de', 0)
