@@ -63,7 +63,7 @@ jobs:
     - name: Test with pytest
       run: coverage run -m pytest
     - name: Upload Coverage
-      run: coveralls
+      run: coveralls --service=github
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         COVERALLS_FLAG_NAME: ${{ matrix.test-name }}
@@ -78,6 +78,6 @@ jobs:
     - name: Finished
       run: |
         pip install coveralls
-        coveralls --finish
+        coveralls --service=github --finish
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
