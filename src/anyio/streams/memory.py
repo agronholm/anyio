@@ -157,7 +157,7 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
                 self._state.waiting_senders.pop(send_event, None)  # type: ignore[arg-type]
                 raise
 
-            if self._state.waiting_senders.pop(send_event, None):
+            if self._state.waiting_senders.pop(send_event, None):  # type: ignore[arg-type]
                 raise BrokenResourceError
 
     def clone(self) -> 'MemoryObjectSendStream':
