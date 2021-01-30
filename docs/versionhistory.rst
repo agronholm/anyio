@@ -9,6 +9,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``run_sync_in_worker_thread()`` raising ``UnboundLocalError`` on asyncio when cancelled
 - Fixed ``send()`` on socket streams not raising any exception on asyncio, and an unwrapped
   ``BrokenPipeError`` on trio and curio when the peer has disconnected
+- Fixed ``MemoryObjectSendStream.send()`` raising ``BrokenResourceError`` when the last receiver is
+  closed right after receiving the item
 
 **2.0.2**
 
