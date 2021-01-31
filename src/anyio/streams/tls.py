@@ -202,7 +202,7 @@ class TLSListener(Listener[TLSStream]):
     listener: Listener
     ssl_context: ssl.SSLContext
     standard_compatible: bool = True
-    handshake_timeout: float = 15
+    handshake_timeout: float = 30
 
     @staticmethod
     async def handle_handshake_error(exc: BaseException, stream: AnyByteStream) -> None:
