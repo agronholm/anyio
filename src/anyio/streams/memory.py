@@ -105,7 +105,6 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
             self._state.open_receive_channels -= 1
             if self._state.open_receive_channels == 0:
                 send_events = list(self._state.waiting_senders.keys())
-                self._state.waiting_senders.clear()
                 for event in send_events:
                     await event.set()
 
@@ -158,7 +157,7 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
                 self._state.waiting_senders.pop(send_event, None)  # type: ignore[arg-type]
                 raise
 
-            if not self._state.open_receive_channels:
+            if self._state.waiting_senders.pop(send_event, None):  # type: ignore[arg-type]
                 raise BrokenResourceError
 
     def clone(self) -> 'MemoryObjectSendStream':

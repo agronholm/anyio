@@ -5,9 +5,13 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added the ``handshake_timeout`` and ``error_handler`` parameters to ``TLSListener``
 - Fixed ``Event`` objects on the trio backend not inheriting from ``anyio.abc.Event``
 - Fixed ``run_sync_in_worker_thread()`` raising ``UnboundLocalError`` on asyncio when cancelled
-- Added the ``handshake_timeout`` and ``error_handler`` parameters to ``TLSListener``
+- Fixed ``send()`` on socket streams not raising any exception on asyncio, and an unwrapped
+  ``BrokenPipeError`` on trio and curio when the peer has disconnected
+- Fixed ``MemoryObjectSendStream.send()`` raising ``BrokenResourceError`` when the last receiver is
+  closed right after receiving the item
 
 **2.0.2**
 

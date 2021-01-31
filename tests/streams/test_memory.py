@@ -245,3 +245,18 @@ async def test_cancel_during_receive():
         await receiver_scope.cancel()
 
     assert received == ['hello']
+
+
+async def test_close_receive_after_send():
+    async def send() -> None:
+        async with send_stream:
+            await send_stream.send('test')
+
+    async def receive() -> None:
+        async with receive_stream:
+            assert await receive_stream.receive() == 'test'
+
+    send_stream, receive_stream = create_memory_object_stream()
+    async with create_task_group() as task_group:
+        await task_group.spawn(send)
+        await task_group.spawn(receive)
