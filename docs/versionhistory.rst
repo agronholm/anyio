@@ -12,6 +12,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``BrokenPipeError`` on trio and curio when the peer has disconnected
 - Fixed ``MemoryObjectSendStream.send()`` raising ``BrokenResourceError`` when the last receiver is
   closed right after receiving the item
+- Fixed ``ValueError: Invalid file descriptor: -1`` when closing a ``SocketListener`` on asyncio
 
 **2.0.2**
 

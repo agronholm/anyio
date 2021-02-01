@@ -823,6 +823,11 @@ class SocketListener(abc.SocketListener):
                     self._loop.remove_reader(self._raw_socket)
                 except NotImplementedError:
                     pass
+                except ValueError:
+                    if self._raw_socket.fileno() == -1:
+                        raise ClosedResourceError from None
+                    else:
+                        raise
 
                 raise
 

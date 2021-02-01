@@ -411,6 +411,15 @@ class TestTCPListener:
         await multi1.aclose()
         await multi2.aclose()
 
+    async def test_close_from_other_task(self, family):
+        listener = await create_tcp_listener(local_host='localhost', family=family)
+        with pytest.raises(ClosedResourceError):
+            async with create_task_group() as tg:
+                await tg.spawn(listener.serve, lambda stream: None)
+                await wait_all_tasks_blocked()
+                await listener.aclose()
+                await tg.cancel_scope.cancel()
+
 
 @pytest.mark.skipif(sys.platform == 'win32',
                     reason='UNIX sockets are not available on Windows')
