@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added the ``spawn_task()`` method to ``BlockingPortal``
+- Added the ``wrap_async_context_manager()`` method to ``BlockingPortal``
 - Added the ``handshake_timeout`` and ``error_handler`` parameters to ``TLSListener``
 - Fixed ``Event`` objects on the trio backend not inheriting from ``anyio.abc.Event``
 - Fixed ``run_sync_in_worker_thread()`` raising ``UnboundLocalError`` on asyncio when cancelled
