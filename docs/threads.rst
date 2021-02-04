@@ -93,31 +93,26 @@ Spawning tasks from worker threads
 When you need to spawn a task to be run in the background, you can do so using
 :meth:`~.BlockingPortal.spawn_task`::
 
-    import time
+    from concurrent.futures import as_completed
 
     from anyio import start_blocking_portal, sleep
 
 
-    async def long_running_task():
-        print('Task started')
+    async def long_running_task(index):
         await sleep(1)
-        print('Task still running...')
-        await sleep(1)
-        print('Task finished')
-        return 'done'
+        print(f'Task {index} running...')
+        await sleep(index)
+        return f'Task {index} return value'
 
 
     with start_blocking_portal() as portal:
-        future = portal.spawn_task(long_running_task)
-        print('Main thread spawned the task')
-        while not future.done():
-            print('Main thread waiting for the task to finish')
-            time.sleep(0.5)
-
-        print('Task returned the value', repr(future.result()))
+        futures = [portal.spawn_task(long_running_task, i) for i in range(1, 5)]
+        for future in as_completed(futures):
+            print(future.result())
 
 Cancelling tasks spawned this way can be done by cancelling the returned
 :class:`~concurrent.futures.Future`.
+
 
 Using asynchronous context managers from worker threads
 -------------------------------------------------------
