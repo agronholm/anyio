@@ -109,6 +109,10 @@ class BlockingPortal(metaclass=ABCMeta):
         except BaseException as exc:
             if not future.cancelled():
                 future.set_exception(exc)
+
+            # Let base exceptions fall through
+            if not isinstance(exc, Exception):
+                raise
         else:
             if not future.cancelled():
                 future.set_result(retval)
