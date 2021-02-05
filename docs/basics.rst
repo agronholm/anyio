@@ -54,6 +54,26 @@ But AnyIO code is not required to be run via :func:`run`. You can just as well u
 
     trio.run(main)
 
+Backend specific options
+------------------------
+
+Asyncio:
+
+* ``debug`` (``bool``, default=False): Enables `debug mode`_ in the event loop
+* ``use_uvloop`` (``bool``, default=True): Use the faster uvloop_ event loop implementation, if
+  available
+* ``policy`` (``AbstractEventLoopPolicy``, default=None): the event loop policy instance to use
+  for creating a new event loop (overrides ``use_uvloop``)
+
+Curio: options covered in the
+`official documentation <https://curio.readthedocs.io/en/latest/reference.html#run>`_
+
+Trio: options covered in the
+`official documentation <https://trio.readthedocs.io/en/stable/reference-core.html#trio.run>`_
+
+.. _debug mode: https://docs.python.org/3/library/asyncio-eventloop.html#enabling-debug-mode
+.. _uvloop: https://pypi.org/project/uvloop/
+
 Using native async libraries
 ----------------------------
 
