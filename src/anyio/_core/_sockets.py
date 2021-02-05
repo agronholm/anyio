@@ -309,7 +309,7 @@ async def create_udp_socket(
     making this socket suitable for providing UDP based services.
 
     :param family: address family (``AF_INET`` or ``AF_INET6``) – automatically determined from
-        ``interface`` or ``target_host`` if omitted
+        ``local_host`` if omitted
     :param local_host: IP address or host name of the local interface to bind to
     :param local_port: local port to bind to
     :param reuse_port: ``True`` to allow multiple sockets to bind to the same address/port

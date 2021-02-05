@@ -64,7 +64,6 @@ Events
 
 Events are used to notify tasks that something they've been waiting to happen has happened.
 An event object can have multiple listeners and they are all notified when the event is triggered.
-Events can also be reused by clearing the triggered state.
 
 Example::
 
@@ -83,6 +82,11 @@ Example::
             print('Received notification!')
 
     run(main)
+
+.. note:: Unlike standard library Events, AnyIO events cannot be reused, and must be replaced
+          instead. This practice prevents a class of race conditions, and matches the semantics
+          of the trio library.
+
 
 Conditions
 ----------
