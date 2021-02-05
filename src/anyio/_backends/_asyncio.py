@@ -826,6 +826,10 @@ class SocketListener(abc.SocketListener):
                         raise ClosedResourceError from None
 
                 raise
+            except BaseException as exc:
+                from pdb import set_trace
+                set_trace()
+                pass
 
         if client_sock.family in (socket.AF_INET, socket.AF_INET6):
             client_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -834,6 +838,12 @@ class SocketListener(abc.SocketListener):
         return SocketStream(cast(asyncio.Transport, transport), cast(StreamProtocol, protocol))
 
     async def aclose(self) -> None:
+        # Needed on Windows + Python < 3.8
+        try:
+            self._loop.remove_reader(self._raw_socket)
+        except NotImplementedError:
+            pass
+
         self._raw_socket.close()
 
 
