@@ -826,10 +826,6 @@ class SocketListener(abc.SocketListener):
                         raise ClosedResourceError from None
 
                 raise
-            except BaseException as exc:
-                from pdb import set_trace
-                set_trace()
-                pass
 
         if client_sock.family in (socket.AF_INET, socket.AF_INET6):
             client_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
