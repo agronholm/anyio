@@ -25,6 +25,7 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
     :param backend: name of the asynchronous event loop implementation – one of ``asyncio``,
         ``curio`` and ``trio``
     :param backend_options: keyword arguments to call the backend ``run()`` implementation with
+        (documented :ref:`here <backend options>`)
     :return: the return value of the coroutine function
     :raises RuntimeError: if an asynchronous event loop is already running in this thread
     :raises LookupError: if the named backend is not found
