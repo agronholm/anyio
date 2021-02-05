@@ -54,6 +54,8 @@ But AnyIO code is not required to be run via :func:`run`. You can just as well u
 
     trio.run(main)
 
+.. _backend options:
+
 Backend specific options
 ------------------------
 
