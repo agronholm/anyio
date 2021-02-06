@@ -24,7 +24,7 @@ addopts = "-rsx --tb=short"
 testpaths = ["tests"]
 filterwarnings = "always"
 markers = [
-    "network",
+    "network: marks tests as requiring Internet access",
 ]
 
 [tool.coverage.run]
