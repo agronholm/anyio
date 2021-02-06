@@ -161,10 +161,10 @@ class TestBlockingPortal:
         def __init__(self, ignore_error):
             self.ignore_error = ignore_error
 
-        def __aenter__(self):
+        async def __aenter__(self):
             return 'test'
 
-        def __aexit__(self, exc_type, exc_val, exc_tb):
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
             return self.ignore_error
 
     async def test_successful_call(self):

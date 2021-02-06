@@ -5,29 +5,53 @@ from concurrent.futures import Future
 from contextlib import AbstractContextManager
 from types import TracebackType
 from typing import (
-    Any, AsyncContextManager, Callable, ContextManager, Coroutine, Optional, Type, TypeVar, cast,
-    overload)
+    Any, AsyncContextManager, Callable, ContextManager, Coroutine, Optional, Tuple, Type, TypeVar,
+    cast, overload)
 
+from .._core._synchronization import create_event
 from .._core._tasks import open_cancel_scope
+from ..abc import Event
 
 T_Retval = TypeVar('T_Retval')
 T_co = TypeVar('T_co', covariant=True)
 
 
 class _BlockingAsyncContextManager(AbstractContextManager):
+    _enter_future: Future
+    _exit_future: Future
+    _exit_event: Event
+    _exit_exc_info: Tuple[Optional[Type[BaseException]], Optional[BaseException],
+                          Optional[TracebackType]]
+
     def __init__(self, async_cm: AsyncContextManager[T_co], portal: 'BlockingPortal'):
         self._async_cm = async_cm
         self._portal = portal
 
+    async def run_async_cm(self):
+        try:
+            self._exit_event = create_event()
+            value = await self._async_cm.__aenter__()
+        except BaseException as exc:
+            self._enter_future.set_exception(exc)
+            raise
+        else:
+            self._enter_future.set_result(value)
+
+        await self._exit_event.wait()
+        return await self._async_cm.__aexit__(*self._exit_exc_info)
+
     def __enter__(self) -> T_co:
-        cm = self._portal.call(self._async_cm.__aenter__)
+        self._enter_future = Future()
+        self._exit_future = self._portal.spawn_task(self.run_async_cm)
+        cm = self._enter_future.result()
         return cast(T_co, cm)
 
     def __exit__(self, __exc_type: Optional[Type[BaseException]],
                  __exc_value: Optional[BaseException],
                  __traceback: Optional[TracebackType]) -> Optional[bool]:
-        ignore = self._portal.call(self._async_cm.__aexit__, __exc_type, __exc_value, __traceback)
-        return cast(Optional[bool], ignore)
+        self._exit_exc_info = __exc_type, __exc_value, __traceback
+        self._portal.call(self._exit_event.set)
+        return self._exit_future.result()
 
 
 class BlockingPortal(metaclass=ABCMeta):
@@ -183,8 +207,8 @@ class BlockingPortal(metaclass=ABCMeta):
         """
         Wrap an async context manager as a synchronous context manager via this portal.
 
-        .. note:: The ``__aenter__()`` and ``__aexit__()`` methods will be called from different
-                  tasks so a task group as the async context manager will not work here.
+        Spawns a task that will call both ``__aenter__()`` and ``__aexit__()``, stopping in the
+        middle until the synchronous context manager exits.
 
         :param cm: an asynchronous context manager
         :return: a synchronous context manager
