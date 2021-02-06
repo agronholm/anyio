@@ -167,6 +167,8 @@ class BlockingPortal(metaclass=ABCMeta):
         :raises RuntimeError: if the portal is not running or if this method is called from within
             the event loop thread
 
+        .. versionadded:: 2.1
+
         """
         if self._event_loop_thread_id is None:
             raise RuntimeError('This portal is not running')
@@ -186,6 +188,8 @@ class BlockingPortal(metaclass=ABCMeta):
 
         :param cm: an asynchronous context manager
         :return: a synchronous context manager
+
+        .. versionadded:: 2.1
 
         """
         return _BlockingAsyncContextManager(cm, self)
