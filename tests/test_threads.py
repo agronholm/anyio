@@ -9,8 +9,8 @@ import pytest
 
 from anyio import (
     create_blocking_portal, create_capacity_limiter, create_event, create_task_group,
-    run_async_from_thread, run_sync_in_worker_thread, sleep, start_blocking_portal,
-    wait_all_tasks_blocked)
+    get_cancelled_exc_class, run_async_from_thread, run_sync_in_worker_thread, sleep,
+    start_blocking_portal, wait_all_tasks_blocked)
 
 if sys.version_info < (3, 9):
     current_task = asyncio.Task.current_task
@@ -157,6 +157,16 @@ async def test_cancel_asyncio_native_task():
 
 
 class TestBlockingPortal:
+    class AsyncCM:
+        def __init__(self, ignore_error):
+            self.ignore_error = ignore_error
+
+        async def __aenter__(self):
+            return 'test'
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            return self.ignore_error
+
     async def test_successful_call(self):
         async def async_get_thread_id():
             return threading.get_ident()
@@ -256,3 +266,63 @@ class TestBlockingPortal:
         portal.call(portal.stop)
         pytest.raises(RuntimeError, portal.call, threading.get_ident).\
             match('This portal is not running')
+
+    def test_spawn_task(self, anyio_backend_name, anyio_backend_options):
+        async def event_waiter():
+            await event1.wait()
+            await event2.set()
+            return 'test'
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            event1 = portal.call(create_event)
+            event2 = portal.call(create_event)
+            future = portal.spawn_task(event_waiter)
+            portal.call(event1.set)
+            portal.call(event2.wait)
+            assert future.result() == 'test'
+
+    def test_spawn_task_cancel_later(self, anyio_backend_name, anyio_backend_options):
+        async def noop():
+            await sleep(2)
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            future = portal.spawn_task(noop)
+            portal.call(wait_all_tasks_blocked)
+            future.cancel()
+
+        assert future.cancelled()
+
+    def test_spawn_task_cancel_immediately(self, anyio_backend_name, anyio_backend_options):
+        async def event_waiter():
+            nonlocal cancelled
+            try:
+                await sleep(3)
+            except get_cancelled_exc_class():
+                cancelled = True
+
+        cancelled = False
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            future = portal.spawn_task(event_waiter)
+            future.cancel()
+
+        assert cancelled
+
+    def test_async_context_manager_success(self, anyio_backend_name, anyio_backend_options):
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            with portal.wrap_async_context_manager(TestBlockingPortal.AsyncCM(False)) as cm:
+                assert cm == 'test'
+
+    def test_async_context_manager_error(self, anyio_backend_name, anyio_backend_options):
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            with pytest.raises(Exception) as exc:
+                with portal.wrap_async_context_manager(TestBlockingPortal.AsyncCM(False)) as cm:
+                    assert cm == 'test'
+                    raise Exception('should NOT be ignored')
+
+                exc.match('should NOT be ignored')
+
+    def test_async_context_manager_error_ignore(self, anyio_backend_name, anyio_backend_options):
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            with portal.wrap_async_context_manager(TestBlockingPortal.AsyncCM(True)) as cm:
+                assert cm == 'test'
+                raise Exception('should be ignored')
