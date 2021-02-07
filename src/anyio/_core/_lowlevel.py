@@ -1,4 +1,4 @@
-from anyio._core._eventloop import get_asynclib
+from .._core._eventloop import get_asynclib
 
 
 async def checkpoint():

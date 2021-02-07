@@ -1,6 +1,6 @@
 from typing import Coroutine, List, Optional
 
-from anyio._core._eventloop import get_asynclib
+from .._core._eventloop import get_asynclib
 
 
 class TaskInfo:
