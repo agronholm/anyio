@@ -47,7 +47,7 @@ class CancelScope(metaclass=ABCMeta):
         """
         The time (clock value) when this scope is cancelled automatically.
 
-        Will be ``float('inf')``` if no timeout has been set.
+        Will be ``float('inf')`` if no timeout has been set.
         """
 
     @property
