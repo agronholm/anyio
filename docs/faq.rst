@@ -8,7 +8,7 @@ Curio_ was supported in AnyIO before v3.0. Support for it was dropped for two re
 
 #. Its interface allowed only coroutine functions to access the Curio_ kernel. This forced AnyIO to
    follow suit in its own API design, making it difficult to adapt existing applications that
-   relied on synchronous callbacks to us AnyIO. It also interfered with the goal of matching Trio's
+   relied on synchronous callbacks to use AnyIO. It also interfered with the goal of matching Trio's
    API in functions with the same purpose (e.g. ``Event.set()``).
 #. The maintainer specifically requested Curio_ support to be removed from AnyIO
    (`issue 185 <https://github.com/agronholm/anyio/issues/185>`_).
