@@ -11,6 +11,7 @@ from anyio import (
     create_blocking_portal, create_capacity_limiter, create_event, create_task_group,
     get_cancelled_exc_class, run_async_from_thread, run_sync_in_worker_thread, sleep,
     start_blocking_portal, wait_all_tasks_blocked)
+from anyio._core._threads import run_sync_from_thread
 
 if sys.version_info < (3, 9):
     current_task = asyncio.Task.current_task
@@ -32,6 +33,52 @@ async def test_run_async_from_thread():
     event_loop_thread_id = threading.get_ident()
     result = await run_sync_in_worker_thread(worker, 1, 2)
     assert result == 3
+
+
+async def test_run_sync_from_thread():
+    def add(a, b):
+        assert threading.get_ident() == event_loop_thread_id
+        return a + b
+
+    def worker(a, b):
+        assert threading.get_ident() != event_loop_thread_id
+        return run_sync_from_thread(add, a, b)
+
+    event_loop_thread_id = threading.get_ident()
+    result = await run_sync_in_worker_thread(worker, 1, 2)
+    assert result == 3
+
+
+async def test_run_async_from_thread_exception():
+    async def add(a, b):
+        assert threading.get_ident() == event_loop_thread_id
+        return a + b
+
+    def worker(a, b):
+        assert threading.get_ident() != event_loop_thread_id
+        return run_async_from_thread(add, a, b)
+
+    event_loop_thread_id = threading.get_ident()
+    with pytest.raises(TypeError) as exc:
+        await run_sync_in_worker_thread(worker, 1, 'foo')
+
+    exc.match("unsupported operand type")
+
+
+async def test_run_sync_from_thread_exception():
+    def add(a, b):
+        assert threading.get_ident() == event_loop_thread_id
+        return a + b
+
+    def worker(a, b):
+        assert threading.get_ident() != event_loop_thread_id
+        return run_sync_from_thread(add, a, b)
+
+    event_loop_thread_id = threading.get_ident()
+    with pytest.raises(TypeError) as exc:
+        await run_sync_in_worker_thread(worker, 1, 'foo')
+
+    exc.match("unsupported operand type")
 
 
 async def test_run_anyio_async_func_from_thread():
@@ -103,6 +150,14 @@ def test_run_async_from_unclaimed_thread():
         pass
 
     exc = pytest.raises(RuntimeError, run_async_from_thread, foo)
+    exc.match('This function can only be run from an AnyIO worker thread')
+
+
+def test_run_sync_from_unclaimed_thread():
+    def foo():
+        pass
+
+    exc = pytest.raises(RuntimeError, run_sync_from_thread, foo)
     exc.match('This function can only be run from an AnyIO worker thread')
 
 

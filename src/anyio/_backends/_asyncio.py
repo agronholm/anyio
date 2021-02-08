@@ -537,6 +537,21 @@ async def run_sync_in_worker_thread(
         return cast(T_Retval, retval)
 
 
+def run_sync_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
+    @wraps(func)
+    def wrapper():
+        try:
+            f.set_result(func(*args))
+        except BaseException as exc:
+            f.set_exception(exc)
+            if not isinstance(exc, Exception):
+                raise
+
+    f: concurrent.futures.Future[T_Retval] = Future()
+    threadlocals.loop.call_soon_threadsafe(wrapper)
+    return f.result()
+
+
 def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args) -> T_Retval:
     f: concurrent.futures.Future[T_Retval] = asyncio.run_coroutine_threadsafe(
         func(*args), threadlocals.loop)

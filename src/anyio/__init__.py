@@ -9,7 +9,7 @@ __all__ = ('run', 'sleep', 'current_time', 'get_all_backends', 'get_cancelled_ex
            'create_semaphore', 'create_capacity_limiter', 'open_cancel_scope', 'fail_after',
            'move_on_after', 'current_effective_deadline', 'create_task_group', 'TaskInfo',
            'get_current_task', 'get_running_tasks', 'wait_all_tasks_blocked',
-           'run_sync_in_worker_thread', 'run_async_from_thread',
+           'run_sync_in_worker_thread', 'run_async_from_thread', 'run_sync_from_thread',
            'current_default_worker_thread_limiter', 'create_blocking_portal',
            'start_blocking_portal', 'typed_attribute', 'TypedAttributeSet',
            'TypedAttributeProvider')
@@ -33,7 +33,7 @@ from ._core._tasks import (
 from ._core._testing import TaskInfo, get_current_task, get_running_tasks, wait_all_tasks_blocked
 from ._core._threads import (
     create_blocking_portal, current_default_worker_thread_limiter, run_async_from_thread,
-    run_sync_in_worker_thread, start_blocking_portal)
+    run_sync_from_thread, run_sync_in_worker_thread, start_blocking_portal)
 from ._core._typedattr import TypedAttributeProvider, TypedAttributeSet, typed_attribute
 
 # Re-export imports so they look like they live directly in this package

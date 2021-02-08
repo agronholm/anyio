@@ -47,6 +47,7 @@ Threads
 
 .. autofunction:: anyio.run_sync_in_worker_thread
 .. autofunction:: anyio.run_async_from_thread
+.. autofunction:: anyio.run_sync_from_thread
 .. autofunction:: anyio.current_default_worker_thread_limiter
 .. autofunction:: anyio.create_blocking_portal
 .. autofunction:: anyio.start_blocking_portal

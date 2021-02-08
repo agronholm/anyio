@@ -8,6 +8,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - **BACKWARDS INCOMPATIBLE** Submodules under ``anyio.abc.`` have been made private (use only
   ``anyio.abc`` from now on).
 - Dropped Curio as a backend (see the :doc:`FAQ <faq>` as for why)
+- Added the ``run_sync_from_thread()`` function
 
 **2.1.0**
 

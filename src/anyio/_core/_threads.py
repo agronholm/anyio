@@ -29,6 +29,23 @@ async def run_sync_in_worker_thread(
                                                           limiter=limiter)
 
 
+def run_sync_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
+    """
+    Call a function in the event loop thread from a worker thread.
+
+    :param func: a callable
+    :param args: positional arguments for the callable
+    :return: the return value of the callable
+
+    """
+    try:
+        asynclib = threadlocals.current_async_module
+    except AttributeError:
+        raise RuntimeError('This function can only be run from an AnyIO worker thread')
+
+    return asynclib.run_sync_from_thread(func, *args)
+
+
 def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args) -> T_Retval:
     """
     Call a coroutine function from a worker thread.

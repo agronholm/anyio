@@ -177,6 +177,7 @@ async def run_sync_in_worker_thread(
     return await run_sync(wrapper, cancellable=cancellable, limiter=trio_limiter)
 
 run_async_from_thread = trio.from_thread.run
+run_sync_from_thread = trio.from_thread.run_sync
 
 
 class BlockingPortal(abc.BlockingPortal):
