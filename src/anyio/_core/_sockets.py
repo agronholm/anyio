@@ -133,7 +133,7 @@ async def connect_tcp(
             else:
                 await stream.aclose()
         finally:
-            await event.set()
+            event.set()
 
     asynclib = get_asynclib()
     local_address: Optional[IPSockAddrType] = None

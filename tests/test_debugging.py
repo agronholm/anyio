@@ -33,7 +33,7 @@ async def test_get_running_tasks():
         await wait_all_tasks_blocked()
         new_tasks = set(await get_running_tasks()) - existing_tasks
         task_infos[:] = sorted(new_tasks, key=lambda info: info.name or '')
-        await event.set()
+        event.set()
 
     event = create_event()
     task_infos = []

@@ -24,7 +24,6 @@ from .._core._exceptions import ExceptionGroup as BaseExceptionGroup
 from .._core._exceptions import WouldBlock
 from .._core._sockets import GetAddrInfoReturnType, convert_ipv6_sockaddr
 from .._core._synchronization import ResourceGuard
-from .._core._utils import DeprecationWarner
 from ..abc import IPSockAddrType, UDPPacketType
 
 if sys.version_info >= (3, 7):
@@ -505,12 +504,12 @@ async def run_sync_in_worker_thread(
                 result = func(*args)
         except BaseException as exc:
             if not loop.is_closed():
-                asyncio.run_coroutine_threadsafe(limiter.release_on_behalf_of(task), loop)
+                loop.call_soon_threadsafe(limiter.release_on_behalf_of, task)
                 if not cancelled:
                     loop.call_soon_threadsafe(queue.put_nowait, (None, exc))
         else:
             if not loop.is_closed():
-                asyncio.run_coroutine_threadsafe(limiter.release_on_behalf_of(task), loop)
+                loop.call_soon_threadsafe(limiter.release_on_behalf_of, task)
                 if not cancelled:
                     loop.call_soon_threadsafe(queue.put_nowait, (result, None))
 
@@ -1066,7 +1065,7 @@ class Lock(abc.Lock):
         await checkpoint()
         await self._lock.acquire()
 
-    async def release(self) -> None:
+    def release(self) -> None:
         self._lock.release()
 
 
@@ -1079,16 +1078,16 @@ class Condition(abc.Condition):
         await checkpoint()
         await self._condition.acquire()
 
-    async def release(self) -> None:
+    def release(self) -> None:
         self._condition.release()
 
     def locked(self) -> bool:
         return self._condition.locked()
 
-    async def notify(self, n=1):
+    def notify(self, n=1) -> None:
         self._condition.notify(n)
 
-    async def notify_all(self):
+    def notify_all(self) -> None:
         self._condition.notify_all()
 
     async def wait(self):
@@ -1100,9 +1099,8 @@ class Event(abc.Event):
     def __init__(self):
         self._event = asyncio.Event()
 
-    def set(self) -> Awaitable:
+    def set(self) -> None:
         self._event.set()
-        return DeprecationWarner('Event.set()')
 
     def is_set(self) -> bool:
         return self._event.is_set()
@@ -1120,7 +1118,7 @@ class Semaphore(abc.Semaphore):
         await checkpoint()
         await self._semaphore.acquire()
 
-    async def release(self) -> None:
+    def release(self) -> None:
         self._semaphore.release()
 
     @property
@@ -1129,10 +1127,12 @@ class Semaphore(abc.Semaphore):
 
 
 class CapacityLimiter(abc.CapacityLimiter):
+    _total_tokens: float = 0
+
     def __init__(self, total_tokens: float):
-        self._set_total_tokens(total_tokens)
         self._borrowers: Set[Any] = set()
         self._wait_queue: Dict[Any, asyncio.Event] = OrderedDict()
+        self.total_tokens = total_tokens
 
     async def __aenter__(self):
         await self.acquire()
@@ -1140,23 +1140,21 @@ class CapacityLimiter(abc.CapacityLimiter):
     async def __aexit__(self, exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
-        await self.release()
-
-    def _set_total_tokens(self, value: float) -> None:
-        if not isinstance(value, int) and not math.isinf(value):
-            raise TypeError('total_tokens must be an int or math.inf')
-        if value < 1:
-            raise ValueError('total_tokens must be >= 1')
-
-        self._total_tokens = value
+        self.release()
 
     @property
     def total_tokens(self) -> float:
         return self._total_tokens
 
-    async def set_total_tokens(self, value: float) -> None:
+    @total_tokens.setter
+    def total_tokens(self, value: float) -> None:
+        if not isinstance(value, int) and not math.isinf(value):
+            raise TypeError('total_tokens must be an int or math.inf')
+        if value < 1:
+            raise ValueError('total_tokens must be >= 1')
+
         old_value = self._total_tokens
-        self._set_total_tokens(value)
+        self._total_tokens = value
         events = []
         for event in self._wait_queue.values():
             if value <= old_value:
@@ -1177,10 +1175,10 @@ class CapacityLimiter(abc.CapacityLimiter):
     def available_tokens(self) -> float:
         return self._total_tokens - len(self._borrowers)
 
-    async def acquire_nowait(self) -> None:
-        await self.acquire_on_behalf_of_nowait(current_task())
+    def acquire_nowait(self) -> None:
+        self.acquire_on_behalf_of_nowait(current_task())
 
-    async def acquire_on_behalf_of_nowait(self, borrower) -> None:
+    def acquire_on_behalf_of_nowait(self, borrower) -> None:
         if borrower in self._borrowers:
             raise RuntimeError("this borrower is already holding one of this CapacityLimiter's "
                                "tokens")
@@ -1195,7 +1193,7 @@ class CapacityLimiter(abc.CapacityLimiter):
 
     async def acquire_on_behalf_of(self, borrower) -> None:
         try:
-            await self.acquire_on_behalf_of_nowait(borrower)
+            self.acquire_on_behalf_of_nowait(borrower)
         except WouldBlock:
             event = asyncio.Event()
             self._wait_queue[borrower] = event
@@ -1207,10 +1205,10 @@ class CapacityLimiter(abc.CapacityLimiter):
 
             self._borrowers.add(borrower)
 
-    async def release(self) -> None:
-        await self.release_on_behalf_of(current_task())
+    def release(self) -> None:
+        self.release_on_behalf_of(current_task())
 
-    async def release_on_behalf_of(self, borrower) -> None:
+    def release_on_behalf_of(self, borrower) -> None:
         try:
             self._borrowers.remove(borrower)
         except KeyError:

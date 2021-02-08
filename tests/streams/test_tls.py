@@ -226,7 +226,7 @@ class TestTLSListener:
                 await super().handle_handshake_error(exc, stream)
                 assert isinstance(stream, SocketStream)
                 exception = exc
-                await event.set()
+                event.set()
 
         exception = None
         event = create_event()

@@ -43,8 +43,8 @@ async def test_receive_then_send_nowait():
         await tg.spawn(receiver)
         await tg.spawn(receiver)
         await wait_all_tasks_blocked()
-        await send.send_nowait('hello')
-        await send.send_nowait('anyio')
+        send.send_nowait('hello')
+        send.send_nowait('anyio')
 
     assert sorted(received_objects, reverse=True) == ['hello', 'anyio']
 
@@ -54,28 +54,28 @@ async def test_send_then_receive_nowait():
     async with create_task_group() as tg:
         await tg.spawn(send.send, 'hello')
         await wait_all_tasks_blocked()
-        assert await receive.receive_nowait() == 'hello'
+        assert receive.receive_nowait() == 'hello'
 
 
 async def test_send_is_unblocked_after_receive_nowait():
     send, receive = create_memory_object_stream(1)
-    await send.send_nowait('hello')
+    send.send_nowait('hello')
 
     async with fail_after(1):
         async with create_task_group() as tg:
             await tg.spawn(send.send, 'anyio')
             await wait_all_tasks_blocked()
-            assert await receive.receive_nowait() == 'hello'
+            assert receive.receive_nowait() == 'hello'
 
-    assert await receive.receive_nowait() == 'anyio'
+    assert receive.receive_nowait() == 'anyio'
 
 
 async def test_send_nowait_then_receive_nowait():
     send, receive = create_memory_object_stream(2)
-    await send.send_nowait('hello')
-    await send.send_nowait('anyio')
-    assert await receive.receive_nowait() == 'hello'
-    assert await receive.receive_nowait() == 'anyio'
+    send.send_nowait('hello')
+    send.send_nowait('anyio')
+    assert receive.receive_nowait() == 'hello'
+    assert receive.receive_nowait() == 'anyio'
 
 
 async def test_iterate():
@@ -98,7 +98,7 @@ async def test_receive_send_closed_send_stream():
     send, receive = create_memory_object_stream()
     await send.aclose()
     with pytest.raises(EndOfStream):
-        await receive.receive_nowait()
+        receive.receive_nowait()
 
     with pytest.raises(ClosedResourceError):
         await send.send(None)
@@ -108,7 +108,7 @@ async def test_receive_send_closed_receive_stream():
     send, receive = create_memory_object_stream()
     await receive.aclose()
     with pytest.raises(ClosedResourceError):
-        await receive.receive_nowait()
+        receive.receive_nowait()
 
     with pytest.raises(BrokenResourceError):
         await send.send(None)
@@ -122,7 +122,7 @@ async def test_cancel_receive():
         await tg.cancel_scope.cancel()
 
     with pytest.raises(WouldBlock):
-        await send.send_nowait('hello')
+        send.send_nowait('hello')
 
 
 async def test_cancel_send():
@@ -133,7 +133,7 @@ async def test_cancel_send():
         await tg.cancel_scope.cancel()
 
     with pytest.raises(WouldBlock):
-        await receive.receive_nowait()
+        receive.receive_nowait()
 
 
 async def test_clone():
@@ -142,8 +142,8 @@ async def test_clone():
     receive2 = receive1.clone()
     await send1.aclose()
     await receive1.aclose()
-    await send2.send_nowait('hello')
-    assert await receive2.receive_nowait() == 'hello'
+    send2.send_nowait('hello')
+    assert receive2.receive_nowait() == 'hello'
 
 
 async def test_clone_closed():
@@ -241,7 +241,7 @@ async def test_cancel_during_receive():
     async with create_task_group() as tg:
         await tg.spawn(scoped_receiver)
         await wait_all_tasks_blocked()
-        await send.send_nowait('hello')
+        send.send_nowait('hello')
         await receiver_scope.cancel()
 
     assert received == ['hello']

@@ -97,7 +97,7 @@ class BlockingPortal(metaclass=ABCMeta):
 
         """
         self._event_loop_thread_id = None
-        await self._stop_event.set()
+        self._stop_event.set()
         if cancel_remaining:
             await self._task_group.cancel_scope.cancel()
 

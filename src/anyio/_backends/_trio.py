@@ -15,10 +15,8 @@ from .._core._eventloop import claim_worker_thread
 from .._core._exceptions import (
     BrokenResourceError, BusyResourceError, ClosedResourceError, EndOfStream)
 from .._core._exceptions import ExceptionGroup as BaseExceptionGroup
-from .._core._exceptions import WouldBlock
 from .._core._sockets import convert_ipv6_sockaddr
 from .._core._synchronization import ResourceGuard
-from .._core._utils import DeprecationWarner
 from ..abc import IPSockAddrType, UDPPacketType
 
 try:
@@ -169,13 +167,12 @@ abc.TaskGroup.register(TaskGroup)
 
 async def run_sync_in_worker_thread(
         func: Callable[..., T_Retval], *args, cancellable: bool = False,
-        limiter: Optional['CapacityLimiter'] = None) -> T_Retval:
+        limiter: Optional[trio.CapacityLimiter] = None) -> T_Retval:
     def wrapper():
         with claim_worker_thread('trio'):
             return func(*args)
 
-    trio_limiter = getattr(limiter, '_limiter', None)
-    return await run_sync(wrapper, cancellable=cancellable, limiter=trio_limiter)
+    return await run_sync(wrapper, cancellable=cancellable, limiter=limiter)
 
 run_async_from_thread = trio.from_thread.run
 run_sync_from_thread = trio.from_thread.run_sync
@@ -486,130 +483,21 @@ async def wait_socket_writable(sock):
 # Synchronization
 #
 
-class Lock(abc.Lock):
-    def __init__(self):
-        self._lock = trio.Lock()
+abc.Lock.register(trio.Lock)
+abc.Event.register(trio.Event)
+abc.Condition.register(trio.Condition)
+abc.Semaphore.register(trio.Semaphore)
+abc.CapacityLimiter.register(trio.CapacityLimiter)
 
-    def locked(self) -> bool:
-        return self._lock.locked()
-
-    async def acquire(self) -> None:
-        await trio.lowlevel.checkpoint()
-        await self._lock.acquire()
-
-    async def release(self) -> None:
-        self._lock.release()
-
-
-class Event(abc.Event):
-    def __init__(self):
-        self._event = trio.Event()
-
-    def set(self) -> Awaitable:
-        self._event.set()
-        return DeprecationWarner('Event.set()')
-
-    def is_set(self) -> bool:
-        return self._event.is_set()
-
-    async def wait(self):
-        await self._event.wait()
-
-
-class Condition(abc.Condition):
-    def __init__(self, lock: Optional[trio.Lock] = None):
-        self._cond = trio.Condition(lock=lock)
-
-    async def acquire(self) -> None:
-        return await self._cond.acquire()
-
-    async def release(self) -> None:
-        self._cond.release()
-
-    def locked(self):
-        return self._cond.locked()
-
-    async def notify(self, n: int = 1) -> None:
-        self._cond.notify(n)
-
-    async def notify_all(self) -> None:
-        self._cond.notify_all()
-
-    async def wait(self):
-        return await self._cond.wait()
-
-
-class Semaphore(abc.Semaphore):
-    def __init__(self, value: int):
-        self._semaphore = trio.Semaphore(value)
-
-    async def acquire(self) -> None:
-        await self._semaphore.acquire()
-
-    async def release(self) -> None:
-        self._semaphore.release()
-
-    @property
-    def value(self) -> int:
-        return self._semaphore.value
-
-
-class CapacityLimiter(abc.CapacityLimiter):
-    def __init__(self, limiter_or_tokens: Union[float, trio.CapacityLimiter]):
-        if isinstance(limiter_or_tokens, trio.CapacityLimiter):
-            self._limiter = limiter_or_tokens
-        else:
-            self._limiter = trio.CapacityLimiter(limiter_or_tokens)
-
-    async def __aenter__(self) -> 'CapacityLimiter':
-        await self._limiter.__aenter__()
-        return self
-
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
-        await self._limiter.__aexit__(exc_type, exc_val, exc_tb)
-
-    @property
-    def total_tokens(self) -> float:
-        return self._limiter.total_tokens
-
-    async def set_total_tokens(self, value: float) -> None:
-        self._limiter.total_tokens = value
-
-    @property
-    def borrowed_tokens(self) -> int:
-        return self._limiter.borrowed_tokens
-
-    @property
-    def available_tokens(self) -> float:
-        return self._limiter.available_tokens
-
-    async def acquire_nowait(self):
-        return self.acquire_nowait()
-
-    async def acquire_on_behalf_of_nowait(self, borrower):
-        try:
-            return self._limiter.acquire_on_behalf_of_nowait(borrower)
-        except trio.WouldBlock as exc:
-            raise WouldBlock from exc
-
-    def acquire(self):
-        return self._limiter.acquire()
-
-    def acquire_on_behalf_of(self, borrower):
-        return self._limiter.acquire_on_behalf_of(borrower)
-
-    async def release(self):
-        self._limiter.release()
-
-    async def release_on_behalf_of(self, borrower):
-        self._limiter.release_on_behalf_of(borrower)
+Lock = trio.Lock
+Event = trio.Event
+Condition = trio.Condition
+Semaphore = trio.Semaphore
+CapacityLimiter = trio.CapacityLimiter
 
 
 def current_default_thread_limiter():
-    native_limiter = trio.to_thread.current_default_thread_limiter()
-    return CapacityLimiter(native_limiter)
+    return trio.to_thread.current_default_thread_limiter()
 
 
 #

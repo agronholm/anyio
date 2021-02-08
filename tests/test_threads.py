@@ -173,10 +173,10 @@ async def test_cancel_worker_thread(cancellable, expected_last_active):
     """
     def thread_worker():
         nonlocal last_active
-        run_async_from_thread(sleep_event.set)
+        run_sync_from_thread(sleep_event.set)
         time.sleep(0.2)
         last_active = 'thread'
-        run_async_from_thread(finish_event.set)
+        run_sync_from_thread(finish_event.set)
 
     async def task_worker():
         nonlocal last_active
@@ -325,7 +325,7 @@ class TestBlockingPortal:
     def test_spawn_task(self, anyio_backend_name, anyio_backend_options):
         async def event_waiter():
             await event1.wait()
-            await event2.set()
+            event2.set()
             return 'test'
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:

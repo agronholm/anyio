@@ -7,8 +7,19 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - **BACKWARDS INCOMPATIBLE** Submodules under ``anyio.abc.`` have been made private (use only
   ``anyio.abc`` from now on).
-- **BACKWARDS INCOMPATIBLE** ``Event.set`` is now synchronous (but returns a dummy awaitable for
-  purposes of compatibility)
+- **BACKWARDS INCOMPATIBLE** The following methods were previously coroutine methods and have been
+  converted into synchronous methods:
+
+  * ``Event.set()``
+  * ``Lock.release()``
+  * ``Condition.release()``
+  * ``Semaphore.release()``
+  * ``CapacityLimiter.acquire_nowait()``
+  * ``CapacityLimiter.acquire_on_behalf_of_nowait()``
+  * ``MemoryObjectReceiveStream.receive_nowait()``
+  * ``MemoryObjectSendStream.send_nowait()``
+- **BACKWARDS INCOMPATIBLE** The ``CapacityLimiter.set_total_tokens()`` method has been removed in
+  exchange of making the ``total_tokens`` property writable
 - Dropped Curio as a backend (see the :doc:`FAQ <faq>` as for why)
 - Added the ``run_sync_from_thread()`` function
 

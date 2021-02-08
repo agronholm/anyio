@@ -624,7 +624,7 @@ class TestUNIXListener:
 async def test_multi_listener(tmp_path_factory):
     async def handle(stream):
         client_addresses.append(stream.extra(SocketAttribute.remote_address))
-        await event.set()
+        event.set()
         await stream.aclose()
 
     client_addresses = []

@@ -34,7 +34,7 @@ class TestLock:
             try:
                 results.append('2')
             finally:
-                await lock.release()
+                lock.release()
 
         results = []
         lock = create_lock()
@@ -45,7 +45,7 @@ class TestLock:
                 await wait_all_tasks_blocked()
                 results.append('1')
             finally:
-                await lock.release()
+                lock.release()
 
         assert not lock.locked()
         assert results == ['1', '2']
@@ -103,7 +103,7 @@ class TestCondition:
     async def test_contextmanager(self):
         async def notifier():
             async with condition:
-                await condition.notify_all()
+                condition.notify_all()
 
         condition = create_condition()
         async with create_task_group() as tg:
@@ -116,9 +116,9 @@ class TestCondition:
         async def notifier():
             await condition.acquire()
             try:
-                await condition.notify_all()
+                condition.notify_all()
             finally:
-                await condition.release()
+                condition.release()
 
         condition = create_condition()
         async with create_task_group() as tg:
@@ -128,7 +128,7 @@ class TestCondition:
                 await tg.spawn(notifier)
                 await condition.wait()
             finally:
-                await condition.release()
+                condition.release()
 
     async def test_wait_cancel(self):
         async def task():
@@ -171,7 +171,7 @@ class TestSemaphore:
             try:
                 assert semaphore.value in (0, 1)
             finally:
-                await semaphore.release()
+                semaphore.release()
 
         semaphore = create_semaphore(2)
         async with create_task_group() as tg:
@@ -243,7 +243,7 @@ class TestCapacityLimiter:
     async def test_bad_release(self):
         limiter = create_capacity_limiter(1)
         with pytest.raises(RuntimeError) as exc:
-            await limiter.release()
+            limiter.release()
 
         exc.match("this borrower isn't holding any of this CapacityLimiter's tokens")
 
@@ -268,7 +268,7 @@ class TestCapacityLimiter:
             await wait_all_tasks_blocked()
             assert event1.is_set()
             assert not event2.is_set()
-            await limiter.set_total_tokens(2)
+            limiter.total_tokens = 2
 
         assert event2.is_set()
 
