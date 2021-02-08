@@ -26,7 +26,6 @@ pytest_plugins = ['pytester']
                  id='asyncio'),
     pytest.param(('asyncio', {'debug': True, 'policy': uvloop_policy}), marks=uvloop_marks,
                  id='asyncio+uvloop'),
-    pytest.param('curio'),
     pytest.param('trio')
 ])
 def anyio_backend(request):

@@ -7,7 +7,7 @@ from typing import Any, Callable, Coroutine, Dict, Generator, Optional, Tuple, T
 import sniffio
 
 # This must be updated when new backends are introduced
-BACKENDS = 'asyncio', 'curio', 'trio'
+BACKENDS = 'asyncio', 'trio'
 
 T_Retval = TypeVar('T_Retval', covariant=True)
 threadlocals = threading.local()
@@ -22,8 +22,8 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
 
     :param func: a coroutine function
     :param args: positional arguments to ``func``
-    :param backend: name of the asynchronous event loop implementation – one of ``asyncio``,
-        ``curio`` and ``trio``
+    :param backend: name of the asynchronous event loop implementation – currently either
+        ``asyncio`` or ``trio``
     :param backend_options: keyword arguments to call the backend ``run()`` implementation with
         (documented :ref:`here <backend options>`)
     :return: the return value of the coroutine function

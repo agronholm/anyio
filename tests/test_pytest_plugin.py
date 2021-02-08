@@ -40,13 +40,6 @@ def test_plugin(testdir):
             # Test that async functions can use async fixtures
             assert async_fixture in get_all_backends()
 
-        @pytest.mark.parametrize('anyio_backend', ['curio'])
-        async def test_explicit_backend(anyio_backend):
-            # Test that when specifying the backend explicitly with parametrize, the correct
-            # backend is really used
-            assert anyio_backend == 'curio'
-            assert sniffio.current_async_library() == 'curio'
-
         def test_async_fixture_from_sync_test(anyio_backend_name, async_fixture):
             # Test that regular functions can use async fixtures too
             assert async_fixture == anyio_backend_name
@@ -64,8 +57,8 @@ def test_plugin(testdir):
         """
     )
 
-    result = testdir.runpytest('-v', '-p', 'no:curio')
-    result.assert_outcomes(passed=3 * len(get_all_backends()) + 2)
+    result = testdir.runpytest('-v')
+    result.assert_outcomes(passed=3 * len(get_all_backends()) + 1)
 
 
 def test_autouse_async_fixture(testdir):
@@ -101,7 +94,7 @@ def test_autouse_async_fixture(testdir):
         """
     )
 
-    result = testdir.runpytest('-v', '-p', 'no:curio')
+    result = testdir.runpytest('-v')
     result.assert_outcomes(passed=len(get_all_backends()))
 
 

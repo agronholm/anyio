@@ -36,8 +36,8 @@ Handling KeyboardInterrupt and SystemExit
 
 By default, different backends handle the Ctrl+C (or Ctrl+Break on Windows) key combination and
 external termination (:exc:`KeyboardInterrupt` and :exc:`SystemExit`, respectively) differently:
-trio raises the relevant exception inside the application while asyncio and curio shut down all the
-tasks and exit. If you need to do your own cleanup in these situations, you will need to install a
+trio raises the relevant exception inside the application while asyncio shuts down all the tasks
+and exits. If you need to do your own cleanup in these situations, you will need to install a
 signal handler::
 
     import signal

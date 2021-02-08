@@ -57,7 +57,6 @@ of (backend name, options dict)::
     @pytest.fixture(params=[
         pytest.param(('asyncio', {'use_uvloop': True}), id='asyncio+uvloop'),
         pytest.param(('asyncio', {'use_uvloop': False}), id='asyncio'),
-        pytest.param('curio'),
         pytest.param(('trio', {'restrict_keyboard_interrupt_to_checkpoints': True}), id='trio')
     ])
     def anyio_backend(request):

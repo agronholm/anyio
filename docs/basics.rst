@@ -15,11 +15,11 @@ To install AnyIO, run:
 
     pip install anyio
 
-To install a supported version of trio_ or curio_, you can use install them as extras like this:
+To install a supported version of trio_, you can use install it as an extra like this:
 
 .. code-block:: bash
 
-    pip install anyio[curio]
+    pip install anyio[trio]
 
 Running async programs
 ----------------------
@@ -91,4 +91,3 @@ of your choice. There are a few rules to keep in mind however:
 
 .. _virtualenv: https://docs.python-guide.org/dev/virtualenvs/
 .. _trio: https://github.com/python-trio/trio
-.. _curio: https://github.com/dabeaz/curio
