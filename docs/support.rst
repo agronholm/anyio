@@ -1,7 +1,8 @@
 Getting help
 ============
 
-If you are having trouble with AnyIO, you have a couple ways for getting support:
+If you are having trouble with AnyIO, make sure you've first checked the :doc:`FAQ <faq>` to see if
+your question is answered there. If not, you have a couple ways for getting support:
 
 * Post a question on `Stack Overflow`_ and use the ``anyio`` tag
 * Join the `python-trio/AnyIO`_ room on Gitter

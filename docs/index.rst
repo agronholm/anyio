@@ -22,6 +22,7 @@ The manual
    signals
    testing
    api
+   faq
    support
    contributing
    versionhistory
