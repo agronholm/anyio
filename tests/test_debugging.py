@@ -40,9 +40,9 @@ async def test_get_running_tasks():
     host_task = await get_current_task()
     async with create_task_group() as tg:
         existing_tasks = set(await get_running_tasks())
-        await tg.spawn(event.wait, name='task1')
-        await tg.spawn(event.wait, name='task2')
-        await tg.spawn(inspect)
+        tg.spawn(event.wait, name='task1')
+        tg.spawn(event.wait, name='task2')
+        tg.spawn(inspect)
 
     assert len(task_infos) == 3
     expected_names = ['task1', 'task2', 'test_debugging.test_get_running_tasks.<locals>.inspect']

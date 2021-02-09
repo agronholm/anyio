@@ -102,7 +102,7 @@ async def test_run_in_thread_cancelled():
 
     state = 0
     async with create_task_group() as tg:
-        await tg.spawn(worker)
+        tg.spawn(worker)
         tg.cancel_scope.cancel()
 
     assert state == 1
@@ -134,7 +134,7 @@ async def test_run_in_custom_limiter():
     limiter = create_capacity_limiter(3)
     async with create_task_group() as tg:
         for _ in range(4):
-            await tg.spawn(task_worker)
+            tg.spawn(task_worker)
 
         await sleep(0.1)
         assert num_active_threads == 3
@@ -189,7 +189,7 @@ async def test_cancel_worker_thread(cancellable, expected_last_active):
     finish_event = create_event()
     last_active = None
     async with create_task_group() as tg:
-        await tg.spawn(task_worker)
+        tg.spawn(task_worker)
         await sleep_event.wait()
         tg.cancel_scope.cancel()
 
@@ -206,7 +206,7 @@ async def test_cancel_asyncio_native_task():
 
     task = None
     async with create_task_group() as tg:
-        await tg.spawn(run_in_thread)
+        tg.spawn(run_in_thread)
         await wait_all_tasks_blocked()
         task.cancel()
 

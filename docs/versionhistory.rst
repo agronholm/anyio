@@ -13,14 +13,15 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``current_time()``
   * ``current_effective_deadline()``
   * ``CancelScope.cancel()``
-  * ``Event.set()``
-  * ``Lock.release()``
-  * ``Condition.release()``
-  * ``Semaphore.release()``
   * ``CapacityLimiter.acquire_nowait()``
   * ``CapacityLimiter.acquire_on_behalf_of_nowait()``
+  * ``Condition.release()``
+  * ``Event.set()``
+  * ``Lock.release()``
   * ``MemoryObjectReceiveStream.receive_nowait()``
   * ``MemoryObjectSendStream.send_nowait()``
+  * ``Semaphore.release()``
+  * ``TaskGroup.spawn()``
 - **BACKWARDS INCOMPATIBLE** The following functions now return synchronous context managers
   instead of asynchronous context managers:
 

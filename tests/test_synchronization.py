@@ -20,7 +20,7 @@ class TestLock:
         lock = create_lock()
         async with create_task_group() as tg:
             async with lock:
-                await tg.spawn(task)
+                tg.spawn(task)
                 await wait_all_tasks_blocked()
                 results.append('1')
 
@@ -41,7 +41,7 @@ class TestLock:
         async with create_task_group() as tg:
             await lock.acquire()
             try:
-                await tg.spawn(task)
+                tg.spawn(task)
                 await wait_all_tasks_blocked()
                 results.append('1')
             finally:
@@ -61,7 +61,7 @@ class TestLock:
         lock = create_lock()
         async with create_task_group() as tg:
             async with lock:
-                await tg.spawn(task)
+                tg.spawn(task)
                 tg.cancel_scope.cancel()
 
         assert task_started
@@ -76,7 +76,7 @@ class TestEvent:
 
         event = create_event()
         async with create_task_group() as tg:
-            await tg.spawn(setter)
+            tg.spawn(setter)
             await event.wait()
 
         assert event.is_set()
@@ -91,7 +91,7 @@ class TestEvent:
         task_started = event_set = False
         event = create_event()
         async with create_task_group() as tg:
-            await tg.spawn(task)
+            tg.spawn(task)
             tg.cancel_scope.cancel()
             event.set()
 
@@ -109,7 +109,7 @@ class TestCondition:
         async with create_task_group() as tg:
             async with condition:
                 assert condition.locked()
-                await tg.spawn(notifier)
+                tg.spawn(notifier)
                 await condition.wait()
 
     async def test_manual_acquire(self):
@@ -125,7 +125,7 @@ class TestCondition:
             await condition.acquire()
             try:
                 assert condition.locked()
-                await tg.spawn(notifier)
+                tg.spawn(notifier)
                 await condition.wait()
             finally:
                 condition.release()
@@ -143,7 +143,7 @@ class TestCondition:
         event = create_event()
         condition = create_condition()
         async with create_task_group() as tg:
-            await tg.spawn(task)
+            tg.spawn(task)
             await event.wait()
             await wait_all_tasks_blocked()
             tg.cancel_scope.cancel()
@@ -160,8 +160,8 @@ class TestSemaphore:
 
         semaphore = create_semaphore(2)
         async with create_task_group() as tg:
-            await tg.spawn(acquire, name='task 1')
-            await tg.spawn(acquire, name='task 2')
+            tg.spawn(acquire, name='task 1')
+            tg.spawn(acquire, name='task 2')
 
         assert semaphore.value == 2
 
@@ -175,8 +175,8 @@ class TestSemaphore:
 
         semaphore = create_semaphore(2)
         async with create_task_group() as tg:
-            await tg.spawn(acquire, name='task 1')
-            await tg.spawn(acquire, name='task 2')
+            tg.spawn(acquire, name='task 1')
+            tg.spawn(acquire, name='task 2')
 
         assert semaphore.value == 2
 
@@ -191,7 +191,7 @@ class TestSemaphore:
         semaphore = create_semaphore(1)
         async with create_task_group() as tg:
             async with semaphore:
-                await tg.spawn(task)
+                tg.spawn(task)
                 await wait_all_tasks_blocked()
                 local_scope.cancel()
 
@@ -231,7 +231,7 @@ class TestCapacityLimiter:
         limiter = create_capacity_limiter(1)
         async with create_task_group() as tg:
             for _ in range(3):
-                await tg.spawn(taskfunc)
+                tg.spawn(taskfunc)
 
     async def test_borrow_twice(self):
         limiter = create_capacity_limiter(1)
@@ -264,8 +264,8 @@ class TestCapacityLimiter:
         limiter = create_capacity_limiter(1)
         event1, event2 = create_event(), create_event()
         async with create_task_group() as tg:
-            await tg.spawn(setter)
-            await tg.spawn(waiter)
+            tg.spawn(setter)
+            tg.spawn(waiter)
             await wait_all_tasks_blocked()
             assert event1.is_set()
             assert not event2.is_set()

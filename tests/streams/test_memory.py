@@ -25,7 +25,7 @@ async def test_receive_then_send():
     send, receive = create_memory_object_stream(0)
     received_objects = []
     async with create_task_group() as tg:
-        await tg.spawn(receiver)
+        tg.spawn(receiver)
         await wait_all_tasks_blocked()
         await send.send('hello')
         await send.send('anyio')
@@ -40,8 +40,8 @@ async def test_receive_then_send_nowait():
     send, receive = create_memory_object_stream(0)
     received_objects = []
     async with create_task_group() as tg:
-        await tg.spawn(receiver)
-        await tg.spawn(receiver)
+        tg.spawn(receiver)
+        tg.spawn(receiver)
         await wait_all_tasks_blocked()
         send.send_nowait('hello')
         send.send_nowait('anyio')
@@ -52,7 +52,7 @@ async def test_receive_then_send_nowait():
 async def test_send_then_receive_nowait():
     send, receive = create_memory_object_stream(0)
     async with create_task_group() as tg:
-        await tg.spawn(send.send, 'hello')
+        tg.spawn(send.send, 'hello')
         await wait_all_tasks_blocked()
         assert receive.receive_nowait() == 'hello'
 
@@ -63,7 +63,7 @@ async def test_send_is_unblocked_after_receive_nowait():
 
     with fail_after(1):
         async with create_task_group() as tg:
-            await tg.spawn(send.send, 'anyio')
+            tg.spawn(send.send, 'anyio')
             await wait_all_tasks_blocked()
             assert receive.receive_nowait() == 'hello'
 
@@ -86,7 +86,7 @@ async def test_iterate():
     send, receive = create_memory_object_stream()
     received_objects = []
     async with create_task_group() as tg:
-        await tg.spawn(receiver)
+        tg.spawn(receiver)
         await send.send('hello')
         await send.send('anyio')
         await send.aclose()
@@ -117,7 +117,7 @@ async def test_receive_send_closed_receive_stream():
 async def test_cancel_receive():
     send, receive = create_memory_object_stream()
     async with create_task_group() as tg:
-        await tg.spawn(receive.receive)
+        tg.spawn(receive.receive)
         await wait_all_tasks_blocked()
         tg.cancel_scope.cancel()
 
@@ -128,7 +128,7 @@ async def test_cancel_receive():
 async def test_cancel_send():
     send, receive = create_memory_object_stream()
     async with create_task_group() as tg:
-        await tg.spawn(send.send, 'hello')
+        tg.spawn(send.send, 'hello')
         await wait_all_tasks_blocked()
         tg.cancel_scope.cancel()
 
@@ -158,7 +158,7 @@ async def test_close_send_while_receiving():
     send, receive = create_memory_object_stream(1)
     with pytest.raises(EndOfStream):
         async with create_task_group() as tg:
-            await tg.spawn(receive.receive)
+            tg.spawn(receive.receive)
             await wait_all_tasks_blocked()
             await send.aclose()
 
@@ -167,7 +167,7 @@ async def test_close_receive_while_sending():
     send, receive = create_memory_object_stream(0)
     with pytest.raises(BrokenResourceError):
         async with create_task_group() as tg:
-            await tg.spawn(send.send, 'hello')
+            tg.spawn(send.send, 'hello')
             await wait_all_tasks_blocked()
             await receive.aclose()
 
@@ -187,9 +187,9 @@ async def test_receive_when_cancelled():
     """
     send, receive = create_memory_object_stream()
     async with create_task_group() as tg:
-        await tg.spawn(send.send, 'hello')
+        tg.spawn(send.send, 'hello')
         await wait_all_tasks_blocked()
-        await tg.spawn(send.send, 'world')
+        tg.spawn(send.send, 'world')
         await wait_all_tasks_blocked()
 
         with open_cancel_scope() as scope:
@@ -212,7 +212,7 @@ async def test_send_when_cancelled():
     received = []
     send, receive = create_memory_object_stream()
     async with create_task_group() as tg:
-        await tg.spawn(receiver)
+        tg.spawn(receiver)
         with open_cancel_scope() as scope:
             scope.cancel()
             await send.send('hello')
@@ -239,7 +239,7 @@ async def test_cancel_during_receive():
     received = []
     send, receive = create_memory_object_stream()
     async with create_task_group() as tg:
-        await tg.spawn(scoped_receiver)
+        tg.spawn(scoped_receiver)
         await wait_all_tasks_blocked()
         send.send_nowait('hello')
         receiver_scope.cancel()
@@ -257,6 +257,6 @@ async def test_close_receive_after_send():
             assert await receive_stream.receive() == 'test'
 
     send_stream, receive_stream = create_memory_object_stream()
-    async with create_task_group() as task_group:
-        await task_group.spawn(send)
-        await task_group.spawn(receive)
+    async with create_task_group() as tg:
+        tg.spawn(send)
+        tg.spawn(receive)

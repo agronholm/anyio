@@ -93,7 +93,7 @@ class TaskGroup(abc.TaskGroup):
         finally:
             self._active = False
 
-    async def spawn(self, func: Callable, *args, name=None) -> None:
+    def spawn(self, func: Callable, *args, name=None) -> None:
         if not self._active:
             raise RuntimeError('This task group is not active; no new tasks can be spawned.')
 
@@ -123,8 +123,8 @@ class BlockingPortal(abc.BlockingPortal):
         self._token = trio.lowlevel.current_trio_token()
 
     def _spawn_task_from_thread(self, func: Callable, args: tuple, future: Future) -> None:
-        return trio.from_thread.run(self._task_group.spawn, self._call_func, func, args, future,
-                                    trio_token=self._token)
+        return trio.from_thread.run_sync(
+            self._task_group.spawn, self._call_func, func, args, future, trio_token=self._token)
 
 
 #

@@ -453,7 +453,7 @@ class TaskGroup(abc.TaskGroup):
             self.cancel_scope._tasks.remove(task)
             del _task_states[task]  # type: ignore
 
-    async def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
+    def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
         if not self._active:
             raise RuntimeError('This task group is not active; no new tasks can be spawned.')
 
@@ -519,7 +519,8 @@ async def run_sync_in_worker_thread(
         return cast(T_Retval, retval)
 
 
-def run_sync_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
+def run_sync_from_thread(func: Callable[..., T_Retval], *args,
+                         loop: Optional[asyncio.AbstractEventLoop] = None) -> T_Retval:
     @wraps(func)
     def wrapper():
         try:
@@ -530,7 +531,8 @@ def run_sync_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
                 raise
 
     f: concurrent.futures.Future[T_Retval] = Future()
-    threadlocals.loop.call_soon_threadsafe(wrapper)
+    loop = loop or threadlocals.loop
+    loop.call_soon_threadsafe(wrapper)
     return f.result()
 
 
@@ -548,8 +550,8 @@ class BlockingPortal(abc.BlockingPortal):
         self._loop = get_running_loop()
 
     def _spawn_task_from_thread(self, func: Callable, args: tuple, future: Future) -> None:
-        asyncio.run_coroutine_threadsafe(
-            self._task_group.spawn(self._call_func, func, args, future), self._loop)
+        run_sync_from_thread(
+            self._task_group.spawn, self._call_func, func, args, future, loop=self._loop)
 
 
 #

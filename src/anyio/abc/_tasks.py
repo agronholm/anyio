@@ -16,7 +16,7 @@ class TaskGroup(metaclass=ABCMeta):
     cancel_scope: 'CancelScope'
 
     @abstractmethod
-    async def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
+    def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
         """
         Launch a new task in this task group.
 

@@ -173,7 +173,7 @@ async def connect_tcp(
     async with create_task_group() as tg:
         for i, (af, addr) in enumerate(target_addrs):
             event = create_event()
-            await tg.spawn(try_connect, addr, event)
+            tg.spawn(try_connect, addr, event)
             with move_on_after(happy_eyeballs_delay):
                 await event.wait()
 
