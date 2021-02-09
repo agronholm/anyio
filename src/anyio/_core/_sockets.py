@@ -129,7 +129,7 @@ async def connect_tcp(
         else:
             if connected_stream is None:
                 connected_stream = stream
-                await tg.cancel_scope.cancel()
+                tg.cancel_scope.cancel()
             else:
                 await stream.aclose()
         finally:
@@ -174,7 +174,7 @@ async def connect_tcp(
         for i, (af, addr) in enumerate(target_addrs):
             event = create_event()
             await tg.spawn(try_connect, addr, event)
-            async with move_on_after(happy_eyeballs_delay):
+            with move_on_after(happy_eyeballs_delay):
                 await event.wait()
 
     if connected_stream is None:

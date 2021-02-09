@@ -238,6 +238,6 @@ class TestTLSListener:
             sock.connect(listener.extra(SocketAttribute.local_address))
             sock.close()
             await event.wait()
-            await tg.cancel_scope.cancel()
+            tg.cancel_scope.cancel()
 
         assert isinstance(exception, BrokenResourceError)

@@ -109,7 +109,7 @@ def test_cancel_scope_in_asyncgen_fixture(testdir):
         @pytest.fixture
         async def asyncgen_fixture():
             async with create_task_group() as tg:
-                await tg.spawn(tg.cancel_scope.cancel)
+                tg.cancel_scope.cancel()
                 await sleep(1)
 
             yield 1

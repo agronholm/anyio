@@ -62,7 +62,7 @@ class TestLock:
         async with create_task_group() as tg:
             async with lock:
                 await tg.spawn(task)
-                await tg.cancel_scope.cancel()
+                tg.cancel_scope.cancel()
 
         assert task_started
         assert not got_lock
@@ -92,7 +92,7 @@ class TestEvent:
         event = create_event()
         async with create_task_group() as tg:
             await tg.spawn(task)
-            await tg.cancel_scope.cancel()
+            tg.cancel_scope.cancel()
             event.set()
 
         assert task_started
@@ -146,7 +146,7 @@ class TestCondition:
             await tg.spawn(task)
             await event.wait()
             await wait_all_tasks_blocked()
-            await tg.cancel_scope.cancel()
+            tg.cancel_scope.cancel()
 
         assert task_started
         assert not notified
@@ -183,8 +183,9 @@ class TestSemaphore:
     async def test_acquire_cancel(self):
         async def task():
             nonlocal local_scope, acquired
-            async with open_cancel_scope() as local_scope, semaphore:
-                acquired = True
+            with open_cancel_scope() as local_scope:
+                async with semaphore:
+                    acquired = True
 
         local_scope = acquired = None
         semaphore = create_semaphore(1)
@@ -192,7 +193,7 @@ class TestSemaphore:
             async with semaphore:
                 await tg.spawn(task)
                 await wait_all_tasks_blocked()
-                await local_scope.cancel()
+                local_scope.cancel()
 
         assert not acquired
 

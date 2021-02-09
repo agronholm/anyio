@@ -191,15 +191,15 @@ class CancelScope(abc.CancelScope):
         self._host_task: Optional[asyncio.Task] = None
         self._timeout_expired = False
 
-    async def __aenter__(self):
+    def __enter__(self):
         async def timeout():
             await asyncio.sleep(self._deadline - get_running_loop().time())
             self._timeout_expired = True
-            await self.cancel()
+            self.cancel()
 
         if self._active:
             raise RuntimeError(
-                "Each CancelScope may only be used for a single 'async with' block"
+                "Each CancelScope may only be used for a single 'with' block"
             )
 
         self._host_task = current_task()
@@ -224,9 +224,8 @@ class CancelScope(abc.CancelScope):
         self._active = True
         return self
 
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException],
+                 exc_tb: Optional[TracebackType]) -> Optional[bool]:
         self._active = False
         if self._timeout_task:
             self._timeout_task.cancel()
@@ -248,7 +247,7 @@ class CancelScope(abc.CancelScope):
 
         return None
 
-    async def _cancel(self):
+    def _cancel(self):
         # Deliver cancellation to directly contained tasks and nested cancel scopes
         this_task = current_task()
         for task in self._tasks:
@@ -269,7 +268,7 @@ class CancelScope(abc.CancelScope):
                 if awaitable is not None:
                     task.cancel()
             elif not cancel_scope._shielded_to(self):
-                await cancel_scope._cancel()
+                cancel_scope._cancel()
 
     def _shielded_to(self, parent: Optional['CancelScope']) -> bool:
         # Check whether this task or any parent up to (but not including) the "parent" argument is
@@ -294,12 +293,12 @@ class CancelScope(abc.CancelScope):
 
         return False
 
-    async def cancel(self) -> None:
+    def cancel(self) -> None:
         if self._cancel_called:
             return
 
         self._cancel_called = True
-        await self._cancel()
+        self._cancel()
 
     @property
     def deadline(self) -> float:
@@ -331,24 +330,7 @@ async def checkpoint():
     await asyncio.sleep(0)
 
 
-@asynccontextmanager
-async def fail_after(delay: float, shield: bool):
-    deadline = get_running_loop().time() + delay
-    async with CancelScope(deadline, shield) as scope:
-        yield scope
-
-    if scope._timeout_expired:
-        raise TimeoutError
-
-
-@asynccontextmanager
-async def move_on_after(delay: float, shield: bool):
-    deadline = get_running_loop().time() + delay
-    async with CancelScope(deadline=deadline, shield=shield) as scope:
-        yield scope
-
-
-async def current_effective_deadline():
+def current_effective_deadline():
     deadline = math.inf
     cancel_scope = _task_states[current_task()].cancel_scope
     while cancel_scope:
@@ -361,7 +343,7 @@ async def current_effective_deadline():
     return deadline
 
 
-async def current_time():
+def current_time():
     return get_running_loop().time()
 
 
@@ -406,16 +388,16 @@ class TaskGroup(abc.TaskGroup):
         self._exceptions: List[BaseException] = []
 
     async def __aenter__(self):
-        await self.cancel_scope.__aenter__()
+        self.cancel_scope.__enter__()
         self._active = True
         return self
 
     async def __aexit__(self, exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> Optional[bool]:
-        ignore_exception = await self.cancel_scope.__aexit__(exc_type, exc_val, exc_tb)
+        ignore_exception = self.cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         if exc_val is not None:
-            await self.cancel_scope.cancel()
+            self.cancel_scope.cancel()
             if not ignore_exception:
                 self._exceptions.append(exc_val)
 
@@ -423,7 +405,7 @@ class TaskGroup(abc.TaskGroup):
             try:
                 await asyncio.wait(self.cancel_scope._tasks)
             except asyncio.CancelledError:
-                await self.cancel_scope.cancel()
+                self.cancel_scope.cancel()
 
         self._active = False
         if not self.cancel_scope._parent_cancelled():
@@ -466,7 +448,7 @@ class TaskGroup(abc.TaskGroup):
             await func(*args)
         except BaseException as exc:
             self._exceptions.append(exc)
-            await self.cancel_scope.cancel()
+            self.cancel_scope.cancel()
         finally:
             self.cancel_scope._tasks.remove(task)
             del _task_states[task]  # type: ignore
@@ -523,7 +505,7 @@ async def run_sync_in_worker_thread(
     thread = Thread(target=thread_worker, daemon=True)
     thread.start()
     exception: Optional[BaseException] = None
-    async with CancelScope(shield=not cancellable):
+    with CancelScope(shield=not cancellable):
         try:
             retval, exception = await queue.get()
         except BaseException as exc:

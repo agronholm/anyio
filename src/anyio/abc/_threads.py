@@ -99,7 +99,7 @@ class BlockingPortal(metaclass=ABCMeta):
         self._event_loop_thread_id = None
         self._stop_event.set()
         if cancel_remaining:
-            await self._task_group.cancel_scope.cancel()
+            self._task_group.cancel_scope.cancel()
 
     def stop_from_external_thread(self, cancel_remaining: bool = False) -> None:
         """
@@ -121,9 +121,9 @@ class BlockingPortal(metaclass=ABCMeta):
         try:
             retval = func(*args)
             if iscoroutine(retval):
-                async with open_cancel_scope() as scope:
+                with open_cancel_scope() as scope:
                     if future.cancelled():
-                        await scope.cancel()
+                        scope.cancel()
                     else:
                         future.add_done_callback(callback)
 

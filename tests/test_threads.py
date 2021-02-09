@@ -103,7 +103,7 @@ async def test_run_in_thread_cancelled():
     state = 0
     async with create_task_group() as tg:
         await tg.spawn(worker)
-        await tg.cancel_scope.cancel()
+        tg.cancel_scope.cancel()
 
     assert state == 1
 
@@ -191,7 +191,7 @@ async def test_cancel_worker_thread(cancellable, expected_last_active):
     async with create_task_group() as tg:
         await tg.spawn(task_worker)
         await sleep_event.wait()
-        await tg.cancel_scope.cancel()
+        tg.cancel_scope.cancel()
 
     await finish_event.wait()
     assert last_active == expected_last_active

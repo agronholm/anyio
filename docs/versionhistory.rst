@@ -7,9 +7,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - **BACKWARDS INCOMPATIBLE** Submodules under ``anyio.abc.`` have been made private (use only
   ``anyio.abc`` from now on).
-- **BACKWARDS INCOMPATIBLE** The following methods were previously coroutine methods and have been
-  converted into synchronous methods:
+- **BACKWARDS INCOMPATIBLE** The following functions/methods were previously coroutine
+  functions/methods and have been converted into synchronous ones:
 
+  * ``current_time()``
+  * ``current_effective_deadline()``
+  * ``CancelScope.cancel()``
   * ``Event.set()``
   * ``Lock.release()``
   * ``Condition.release()``
@@ -18,6 +21,13 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``CapacityLimiter.acquire_on_behalf_of_nowait()``
   * ``MemoryObjectReceiveStream.receive_nowait()``
   * ``MemoryObjectSendStream.send_nowait()``
+- **BACKWARDS INCOMPATIBLE** The following functions now return synchronous context managers
+  instead of asynchronous context managers:
+
+  * ``open_cancel_scope()``
+  * ``fail_after()``
+  * ``move_on_after()``
+
 - **BACKWARDS INCOMPATIBLE** The ``CapacityLimiter.set_total_tokens()`` method has been removed in
   exchange of making the ``total_tokens`` property writable
 - Dropped Curio as a backend (see the :doc:`FAQ <faq>` as for why)

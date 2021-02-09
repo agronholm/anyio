@@ -209,7 +209,7 @@ class TestTCPStream:
         thread.start()
         async with await connect_tcp(*server_addr) as stream:
             start_time = time.monotonic()
-            async with move_on_after(0.1):
+            with move_on_after(0.1):
                 while time.monotonic() - start_time < 0.3:
                     await stream.receive(1)
 
@@ -228,7 +228,7 @@ class TestTCPStream:
                     await stream.send(b'foo')
 
                 exc.match('already writing to')
-                await tg.cancel_scope.cancel()
+                tg.cancel_scope.cancel()
 
     async def test_concurrent_receive(self, server_addr):
         async with await connect_tcp(*server_addr) as client:
@@ -241,7 +241,7 @@ class TestTCPStream:
 
                     exc.match('already reading from')
                 finally:
-                    await tg.cancel_scope.cancel()
+                    tg.cancel_scope.cancel()
 
     async def test_close_during_receive(self, server_addr):
         async def interrupt():
@@ -418,7 +418,7 @@ class TestTCPListener:
                 await tg.spawn(listener.serve, lambda stream: None)
                 await wait_all_tasks_blocked()
                 await listener.aclose()
-                await tg.cancel_scope.cancel()
+                tg.cancel_scope.cancel()
 
 
 @pytest.mark.skipif(sys.platform == 'win32',
@@ -530,7 +530,7 @@ class TestUNIXStream:
                     await client.send(b'foo')
 
                 exc.match('already writing to')
-                await tg.cancel_scope.cancel()
+                tg.cancel_scope.cancel()
 
     async def test_concurrent_receive(self, server_sock, socket_path):
         async with await connect_unix(socket_path) as client:
@@ -543,7 +543,7 @@ class TestUNIXStream:
 
                     exc.match('already reading from')
                 finally:
-                    await tg.cancel_scope.cancel()
+                    tg.cancel_scope.cancel()
 
     async def test_close_during_receive(self, server_sock, socket_path):
         async def interrupt():
@@ -650,7 +650,7 @@ async def test_multi_listener(tmp_path_factory):
                 await event.wait()
                 await stream.aclose()
 
-            await tg.cancel_scope.cancel()
+            tg.cancel_scope.cancel()
 
     assert client_addresses == expected_addresses
 
@@ -693,7 +693,7 @@ class TestUDPSocket:
                     assert await client.receive() == (b'RABOOF', (host, port))
                     await client.sendto(b'123456', host, port)
                     assert await client.receive() == (b'654321', (host, port))
-                    await tg.cancel_scope.cancel()
+                    tg.cancel_scope.cancel()
 
     @pytest.mark.skipif(sys.platform == 'win32', reason='Not supported on Windows')
     async def test_reuse_port(self, family):
@@ -716,7 +716,7 @@ class TestUDPSocket:
 
                     exc.match('already reading from')
                 finally:
-                    await tg.cancel_scope.cancel()
+                    tg.cancel_scope.cancel()
 
     async def test_close_during_receive(self):
         async def close_when_blocked():
@@ -783,7 +783,7 @@ class TestConnectedUDPSocket:
                     assert await udp1.receive() == (b'RABOOF', (host, port))
                     await udp1.sendto(b'123456', host, port)
                     assert await udp1.receive() == (b'654321', (host, port))
-                    await tg.cancel_scope.cancel()
+                    tg.cancel_scope.cancel()
 
     @pytest.mark.skipif(sys.platform == 'win32', reason='Not supported on Windows')
     async def test_reuse_port(self, family):
@@ -808,7 +808,7 @@ class TestConnectedUDPSocket:
 
                     exc.match('already reading from')
                 finally:
-                    await tg.cancel_scope.cancel()
+                    tg.cancel_scope.cancel()
 
     async def test_close_during_receive(self):
         async def close_when_blocked():

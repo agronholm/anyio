@@ -54,69 +54,13 @@ sleep = trio.sleep
 # Timeouts and cancellation
 #
 
+abc.CancelScope.register(trio.CancelScope)
+
 CancelledError = trio.Cancelled
 checkpoint = trio.lowlevel.checkpoint
-
-
-class CancelScope(abc.CancelScope):
-    __slots__ = '__original'
-
-    def __init__(self, original: Optional[trio.CancelScope] = None, **kwargs):
-        self.__original = original or trio.CancelScope(**kwargs)
-
-    async def __aenter__(self):
-        if self.__original._has_been_entered:
-            raise RuntimeError(
-                "Each CancelScope may only be used for a single 'async with' block"
-            )
-
-        self.__original.__enter__()
-        return self
-
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
-        return self.__original.__exit__(exc_type, exc_val, exc_tb)
-
-    async def cancel(self) -> None:
-        self.__original.cancel()
-
-    @property
-    def deadline(self) -> float:
-        return self.__original.deadline
-
-    @property
-    def cancel_called(self) -> bool:
-        return self.__original.cancel_called
-
-    @property
-    def shield(self) -> bool:
-        return self.__original.shield
-
-
-@asynccontextmanager
-async def move_on_after(seconds, shield):
-    with trio.move_on_after(seconds) as scope:
-        scope.shield = shield
-        yield CancelScope(scope)
-
-
-@asynccontextmanager
-async def fail_after(seconds, shield):
-    try:
-        with trio.fail_after(seconds) as cancel_scope:
-            cancel_scope.shield = shield
-            yield CancelScope(cancel_scope)
-    except trio.TooSlowError as exc:
-        raise TimeoutError().with_traceback(exc.__traceback__) from None
-
-
-async def current_effective_deadline():
-    return trio.current_effective_deadline()
-
-
-async def current_time():
-    return trio.current_time()
+CancelScope = trio.CancelScope
+current_effective_deadline = trio.current_effective_deadline
+current_time = trio.current_time
 
 
 #
@@ -127,10 +71,8 @@ class ExceptionGroup(BaseExceptionGroup, trio.MultiError):
     pass
 
 
-class TaskGroup:
-    __slots__ = '_active', '_nursery_manager', '_nursery', 'cancel_scope'
-
-    def __init__(self) -> None:
+class TaskGroup(abc.TaskGroup):
+    def __init__(self):
         self._active = False
         self._nursery_manager = trio.open_nursery()
         self.cancel_scope = None
@@ -138,7 +80,7 @@ class TaskGroup:
     async def __aenter__(self):
         self._active = True
         self._nursery = await self._nursery_manager.__aenter__()
-        self.cancel_scope = CancelScope(self._nursery.cancel_scope)
+        self.cancel_scope = self._nursery.cancel_scope
         return self
 
     async def __aexit__(self, exc_type: Optional[Type[BaseException]],
@@ -156,9 +98,6 @@ class TaskGroup:
             raise RuntimeError('This task group is not active; no new tasks can be spawned.')
 
         self._nursery.start_soon(func, *args, name=name)
-
-
-abc.TaskGroup.register(TaskGroup)
 
 
 #
@@ -179,8 +118,6 @@ run_sync_from_thread = trio.from_thread.run_sync
 
 
 class BlockingPortal(abc.BlockingPortal):
-    __slots__ = '_token'
-
     def __init__(self):
         super().__init__()
         self._token = trio.lowlevel.current_trio_token()

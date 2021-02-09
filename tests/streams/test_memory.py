@@ -61,7 +61,7 @@ async def test_send_is_unblocked_after_receive_nowait():
     send, receive = create_memory_object_stream(1)
     send.send_nowait('hello')
 
-    async with fail_after(1):
+    with fail_after(1):
         async with create_task_group() as tg:
             await tg.spawn(send.send, 'anyio')
             await wait_all_tasks_blocked()
@@ -119,7 +119,7 @@ async def test_cancel_receive():
     async with create_task_group() as tg:
         await tg.spawn(receive.receive)
         await wait_all_tasks_blocked()
-        await tg.cancel_scope.cancel()
+        tg.cancel_scope.cancel()
 
     with pytest.raises(WouldBlock):
         send.send_nowait('hello')
@@ -130,7 +130,7 @@ async def test_cancel_send():
     async with create_task_group() as tg:
         await tg.spawn(send.send, 'hello')
         await wait_all_tasks_blocked()
-        await tg.cancel_scope.cancel()
+        tg.cancel_scope.cancel()
 
     with pytest.raises(WouldBlock):
         receive.receive_nowait()
@@ -192,8 +192,8 @@ async def test_receive_when_cancelled():
         await tg.spawn(send.send, 'world')
         await wait_all_tasks_blocked()
 
-        async with open_cancel_scope() as scope:
-            await scope.cancel()
+        with open_cancel_scope() as scope:
+            scope.cancel()
             await receive.receive()
 
         assert await receive.receive() == 'hello'
@@ -213,8 +213,8 @@ async def test_send_when_cancelled():
     send, receive = create_memory_object_stream()
     async with create_task_group() as tg:
         await tg.spawn(receiver)
-        async with open_cancel_scope() as scope:
-            await scope.cancel()
+        with open_cancel_scope() as scope:
+            scope.cancel()
             await send.send('hello')
 
         await send.send('world')
@@ -230,7 +230,7 @@ async def test_cancel_during_receive():
     """
     async def scoped_receiver():
         nonlocal receiver_scope
-        async with open_cancel_scope() as receiver_scope:
+        with open_cancel_scope() as receiver_scope:
             received.append(await receive.receive())
 
         assert receiver_scope.cancel_called
@@ -242,7 +242,7 @@ async def test_cancel_during_receive():
         await tg.spawn(scoped_receiver)
         await wait_all_tasks_blocked()
         send.send_nowait('hello')
-        await receiver_scope.cancel()
+        receiver_scope.cancel()
 
     assert received == ['hello']
 
