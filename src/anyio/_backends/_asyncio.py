@@ -1255,11 +1255,11 @@ def _create_task_info(task: asyncio.Task) -> TaskInfo:
     return TaskInfo(id(task), parent_id, name, task._coro)  # type: ignore
 
 
-async def get_current_task() -> TaskInfo:
+def get_current_task() -> TaskInfo:
     return _create_task_info(current_task())  # type: ignore
 
 
-async def get_running_tasks() -> List[TaskInfo]:
+def get_running_tasks() -> List[TaskInfo]:
     return [_create_task_info(task) for task in all_tasks() if not task.done()]
 
 

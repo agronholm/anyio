@@ -17,6 +17,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``CapacityLimiter.acquire_on_behalf_of_nowait()``
   * ``Condition.release()``
   * ``Event.set()``
+  * ``get_current_task()``
+  * ``get_running_tasks()``
   * ``Lock.release()``
   * ``MemoryObjectReceiveStream.receive_nowait()``
   * ``MemoryObjectSendStream.send_nowait()``

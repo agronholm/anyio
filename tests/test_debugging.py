@@ -13,7 +13,7 @@ pytestmark = pytest.mark.anyio
 def test_main_task_name(anyio_backend_name, anyio_backend_options):
     async def main():
         nonlocal task_name
-        task_name = (await get_current_task()).name
+        task_name = get_current_task().name
 
     task_name = None
     anyio.run(main, backend=anyio_backend_name, backend_options=anyio_backend_options)
@@ -31,15 +31,15 @@ def test_main_task_name(anyio_backend_name, anyio_backend_options):
 async def test_get_running_tasks():
     async def inspect():
         await wait_all_tasks_blocked()
-        new_tasks = set(await get_running_tasks()) - existing_tasks
+        new_tasks = set(get_running_tasks()) - existing_tasks
         task_infos[:] = sorted(new_tasks, key=lambda info: info.name or '')
         event.set()
 
     event = create_event()
     task_infos = []
-    host_task = await get_current_task()
+    host_task = get_current_task()
     async with create_task_group() as tg:
-        existing_tasks = set(await get_running_tasks())
+        existing_tasks = set(get_running_tasks())
         tg.spawn(event.wait, name='task1')
         tg.spawn(event.wait, name='task2')
         tg.spawn(inspect)

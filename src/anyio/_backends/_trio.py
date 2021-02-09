@@ -451,7 +451,7 @@ async def open_signal_receiver(*signals: int):
 # Testing and debugging
 #
 
-async def get_current_task() -> TaskInfo:
+def get_current_task() -> TaskInfo:
     task = trio_lowlevel.current_task()
 
     parent_id = None
@@ -461,7 +461,7 @@ async def get_current_task() -> TaskInfo:
     return TaskInfo(id(task), parent_id, task.name, task.coro)
 
 
-async def get_running_tasks() -> List[TaskInfo]:
+def get_running_tasks() -> List[TaskInfo]:
     root_task = trio_lowlevel.current_root_task()
     task_infos = [TaskInfo(id(root_task), None, root_task.name, root_task.coro)]
     nurseries = root_task.child_nurseries
