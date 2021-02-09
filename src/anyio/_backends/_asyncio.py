@@ -5,6 +5,7 @@ import socket
 import sys
 from collections import OrderedDict, deque
 from concurrent.futures import Future
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import wraps
 from inspect import isgenerator
@@ -29,9 +30,7 @@ from ..abc import IPSockAddrType, UDPPacketType
 if sys.version_info >= (3, 7):
     from asyncio import all_tasks, create_task, current_task, get_running_loop
     from asyncio import run as native_run
-    from contextlib import asynccontextmanager
 else:
-    from async_generator import asynccontextmanager
 
     _T = TypeVar('_T')
 
@@ -1216,25 +1215,35 @@ _default_thread_limiter = CapacityLimiter(40)
 # Operating system signals
 #
 
-@asynccontextmanager
-async def open_signal_receiver(*signals: int):
-    async def process_signal_queue():
-        while True:
-            signum = await queue.get()
-            yield signum
+class _SignalReceiver:
+    def __init__(self):
+        self._signal_queue: Deque[int] = deque()
+        self._future = asyncio.Future()
 
+    def _deliver(self, signum: int) -> None:
+        self._signal_queue.append(signum)
+        self._future.set_result(None)
+
+    async def __anext__(self) -> int:
+        if not self._signal_queue:
+            self._future = asyncio.Future()
+            await self._future
+
+        return self._signal_queue.popleft()
+
+
+@contextmanager
+def open_signal_receiver(*signals: int) -> Generator[_SignalReceiver, Any, None]:
     loop = get_running_loop()
-    queue = asyncio.Queue()  # type: asyncio.Queue[int]
+    receiver = _SignalReceiver()
     handled_signals = set()
-    agen = process_signal_queue()
     try:
         for sig in set(signals):
-            loop.add_signal_handler(sig, queue.put_nowait, sig)
+            loop.add_signal_handler(sig, receiver._deliver, sig)
             handled_signals.add(sig)
 
-        yield agen
+        yield receiver
     finally:
-        await agen.aclose()
         for sig in handled_signals:
             loop.remove_signal_handler(sig)
 

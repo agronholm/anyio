@@ -1,5 +1,4 @@
 import socket
-import sys
 from concurrent.futures import Future
 from dataclasses import dataclass
 from types import TracebackType
@@ -26,11 +25,6 @@ except ImportError:
     from trio.hazmat import wait_readable, wait_writable
 else:
     from trio.lowlevel import wait_readable, wait_writable
-
-if sys.version_info >= (3, 7):
-    from contextlib import asynccontextmanager
-else:
-    from async_generator import asynccontextmanager
 
 T_Retval = TypeVar('T_Retval')
 T_SockAddr = TypeVar('T_SockAddr', str, IPSockAddrType)
@@ -441,10 +435,7 @@ def current_default_thread_limiter():
 # Signal handling
 #
 
-@asynccontextmanager
-async def open_signal_receiver(*signals: int):
-    with trio.open_signal_receiver(*signals) as cm:
-        yield cm
+open_signal_receiver = trio.open_signal_receiver
 
 
 #

@@ -22,6 +22,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``Lock.release()``
   * ``MemoryObjectReceiveStream.receive_nowait()``
   * ``MemoryObjectSendStream.send_nowait()``
+  * ``open_signal_receiver()``
   * ``Semaphore.release()``
   * ``TaskGroup.spawn()``
 - **BACKWARDS INCOMPATIBLE** The following functions now return synchronous context managers
