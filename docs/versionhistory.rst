@@ -44,6 +44,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Dropped Curio as a backend (see the :doc:`FAQ <faq>` as for why)
 - Added the ``run_sync_from_thread()`` function
 - Added the ``max_value`` property to ``Semaphore``
+- Added the ``Lock.acquire_nowait()``, ``Condition.acquire_nowait()`` and
+  ``Semaphore.acquire_nowait()`` methods
+- ``Lock`` and ``Condition`` can now only be released by the task that acquired them. This behavior
+  is now consistent on all backends whereas previously only Trio enforced this.
 - Fixed ``TLSStream.send_eof()`` raising ``ValueError`` instead of the expected
   ``NotImplementedError``
 

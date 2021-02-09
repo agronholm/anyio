@@ -414,16 +414,10 @@ async def wait_socket_writable(sock):
 # Synchronization
 #
 
-abc.Lock.register(trio.Lock)
 abc.Event.register(trio.Event)
-abc.Condition.register(trio.Condition)
-abc.Semaphore.register(trio.Semaphore)
 abc.CapacityLimiter.register(trio.CapacityLimiter)
 
-Lock = trio.Lock
 Event = trio.Event
-Condition = trio.Condition
-Semaphore = trio.Semaphore
 CapacityLimiter = trio.CapacityLimiter
 
 
