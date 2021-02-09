@@ -54,13 +54,13 @@ signal handler::
                 else:
                     print('Terminated!')
 
-                await scope.cancel()
+                scope.cancel()
                 return
 
 
     async def main():
         async with create_task_group() as tg:
-            await tg.spawn(signal_handler, tg.cancel_scope)
+            tg.spawn(signal_handler, tg.cancel_scope)
             ...  # proceed with starting the actual application logic
 
     run(main)
