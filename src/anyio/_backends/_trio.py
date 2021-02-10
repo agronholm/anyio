@@ -3,7 +3,7 @@ from concurrent.futures import Future
 from dataclasses import dataclass
 from types import TracebackType
 from typing import (
-    Awaitable, Callable, Generic, List, NoReturn, Optional, Tuple, Type, TypeVar, Union)
+    Awaitable, Callable, Coroutine, Generic, List, NoReturn, Optional, Tuple, Type, TypeVar, Union)
 
 import trio.from_thread
 from outcome import Error, Value
@@ -93,10 +93,16 @@ class TaskGroup(abc.TaskGroup):
 
         self._nursery.start_soon(func, *args, name=name)
 
+    async def start(self, func: Callable[..., Coroutine], *args, name=None):
+        if not self._active:
+            raise RuntimeError('This task group is not active; no new tasks can be spawned.')
+
+        return await self._nursery.start(func, *args, name=name)
 
 #
 # Threads
 #
+
 
 async def run_sync_in_worker_thread(
         func: Callable[..., T_Retval], *args, cancellable: bool = False,

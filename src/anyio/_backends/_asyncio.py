@@ -378,6 +378,16 @@ class ExceptionGroup(BaseExceptionGroup):
         self.exceptions = exceptions
 
 
+class TaskStatus:
+    __slots__ = '_future'
+
+    def __init__(self, future: asyncio.Future):
+        self._future = future
+
+    def started(self, value=None) -> None:
+        self._future.set_result(value)
+
+
 class TaskGroup(abc.TaskGroup):
     __slots__ = 'cancel_scope', '_active', '_exceptions'
 
@@ -441,31 +451,71 @@ class TaskGroup(abc.TaskGroup):
 
         return filtered_exceptions
 
-    async def _run_wrapped_task(self, func: Callable[..., Coroutine], args: tuple) -> None:
-        task = cast(asyncio.Task, current_task())
-        try:
-            await func(*args)
-        except BaseException as exc:
-            self._exceptions.append(exc)
-            self.cancel_scope.cancel()
-        finally:
-            self.cancel_scope._tasks.remove(task)
-            del _task_states[task]  # type: ignore
-
-    def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
-        if not self._active:
-            raise RuntimeError('This task group is not active; no new tasks can be spawned.')
-
-        name = name or get_callable_name(func)
-        if _native_task_names is None:
-            task = create_task(self._run_wrapped_task(func, args), name=name)  # type: ignore
-        else:
-            task = create_task(self._run_wrapped_task(func, args))
-
+    def _task_started(self, task: asyncio.Task, name) -> None:
         # Make the spawned task inherit the task group's cancel scope
         _task_states[task] = TaskState(parent_id=id(current_task()), name=name,
                                        cancel_scope=self.cancel_scope)
         self.cancel_scope._tasks.add(task)
+
+    async def _run_wrapped_task(
+            self, func: Callable[..., Coroutine], args: tuple,
+            task_status_future: Optional[asyncio.Future]) -> None:
+        # This ugly hack is required because ExceptionGroup inherits directly from BaseException
+        # and asyncio before v3.8 cannot deal with tasks raising BaseExceptions.
+        kwargs = {}
+        if task_status_future:
+            kwargs['task_status'] = TaskStatus(task_status_future)
+
+        task = cast(asyncio.Task, current_task())
+        try:
+            await func(*args, **kwargs)
+        except BaseException as exc:
+            if task_status_future is None or task_status_future.done():
+                self._exceptions.append(exc)
+                self.cancel_scope.cancel()
+            else:
+                task_status_future.set_exception(exc)
+        finally:
+            if task in self.cancel_scope._tasks:
+                self.cancel_scope._tasks.remove(task)
+                del _task_states[task]
+
+    def _spawn(self, func: Callable[..., Coroutine], args: tuple, name,
+               task_status_future: Optional[asyncio.Future] = None) -> asyncio.Task:
+        if not self._active:
+            raise RuntimeError('This task group is not active; no new tasks can be spawned.')
+
+        options = {}
+        if _native_task_names:
+            options['name'] = name
+
+        kwargs = {}
+        if task_status_future:
+            kwargs['task_status_future'] = task_status_future
+
+        return create_task(self._run_wrapped_task(func, args, task_status_future), **options)
+
+    def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
+        name = name or get_callable_name(func)
+        task = self._spawn(func, args, name)
+        self._task_started(task, name)
+
+    async def start(self, func: Callable[..., Coroutine], *args, name=None) -> None:
+        name = name or get_callable_name(func)
+        future: asyncio.Future = asyncio.Future()
+        task = self._spawn(func, args, name, future)
+        with CancelScope(shield=True):
+            await asyncio.wait([future, task], return_when=asyncio.FIRST_COMPLETED)
+
+        if future.done():
+            if not task.done() and not future.cancelled() and future.exception() is None:
+                self._task_started(task, name)
+
+            return future.result()
+        elif task.exception():
+            raise cast(BaseException, task.exception())
+        else:
+            raise RuntimeError('Child exited without calling task_status.started()')
 
 
 #
