@@ -63,14 +63,6 @@ One way to do this is to start a new event loop with a portal, using
     from anyio import start_blocking_portal
 
 
-    portal = start_blocking_portal(backend='trio')
-    portal.call(...)
-
-    # At the end of your application, stop the portal
-    portal.stop_from_external_thread()
-
-Or, you can use it as a context manager if that suits your use case::
-
     with start_blocking_portal(backend='trio') as portal:
         portal.call(...)
 

@@ -1,5 +1,7 @@
 import threading
-from typing import Any, Callable, Coroutine, Dict, Optional, TypeVar, cast
+from concurrent.futures import Future
+from contextlib import contextmanager
+from typing import Any, Callable, Coroutine, Dict, Generator, Optional, TypeVar
 
 from ..abc import BlockingPortal, CapacityLimiter
 from ._eventloop import get_asynclib, run, threadlocals
@@ -83,9 +85,10 @@ def create_blocking_portal() -> BlockingPortal:
     return get_asynclib().BlockingPortal()
 
 
+@contextmanager
 def start_blocking_portal(
         backend: str = 'asyncio',
-        backend_options: Optional[Dict[str, Any]] = None) -> BlockingPortal:
+        backend_options: Optional[Dict[str, Any]] = None) -> Generator[BlockingPortal, Any, None]:
     """
     Start a new event loop in a new thread and run a blocking portal in its main task.
 
@@ -93,19 +96,25 @@ def start_blocking_portal(
 
     :param backend: name of the backend
     :param backend_options: backend options
-    :return: a blocking portal object
+    :return: a context manager that yields a blocking portal
 
     """
     async def run_portal():
-        nonlocal portal
-        async with create_blocking_portal() as portal:
-            event.set()
-            await portal.sleep_until_stopped()
+        async with create_blocking_portal() as portal_:
+            future.set_result(portal_)
+            await portal_.sleep_until_stopped()
 
-    portal: Optional[BlockingPortal]
-    event = threading.Event()
+    future: Future[BlockingPortal] = Future()
     kwargs = {'func': run_portal, 'backend': backend, 'backend_options': backend_options}
-    thread = threading.Thread(target=run, kwargs=kwargs)
+    thread = threading.Thread(target=run, kwargs=kwargs, daemon=True)
     thread.start()
-    event.wait()
-    return cast(BlockingPortal, portal)
+    portal = future.result()
+    try:
+        yield portal
+    except BaseException:
+        portal.call(portal.stop, True)
+        raise
+    else:
+        portal.call(portal.stop, False)
+    finally:
+        thread.join()
