@@ -1,4 +1,5 @@
 import logging
+import re
 import ssl
 from dataclasses import dataclass
 from functools import wraps
@@ -157,10 +158,12 @@ class TLSStream(ByteStream):
 
     async def send_eof(self) -> None:
         tls_version = self.extra(TLSAttribute.tls_version)
-        version_tuple = tuple(int(part) for part in tls_version.split('.'))
-        if version_tuple < (1, 3):
-            raise NotImplementedError(f'send_eof() requires at least TLS v1.3; current session '
-                                      f'uses {tls_version}')
+        match = re.match(r'TLSv(\d+)(?:\.(\d+))?', tls_version)
+        if match:
+            major, minor = int(match.group(1)), int(match.group(2) or 0)
+            if (major, minor) < (1, 3):
+                raise NotImplementedError(f'send_eof() requires at least TLSv1.3; current '
+                                          f'session uses {tls_version}')
 
         raise NotImplementedError('send_eof() has not yet been implemented for TLS streams')
 
