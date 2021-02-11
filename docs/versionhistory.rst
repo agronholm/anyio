@@ -9,6 +9,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``anyio.abc`` from now on).
 - Dropped Curio as a backend (see the :doc:`FAQ <faq>` as for why)
 - Added the ``run_sync_from_thread()`` function
+- Fixed ``TLSStream.send_eof()`` raising ``ValueError`` instead of the expected
+  ``NotImplementedError``
 
 **2.1.0**
 
