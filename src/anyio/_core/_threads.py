@@ -1,5 +1,6 @@
-import threading
-from typing import Any, Callable, Coroutine, Dict, Optional, TypeVar, cast
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from contextlib import contextmanager
+from typing import Any, Callable, Coroutine, Dict, Generator, Iterable, Optional, TypeVar, cast
 
 from ..abc import BlockingPortal, CapacityLimiter
 from ._eventloop import get_asynclib, run, threadlocals
@@ -83,9 +84,10 @@ def create_blocking_portal() -> BlockingPortal:
     return get_asynclib().BlockingPortal()
 
 
+@contextmanager
 def start_blocking_portal(
         backend: str = 'asyncio',
-        backend_options: Optional[Dict[str, Any]] = None) -> BlockingPortal:
+        backend_options: Optional[Dict[str, Any]] = None) -> Generator[BlockingPortal, Any, None]:
     """
     Start a new event loop in a new thread and run a blocking portal in its main task.
 
@@ -93,19 +95,37 @@ def start_blocking_portal(
 
     :param backend: name of the backend
     :param backend_options: backend options
-    :return: a blocking portal object
+    :return: a context manager that yields a blocking portal
+
+    .. versionchanged:: 3.0
+        Usage as a context manager is now required.
 
     """
     async def run_portal():
-        nonlocal portal
-        async with create_blocking_portal() as portal:
-            event.set()
-            await portal.sleep_until_stopped()
+        async with create_blocking_portal() as portal_:
+            if future.set_running_or_notify_cancel():
+                future.set_result(portal_)
+                await portal_.sleep_until_stopped()
 
-    portal: Optional[BlockingPortal]
-    event = threading.Event()
-    kwargs = {'func': run_portal, 'backend': backend, 'backend_options': backend_options}
-    thread = threading.Thread(target=run, kwargs=kwargs)
-    thread.start()
-    event.wait()
-    return cast(BlockingPortal, portal)
+    future: Future[BlockingPortal] = Future()
+    with ThreadPoolExecutor(1) as executor:
+        run_future = executor.submit(run, run_portal, backend=backend,
+                                     backend_options=backend_options)
+        try:
+            wait(cast(Iterable[Future], [run_future, future]), return_when=FIRST_COMPLETED)
+        except BaseException:
+            future.cancel()
+            run_future.cancel()
+            raise
+
+        if future.done():
+            portal = future.result()
+            try:
+                yield portal
+            except BaseException:
+                portal.call(portal.stop, True)
+                raise
+
+            portal.call(portal.stop, False)
+
+        run_future.result()
