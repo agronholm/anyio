@@ -75,12 +75,6 @@ class BlockingPortal(metaclass=ABCMeta):
         await self.stop()
         return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.call(self.stop, exc_type is not None)
-
     async def sleep_until_stopped(self) -> None:
         """Sleep until :meth:`stop` is called."""
         await self._stop_event.wait()
@@ -100,18 +94,6 @@ class BlockingPortal(metaclass=ABCMeta):
         self._stop_event.set()
         if cancel_remaining:
             self._task_group.cancel_scope.cancel()
-
-    def stop_from_external_thread(self, cancel_remaining: bool = False) -> None:
-        """
-        Signal the portal to stop and wait for the event loop thread to finish.
-
-        :param cancel_remaining: ``True`` to cancel all the remaining tasks, ``False`` to let them
-            finish before returning
-
-        """
-        thread = self.call(threading.current_thread)
-        self.call(self.stop, cancel_remaining)
-        thread.join()
 
     async def _call_func(self, func: Callable, args: tuple, future: Future) -> None:
         def callback(f: Future):

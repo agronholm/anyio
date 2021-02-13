@@ -296,29 +296,27 @@ class TestBlockingPortal:
             exc = pytest.raises(RuntimeError, portal.call, threading.get_ident)
             exc.match('This method cannot be called from the event loop thread')
 
-    @pytest.mark.parametrize('use_contextmanager', [False, True],
-                             ids=['contextmanager', 'startstop'])
-    def test_start_with_new_event_loop(self, anyio_backend_name, anyio_backend_options,
-                                       use_contextmanager):
+    def test_start_with_new_event_loop(self, anyio_backend_name, anyio_backend_options):
         async def async_get_thread_id():
             return threading.get_ident()
 
-        if use_contextmanager:
-            with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
-                thread_id = portal.call(async_get_thread_id)
-        else:
-            portal = start_blocking_portal(anyio_backend_name, anyio_backend_options)
-            try:
-                thread_id = portal.call(async_get_thread_id)
-            finally:
-                portal.call(portal.stop)
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            thread_id = portal.call(async_get_thread_id)
 
         assert isinstance(thread_id, int)
         assert thread_id != threading.get_ident()
 
+    def test_start_with_nonexistent_backend(self):
+        with pytest.raises(LookupError) as exc:
+            with start_blocking_portal('foo'):
+                pass
+
+        exc.match('No such backend: foo')
+
     def test_call_stopped_portal(self, anyio_backend_name, anyio_backend_options):
-        portal = start_blocking_portal(anyio_backend_name, anyio_backend_options)
-        portal.call(portal.stop)
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            pass
+
         pytest.raises(RuntimeError, portal.call, threading.get_ident).\
             match('This portal is not running')
 

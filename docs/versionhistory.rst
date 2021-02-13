@@ -31,11 +31,16 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``open_cancel_scope()``
   * ``fail_after()``
   * ``move_on_after()``
-
 - **BACKWARDS INCOMPATIBLE** The ``CapacityLimiter.set_total_tokens()`` method has been removed in
   exchange of making the ``total_tokens`` property writable
+- **BACKWARDS INCOMPATIBLE** ``start_blocking_portal()`` must now be used as a context manager (it
+  no longer returns a BlockingPortal, but a context manager that yields one)
+- **BACKWARDS INCOMPATIBLE** Removed the ``BlockingPortal.stop_from_external_thread()`` method
+  (do ``portal.call(portal.stop)`` instead now)
 - Dropped Curio as a backend (see the :doc:`FAQ <faq>` as for why)
 - Added the ``run_sync_from_thread()`` function
+- Fixed ``TLSStream.send_eof()`` raising ``ValueError`` instead of the expected
+  ``NotImplementedError``
 
 **2.1.0**
 
