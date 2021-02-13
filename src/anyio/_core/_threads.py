@@ -124,5 +124,5 @@ def start_blocking_portal(
                 raise
 
             portal.call(portal.stop, False)
-        else:
-            run_future.result()
+
+        run_future.result()
