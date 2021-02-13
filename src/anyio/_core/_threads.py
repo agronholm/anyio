@@ -97,6 +97,9 @@ def start_blocking_portal(
     :param backend_options: backend options
     :return: a context manager that yields a blocking portal
 
+    .. versionchanged:: 3.0
+        Usage as a context manager is now required.
+
     """
     async def run_portal():
         async with create_blocking_portal() as portal_:
