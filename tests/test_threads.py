@@ -306,6 +306,13 @@ class TestBlockingPortal:
         assert isinstance(thread_id, int)
         assert thread_id != threading.get_ident()
 
+    def test_start_with_nonexistent_backend(self):
+        with pytest.raises(LookupError) as exc:
+            with start_blocking_portal('foo'):
+                pass
+
+        exc.match('No such backend: foo')
+
     def test_call_stopped_portal(self, anyio_backend_name, anyio_backend_options):
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
             pass

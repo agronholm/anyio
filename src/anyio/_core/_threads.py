@@ -1,7 +1,6 @@
-import threading
-from concurrent.futures import Future
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import contextmanager
-from typing import Any, Callable, Coroutine, Dict, Generator, Optional, TypeVar
+from typing import Any, Callable, Coroutine, Dict, Generator, Iterable, Optional, TypeVar, cast
 
 from ..abc import BlockingPortal, CapacityLimiter
 from ._eventloop import get_asynclib, run, threadlocals
@@ -101,20 +100,29 @@ def start_blocking_portal(
     """
     async def run_portal():
         async with create_blocking_portal() as portal_:
-            future.set_result(portal_)
-            await portal_.sleep_until_stopped()
+            if future.set_running_or_notify_cancel():
+                future.set_result(portal_)
+                await portal_.sleep_until_stopped()
 
     future: Future[BlockingPortal] = Future()
-    kwargs = {'func': run_portal, 'backend': backend, 'backend_options': backend_options}
-    thread = threading.Thread(target=run, kwargs=kwargs, daemon=True)
-    thread.start()
-    portal = future.result()
-    try:
-        yield portal
-    except BaseException:
-        portal.call(portal.stop, True)
-        raise
-    else:
-        portal.call(portal.stop, False)
-    finally:
-        thread.join()
+    with ThreadPoolExecutor(1) as executor:
+        run_future = executor.submit(run, run_portal, backend=backend,
+                                     backend_options=backend_options)
+        try:
+            wait(cast(Iterable[Future], [run_future, future]), return_when=FIRST_COMPLETED)
+        except BaseException:
+            future.cancel()
+            run_future.cancel()
+            raise
+
+        if future.done():
+            portal = future.result()
+            try:
+                yield portal
+            except BaseException:
+                portal.call(portal.stop, True)
+                raise
+
+            portal.call(portal.stop, False)
+        else:
+            run_future.result()
