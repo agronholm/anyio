@@ -1243,6 +1243,7 @@ async def open_signal_receiver(*signals: int):
     queue = asyncio.Queue()  # type: asyncio.Queue[int]
     handled_signals = set()
     agen = process_signal_queue()
+    await checkpoint()
     try:
         for sig in set(signals):
             loop.add_signal_handler(sig, queue.put_nowait, sig)
