@@ -3,6 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed native task names not being set on asyncio on Python 3.8+
+
 **2.1.0**
 
 - Added the ``spawn_task()`` and ``wrap_async_context_manager()`` methods to ``BlockingPortal``

@@ -476,7 +476,7 @@ class TaskGroup(abc.TaskGroup):
             raise RuntimeError('This task group is not active; no new tasks can be spawned.')
 
         name = name or get_callable_name(func)
-        if _native_task_names is None:
+        if _native_task_names:
             task = create_task(self._run_wrapped_task(func, args), name=name)  # type: ignore
         else:
             task = create_task(self._run_wrapped_task(func, args))
