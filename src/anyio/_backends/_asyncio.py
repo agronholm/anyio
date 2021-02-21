@@ -252,7 +252,6 @@ class CancelScope(abc.CancelScope):
 
     def _cancel(self):
         # Deliver cancellation to directly contained tasks and nested cancel scopes
-        this_task = current_task()
         for task in self._tasks:
             # Cancel the task directly, but only if it's blocked and isn't within a shielded scope
             cancel_scope = _task_states[task].cancel_scope
