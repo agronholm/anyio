@@ -330,14 +330,17 @@ def _cancel_called(task):
     while cancel_scope:
         if cancel_scope.cancel_called:
             return True
+
         if cancel_scope.shield:
             return False
+
         cancel_scope = cancel_scope._parent_scope
 
 
 async def checkpoint():
     if _cancel_called(current_task()):
         raise CancelledError
+
     await asyncio.sleep(0)
 
 
