@@ -582,7 +582,7 @@ async def test_suppress_exception_context():
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
 async def test_cancel_native_future_tasks():
     async def wait_native_future():
-        loop = asyncio.get_running_loop()
+        loop = asyncio.get_event_loop()
         await loop.create_future()
 
     async with anyio.create_task_group() as tg:
