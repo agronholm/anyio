@@ -739,7 +739,7 @@ class StreamProtocol(asyncio.Protocol):
 
     def eof_received(self) -> Optional[bool]:
         self.read_event.set()
-        return None
+        return True
 
     def pause_writing(self) -> None:
         self.write_future = asyncio.Future()
@@ -794,8 +794,7 @@ class SocketStream(abc.SocketStream):
     async def receive(self, max_bytes: int = 65536) -> bytes:
         with self._receive_guard:
             await checkpoint()
-            if not self._protocol.read_queue and not self._transport.is_closing():
-                self._protocol.read_event.clear()
+            if not self._protocol.read_event.is_set() and not self._transport.is_closing():
                 self._transport.resume_reading()
                 await self._protocol.read_event.wait()
                 self._transport.pause_reading()
@@ -814,6 +813,11 @@ class SocketStream(abc.SocketStream):
                 # Split the oversized chunk
                 chunk, leftover = chunk[:max_bytes], chunk[max_bytes:]
                 self._protocol.read_queue.appendleft(leftover)
+
+            # If the read queue is empty, clear the flag so that the next call will block until
+            # data is available
+            if not self._protocol.read_queue:
+                self._protocol.read_event.clear()
 
         return chunk
 
