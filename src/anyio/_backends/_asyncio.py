@@ -250,8 +250,7 @@ class CancelScope(abc.CancelScope):
 
     async def _cancel(self):
         def cancel_soon(task):
-            cancel_scope = _task_states[task].cancel_scope
-            if cancel_scope is self:
+            if _cancel_called(task):
                 task.cancel()
 
         # Deliver cancellation to directly contained tasks and nested cancel scopes
@@ -322,20 +321,23 @@ class CancelScope(abc.CancelScope):
         return self._shield
 
 
-async def checkpoint():
+def _cancel_called(task):
     try:
-        cancel_scope = _task_states[current_task()].cancel_scope
+        cancel_scope = _task_states[task].cancel_scope
     except KeyError:
         cancel_scope = None
 
     while cancel_scope:
         if cancel_scope.cancel_called:
-            raise CancelledError
-        elif cancel_scope.shield:
-            break
-        else:
-            cancel_scope = cancel_scope._parent_scope
+            return True
+        if cancel_scope.shield:
+            return False
+        cancel_scope = cancel_scope._parent_scope
 
+
+async def checkpoint():
+    if _cancel_called(current_task()):
+        raise CancelledError
     await asyncio.sleep(0)
 
 

@@ -590,3 +590,17 @@ def test_cancel_native_future_tasks():
             await tg.cancel_scope.cancel()
 
     anyio.run(cancel_native_future_tasks, backend='asyncio')
+
+
+def test_cancel_native_future_tasks_cancel_scope():
+    async def cancel_native_future_tasks():
+        async def wait_native_future():
+            async with anyio.open_cancel_scope():
+                loop = asyncio.get_running_loop()
+                await loop.create_future()
+
+        async with anyio.create_task_group() as tg:
+            await tg.spawn(wait_native_future)
+            await tg.cancel_scope.cancel()
+
+    anyio.run(cancel_native_future_tasks, backend='asyncio')
