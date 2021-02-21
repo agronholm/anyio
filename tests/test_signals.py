@@ -1,7 +1,6 @@
 import os
 import signal
 import sys
-from typing import AsyncIterator
 
 import pytest
 
@@ -25,7 +24,7 @@ async def test_receive_signals():
             assert await sigiter.__anext__() == signal.SIGUSR2
 
 
-async def test_task_group_cancellation_open() -> None:
+async def test_task_group_cancellation_open():
     async def signal_handler():
         async with open_signal_receiver(signal.SIGUSR1) as sigiter:
             async for v in sigiter:
@@ -38,8 +37,8 @@ async def test_task_group_cancellation_open() -> None:
         await tg.cancel_scope.cancel()
 
 
-async def test_task_group_cancellation_consume() -> None:
-    async def consume(sigiter: AsyncIterator[object]) -> None:
+async def test_task_group_cancellation_consume():
+    async def consume(sigiter):
         async for v in sigiter:
             pytest.fail()
         pytest.fail()
