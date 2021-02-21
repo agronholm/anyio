@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed socket stream bug on asyncio where receiving a half-close from the peer would shut down the
+  entire connection
 - Fixed native task names not being set on asyncio on Python 3.8+
 - Fixed ``TLSStream.send_eof()`` raising ``ValueError`` instead of the expected
   ``NotImplementedError``

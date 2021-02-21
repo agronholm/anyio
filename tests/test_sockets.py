@@ -12,7 +12,7 @@ from anyio import (
     BrokenResourceError, BusyResourceError, ClosedResourceError, ExceptionGroup,
     TypedAttributeLookupError, connect_tcp, connect_unix, create_connected_udp_socket,
     create_event, create_task_group, create_tcp_listener, create_udp_socket, create_unix_listener,
-    getaddrinfo, getnameinfo, move_on_after, wait_all_tasks_blocked)
+    fail_after, getaddrinfo, getnameinfo, move_on_after, sleep, wait_all_tasks_blocked)
 from anyio.abc.sockets import SocketAttribute
 from anyio.streams.stapled import MultiListener
 
@@ -420,6 +420,31 @@ class TestTCPListener:
                 await listener.aclose()
                 await tg.cancel_scope.cancel()
 
+    async def test_send_after_eof(self, family):
+        async def handle(stream):
+            async with stream:
+                await stream.send(b'Hello\n')
+
+        async with await create_tcp_listener(family=family) as multi, create_task_group() as tg:
+            await tg.spawn(multi.serve, handle)
+            await wait_all_tasks_blocked()
+
+            with socket.socket(family) as client:
+                client.connect(multi.extra(SocketAttribute.local_address))
+                client.shutdown(socket.SHUT_WR)
+                client.setblocking(False)
+                async with fail_after(1):
+                    while True:
+                        try:
+                            message = client.recv(10)
+                        except BlockingIOError:
+                            await sleep(0)
+                        else:
+                            assert message == b'Hello\n'
+                            break
+
+            await tg.cancel_scope.cancel()
+
 
 @pytest.mark.skipif(sys.platform == 'win32',
                     reason='UNIX sockets are not available on Windows')
@@ -619,6 +644,31 @@ class TestUNIXListener:
                 assert stream.extra(SocketAttribute.family) == listener_socket.family
 
             client.close()
+
+    async def test_send_after_eof(self, socket_path):
+        async def handle(stream):
+            async with stream:
+                await stream.send(b'Hello\n')
+
+        async with await create_unix_listener(socket_path) as listener, create_task_group() as tg:
+            await tg.spawn(listener.serve, handle)
+            await wait_all_tasks_blocked()
+
+            with socket.socket(socket.AF_UNIX) as client:
+                client.connect(str(socket_path))
+                client.shutdown(socket.SHUT_WR)
+                client.setblocking(False)
+                async with fail_after(1):
+                    while True:
+                        try:
+                            message = client.recv(10)
+                        except BlockingIOError:
+                            await sleep(0)
+                        else:
+                            assert message == b'Hello\n'
+                            break
+
+            await tg.cancel_scope.cancel()
 
 
 async def test_multi_listener(tmp_path_factory):

@@ -690,7 +690,7 @@ class StreamProtocol(asyncio.Protocol):
 
     def eof_received(self) -> Optional[bool]:
         self.read_event.set()
-        return None
+        return True
 
     def pause_writing(self) -> None:
         self.write_future = asyncio.Future()
