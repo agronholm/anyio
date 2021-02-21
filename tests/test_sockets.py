@@ -425,7 +425,8 @@ class TestTCPListener:
             async with stream:
                 await stream.send(b'Hello\n')
 
-        async with await create_tcp_listener(family=family) as multi, create_task_group() as tg:
+        multi = await create_tcp_listener(family=family, local_host='localhost')
+        async with multi, create_task_group() as tg:
             await tg.spawn(multi.serve, handle)
             await wait_all_tasks_blocked()
 
