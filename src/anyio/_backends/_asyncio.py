@@ -321,7 +321,7 @@ class CancelScope(abc.CancelScope):
         return self._shield
 
 
-def _cancel_called(task):
+def _cancel_called(task: asyncio.Task) -> bool:
     try:
         cancel_scope = _task_states[task].cancel_scope
     except KeyError:
