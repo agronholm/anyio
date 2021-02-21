@@ -577,3 +577,16 @@ async def test_suppress_exception_context():
                 raise ValueError
 
     assert exc.value.__context__ is None
+
+
+def test_cancel_native_future_tasks():
+    async def cancel_native_future_tasks():
+        async def wait_native_future():
+            loop = asyncio.get_running_loop()
+            await loop.create_future()
+
+        async with anyio.create_task_group() as tg:
+            await tg.spawn(wait_native_future)
+            await tg.cancel_scope.cancel()
+
+    anyio.run(cancel_native_future_tasks, backend='asyncio')

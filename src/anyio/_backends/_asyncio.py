@@ -249,6 +249,11 @@ class CancelScope(abc.CancelScope):
         return None
 
     async def _cancel(self):
+        def cancel_soon(task):
+            cancel_scope = _task_states[task].cancel_scope
+            if cancel_scope is self:
+                task.cancel()
+
         # Deliver cancellation to directly contained tasks and nested cancel scopes
         this_task = current_task()
         for task in self._tasks:
@@ -268,6 +273,9 @@ class CancelScope(abc.CancelScope):
 
                 if awaitable is not None:
                     task.cancel()
+                else:
+                    get_running_loop().call_soon(cancel_soon, task)
+
             elif not cancel_scope._shielded_to(self):
                 await cancel_scope._cancel()
 
