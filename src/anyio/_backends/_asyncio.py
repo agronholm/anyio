@@ -336,6 +336,8 @@ def _cancel_called(task: asyncio.Task) -> bool:
 
         cancel_scope = cancel_scope._parent_scope
 
+    return False
+
 
 async def checkpoint():
     if _cancel_called(current_task()):
