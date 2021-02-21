@@ -165,7 +165,6 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False, use_uvloop: b
 #
 
 async def sleep(delay: float) -> None:
-    await checkpoint()
     await asyncio.sleep(delay)
 
 
@@ -191,11 +190,15 @@ class CancelScope(abc.CancelScope):
         self._host_task: Optional[asyncio.Task] = None
         self._timeout_expired = False
 
+    def _timeout(self):
+        self._timeout_expired = True
+        self._cancel_called = True
+        self._cancel()
+
     async def __aenter__(self):
         async def timeout():
             await asyncio.sleep(self._deadline - get_running_loop().time())
-            self._timeout_expired = True
-            await self.cancel()
+            self._timeout()
 
         if self._active:
             raise RuntimeError(
@@ -216,8 +219,7 @@ class CancelScope(abc.CancelScope):
 
         if self._deadline != math.inf:
             if get_running_loop().time() >= self._deadline:
-                self._cancel_called = True
-                self._timeout_expired = True
+                self._timeout()
             else:
                 self._timeout_task = get_running_loop().create_task(timeout())
 
@@ -248,11 +250,7 @@ class CancelScope(abc.CancelScope):
 
         return None
 
-    async def _cancel(self):
-        def cancel_soon(task):
-            if _cancel_called(task):
-                task.cancel()
-
+    def _cancel(self):
         # Deliver cancellation to directly contained tasks and nested cancel scopes
         this_task = current_task()
         for task in self._tasks:
@@ -260,8 +258,8 @@ class CancelScope(abc.CancelScope):
             cancel_scope = _task_states[task].cancel_scope
             if cancel_scope is self:
                 # Only deliver the cancellation if the task is already running (but not this task!)
-                if task is this_task:
-                    continue
+                # if task is this_task:
+                #     continue
 
                 if isgenerator(task._coro):  # type: ignore
                     awaitable = task._coro.gi_yieldfrom
@@ -273,10 +271,10 @@ class CancelScope(abc.CancelScope):
                 if awaitable is not None:
                     task.cancel()
                 else:
-                    get_running_loop().call_soon(cancel_soon, task)
+                    create_task(_cancel_soon(task))
 
             elif not cancel_scope._shielded_to(self):
-                await cancel_scope._cancel()
+                cancel_scope._cancel()
 
     def _shielded_to(self, parent: Optional['CancelScope']) -> bool:
         # Check whether this task or any parent up to (but not including) the "parent" argument is
@@ -306,7 +304,7 @@ class CancelScope(abc.CancelScope):
             return
 
         self._cancel_called = True
-        await self._cancel()
+        self._cancel()
 
     @property
     def deadline(self) -> float:
@@ -322,10 +320,7 @@ class CancelScope(abc.CancelScope):
 
 
 def _cancel_called(task: asyncio.Task) -> bool:
-    try:
-        cancel_scope = _task_states[task].cancel_scope
-    except KeyError:
-        cancel_scope = None
+    cancel_scope = _task_states[task].cancel_scope
 
     while cancel_scope:
         if cancel_scope.cancel_called:
@@ -339,10 +334,12 @@ def _cancel_called(task: asyncio.Task) -> bool:
     return False
 
 
-async def checkpoint():
-    if _cancel_called(current_task()):
-        raise CancelledError
+async def _cancel_soon(task: asyncio.Task) -> None:
+    if _cancel_called(task):
+        task.cancel()
 
+
+async def checkpoint():
     await asyncio.sleep(0)
 
 
@@ -500,6 +497,8 @@ class TaskGroup(abc.TaskGroup):
         _task_states[task] = TaskState(parent_id=id(current_task()), name=name,
                                        cancel_scope=self.cancel_scope)
         self.cancel_scope._tasks.add(task)
+        if self.cancel_scope._cancel_called:
+            create_task(_cancel_soon(task))
 
 
 #
