@@ -973,6 +973,7 @@ async def _iterate_signals(queue: curio.UniversalQueue):
 @asynccontextmanager
 async def open_signal_receiver(*signals: int):
     queue = curio.UniversalQueue()
+    await checkpoint()
     try:
         for sig in signals:
             _signal_queues[sig].append(queue)

@@ -10,8 +10,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed native task names not being set on asyncio on Python 3.8+
 - Fixed ``TLSStream.send_eof()`` raising ``ValueError`` instead of the expected
   ``NotImplementedError``
-- Fixed ``open_signal_receiver()`` on asyncio hanging if the cancel scope was cancelled before the
-  function could run
+- Fixed ``open_signal_receiver()`` on asyncio and curio hanging if the cancel scope was cancelled
+  before the function could run
 
 **2.1.0**
 
