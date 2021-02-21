@@ -41,8 +41,7 @@ async def test_task_group_cancellation_consume() -> None:
             assert False
         assert False
 
-    async def amain():
-        async with open_signal_receiver(signal.SIGUSR1) as sigiter:
-            async with create_task_group() as tg:
-                await tg.spawn(consume, sigiter)
-                await tg.cancel_scope.cancel()
+    async with open_signal_receiver(signal.SIGUSR1) as sigiter:
+        async with create_task_group() as tg:
+            await tg.spawn(consume, sigiter)
+            await tg.cancel_scope.cancel()
