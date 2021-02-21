@@ -1236,6 +1236,7 @@ _default_thread_limiter = CapacityLimiter(40)
 async def open_signal_receiver(*signals: int):
     async def process_signal_queue():
         while True:
+            await checkpoint()
             signum = await queue.get()
             yield signum
 
