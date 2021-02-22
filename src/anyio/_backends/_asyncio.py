@@ -267,7 +267,7 @@ class CancelScope(abc.CancelScope):
                 if awaitable is not None:
                     task.cancel()
                 else:
-                    create_task(_cancel_soon(task))
+                    get_running_loop().call_soon(_cancel_soon, task)
 
             elif not cancel_scope._shielded_to(self):
                 cancel_scope._cancel()
@@ -330,7 +330,7 @@ def _cancel_called(task: asyncio.Task) -> bool:
     return False
 
 
-async def _cancel_soon(task: asyncio.Task) -> None:
+def _cancel_soon(task: asyncio.Task) -> None:
     if _cancel_called(task):
         task.cancel()
 
@@ -494,7 +494,7 @@ class TaskGroup(abc.TaskGroup):
                                        cancel_scope=self.cancel_scope)
         self.cancel_scope._tasks.add(task)
         if self.cancel_scope._cancel_called:
-            create_task(_cancel_soon(task))
+            get_running_loop().call_soon(_cancel_soon, task)
 
 
 #
