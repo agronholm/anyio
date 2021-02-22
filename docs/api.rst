@@ -146,6 +146,12 @@ Operating system signals
 
 .. autofunction:: anyio.open_signal_receiver
 
+Compatibility
+-------------
+
+.. autofunction:: anyio.maybe_async
+.. autofunction:: anyio.maybe_async_cm
+
 Testing and debugging
 ---------------------
 
