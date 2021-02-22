@@ -25,7 +25,7 @@ async def maybe_async(__obj):
 
     :return: the result of awaiting on the object if coroutine, or the object itself otherwise
 
-    .. versionadded:: 2.1
+    .. versionadded:: 2.2
 
     """
     if iscoroutine(__obj):
@@ -55,7 +55,7 @@ def maybe_async_cm(cm: Union[ContextManager[T], AsyncContextManager[T]]) -> Asyn
     :param cm: a regular or async context manager
     :return: an async context manager
 
-    .. versionadded:: 2.1
+    .. versionadded:: 2.2
 
     """
     if hasattr(cm, '__aenter__') and hasattr(cm, '__aexit__'):
