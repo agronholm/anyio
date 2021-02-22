@@ -600,3 +600,26 @@ async def test_cancel_native_future_tasks_cancel_scope():
     async with anyio.create_task_group() as tg:
         tg.spawn(wait_native_future)
         tg.cancel_scope.cancel()
+
+
+@pytest.mark.parametrize('anyio_backend', ['asyncio'])
+async def test_cancel_completed_task():
+    loop = asyncio.get_event_loop()
+    old_exception_handler = loop.get_exception_handler()
+    exceptions = []
+
+    def exception_handler(*args, **kwargs):
+        exceptions.append((args, kwargs))
+
+    loop.set_exception_handler(exception_handler)
+    try:
+        async def noop():
+            pass
+
+        async with anyio.create_task_group() as tg:
+            tg.spawn(noop)
+            tg.cancel_scope.cancel()
+
+        assert exceptions == []
+    finally:
+        loop.set_exception_handler(old_exception_handler)
