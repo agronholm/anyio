@@ -1,6 +1,7 @@
 from asyncio import iscoroutine
 from contextlib import AbstractContextManager
-from typing import Any, AsyncContextManager, ContextManager, Coroutine, TypeVar, Union, overload
+from typing import (
+    Any, AsyncContextManager, ContextManager, Coroutine, Optional, TypeVar, Union, cast, overload)
 
 T = TypeVar('T')
 
@@ -40,7 +41,7 @@ class _ContextManagerWrapper:
     async def __aenter__(self) -> T:
         return self._cm.__enter__()
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> bool:
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> Optional[bool]:
         return self._cm.__exit__(exc_type, exc_val, exc_tb)
 
 
@@ -58,7 +59,7 @@ def maybe_async_cm(cm: Union[ContextManager[T], AsyncContextManager[T]]) -> Asyn
 
     """
     if hasattr(cm, '__aenter__') and hasattr(cm, '__aexit__'):
-        return cm
+        return cast(AsyncContextManager[T], cm)
     elif isinstance(cm, AbstractContextManager):
         return _ContextManagerWrapper(cm)
 
