@@ -105,7 +105,7 @@ class SocketListener(Generic[T_SockAddr], Listener[SocketStream[T_SockAddr]],
         async with context_manager:
             while True:
                 stream = await self.accept()
-                await task_group.spawn(handler, stream)
+                task_group.spawn(handler, stream)
 
 
 class UDPSocket(UnreliableObjectStream[UDPPacketType], _SocketProvider[IPSockAddrType]):

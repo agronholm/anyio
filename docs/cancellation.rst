@@ -39,7 +39,7 @@ Here's how you typically use timeouts::
 
     async def main():
         async with create_task_group() as tg:
-            async with move_on_after(1) as scope:
+            with move_on_after(1) as scope:
                 print('Starting sleep')
                 await sleep(2)
                 print('This should never be printed')
@@ -68,9 +68,9 @@ To accomplish this, open a new cancel scope with the ``shield=True`` argument::
 
     async def main():
         async with create_task_group() as tg:
-            async with open_cancel_scope(shield=True) as scope:
-                await tg.spawn(external_task)
-                await tg.cancel_scope.cancel()
+            with open_cancel_scope(shield=True) as scope:
+                tg.spawn(external_task)
+                tg.cancel_scope.cancel()
                 print('Started sleeping in the host task')
                 await sleep(1)
                 print('Finished sleeping in the host task')

@@ -16,25 +16,25 @@ pytestmark = [
 
 
 async def test_receive_signals():
-    async with open_signal_receiver(signal.SIGUSR1, signal.SIGUSR2) as sigiter:
+    with open_signal_receiver(signal.SIGUSR1, signal.SIGUSR2) as sigiter:
         await run_sync_in_worker_thread(os.kill, os.getpid(), signal.SIGUSR1)
         await run_sync_in_worker_thread(os.kill, os.getpid(), signal.SIGUSR2)
-        async with fail_after(1):
+        with fail_after(1):
             assert await sigiter.__anext__() == signal.SIGUSR1
             assert await sigiter.__anext__() == signal.SIGUSR2
 
 
 async def test_task_group_cancellation_open():
     async def signal_handler():
-        async with open_signal_receiver(signal.SIGUSR1) as sigiter:
+        with open_signal_receiver(signal.SIGUSR1) as sigiter:
             async for v in sigiter:
                 pytest.fail()
             pytest.fail()
         pytest.fail()
 
     async with create_task_group() as tg:
-        await tg.spawn(signal_handler)
-        await tg.cancel_scope.cancel()
+        tg.spawn(signal_handler)
+        tg.cancel_scope.cancel()
 
 
 async def test_task_group_cancellation_consume():
@@ -43,7 +43,7 @@ async def test_task_group_cancellation_consume():
             pytest.fail()
         pytest.fail()
 
-    async with open_signal_receiver(signal.SIGUSR1) as sigiter:
+    with open_signal_receiver(signal.SIGUSR1) as sigiter:
         async with create_task_group() as tg:
-            await tg.spawn(consume, sigiter)
-            await tg.cancel_scope.cancel()
+            tg.spawn(consume, sigiter)
+            tg.cancel_scope.cancel()

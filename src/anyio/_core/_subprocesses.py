@@ -37,9 +37,9 @@ async def run_process(command: Union[str, Sequence[str]], *, input: Optional[byt
         try:
             async with create_task_group() as tg:
                 if process.stdout:
-                    await tg.spawn(drain_stream, process.stdout, 0)
+                    tg.spawn(drain_stream, process.stdout, 0)
                 if process.stderr:
-                    await tg.spawn(drain_stream, process.stderr, 1)
+                    tg.spawn(drain_stream, process.stderr, 1)
                 if process.stdin and input:
                     await process.stdin.send(input)
                     await process.stdin.aclose()

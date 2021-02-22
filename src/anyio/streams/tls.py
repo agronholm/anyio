@@ -239,7 +239,7 @@ class TLSListener(Listener[TLSStream]):
         async def handler_wrapper(stream: AnyByteStream):
             from .. import fail_after
             try:
-                async with fail_after(self.handshake_timeout):
+                with fail_after(self.handshake_timeout):
                     wrapped_stream = await TLSStream.wrap(
                         stream, ssl_context=self.ssl_context,
                         standard_compatible=self.standard_compatible)

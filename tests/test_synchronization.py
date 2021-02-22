@@ -20,7 +20,7 @@ class TestLock:
         lock = create_lock()
         async with create_task_group() as tg:
             async with lock:
-                await tg.spawn(task)
+                tg.spawn(task)
                 await wait_all_tasks_blocked()
                 results.append('1')
 
@@ -34,18 +34,18 @@ class TestLock:
             try:
                 results.append('2')
             finally:
-                await lock.release()
+                lock.release()
 
         results = []
         lock = create_lock()
         async with create_task_group() as tg:
             await lock.acquire()
             try:
-                await tg.spawn(task)
+                tg.spawn(task)
                 await wait_all_tasks_blocked()
                 results.append('1')
             finally:
-                await lock.release()
+                lock.release()
 
         assert not lock.locked()
         assert results == ['1', '2']
@@ -61,8 +61,8 @@ class TestLock:
         lock = create_lock()
         async with create_task_group() as tg:
             async with lock:
-                await tg.spawn(task)
-                await tg.cancel_scope.cancel()
+                tg.spawn(task)
+                tg.cancel_scope.cancel()
 
         assert task_started
         assert not got_lock
@@ -72,11 +72,11 @@ class TestEvent:
     async def test_event(self):
         async def setter():
             assert not event.is_set()
-            await event.set()
+            event.set()
 
         event = create_event()
         async with create_task_group() as tg:
-            await tg.spawn(setter)
+            tg.spawn(setter)
             await event.wait()
 
         assert event.is_set()
@@ -91,9 +91,9 @@ class TestEvent:
         task_started = event_set = False
         event = create_event()
         async with create_task_group() as tg:
-            await tg.spawn(task)
-            await tg.cancel_scope.cancel()
-            await event.set()
+            tg.spawn(task)
+            tg.cancel_scope.cancel()
+            event.set()
 
         assert task_started
         assert not event_set
@@ -103,39 +103,39 @@ class TestCondition:
     async def test_contextmanager(self):
         async def notifier():
             async with condition:
-                await condition.notify_all()
+                condition.notify_all()
 
         condition = create_condition()
         async with create_task_group() as tg:
             async with condition:
                 assert condition.locked()
-                await tg.spawn(notifier)
+                tg.spawn(notifier)
                 await condition.wait()
 
     async def test_manual_acquire(self):
         async def notifier():
             await condition.acquire()
             try:
-                await condition.notify_all()
+                condition.notify_all()
             finally:
-                await condition.release()
+                condition.release()
 
         condition = create_condition()
         async with create_task_group() as tg:
             await condition.acquire()
             try:
                 assert condition.locked()
-                await tg.spawn(notifier)
+                tg.spawn(notifier)
                 await condition.wait()
             finally:
-                await condition.release()
+                condition.release()
 
     async def test_wait_cancel(self):
         async def task():
             nonlocal task_started, notified
             task_started = True
             async with condition:
-                await event.set()
+                event.set()
                 await condition.wait()
                 notified = True
 
@@ -143,10 +143,10 @@ class TestCondition:
         event = create_event()
         condition = create_condition()
         async with create_task_group() as tg:
-            await tg.spawn(task)
+            tg.spawn(task)
             await event.wait()
             await wait_all_tasks_blocked()
-            await tg.cancel_scope.cancel()
+            tg.cancel_scope.cancel()
 
         assert task_started
         assert not notified
@@ -160,8 +160,8 @@ class TestSemaphore:
 
         semaphore = create_semaphore(2)
         async with create_task_group() as tg:
-            await tg.spawn(acquire, name='task 1')
-            await tg.spawn(acquire, name='task 2')
+            tg.spawn(acquire, name='task 1')
+            tg.spawn(acquire, name='task 2')
 
         assert semaphore.value == 2
 
@@ -171,28 +171,29 @@ class TestSemaphore:
             try:
                 assert semaphore.value in (0, 1)
             finally:
-                await semaphore.release()
+                semaphore.release()
 
         semaphore = create_semaphore(2)
         async with create_task_group() as tg:
-            await tg.spawn(acquire, name='task 1')
-            await tg.spawn(acquire, name='task 2')
+            tg.spawn(acquire, name='task 1')
+            tg.spawn(acquire, name='task 2')
 
         assert semaphore.value == 2
 
     async def test_acquire_cancel(self):
         async def task():
             nonlocal local_scope, acquired
-            async with open_cancel_scope() as local_scope, semaphore:
-                acquired = True
+            with open_cancel_scope() as local_scope:
+                async with semaphore:
+                    acquired = True
 
         local_scope = acquired = None
         semaphore = create_semaphore(1)
         async with create_task_group() as tg:
             async with semaphore:
-                await tg.spawn(task)
+                tg.spawn(task)
                 await wait_all_tasks_blocked()
-                await local_scope.cancel()
+                local_scope.cancel()
 
         assert not acquired
 
@@ -230,7 +231,7 @@ class TestCapacityLimiter:
         limiter = create_capacity_limiter(1)
         async with create_task_group() as tg:
             for _ in range(3):
-                await tg.spawn(taskfunc)
+                tg.spawn(taskfunc)
 
     async def test_borrow_twice(self):
         limiter = create_capacity_limiter(1)
@@ -243,7 +244,7 @@ class TestCapacityLimiter:
     async def test_bad_release(self):
         limiter = create_capacity_limiter(1)
         with pytest.raises(RuntimeError) as exc:
-            await limiter.release()
+            limiter.release()
 
         exc.match("this borrower isn't holding any of this CapacityLimiter's tokens")
 
@@ -253,22 +254,22 @@ class TestCapacityLimiter:
             await event1.wait()
             async with limiter:
                 # This can only happen when total_tokens has been increased
-                await event2.set()
+                event2.set()
 
         async def waiter():
             async with limiter:
-                await event1.set()
+                event1.set()
                 await event2.wait()
 
         limiter = create_capacity_limiter(1)
         event1, event2 = create_event(), create_event()
         async with create_task_group() as tg:
-            await tg.spawn(setter)
-            await tg.spawn(waiter)
+            tg.spawn(setter)
+            tg.spawn(waiter)
             await wait_all_tasks_blocked()
             assert event1.is_set()
             assert not event2.is_set()
-            await limiter.set_total_tokens(2)
+            limiter.total_tokens = 2
 
         assert event2.is_set()
 
