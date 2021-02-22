@@ -586,17 +586,17 @@ async def test_cancel_native_future_tasks():
         await loop.create_future()
 
     async with anyio.create_task_group() as tg:
-        await tg.spawn(wait_native_future)
-        await tg.cancel_scope.cancel()
+        tg.spawn(wait_native_future)
+        tg.cancel_scope.cancel()
 
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
 async def test_cancel_native_future_tasks_cancel_scope():
     async def wait_native_future():
-        async with anyio.open_cancel_scope():
+        with anyio.open_cancel_scope():
             loop = asyncio.get_event_loop()
             await loop.create_future()
 
     async with anyio.create_task_group() as tg:
-        await tg.spawn(wait_native_future)
-        await tg.cancel_scope.cancel()
+        tg.spawn(wait_native_future)
+        tg.cancel_scope.cancel()
