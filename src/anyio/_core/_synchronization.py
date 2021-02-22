@@ -1,3 +1,5 @@
+from typing import Optional
+
 from ..abc import CapacityLimiter, Condition, Event, Lock, Semaphore
 from ._eventloop import get_asynclib
 from ._exceptions import BusyResourceError
@@ -34,15 +36,17 @@ def create_event() -> Event:
     return get_asynclib().Event()
 
 
-def create_semaphore(value: int) -> Semaphore:
+def create_semaphore(value: int, *, max_value: Optional[int] = None) -> Semaphore:
     """
     Create an asynchronous semaphore.
 
     :param value: the semaphore's initial value
+    :param max_value: if set, makes this a "bounded" semaphore that raises :exc:`ValueError` if the
+        semaphore's value would exceed this number
     :return: a semaphore object
 
     """
-    return get_asynclib().Semaphore(value)
+    return get_asynclib().Semaphore(value, max_value=max_value)
 
 
 def create_capacity_limiter(total_tokens: float) -> CapacityLimiter:
