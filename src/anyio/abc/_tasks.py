@@ -16,7 +16,7 @@ class TaskGroup(metaclass=ABCMeta):
     cancel_scope: 'CancelScope'
 
     @abstractmethod
-    async def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
+    def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
         """
         Launch a new task in this task group.
 
@@ -38,7 +38,7 @@ class TaskGroup(metaclass=ABCMeta):
 
 class CancelScope(metaclass=ABCMeta):
     @abstractmethod
-    async def cancel(self) -> None:
+    def cancel(self) -> None:
         """Cancel this scope immediately."""
 
     @property
@@ -65,11 +65,11 @@ class CancelScope(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    async def __aenter__(self):
+    def __enter__(self):
         pass
 
     @abstractmethod
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    def __exit__(self, exc_type: Optional[Type[BaseException]],
+                 exc_val: Optional[BaseException],
+                 exc_tb: Optional[TracebackType]) -> Optional[bool]:
         pass

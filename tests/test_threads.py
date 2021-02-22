@@ -102,8 +102,8 @@ async def test_run_in_thread_cancelled():
 
     state = 0
     async with create_task_group() as tg:
-        await tg.spawn(worker)
-        await tg.cancel_scope.cancel()
+        tg.spawn(worker)
+        tg.cancel_scope.cancel()
 
     assert state == 1
 
@@ -134,7 +134,7 @@ async def test_run_in_custom_limiter():
     limiter = create_capacity_limiter(3)
     async with create_task_group() as tg:
         for _ in range(4):
-            await tg.spawn(task_worker)
+            tg.spawn(task_worker)
 
         await sleep(0.1)
         assert num_active_threads == 3
@@ -173,10 +173,10 @@ async def test_cancel_worker_thread(cancellable, expected_last_active):
     """
     def thread_worker():
         nonlocal last_active
-        run_async_from_thread(sleep_event.set)
+        run_sync_from_thread(sleep_event.set)
         time.sleep(0.2)
         last_active = 'thread'
-        run_async_from_thread(finish_event.set)
+        run_sync_from_thread(finish_event.set)
 
     async def task_worker():
         nonlocal last_active
@@ -189,9 +189,9 @@ async def test_cancel_worker_thread(cancellable, expected_last_active):
     finish_event = create_event()
     last_active = None
     async with create_task_group() as tg:
-        await tg.spawn(task_worker)
+        tg.spawn(task_worker)
         await sleep_event.wait()
-        await tg.cancel_scope.cancel()
+        tg.cancel_scope.cancel()
 
     await finish_event.wait()
     assert last_active == expected_last_active
@@ -206,7 +206,7 @@ async def test_cancel_asyncio_native_task():
 
     task = None
     async with create_task_group() as tg:
-        await tg.spawn(run_in_thread)
+        tg.spawn(run_in_thread)
         await wait_all_tasks_blocked()
         task.cancel()
 
@@ -323,7 +323,7 @@ class TestBlockingPortal:
     def test_spawn_task(self, anyio_backend_name, anyio_backend_options):
         async def event_waiter():
             await event1.wait()
-            await event2.set()
+            event2.set()
             return 'test'
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:

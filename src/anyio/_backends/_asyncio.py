@@ -5,6 +5,7 @@ import socket
 import sys
 from collections import OrderedDict, deque
 from concurrent.futures import Future
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import wraps
 from inspect import isgenerator
@@ -29,9 +30,7 @@ from ..abc import IPSockAddrType, UDPPacketType
 if sys.version_info >= (3, 7):
     from asyncio import all_tasks, create_task, current_task, get_running_loop
     from asyncio import run as native_run
-    from contextlib import asynccontextmanager
 else:
-    from async_generator import asynccontextmanager
 
     _T = TypeVar('_T')
 
@@ -191,15 +190,15 @@ class CancelScope(abc.CancelScope):
         self._host_task: Optional[asyncio.Task] = None
         self._timeout_expired = False
 
-    async def __aenter__(self):
+    def __enter__(self):
         async def timeout():
             await asyncio.sleep(self._deadline - get_running_loop().time())
             self._timeout_expired = True
-            await self.cancel()
+            self.cancel()
 
         if self._active:
             raise RuntimeError(
-                "Each CancelScope may only be used for a single 'async with' block"
+                "Each CancelScope may only be used for a single 'with' block"
             )
 
         self._host_task = current_task()
@@ -224,9 +223,8 @@ class CancelScope(abc.CancelScope):
         self._active = True
         return self
 
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException],
+                 exc_tb: Optional[TracebackType]) -> Optional[bool]:
         self._active = False
         if self._timeout_task:
             self._timeout_task.cancel()
@@ -248,7 +246,7 @@ class CancelScope(abc.CancelScope):
 
         return None
 
-    async def _cancel(self):
+    def _cancel(self):
         # Deliver cancellation to directly contained tasks and nested cancel scopes
         this_task = current_task()
         for task in self._tasks:
@@ -269,7 +267,7 @@ class CancelScope(abc.CancelScope):
                 if awaitable is not None:
                     task.cancel()
             elif not cancel_scope._shielded_to(self):
-                await cancel_scope._cancel()
+                cancel_scope._cancel()
 
     def _shielded_to(self, parent: Optional['CancelScope']) -> bool:
         # Check whether this task or any parent up to (but not including) the "parent" argument is
@@ -294,12 +292,12 @@ class CancelScope(abc.CancelScope):
 
         return False
 
-    async def cancel(self) -> None:
+    def cancel(self) -> None:
         if self._cancel_called:
             return
 
         self._cancel_called = True
-        await self._cancel()
+        self._cancel()
 
     @property
     def deadline(self) -> float:
@@ -331,24 +329,7 @@ async def checkpoint():
     await asyncio.sleep(0)
 
 
-@asynccontextmanager
-async def fail_after(delay: float, shield: bool):
-    deadline = get_running_loop().time() + delay
-    async with CancelScope(deadline, shield) as scope:
-        yield scope
-
-    if scope._timeout_expired:
-        raise TimeoutError
-
-
-@asynccontextmanager
-async def move_on_after(delay: float, shield: bool):
-    deadline = get_running_loop().time() + delay
-    async with CancelScope(deadline=deadline, shield=shield) as scope:
-        yield scope
-
-
-async def current_effective_deadline():
+def current_effective_deadline():
     deadline = math.inf
     cancel_scope = _task_states[current_task()].cancel_scope
     while cancel_scope:
@@ -361,7 +342,7 @@ async def current_effective_deadline():
     return deadline
 
 
-async def current_time():
+def current_time():
     return get_running_loop().time()
 
 
@@ -406,16 +387,16 @@ class TaskGroup(abc.TaskGroup):
         self._exceptions: List[BaseException] = []
 
     async def __aenter__(self):
-        await self.cancel_scope.__aenter__()
+        self.cancel_scope.__enter__()
         self._active = True
         return self
 
     async def __aexit__(self, exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> Optional[bool]:
-        ignore_exception = await self.cancel_scope.__aexit__(exc_type, exc_val, exc_tb)
+        ignore_exception = self.cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         if exc_val is not None:
-            await self.cancel_scope.cancel()
+            self.cancel_scope.cancel()
             if not ignore_exception:
                 self._exceptions.append(exc_val)
 
@@ -423,7 +404,7 @@ class TaskGroup(abc.TaskGroup):
             try:
                 await asyncio.wait(self.cancel_scope._tasks)
             except asyncio.CancelledError:
-                await self.cancel_scope.cancel()
+                self.cancel_scope.cancel()
 
         self._active = False
         if not self.cancel_scope._parent_cancelled():
@@ -466,12 +447,12 @@ class TaskGroup(abc.TaskGroup):
             await func(*args)
         except BaseException as exc:
             self._exceptions.append(exc)
-            await self.cancel_scope.cancel()
+            self.cancel_scope.cancel()
         finally:
             self.cancel_scope._tasks.remove(task)
             del _task_states[task]  # type: ignore
 
-    async def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
+    def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
         if not self._active:
             raise RuntimeError('This task group is not active; no new tasks can be spawned.')
 
@@ -504,12 +485,12 @@ async def run_sync_in_worker_thread(
                 result = func(*args)
         except BaseException as exc:
             if not loop.is_closed():
-                asyncio.run_coroutine_threadsafe(limiter.release_on_behalf_of(task), loop)
+                loop.call_soon_threadsafe(limiter.release_on_behalf_of, task)
                 if not cancelled:
                     loop.call_soon_threadsafe(queue.put_nowait, (None, exc))
         else:
             if not loop.is_closed():
-                asyncio.run_coroutine_threadsafe(limiter.release_on_behalf_of(task), loop)
+                loop.call_soon_threadsafe(limiter.release_on_behalf_of, task)
                 if not cancelled:
                     loop.call_soon_threadsafe(queue.put_nowait, (result, None))
 
@@ -523,7 +504,7 @@ async def run_sync_in_worker_thread(
     thread = Thread(target=thread_worker, daemon=True)
     thread.start()
     exception: Optional[BaseException] = None
-    async with CancelScope(shield=not cancellable):
+    with CancelScope(shield=not cancellable):
         try:
             retval, exception = await queue.get()
         except BaseException as exc:
@@ -537,7 +518,8 @@ async def run_sync_in_worker_thread(
         return cast(T_Retval, retval)
 
 
-def run_sync_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
+def run_sync_from_thread(func: Callable[..., T_Retval], *args,
+                         loop: Optional[asyncio.AbstractEventLoop] = None) -> T_Retval:
     @wraps(func)
     def wrapper():
         try:
@@ -548,7 +530,8 @@ def run_sync_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
                 raise
 
     f: concurrent.futures.Future[T_Retval] = Future()
-    threadlocals.loop.call_soon_threadsafe(wrapper)
+    loop = loop or threadlocals.loop
+    loop.call_soon_threadsafe(wrapper)
     return f.result()
 
 
@@ -566,8 +549,8 @@ class BlockingPortal(abc.BlockingPortal):
         self._loop = get_running_loop()
 
     def _spawn_task_from_thread(self, func: Callable, args: tuple, future: Future) -> None:
-        asyncio.run_coroutine_threadsafe(
-            self._task_group.spawn(self._call_func, func, args, future), self._loop)
+        run_sync_from_thread(
+            self._task_group.spawn, self._call_func, func, args, future, loop=self._loop)
 
 
 #
@@ -1065,7 +1048,7 @@ class Lock(abc.Lock):
         await checkpoint()
         await self._lock.acquire()
 
-    async def release(self) -> None:
+    def release(self) -> None:
         self._lock.release()
 
 
@@ -1078,16 +1061,16 @@ class Condition(abc.Condition):
         await checkpoint()
         await self._condition.acquire()
 
-    async def release(self) -> None:
+    def release(self) -> None:
         self._condition.release()
 
     def locked(self) -> bool:
         return self._condition.locked()
 
-    async def notify(self, n=1):
+    def notify(self, n=1) -> None:
         self._condition.notify(n)
 
-    async def notify_all(self):
+    def notify_all(self) -> None:
         self._condition.notify_all()
 
     async def wait(self):
@@ -1099,7 +1082,7 @@ class Event(abc.Event):
     def __init__(self):
         self._event = asyncio.Event()
 
-    async def set(self):
+    def set(self) -> None:
         self._event.set()
 
     def is_set(self) -> bool:
@@ -1118,7 +1101,7 @@ class Semaphore(abc.Semaphore):
         await checkpoint()
         await self._semaphore.acquire()
 
-    async def release(self) -> None:
+    def release(self) -> None:
         self._semaphore.release()
 
     @property
@@ -1127,10 +1110,12 @@ class Semaphore(abc.Semaphore):
 
 
 class CapacityLimiter(abc.CapacityLimiter):
+    _total_tokens: float = 0
+
     def __init__(self, total_tokens: float):
-        self._set_total_tokens(total_tokens)
         self._borrowers: Set[Any] = set()
         self._wait_queue: Dict[Any, asyncio.Event] = OrderedDict()
+        self.total_tokens = total_tokens
 
     async def __aenter__(self):
         await self.acquire()
@@ -1138,23 +1123,21 @@ class CapacityLimiter(abc.CapacityLimiter):
     async def __aexit__(self, exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
-        await self.release()
-
-    def _set_total_tokens(self, value: float) -> None:
-        if not isinstance(value, int) and not math.isinf(value):
-            raise TypeError('total_tokens must be an int or math.inf')
-        if value < 1:
-            raise ValueError('total_tokens must be >= 1')
-
-        self._total_tokens = value
+        self.release()
 
     @property
     def total_tokens(self) -> float:
         return self._total_tokens
 
-    async def set_total_tokens(self, value: float) -> None:
+    @total_tokens.setter
+    def total_tokens(self, value: float) -> None:
+        if not isinstance(value, int) and not math.isinf(value):
+            raise TypeError('total_tokens must be an int or math.inf')
+        if value < 1:
+            raise ValueError('total_tokens must be >= 1')
+
         old_value = self._total_tokens
-        self._set_total_tokens(value)
+        self._total_tokens = value
         events = []
         for event in self._wait_queue.values():
             if value <= old_value:
@@ -1175,10 +1158,10 @@ class CapacityLimiter(abc.CapacityLimiter):
     def available_tokens(self) -> float:
         return self._total_tokens - len(self._borrowers)
 
-    async def acquire_nowait(self) -> None:
-        await self.acquire_on_behalf_of_nowait(current_task())
+    def acquire_nowait(self) -> None:
+        self.acquire_on_behalf_of_nowait(current_task())
 
-    async def acquire_on_behalf_of_nowait(self, borrower) -> None:
+    def acquire_on_behalf_of_nowait(self, borrower) -> None:
         if borrower in self._borrowers:
             raise RuntimeError("this borrower is already holding one of this CapacityLimiter's "
                                "tokens")
@@ -1193,7 +1176,7 @@ class CapacityLimiter(abc.CapacityLimiter):
 
     async def acquire_on_behalf_of(self, borrower) -> None:
         try:
-            await self.acquire_on_behalf_of_nowait(borrower)
+            self.acquire_on_behalf_of_nowait(borrower)
         except WouldBlock:
             event = asyncio.Event()
             self._wait_queue[borrower] = event
@@ -1205,10 +1188,10 @@ class CapacityLimiter(abc.CapacityLimiter):
 
             self._borrowers.add(borrower)
 
-    async def release(self) -> None:
-        await self.release_on_behalf_of(current_task())
+    def release(self) -> None:
+        self.release_on_behalf_of(current_task())
 
-    async def release_on_behalf_of(self, borrower) -> None:
+    def release_on_behalf_of(self, borrower) -> None:
         try:
             self._borrowers.remove(borrower)
         except KeyError:
@@ -1232,26 +1215,39 @@ _default_thread_limiter = CapacityLimiter(40)
 # Operating system signals
 #
 
-@asynccontextmanager
-async def open_signal_receiver(*signals: int):
-    async def process_signal_queue():
-        while True:
-            signum = await queue.get()
-            yield signum
+class _SignalReceiver:
+    def __init__(self):
+        self._signal_queue: Deque[int] = deque()
+        self._future = asyncio.Future()
 
+    def _deliver(self, signum: int) -> None:
+        self._signal_queue.append(signum)
+        self._future.set_result(None)
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self) -> int:
+        await checkpoint()
+        if not self._signal_queue:
+            self._future = asyncio.Future()
+            await self._future
+
+        return self._signal_queue.popleft()
+
+
+@contextmanager
+def open_signal_receiver(*signals: int) -> Generator[_SignalReceiver, Any, None]:
     loop = get_running_loop()
-    queue = asyncio.Queue()  # type: asyncio.Queue[int]
+    receiver = _SignalReceiver()
     handled_signals = set()
-    agen = process_signal_queue()
-    await checkpoint()
     try:
         for sig in set(signals):
-            loop.add_signal_handler(sig, queue.put_nowait, sig)
+            loop.add_signal_handler(sig, receiver._deliver, sig)
             handled_signals.add(sig)
 
-        yield agen
+        yield receiver
     finally:
-        await agen.aclose()
         for sig in handled_signals:
             loop.remove_signal_handler(sig)
 
@@ -1272,11 +1268,11 @@ def _create_task_info(task: asyncio.Task) -> TaskInfo:
     return TaskInfo(id(task), parent_id, name, task._coro)  # type: ignore
 
 
-async def get_current_task() -> TaskInfo:
+def get_current_task() -> TaskInfo:
     return _create_task_info(current_task())  # type: ignore
 
 
-async def get_running_tasks() -> List[TaskInfo]:
+def get_running_tasks() -> List[TaskInfo]:
     return [_create_task_info(task) for task in all_tasks() if not task.done()]
 
 

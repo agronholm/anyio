@@ -7,6 +7,32 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - **BACKWARDS INCOMPATIBLE** Submodules under ``anyio.abc.`` have been made private (use only
   ``anyio.abc`` from now on).
+- **BACKWARDS INCOMPATIBLE** The following functions/methods were previously coroutine
+  functions/methods and have been converted into synchronous ones:
+
+  * ``current_time()``
+  * ``current_effective_deadline()``
+  * ``CancelScope.cancel()``
+  * ``CapacityLimiter.acquire_nowait()``
+  * ``CapacityLimiter.acquire_on_behalf_of_nowait()``
+  * ``Condition.release()``
+  * ``Event.set()``
+  * ``get_current_task()``
+  * ``get_running_tasks()``
+  * ``Lock.release()``
+  * ``MemoryObjectReceiveStream.receive_nowait()``
+  * ``MemoryObjectSendStream.send_nowait()``
+  * ``open_signal_receiver()``
+  * ``Semaphore.release()``
+  * ``TaskGroup.spawn()``
+- **BACKWARDS INCOMPATIBLE** The following functions now return synchronous context managers
+  instead of asynchronous context managers:
+
+  * ``open_cancel_scope()``
+  * ``fail_after()``
+  * ``move_on_after()``
+- **BACKWARDS INCOMPATIBLE** The ``CapacityLimiter.set_total_tokens()`` method has been removed in
+  exchange of making the ``total_tokens`` property writable
 - **BACKWARDS INCOMPATIBLE** ``start_blocking_portal()`` must now be used as a context manager (it
   no longer returns a BlockingPortal, but a context manager that yields one)
 - **BACKWARDS INCOMPATIBLE** Removed the ``BlockingPortal.stop_from_external_thread()`` method

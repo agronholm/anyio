@@ -30,7 +30,7 @@ Here's a demonstration::
     async def main():
         async with create_task_group() as tg:
             for num in range(5):
-                await tg.spawn(sometask, num)
+                tg.spawn(sometask, num)
 
         print('All tasks finished!')
 

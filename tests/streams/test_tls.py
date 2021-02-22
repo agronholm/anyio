@@ -266,18 +266,18 @@ class TestTLSListener:
                 await super().handle_handshake_error(exc, stream)
                 assert isinstance(stream, SocketStream)
                 exception = exc
-                await event.set()
+                event.set()
 
         exception = None
         event = create_event()
         listener = await create_tcp_listener(local_host='127.0.0.1')
         tls_listener = CustomTLSListener(listener, server_context)
         async with tls_listener, create_task_group() as tg:
-            await tg.spawn(tls_listener.serve, handler)
+            tg.spawn(tls_listener.serve, handler)
             sock = socket.socket()
             sock.connect(listener.extra(SocketAttribute.local_address))
             sock.close()
             await event.wait()
-            await tg.cancel_scope.cancel()
+            tg.cancel_scope.cancel()
 
         assert isinstance(exception, BrokenResourceError)

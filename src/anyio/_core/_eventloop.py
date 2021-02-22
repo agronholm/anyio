@@ -66,14 +66,14 @@ async def sleep(delay: float) -> None:
     return await get_asynclib().sleep(delay)
 
 
-async def current_time() -> float:
+def current_time() -> float:
     """
     Return the current value of the event loop's internal clock.
 
     :return: the clock value (seconds)
 
     """
-    return await get_asynclib().current_time()
+    return get_asynclib().current_time()
 
 
 def get_all_backends() -> Tuple[str, ...]:
