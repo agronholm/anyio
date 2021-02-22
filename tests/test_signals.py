@@ -22,10 +22,10 @@ async def test_receive_signals():
 @pytest.mark.skipif(sys.platform == 'win32', reason='Signal delivery cannot be tested on Windows')
 async def test_task_group_cancellation():
     async def signal_handler():
-        async with open_signal_receiver(signal.SIGUSR1) as sigiter:
+        with open_signal_receiver(signal.SIGUSR1) as sigiter:
             async for v in sigiter:
                 assert False
 
     async with create_task_group() as tg:
-        await tg.spawn(signal_handler)
-        await tg.cancel_scope.cancel()
+        tg.spawn(signal_handler)
+        tg.cancel_scope.cancel()

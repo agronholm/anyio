@@ -1224,7 +1224,11 @@ class _SignalReceiver:
         self._signal_queue.append(signum)
         self._future.set_result(None)
 
+    def __aiter__(self):
+        return self
+
     async def __anext__(self) -> int:
+        await checkpoint()
         if not self._signal_queue:
             self._future = asyncio.Future()
             await self._future
