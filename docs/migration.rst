@@ -1,6 +1,8 @@
 Migrating from AnyIO 2 to AnyIO 3
 =================================
 
+.. py:currentmodule:: anyio
+
 AnyIO 3 changed several previously asynchronous functions and methods into regular ones for two
 reasons:
 
@@ -9,29 +11,31 @@ reasons:
 
 The following functions and methods were changed:
 
-* ``current_time()``
-* ``current_effective_deadline()``
-* ``CancelScope.cancel()``
-* ``CapacityLimiter.acquire_nowait()``
-* ``CapacityLimiter.acquire_on_behalf_of_nowait()``
-* ``Condition.release()``
-* ``Event.set()``
-* ``get_current_task()``
-* ``get_running_tasks()``
-* ``Lock.release()``
-* ``MemoryObjectReceiveStream.receive_nowait()``
-* ``MemoryObjectSendStream.send_nowait()``
-* ``open_signal_receiver()``
-* ``Semaphore.release()``
-* ``TaskGroup.spawn()``
+* :func:`current_time`
+* :func:`current_effective_deadline`
+* :meth:`CancelScope.cancel() <.abc.CancelScope.cancel>`
+* :meth:`CapacityLimiter.acquire_nowait() <.abc.CapacityLimiter.acquire_nowait>`
+* :meth:`CapacityLimiter.acquire_on_behalf_of_nowait()
+  <.abc.CapacityLimiter.acquire_on_behalf_of_nowait>`
+* :meth:`Condition.release() <.abc.Condition.release>`
+* :meth:`Event.set() <.abc.Event.set>`
+* :func:`get_current_task`
+* :func:`get_running_tasks`
+* :meth:`Lock.release() <.abc.Lock.release>`
+* :meth:`MemoryObjectReceiveStream.receive_nowait()
+  <.streams.memory.MemoryObjectReceiveStream.receive_nowait>`
+* :meth:`MemoryObjectSendStream.send_nowait() <.streams.memory.MemoryObjectSendStream.send_nowait>`
+* :func:`open_signal_receiver`
+* :meth:`Semaphore.release() <.abc.Semaphore.release>`
+* :meth:`TaskGroup.spawn() <.abc.TaskGroup.spawn>`
 
 When migrating to AnyIO 3, simply remove the ``await`` from each call to these.
 
 The following async context managers changed to regular context managers:
 
-* ``fail_after()``
-* ``move_on_after()``
-* ``open_cancel_scope()``
+* :func:`fail_after`
+* :func:`move_on_after`
+* :func:`open_cancel_scope`
 
 When migrating, just change ``async with`` into a plain ``with``.
 
