@@ -45,8 +45,8 @@ Writing libraries compatible with both 2.x and 3.x
 --------------------------------------------------
 
 When you're writing a library that needs to be compatible with both major releases, you will need
-to use the compatibility functions added in AnyIO 2.2: :func:`~maybe_async` and
-:func:`~maybe_async_cm`. These will let you safely use functions/methods and context managers
+to use the compatibility functions added in AnyIO 2.2: :func:`maybe_async` and
+:func:`maybe_async_cm`. These will let you safely use functions/methods and context managers
 (respectively) regardless of which major release is currently installed.
 
 Example 1 – setting an event::
