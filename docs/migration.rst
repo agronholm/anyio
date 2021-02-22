@@ -29,9 +29,9 @@ When migrating to AnyIO 3, simply remove the ``await`` from each call to these.
 
 The following async context managers changed to regular context managers:
 
-* ``open_cancel_scope()``
 * ``fail_after()``
 * ``move_on_after()``
+* ``open_cancel_scope()``
 
 When migrating, just change ``async with`` into a plain ``with``.
 
