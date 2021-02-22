@@ -1237,7 +1237,6 @@ def open_signal_receiver(*signals: int) -> Generator[_SignalReceiver, Any, None]
     loop = get_running_loop()
     receiver = _SignalReceiver()
     handled_signals = set()
-    agen = process_signal_queue()
     try:
         for sig in set(signals):
             loop.add_signal_handler(sig, receiver._deliver, sig)
