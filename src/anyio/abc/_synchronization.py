@@ -1,10 +1,8 @@
 from abc import ABCMeta, abstractmethod
-from ipaddress import IPv4Address, IPv6Address
 from types import TracebackType
-from typing import Optional, Type, TypeVar, Union
+from typing import Optional, Type, TypeVar
 
 T_Retval = TypeVar('T_Retval')
-IPAddressType = Union[str, IPv4Address, IPv6Address]
 
 
 class Event(metaclass=ABCMeta):
