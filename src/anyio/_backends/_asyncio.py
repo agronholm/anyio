@@ -243,6 +243,9 @@ class CancelScope(abc.CancelScope):
                     # This scope was directly cancelled
                     return True
 
+        if self._shield and self._parent_cancelled():
+            get_running_loop().call_soon(_cancel_soon, self._host_task)
+
         return None
 
     def _cancel(self):
