@@ -378,9 +378,7 @@ class ExceptionGroup(BaseExceptionGroup):
         self.exceptions = exceptions
 
 
-class TaskStatus:
-    __slots__ = '_future'
-
+class _AsyncioTaskStatus(abc.TaskStatus):
     def __init__(self, future: asyncio.Future):
         self._future = future
 
@@ -464,7 +462,7 @@ class TaskGroup(abc.TaskGroup):
         # and asyncio before v3.8 cannot deal with tasks raising BaseExceptions.
         kwargs = {}
         if task_status_future:
-            kwargs['task_status'] = TaskStatus(task_status_future)
+            kwargs['task_status'] = _AsyncioTaskStatus(task_status_future)
 
         task = cast(asyncio.Task, current_task())
         try:

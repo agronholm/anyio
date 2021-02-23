@@ -5,6 +5,16 @@ from typing import Callable, Coroutine, Optional, Type, TypeVar
 T_Retval = TypeVar('T_Retval')
 
 
+class TaskStatus(metaclass=ABCMeta):
+    @abstractmethod
+    def started(self, value=None) -> None:
+        """
+        Signal that the task has started.
+
+        :param value: object passed back to the starter of the task
+        """
+
+
 class TaskGroup(metaclass=ABCMeta):
     """
     Groups several asynchronous tasks together.

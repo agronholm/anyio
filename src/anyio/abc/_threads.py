@@ -11,6 +11,7 @@ from typing import (
 from .._core._synchronization import create_event
 from .._core._tasks import open_cancel_scope
 from ..abc import Event
+from ._tasks import TaskStatus
 
 T_Retval = TypeVar('T_Retval')
 T_co = TypeVar('T_co', covariant=True)
@@ -54,9 +55,7 @@ class _BlockingAsyncContextManager(AbstractContextManager):
         return self._exit_future.result()
 
 
-class _BlockingPortalTaskStatus:
-    __slots__ = '_future'
-
+class _BlockingPortalTaskStatus(TaskStatus):
     def __init__(self, future: Future):
         self._future = future
 
