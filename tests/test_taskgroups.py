@@ -7,7 +7,7 @@ import trio
 import anyio
 from anyio import (
     ExceptionGroup, create_task_group, current_effective_deadline, current_time, fail_after,
-    move_on_after, open_cancel_scope, sleep, wait_all_tasks_blocked)
+    get_cancelled_exc_class, move_on_after, open_cancel_scope, sleep, wait_all_tasks_blocked)
 
 pytestmark = pytest.mark.anyio
 
@@ -350,6 +350,19 @@ async def test_shielding():
     assert not outer_sleep_completed
     assert tg.cancel_scope.cancel_called
     assert not inner_scope.cancel_called
+
+
+async def test_cancel_from_shielded_scope():
+    async with create_task_group() as tg:
+        with open_cancel_scope(shield=True) as inner_scope:
+            assert inner_scope.shield
+            tg.cancel_scope.cancel()
+
+        with pytest.raises(get_cancelled_exc_class()):
+            await sleep(0.01)
+
+        with pytest.raises(get_cancelled_exc_class()):
+            await sleep(0.01)
 
 
 async def test_shielding_immediate_scope_cancelled():
