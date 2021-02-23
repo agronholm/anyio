@@ -40,8 +40,8 @@ async def test_task_group_cancellation_open():
 async def test_task_group_cancellation_consume():
     async def consume(sigiter):
         async for v in sigiter:
-            pytest.fail()
-        pytest.fail()
+            pytest.fail("a SIGUSR1 should not be sent")
+        pytest.fail("consume should have been cancelled")
 
     with open_signal_receiver(signal.SIGUSR1) as sigiter:
         async with create_task_group() as tg:
