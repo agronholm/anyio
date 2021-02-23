@@ -314,11 +314,9 @@ class CancelScope(abc.CancelScope):
 
 def _cancel_called(task: asyncio.Task) -> bool:
     try:
-        task_state = _task_states[task]
+        cancel_scope = _task_states[task].cancel_scope
     except KeyError:
         return False
-
-    cancel_scope = task_state.cancel_scope
 
     while cancel_scope:
         if cancel_scope.cancel_called:
