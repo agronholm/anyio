@@ -266,7 +266,6 @@ class CancelScope(abc.CancelScope):
                     task.cancel()
                 else:
                     get_running_loop().call_soon(_cancel_soon, task)
-
             elif not cancel_scope._shielded_to(self):
                 cancel_scope._cancel()
 
