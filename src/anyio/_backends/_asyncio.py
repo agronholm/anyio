@@ -163,8 +163,7 @@ def run(func: Callable[..., T_Retval], *args, debug: bool = False, use_uvloop: b
 # Miscellaneous
 #
 
-async def sleep(delay: float) -> None:
-    await asyncio.sleep(delay)
+sleep = asyncio.sleep
 
 
 #
@@ -196,7 +195,7 @@ class CancelScope(abc.CancelScope):
 
     def __enter__(self):
         async def timeout():
-            await asyncio.sleep(self._deadline - get_running_loop().time())
+            await sleep(self._deadline - get_running_loop().time())
             self._timeout()
 
         if self._active:
@@ -336,7 +335,7 @@ def _cancel_soon(task: asyncio.Task) -> None:
 
 
 async def checkpoint():
-    await asyncio.sleep(0)
+    await sleep(0)
 
 
 def current_effective_deadline():
@@ -808,7 +807,7 @@ class SocketStream(abc.SocketStream):
                 pass
 
             self._transport.close()
-            await asyncio.sleep(0)
+            await sleep(0)
             self._transport.abort()
 
 
@@ -1318,7 +1317,7 @@ async def wait_all_tasks_blocked() -> None:
                 else:
                     break
 
-                if code is asyncio.sleep.__code__ and f_locals['delay'] == 0:
+                if code is sleep.__code__ and f_locals['delay'] == 0:
                     task_running = False
                     break
 
