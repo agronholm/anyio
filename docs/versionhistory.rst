@@ -25,12 +25,16 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``open_signal_receiver()``
   * ``Semaphore.release()``
   * ``TaskGroup.spawn()``
-- **BACKWARDS INCOMPATIBLE** The following functions now return synchronous context managers
-  instead of asynchronous context managers:
 
-  * ``open_cancel_scope()``
+  Likewise, the following functions now return synchronous context managers instead of asynchronous
+  context managers:
+
   * ``fail_after()``
   * ``move_on_after()``
+  * ``open_cancel_scope()``
+
+  See the :doc:`migration documentation <migration>` for instructions on how to deal with these
+  changes.
 - **BACKWARDS INCOMPATIBLE** The ``CapacityLimiter.set_total_tokens()`` method has been removed in
   exchange of making the ``total_tokens`` property writable
 - **BACKWARDS INCOMPATIBLE** ``start_blocking_portal()`` must now be used as a context manager (it
