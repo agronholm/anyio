@@ -1,9 +1,11 @@
 import socket
 from concurrent.futures import Future
 from dataclasses import dataclass
+from functools import partial
 from types import TracebackType
 from typing import (
-    Awaitable, Callable, Coroutine, Generic, List, NoReturn, Optional, Tuple, Type, TypeVar, Union)
+    Any, Awaitable, Callable, Coroutine, Dict, Generic, List, NoReturn, Optional, Tuple, Type,
+    TypeVar, Union)
 
 import trio.from_thread
 from outcome import Error, Value
@@ -122,9 +124,11 @@ class BlockingPortal(abc.BlockingPortal):
         super().__init__()
         self._token = trio.lowlevel.current_trio_token()
 
-    def _spawn_task_from_thread(self, func: Callable, args: tuple, future: Future) -> None:
+    def _spawn_task_from_thread(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
+                                future: Future) -> None:
         return trio.from_thread.run_sync(
-            self._task_group.spawn, self._call_func, func, args, future, trio_token=self._token)
+            self._task_group.spawn, self._call_func, partial(func, **kwargs), args, future,
+            trio_token=self._token)
 
 
 #

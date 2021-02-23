@@ -379,3 +379,48 @@ class TestBlockingPortal:
             with portal.wrap_async_context_manager(TestBlockingPortal.AsyncCM(True)) as cm:
                 assert cm == 'test'
                 raise Exception('should be ignored')
+
+    def test_start_no_value(self, anyio_backend_name, anyio_backend_options):
+        def taskfunc(*, task_status):
+            task_status.started()
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            future, value = portal.start_task(taskfunc)
+            assert value is None
+            assert future.result() is None
+
+    def test_start_with_value(self, anyio_backend_name, anyio_backend_options):
+        def taskfunc(*, task_status):
+            task_status.started('foo')
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            future, value = portal.start_task(taskfunc)
+            assert value == 'foo'
+            assert future.result() is None
+
+    def test_start_crash_before_started_call(self, anyio_backend_name, anyio_backend_options):
+        def taskfunc(*, task_status):
+            raise Exception('foo')
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            with pytest.raises(Exception, match='foo'):
+                portal.start_task(taskfunc)
+
+    def test_start_crash_after_started_call(self, anyio_backend_name, anyio_backend_options):
+        def taskfunc(*, task_status):
+            task_status.started(2)
+            raise Exception('foo')
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            future, value = portal.start_task(taskfunc)
+            assert value == 2
+            with pytest.raises(Exception, match='foo'):
+                future.result()
+
+    def test_start_no_started_call(self, anyio_backend_name, anyio_backend_options):
+        def taskfunc(*, task_status):
+            pass
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            with pytest.raises(RuntimeError, match='Task exited'):
+                portal.start_task(taskfunc)

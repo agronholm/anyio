@@ -7,7 +7,7 @@ from collections import OrderedDict, deque
 from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
-from functools import wraps
+from functools import partial, wraps
 from inspect import isgenerator
 from socket import AddressFamily, SocketKind, SocketType
 from threading import Thread
@@ -598,9 +598,11 @@ class BlockingPortal(abc.BlockingPortal):
         super().__init__()
         self._loop = get_running_loop()
 
-    def _spawn_task_from_thread(self, func: Callable, args: tuple, future: Future) -> None:
+    def _spawn_task_from_thread(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
+                                future: Future) -> None:
         run_sync_from_thread(
-            self._task_group.spawn, self._call_func, func, args, future, loop=self._loop)
+            self._task_group.spawn, self._call_func, partial(func, **kwargs), args, future,
+            loop=self._loop)
 
 
 #

@@ -43,7 +43,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (do ``portal.call(portal.stop)`` instead now)
 - Dropped Curio as a backend (see the :doc:`FAQ <faq>` as for why)
 - Added the ``run_sync_from_thread()`` function
-- Added the ``TaskGroup.start()`` method
+- Added the ``TaskGroup.start()`` method and a corresponding ``BlockingPortal.start_task()`` method
 - Fixed ``TLSStream.send_eof()`` raising ``ValueError`` instead of the expected
   ``NotImplementedError``
 
