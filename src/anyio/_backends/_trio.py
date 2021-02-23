@@ -125,10 +125,10 @@ class BlockingPortal(abc.BlockingPortal):
         self._token = trio.lowlevel.current_trio_token()
 
     def _spawn_task_from_thread(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
-                                future: Future) -> None:
+                                name, future: Future) -> None:
         return trio.from_thread.run_sync(
-            self._task_group.spawn, self._call_func, partial(func, **kwargs), args, future,
-            trio_token=self._token)
+            partial(self._task_group.spawn, name=name), self._call_func, func, args, kwargs,
+            future, trio_token=self._token)
 
 
 #

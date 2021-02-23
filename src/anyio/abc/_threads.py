@@ -110,13 +110,14 @@ class BlockingPortal(metaclass=ABCMeta):
         if cancel_remaining:
             self._task_group.cancel_scope.cancel()
 
-    async def _call_func(self, func: Callable, args: tuple, future: Future) -> None:
+    async def _call_func(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
+                         future: Future) -> None:
         def callback(f: Future):
             if f.cancelled():
                 self.call(scope.cancel)
 
         try:
-            retval = func(*args)
+            retval = func(*args, **kwargs)
             if iscoroutine(retval):
                 with open_cancel_scope() as scope:
                     if future.cancelled():
@@ -142,7 +143,7 @@ class BlockingPortal(metaclass=ABCMeta):
 
     @abstractmethod
     def _spawn_task_from_thread(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
-                                future: Future) -> None:
+                                name, future: Future) -> None:
         """
         Spawn a new task using the given callable.
 
@@ -151,6 +152,7 @@ class BlockingPortal(metaclass=ABCMeta):
         :param func: a callable
         :param args: positional arguments to be passed to the callable
         :param kwargs: keyword arguments to be passed to the callable
+        :param name: name of the task (will be coerced to a string if not ``None``)
         :param future: a future that will resolve to the return value of the callable, or the
             exception raised during its execution
         """
@@ -176,7 +178,7 @@ class BlockingPortal(metaclass=ABCMeta):
         """
         return self.spawn_task(func, *args).result()
 
-    def spawn_task(self, func: Callable[..., Coroutine], *args) -> Future:
+    def spawn_task(self, func: Callable[..., Coroutine], *args, name=None) -> Future:
         """
         Spawn a task in the portal's task group.
 
@@ -185,20 +187,23 @@ class BlockingPortal(metaclass=ABCMeta):
 
         :param func: the target coroutine function
         :param args: positional arguments passed to ``func``
+        :param name: name of the task (will be coerced to a string if not ``None``)
         :return: a future that resolves with the return value of the callable if the task completes
             successfully, or with the exception raised in the task
         :raises RuntimeError: if the portal is not running or if this method is called from within
             the event loop thread
 
         .. versionadded:: 2.1
+        .. versionchanged:: 3.0
+            Added the ``name`` argument.
 
         """
         self._check_running()
         f: Future = Future()
-        self._spawn_task_from_thread(func, args, {}, f)
+        self._spawn_task_from_thread(func, args, {}, name, f)
         return f
 
-    def start_task(self, func: Callable[..., Coroutine], *args) -> Tuple[Future, Any]:
+    def start_task(self, func: Callable[..., Coroutine], *args, name=None) -> Tuple[Future, Any]:
         """
         Spawn a task in the portal's task group and wait until it signals for readiness.
 
@@ -206,6 +211,7 @@ class BlockingPortal(metaclass=ABCMeta):
 
         :param func: the target coroutine function
         :param args: positional arguments passed to ``func``
+        :param name: name of the task (will be coerced to a string if not ``None``)
         :return: a tuple of (future, task_status_value) where the ``task_status_value`` is the
             value passed to ``task_status.started()`` from within the target function
 
@@ -227,7 +233,7 @@ class BlockingPortal(metaclass=ABCMeta):
         task_status = _BlockingPortalTaskStatus(task_status_future)
         f: Future = Future()
         f.add_done_callback(task_done)
-        self._spawn_task_from_thread(func, args, {'task_status': task_status}, f)
+        self._spawn_task_from_thread(func, args, {'task_status': task_status}, name, f)
         return f, task_status_future.result()
 
     def wrap_async_context_manager(self, cm: AsyncContextManager[T_co]) -> ContextManager[T_co]:

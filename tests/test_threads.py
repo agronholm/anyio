@@ -9,8 +9,8 @@ import pytest
 
 from anyio import (
     create_blocking_portal, create_capacity_limiter, create_event, create_task_group,
-    get_cancelled_exc_class, run_async_from_thread, run_sync_in_worker_thread, sleep,
-    start_blocking_portal, wait_all_tasks_blocked)
+    get_cancelled_exc_class, get_current_task, run_async_from_thread, run_sync_in_worker_thread,
+    sleep, start_blocking_portal, wait_all_tasks_blocked)
 from anyio._core._threads import run_sync_from_thread
 
 if sys.version_info < (3, 9):
@@ -360,6 +360,17 @@ class TestBlockingPortal:
 
         assert cancelled
 
+    def test_spawn_task_with_name(self, anyio_backend_name, anyio_backend_options):
+        async def taskfunc():
+            nonlocal task_name
+            task_name = get_current_task().name
+
+        task_name = None
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            portal.spawn_task(taskfunc, name='testname')
+
+        assert task_name == 'testname'
+
     def test_async_context_manager_success(self, anyio_backend_name, anyio_backend_options):
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
             with portal.wrap_async_context_manager(TestBlockingPortal.AsyncCM(False)) as cm:
@@ -424,3 +435,11 @@ class TestBlockingPortal:
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
             with pytest.raises(RuntimeError, match='Task exited'):
                 portal.start_task(taskfunc)
+
+    def test_start_with_name(self, anyio_backend_name, anyio_backend_options):
+        def taskfunc(*, task_status):
+            task_status.started(get_current_task().name)
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            future, start_value = portal.start_task(taskfunc, name='testname')
+            assert start_value == 'testname'

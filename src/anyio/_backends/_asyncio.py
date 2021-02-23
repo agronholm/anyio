@@ -597,10 +597,10 @@ class BlockingPortal(abc.BlockingPortal):
         self._loop = get_running_loop()
 
     def _spawn_task_from_thread(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
-                                future: Future) -> None:
+                                name, future: Future) -> None:
         run_sync_from_thread(
-            self._task_group.spawn, self._call_func, partial(func, **kwargs), args, future,
-            loop=self._loop)
+            partial(self._task_group.spawn, name=name), self._call_func, func, args, kwargs,
+            future, loop=self._loop)
 
 
 #
