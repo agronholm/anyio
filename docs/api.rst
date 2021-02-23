@@ -86,6 +86,8 @@ Streams and stream wrappers
 .. autodata:: anyio.abc.AnyByteStream
 
 .. autoclass:: anyio.streams.buffered.BufferedByteReceiveStream
+.. autoclass:: anyio.streams.file.FileReadStream
+.. autoclass:: anyio.streams.file.FileWriteStream
 .. autoclass:: anyio.streams.memory.MemoryObjectReceiveStream
 .. autoclass:: anyio.streams.memory.MemoryObjectSendStream
 .. autoclass:: anyio.streams.stapled.MultiListener
