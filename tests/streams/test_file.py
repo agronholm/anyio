@@ -1,6 +1,6 @@
 import pytest
 
-from anyio import EndOfStream
+from anyio import ClosedResourceError, EndOfStream
 from anyio.streams.file import FileReadStream, FileStreamAttribute, FileWriteStream
 
 pytestmark = pytest.mark.anyio
@@ -32,6 +32,13 @@ class TestFileReadStream:
             async with FileReadStream(file) as stream:
                 await self._run_filestream_test(stream)
 
+    async def test_read_after_close(self, file_path):
+        async with await FileReadStream.from_path(file_path) as stream:
+            pass
+
+        with pytest.raises(ClosedResourceError):
+            await stream.receive()
+
     async def test_extra_attributes(self, file_path):
         async with await FileReadStream.from_path(file_path) as stream:
             path = stream.extra(FileStreamAttribute.path)
@@ -62,6 +69,13 @@ class TestFileWriteStream:
             await stream.send(b', World!')
 
         assert file_path.read_text() == 'Hello, World!'
+
+    async def test_write_after_close(self, file_path):
+        async with await FileWriteStream.from_path(file_path, True) as stream:
+            pass
+
+        with pytest.raises(ClosedResourceError):
+            await stream.send(b'foo')
 
     async def test_extra_attributes(self, file_path):
         async with await FileWriteStream.from_path(file_path) as stream:

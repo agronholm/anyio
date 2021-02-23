@@ -15,13 +15,10 @@ class FileStreamAttribute(TypedAttributeSet):
 
 
 class _BaseFileStream:
-    _closed: bool = False
-
     def __init__(self, file: BinaryIO):
         self._file = file
 
     async def aclose(self) -> None:
-        self._closed = True
         await run_sync_in_worker_thread(self._file.close)
 
     @property
@@ -66,11 +63,10 @@ class FileReadStream(_BaseFileStream, ByteReceiveStream):
     async def receive(self, max_bytes: int = 65536) -> bytes:
         try:
             data = await run_sync_in_worker_thread(self._file.read, max_bytes)
+        except ValueError:
+            raise ClosedResourceError from None
         except OSError as exc:
-            if self._closed:
-                raise ClosedResourceError from None
-            else:
-                raise BrokenResourceError from exc
+            raise BrokenResourceError from exc
 
         if data:
             return data
@@ -104,8 +100,7 @@ class FileWriteStream(_BaseFileStream, ByteSendStream):
     async def send(self, item: bytes) -> None:
         try:
             await run_sync_in_worker_thread(self._file.write, item)
+        except ValueError:
+            raise ClosedResourceError from None
         except OSError as exc:
-            if self._closed:
-                raise ClosedResourceError from None
-            else:
-                raise BrokenResourceError from exc
+            raise BrokenResourceError from exc
