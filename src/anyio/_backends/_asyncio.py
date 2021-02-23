@@ -175,7 +175,7 @@ CancelledError = asyncio.CancelledError
 
 class CancelScope(abc.CancelScope):
     __slots__ = ('_deadline', '_shield', '_parent_scope', '_cancel_called', '_active',
-                 '_timeout_task', '_tasks', '_host_task', '_timeout_expired')
+                 '_timeout_handle', '_tasks', '_host_task', '_timeout_expired')
 
     def __init__(self, deadline: float = math.inf, shield: bool = False):
         self._deadline = deadline
@@ -183,7 +183,7 @@ class CancelScope(abc.CancelScope):
         self._parent_scope: Optional[CancelScope] = None
         self._cancel_called = False
         self._active = False
-        self._timeout_task: Optional[asyncio.Task] = None
+        self._timeout_handle: Optional[asyncio.TimerHandle] = None
         self._tasks: Set[asyncio.Task] = set()
         self._host_task: Optional[asyncio.Task] = None
         self._timeout_expired = False
@@ -194,10 +194,6 @@ class CancelScope(abc.CancelScope):
         self._cancel()
 
     def __enter__(self):
-        async def timeout():
-            await sleep(self._deadline - get_running_loop().time())
-            self._timeout()
-
         if self._active:
             raise RuntimeError(
                 "Each CancelScope may only be used for a single 'with' block"
@@ -216,10 +212,12 @@ class CancelScope(abc.CancelScope):
             task_state.cancel_scope = self
 
         if self._deadline != math.inf:
-            if get_running_loop().time() >= self._deadline:
+            loop = get_running_loop()
+            delay = self._deadline - loop.time()
+            if delay <= 0:
                 self._timeout()
             else:
-                self._timeout_task = get_running_loop().create_task(timeout())
+                self._timeout_handle = loop.call_later(delay, self._timeout)
 
         self._active = True
         return self
@@ -227,8 +225,8 @@ class CancelScope(abc.CancelScope):
     def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException],
                  exc_tb: Optional[TracebackType]) -> Optional[bool]:
         self._active = False
-        if self._timeout_task:
-            self._timeout_task.cancel()
+        if self._timeout_handle:
+            self._timeout_handle.cancel()
 
         assert self._host_task is not None
         self._tasks.remove(self._host_task)
