@@ -1,4 +1,4 @@
-from io import UnsupportedOperation
+from io import SEEK_SET, UnsupportedOperation
 from pathlib import Path
 from typing import BinaryIO, Union, cast
 
@@ -72,6 +72,22 @@ class FileReadStream(_BaseFileStream, ByteReceiveStream):
             return data
         else:
             raise EndOfStream
+
+    async def seek(self, position: int, whence: int = SEEK_SET) -> int:
+        """
+        Seek the file to the given position.
+
+        .. seealso:: :meth:`io.IOBase.seek`
+
+        .. note:: Not all file descriptors are seekable.
+
+        :param position: position to seek the file to
+        :param whence: controls how ``position`` is interpreted
+        :return: the new absolute position
+        :raises OSError: if the file is not seekable
+
+        """
+        return await run_sync_in_worker_thread(self._file.seek, position, whence)
 
 
 class FileWriteStream(_BaseFileStream, ByteSendStream):
