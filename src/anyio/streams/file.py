@@ -9,8 +9,11 @@ from anyio.abc import ByteReceiveStream, ByteSendStream
 
 
 class FileStreamAttribute(TypedAttributeSet):
+    #: the open file descriptor
     file: BinaryIO = typed_attribute()
+    #: the path of the file on the file system, if available (file must be a real file)
     path: Path = typed_attribute()
+    #: the file number, if available (file must be a real file or a TTY)
     fileno: int = typed_attribute()
 
 
