@@ -1,5 +1,6 @@
+from textwrap import indent
 from traceback import format_exception
-from typing import Sequence
+from typing import List, Sequence
 
 
 class BrokenResourceError(Exception):
@@ -37,20 +38,27 @@ class EndOfStream(Exception):
 class ExceptionGroup(BaseException):
     """Raised when multiple exceptions have been raised in a task group."""
 
-    SEPARATOR = '----------------------------\n'
+    SEPARATOR = '------------------------------------------------------------\n'
 
     #: the sequence of exceptions raised together
     exceptions: Sequence[BaseException]
 
+    def __new__(cls, message: str, exceptions: List[BaseException]):
+        return super().__new__(cls)
+
+    def __init__(self, message: str, exceptions: List[BaseException]):
+        self.message = message
+        self.exceptions = exceptions
+
     def __str__(self):
-        tracebacks = [''.join(format_exception(type(exc), exc, exc.__traceback__))
-                      for exc in self.exceptions]
-        return f'{len(self.exceptions)} exceptions were raised in the task group:\n' \
-               f'{self.SEPARATOR}{self.SEPARATOR.join(tracebacks)}'
+        tracebacks = self.SEPARATOR.join([
+            f'{"".join(format_exception(type(exc), exc, exc.__traceback__))}'
+            for exc in self.exceptions])
+        tracebacks = indent(tracebacks, '  ')
+        return f'ExceptionGroup: {self.message}\n  {self.SEPARATOR}{tracebacks}'
 
     def __repr__(self) -> str:
-        exception_reprs = ', '.join(repr(exc) for exc in self.exceptions)
-        return f'<{self.__class__.__name__}: {exception_reprs}>'
+        return f'{self.__class__.__name__}({self.message!r}, {self.exceptions!r})'
 
 
 class IncompleteRead(Exception):

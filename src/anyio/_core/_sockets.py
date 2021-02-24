@@ -178,7 +178,8 @@ async def connect_tcp(
                 await event.wait()
 
     if connected_stream is None:
-        cause = oserrors[0] if len(oserrors) == 1 else asynclib.ExceptionGroup(oserrors)
+        cause = oserrors[0] if len(oserrors) == 1 else asynclib.ExceptionGroup(
+            'All connection attempts failed', oserrors)
         raise OSError('All connection attempts failed') from cause
 
     if tls or tls_hostname or ssl_context:

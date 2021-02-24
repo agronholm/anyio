@@ -356,11 +356,11 @@ async def test_exception_group_children():
 
     assert len(exc.value.exceptions) == 2
     assert sorted(str(e) for e in exc.value.exceptions) == ['task1', 'task2']
-    assert exc.match('^2 exceptions were raised in the task group:\n')
-    assert exc.match(r'Exception: task\d\n----')
+    assert exc.match('^ExceptionGroup: multiple tasks failed\n')
+    assert exc.match(r'Exception: task\d\n  ----')
     assert re.fullmatch(
-        r"<ExceptionGroup: Exception\('task[12]',?\), Exception\('task[12]',?\)>",
-        repr(exc.value))
+        r"ExceptionGroup\('multiple tasks failed', \[Exception\('task[12]',?\), "
+        r"Exception\('task[12]',?\)]\)", repr(exc.value))
 
 
 async def test_exception_group_host():
@@ -372,8 +372,8 @@ async def test_exception_group_host():
 
     assert len(exc.value.exceptions) == 2
     assert sorted(str(e) for e in exc.value.exceptions) == ['child', 'host']
-    assert exc.match('^2 exceptions were raised in the task group:\n')
-    assert exc.match(r'Exception: host\n----')
+    assert exc.match('^ExceptionGroup: multiple tasks failed\n')
+    assert exc.match(r'Exception: host\n  ----')
 
 
 async def test_escaping_cancelled_exception():

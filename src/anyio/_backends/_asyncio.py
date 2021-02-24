@@ -443,10 +443,7 @@ _task_states = WeakKeyDictionary()  # type: WeakKeyDictionary[asyncio.Task, Task
 # Task groups
 #
 
-class ExceptionGroup(BaseExceptionGroup):
-    def __init__(self, exceptions: Sequence[BaseException]):
-        super().__init__()
-        self.exceptions = exceptions
+ExceptionGroup = BaseExceptionGroup
 
 
 class _AsyncioTaskStatus(abc.TaskStatus):
@@ -492,7 +489,7 @@ class TaskGroup(abc.TaskGroup):
 
         try:
             if len(exceptions) > 1:
-                raise ExceptionGroup(exceptions)
+                raise ExceptionGroup('multiple tasks failed', exceptions)
             elif exceptions and exceptions[0] is not exc_val:
                 raise exceptions[0]
         except BaseException as exc:
