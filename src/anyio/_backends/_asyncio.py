@@ -244,7 +244,7 @@ class CancelScope(abc.CancelScope):
                     return True
 
         if self._shield and self._parent_cancelled():
-            create_task(_cancel_while_running(self._host_task))
+            _start_cancelling(self._host_task)
 
         return None
 
@@ -264,7 +264,7 @@ class CancelScope(abc.CancelScope):
 
                 if awaitable is not None:
                     task.cancel()
-                create_task(_cancel_while_running(task))
+                _start_cancelling(task)
             elif not cancel_scope._shielded_to(self):
                 cancel_scope._cancel()
 
@@ -335,6 +335,14 @@ async def _cancel_while_running(task: asyncio.Task) -> None:
         await sleep(0)
 
 
+def _start_cancelling(task: asyncio.Task) -> None:
+    task_state = _task_states[task]
+    cancelling_task = task_state.cancelling_task
+    if cancelling_task is not None and not cancelling_task.done():
+        return
+    task_state.cancelling_task = create_task(_cancel_while_running(task))
+
+
 async def checkpoint():
     await sleep(0)
 
@@ -366,13 +374,14 @@ class TaskState:
     because there are no guarantees about its implementation.
     """
 
-    __slots__ = 'parent_id', 'name', 'cancel_scope'
+    __slots__ = 'parent_id', 'name', 'cancel_scope', 'cancelling_task'
 
     def __init__(self, parent_id: Optional[int], name: Optional[str],
                  cancel_scope: Optional[CancelScope]):
         self.parent_id = parent_id
         self.name = name
         self.cancel_scope = cancel_scope
+        self.cancelling_task: "Optional[asyncio.Task[None]]" = None
 
 
 _task_states = WeakKeyDictionary()  # type: WeakKeyDictionary[asyncio.Task, TaskState]
@@ -477,7 +486,7 @@ class TaskGroup(abc.TaskGroup):
                                        cancel_scope=self.cancel_scope)
         self.cancel_scope._tasks.add(task)
         if self.cancel_scope._cancel_called:
-            create_task(_cancel_while_running(task))
+            _start_cancelling(task)
 
 
 #
