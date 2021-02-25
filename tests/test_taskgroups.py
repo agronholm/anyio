@@ -1,5 +1,6 @@
 import asyncio
 import re
+import sys
 from contextlib import suppress
 
 import pytest
@@ -9,6 +10,11 @@ import anyio
 from anyio import (
     ExceptionGroup, create_task_group, current_effective_deadline, current_time, fail_after,
     move_on_after, open_cancel_scope, sleep, wait_all_tasks_blocked)
+
+if sys.version_info < (3, 7):
+    current_task = asyncio.Task.current_task
+else:
+    current_task = asyncio.current_task
 
 pytestmark = pytest.mark.anyio
 
@@ -177,7 +183,7 @@ async def test_start_native_cancelled():
 async def test_start_native_child_cancelled():
     async def taskfunc(*, task_status):
         nonlocal task, finished
-        task = asyncio.Task.current_task()
+        task = current_task()
         await sleep(2)
         finished = True
 
