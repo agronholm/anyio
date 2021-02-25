@@ -7,7 +7,7 @@ from collections import OrderedDict, deque
 from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
-from functools import wraps
+from functools import partial, wraps
 from inspect import isgenerator
 from socket import AddressFamily, SocketKind, SocketType
 from threading import Thread
@@ -397,6 +397,14 @@ class ExceptionGroup(BaseExceptionGroup):
         self.exceptions = exceptions
 
 
+class _AsyncioTaskStatus(abc.TaskStatus):
+    def __init__(self, future: asyncio.Future):
+        self._future = future
+
+    def started(self, value=None) -> None:
+        self._future.set_result(value)
+
+
 class TaskGroup(abc.TaskGroup):
     __slots__ = 'cancel_scope', '_active', '_exceptions'
 
@@ -460,26 +468,48 @@ class TaskGroup(abc.TaskGroup):
 
         return filtered_exceptions
 
-    async def _run_wrapped_task(self, func: Callable[..., Coroutine], args: tuple) -> None:
+    async def _run_wrapped_task(
+            self, func: Callable[..., Coroutine], args: tuple,
+            task_status_future: Optional[asyncio.Future]) -> None:
+        # This ugly hack is required because ExceptionGroup inherits directly from BaseException
+        # and asyncio before v3.8 cannot deal with tasks raising BaseExceptions.
+        kwargs = {}
+        if task_status_future:
+            kwargs['task_status'] = _AsyncioTaskStatus(task_status_future)
+
         task = cast(asyncio.Task, current_task())
         try:
-            await func(*args)
+            await func(*args, **kwargs)
         except BaseException as exc:
-            self._exceptions.append(exc)
-            self.cancel_scope.cancel()
+            if task_status_future is None or task_status_future.done():
+                self._exceptions.append(exc)
+                self.cancel_scope.cancel()
+            else:
+                task_status_future.set_exception(exc)
+        else:
+            if task_status_future is not None and not task_status_future.done():
+                task_status_future.set_exception(
+                    RuntimeError('Child exited without calling task_status.started()'))
         finally:
-            self.cancel_scope._tasks.remove(task)
-            del _task_states[task]  # type: ignore
+            if task in self.cancel_scope._tasks:
+                self.cancel_scope._tasks.remove(task)
+                del _task_states[task]
 
-    def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
+    def _spawn(self, func: Callable[..., Coroutine], args: tuple, name,
+               task_status_future: Optional[asyncio.Future] = None) -> asyncio.Task:
         if not self._active:
             raise RuntimeError('This task group is not active; no new tasks can be spawned.')
 
+        options = {}
         name = name or get_callable_name(func)
-        if _native_task_names is None:
-            task = create_task(self._run_wrapped_task(func, args), name=name)  # type: ignore
-        else:
-            task = create_task(self._run_wrapped_task(func, args))
+        if _native_task_names:
+            options['name'] = name
+
+        kwargs = {}
+        if task_status_future:
+            kwargs['task_status_future'] = task_status_future
+
+        task = create_task(self._run_wrapped_task(func, args, task_status_future), **options)
 
         # Make the spawned task inherit the task group's cancel scope
         _task_states[task] = TaskState(parent_id=id(current_task()), name=name,
@@ -487,6 +517,25 @@ class TaskGroup(abc.TaskGroup):
         self.cancel_scope._tasks.add(task)
         if self.cancel_scope._cancel_called:
             _start_cancelling(task)
+
+        return task
+
+    def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
+        self._spawn(func, args, name)
+
+    async def start(self, func: Callable[..., Coroutine], *args, name=None) -> None:
+        future: asyncio.Future = asyncio.Future()
+        task = self._spawn(func, args, name, future)
+
+        # If the task raises an exception after sending a start value without a switch point
+        # between, the task group is cancelled and this method never proceeds to process the
+        # completed future. That's why we have to have a shielded cancel scope here.
+        with CancelScope(shield=True):
+            try:
+                return await future
+            except CancelledError:
+                task.cancel()
+                raise
 
 
 #
@@ -569,9 +618,11 @@ class BlockingPortal(abc.BlockingPortal):
         super().__init__()
         self._loop = get_running_loop()
 
-    def _spawn_task_from_thread(self, func: Callable, args: tuple, future: Future) -> None:
+    def _spawn_task_from_thread(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
+                                name, future: Future) -> None:
         run_sync_from_thread(
-            self._task_group.spawn, self._call_func, func, args, future, loop=self._loop)
+            partial(self._task_group.spawn, name=name), self._call_func, func, args, kwargs,
+            future, loop=self._loop)
 
 
 #

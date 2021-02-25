@@ -1,5 +1,7 @@
 import asyncio
 import re
+import sys
+from contextlib import suppress
 
 import pytest
 import trio
@@ -8,6 +10,11 @@ import anyio
 from anyio import (
     ExceptionGroup, create_task_group, current_effective_deadline, current_time, fail_after,
     get_cancelled_exc_class, move_on_after, open_cancel_scope, sleep, wait_all_tasks_blocked)
+
+if sys.version_info < (3, 7):
+    current_task = asyncio.Task.current_task
+else:
+    current_task = asyncio.current_task
 
 pytestmark = pytest.mark.anyio
 
@@ -78,6 +85,120 @@ async def test_spawn_after_error():
         tg.spawn(sleep, 0)
 
     exc.match('This task group is not active; no new tasks can be spawned')
+
+
+async def test_start_no_value():
+    async def taskfunc(*, task_status):
+        task_status.started()
+
+    async with create_task_group() as tg:
+        value = await tg.start(taskfunc)
+        assert value is None
+
+
+async def test_start_with_value():
+    async def taskfunc(*, task_status):
+        task_status.started('foo')
+
+    async with create_task_group() as tg:
+        value = await tg.start(taskfunc)
+        assert value == 'foo'
+
+
+async def test_start_crash_before_started_call():
+    async def taskfunc(*, task_status):
+        raise Exception('foo')
+
+    async with create_task_group() as tg:
+        with pytest.raises(Exception) as exc:
+            await tg.start(taskfunc)
+
+    exc.match('foo')
+
+
+async def test_start_crash_after_started_call():
+    async def taskfunc(*, task_status):
+        task_status.started(2)
+        raise Exception('foo')
+
+    with pytest.raises(Exception) as exc:
+        async with create_task_group() as tg:
+            value = await tg.start(taskfunc)
+
+    exc.match('foo')
+    assert value == 2
+
+
+async def test_start_no_started_call():
+    async def taskfunc(*, task_status):
+        pass
+
+    async with create_task_group() as tg:
+        with pytest.raises(RuntimeError) as exc:
+            await tg.start(taskfunc)
+
+    exc.match('hild exited')
+
+
+async def test_start_cancelled():
+    async def taskfunc(*, task_status):
+        nonlocal started, finished
+        started = True
+        await sleep(2)
+        finished = True
+
+    started = finished = False
+    async with create_task_group() as tg:
+        tg.cancel_scope.cancel()
+        await tg.start(taskfunc)
+
+    assert started
+    assert not finished
+
+
+@pytest.mark.parametrize('anyio_backend', ['asyncio'])
+async def test_start_native_host_cancelled():
+    async def taskfunc(*, task_status):
+        nonlocal started, finished
+        started = True
+        await sleep(2)
+        finished = True
+
+    async def start_another():
+        async with create_task_group() as tg:
+            await tg.start(taskfunc)
+
+    started = finished = False
+    task = asyncio.get_event_loop().create_task(start_another())
+    await wait_all_tasks_blocked()
+    task.cancel()
+    with suppress(asyncio.CancelledError):
+        await task
+
+    assert started
+    assert not finished
+
+
+@pytest.mark.parametrize('anyio_backend', ['asyncio'])
+async def test_start_native_child_cancelled():
+    async def taskfunc(*, task_status):
+        nonlocal task, finished
+        task = current_task()
+        await sleep(2)
+        finished = True
+
+    async def start_another():
+        async with create_task_group() as tg2:
+            await tg2.start(taskfunc)
+
+    task = None
+    finished = False
+    async with create_task_group() as tg:
+        tg.spawn(start_another)
+        await wait_all_tasks_blocked()
+        task.cancel()
+
+    assert not finished
 
 
 async def test_host_exception():
@@ -424,11 +545,13 @@ async def test_cancel_cascade():
         async with create_task_group() as tg2:
             tg2.spawn(sleep, 1)
 
+        print('raising exception')
         raise Exception('foo')
 
     async with create_task_group() as tg:
         tg.spawn(do_something)
         await wait_all_tasks_blocked()
+        print('all tasks blocking')
         tg.cancel_scope.cancel()
 
 
@@ -541,14 +664,16 @@ async def test_exception_group_filtering():
 async def test_cancel_propagation_with_inner_spawn():
     async def g():
         async with anyio.create_task_group() as tg:
+            print('inner task group:', id(tg))
             tg.spawn(anyio.sleep, 10)
-            await anyio.sleep(5)
+            await anyio.sleep(1)
 
         assert False
 
     async with anyio.create_task_group() as group:
+        print('outer task group:', id(group))
         group.spawn(g)
-        await anyio.sleep(0.1)
+        await wait_all_tasks_blocked()
         group.cancel_scope.cancel()
 
 

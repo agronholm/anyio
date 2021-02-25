@@ -1,9 +1,11 @@
 import socket
 from concurrent.futures import Future
 from dataclasses import dataclass
+from functools import partial
 from types import TracebackType
 from typing import (
-    Awaitable, Callable, Generic, List, NoReturn, Optional, Tuple, Type, TypeVar, Union)
+    Any, Awaitable, Callable, Coroutine, Dict, Generic, List, NoReturn, Optional, Tuple, Type,
+    TypeVar, Union)
 
 import trio.from_thread
 from outcome import Error, Value
@@ -93,10 +95,16 @@ class TaskGroup(abc.TaskGroup):
 
         self._nursery.start_soon(func, *args, name=name)
 
+    async def start(self, func: Callable[..., Coroutine], *args, name=None):
+        if not self._active:
+            raise RuntimeError('This task group is not active; no new tasks can be spawned.')
+
+        return await self._nursery.start(func, *args, name=name)
 
 #
 # Threads
 #
+
 
 async def run_sync_in_worker_thread(
         func: Callable[..., T_Retval], *args, cancellable: bool = False,
@@ -116,9 +124,11 @@ class BlockingPortal(abc.BlockingPortal):
         super().__init__()
         self._token = trio.lowlevel.current_trio_token()
 
-    def _spawn_task_from_thread(self, func: Callable, args: tuple, future: Future) -> None:
+    def _spawn_task_from_thread(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
+                                name, future: Future) -> None:
         return trio.from_thread.run_sync(
-            self._task_group.spawn, self._call_func, func, args, future, trio_token=self._token)
+            partial(self._task_group.spawn, name=name), self._call_func, func, args, kwargs,
+            future, trio_token=self._token)
 
 
 #
