@@ -5,8 +5,8 @@ __all__ = ('AsyncResource', 'IPAddressType', 'IPSockAddrType', 'SocketAttribute'
            'ByteSendStream', 'ByteStream', 'AnyUnreliableByteReceiveStream',
            'AnyUnreliableByteSendStream', 'AnyUnreliableByteStream', 'AnyByteReceiveStream',
            'AnyByteSendStream', 'AnyByteStream', 'Listener', 'Process', 'Event', 'Lock',
-           'Condition', 'Semaphore', 'CapacityLimiter', 'CancelScope', 'TaskGroup', 'TestRunner',
-           'BlockingPortal')
+           'Condition', 'Semaphore', 'CapacityLimiter', 'CancelScope', 'TaskGroup', 'TaskStatus',
+           'TestRunner', 'BlockingPortal')
 
 from ._resources import AsyncResource
 from ._sockets import (
@@ -19,7 +19,7 @@ from ._streams import (
     UnreliableObjectReceiveStream, UnreliableObjectSendStream, UnreliableObjectStream)
 from ._subprocesses import Process
 from ._synchronization import CapacityLimiter, Condition, Event, Lock, Semaphore
-from ._tasks import CancelScope, TaskGroup
+from ._tasks import CancelScope, TaskGroup, TaskStatus
 from ._testing import TestRunner
 from ._threads import BlockingPortal
 

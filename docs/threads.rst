@@ -105,6 +105,26 @@ When you need to spawn a task to be run in the background, you can do so using
 Cancelling tasks spawned this way can be done by cancelling the returned
 :class:`~concurrent.futures.Future`.
 
+Blocking portals also have a method similar to :meth:`TaskGroup.start() <.abc.TaskGroup.start>`:
+:meth:`~.BlockingPortal.start_task` which, like its counterpart, waits for the callable to signal
+readiness by calling ``task_status.started()``::
+
+    from anyio import sleep, start_blocking_portal, TASK_STATUS_IGNORED
+
+
+    async def service_task(*, task_status=TASK_STATUS_IGNORED):
+        task_status.started('STARTED')
+        await sleep(1)
+        return 'DONE'
+
+
+    with start_blocking_portal() as portal:
+        future, start_value = portal.start_task(service_task)
+        print('Task has started with value', start_value)
+
+        return_value = future.result()
+        print('Task has finished with return value', return_value)
+
 
 Using asynchronous context managers from worker threads
 -------------------------------------------------------

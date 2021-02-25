@@ -2,8 +2,16 @@ import math
 from contextlib import contextmanager
 from typing import Any, Generator, Optional
 
-from ..abc import CancelScope, TaskGroup
+from ..abc import CancelScope, TaskGroup, TaskStatus
 from ._eventloop import get_asynclib
+
+
+class _IgnoredTaskStatus(TaskStatus):
+    def started(self, value=None) -> None:
+        pass
+
+
+TASK_STATUS_IGNORED = _IgnoredTaskStatus()
 
 
 def open_cancel_scope(*, shield: bool = False) -> CancelScope:
