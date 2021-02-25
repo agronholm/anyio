@@ -502,6 +502,11 @@ class TaskGroup(abc.TaskGroup):
         name = name or get_callable_name(func)
         future: asyncio.Future = asyncio.Future()
         task = self._spawn(func, args, name, future)
+        self._task_started(task, name)
+
+        # If the task raises an exception after sending a start value without a switch point
+        # between, the exception group is cancelled and this method never proceeds to process the
+        # completed future. That's why we have to have a shielded cancel scope here.
         with CancelScope(shield=True):
             await asyncio.wait([future, task], return_when=asyncio.FIRST_COMPLETED)
 

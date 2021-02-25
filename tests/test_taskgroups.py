@@ -133,6 +133,22 @@ async def test_start_no_started_call():
     exc.match('hild exited')
 
 
+async def test_start_cancelled():
+    async def taskfunc(*, task_status):
+        nonlocal started, finished
+        started = True
+        await sleep(2)
+        finished = True
+
+    started = finished = False
+    async with create_task_group() as tg:
+        tg.cancel_scope.cancel()
+        await tg.start(taskfunc)
+
+    assert started
+    assert not finished
+
+
 async def test_host_exception():
     async def set_result(value):
         nonlocal result
