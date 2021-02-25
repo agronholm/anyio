@@ -157,7 +157,7 @@ async def test_start_cancelled():
 
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
-async def test_start_native_cancelled():
+async def test_start_native_host_cancelled():
     async def taskfunc(*, task_status):
         nonlocal started, finished
         started = True
