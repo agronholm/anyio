@@ -28,3 +28,5 @@ file objects support synchronous iteration::
                 print(line, end='')
 
     run(main)
+
+.. seealso:: :ref:`FileStreams`
