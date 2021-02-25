@@ -28,8 +28,10 @@ async def test_task_group_cancellation_open():
     async def signal_handler():
         with open_signal_receiver(signal.SIGUSR1) as sigiter:
             async for v in sigiter:
-                pytest.fail("as SIGUSR1 should not be sent")
+                pytest.fail("SIGUSR1 should not be sent")
+
             pytest.fail("signal_handler should have been cancelled")
+
         pytest.fail("open_signal_receiver should not suppress cancellation")
 
     async with create_task_group() as tg:
@@ -40,7 +42,8 @@ async def test_task_group_cancellation_open():
 async def test_task_group_cancellation_consume():
     async def consume(sigiter):
         async for v in sigiter:
-            pytest.fail("a SIGUSR1 should not be sent")
+            pytest.fail("SIGUSR1 should not be sent")
+
         pytest.fail("consume should have been cancelled")
 
     with open_signal_receiver(signal.SIGUSR1) as sigiter:
