@@ -486,10 +486,12 @@ class TaskGroup(abc.TaskGroup):
             kwargs['task_status_future'] = task_status_future
 
         task = create_task(self._run_wrapped_task(func, args, task_status_future), **options)
+
         # Make the spawned task inherit the task group's cancel scope
         _task_states[task] = TaskState(parent_id=id(current_task()), name=name,
                                        cancel_scope=self.cancel_scope)
         self.cancel_scope._tasks.add(task)
+
         return task
 
     def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
