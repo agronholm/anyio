@@ -507,7 +507,7 @@ class TaskGroup(abc.TaskGroup):
         task = self._spawn(func, args, name, future)
 
         # If the task raises an exception after sending a start value without a switch point
-        # between, the exception group is cancelled and this method never proceeds to process the
+        # between, the task group is cancelled and this method never proceeds to process the
         # completed future. That's why we have to have a shielded cancel scope here.
         with CancelScope(shield=True):
             try:
