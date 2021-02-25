@@ -449,12 +449,6 @@ class TaskGroup(abc.TaskGroup):
 
         return filtered_exceptions
 
-    def _task_started(self, task: asyncio.Task, name) -> None:
-        # Make the spawned task inherit the task group's cancel scope
-        _task_states[task] = TaskState(parent_id=id(current_task()), name=name,
-                                       cancel_scope=self.cancel_scope)
-        self.cancel_scope._tasks.add(task)
-
     async def _run_wrapped_task(
             self, func: Callable[..., Coroutine], args: tuple,
             task_status_future: Optional[asyncio.Future]) -> None:
@@ -491,18 +485,23 @@ class TaskGroup(abc.TaskGroup):
         if task_status_future:
             kwargs['task_status_future'] = task_status_future
 
-        return create_task(self._run_wrapped_task(func, args, task_status_future), **options)
+        task = create_task(self._run_wrapped_task(func, args, task_status_future), **options)
+
+        # Make the spawned task inherit the task group's cancel scope
+        _task_states[task] = TaskState(parent_id=id(current_task()), name=name,
+                                       cancel_scope=self.cancel_scope)
+        self.cancel_scope._tasks.add(task)
+
+        return task
 
     def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
         name = name or get_callable_name(func)
-        task = self._spawn(func, args, name)
-        self._task_started(task, name)
+        self._spawn(func, args, name)
 
     async def start(self, func: Callable[..., Coroutine], *args, name=None) -> None:
         name = name or get_callable_name(func)
         future: asyncio.Future = asyncio.Future()
         task = self._spawn(func, args, name, future)
-        self._task_started(task, name)
 
         # If the task raises an exception after sending a start value without a switch point
         # between, the exception group is cancelled and this method never proceeds to process the
@@ -511,9 +510,6 @@ class TaskGroup(abc.TaskGroup):
             await asyncio.wait([future, task], return_when=asyncio.FIRST_COMPLETED)
 
         if future.done():
-            if not task.done() and not future.cancelled() and future.exception() is None:
-                self._task_started(task, name)
-
             return future.result()
         elif task.exception():
             raise cast(BaseException, task.exception())
