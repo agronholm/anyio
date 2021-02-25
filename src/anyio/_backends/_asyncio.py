@@ -467,6 +467,10 @@ class TaskGroup(abc.TaskGroup):
                 self.cancel_scope.cancel()
             else:
                 task_status_future.set_exception(exc)
+        else:
+            if task_status_future is not None and not task_status_future.done():
+                task_status_future.set_exception(
+                    RuntimeError('Child exited without calling task_status.started()'))
         finally:
             if task in self.cancel_scope._tasks:
                 self.cancel_scope._tasks.remove(task)
@@ -478,6 +482,7 @@ class TaskGroup(abc.TaskGroup):
             raise RuntimeError('This task group is not active; no new tasks can be spawned.')
 
         options = {}
+        name = name or get_callable_name(func)
         if _native_task_names:
             options['name'] = name
 
@@ -495,11 +500,9 @@ class TaskGroup(abc.TaskGroup):
         return task
 
     def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
-        name = name or get_callable_name(func)
         self._spawn(func, args, name)
 
     async def start(self, func: Callable[..., Coroutine], *args, name=None) -> None:
-        name = name or get_callable_name(func)
         future: asyncio.Future = asyncio.Future()
         task = self._spawn(func, args, name, future)
 
@@ -507,14 +510,11 @@ class TaskGroup(abc.TaskGroup):
         # between, the exception group is cancelled and this method never proceeds to process the
         # completed future. That's why we have to have a shielded cancel scope here.
         with CancelScope(shield=True):
-            await asyncio.wait([future, task], return_when=asyncio.FIRST_COMPLETED)
-
-        if future.done():
-            return future.result()
-        elif task.exception():
-            raise cast(BaseException, task.exception())
-        else:
-            raise RuntimeError('Child exited without calling task_status.started()')
+            try:
+                return await future
+            except CancelledError:
+                task.cancel()
+                raise
 
 
 #

@@ -1,5 +1,6 @@
 import asyncio
 import re
+from contextlib import suppress
 
 import pytest
 import trio
@@ -146,6 +147,51 @@ async def test_start_cancelled():
         await tg.start(taskfunc)
 
     assert started
+    assert not finished
+
+
+@pytest.mark.parametrize('anyio_backend', ['asyncio'])
+async def test_start_native_cancelled():
+    async def taskfunc(*, task_status):
+        nonlocal started, finished
+        started = True
+        await sleep(2)
+        finished = True
+
+    async def start_another():
+        async with create_task_group() as tg:
+            await tg.start(taskfunc)
+
+    started = finished = False
+    task = asyncio.get_event_loop().create_task(start_another())
+    await wait_all_tasks_blocked()
+    task.cancel()
+    with suppress(asyncio.CancelledError):
+        await task
+
+    assert started
+    assert not finished
+
+
+@pytest.mark.parametrize('anyio_backend', ['asyncio'])
+async def test_start_native_child_cancelled():
+    async def taskfunc(*, task_status):
+        nonlocal task, finished
+        task = asyncio.Task.current_task()
+        await sleep(2)
+        finished = True
+
+    async def start_another():
+        async with create_task_group() as tg2:
+            await tg2.start(taskfunc)
+
+    task = None
+    finished = False
+    async with create_task_group() as tg:
+        tg.spawn(start_another)
+        await wait_all_tasks_blocked()
+        task.cancel()
+
     assert not finished
 
 
