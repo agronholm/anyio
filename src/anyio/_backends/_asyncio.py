@@ -1088,47 +1088,6 @@ async def wait_socket_writable(sock: socket.SocketType) -> None:
 # Synchronization
 #
 
-class Lock(abc.Lock):
-    def __init__(self):
-        self._lock = asyncio.Lock()
-
-    def locked(self) -> bool:
-        return self._lock.locked()
-
-    async def acquire(self) -> None:
-        await checkpoint()
-        await self._lock.acquire()
-
-    def release(self) -> None:
-        self._lock.release()
-
-
-class Condition(abc.Condition):
-    def __init__(self, lock: Optional[Lock]):
-        asyncio_lock = lock._lock if lock else None
-        self._condition = asyncio.Condition(asyncio_lock)
-
-    async def acquire(self) -> None:
-        await checkpoint()
-        await self._condition.acquire()
-
-    def release(self) -> None:
-        self._condition.release()
-
-    def locked(self) -> bool:
-        return self._condition.locked()
-
-    def notify(self, n=1) -> None:
-        self._condition.notify(n)
-
-    def notify_all(self) -> None:
-        self._condition.notify_all()
-
-    async def wait(self):
-        await checkpoint()
-        return await self._condition.wait()
-
-
 class Event(abc.Event):
     def __init__(self):
         self._event = asyncio.Event()
@@ -1142,22 +1101,6 @@ class Event(abc.Event):
     async def wait(self):
         await checkpoint()
         await self._event.wait()
-
-
-class Semaphore(abc.Semaphore):
-    def __init__(self, value: int):
-        self._semaphore = asyncio.Semaphore(value)
-
-    async def acquire(self) -> None:
-        await checkpoint()
-        await self._semaphore.acquire()
-
-    def release(self) -> None:
-        self._semaphore.release()
-
-    @property
-    def value(self):
-        return self._semaphore._value
 
 
 class CapacityLimiter(abc.CapacityLimiter):

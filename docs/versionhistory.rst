@@ -46,6 +46,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added the ``FileReadStream`` and ``FileWriteStream`` classes
 - Added the ``TaskGroup.start()`` method and a corresponding ``BlockingPortal.start_task()`` method
 - Added the ``name`` argument to ``BlockingPortal.spawn_task()``
+- Added the ``max_value`` property to ``Semaphore``
+- Added the ``Lock.acquire_nowait()``, ``Condition.acquire_nowait()`` and
+  ``Semaphore.acquire_nowait()`` methods
+- ``Lock`` and ``Condition`` can now only be released by the task that acquired them. This behavior
+  is now consistent on all backends whereas previously only Trio enforced this.
 - Fixed ``TLSStream.send_eof()`` raising ``ValueError`` instead of the expected
   `NotImplementedError``
 

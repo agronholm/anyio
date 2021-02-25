@@ -1,8 +1,8 @@
 import pytest
 
 from anyio import (
-    create_capacity_limiter, create_condition, create_event, create_lock, create_semaphore,
-    create_task_group, current_default_worker_thread_limiter, open_cancel_scope,
+    WouldBlock, create_capacity_limiter, create_condition, create_event, create_lock,
+    create_semaphore, create_task_group, current_default_worker_thread_limiter, open_cancel_scope,
     wait_all_tasks_blocked)
 from anyio.abc import CapacityLimiter
 
@@ -49,6 +49,20 @@ class TestLock:
 
         assert not lock.locked()
         assert results == ['1', '2']
+
+    async def test_acquire_nowait(self):
+        lock = create_lock()
+        lock.acquire_nowait()
+        assert lock.locked()
+
+    async def test_acquire_nowait_wouldblock(self):
+        async def try_lock():
+            pytest.raises(WouldBlock, lock.acquire_nowait)
+
+        lock = create_lock()
+        async with lock, create_task_group() as tg:
+            assert lock.locked()
+            tg.spawn(try_lock)
 
     async def test_cancel(self):
         async def task():
@@ -130,6 +144,20 @@ class TestCondition:
             finally:
                 condition.release()
 
+    async def test_acquire_nowait(self):
+        condition = create_condition()
+        condition.acquire_nowait()
+        assert condition.locked()
+
+    async def test_acquire_nowait_wouldblock(self):
+        async def try_lock():
+            pytest.raises(WouldBlock, condition.acquire_nowait)
+
+        condition = create_condition()
+        async with condition, create_task_group() as tg:
+            assert condition.locked()
+            tg.spawn(try_lock)
+
     async def test_wait_cancel(self):
         async def task():
             nonlocal task_started, notified
@@ -180,6 +208,12 @@ class TestSemaphore:
 
         assert semaphore.value == 2
 
+    async def test_acquire_nowait(self):
+        semaphore = create_semaphore(1)
+        semaphore.acquire_nowait()
+        assert semaphore.value == 0
+        pytest.raises(WouldBlock, semaphore.acquire_nowait)
+
     async def test_acquire_cancel(self):
         async def task():
             nonlocal local_scope, acquired
@@ -196,6 +230,16 @@ class TestSemaphore:
                 local_scope.cancel()
 
         assert not acquired
+
+    @pytest.mark.parametrize('max_value', [2, None])
+    async def test_max_value(self, max_value):
+        semaphore = create_semaphore(0, max_value=max_value)
+        assert semaphore.max_value == max_value
+
+    async def test_max_value_exceeded(self):
+        semaphore = create_semaphore(1, max_value=2)
+        semaphore.release()
+        pytest.raises(ValueError, semaphore.release)
 
 
 class TestCapacityLimiter:
