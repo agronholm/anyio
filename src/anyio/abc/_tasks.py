@@ -5,6 +5,16 @@ from typing import Callable, Coroutine, Optional, Type, TypeVar
 T_Retval = TypeVar('T_Retval')
 
 
+class TaskStatus(metaclass=ABCMeta):
+    @abstractmethod
+    def started(self, value=None) -> None:
+        """
+        Signal that the task has started.
+
+        :param value: object passed back to the starter of the task
+        """
+
+
 class TaskGroup(metaclass=ABCMeta):
     """
     Groups several asynchronous tasks together.
@@ -23,6 +33,20 @@ class TaskGroup(metaclass=ABCMeta):
         :param func: a coroutine function
         :param args: positional arguments to call the function with
         :param name: name of the task, for the purposes of introspection and debugging
+        """
+
+    @abstractmethod
+    async def start(self, func: Callable[..., Coroutine], *args, name=None) -> None:
+        """
+        Launch a new task and wait until it signals for readiness.
+
+        :param func: a coroutine function
+        :param args: positional arguments to call the function with
+        :param name: name of the task, for the purposes of introspection and debugging
+        :return: the value passed to ``task_status.started()``
+        :raises RuntimeError: if the task finishes without calling ``task_status.started()``
+
+        .. versionadded:: 3.0
         """
 
     @abstractmethod
