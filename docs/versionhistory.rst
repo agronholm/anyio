@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**2.2.0**
 
 - Added the ``maybe_async()`` and ``maybe_async_cm()`` functions to facilitate forward
   compatibility with AnyIO 3
