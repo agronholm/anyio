@@ -674,11 +674,8 @@ class TestRunner(abc.TestRunner):
     async def _call_func(self, func, args, kwargs):
         try:
             retval = await func(*args, **kwargs)
-        except Exception as exc:
-            self._result_queue.append(Error(exc))
         except BaseException as exc:
             self._result_queue.append(Error(exc))
-            raise
         else:
             self._result_queue.append(Value(retval))
 

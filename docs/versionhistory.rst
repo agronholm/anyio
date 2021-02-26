@@ -14,6 +14,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``NotImplementedError``
 - Fixed ``open_signal_receiver()`` on asyncio and curio hanging if the cancel scope was cancelled
   before the function could run
+- Fixed Trio test runner causing unwarranted test errors on ``BaseException``s
+  (PR by Matthias Urlichs)
 
 **2.1.0**
 
