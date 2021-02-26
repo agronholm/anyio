@@ -16,6 +16,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   before the function could run
 - Fixed Trio test runner causing unwarranted test errors on ``BaseException``s
   (PR by Matthias Urlichs)
+- Fixed formatted output of ``ExceptionGroup`` containing too many newlines
 
 **2.1.0**
 
