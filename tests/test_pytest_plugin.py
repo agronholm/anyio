@@ -30,6 +30,11 @@ def test_plugin(testdir):
         from hypothesis import strategies, given
 
 
+        @pytest.fixture
+        async def some_feature():
+            yield None
+            await sleep(0)
+
         @pytest.mark.anyio
         async def test_marked_test():
             # Test that tests marked with @pytest.mark.anyio are run
@@ -54,11 +59,16 @@ def test_plugin(testdir):
             def test_class_fixture_in_test_method(self, async_class_fixture, anyio_backend_name):
                 assert anyio_backend_name == 'asyncio'
                 assert async_class_fixture == 'asyncio'
+
+        @pytest.mark.anyio
+        async def test_skip_inline(some_feature):
+            # Test for github #214
+            pytest.skip("Test that skipping works")
         """
     )
 
     result = testdir.runpytest('-v')
-    result.assert_outcomes(passed=3 * len(get_all_backends()) + 1)
+    result.assert_outcomes(passed=3 * len(get_all_backends()) + 1, skipped=len(get_all_backends()))
 
 
 def test_autouse_async_fixture(testdir):

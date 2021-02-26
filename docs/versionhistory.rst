@@ -53,6 +53,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   is now consistent on all backends whereas previously only Trio enforced this.
 - Fixed ``TLSStream.send_eof()`` raising ``ValueError`` instead of the expected
   ``NotImplementedError``
+- Fixed Trio test runner causing unwarranted test errors on ``BaseException``s
+  (PR by Matthias Urlichs)
 
 **2.1.0**
 
