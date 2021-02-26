@@ -95,3 +95,19 @@ async def test_wait_all_tasks_blocked_asend(anyio_backend):
     await wait_all_tasks_blocked()
     await task
     await agen.aclose()
+
+
+@pytest.fixture
+async def some_feature(request, anyio_backend):
+    yield None
+    await anyio.sleep(0)
+
+
+class TestSkipping:
+    """
+    This test fails with Trio when the guest mode runner sees the
+    cancellation.
+    """
+    async def test_skip_inline(self, some_feature):
+        """Test for github #214"""
+        pytest.skip("Test that skipping works")
