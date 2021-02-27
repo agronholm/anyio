@@ -49,6 +49,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added the ``max_value`` property to ``Semaphore``
 - Added the ``Lock.acquire_nowait()``, ``Condition.acquire_nowait()`` and
   ``Semaphore.acquire_nowait()`` methods
+- Changed ``CancelScope.deadline`` to be writable
 - ``Lock`` and ``Condition`` can now only be released by the task that acquired them. This behavior
   is now consistent on all backends whereas previously only Trio enforced this.
 
