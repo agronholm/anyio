@@ -1,8 +1,35 @@
 from abc import ABCMeta, abstractmethod
+from dataclasses import dataclass
 from types import TracebackType
 from typing import Optional, Type, TypeVar
 
 T_Retval = TypeVar('T_Retval')
+
+
+@dataclass(frozen=True)
+class EventStatistics:
+    """
+    :ivar int tasks_waiting: number of tasks waiting on :meth:`~.Event.wait`
+    """
+
+    tasks_waiting: int
+
+
+@dataclass(frozen=True)
+class CapacityLimiterStatistics:
+    """
+    :ivar int borrowed_tokens: number of tokens currently borrowed by tasks
+    :ivar float total_tokens: total number of available tokens
+    :ivar tuple borrowers: tasks or other objects currently holding tokens borrowed from this
+        limiter
+    :ivar int tasks_waiting: number of tasks waiting on :meth:`~.CapacityLimiter.acquire` or
+        :meth:`~.CapacityLimiter.acquire_on_behalf_of`
+    """
+
+    borrowed_tokens: int
+    total_tokens: float
+    borrowers: tuple
+    tasks_waiting: int
 
 
 class Event(metaclass=ABCMeta):
@@ -21,6 +48,10 @@ class Event(metaclass=ABCMeta):
 
         If the flag has already been set when this method is called, it returns immediately.
         """
+
+    @abstractmethod
+    def statistics(self) -> EventStatistics:
+        """Return statistics about the current state of this event."""
 
 
 class CapacityLimiter(metaclass=ABCMeta):
@@ -101,4 +132,12 @@ class CapacityLimiter(metaclass=ABCMeta):
         Release the token held by the given borrower.
 
         :raises RuntimeError: if the borrower has not borrowed a token from this limiter.
+        """
+
+    @abstractmethod
+    def statistics(self) -> CapacityLimiterStatistics:
+        """
+        Return statistics about the current state of this limiter.
+
+        .. versionadded:: 3.0
         """

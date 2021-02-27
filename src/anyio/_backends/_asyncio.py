@@ -17,7 +17,7 @@ from typing import (
     Tuple, Type, TypeVar, Union, cast)
 from weakref import WeakKeyDictionary
 
-from .. import TaskInfo, abc
+from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
 from .._core._eventloop import claim_worker_thread, threadlocals
 from .._core._exceptions import (
     BrokenResourceError, BusyResourceError, ClosedResourceError, EndOfStream)
@@ -1106,6 +1106,9 @@ class Event(abc.Event):
         await checkpoint()
         await self._event.wait()
 
+    def statistics(self) -> EventStatistics:
+        return EventStatistics(len(self._event._waiters))
+
 
 class CapacityLimiter(abc.CapacityLimiter):
     _total_tokens: float = 0
@@ -1200,6 +1203,10 @@ class CapacityLimiter(abc.CapacityLimiter):
         if self._wait_queue and len(self._borrowers) < self._total_tokens:
             event = self._wait_queue.popitem()[1]
             event.set()
+
+    def statistics(self) -> CapacityLimiterStatistics:
+        return CapacityLimiterStatistics(self.borrowed_tokens, self.total_tokens,
+                                         tuple(self._borrowers), len(self._wait_queue))
 
 
 def current_default_thread_limiter():

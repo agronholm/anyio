@@ -1,8 +1,9 @@
 from collections import deque
+from dataclasses import dataclass
 from types import TracebackType
 from typing import Deque, Optional, Tuple, Type
 
-from ..abc import CapacityLimiter, Event
+from .. import abc
 from ._eventloop import get_asynclib
 from ._exceptions import BusyResourceError, WouldBlock
 from ._lowlevel import checkpoint
@@ -10,11 +11,45 @@ from ._tasks import open_cancel_scope
 from ._testing import TaskInfo, get_current_task
 
 
+@dataclass(frozen=True)
+class LockStatistics:
+    """
+    :ivar bool locked: flag indicating if this lock is locked or not
+    :ivar ~anyio.TaskInfo owner: task currently holding the lock (or ``None`` if the lock is not
+        held by any task)
+    :ivar int tasks_waiting: number of tasks waiting on :meth:`~.Lock.acquire`
+    """
+
+    locked: bool
+    owner: Optional[TaskInfo]
+    tasks_waiting: int
+
+
+@dataclass(frozen=True)
+class ConditionStatistics:
+    """
+    :ivar int tasks_waiting: number of tasks blocked on :meth:`~.Condition.wait`
+    :ivar ~anyio.LockStatistics lock_statistics: statistics of the underlying :class:`~.Lock`
+    """
+
+    tasks_waiting: int
+    lock_statistics: LockStatistics
+
+
+@dataclass(frozen=True)
+class SemaphoreStatistics:
+    """
+    :ivar int tasks_waiting: number of tasks waiting on :meth:`~.Semaphore.acquire`
+
+    """
+    tasks_waiting: int
+
+
 class Lock:
     _owner_task: Optional[TaskInfo] = None
 
     def __init__(self):
-        self._waiters: Deque[Tuple[TaskInfo, Event]] = deque()
+        self._waiters: Deque[Tuple[TaskInfo, abc.Event]] = deque()
 
     async def __aenter__(self):
         await self.acquire()
@@ -75,13 +110,21 @@ class Lock:
         """Return True if the lock is currently held."""
         return self._owner_task is not None
 
+    def statistics(self) -> LockStatistics:
+        """
+        Return statistics about the current state of this lock.
+
+        .. versionadded:: 3.0
+        """
+        return LockStatistics(self.locked(), self._owner_task, len(self._waiters))
+
 
 class Condition:
     _owner_task: Optional[TaskInfo] = None
 
     def __init__(self, lock: Optional[Lock] = None):
         self._lock = lock or Lock()
-        self._waiters: Deque[Event] = deque()
+        self._waiters: Deque[abc.Event] = deque()
 
     async def __aenter__(self):
         await self.acquire()
@@ -154,6 +197,14 @@ class Condition:
             with open_cancel_scope(shield=True):
                 await self.acquire()
 
+    def statistics(self) -> ConditionStatistics:
+        """
+        Return statistics about the current state of this condition.
+
+        .. versionadded:: 3.0
+        """
+        return ConditionStatistics(len(self._waiters), self._lock.statistics())
+
 
 class Semaphore:
     def __init__(self, initial_value: int, *, max_value: Optional[int]):
@@ -169,7 +220,7 @@ class Semaphore:
 
         self._value = initial_value
         self._max_value = max_value
-        self._waiters: Deque[Event] = deque()
+        self._waiters: Deque[abc.Event] = deque()
 
     async def __aenter__(self) -> 'Semaphore':
         await self.acquire()
@@ -205,7 +256,6 @@ class Semaphore:
 
         """
         if self._value == 0:
-            assert not self._waiters
             raise WouldBlock
 
         self._value -= 1
@@ -229,6 +279,14 @@ class Semaphore:
         """The maximum value of the semaphore."""
         return self._max_value
 
+    def statistics(self) -> SemaphoreStatistics:
+        """
+        Return statistics about the current state of this semaphore.
+
+        .. versionadded:: 3.0
+        """
+        return SemaphoreStatistics(len(self._waiters))
+
 
 def create_lock() -> Lock:
     """
@@ -251,7 +309,7 @@ def create_condition(lock: Optional[Lock] = None) -> Condition:
     return Condition(lock=lock)
 
 
-def create_event() -> Event:
+def create_event() -> abc.Event:
     """
     Create an asynchronous event object.
 
@@ -274,7 +332,7 @@ def create_semaphore(value: int, *, max_value: Optional[int] = None) -> Semaphor
     return Semaphore(value, max_value=max_value)
 
 
-def create_capacity_limiter(total_tokens: float) -> CapacityLimiter:
+def create_capacity_limiter(total_tokens: float) -> abc.CapacityLimiter:
     """
     Create a capacity limiter.
 

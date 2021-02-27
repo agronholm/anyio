@@ -4,9 +4,9 @@ __all__ = ('AsyncResource', 'IPAddressType', 'IPSockAddrType', 'SocketAttribute'
            'ObjectReceiveStream', 'ObjectSendStream', 'ObjectStream', 'ByteReceiveStream',
            'ByteSendStream', 'ByteStream', 'AnyUnreliableByteReceiveStream',
            'AnyUnreliableByteSendStream', 'AnyUnreliableByteStream', 'AnyByteReceiveStream',
-           'AnyByteSendStream', 'AnyByteStream', 'Listener', 'Process', 'Event', 'Lock',
-           'Condition', 'Semaphore', 'CapacityLimiter', 'CancelScope', 'TaskGroup', 'TaskStatus',
-           'TestRunner', 'BlockingPortal')
+           'AnyByteSendStream', 'AnyByteStream', 'Listener', 'Process', 'Event',
+           'Condition', 'Lock', 'Semaphore', 'CapacityLimiter', 'CancelScope', 'TaskGroup',
+           'TaskStatus', 'TestRunner', 'BlockingPortal')
 
 from ._resources import AsyncResource
 from ._sockets import (
