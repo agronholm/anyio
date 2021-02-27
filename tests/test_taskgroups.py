@@ -532,13 +532,11 @@ async def test_cancel_cascade():
         async with create_task_group() as tg2:
             tg2.spawn(sleep, 1)
 
-        print('raising exception')
         raise Exception('foo')
 
     async with create_task_group() as tg:
         tg.spawn(do_something)
         await wait_all_tasks_blocked()
-        print('all tasks blocking')
         tg.cancel_scope.cancel()
 
 
@@ -651,14 +649,12 @@ async def test_exception_group_filtering():
 async def test_cancel_propagation_with_inner_spawn():
     async def g():
         async with anyio.create_task_group() as tg:
-            print('inner task group:', id(tg))
             tg.spawn(anyio.sleep, 10)
             await anyio.sleep(1)
 
         assert False
 
     async with anyio.create_task_group() as group:
-        print('outer task group:', id(group))
         group.spawn(g)
         await wait_all_tasks_blocked()
         group.cancel_scope.cancel()
