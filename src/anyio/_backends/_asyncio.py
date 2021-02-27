@@ -301,6 +301,16 @@ class CancelScope(abc.CancelScope):
     def deadline(self) -> float:
         return self._deadline
 
+    @deadline.setter
+    def deadline(self, value: float) -> None:
+        self._deadline = float(value)
+        if self._timeout_handle is not None:
+            self._timeout_handle.cancel()
+            self._timeout_handle = None
+
+        if self._active and not self._cancel_called:
+            self._timeout()
+
     @property
     def cancel_called(self) -> bool:
         return self._cancel_called

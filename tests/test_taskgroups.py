@@ -569,6 +569,12 @@ async def test_deadline_reached_on_start():
         pytest.fail('Execution should not reach this point')
 
 
+async def test_deadline_moved():
+    with fail_after(0.1) as scope:
+        scope.deadline += 0.3
+        await sleep(0.2)
+
+
 async def test_timeout_error_with_multiple_cancellations():
     with pytest.raises(TimeoutError):
         with fail_after(0.1):
