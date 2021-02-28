@@ -92,6 +92,7 @@ Streams and stream wrappers
 .. autoclass:: anyio.streams.file.FileWriteStream
 .. autoclass:: anyio.streams.memory.MemoryObjectReceiveStream
 .. autoclass:: anyio.streams.memory.MemoryObjectSendStream
+.. autoclass:: anyio.streams.memory.MemoryObjectStreamStatistics
 .. autoclass:: anyio.streams.stapled.MultiListener
 .. autoclass:: anyio.streams.stapled.StapledByteStream
 .. autoclass:: anyio.streams.stapled.StapledObjectStream
@@ -133,17 +134,23 @@ Subprocesses
 Synchronization
 ---------------
 
-.. autofunction:: anyio.create_semaphore
-.. autofunction:: anyio.create_lock
 .. autofunction:: anyio.create_event
+.. autofunction:: anyio.create_lock
 .. autofunction:: anyio.create_condition
+.. autofunction:: anyio.create_semaphore
 .. autofunction:: anyio.create_capacity_limiter
 
-.. autoclass:: anyio.abc.Semaphore
-.. autoclass:: anyio.abc.Lock
+
 .. autoclass:: anyio.abc.Event
+.. autoclass:: anyio.abc.Lock
 .. autoclass:: anyio.abc.Condition
+.. autoclass:: anyio.abc.Semaphore
 .. autoclass:: anyio.abc.CapacityLimiter
+
+.. autoclass:: anyio.LockStatistics
+.. autoclass:: anyio.EventStatistics
+.. autoclass:: anyio.ConditionStatistics
+.. autoclass:: anyio.CapacityLimiterStatistics
 
 Operating system signals
 ------------------------

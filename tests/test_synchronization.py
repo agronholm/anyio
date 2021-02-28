@@ -81,6 +81,26 @@ class TestLock:
         assert task_started
         assert not got_lock
 
+    async def test_statistics(self):
+        async def waiter():
+            async with lock:
+                pass
+
+        lock = create_lock()
+        async with create_task_group() as tg:
+            assert not lock.statistics().locked
+            assert lock.statistics().tasks_waiting == 0
+            async with lock:
+                assert lock.statistics().locked
+                assert lock.statistics().tasks_waiting == 0
+                for i in range(1, 3):
+                    tg.spawn(waiter)
+                    await wait_all_tasks_blocked()
+                    assert lock.statistics().tasks_waiting == i
+
+        assert not lock.statistics().locked
+        assert lock.statistics().tasks_waiting == 0
+
 
 class TestEvent:
     async def test_event(self):
@@ -111,6 +131,22 @@ class TestEvent:
 
         assert task_started
         assert not event_set
+
+    async def test_statistics(self):
+        async def waiter():
+            await event.wait()
+
+        event = create_event()
+        async with create_task_group() as tg:
+            assert event.statistics().tasks_waiting == 0
+            for i in range(1, 3):
+                tg.spawn(waiter)
+                await wait_all_tasks_blocked()
+                assert event.statistics().tasks_waiting == i
+
+            event.set()
+
+        assert event.statistics().tasks_waiting == 0
 
 
 class TestCondition:
@@ -179,6 +215,34 @@ class TestCondition:
         assert task_started
         assert not notified
 
+    async def test_statistics(self):
+        async def waiter():
+            async with condition:
+                await condition.wait()
+
+        condition = create_condition()
+        async with create_task_group() as tg:
+            assert not condition.statistics().lock_statistics.locked
+            assert condition.statistics().tasks_waiting == 0
+            async with condition:
+                assert condition.statistics().lock_statistics.locked
+                assert condition.statistics().tasks_waiting == 0
+
+            for i in range(1, 3):
+                tg.spawn(waiter)
+                await wait_all_tasks_blocked()
+                assert condition.statistics().tasks_waiting == i
+
+            for i in range(1, -1, -1):
+                async with condition:
+                    condition.notify(1)
+
+                await wait_all_tasks_blocked()
+                assert condition.statistics().tasks_waiting == i
+
+        assert not condition.statistics().lock_statistics.locked
+        assert condition.statistics().tasks_waiting == 0
+
 
 class TestSemaphore:
     async def test_contextmanager(self):
@@ -240,6 +304,23 @@ class TestSemaphore:
         semaphore = create_semaphore(1, max_value=2)
         semaphore.release()
         pytest.raises(ValueError, semaphore.release)
+
+    async def test_statistics(self):
+        async def waiter():
+            async with semaphore:
+                pass
+
+        semaphore = create_semaphore(1)
+        async with create_task_group() as tg:
+            assert semaphore.statistics().tasks_waiting == 0
+            async with semaphore:
+                assert semaphore.statistics().tasks_waiting == 0
+                for i in range(1, 3):
+                    tg.spawn(waiter)
+                    await wait_all_tasks_blocked()
+                    assert semaphore.statistics().tasks_waiting == i
+
+        assert semaphore.statistics().tasks_waiting == 0
 
 
 class TestCapacityLimiter:
@@ -321,3 +402,24 @@ class TestCapacityLimiter:
         limiter = current_default_worker_thread_limiter()
         assert isinstance(limiter, CapacityLimiter)
         assert limiter.total_tokens == 40
+
+    async def test_statistics(self):
+        async def waiter():
+            async with limiter:
+                pass
+
+        limiter = create_capacity_limiter(1)
+        assert limiter.statistics().total_tokens == 1
+        assert limiter.statistics().borrowed_tokens == 0
+        assert limiter.statistics().tasks_waiting == 0
+        async with create_task_group() as tg:
+            async with limiter:
+                assert limiter.statistics().borrowed_tokens == 1
+                assert limiter.statistics().tasks_waiting == 0
+                for i in range(1, 3):
+                    tg.spawn(waiter)
+                    await wait_all_tasks_blocked()
+                    assert limiter.statistics().tasks_waiting == i
+
+        assert limiter.statistics().tasks_waiting == 0
+        assert limiter.statistics().borrowed_tokens == 0
