@@ -54,6 +54,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added the ``run_sync_from_thread()`` function
 - Added ``UNIXSocketStream`` as a ``SocketStream`` subclass, capable of sending and receiving
   file descriptors
+- Added thread pooling for asyncio
 - Added the ``FileReadStream`` and ``FileWriteStream`` classes
 - Added the ``TaskGroup.start()`` method and a corresponding ``BlockingPortal.start_task()`` method
 - Added the ``name`` argument to ``BlockingPortal.spawn_task()``
@@ -78,6 +79,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   teardown) completes
 - Changed the asyncio ``TaskGroup.spawn()`` method to call the target function immediately before
   spawning the task, for consistency across backends
+- Changed the default thread limiter on asyncio to be scoped to an event loop so that multiple
+  running event loops don't conflict with each other
 
 **2.2.0**
 

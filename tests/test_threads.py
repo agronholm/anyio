@@ -9,7 +9,7 @@ import pytest
 
 from anyio import (
     create_blocking_portal, create_capacity_limiter, create_event, create_task_group,
-    get_cancelled_exc_class, get_current_task, run_async_from_thread, run_sync_from_thread,
+    get_cancelled_exc_class, get_current_task, run, run_async_from_thread, run_sync_from_thread,
     run_sync_in_worker_thread, sleep, start_blocking_portal, wait_all_tasks_blocked)
 
 if sys.version_info < (3, 7):
@@ -46,6 +46,23 @@ async def test_run_sync_from_thread():
     event_loop_thread_id = threading.get_ident()
     result = await run_sync_in_worker_thread(worker, 1, 2)
     assert result == 3
+
+
+def test_run_sync_from_thread_pooling():
+    async def main():
+        thread_ids = set()
+        for _ in range(5):
+            thread_ids.add(await run_sync_in_worker_thread(threading.get_ident))
+
+        # Expects that all the work has been done in the same worker thread
+        assert len(thread_ids) == 1
+        assert thread_ids.pop() != threading.get_ident()
+        assert threading.active_count() == initial_count + 1
+
+    # The thread should not exist after the event loop has been closed
+    initial_count = threading.active_count()
+    run(main, backend='asyncio')
+    assert threading.active_count() == initial_count
 
 
 async def test_run_async_from_thread_exception():
