@@ -201,7 +201,8 @@ class WorkerProc:
                 self._proc.terminate()
 
     async def wait(self):
-        await run_sync_in_worker_thread(self._proc.join)
+        while self._proc.is_alive():
+            await run_sync_in_worker_thread(self._proc.join, 1, cancellable=True)
 
 
 class PypyWorkerProc(WorkerProc):

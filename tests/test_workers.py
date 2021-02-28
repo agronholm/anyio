@@ -218,7 +218,7 @@ async def test_run_sync_raises_on_segfault(proc):
     except anyio.BrokenWorkerError:
         pass
     except TimeoutError:  # pragma: no cover
-        pytest.xfail("Unable to cause segfault after 55 seconds.")
+        pytest.skip("Unable to cause segfault after 55 seconds.")
     else:  # pragma: no cover
         pytest.fail("No error was raised on segfault.")
 

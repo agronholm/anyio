@@ -29,6 +29,7 @@ jobs:
 
   test:
     needs: [lint]
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
