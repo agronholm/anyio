@@ -54,6 +54,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``Semaphore.acquire_nowait()`` methods
 - Added the ``statistics()`` method to ``Event``, ``Lock``, ``Condition``, ``Semaphore``,
   ``CapacityLimiter``, ``MemoryObjectReceiveStream`` and ``MemoryObjectSendStream``
+- Changed ``CancelScope.deadline`` to be writable
+- ``Lock`` and ``Condition`` can now only be released by the task that acquired them. This behavior
+  is now consistent on all backends whereas previously only Trio enforced this.
 
 **2.2.0**
 
