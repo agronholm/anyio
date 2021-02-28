@@ -48,6 +48,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - **BACKWARDS INCOMPATIBLE** ``Lock`` and ``Condition`` can now only be released by the task that
   acquired them. This behavior is now consistent on all backends whereas previously only Trio
   enforced this.
+- **BACKWARDS INCOMPATIBLE** The ``ExceptionGroup`` class was refactored to match the API of
+  :pep:654:
 - **BACKWARDS INCOMPATIBLE** The ``SocketStream`` and ``SocketListener`` classes were made
   non-generic
 - Dropped Curio as a backend (see the :doc:`FAQ <faq>` as for why)

@@ -1,6 +1,10 @@
+from inspect import isclass
 from textwrap import indent
 from traceback import format_exception
-from typing import List, Sequence
+from typing import Callable, List, Optional, Sequence, Tuple, Type, Union, cast
+
+ConditionParameter = Union[Type[BaseException], Tuple[Type[BaseException], ...],
+                           Callable[[BaseException], bool]]
 
 
 class BrokenResourceError(Exception):
@@ -44,7 +48,7 @@ class ExceptionGroup(BaseException):
     exceptions: Sequence[BaseException]
 
     def __new__(cls, message: str, exceptions: List[BaseException]):
-        return super().__new__(cls)
+        return BaseException.__new__(cls)
 
     def __init__(self, message: str, exceptions: List[BaseException]):
         self.message = message
@@ -59,6 +63,108 @@ class ExceptionGroup(BaseException):
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}({self.message!r}, {self.exceptions!r})'
+
+    @staticmethod
+    def _get_condition_filter(condition: ConditionParameter) -> Callable[[BaseException], bool]:
+        if isclass(condition) and issubclass(cast(Type[BaseException], condition), BaseException):
+            return lambda exc: isinstance(exc, cast(Type[BaseException], condition))
+        elif isinstance(condition, tuple):
+            return lambda exc: isinstance(exc, cast(tuple, condition))
+        elif callable(condition):
+            return cast(Callable[[BaseException], bool], condition)
+        else:
+            raise TypeError(f'Expected exception class, tuple of exception classes or a callable; '
+                            f'got {condition.__class__.__name__} instead')
+
+    @classmethod
+    def _get_exception_group(cls, exc: BaseException) -> Optional['ExceptionGroup']:
+        return exc if isinstance(exc, ExceptionGroup) else None
+
+    def subgroup(self, condition: ConditionParameter) -> 'ExceptionGroup':
+        """
+        Return an exception group containing only matching exceptions.
+
+        Only the exceptions matching the condition are included. Nested exception groups are
+        also filtered with this condition and empty groups are discarded. The actual exception
+        group objects are not matched with the condition.
+
+        See :pep:`654`  for more details.
+
+        :param condition: callable that takes an exception as the argument and returns ``True`` if
+            the exception should be included
+
+        """
+        condition = self._get_condition_filter(condition)
+        exceptions: List[BaseException] = []
+        modified = False
+        for exc in self.exceptions:
+            group = self._get_exception_group(exc)
+            if group is not None:
+                subgroup = group.subgroup(condition)
+                if subgroup.exceptions:
+                    exceptions.append(subgroup)
+                if subgroup is not exc:
+                    modified = True
+            elif condition(exc):
+                exceptions.append(exc)
+            else:
+                modified = True
+
+        if not modified:
+            return self
+        else:
+            group = self.__class__(self.message, exceptions)
+            group.__cause__ = self.__cause__
+            group.__context__ = self.__context__
+            group.__traceback__ = self.__traceback__
+            return group
+
+    def split(self, condition: ConditionParameter) -> Tuple['ExceptionGroup', 'ExceptionGroup']:
+        """
+        Split the exception group in two based on the given condition.
+
+        This is like :meth:`subgroup` but a second group will be created which contains all the
+        exceptions filtered out.
+
+        See :pep:`654`  for more details.
+
+        :param condition: callable that takes an exception as the argument and returns ``True`` if
+            the exception should be included
+
+        """
+        condition = self._get_condition_filter(condition)
+        matching_exceptions: List[BaseException] = []
+        nonmatching_exceptions: List[BaseException] = []
+        for exc in self.exceptions:
+            group = self._get_exception_group(exc)
+            if group is not None:
+                matching, nonmatching = group.split(condition)
+                if matching.exceptions:
+                    matching_exceptions.append(matching)
+                if nonmatching:
+                    nonmatching_exceptions.append(nonmatching)
+            elif condition(exc):
+                matching_exceptions.append(exc)
+            else:
+                nonmatching_exceptions.append(exc)
+
+        if not nonmatching_exceptions:
+            matching_group = self
+        else:
+            matching_group = self.__class__(self.message, matching_exceptions)
+            matching_group.__cause__ = self.__cause__
+            matching_group.__context__ = self.__context__
+            matching_group.__traceback__ = self.__traceback__
+
+        if not matching_exceptions:
+            nonmatching_group = self
+        else:
+            nonmatching_group = ExceptionGroup(self.message, nonmatching_exceptions)
+            nonmatching_group.__cause__ = self.__cause__
+            nonmatching_group.__context__ = self.__context__
+            nonmatching_group.__traceback__ = self.__traceback__
+
+        return matching_group, nonmatching_group
 
 
 class IncompleteRead(Exception):

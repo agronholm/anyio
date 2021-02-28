@@ -101,11 +101,22 @@ current_time = trio.current_time
 
 class ExceptionGroup(BaseExceptionGroup, trio.MultiError):
     def __new__(cls, message: str, exceptions: List[BaseException]):
-        return trio.MultiError.__new__(cls, exceptions)
+        return BaseExceptionGroup.__new__(cls, message, exceptions)
 
     def __init__(self, message: str, exceptions: List[BaseException]):
         trio.MultiError.__init__(self, exceptions)
         BaseExceptionGroup.__init__(self, message, exceptions)
+
+    @classmethod
+    def _get_exception_group(cls, exc: BaseException) -> Optional['BaseExceptionGroup']:
+        if isinstance(exc, trio.MultiError):
+            excgroup = ExceptionGroup('multiple tasks failed', exc.exceptions)
+            excgroup.__cause__ = excgroup.__cause__
+            excgroup.__context__ = excgroup.__context__
+            excgroup.__traceback__ = excgroup.__traceback__
+            return excgroup
+
+        return super()._get_exception_group(exc)
 
 
 class TaskGroup(abc.TaskGroup):

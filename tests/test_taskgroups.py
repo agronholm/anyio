@@ -376,6 +376,86 @@ async def test_exception_group_host():
     assert exc.match(r'Exception: host\n  ----')
 
 
+@pytest.mark.parametrize('condition', [
+    pytest.param(ValueError, id='exception'),
+    pytest.param((ValueError,), id='tuple'),
+    pytest.param(lambda e: isinstance(e, ValueError), id='tuple')
+])
+async def test_exception_group_subgroup(condition):
+    async def raise_exception(e):
+        try:
+            await sleep(1)
+        finally:
+            raise e
+
+    async def subtask():
+        async with create_task_group() as tg:
+            tg.spawn(raise_exception, ValueError('foo'))
+            tg.spawn(raise_exception, RuntimeError('bar'))
+            tg.spawn(raise_exception, LookupError('baz'))
+
+    with pytest.raises(ExceptionGroup) as exc:
+        async with create_task_group() as tg:
+            tg.spawn(subtask)
+            tg.spawn(raise_exception, ValueError('xyz'))
+            tg.cancel_scope.cancel()
+
+    top_group = exc.value
+    subgroup = top_group.subgroup(condition)
+    assert len(subgroup.exceptions) == 2
+    assert isinstance(subgroup.exceptions[0], ValueError)
+    assert isinstance(subgroup.exceptions[1], ExceptionGroup)
+    assert len(subgroup.exceptions[1].exceptions) == 1
+    assert isinstance(subgroup.exceptions[1].exceptions[0], ValueError)
+    assert subgroup.__cause__ is top_group.__cause__
+    assert subgroup.__context__ is top_group.__context__
+    assert subgroup.__traceback__ is top_group.__traceback__
+
+
+@pytest.mark.parametrize('condition', [
+    pytest.param(ValueError, id='exception'),
+    pytest.param((ValueError,), id='tuple'),
+    pytest.param(lambda e: isinstance(e, ValueError), id='tuple')
+])
+async def test_exception_group_split(condition):
+    async def raise_exception(e):
+        try:
+            await sleep(1)
+        finally:
+            raise e
+
+    async def subtask():
+        async with create_task_group() as tg:
+            tg.spawn(raise_exception, ValueError('foo'))
+            tg.spawn(raise_exception, RuntimeError('bar'))
+            tg.spawn(raise_exception, LookupError('baz'))
+
+    with pytest.raises(ExceptionGroup) as exc:
+        async with create_task_group() as tg:
+            tg.spawn(subtask)
+            tg.spawn(raise_exception, ValueError('xyz'))
+            tg.cancel_scope.cancel()
+
+    top_group = exc.value
+    matching_group, nonmatching_group = top_group.split(condition)
+    assert len(matching_group.exceptions) == 2
+    assert isinstance(matching_group.exceptions[0], ValueError)
+    assert isinstance(matching_group.exceptions[1], ExceptionGroup)
+    assert len(matching_group.exceptions[1].exceptions) == 1
+    assert isinstance(matching_group.exceptions[1].exceptions[0], ValueError)
+    assert matching_group.__cause__ is top_group.__cause__
+    assert matching_group.__context__ is top_group.__context__
+    assert matching_group.__traceback__ is top_group.__traceback__
+
+    assert len(nonmatching_group.exceptions) == 1
+    assert isinstance(nonmatching_group.exceptions[0], ExceptionGroup)
+    assert all(isinstance(exc, (RuntimeError, LookupError))
+               for exc in nonmatching_group.exceptions[0].exceptions)
+    assert nonmatching_group.__cause__ is top_group.__cause__
+    assert nonmatching_group.__context__ is top_group.__context__
+    assert nonmatching_group.__traceback__ is top_group.__traceback__
+
+
 async def test_escaping_cancelled_exception():
     async with create_task_group() as tg:
         tg.cancel_scope.cancel()
