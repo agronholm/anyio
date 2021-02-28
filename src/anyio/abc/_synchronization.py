@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Optional, Type, TypeVar
+from typing import Optional, Tuple, Type, TypeVar
 
 T_Retval = TypeVar('T_Retval')
 
@@ -28,7 +28,7 @@ class CapacityLimiterStatistics:
 
     borrowed_tokens: int
     total_tokens: float
-    borrowers: tuple
+    borrowers: Tuple[object, ...]
     tasks_waiting: int
 
 
