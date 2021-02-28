@@ -260,3 +260,56 @@ async def test_close_receive_after_send():
     async with create_task_group() as tg:
         tg.spawn(send)
         tg.spawn(receive)
+
+
+async def test_statistics():
+    send_stream, receive_stream = create_memory_object_stream(1)
+    for stream in send_stream, receive_stream:
+        statistics = stream.statistics()
+        assert statistics.max_buffer_size == 1
+        assert statistics.current_buffer_used == 0
+        assert statistics.open_send_streams == 1
+        assert statistics.open_receive_streams == 1
+        assert statistics.tasks_waiting_send == 0
+        assert statistics.tasks_waiting_receive == 0
+
+    for stream in send_stream, receive_stream:
+        async with create_task_group() as tg:
+            # Test tasks_waiting_send
+            send_stream.send_nowait(None)
+            assert stream.statistics().current_buffer_used == 1
+            tg.spawn(send_stream.send, None)
+            await wait_all_tasks_blocked()
+            assert stream.statistics().current_buffer_used == 1
+            assert stream.statistics().tasks_waiting_send == 1
+            receive_stream.receive_nowait()
+            assert stream.statistics().current_buffer_used == 1
+            assert stream.statistics().tasks_waiting_send == 0
+            receive_stream.receive_nowait()
+            assert stream.statistics().current_buffer_used == 0
+
+            # Test tasks_waiting_receive
+            tg.spawn(receive_stream.receive)
+            await wait_all_tasks_blocked()
+            assert stream.statistics().tasks_waiting_receive == 1
+            send_stream.send_nowait(None)
+            assert stream.statistics().tasks_waiting_receive == 0
+
+        async with create_task_group() as tg:
+            # Test tasks_waiting_send
+            send_stream.send_nowait(None)
+            assert stream.statistics().tasks_waiting_send == 0
+            for _ in range(3):
+                tg.spawn(send_stream.send, None)
+
+            await wait_all_tasks_blocked()
+            assert stream.statistics().tasks_waiting_send == 3
+            for i in range(2, -1, -1):
+                receive_stream.receive_nowait()
+                assert stream.statistics().tasks_waiting_send == i
+
+            receive_stream.receive_nowait()
+
+        assert stream.statistics().current_buffer_used == 0
+        assert stream.statistics().tasks_waiting_send == 0
+        assert stream.statistics().tasks_waiting_receive == 0

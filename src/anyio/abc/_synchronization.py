@@ -1,8 +1,35 @@
 from abc import ABCMeta, abstractmethod
+from dataclasses import dataclass
 from types import TracebackType
-from typing import Optional, Type, TypeVar
+from typing import Optional, Tuple, Type, TypeVar
 
 T_Retval = TypeVar('T_Retval')
+
+
+@dataclass(frozen=True)
+class EventStatistics:
+    """
+    :ivar int tasks_waiting: number of tasks waiting on :meth:`~.Event.wait`
+    """
+
+    tasks_waiting: int
+
+
+@dataclass(frozen=True)
+class CapacityLimiterStatistics:
+    """
+    :ivar int borrowed_tokens: number of tokens currently borrowed by tasks
+    :ivar float total_tokens: total number of available tokens
+    :ivar tuple borrowers: tasks or other objects currently holding tokens borrowed from this
+        limiter
+    :ivar int tasks_waiting: number of tasks waiting on :meth:`~.CapacityLimiter.acquire` or
+        :meth:`~.CapacityLimiter.acquire_on_behalf_of`
+    """
+
+    borrowed_tokens: int
+    total_tokens: float
+    borrowers: Tuple[object, ...]
+    tasks_waiting: int
 
 
 class Event(metaclass=ABCMeta):
@@ -22,85 +49,9 @@ class Event(metaclass=ABCMeta):
         If the flag has already been set when this method is called, it returns immediately.
         """
 
-
-class Lock(metaclass=ABCMeta):
-    async def __aenter__(self):
-        await self.acquire()
-
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
-        self.release()
-
     @abstractmethod
-    async def acquire(self) -> None:
-        """Acquire the lock."""
-
-    @abstractmethod
-    def release(self) -> None:
-        """Release the lock."""
-
-    @abstractmethod
-    def locked(self) -> bool:
-        """Return True if the lock is currently held."""
-
-
-class Condition(metaclass=ABCMeta):
-    async def __aenter__(self):
-        await self.acquire()
-
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
-        self.release()
-
-    @abstractmethod
-    async def acquire(self) -> None:
-        """Acquire the underlying lock."""
-
-    @abstractmethod
-    def release(self) -> None:
-        """Release the underlying lock."""
-
-    @abstractmethod
-    def locked(self) -> bool:
-        """Return True if the lock is set."""
-
-    @abstractmethod
-    def notify(self, n: int = 1) -> None:
-        """Notify exactly n listeners."""
-
-    @abstractmethod
-    def notify_all(self) -> None:
-        """Notify all the listeners."""
-
-    @abstractmethod
-    async def wait(self) -> None:
-        """Wait for a notification."""
-
-
-class Semaphore(metaclass=ABCMeta):
-    async def __aenter__(self) -> 'Semaphore':
-        await self.acquire()
-        return self
-
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
-        self.release()
-
-    @abstractmethod
-    async def acquire(self) -> None:
-        """Decrement the semaphore value, blocking if necessary."""
-
-    @abstractmethod
-    def release(self) -> None:
-        """Increment the semaphore value."""
-
-    @property
-    @abstractmethod
-    def value(self) -> int:
-        """The current value of the semaphore."""
+    def statistics(self) -> EventStatistics:
+        """Return statistics about the current state of this event."""
 
 
 class CapacityLimiter(metaclass=ABCMeta):
@@ -181,4 +132,12 @@ class CapacityLimiter(metaclass=ABCMeta):
         Release the token held by the given borrower.
 
         :raises RuntimeError: if the borrower has not borrowed a token from this limiter.
+        """
+
+    @abstractmethod
+    def statistics(self) -> CapacityLimiterStatistics:
+        """
+        Return statistics about the current state of this limiter.
+
+        .. versionadded:: 3.0
         """

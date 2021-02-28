@@ -1,8 +1,8 @@
 import pytest
 
 from anyio import (
-    create_capacity_limiter, create_condition, create_event, create_lock, create_semaphore,
-    create_task_group, current_default_worker_thread_limiter, open_cancel_scope,
+    WouldBlock, create_capacity_limiter, create_condition, create_event, create_lock,
+    create_semaphore, create_task_group, current_default_worker_thread_limiter, open_cancel_scope,
     wait_all_tasks_blocked)
 from anyio.abc import CapacityLimiter
 
@@ -50,6 +50,20 @@ class TestLock:
         assert not lock.locked()
         assert results == ['1', '2']
 
+    async def test_acquire_nowait(self):
+        lock = create_lock()
+        lock.acquire_nowait()
+        assert lock.locked()
+
+    async def test_acquire_nowait_wouldblock(self):
+        async def try_lock():
+            pytest.raises(WouldBlock, lock.acquire_nowait)
+
+        lock = create_lock()
+        async with lock, create_task_group() as tg:
+            assert lock.locked()
+            tg.spawn(try_lock)
+
     async def test_cancel(self):
         async def task():
             nonlocal task_started, got_lock
@@ -66,6 +80,26 @@ class TestLock:
 
         assert task_started
         assert not got_lock
+
+    async def test_statistics(self):
+        async def waiter():
+            async with lock:
+                pass
+
+        lock = create_lock()
+        async with create_task_group() as tg:
+            assert not lock.statistics().locked
+            assert lock.statistics().tasks_waiting == 0
+            async with lock:
+                assert lock.statistics().locked
+                assert lock.statistics().tasks_waiting == 0
+                for i in range(1, 3):
+                    tg.spawn(waiter)
+                    await wait_all_tasks_blocked()
+                    assert lock.statistics().tasks_waiting == i
+
+        assert not lock.statistics().locked
+        assert lock.statistics().tasks_waiting == 0
 
 
 class TestEvent:
@@ -97,6 +131,22 @@ class TestEvent:
 
         assert task_started
         assert not event_set
+
+    async def test_statistics(self):
+        async def waiter():
+            await event.wait()
+
+        event = create_event()
+        async with create_task_group() as tg:
+            assert event.statistics().tasks_waiting == 0
+            for i in range(1, 3):
+                tg.spawn(waiter)
+                await wait_all_tasks_blocked()
+                assert event.statistics().tasks_waiting == i
+
+            event.set()
+
+        assert event.statistics().tasks_waiting == 0
 
 
 class TestCondition:
@@ -130,6 +180,20 @@ class TestCondition:
             finally:
                 condition.release()
 
+    async def test_acquire_nowait(self):
+        condition = create_condition()
+        condition.acquire_nowait()
+        assert condition.locked()
+
+    async def test_acquire_nowait_wouldblock(self):
+        async def try_lock():
+            pytest.raises(WouldBlock, condition.acquire_nowait)
+
+        condition = create_condition()
+        async with condition, create_task_group() as tg:
+            assert condition.locked()
+            tg.spawn(try_lock)
+
     async def test_wait_cancel(self):
         async def task():
             nonlocal task_started, notified
@@ -150,6 +214,34 @@ class TestCondition:
 
         assert task_started
         assert not notified
+
+    async def test_statistics(self):
+        async def waiter():
+            async with condition:
+                await condition.wait()
+
+        condition = create_condition()
+        async with create_task_group() as tg:
+            assert not condition.statistics().lock_statistics.locked
+            assert condition.statistics().tasks_waiting == 0
+            async with condition:
+                assert condition.statistics().lock_statistics.locked
+                assert condition.statistics().tasks_waiting == 0
+
+            for i in range(1, 3):
+                tg.spawn(waiter)
+                await wait_all_tasks_blocked()
+                assert condition.statistics().tasks_waiting == i
+
+            for i in range(1, -1, -1):
+                async with condition:
+                    condition.notify(1)
+
+                await wait_all_tasks_blocked()
+                assert condition.statistics().tasks_waiting == i
+
+        assert not condition.statistics().lock_statistics.locked
+        assert condition.statistics().tasks_waiting == 0
 
 
 class TestSemaphore:
@@ -180,6 +272,12 @@ class TestSemaphore:
 
         assert semaphore.value == 2
 
+    async def test_acquire_nowait(self):
+        semaphore = create_semaphore(1)
+        semaphore.acquire_nowait()
+        assert semaphore.value == 0
+        pytest.raises(WouldBlock, semaphore.acquire_nowait)
+
     async def test_acquire_cancel(self):
         async def task():
             nonlocal local_scope, acquired
@@ -196,6 +294,33 @@ class TestSemaphore:
                 local_scope.cancel()
 
         assert not acquired
+
+    @pytest.mark.parametrize('max_value', [2, None])
+    async def test_max_value(self, max_value):
+        semaphore = create_semaphore(0, max_value=max_value)
+        assert semaphore.max_value == max_value
+
+    async def test_max_value_exceeded(self):
+        semaphore = create_semaphore(1, max_value=2)
+        semaphore.release()
+        pytest.raises(ValueError, semaphore.release)
+
+    async def test_statistics(self):
+        async def waiter():
+            async with semaphore:
+                pass
+
+        semaphore = create_semaphore(1)
+        async with create_task_group() as tg:
+            assert semaphore.statistics().tasks_waiting == 0
+            async with semaphore:
+                assert semaphore.statistics().tasks_waiting == 0
+                for i in range(1, 3):
+                    tg.spawn(waiter)
+                    await wait_all_tasks_blocked()
+                    assert semaphore.statistics().tasks_waiting == i
+
+        assert semaphore.statistics().tasks_waiting == 0
 
 
 class TestCapacityLimiter:
@@ -277,3 +402,24 @@ class TestCapacityLimiter:
         limiter = current_default_worker_thread_limiter()
         assert isinstance(limiter, CapacityLimiter)
         assert limiter.total_tokens == 40
+
+    async def test_statistics(self):
+        async def waiter():
+            async with limiter:
+                pass
+
+        limiter = create_capacity_limiter(1)
+        assert limiter.statistics().total_tokens == 1
+        assert limiter.statistics().borrowed_tokens == 0
+        assert limiter.statistics().tasks_waiting == 0
+        async with create_task_group() as tg:
+            async with limiter:
+                assert limiter.statistics().borrowed_tokens == 1
+                assert limiter.statistics().tasks_waiting == 0
+                for i in range(1, 3):
+                    tg.spawn(waiter)
+                    await wait_all_tasks_blocked()
+                    assert limiter.statistics().tasks_waiting == i
+
+        assert limiter.statistics().tasks_waiting == 0
+        assert limiter.statistics().borrowed_tokens == 0

@@ -17,7 +17,7 @@ from typing import (
     Tuple, Type, TypeVar, Union, cast)
 from weakref import WeakKeyDictionary
 
-from .. import TaskInfo, abc
+from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
 from .._core._eventloop import claim_worker_thread, threadlocals
 from .._core._exceptions import (
     BrokenResourceError, BusyResourceError, ClosedResourceError, EndOfStream)
@@ -188,11 +188,6 @@ class CancelScope(abc.CancelScope):
         self._host_task: Optional[asyncio.Task] = None
         self._timeout_expired = False
 
-    def _timeout(self):
-        self._timeout_expired = True
-        self._cancel_called = True
-        self._cancel()
-
     def __enter__(self):
         if self._active:
             raise RuntimeError(
@@ -211,14 +206,7 @@ class CancelScope(abc.CancelScope):
             self._parent_scope = task_state.cancel_scope
             task_state.cancel_scope = self
 
-        if self._deadline != math.inf:
-            loop = get_running_loop()
-            delay = self._deadline - loop.time()
-            if delay <= 0:
-                self._timeout()
-            else:
-                self._timeout_handle = loop.call_later(delay, self._timeout)
-
+        self._timeout()
         self._active = True
         return self
 
@@ -247,6 +235,15 @@ class CancelScope(abc.CancelScope):
             _start_cancelling(self._host_task)
 
         return None
+
+    def _timeout(self):
+        if self._deadline != math.inf:
+            loop = get_running_loop()
+            if loop.time() >= self._deadline:
+                self._timeout_expired = True
+                self.cancel()
+            else:
+                self._timeout_handle = loop.call_at(self._deadline, self._timeout)
 
     def _cancel(self):
         # Deliver cancellation to directly contained tasks and nested cancel scopes
@@ -301,6 +298,16 @@ class CancelScope(abc.CancelScope):
     @property
     def deadline(self) -> float:
         return self._deadline
+
+    @deadline.setter
+    def deadline(self, value: float) -> None:
+        self._deadline = float(value)
+        if self._timeout_handle is not None:
+            self._timeout_handle.cancel()
+            self._timeout_handle = None
+
+        if self._active and not self._cancel_called:
+            self._timeout()
 
     @property
     def cancel_called(self) -> bool:
@@ -760,7 +767,7 @@ class StreamProtocol(asyncio.Protocol):
 
     def eof_received(self) -> Optional[bool]:
         self.read_event.set()
-        return None
+        return True
 
     def pause_writing(self) -> None:
         self.write_future = asyncio.Future()
@@ -815,8 +822,7 @@ class SocketStream(abc.SocketStream):
     async def receive(self, max_bytes: int = 65536) -> bytes:
         with self._receive_guard:
             await checkpoint()
-            if not self._protocol.read_queue and not self._transport.is_closing():
-                self._protocol.read_event.clear()
+            if not self._protocol.read_event.is_set() and not self._transport.is_closing():
                 self._transport.resume_reading()
                 await self._protocol.read_event.wait()
                 self._transport.pause_reading()
@@ -835,6 +841,11 @@ class SocketStream(abc.SocketStream):
                 # Split the oversized chunk
                 chunk, leftover = chunk[:max_bytes], chunk[max_bytes:]
                 self._protocol.read_queue.appendleft(leftover)
+
+            # If the read queue is empty, clear the flag so that the next call will block until
+            # data is available
+            if not self._protocol.read_queue:
+                self._protocol.read_event.clear()
 
         return chunk
 
@@ -1109,47 +1120,6 @@ async def wait_socket_writable(sock: socket.SocketType) -> None:
 # Synchronization
 #
 
-class Lock(abc.Lock):
-    def __init__(self):
-        self._lock = asyncio.Lock()
-
-    def locked(self) -> bool:
-        return self._lock.locked()
-
-    async def acquire(self) -> None:
-        await checkpoint()
-        await self._lock.acquire()
-
-    def release(self) -> None:
-        self._lock.release()
-
-
-class Condition(abc.Condition):
-    def __init__(self, lock: Optional[Lock]):
-        asyncio_lock = lock._lock if lock else None
-        self._condition = asyncio.Condition(asyncio_lock)
-
-    async def acquire(self) -> None:
-        await checkpoint()
-        await self._condition.acquire()
-
-    def release(self) -> None:
-        self._condition.release()
-
-    def locked(self) -> bool:
-        return self._condition.locked()
-
-    def notify(self, n=1) -> None:
-        self._condition.notify(n)
-
-    def notify_all(self) -> None:
-        self._condition.notify_all()
-
-    async def wait(self):
-        await checkpoint()
-        return await self._condition.wait()
-
-
 class Event(abc.Event):
     def __init__(self):
         self._event = asyncio.Event()
@@ -1164,21 +1134,8 @@ class Event(abc.Event):
         await checkpoint()
         await self._event.wait()
 
-
-class Semaphore(abc.Semaphore):
-    def __init__(self, value: int):
-        self._semaphore = asyncio.Semaphore(value)
-
-    async def acquire(self) -> None:
-        await checkpoint()
-        await self._semaphore.acquire()
-
-    def release(self) -> None:
-        self._semaphore.release()
-
-    @property
-    def value(self):
-        return self._semaphore._value
+    def statistics(self) -> EventStatistics:
+        return EventStatistics(len(self._event._waiters))
 
 
 class CapacityLimiter(abc.CapacityLimiter):
@@ -1274,6 +1231,10 @@ class CapacityLimiter(abc.CapacityLimiter):
         if self._wait_queue and len(self._borrowers) < self._total_tokens:
             event = self._wait_queue.popitem()[1]
             event.set()
+
+    def statistics(self) -> CapacityLimiterStatistics:
+        return CapacityLimiterStatistics(self.borrowed_tokens, self.total_tokens,
+                                         tuple(self._borrowers), len(self._wait_queue))
 
 
 def current_default_thread_limiter():

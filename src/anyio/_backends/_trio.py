@@ -424,16 +424,10 @@ async def wait_socket_writable(sock):
 # Synchronization
 #
 
-abc.Lock.register(trio.Lock)
 abc.Event.register(trio.Event)
-abc.Condition.register(trio.Condition)
-abc.Semaphore.register(trio.Semaphore)
 abc.CapacityLimiter.register(trio.CapacityLimiter)
 
-Lock = trio.Lock
 Event = trio.Event
-Condition = trio.Condition
-Semaphore = trio.Semaphore
 CapacityLimiter = trio.CapacityLimiter
 
 
@@ -503,11 +497,8 @@ class TestRunner(abc.TestRunner):
     async def _call_func(self, func, args, kwargs):
         try:
             retval = await func(*args, **kwargs)
-        except Exception as exc:
-            self._result_queue.append(Error(exc))
         except BaseException as exc:
             self._result_queue.append(Error(exc))
-            raise
         else:
             self._result_queue.append(Value(retval))
 

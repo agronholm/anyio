@@ -43,7 +43,7 @@ class ExceptionGroup(BaseException):
     exceptions: Sequence[BaseException]
 
     def __str__(self):
-        tracebacks = ['\n'.join(format_exception(type(exc), exc, exc.__traceback__))
+        tracebacks = [''.join(format_exception(type(exc), exc, exc.__traceback__))
                       for exc in self.exceptions]
         return f'{len(self.exceptions)} exceptions were raised in the task group:\n' \
                f'{self.SEPARATOR}{self.SEPARATOR.join(tracebacks)}'

@@ -41,12 +41,37 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   no longer returns a BlockingPortal, but a context manager that yields one)
 - **BACKWARDS INCOMPATIBLE** Removed the ``BlockingPortal.stop_from_external_thread()`` method
   (do ``portal.call(portal.stop)`` instead now)
+- **BACKWARDS INCOMPATIBLE** ``Lock`` and ``Condition`` can now only be released by the task that
+  acquired them. This behavior is now consistent on all backends whereas previously only Trio
+  enforced this.
 - Dropped Curio as a backend (see the :doc:`FAQ <faq>` as for why)
 - Added the ``run_sync_from_thread()`` function
+- Added the ``FileReadStream`` and ``FileWriteStream`` classes
 - Added the ``TaskGroup.start()`` method and a corresponding ``BlockingPortal.start_task()`` method
 - Added the ``name`` argument to ``BlockingPortal.spawn_task()``
+- Added the ``max_value`` property to ``Semaphore``
+- Added the ``Lock.acquire_nowait()``, ``Condition.acquire_nowait()`` and
+  ``Semaphore.acquire_nowait()`` methods
+- Added the ``statistics()`` method to ``Event``, ``Lock``, ``Condition``, ``Semaphore``,
+  ``CapacityLimiter``, ``MemoryObjectReceiveStream`` and ``MemoryObjectSendStream``
+- Changed ``CancelScope.deadline`` to be writable
+- ``Lock`` and ``Condition`` can now only be released by the task that acquired them. This behavior
+  is now consistent on all backends whereas previously only Trio enforced this.
+
+**2.2.0**
+
+- Added the ``maybe_async()`` and ``maybe_async_cm()`` functions to facilitate forward
+  compatibility with AnyIO 3
+- Fixed socket stream bug on asyncio where receiving a half-close from the peer would shut down the
+  entire connection
+- Fixed native task names not being set on asyncio on Python 3.8+
 - Fixed ``TLSStream.send_eof()`` raising ``ValueError`` instead of the expected
   ``NotImplementedError``
+- Fixed ``open_signal_receiver()`` on asyncio and curio hanging if the cancel scope was cancelled
+  before the function could run
+- Fixed Trio test runner causing unwarranted test errors on ``BaseException``s
+  (PR by Matthias Urlichs)
+- Fixed formatted output of ``ExceptionGroup`` containing too many newlines
 
 **2.1.0**
 

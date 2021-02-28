@@ -1,6 +1,6 @@
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
-from typing import Deque, Generic, List, TypeVar
+from typing import Deque, Generic, List, NamedTuple, TypeVar
 
 from .. import (
     BrokenResourceError, ClosedResourceError, EndOfStream, WouldBlock, get_cancelled_exc_class)
@@ -9,6 +9,15 @@ from .._core._synchronization import create_event
 from ..abc import Event, ObjectReceiveStream, ObjectSendStream
 
 T_Item = TypeVar('T_Item')
+
+
+class MemoryObjectStreamStatistics(NamedTuple):
+    current_buffer_used: int
+    max_buffer_size: float
+    open_send_streams: int
+    open_receive_streams: int
+    tasks_waiting_send: int
+    tasks_waiting_receive: int
 
 
 @dataclass
@@ -20,6 +29,11 @@ class MemoryObjectStreamState(Generic[T_Item]):
     waiting_receivers: 'OrderedDict[Event, List[T_Item]]' = field(init=False,
                                                                   default_factory=OrderedDict)
     waiting_senders: 'OrderedDict[Event, T_Item]' = field(init=False, default_factory=OrderedDict)
+
+    def statistics(self) -> MemoryObjectStreamStatistics:
+        return MemoryObjectStreamStatistics(
+            len(self.buffer), self.max_buffer_size, self.open_send_channels,
+            self.open_receive_channels, len(self.waiting_senders), len(self.waiting_receivers))
 
 
 @dataclass
@@ -107,6 +121,14 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
                 for event in send_events:
                     event.set()
 
+    def statistics(self) -> MemoryObjectStreamStatistics:
+        """
+        Return statistics about the current state of this stream.
+
+        .. versionadded:: 3.0
+        """
+        return self._state.statistics()
+
 
 @dataclass
 class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
@@ -183,3 +205,11 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
                 self._state.waiting_receivers.clear()
                 for event in receive_events:
                     event.set()
+
+    def statistics(self) -> MemoryObjectStreamStatistics:
+        """
+        Return statistics about the current state of this stream.
+
+        .. versionadded:: 3.0
+        """
+        return self._state.statistics()
