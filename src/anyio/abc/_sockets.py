@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from ipaddress import IPv4Address, IPv6Address
 from socket import AddressFamily, SocketType
-from typing import Any, AsyncContextManager, Callable, Generic, Optional, Tuple, TypeVar, Union
+from typing import Any, AsyncContextManager, Callable, Optional, Tuple, TypeVar, Union
 
 from .._core._typedattr import TypedAttributeProvider, TypedAttributeSet, typed_attribute
 from ._streams import ByteStream, Listener, T_Stream, UnreliableObjectStream
@@ -12,7 +12,6 @@ IPSockAddrType = Tuple[str, int]
 SockAddrType = Union[IPSockAddrType, str]
 UDPPacketType = Tuple[bytes, IPSockAddrType]
 T_Retval = TypeVar('T_Retval')
-T_SockAddr = TypeVar('T_SockAddr', str, IPSockAddrType)
 
 
 class _NullAsyncContextManager:
@@ -38,7 +37,7 @@ class SocketAttribute(TypedAttributeSet):
     remote_port: int = typed_attribute()
 
 
-class _SocketProvider(Generic[T_SockAddr], TypedAttributeProvider):
+class _SocketProvider(TypedAttributeProvider):
     @property
     def extra_attributes(self):
         from .._core._sockets import convert_ipv6_sockaddr as convert
@@ -71,7 +70,7 @@ class _SocketProvider(Generic[T_SockAddr], TypedAttributeProvider):
         pass
 
 
-class SocketStream(Generic[T_SockAddr], ByteStream, _SocketProvider[T_SockAddr]):
+class SocketStream(ByteStream, _SocketProvider):
     """
     Transports bytes over a socket.
 
@@ -79,8 +78,7 @@ class SocketStream(Generic[T_SockAddr], ByteStream, _SocketProvider[T_SockAddr])
     """
 
 
-class SocketListener(Generic[T_SockAddr], Listener[SocketStream[T_SockAddr]],
-                     _SocketProvider[T_SockAddr]):
+class SocketListener(Listener[SocketStream], _SocketProvider):
     """
     Listens to incoming socket connections.
 
@@ -88,7 +86,7 @@ class SocketListener(Generic[T_SockAddr], Listener[SocketStream[T_SockAddr]],
     """
 
     @abstractmethod
-    async def accept(self) -> SocketStream[T_SockAddr]:
+    async def accept(self) -> SocketStream:
         """Accept an incoming connection."""
 
     async def serve(self, handler: Callable[[T_Stream], Any],
@@ -108,7 +106,7 @@ class SocketListener(Generic[T_SockAddr], Listener[SocketStream[T_SockAddr]],
                 task_group.spawn(handler, stream)
 
 
-class UDPSocket(UnreliableObjectStream[UDPPacketType], _SocketProvider[IPSockAddrType]):
+class UDPSocket(UnreliableObjectStream[UDPPacketType], _SocketProvider):
     """
     Represents an unconnected UDP socket.
 
@@ -120,7 +118,7 @@ class UDPSocket(UnreliableObjectStream[UDPPacketType], _SocketProvider[IPSockAdd
         return await self.send((data, (host, port)))
 
 
-class ConnectedUDPSocket(UnreliableObjectStream[bytes], _SocketProvider[IPSockAddrType]):
+class ConnectedUDPSocket(UnreliableObjectStream[bytes], _SocketProvider):
     """
     Represents an connected UDP socket.
 

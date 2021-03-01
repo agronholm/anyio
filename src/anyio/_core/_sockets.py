@@ -212,7 +212,7 @@ async def create_tcp_listener(
     *, local_host: Optional[IPAddressType] = None, local_port: int = 0,
     family: AnyIPAddressFamily = socket.AddressFamily.AF_UNSPEC, backlog: int = 65536,
     reuse_port: bool = False
-) -> MultiListener[SocketStream[IPSockAddrType]]:
+) -> MultiListener[SocketStream]:
     """
     Create a TCP socket listener.
 
@@ -234,7 +234,7 @@ async def create_tcp_listener(
     gai_res = await getaddrinfo(local_host, local_port, family=family,  # type: ignore[arg-type]
                                 type=socket.SOCK_STREAM,
                                 flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG)
-    listeners: List[SocketListener[IPSockAddrType]] = []
+    listeners: List[SocketListener] = []
     try:
         # The set() is here to work around a glibc bug:
         # https://sourceware.org/bugzilla/show_bug.cgi?id=14969
@@ -270,7 +270,7 @@ async def create_tcp_listener(
 
 async def create_unix_listener(
         path: Union[str, PathLike], *, mode: Optional[int] = None,
-        backlog: int = 65536) -> SocketListener[str]:
+        backlog: int = 65536) -> SocketListener:
     """
     Create a UNIX socket listener.
 
