@@ -9,7 +9,7 @@ from typing import Awaitable, List, Optional, Tuple, Union, cast, overload
 
 from ..abc import (
     ConnectedUDPSocket, Event, IPAddressType, IPSockAddrType, SocketListener, SocketStream,
-    UDPSocket)
+    UDPSocket, UNIXSocketStream)
 from ..streams.stapled import MultiListener
 from ..streams.tls import TLSStream
 from ._eventloop import get_asynclib
@@ -194,7 +194,7 @@ async def connect_tcp(
     return connected_stream
 
 
-async def connect_unix(path: Union[str, PathLike]) -> SocketStream:
+async def connect_unix(path: Union[str, PathLike]) -> UNIXSocketStream:
     """
     Connect to the given UNIX socket.
 
@@ -257,7 +257,7 @@ async def create_tcp_listener(
 
             raw_socket.bind(sockaddr)
             raw_socket.listen(backlog)
-            listener = asynclib.SocketListener(raw_socket)
+            listener = asynclib.TCPSocketListener(raw_socket)
             listeners.append(listener)
     except BaseException:
         for listener in listeners:
@@ -293,7 +293,7 @@ async def create_unix_listener(
             await run_sync_in_worker_thread(chmod, path, mode, cancellable=True)
 
         raw_socket.listen(backlog)
-        return get_asynclib().SocketListener(raw_socket)
+        return get_asynclib().UNIXSocketListener(raw_socket)
     except BaseException:
         raw_socket.close()
         raise

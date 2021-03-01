@@ -1,8 +1,8 @@
 __all__ = ('AsyncResource', 'IPAddressType', 'IPSockAddrType', 'SocketAttribute', 'SocketStream',
-           'SocketListener', 'UDPSocket', 'UDPPacketType', 'ConnectedUDPSocket',
-           'UnreliableObjectReceiveStream', 'UnreliableObjectSendStream', 'UnreliableObjectStream',
-           'ObjectReceiveStream', 'ObjectSendStream', 'ObjectStream', 'ByteReceiveStream',
-           'ByteSendStream', 'ByteStream', 'AnyUnreliableByteReceiveStream',
+           'SocketListener', 'UDPSocket', 'UNIXSocketStream', 'UDPPacketType',
+           'ConnectedUDPSocket', 'UnreliableObjectReceiveStream', 'UnreliableObjectSendStream',
+           'UnreliableObjectStream', 'ObjectReceiveStream', 'ObjectSendStream', 'ObjectStream',
+           'ByteReceiveStream', 'ByteSendStream', 'ByteStream', 'AnyUnreliableByteReceiveStream',
            'AnyUnreliableByteSendStream', 'AnyUnreliableByteStream', 'AnyByteReceiveStream',
            'AnyByteSendStream', 'AnyByteStream', 'Listener', 'Process', 'Event',
            'Condition', 'Lock', 'Semaphore', 'CapacityLimiter', 'CancelScope', 'TaskGroup',
@@ -11,7 +11,7 @@ __all__ = ('AsyncResource', 'IPAddressType', 'IPSockAddrType', 'SocketAttribute'
 from ._resources import AsyncResource
 from ._sockets import (
     ConnectedUDPSocket, IPAddressType, IPSockAddrType, SocketAttribute, SocketListener,
-    SocketStream, UDPPacketType, UDPSocket)
+    SocketStream, UDPPacketType, UDPSocket, UNIXSocketStream)
 from ._streams import (
     AnyByteReceiveStream, AnyByteSendStream, AnyByteStream, AnyUnreliableByteReceiveStream,
     AnyUnreliableByteSendStream, AnyUnreliableByteStream, ByteReceiveStream, ByteSendStream,

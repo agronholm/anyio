@@ -1,3 +1,4 @@
+import array
 import asyncio
 import concurrent.futures
 import math
@@ -9,12 +10,13 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import partial, wraps
 from inspect import isgenerator
+from io import IOBase
 from socket import AddressFamily, SocketKind, SocketType
 from threading import Thread
 from types import TracebackType
 from typing import (
-    Any, Awaitable, Callable, Coroutine, Deque, Dict, Generator, List, Optional, Sequence, Set,
-    Tuple, Type, TypeVar, Union, cast)
+    Any, Awaitable, Callable, Collection, Coroutine, Deque, Dict, Generator, List, Optional,
+    Sequence, Set, Tuple, Type, TypeVar, Union, cast)
 from weakref import WeakKeyDictionary
 
 from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
@@ -863,7 +865,161 @@ class SocketStream(abc.SocketStream):
             self._transport.abort()
 
 
-class SocketListener(abc.SocketListener):
+class UNIXSocketStream(abc.SocketStream):
+    _receive_future: Optional[asyncio.Future] = None
+    _send_future: Optional[asyncio.Future] = None
+    _closing = False
+
+    def __init__(self, raw_socket: socket.SocketType):
+        self.__raw_socket = raw_socket
+        self._loop = get_running_loop()
+        self._receive_guard = ResourceGuard('reading from')
+        self._send_guard = ResourceGuard('writing to')
+
+    @property
+    def _raw_socket(self) -> SocketType:
+        return self.__raw_socket
+
+    def _wait_until_readable(self, loop: asyncio.AbstractEventLoop) -> asyncio.Future:
+        def callback(f):
+            del self._receive_future
+            loop.remove_reader(self.__raw_socket)
+
+        f = self._receive_future = asyncio.Future()
+        self._loop.add_reader(self.__raw_socket, f.set_result, None)
+        f.add_done_callback(callback)
+        return f
+
+    def _wait_until_writable(self, loop: asyncio.AbstractEventLoop) -> asyncio.Future:
+        def callback(f):
+            del self._send_future
+            loop.remove_writer(self.__raw_socket)
+
+        f = self._send_future = asyncio.Future()
+        self._loop.add_writer(self.__raw_socket, f.set_result, None)
+        f.add_done_callback(callback)
+        return f
+
+    async def send_eof(self) -> None:
+        with self._send_guard:
+            self._raw_socket.shutdown(socket.SHUT_WR)
+
+    async def receive(self, max_bytes: int = 65536) -> bytes:
+        loop = get_running_loop()
+        await checkpoint()
+        with self._receive_guard:
+            while True:
+                try:
+                    data = self.__raw_socket.recv(max_bytes)
+                except BlockingIOError:
+                    await self._wait_until_readable(loop)
+                except OSError as exc:
+                    if self._closing:
+                        raise ClosedResourceError from None
+                    else:
+                        raise BrokenResourceError from exc
+                else:
+                    if not data:
+                        raise EndOfStream
+
+                    return data
+
+    async def send(self, item: bytes) -> None:
+        loop = get_running_loop()
+        await checkpoint()
+        with self._send_guard:
+            view = memoryview(item)
+            while view:
+                try:
+                    bytes_sent = self.__raw_socket.send(item)
+                except BlockingIOError:
+                    await self._wait_until_writable(loop)
+                except OSError as exc:
+                    if self._closing:
+                        raise ClosedResourceError from None
+                    else:
+                        raise BrokenResourceError from exc
+                else:
+                    view = view[bytes_sent:]
+
+    async def receive_fds(self, msglen: int, maxfds: int) -> Tuple[bytes, List[int]]:
+        if not isinstance(msglen, int) or msglen < 0:
+            raise ValueError('msglen must be a non-negative integer')
+        if not isinstance(maxfds, int) or maxfds < 1:
+            raise ValueError('maxfds must be a positive integer')
+
+        loop = get_running_loop()
+        fds = array.array("i")
+        await checkpoint()
+        with self._receive_guard:
+            while True:
+                try:
+                    message, ancdata, flags, addr = self.__raw_socket.recvmsg(
+                        msglen, socket.CMSG_LEN(maxfds * fds.itemsize))
+                except BlockingIOError:
+                    await self._wait_until_readable(loop)
+                except OSError as exc:
+                    if self._closing:
+                        raise ClosedResourceError from None
+                    else:
+                        raise BrokenResourceError from exc
+                else:
+                    if not message and not ancdata:
+                        raise EndOfStream
+
+                    break
+
+        for cmsg_level, cmsg_type, cmsg_data in ancdata:
+            if cmsg_level != socket.SOL_SOCKET or cmsg_type != socket.SCM_RIGHTS:
+                raise RuntimeError(f'Received unexpected ancillary data; message = {message}, '
+                                   f'cmsg_level = {cmsg_level}, cmsg_type = {cmsg_type}')
+
+            fds.frombytes(cmsg_data[:len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])
+
+        return message, list(fds)
+
+    async def send_fds(self, message: bytes, fds: Collection[Union[int, IOBase]]) -> None:
+        if not message:
+            raise ValueError('message must not be empty')
+        if not fds:
+            raise ValueError('fds must not be empty')
+
+        loop = get_running_loop()
+        filenos: List[int] = []
+        for fd in fds:
+            if isinstance(fd, int):
+                filenos.append(fd)
+            elif isinstance(fd, IOBase):
+                filenos.append(fd.fileno())
+
+        fdarray = array.array("i", filenos)
+        await checkpoint()
+        with self._send_guard:
+            while True:
+                try:
+                    self.__raw_socket.sendmsg([message],
+                                              [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)])
+                    break
+                except BlockingIOError:
+                    await self._wait_until_writable(loop)
+                except OSError as exc:
+                    if self._closing:
+                        raise ClosedResourceError from None
+                    else:
+                        raise BrokenResourceError from exc
+
+    async def aclose(self) -> None:
+        if not self._closing:
+            self._closing = True
+            self.__raw_socket.shutdown(socket.SHUT_RDWR)
+            self.__raw_socket.close()
+            if self._receive_future:
+                self._receive_future.set_result(None)
+            if self._send_future:
+                self._send_future.set_result(None)
+
+
+class TCPSocketListener(abc.SocketListener):
     def __init__(self, raw_socket: socket.SocketType):
         self.__raw_socket = raw_socket
         self._loop = cast(asyncio.BaseEventLoop, get_running_loop())
@@ -888,9 +1044,7 @@ class SocketListener(abc.SocketListener):
 
                 raise
 
-        if client_sock.family in (socket.AF_INET, socket.AF_INET6):
-            client_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-
+        client_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         transport, protocol = await self._loop.connect_accepted_socket(StreamProtocol, client_sock)
         return SocketStream(cast(asyncio.Transport, transport), cast(StreamProtocol, protocol))
 
@@ -902,6 +1056,40 @@ class SocketListener(abc.SocketListener):
             pass
 
         self._raw_socket.close()
+
+
+class UNIXSocketListener(abc.SocketListener):
+    def __init__(self, raw_socket: socket.SocketType):
+        self.__raw_socket = raw_socket
+        self._loop = get_running_loop()
+        self._accept_guard = ResourceGuard('accepting connections from')
+        self._closed = False
+
+    async def accept(self) -> abc.SocketStream:
+        await checkpoint()
+        with self._accept_guard:
+            while True:
+                try:
+                    client_sock, _ = self.__raw_socket.accept()
+                    return UNIXSocketStream(client_sock)
+                except BlockingIOError:
+                    f: asyncio.Future = asyncio.Future()
+                    self._loop.add_reader(self.__raw_socket, f.set_result, None)
+                    f.add_done_callback(lambda _: self._loop.remove_reader(self.__raw_socket))
+                    await f
+                except OSError as exc:
+                    if self._closed:
+                        raise ClosedResourceError from None
+                    else:
+                        raise BrokenResourceError from exc
+
+    async def aclose(self) -> None:
+        self._closed = True
+        self.__raw_socket.close()
+
+    @property
+    def _raw_socket(self) -> SocketType:
+        return self.__raw_socket
 
 
 class UDPSocket(abc.UDPSocket):
@@ -1009,13 +1197,21 @@ async def connect_tcp(host: str, port: int,
     return SocketStream(transport, protocol)
 
 
-async def connect_unix(path: str) -> SocketStream:
-    transport, protocol = cast(
-        Tuple[asyncio.Transport, StreamProtocol],
-        await get_running_loop().create_unix_connection(StreamProtocol, path)
-    )
-    transport.pause_reading()
-    return SocketStream(transport, protocol)
+async def connect_unix(path: str) -> UNIXSocketStream:
+    await checkpoint()
+    loop = get_running_loop()
+    raw_socket = socket.socket(socket.AF_UNIX)
+    raw_socket.setblocking(False)
+    while True:
+        try:
+            raw_socket.connect(path)
+        except BlockingIOError:
+            f: asyncio.Future = asyncio.Future()
+            loop.add_writer(raw_socket, f.set_result, None)
+            f.add_done_callback(lambda _: loop.remove_writer(raw_socket))
+            await f
+        else:
+            return UNIXSocketStream(raw_socket)
 
 
 async def create_udp_socket(
