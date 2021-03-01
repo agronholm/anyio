@@ -111,9 +111,9 @@ class ExceptionGroup(BaseExceptionGroup, trio.MultiError):
     def _get_exception_group(cls, exc: BaseException) -> Optional['BaseExceptionGroup']:
         if isinstance(exc, trio.MultiError):
             excgroup = ExceptionGroup('multiple tasks failed', exc.exceptions)
-            excgroup.__cause__ = excgroup.__cause__
-            excgroup.__context__ = excgroup.__context__
-            excgroup.__traceback__ = excgroup.__traceback__
+            excgroup.__cause__ = exc.__cause__
+            excgroup.__context__ = exc.__context__
+            excgroup.__traceback__ = exc.__traceback__
             return excgroup
 
         return super()._get_exception_group(exc)
