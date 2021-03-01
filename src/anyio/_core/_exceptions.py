@@ -76,11 +76,7 @@ class ExceptionGroup(BaseException):
             raise TypeError(f'Expected exception class, tuple of exception classes or a callable; '
                             f'got {condition.__class__.__name__} instead')
 
-    @classmethod
-    def _get_exception_group(cls, exc: BaseException) -> Optional['ExceptionGroup']:
-        return exc if isinstance(exc, ExceptionGroup) else None
-
-    def subgroup(self, condition: ConditionParameter) -> 'ExceptionGroup':
+    def subgroup(self, condition: ConditionParameter) -> Optional['ExceptionGroup']:
         """
         Return an exception group containing only matching exceptions.
 
@@ -98,11 +94,11 @@ class ExceptionGroup(BaseException):
         exceptions: List[BaseException] = []
         modified = False
         for exc in self.exceptions:
-            group = self._get_exception_group(exc)
-            if group is not None:
-                subgroup = group.subgroup(condition)
-                if subgroup.exceptions:
+            if isinstance(exc, ExceptionGroup):
+                subgroup = exc.subgroup(condition)
+                if subgroup is not None:
                     exceptions.append(subgroup)
+
                 if subgroup is not exc:
                     modified = True
             elif condition(exc):
@@ -112,53 +108,60 @@ class ExceptionGroup(BaseException):
 
         if not modified:
             return self
-        else:
+        elif exceptions:
             group = self.__class__(self.message, exceptions)
             group.__cause__ = self.__cause__
             group.__context__ = self.__context__
             group.__traceback__ = self.__traceback__
             return group
+        else:
+            return None
 
-    def split(self, condition: ConditionParameter) -> Tuple['ExceptionGroup', 'ExceptionGroup']:
+    def split(self, condition: ConditionParameter) -> Tuple[Optional['ExceptionGroup'],
+                                                            Optional['ExceptionGroup']]:
         """
         Split the exception group in two based on the given condition.
 
         This is like :meth:`subgroup` but a second group will be created which contains all the
-        exceptions filtered out.
+        exceptions filtered out. If either group is empty, ``None`` will be returned in its place.
 
         See :pep:`654`  for more details.
 
         :param condition: callable that takes an exception as the argument and returns ``True`` if
             the exception should be included
+        :return: a tuple of exception groups (or ``None`` where empty) where the first contains the
+            matching exceptions and the second contains the ones that didn't match the condition
 
         """
         condition = self._get_condition_filter(condition)
         matching_exceptions: List[BaseException] = []
         nonmatching_exceptions: List[BaseException] = []
         for exc in self.exceptions:
-            group = self._get_exception_group(exc)
-            if group is not None:
-                matching, nonmatching = group.split(condition)
-                if matching.exceptions:
+            if isinstance(exc, ExceptionGroup):
+                matching, nonmatching = exc.split(condition)
+                if matching is not None:
                     matching_exceptions.append(matching)
-                if nonmatching:
+
+                if nonmatching is not None:
                     nonmatching_exceptions.append(nonmatching)
             elif condition(exc):
                 matching_exceptions.append(exc)
             else:
                 nonmatching_exceptions.append(exc)
 
+        matching_group: Optional[ExceptionGroup] = None
         if not nonmatching_exceptions:
             matching_group = self
-        else:
+        elif matching_exceptions:
             matching_group = self.__class__(self.message, matching_exceptions)
             matching_group.__cause__ = self.__cause__
             matching_group.__context__ = self.__context__
             matching_group.__traceback__ = self.__traceback__
 
+        nonmatching_group: Optional[ExceptionGroup] = None
         if not matching_exceptions:
             nonmatching_group = self
-        else:
+        elif nonmatching_exceptions:
             nonmatching_group = ExceptionGroup(self.message, nonmatching_exceptions)
             nonmatching_group.__cause__ = self.__cause__
             nonmatching_group.__context__ = self.__context__

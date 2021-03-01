@@ -104,19 +104,15 @@ class ExceptionGroup(BaseExceptionGroup, trio.MultiError):
         return BaseExceptionGroup.__new__(cls, message, exceptions)
 
     def __init__(self, message: str, exceptions: List[BaseException]):
+        for i, exc in enumerate(exceptions):
+            if isinstance(exc, trio.MultiError) and not isinstance(exc, ExceptionGroup):
+                excgroup = exceptions[i] = ExceptionGroup('multiple tasks failed', exc.exceptions)
+                excgroup.__cause__ = exc.__cause__
+                excgroup.__context__ = exc.__context__
+                excgroup.__traceback__ = exc.__traceback__
+
         trio.MultiError.__init__(self, exceptions)
         BaseExceptionGroup.__init__(self, message, exceptions)
-
-    @classmethod
-    def _get_exception_group(cls, exc: BaseException) -> Optional['BaseExceptionGroup']:
-        if isinstance(exc, trio.MultiError):
-            excgroup = ExceptionGroup('multiple tasks failed', exc.exceptions)
-            excgroup.__cause__ = exc.__cause__
-            excgroup.__context__ = exc.__context__
-            excgroup.__traceback__ = exc.__traceback__
-            return excgroup
-
-        return super()._get_exception_group(exc)
 
 
 class TaskGroup(abc.TaskGroup):
