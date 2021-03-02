@@ -835,7 +835,9 @@ class SocketStream(abc.SocketStream):
             try:
                 self._transport.write(item)
             except RuntimeError as exc:
-                if self._closed:
+                if self._protocol.write_future.exception():
+                    await self._protocol.write_future
+                elif self._closed:
                     raise ClosedResourceError from None
                 elif self._transport.is_closing():
                     raise BrokenResourceError from exc
