@@ -9,11 +9,10 @@ import pytest
 
 from anyio import (
     create_blocking_portal, create_capacity_limiter, create_event, create_task_group,
-    get_cancelled_exc_class, get_current_task, run_async_from_thread, run_sync_in_worker_thread,
-    sleep, start_blocking_portal, wait_all_tasks_blocked)
-from anyio._core._threads import run_sync_from_thread
+    get_cancelled_exc_class, get_current_task, run_async_from_thread, run_sync_from_thread,
+    run_sync_in_worker_thread, sleep, start_blocking_portal, wait_all_tasks_blocked)
 
-if sys.version_info < (3, 9):
+if sys.version_info < (3, 7):
     current_task = asyncio.Task.current_task
 else:
     current_task = asyncio.current_task
