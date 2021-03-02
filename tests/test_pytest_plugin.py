@@ -23,6 +23,8 @@ def test_plugin(testdir):
 
     testdir.makepyfile(
         """
+        import asyncio
+
         import pytest
 
         import sniffio
@@ -61,6 +63,19 @@ def test_plugin(testdir):
                 assert async_class_fixture == 'asyncio'
 
         @pytest.mark.anyio
+        @pytest.mark.parametrize('anyio_backend', ['asyncio'])
+        async def test_asyncio_exception_handler():
+            def callback():
+                nonlocal started
+                started = True
+                raise Exception('foo')
+
+            started = False
+            asyncio.get_event_loop().call_soon(callback)
+            await sleep(0)
+            assert started
+
+        @pytest.mark.anyio
         async def test_skip_inline(some_feature):
             # Test for github #214
             pytest.skip("Test that skipping works")
@@ -68,7 +83,8 @@ def test_plugin(testdir):
     )
 
     result = testdir.runpytest('-v')
-    result.assert_outcomes(passed=3 * len(get_all_backends()) + 1, skipped=len(get_all_backends()))
+    result.assert_outcomes(passed=3 * len(get_all_backends()) + 1, skipped=len(get_all_backends()),
+                           failed=1)
 
 
 def test_autouse_async_fixture(testdir):

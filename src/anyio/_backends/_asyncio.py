@@ -1333,10 +1333,15 @@ async def wait_all_tasks_blocked() -> None:
 class TestRunner(abc.TestRunner):
     def __init__(self, debug: bool = False, use_uvloop: bool = True,
                  policy: Optional[asyncio.AbstractEventLoopPolicy] = None):
+        self._exceptions: List[Exception] = []
         _maybe_set_event_loop_policy(policy, use_uvloop)
         self._loop = asyncio.new_event_loop()
         self._loop.set_debug(debug)
         asyncio.set_event_loop(self._loop)
+        self._loop.set_exception_handler(self._exception_handler)
+
+    def _exception_handler(self, loop: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
+        self._exceptions.append(context['exception'])
 
     def _cancel_all_tasks(self):
         to_cancel = all_tasks(self._loop)
@@ -1364,4 +1369,10 @@ class TestRunner(abc.TestRunner):
             self._loop.close()
 
     def call(self, func: Callable[..., Awaitable], *args, **kwargs):
-        return self._loop.run_until_complete(func(*args, **kwargs))
+        retval = self._loop.run_until_complete(func(*args, **kwargs))
+        if len(self._exceptions) == 1:
+            raise self._exceptions[0]
+        elif self._exceptions:
+            raise ExceptionGroup(self._exceptions)
+
+        return retval
