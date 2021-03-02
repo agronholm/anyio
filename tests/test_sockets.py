@@ -198,7 +198,7 @@ class TestTCPStream:
         assert exc.match('All connection attempts failed')
         assert isinstance(exc.value.__cause__, exception_class)
         if exception_class is ExceptionGroup:
-            for exc in exc.value.__cause__.exceptions:
+            for exc in exc.value.__cause__.errors:
                 assert isinstance(exc, ConnectionRefusedError)
 
     async def test_receive_timeout(self, server_sock, server_addr):
