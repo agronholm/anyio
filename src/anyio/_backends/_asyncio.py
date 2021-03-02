@@ -1235,7 +1235,8 @@ class _SignalReceiver:
 
     def _deliver(self, signum: int) -> None:
         self._signal_queue.append(signum)
-        self._future.set_result(None)
+        if not self._future.done():
+            self._future.set_result(None)
 
     def __aiter__(self):
         return self
