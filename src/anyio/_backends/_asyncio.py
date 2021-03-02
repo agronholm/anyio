@@ -1011,8 +1011,10 @@ class UNIXSocketStream(abc.SocketStream):
     async def aclose(self) -> None:
         if not self._closing:
             self._closing = True
-            self.__raw_socket.shutdown(socket.SHUT_RDWR)
-            self.__raw_socket.close()
+            if self.__raw_socket.fileno() != -1:
+                self.__raw_socket.shutdown(socket.SHUT_RDWR)
+                self.__raw_socket.close()
+
             if self._receive_future:
                 self._receive_future.set_result(None)
             if self._send_future:

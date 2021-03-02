@@ -513,8 +513,7 @@ class TestUNIXStream:
                 fdarray = array.array('i', [file1.fileno(), file2.fileno()])
                 client, _ = server_sock.accept()
                 with client:
-                    msg, ancdata, *_ = client.sendmsg(
-                        [b'test'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)])
+                    client.sendmsg([b'test'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)])
 
         async with await connect_unix(socket_path) as stream:
             thread = Thread(target=serve, daemon=True)
