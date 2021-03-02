@@ -1012,7 +1012,6 @@ class UNIXSocketStream(abc.SocketStream):
         if not self._closing:
             self._closing = True
             if self.__raw_socket.fileno() != -1:
-                self.__raw_socket.shutdown(socket.SHUT_RDWR)
                 self.__raw_socket.close()
 
             if self._receive_future:
