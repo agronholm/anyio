@@ -1,11 +1,13 @@
+import os
 import platform
+import signal
 import sys
 from subprocess import CalledProcessError
 from textwrap import dedent
 
 import pytest
 
-from anyio import open_process, run_process
+from anyio import BrokenWorkerProcess, open_process, run_process, run_sync_in_process
 from anyio.streams.buffered import BufferedByteReceiveStream
 
 pytestmark = pytest.mark.anyio
@@ -63,3 +65,25 @@ async def test_terminate(tmp_path):
 
         process.terminate()
         assert await process.wait() == 2
+
+
+class TestProcessPool:
+    async def test_run_sync_in_process_pool(self):
+        """
+        Test that the function runs in a different process, and the same process in both calls.
+        """
+        worker_pid = await run_sync_in_process(os.getpid)
+        assert worker_pid != os.getpid()
+        assert await run_sync_in_process(os.getpid) == worker_pid
+
+    async def test_exception(self):
+        """Test that exceptions are delivered properly."""
+        with pytest.raises(ValueError, match='invalid literal for int'):
+            assert await run_sync_in_process(int, 'a')
+
+    async def test_unexpected_worker_exit(self):
+        """Test that an unexpected worker exit is handled correctly."""
+        worker_pid = await run_sync_in_process(os.getpid)
+        os.kill(worker_pid, signal.SIGKILL)
+        with pytest.raises(BrokenWorkerProcess):
+            await run_sync_in_process(os.getpid)

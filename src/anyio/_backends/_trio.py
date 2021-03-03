@@ -1,4 +1,5 @@
 import array
+import math
 import socket
 from concurrent.futures import Future
 from dataclasses import dataclass
@@ -6,7 +7,7 @@ from functools import partial
 from io import IOBase
 from types import TracebackType
 from typing import (
-    Any, Awaitable, Callable, Collection, Coroutine, Dict, Generic, List, NoReturn, Optional,
+    Any, Awaitable, Callable, Collection, Coroutine, Dict, Generic, List, NoReturn, Optional, Set,
     Tuple, Type, TypeVar, Union)
 
 import trio.from_thread
@@ -177,7 +178,13 @@ class ReceiveStreamWrapper(abc.ByteReceiveStream):
     _stream: trio.abc.ReceiveStream
 
     async def receive(self, max_bytes: Optional[int] = None) -> bytes:
-        data = await self._stream.receive_some(max_bytes)
+        try:
+            data = await self._stream.receive_some(max_bytes)
+        except trio.ClosedResourceError as exc:
+            raise ClosedResourceError from exc.__cause__
+        except trio.BrokenResourceError as exc:
+            raise BrokenResourceError from exc.__cause__
+
         if data:
             return data
         else:
@@ -192,13 +199,18 @@ class SendStreamWrapper(abc.ByteSendStream):
     _stream: trio.abc.SendStream
 
     async def send(self, item: bytes) -> None:
-        await self._stream.send_all(item)
+        try:
+            await self._stream.send_all(item)
+        except trio.ClosedResourceError as exc:
+            raise ClosedResourceError from exc.__cause__
+        except trio.BrokenResourceError as exc:
+            raise BrokenResourceError from exc.__cause__
 
     async def aclose(self) -> None:
         await self._stream.aclose()
 
 
-@dataclass
+@dataclass(eq=False)
 class Process(abc.Process):
     _process: trio.Process
     _stdin: Optional[abc.ByteSendStream]
@@ -255,6 +267,33 @@ async def open_process(command, *, shell: bool, stdin: int, stdout: int, stderr:
     stdout_stream = ReceiveStreamWrapper(process.stdout) if process.stdout else None
     stderr_stream = ReceiveStreamWrapper(process.stderr) if process.stderr else None
     return Process(process, stdin_stream, stdout_stream, stderr_stream)
+
+
+class _ProcessPoolShutdownInstrument(trio.abc.Instrument):
+    def after_run(self):
+        super().after_run()
+
+
+current_default_worker_process_limiter = trio.lowlevel.RunVar(
+    'current_default_worker_process_limiter')
+
+
+async def _shutdown_process_pool(workers: Set[Process]) -> None:
+    process: Process
+    try:
+        await sleep(math.inf)
+    except trio.Cancelled:
+        for process in workers:
+            if process.returncode is None:
+                process.kill()
+
+        for process in workers:
+            if process.returncode is None:
+                await process.wait()
+
+
+def setup_process_pool_exit_at_shutdown(workers: Set[Process]) -> None:
+    trio.lowlevel.spawn_system_task(_shutdown_process_pool, workers)
 
 
 #
