@@ -888,14 +888,14 @@ class SocketListener(abc.SocketListener):
                 try:
                     client_sock, _addr = await self._loop.sock_accept(self._raw_socket)
                 except asyncio.CancelledError:
-                    if self._closed:
-                        raise ClosedResourceError from None
-
                     # Workaround for https://bugs.python.org/issue41317
                     try:
                         self._loop.remove_reader(self._raw_socket)
                     except (ValueError, NotImplementedError):
                         pass
+
+                    if self._closed:
+                        raise ClosedResourceError from None
 
                     raise
                 finally:
@@ -913,12 +913,6 @@ class SocketListener(abc.SocketListener):
 
         self._closed = True
         if self._accept_scope:
-            # Needed on Windows + Python < 3.8
-            try:
-                self._loop.remove_reader(self._raw_socket)
-            except NotImplementedError:
-                pass
-
             self._accept_scope.cancel()
             await sleep(0)
 
