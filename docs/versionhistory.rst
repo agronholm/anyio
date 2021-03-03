@@ -59,8 +59,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Changed ``CancelScope.deadline`` to be writable
 - ``Lock`` and ``Condition`` can now only be released by the task that acquired them. This behavior
   is now consistent on all backends whereas previously only Trio enforced this.
-- Changed the asyncio test runner so that if the test function completes successfully, any
-  exceptions raised in synchronous callbacks will be raised then, essentially failing the test
+- Changed the asyncio test runner to capture unhandled exceptions from asynchronous callbacks and
+  unbound native tasks which are then raised after the test function (or async fixture setup or
+  teardown) completes
 
 **2.2.0**
 
