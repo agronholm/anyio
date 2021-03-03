@@ -866,6 +866,9 @@ class SocketStream(abc.SocketStream):
 
 
 class SocketListener(abc.SocketListener):
+    _accept_scope: Optional[CancelScope] = None
+    _closed = False
+
     def __init__(self, raw_socket: socket.SocketType):
         self.__raw_socket = raw_socket
         self._loop = cast(asyncio.BaseEventLoop, get_running_loop())
@@ -876,19 +879,25 @@ class SocketListener(abc.SocketListener):
         return self.__raw_socket
 
     async def accept(self) -> abc.SocketStream:
+        if self._closed:
+            raise ClosedResourceError
+
         with self._accept_guard:
             await checkpoint()
-            try:
-                client_sock, _addr = await self._loop.sock_accept(self._raw_socket)
-            except asyncio.CancelledError:
-                # Workaround for https://bugs.python.org/issue41317
+            with CancelScope() as self._accept_scope:
                 try:
-                    self._loop.remove_reader(self._raw_socket)
-                except (ValueError, NotImplementedError):
-                    if self._raw_socket.fileno() == -1:
-                        raise ClosedResourceError from None
+                    client_sock, _addr = await self._loop.sock_accept(self._raw_socket)
+                except asyncio.CancelledError:
+                    # Workaround for https://bugs.python.org/issue41317
+                    try:
+                        self._loop.remove_reader(self._raw_socket)
+                    except (ValueError, NotImplementedError):
+                        if self._closed:
+                            raise ClosedResourceError from None
 
-                raise
+                    raise
+                finally:
+                    self._accept_scope = None
 
         if client_sock.family in (socket.AF_INET, socket.AF_INET6):
             client_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -897,11 +906,19 @@ class SocketListener(abc.SocketListener):
         return SocketStream(cast(asyncio.Transport, transport), cast(StreamProtocol, protocol))
 
     async def aclose(self) -> None:
-        # Needed on Windows + Python < 3.8
-        try:
-            self._loop.remove_reader(self._raw_socket)
-        except NotImplementedError:
-            pass
+        if self._closed:
+            return
+
+        self._closed = True
+        if self._accept_scope:
+            # Needed on Windows + Python < 3.8
+            try:
+                self._loop.remove_reader(self._raw_socket)
+            except NotImplementedError:
+                pass
+
+            self._accept_scope.cancel()
+            await sleep(0)
 
         self._raw_socket.close()
 

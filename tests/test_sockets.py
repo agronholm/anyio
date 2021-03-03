@@ -370,6 +370,13 @@ class TestTCPListener:
                 client.close()
                 await stream.aclose()
 
+    async def test_accept_after_close(self, family):
+        async with await create_tcp_listener(local_host='localhost', family=family) as multi:
+            for listener in multi.listeners:
+                await listener.aclose()
+                with pytest.raises(ClosedResourceError):
+                    await listener.accept()
+
     async def test_socket_options(self, family):
         async with await create_tcp_listener(local_host='localhost', family=family) as multi:
             for listener in multi.listeners:
