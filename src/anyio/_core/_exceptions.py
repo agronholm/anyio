@@ -1,3 +1,4 @@
+from functools import partial
 from inspect import isclass
 from textwrap import indent
 from traceback import format_exception
@@ -66,11 +67,19 @@ class ExceptionGroup(BaseException):
         return f'{self.__class__.__name__}({self.message!r}, {self.errors!r})'
 
     @staticmethod
+    def check_direct_subclass(exc: BaseException, parents: Tuple[Type[BaseException]]) -> bool:
+        for cls in exc.__class__.mro()[:-1]:
+            if cls in parents:
+                return True
+
+        return False
+
+    @staticmethod
     def _get_condition_filter(condition: ConditionParameter) -> Callable[[BaseException], bool]:
         if isclass(condition) and issubclass(cast(Type[BaseException], condition), BaseException):
-            return lambda exc: isinstance(exc, cast(Type[BaseException], condition))
+            return partial(ExceptionGroup.check_direct_subclass, parents=(condition,))
         elif isinstance(condition, tuple):
-            return lambda exc: isinstance(exc, cast(tuple, condition))
+            return partial(ExceptionGroup.check_direct_subclass, parents=condition)
         elif callable(condition):
             return cast(Callable[[BaseException], bool], condition)
         else:
@@ -87,8 +96,12 @@ class ExceptionGroup(BaseException):
 
         See :pep:`654`  for more details.
 
-        :param condition: callable that takes an exception as the argument and returns ``True`` if
-            the exception should be included
+        :param condition: one of the following:
+
+            * a callable that takes an exception as the argument and returns ``True`` if
+              the exception should be included
+            * an exception class
+            * a tuple of exception classes
 
         """
         condition = self._get_condition_filter(condition)
@@ -128,8 +141,12 @@ class ExceptionGroup(BaseException):
 
         See :pep:`654`  for more details.
 
-        :param condition: callable that takes an exception as the argument and returns ``True`` if
-            the exception should be included
+        :param condition: one of the following:
+
+            * a callable that takes an exception as the argument and returns ``True`` if
+              the exception should be included
+            * an exception class
+            * a tuple of exception classes
         :return: a tuple of exception groups (or ``None`` where empty) where the first contains the
             matching exceptions and the second contains the ones that didn't match the condition
 
