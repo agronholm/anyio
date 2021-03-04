@@ -101,6 +101,53 @@ And the listener::
 
     run(main)
 
+Sending and receiving file descriptors
+++++++++++++++++++++++++++++++++++++++
+
+UNIX sockets can be used to pass open file descriptors (sockets and files) to another process.
+The receiving end can then use either :func:`os.fdopen` or :func:`socket.socket` to get a usable
+file or socket object, respectively.
+
+The following is an example where a client connects to a UNIX socket server and receives the
+descriptor of a file opened on the server, reads the contents of the file and then prints them on
+standard output.
+
+Client::
+
+    import os
+
+    from anyio import connect_unix, run
+
+
+    async def main():
+        async with await connect_unix('/tmp/mysock') as client:
+            _, fds = await client.receive_fds(0, 1)
+            with os.fdopen(fds[0]) as file:
+                print(file.read())
+
+    run(main)
+
+Server::
+
+    from pathlib import Path
+
+    from anyio import create_unix_listener, run
+
+
+    async def handle(client):
+        async with client:
+            with path.open('r') as file:
+                await client.send_fds(b'this message is ignored', [file])
+
+
+    async def main():
+        listener = await create_unix_listener('/tmp/mysock')
+        await listener.serve(handle)
+
+    path = Path('/tmp/examplefile')
+    path.write_text('Test file')
+    run(main)
+
 Working with UDP sockets
 ------------------------
 
@@ -139,4 +186,3 @@ you send data to the peer::
             await udp.send(b'Hi there!\n')
 
     run(main)
-

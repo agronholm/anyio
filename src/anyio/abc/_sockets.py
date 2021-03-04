@@ -1,7 +1,9 @@
 from abc import abstractmethod
+from io import IOBase
 from ipaddress import IPv4Address, IPv6Address
 from socket import AddressFamily, SocketType
-from typing import Any, AsyncContextManager, Callable, Optional, Tuple, TypeVar, Union
+from typing import (
+    Any, AsyncContextManager, Callable, Collection, List, Optional, Tuple, TypeVar, Union)
 
 from .._core._typedattr import TypedAttributeProvider, TypedAttributeSet, typed_attribute
 from ._streams import ByteStream, Listener, T_Stream, UnreliableObjectStream
@@ -76,6 +78,28 @@ class SocketStream(ByteStream, _SocketProvider):
 
     Supports all relevant extra attributes from :class:`~SocketAttribute`.
     """
+
+
+class UNIXSocketStream(SocketStream):
+    @abstractmethod
+    async def send_fds(self, message: bytes, fds: Collection[Union[int, IOBase]]) -> None:
+        """
+        Send file descriptors along with a message to the peer.
+
+        :param message: a non-empty bytestring
+        :param fds: a collection of files (either numeric file descriptors or open file or socket
+            objects)
+        """
+
+    @abstractmethod
+    async def receive_fds(self, msglen: int, maxfds: int) -> Tuple[bytes, List[int]]:
+        """
+        Receive file descriptors along with a message from the peer.
+
+        :param msglen: length of the message to expect from the peer
+        :param maxfds: maximum number of file descriptors to expect from the peer
+        :return: a tuple of (message, file descriptors)
+        """
 
 
 class SocketListener(Listener[SocketStream], _SocketProvider):
