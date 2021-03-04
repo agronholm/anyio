@@ -1,7 +1,7 @@
 import pytest
 
-from anyio import create_task_group
-from anyio.lowlevel import cancel_shielded_checkpoint, checkpoint, checkpoint_if_cancelled
+from anyio import create_task_group, run
+from anyio.lowlevel import RunVar, cancel_shielded_checkpoint, checkpoint, checkpoint_if_cancelled
 
 pytestmark = pytest.mark.anyio
 
@@ -74,3 +74,37 @@ async def test_checkpoint(cancel):
 
     assert finished != cancel
     assert second_finished
+
+
+class TestRunVar:
+    def test_get_set(self, anyio_backend_name, anyio_backend_options):
+        async def taskfunc(index):
+            assert var.get() == index
+            var.set(index + 1)
+
+        async def main():
+            pytest.raises(LookupError, var.get)
+            for i in range(2):
+                var.set(i)
+                async with create_task_group() as tg:
+                    tg.spawn(taskfunc, i)
+
+                assert var.get() == i + 1
+
+        var = RunVar('var')
+        for _ in range(2):
+            run(main, backend=anyio_backend_name, backend_options=anyio_backend_options)
+
+    async def test_reset_token_used_on_wrong_runvar(self):
+        var1 = RunVar('var1')
+        var2 = RunVar('var2')
+        token = var1.set('blah')
+        with pytest.raises(ValueError, match='This token does not belong to this RunVar'):
+            var2.reset(token)
+
+    async def test_reset_token_used_twice(self):
+        var = RunVar('var')
+        token = var.set('blah')
+        var.reset(token)
+        with pytest.raises(ValueError, match='This token has already been used'):
+            var.reset(token)

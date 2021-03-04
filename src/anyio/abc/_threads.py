@@ -8,8 +8,6 @@ from typing import (
     Any, AsyncContextManager, Callable, ContextManager, Coroutine, Dict, Optional, Tuple, Type,
     TypeVar, cast, overload)
 
-from .._core._synchronization import create_event
-from .._core._tasks import open_cancel_scope
 from ..abc import Event
 from ._tasks import TaskStatus
 
@@ -29,6 +27,8 @@ class _BlockingAsyncContextManager(AbstractContextManager):
         self._portal = portal
 
     async def run_async_cm(self):
+        from .._core._synchronization import create_event
+
         try:
             self._exit_event = create_event()
             value = await self._async_cm.__aenter__()
@@ -112,6 +112,8 @@ class BlockingPortal(metaclass=ABCMeta):
 
     async def _call_func(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
                          future: Future) -> None:
+        from .._core._tasks import open_cancel_scope
+
         def callback(f: Future):
             if f.cancelled():
                 self.call(scope.cancel)
