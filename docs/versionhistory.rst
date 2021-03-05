@@ -48,6 +48,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   non-generic
 - Dropped Curio as a backend (see the :doc:`FAQ <faq>` as for why)
 - Added the ``run_sync_from_thread()`` function
+- Added ``UNIXSocketStream`` as a ``SocketStream`` subclass, capable of sending and receiving
+  file descriptors
 - Added the ``FileReadStream`` and ``FileWriteStream`` classes
 - Added the ``TaskGroup.start()`` method and a corresponding ``BlockingPortal.start_task()`` method
 - Added the ``name`` argument to ``BlockingPortal.spawn_task()``

@@ -1,11 +1,13 @@
+import array
 import socket
 from concurrent.futures import Future
 from dataclasses import dataclass
 from functools import partial
+from io import IOBase
 from types import TracebackType
 from typing import (
-    Any, Awaitable, Callable, Coroutine, Dict, Generic, List, NoReturn, Optional, Tuple, Type,
-    TypeVar, Union)
+    Any, Awaitable, Callable, Collection, Coroutine, Dict, Generic, List, NoReturn, Optional,
+    Tuple, Type, TypeVar, Union)
 
 import trio.from_thread
 from outcome import Error, Value
@@ -288,7 +290,63 @@ class SocketStream(_TrioSocketMixin, abc.SocketStream):
         self._trio_socket.shutdown(socket.SHUT_WR)
 
 
-class SocketListener(_TrioSocketMixin, abc.SocketListener):
+class UNIXSocketStream(SocketStream, abc.UNIXSocketStream):
+    async def receive_fds(self, msglen: int, maxfds: int) -> Tuple[bytes, List[int]]:
+        if not isinstance(msglen, int) or msglen < 0:
+            raise ValueError('msglen must be a non-negative integer')
+        if not isinstance(maxfds, int) or maxfds < 1:
+            raise ValueError('maxfds must be a positive integer')
+
+        fds = array.array("i")
+        await checkpoint()
+        with self._receive_guard:
+            while True:
+                try:
+                    message, ancdata, flags, addr = await self._trio_socket.recvmsg(
+                        msglen, socket.CMSG_LEN(maxfds * fds.itemsize))
+                except BaseException as exc:
+                    self._convert_socket_error(exc)
+                else:
+                    if not message and not ancdata:
+                        raise EndOfStream
+
+                    break
+
+        for cmsg_level, cmsg_type, cmsg_data in ancdata:
+            if cmsg_level != socket.SOL_SOCKET or cmsg_type != socket.SCM_RIGHTS:
+                raise RuntimeError(f'Received unexpected ancillary data; message = {message}, '
+                                   f'cmsg_level = {cmsg_level}, cmsg_type = {cmsg_type}')
+
+            fds.frombytes(cmsg_data[:len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])
+
+        return message, list(fds)
+
+    async def send_fds(self, message: bytes, fds: Collection[Union[int, IOBase]]) -> None:
+        if not message:
+            raise ValueError('message must not be empty')
+        if not fds:
+            raise ValueError('fds must not be empty')
+
+        filenos: List[int] = []
+        for fd in fds:
+            if isinstance(fd, int):
+                filenos.append(fd)
+            elif isinstance(fd, IOBase):
+                filenos.append(fd.fileno())
+
+        fdarray = array.array("i", filenos)
+        await checkpoint()
+        with self._send_guard:
+            while True:
+                try:
+                    await self._trio_socket.sendmsg(
+                        [message], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)])
+                    break
+                except BaseException as exc:
+                    self._convert_socket_error(exc)
+
+
+class TCPSocketListener(_TrioSocketMixin, abc.SocketListener):
     def __init__(self, raw_socket: socket.SocketType):
         super().__init__(trio.socket.from_stdlib_socket(raw_socket))
         self._accept_guard = ResourceGuard('accepting connections from')
@@ -300,10 +358,23 @@ class SocketListener(_TrioSocketMixin, abc.SocketListener):
             except BaseException as exc:
                 self._convert_socket_error(exc)
 
-        if trio_socket.family in (socket.AF_INET, socket.AF_INET6):
-            trio_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-
+        trio_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         return SocketStream(trio_socket)
+
+
+class UNIXSocketListener(_TrioSocketMixin, abc.SocketListener):
+    def __init__(self, raw_socket: socket.SocketType):
+        super().__init__(trio.socket.from_stdlib_socket(raw_socket))
+        self._accept_guard = ResourceGuard('accepting connections from')
+
+    async def accept(self) -> UNIXSocketStream:
+        with self._accept_guard:
+            try:
+                trio_socket, _addr = await self._trio_socket.accept()
+            except BaseException as exc:
+                self._convert_socket_error(exc)
+
+        return UNIXSocketStream(trio_socket)
 
 
 class UDPSocket(_TrioSocketMixin[IPSockAddrType], abc.UDPSocket):
@@ -366,7 +437,7 @@ async def connect_tcp(host: str, port: int,
     return SocketStream(trio_socket)
 
 
-async def connect_unix(path: str) -> SocketStream:
+async def connect_unix(path: str) -> UNIXSocketStream:
     trio_socket = trio.socket.socket(socket.AF_UNIX)
     try:
         await trio_socket.connect(path)
@@ -374,7 +445,7 @@ async def connect_unix(path: str) -> SocketStream:
         trio_socket.close()
         raise
 
-    return SocketStream(trio_socket)
+    return UNIXSocketStream(trio_socket)
 
 
 async def create_udp_socket(
