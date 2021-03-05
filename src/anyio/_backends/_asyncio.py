@@ -1023,6 +1023,9 @@ class UNIXSocketStream(abc.SocketStream):
 
 
 class TCPSocketListener(abc.SocketListener):
+    _accept_scope: Optional[CancelScope] = None
+    _closed = False
+
     def __init__(self, raw_socket: socket.SocketType):
         self.__raw_socket = raw_socket
         self._loop = cast(asyncio.BaseEventLoop, get_running_loop())
