@@ -837,7 +837,9 @@ class SocketStream(abc.SocketStream):
             try:
                 self._transport.write(item)
             except RuntimeError as exc:
-                if self._closed:
+                if self._protocol.write_future.exception():
+                    await self._protocol.write_future
+                elif self._closed:
                     raise ClosedResourceError from None
                 elif self._transport.is_closing():
                     raise BrokenResourceError from exc
@@ -1021,6 +1023,9 @@ class UNIXSocketStream(abc.SocketStream):
 
 
 class TCPSocketListener(abc.SocketListener):
+    _accept_scope: Optional[CancelScope] = None
+    _closed = False
+
     def __init__(self, raw_socket: socket.SocketType):
         self.__raw_socket = raw_socket
         self._loop = cast(asyncio.BaseEventLoop, get_running_loop())
@@ -1031,30 +1036,40 @@ class TCPSocketListener(abc.SocketListener):
         return self.__raw_socket
 
     async def accept(self) -> abc.SocketStream:
+        if self._closed:
+            raise ClosedResourceError
+
         with self._accept_guard:
             await checkpoint()
-            try:
-                client_sock, _addr = await self._loop.sock_accept(self._raw_socket)
-            except asyncio.CancelledError:
-                # Workaround for https://bugs.python.org/issue41317
+            with CancelScope() as self._accept_scope:
                 try:
-                    self._loop.remove_reader(self._raw_socket)
-                except (ValueError, NotImplementedError):
-                    if self._raw_socket.fileno() == -1:
+                    client_sock, _addr = await self._loop.sock_accept(self._raw_socket)
+                except asyncio.CancelledError:
+                    # Workaround for https://bugs.python.org/issue41317
+                    try:
+                        self._loop.remove_reader(self._raw_socket)
+                    except (ValueError, NotImplementedError):
+                        pass
+
+                    if self._closed:
                         raise ClosedResourceError from None
 
-                raise
+                    raise
+                finally:
+                    self._accept_scope = None
 
         client_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         transport, protocol = await self._loop.connect_accepted_socket(StreamProtocol, client_sock)
         return SocketStream(cast(asyncio.Transport, transport), cast(StreamProtocol, protocol))
 
     async def aclose(self) -> None:
-        # Needed on Windows + Python < 3.8
-        try:
-            self._loop.remove_reader(self._raw_socket)
-        except NotImplementedError:
-            pass
+        if self._closed:
+            return
+
+        self._closed = True
+        if self._accept_scope:
+            self._accept_scope.cancel()
+            await sleep(0)
 
         self._raw_socket.close()
 
@@ -1432,7 +1447,8 @@ class _SignalReceiver:
 
     def _deliver(self, signum: int) -> None:
         self._signal_queue.append(signum)
-        self._future.set_result(None)
+        if not self._future.done():
+            self._future.set_result(None)
 
     def __aiter__(self):
         return self
@@ -1561,4 +1577,22 @@ class TestRunner(abc.TestRunner):
             self._loop.close()
 
     def call(self, func: Callable[..., Awaitable], *args, **kwargs):
-        return self._loop.run_until_complete(func(*args, **kwargs))
+        def exception_handler(loop: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
+            exceptions.append(context['exception'])
+
+        exceptions: List[Exception] = []
+        self._loop.set_exception_handler(exception_handler)
+        try:
+            retval = self._loop.run_until_complete(func(*args, **kwargs))
+        except Exception as exc:
+            retval = None
+            exceptions.append(exc)
+        finally:
+            self._loop.set_exception_handler(None)
+
+        if len(exceptions) == 1:
+            raise exceptions[0]
+        elif exceptions:
+            raise ExceptionGroup(exceptions)
+
+        return retval
