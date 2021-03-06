@@ -1049,6 +1049,7 @@ class TCPSocketListener(abc.SocketListener):
                     # Workaround for https://bugs.python.org/issue41317
                     try:
                         self._loop.remove_reader(self._raw_socket)
+                        print('removed reader')
                     except (ValueError, NotImplementedError):
                         pass
 
@@ -1057,6 +1058,7 @@ class TCPSocketListener(abc.SocketListener):
 
                     raise
                 finally:
+                    print('exiting accept()')
                     self._accept_scope = None
 
         client_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -1069,6 +1071,13 @@ class TCPSocketListener(abc.SocketListener):
 
         self._closed = True
         if self._accept_scope:
+            # Workaround for https://bugs.python.org/issue41317
+            try:
+                self._loop.remove_reader(self._raw_socket)
+                print('removed reader')
+            except (ValueError, NotImplementedError):
+                pass
+
             self._accept_scope.cancel()
             await sleep(0)
 
