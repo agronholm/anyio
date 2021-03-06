@@ -204,7 +204,6 @@ class CancelScope(abc.CancelScope):
         self._tasks: Set[asyncio.Task] = set()
         self._host_task: Optional[asyncio.Task] = None
         self._timeout_expired = False
-        self._cancel_callback_handle: Optional[asyncio.Handle] = None
 
     def __enter__(self):
         if self._active:
@@ -276,9 +275,7 @@ class CancelScope(abc.CancelScope):
 
         # Schedule another callback if there are still tasks left
         if self._tasks:
-            self._cancel_callback_handle = get_running_loop().call_soon(self._deliver_cancellation)
-        else:
-            self._cancel_callback_handle = None
+            get_running_loop().call_soon(self._deliver_cancellation)
 
     def _is_shielded(self) -> bool:
         cancel_scope: Optional[CancelScope] = self
@@ -310,7 +307,7 @@ class CancelScope(abc.CancelScope):
             self._timeout_handle = None
 
         self._cancel_called = True
-        self._cancel_callback_handle = get_running_loop().call_soon(self._deliver_cancellation)
+        get_running_loop().call_soon(self._deliver_cancellation)
 
     @property
     def deadline(self) -> float:
