@@ -8,7 +8,9 @@ from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import partial, wraps
-from inspect import isgenerator
+from inspect import (
+    CORO_RUNNING, CORO_SUSPENDED, GEN_RUNNING, GEN_SUSPENDED, getcoroutinestate, getgeneratorstate,
+    isgenerator)
 from socket import AddressFamily, SocketKind, SocketType
 from threading import Thread
 from types import TracebackType
@@ -26,6 +28,12 @@ from .._core._exceptions import WouldBlock
 from .._core._sockets import GetAddrInfoReturnType, convert_ipv6_sockaddr
 from .._core._synchronization import ResourceGuard
 from ..abc import IPSockAddrType, UDPPacketType
+
+if sys.version_info >= (3, 8):
+    get_coro = asyncio.Task.get_coro
+else:
+    def get_coro(task: asyncio.Task) -> Union[Coroutine, Generator]:
+        return task._coro
 
 if sys.version_info >= (3, 7):
     from asyncio import all_tasks, create_task, current_task, get_running_loop
@@ -121,6 +129,15 @@ def get_callable_name(func: Callable) -> str:
 # Event loop
 #
 
+def _task_started(task: asyncio.Task) -> bool:
+    """Return ``True`` if the task has been started and has not finished."""
+    coro = get_coro(task)
+    try:
+        return getcoroutinestate(coro) in (CORO_RUNNING, CORO_SUSPENDED)
+    except AttributeError:
+        return getgeneratorstate(coro) in (GEN_RUNNING, GEN_SUSPENDED)
+
+
 def _maybe_set_event_loop_policy(policy: Optional[asyncio.AbstractEventLoopPolicy],
                                  use_uvloop: bool) -> None:
     # On CPython, use uvloop when possible if no other policy has been given and if not
@@ -215,6 +232,7 @@ class CancelScope(abc.CancelScope):
         self._active = False
         if self._timeout_handle:
             self._timeout_handle.cancel()
+            self._timeout_handle = None
 
         assert self._host_task is not None
         self._tasks.remove(self._host_task)
@@ -231,9 +249,6 @@ class CancelScope(abc.CancelScope):
                     # This scope was directly cancelled
                     return True
 
-        if self._shield and self._parent_cancelled():
-            _start_cancelling(self._host_task)
-
         return None
 
     def _timeout(self):
@@ -245,35 +260,30 @@ class CancelScope(abc.CancelScope):
             else:
                 self._timeout_handle = loop.call_at(self._deadline, self._timeout)
 
-    def _cancel(self):
-        # Deliver cancellation to directly contained tasks and nested cancel scopes
+    def _deliver_cancellation(self):
+        """Deliver cancellation to directly contained tasks and nested cancel scopes."""
         for task in self._tasks:
             # Cancel the task directly, but only if it's blocked and isn't within a shielded scope
             cancel_scope = _task_states[task].cancel_scope
-            if cancel_scope is self:
-                # Only deliver the cancellation if the task is already running
-                if isgenerator(task._coro):  # type: ignore
-                    awaitable = task._coro.gi_yieldfrom
-                elif asyncio.iscoroutine(task._coro) and hasattr(task._coro, 'cr_await'):
-                    awaitable = task._coro.cr_await
-                else:
-                    awaitable = task._coro
+            if (cancel_scope is not self and not cancel_scope._is_shielded()
+                    and not cancel_scope.cancel_called):
+                # Deliver cancellation only if the child scope isn't shielded and hasn't been
+                # directly cancelled (in which case it already has a callback cancelling its tasks)
+                cancel_scope._deliver_cancellation()
+            elif cancel_scope is self and _task_started(task):
+                task.cancel()
 
-                if awaitable is not None:
-                    task.cancel()
-                _start_cancelling(task)
-            elif not cancel_scope._shielded_to(self):
-                cancel_scope._cancel()
+        # Schedule another callback if there are still tasks left
+        if self._tasks:
+            get_running_loop().call_soon(self._deliver_cancellation)
 
-    def _shielded_to(self, parent: Optional['CancelScope']) -> bool:
-        # Check whether this task or any parent up to (but not including) the "parent" argument is
-        # shielded
+    def _is_shielded(self) -> bool:
         cancel_scope: Optional[CancelScope] = self
-        while cancel_scope is not None and cancel_scope is not parent:
+        while cancel_scope:
             if cancel_scope._shield:
                 return True
-            else:
-                cancel_scope = cancel_scope._parent_scope
+
+            cancel_scope = cancel_scope._parent_scope
 
         return False
 
@@ -292,8 +302,12 @@ class CancelScope(abc.CancelScope):
         if self._cancel_called:
             return
 
+        if self._timeout_handle:
+            self._timeout_handle.cancel()
+            self._timeout_handle = None
+
         self._cancel_called = True
-        self._cancel()
+        get_running_loop().call_soon(self._deliver_cancellation)
 
     @property
     def deadline(self) -> float:
@@ -316,38 +330,6 @@ class CancelScope(abc.CancelScope):
     @property
     def shield(self) -> bool:
         return self._shield
-
-
-def _cancel_called(task: asyncio.Task) -> bool:
-    try:
-        cancel_scope = _task_states[task].cancel_scope
-    except KeyError:
-        return False
-
-    while cancel_scope:
-        if cancel_scope.cancel_called:
-            return True
-
-        if cancel_scope.shield:
-            return False
-
-        cancel_scope = cancel_scope._parent_scope
-
-    return False
-
-
-async def _cancel_while_running(task: asyncio.Task) -> None:
-    while not task.done() and _cancel_called(task):
-        task.cancel()
-        await sleep(0)
-
-
-def _start_cancelling(task: asyncio.Task) -> None:
-    task_state = _task_states[task]
-    cancelling_task = task_state.cancelling_task
-    if cancelling_task is not None and not cancelling_task.done():
-        return
-    task_state.cancelling_task = create_task(_cancel_while_running(task))
 
 
 async def checkpoint():
@@ -381,14 +363,13 @@ class TaskState:
     because there are no guarantees about its implementation.
     """
 
-    __slots__ = 'parent_id', 'name', 'cancel_scope', 'cancelling_task'
+    __slots__ = 'parent_id', 'name', 'cancel_scope'
 
     def __init__(self, parent_id: Optional[int], name: Optional[str],
                  cancel_scope: Optional[CancelScope]):
         self.parent_id = parent_id
         self.name = name
         self.cancel_scope = cancel_scope
-        self.cancelling_task: "Optional[asyncio.Task[None]]" = None
 
 
 _task_states = WeakKeyDictionary()  # type: WeakKeyDictionary[asyncio.Task, TaskState]
@@ -522,9 +503,6 @@ class TaskGroup(abc.TaskGroup):
         _task_states[task] = TaskState(parent_id=id(current_task()), name=name,
                                        cancel_scope=self.cancel_scope)
         self.cancel_scope._tasks.add(task)
-        if self.cancel_scope._cancel_called:
-            _start_cancelling(task)
-
         return task
 
     def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
@@ -1298,7 +1276,7 @@ def _create_task_info(task: asyncio.Task) -> TaskInfo:
         name = task_state.name
         parent_id = task_state.parent_id
 
-    return TaskInfo(id(task), parent_id, name, task._coro)  # type: ignore
+    return TaskInfo(id(task), parent_id, name, get_coro(task))
 
 
 def get_current_task() -> TaskInfo:
@@ -1316,12 +1294,13 @@ async def wait_all_tasks_blocked() -> None:
             if task is this_task:
                 continue
 
-            if isgenerator(task._coro):  # type: ignore
-                awaitable = task._coro.gi_yieldfrom  # type: ignore
-            elif hasattr(task._coro, 'cr_code'):  # type: ignore
-                awaitable = task._coro.cr_await  # type: ignore
+            coro = get_coro(task)
+            if isgenerator(coro):
+                awaitable = coro.gi_yieldfrom
+            elif hasattr(coro, 'cr_code'):
+                awaitable = coro.cr_await
             else:
-                awaitable = task._coro  # type: ignore
+                awaitable = coro
 
             # If the first awaitable is None, the task has not started running yet
             task_running = bool(awaitable)
