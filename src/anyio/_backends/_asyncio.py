@@ -1511,35 +1511,7 @@ async def wait_all_tasks_blocked() -> None:
             if task is this_task:
                 continue
 
-            coro = get_coro(task)
-            if isgenerator(coro):
-                awaitable = coro.gi_yieldfrom
-            elif hasattr(coro, 'cr_code'):
-                awaitable = coro.cr_await
-            else:
-                awaitable = coro
-
-            # If the first awaitable is None, the task has not started running yet
-            task_running = bool(awaitable)
-
-            # Consider any task doing sleep(0) as not being blocked
-            while asyncio.iscoroutine(awaitable):
-                if isgenerator(awaitable):
-                    code = awaitable.gi_code
-                    f_locals = awaitable.gi_frame.f_locals
-                    awaitable = awaitable.gi_yieldfrom
-                elif hasattr(awaitable, 'cr_code'):
-                    code = awaitable.cr_code
-                    f_locals = awaitable.cr_frame.f_locals
-                    awaitable = awaitable.cr_await
-                else:
-                    break
-
-                if code is sleep.__code__ and f_locals['delay'] == 0:
-                    task_running = False
-                    break
-
-            if not task_running:
+            if task._fut_waiter is None:  # type: ignore[attr-defined]
                 await sleep(0.1)
                 break
         else:
