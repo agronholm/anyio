@@ -1073,7 +1073,6 @@ class TCPSocketListener(abc.SocketListener):
             # Workaround for https://bugs.python.org/issue41317
             try:
                 self._loop.remove_reader(self._raw_socket)
-                print('removed reader')
             except (ValueError, NotImplementedError):
                 pass
 
