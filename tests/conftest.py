@@ -1,5 +1,6 @@
 import asyncio
 import ssl
+import sys
 
 import pytest
 import trustme
@@ -21,9 +22,21 @@ else:
 pytest_plugins = ['pytester']
 
 
+if sys.platform == 'win32':
+    selector_policy = asyncio.WindowsSelectorEventLoopPolicy()
+    proactor_policy = asyncio.WindowsProactorEventLoopPolicy()
+    proactor_marks = []
+else:
+    selector_policy = asyncio.DefaultEventLoopPolicy()
+    proactor_policy = None
+    proactor_marks = pytest.mark.skip("proactor is only available on windows")
+
+
 @pytest.fixture(params=[
-    pytest.param(('asyncio', {'debug': True, 'policy': asyncio.DefaultEventLoopPolicy()}),
-                 id='asyncio'),
+    pytest.param(('asyncio', {'debug': True, 'policy': selector_policy}),
+                 id='asyncio+selector'),
+    pytest.param(('asyncio', {'debug': True, 'policy': proactor_policy}), marks=proactor_marks,
+                 id='asyncio+proactor'),
     pytest.param(('asyncio', {'debug': True, 'policy': uvloop_policy}), marks=uvloop_marks,
                  id='asyncio+uvloop'),
     pytest.param('trio')
