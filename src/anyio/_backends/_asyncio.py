@@ -354,7 +354,7 @@ async def checkpoint_if_cancelled() -> None:
 
     while cancel_scope:
         if cancel_scope.cancel_called:
-            raise CancelledError
+            await sleep(0)
         elif cancel_scope.shield:
             break
         else:
