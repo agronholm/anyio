@@ -137,10 +137,11 @@ def _task_started(task: asyncio.Task) -> bool:
     try:
         return getcoroutinestate(coro) in (CORO_RUNNING, CORO_SUSPENDED)
     except AttributeError:
-        if isgenerator(coro):
+        try:
             return getgeneratorstate(coro) in (GEN_RUNNING, GEN_SUSPENDED)
-        else:
-            return True
+        except AttributeError:
+            # async_generator_asend
+            return task._fut_waiter is not None  # type: ignore
 
 
 def _maybe_set_event_loop_policy(policy: Optional[asyncio.AbstractEventLoopPolicy],
