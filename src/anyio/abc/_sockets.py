@@ -1,7 +1,9 @@
 from abc import abstractmethod
+from io import IOBase
 from ipaddress import IPv4Address, IPv6Address
 from socket import AddressFamily, SocketType
-from typing import Any, AsyncContextManager, Callable, Generic, Optional, Tuple, TypeVar, Union
+from typing import (
+    Any, AsyncContextManager, Callable, Collection, List, Optional, Tuple, TypeVar, Union)
 
 from .._core._typedattr import TypedAttributeProvider, TypedAttributeSet, typed_attribute
 from ._streams import ByteStream, Listener, T_Stream, UnreliableObjectStream
@@ -12,7 +14,6 @@ IPSockAddrType = Tuple[str, int]
 SockAddrType = Union[IPSockAddrType, str]
 UDPPacketType = Tuple[bytes, IPSockAddrType]
 T_Retval = TypeVar('T_Retval')
-T_SockAddr = TypeVar('T_SockAddr', str, IPSockAddrType)
 
 
 class _NullAsyncContextManager:
@@ -38,7 +39,7 @@ class SocketAttribute(TypedAttributeSet):
     remote_port: int = typed_attribute()
 
 
-class _SocketProvider(Generic[T_SockAddr], TypedAttributeProvider):
+class _SocketProvider(TypedAttributeProvider):
     @property
     def extra_attributes(self):
         from .._core._sockets import convert_ipv6_sockaddr as convert
@@ -71,7 +72,7 @@ class _SocketProvider(Generic[T_SockAddr], TypedAttributeProvider):
         pass
 
 
-class SocketStream(Generic[T_SockAddr], ByteStream, _SocketProvider[T_SockAddr]):
+class SocketStream(ByteStream, _SocketProvider):
     """
     Transports bytes over a socket.
 
@@ -79,8 +80,29 @@ class SocketStream(Generic[T_SockAddr], ByteStream, _SocketProvider[T_SockAddr])
     """
 
 
-class SocketListener(Generic[T_SockAddr], Listener[SocketStream[T_SockAddr]],
-                     _SocketProvider[T_SockAddr]):
+class UNIXSocketStream(SocketStream):
+    @abstractmethod
+    async def send_fds(self, message: bytes, fds: Collection[Union[int, IOBase]]) -> None:
+        """
+        Send file descriptors along with a message to the peer.
+
+        :param message: a non-empty bytestring
+        :param fds: a collection of files (either numeric file descriptors or open file or socket
+            objects)
+        """
+
+    @abstractmethod
+    async def receive_fds(self, msglen: int, maxfds: int) -> Tuple[bytes, List[int]]:
+        """
+        Receive file descriptors along with a message from the peer.
+
+        :param msglen: length of the message to expect from the peer
+        :param maxfds: maximum number of file descriptors to expect from the peer
+        :return: a tuple of (message, file descriptors)
+        """
+
+
+class SocketListener(Listener[SocketStream], _SocketProvider):
     """
     Listens to incoming socket connections.
 
@@ -88,7 +110,7 @@ class SocketListener(Generic[T_SockAddr], Listener[SocketStream[T_SockAddr]],
     """
 
     @abstractmethod
-    async def accept(self) -> SocketStream[T_SockAddr]:
+    async def accept(self) -> SocketStream:
         """Accept an incoming connection."""
 
     async def serve(self, handler: Callable[[T_Stream], Any],
@@ -108,7 +130,7 @@ class SocketListener(Generic[T_SockAddr], Listener[SocketStream[T_SockAddr]],
                 task_group.spawn(handler, stream)
 
 
-class UDPSocket(UnreliableObjectStream[UDPPacketType], _SocketProvider[IPSockAddrType]):
+class UDPSocket(UnreliableObjectStream[UDPPacketType], _SocketProvider):
     """
     Represents an unconnected UDP socket.
 
@@ -120,7 +142,7 @@ class UDPSocket(UnreliableObjectStream[UDPPacketType], _SocketProvider[IPSockAdd
         return await self.send((data, (host, port)))
 
 
-class ConnectedUDPSocket(UnreliableObjectStream[bytes], _SocketProvider[IPSockAddrType]):
+class ConnectedUDPSocket(UnreliableObjectStream[bytes], _SocketProvider):
     """
     Represents an connected UDP socket.
 

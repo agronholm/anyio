@@ -1,3 +1,5 @@
+import array
+import os
 import platform
 import socket
 import sys
@@ -370,6 +372,13 @@ class TestTCPListener:
                 client.close()
                 await stream.aclose()
 
+    async def test_accept_after_close(self, family):
+        async with await create_tcp_listener(local_host='localhost', family=family) as multi:
+            for listener in multi.listeners:
+                await listener.aclose()
+                with pytest.raises(ClosedResourceError):
+                    await listener.accept()
+
     async def test_socket_options(self, family):
         async with await create_tcp_listener(local_host='localhost', family=family) as multi:
             for listener in multi.listeners:
@@ -501,6 +510,72 @@ class TestUNIXStream:
         thread.join()
         assert response == buffer
 
+    async def test_receive_fds(self, server_sock, socket_path, tmp_path):
+        def serve():
+            path1 = tmp_path / 'file1'
+            path2 = tmp_path / 'file2'
+            path1.write_text('Hello, ')
+            path2.write_text('World!')
+            with path1.open() as file1, path2.open() as file2:
+                fdarray = array.array('i', [file1.fileno(), file2.fileno()])
+                client, _ = server_sock.accept()
+                with client:
+                    client.sendmsg([b'test'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)])
+
+        async with await connect_unix(socket_path) as stream:
+            thread = Thread(target=serve, daemon=True)
+            thread.start()
+            message, fds = await stream.receive_fds(10, 2)
+            thread.join()
+
+        text = ''
+        for fd in fds:
+            with os.fdopen(fd) as file:
+                text += file.read()
+
+        assert message == b'test'
+        assert text == 'Hello, World!'
+
+    async def test_receive_fds_bad_args(self, server_sock, socket_path):
+        async with await connect_unix(socket_path) as stream:
+            for msglen in (-1, 'foo'):
+                with pytest.raises(ValueError, match='msglen must be a non-negative integer'):
+                    await stream.receive_fds(msglen, 0)
+
+            for maxfds in (0, 'foo'):
+                with pytest.raises(ValueError, match='maxfds must be a positive integer'):
+                    await stream.receive_fds(0, maxfds)
+
+    async def test_send_fds(self, server_sock, socket_path, tmp_path):
+        def serve():
+            fds = array.array('i')
+            client, _ = server_sock.accept()
+            msg, ancdata, *_ = client.recvmsg(10, socket.CMSG_LEN(2 * fds.itemsize))
+            client.close()
+            assert msg == b'test'
+            for cmsg_level, cmsg_type, cmsg_data in ancdata:
+                assert cmsg_level == socket.SOL_SOCKET
+                assert cmsg_type == socket.SCM_RIGHTS
+                fds.frombytes(cmsg_data[:len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])
+
+            text = ''
+            for fd in fds:
+                with os.fdopen(fd) as file:
+                    text += file.read()
+
+            assert text == 'Hello, World!'
+
+        path1 = tmp_path / 'file1'
+        path2 = tmp_path / 'file2'
+        path1.write_text('Hello, ')
+        path2.write_text('World!')
+        with path1.open() as file1, path2.open() as file2, fail_after(2):
+            async with await connect_unix(socket_path) as stream:
+                thread = Thread(target=serve, daemon=True)
+                thread.start()
+                await stream.send_fds(b'test', [file1, file2])
+                thread.join()
+
     async def test_send_eof(self, server_sock, socket_path):
         def serve():
             client, _ = server_sock.accept()
@@ -542,6 +617,14 @@ class TestUNIXStream:
 
         thread.join()
         assert chunks == [b'bl', b'ah']
+
+    async def test_send_fds_bad_args(self, server_sock, socket_path):
+        async with await connect_unix(socket_path) as stream:
+            with pytest.raises(ValueError, match='message must not be empty'):
+                await stream.send_fds(b'', [0])
+
+            with pytest.raises(ValueError, match='fds must not be empty'):
+                await stream.send_fds(b'test', [])
 
     async def test_concurrent_send(self, server_sock, socket_path):
         async def send_data():

@@ -9,7 +9,7 @@ from typing import Awaitable, List, Optional, Tuple, Union, cast, overload
 
 from ..abc import (
     ConnectedUDPSocket, Event, IPAddressType, IPSockAddrType, SocketListener, SocketStream,
-    UDPSocket)
+    UDPSocket, UNIXSocketStream)
 from ..streams.stapled import MultiListener
 from ..streams.tls import TLSStream
 from ._eventloop import get_asynclib
@@ -194,7 +194,7 @@ async def connect_tcp(
     return connected_stream
 
 
-async def connect_unix(path: Union[str, PathLike]) -> SocketStream:
+async def connect_unix(path: Union[str, PathLike]) -> UNIXSocketStream:
     """
     Connect to the given UNIX socket.
 
@@ -212,7 +212,7 @@ async def create_tcp_listener(
     *, local_host: Optional[IPAddressType] = None, local_port: int = 0,
     family: AnyIPAddressFamily = socket.AddressFamily.AF_UNSPEC, backlog: int = 65536,
     reuse_port: bool = False
-) -> MultiListener[SocketStream[IPSockAddrType]]:
+) -> MultiListener[SocketStream]:
     """
     Create a TCP socket listener.
 
@@ -234,7 +234,7 @@ async def create_tcp_listener(
     gai_res = await getaddrinfo(local_host, local_port, family=family,  # type: ignore[arg-type]
                                 type=socket.SOCK_STREAM,
                                 flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG)
-    listeners: List[SocketListener[IPSockAddrType]] = []
+    listeners: List[SocketListener] = []
     try:
         # The set() is here to work around a glibc bug:
         # https://sourceware.org/bugzilla/show_bug.cgi?id=14969
@@ -257,7 +257,7 @@ async def create_tcp_listener(
 
             raw_socket.bind(sockaddr)
             raw_socket.listen(backlog)
-            listener = asynclib.SocketListener(raw_socket)
+            listener = asynclib.TCPSocketListener(raw_socket)
             listeners.append(listener)
     except BaseException:
         for listener in listeners:
@@ -270,7 +270,7 @@ async def create_tcp_listener(
 
 async def create_unix_listener(
         path: Union[str, PathLike], *, mode: Optional[int] = None,
-        backlog: int = 65536) -> SocketListener[str]:
+        backlog: int = 65536) -> SocketListener:
     """
     Create a UNIX socket listener.
 
@@ -293,7 +293,7 @@ async def create_unix_listener(
             await run_sync_in_worker_thread(chmod, path, mode, cancellable=True)
 
         raw_socket.listen(backlog)
-        return get_asynclib().SocketListener(raw_socket)
+        return get_asynclib().UNIXSocketListener(raw_socket)
     except BaseException:
         raw_socket.close()
         raise
