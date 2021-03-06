@@ -1058,7 +1058,6 @@ class TCPSocketListener(abc.SocketListener):
 
                     raise
                 finally:
-                    print('exiting accept()')
                     self._accept_scope = None
 
         client_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
