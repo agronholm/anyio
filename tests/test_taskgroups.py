@@ -9,7 +9,7 @@ import trio
 import anyio
 from anyio import (
     ExceptionGroup, create_task_group, current_effective_deadline, current_time, fail_after,
-    move_on_after, open_cancel_scope, sleep, wait_all_tasks_blocked)
+    get_cancelled_exc_class, move_on_after, open_cancel_scope, sleep, wait_all_tasks_blocked)
 
 if sys.version_info < (3, 7):
     current_task = asyncio.Task.current_task
@@ -473,6 +473,19 @@ async def test_shielding():
     assert not inner_scope.cancel_called
 
 
+async def test_cancel_from_shielded_scope():
+    async with create_task_group() as tg:
+        with open_cancel_scope(shield=True) as inner_scope:
+            assert inner_scope.shield
+            tg.cancel_scope.cancel()
+
+        with pytest.raises(get_cancelled_exc_class()):
+            await sleep(0.01)
+
+        with pytest.raises(get_cancelled_exc_class()):
+            await sleep(0.01)
+
+
 async def test_shielding_immediate_scope_cancelled():
     async def cancel_when_ready():
         await wait_all_tasks_blocked()
@@ -704,3 +717,49 @@ async def test_suppress_exception_context():
                 raise ValueError
 
     assert exc.value.__context__ is None
+
+
+@pytest.mark.parametrize('anyio_backend', ['asyncio'])
+async def test_cancel_native_future_tasks():
+    async def wait_native_future():
+        loop = asyncio.get_event_loop()
+        await loop.create_future()
+
+    async with anyio.create_task_group() as tg:
+        tg.spawn(wait_native_future)
+        tg.cancel_scope.cancel()
+
+
+@pytest.mark.parametrize('anyio_backend', ['asyncio'])
+async def test_cancel_native_future_tasks_cancel_scope():
+    async def wait_native_future():
+        with anyio.open_cancel_scope():
+            loop = asyncio.get_event_loop()
+            await loop.create_future()
+
+    async with anyio.create_task_group() as tg:
+        tg.spawn(wait_native_future)
+        tg.cancel_scope.cancel()
+
+
+@pytest.mark.parametrize('anyio_backend', ['asyncio'])
+async def test_cancel_completed_task():
+    loop = asyncio.get_event_loop()
+    old_exception_handler = loop.get_exception_handler()
+    exceptions = []
+
+    def exception_handler(*args, **kwargs):
+        exceptions.append((args, kwargs))
+
+    loop.set_exception_handler(exception_handler)
+    try:
+        async def noop():
+            pass
+
+        async with anyio.create_task_group() as tg:
+            tg.spawn(noop)
+            tg.cancel_scope.cancel()
+
+        assert exceptions == []
+    finally:
+        loop.set_exception_handler(old_exception_handler)
