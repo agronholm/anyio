@@ -1,5 +1,5 @@
 from functools import partial
-from inspect import isclass
+from inspect import getmro, isclass
 from textwrap import indent
 from traceback import format_exception
 from typing import Callable, List, Optional, Sequence, Tuple, Type, Union, cast
@@ -68,7 +68,7 @@ class ExceptionGroup(BaseException):
 
     @staticmethod
     def check_direct_subclass(exc: BaseException, parents: Tuple[Type[BaseException]]) -> bool:
-        for cls in exc.__class__.mro()[:-1]:
+        for cls in getmro(exc.__class__)[:-1]:
             if cls in parents:
                 return True
 
