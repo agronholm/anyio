@@ -139,8 +139,8 @@ def _task_started(task: asyncio.Task) -> bool:
         try:
             return getgeneratorstate(coro) in (GEN_RUNNING, GEN_SUSPENDED)
         except AttributeError:
-            # async_generator_asend
-            return task._fut_waiter is not None  # type: ignore
+            # task coro is async_genenerator_asend https://bugs.python.org/issue37771
+            raise Exception(f"Cannot determine if task {task} has started or not")
 
 
 def _maybe_set_event_loop_policy(policy: Optional[asyncio.AbstractEventLoopPolicy],
@@ -278,7 +278,7 @@ class CancelScope(abc.CancelScope):
                 # Deliver cancellation only if the child scope isn't shielded and hasn't been
                 # directly cancelled (in which case it already has a callback cancelling its tasks)
                 cancel_scope._deliver_cancellation()
-            elif cancel_scope is self and _task_started(task):
+            elif cancel_scope is self and (task is self._host_task or _task_started(task)):
                 task.cancel()
 
         # Schedule another callback if there are still tasks left
