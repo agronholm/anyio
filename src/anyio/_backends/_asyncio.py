@@ -338,7 +338,6 @@ class CancelScope(abc.CancelScope):
 
 
 async def checkpoint() -> None:
-    await checkpoint_if_cancelled()
     await sleep(0)
 
 
