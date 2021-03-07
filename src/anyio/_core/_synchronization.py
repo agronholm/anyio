@@ -4,9 +4,9 @@ from types import TracebackType
 from typing import Deque, Optional, Tuple, Type
 
 from .. import abc
+from ..lowlevel import checkpoint
 from ._eventloop import get_asynclib
 from ._exceptions import BusyResourceError, WouldBlock
-from ._lowlevel import checkpoint
 from ._tasks import open_cancel_scope
 from ._testing import TaskInfo, get_current_task
 

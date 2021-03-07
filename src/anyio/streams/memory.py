@@ -4,9 +4,9 @@ from typing import Deque, Generic, List, NamedTuple, TypeVar
 
 from .. import (
     BrokenResourceError, ClosedResourceError, EndOfStream, WouldBlock, get_cancelled_exc_class)
-from .._core._lowlevel import checkpoint
 from .._core._synchronization import create_event
 from ..abc import Event, ObjectReceiveStream, ObjectSendStream
+from ..lowlevel import checkpoint
 
 T_Item = TypeVar('T_Item')
 

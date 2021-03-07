@@ -56,6 +56,8 @@ abc.CancelScope.register(trio.CancelScope)
 
 CancelledError = trio.Cancelled
 checkpoint = trio.lowlevel.checkpoint
+checkpoint_if_cancelled = trio.lowlevel.checkpoint_if_cancelled
+cancel_shielded_checkpoint = trio.lowlevel.cancel_shielded_checkpoint
 CancelScope = trio.CancelScope
 current_effective_deadline = trio.current_effective_deadline
 current_time = trio.current_time

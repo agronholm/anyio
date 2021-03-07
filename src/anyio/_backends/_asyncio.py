@@ -337,8 +337,32 @@ class CancelScope(abc.CancelScope):
         return self._shield
 
 
-async def checkpoint():
+async def checkpoint() -> None:
     await sleep(0)
+
+
+async def checkpoint_if_cancelled() -> None:
+    task = current_task()
+    if task is None:
+        return
+
+    try:
+        cancel_scope = _task_states[task].cancel_scope
+    except KeyError:
+        return
+
+    while cancel_scope:
+        if cancel_scope.cancel_called:
+            await sleep(0)
+        elif cancel_scope.shield:
+            break
+        else:
+            cancel_scope = cancel_scope._parent_scope
+
+
+async def cancel_shielded_checkpoint() -> None:
+    with CancelScope(shield=True):
+        await sleep(0)
 
 
 def current_effective_deadline():

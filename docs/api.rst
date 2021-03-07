@@ -157,6 +157,13 @@ Operating system signals
 
 .. autofunction:: anyio.open_signal_receiver
 
+Low level operations
+--------------------
+
+.. autofunction:: anyio.lowlevel.checkpoint
+.. autofunction:: anyio.lowlevel.checkpoint_if_cancelled
+.. autofunction:: anyio.lowlevel.cancel_shielded_checkpoint
+
 Compatibility
 -------------
 
