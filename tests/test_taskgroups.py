@@ -1,6 +1,7 @@
 import asyncio
 import re
 import sys
+import time
 
 import pytest
 import trio
@@ -794,3 +795,26 @@ async def test_cancel_completed_task():
         assert exceptions == []
     finally:
         loop.set_exception_handler(old_exception_handler)
+
+
+async def test_shielded_cancel_sleep_time():
+    event = anyio.create_event()
+    hang_time = 0.2
+
+    async def set_event():
+        await sleep(hang_time)
+        event.set()
+
+    async def never_cancel_task():
+        with open_cancel_scope(shield=True):
+            await event.wait()
+
+    async with create_task_group() as tg:
+        tg.spawn(set_event)
+
+        async with create_task_group() as tg:
+            tg.spawn(never_cancel_task)
+            tg.cancel_scope.cancel()
+            process_time = time.process_time()
+
+        assert (time.process_time() - process_time) < hang_time
