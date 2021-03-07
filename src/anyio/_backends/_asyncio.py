@@ -250,6 +250,9 @@ class CancelScope(abc.CancelScope):
             if all(isinstance(exc, CancelledError) for exc in exceptions):
                 if self._timeout_expired:
                     return True
+                elif not self._cancel_called:
+                    # Task was cancelled natively
+                    return None
                 elif not self._parent_cancelled():
                     # This scope was directly cancelled
                     return True
