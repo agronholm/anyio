@@ -1,7 +1,6 @@
 import asyncio
 import re
 import sys
-from contextlib import suppress
 
 import pytest
 import trio
@@ -172,7 +171,7 @@ async def test_start_native_host_cancelled():
     task = asyncio.get_event_loop().create_task(start_another())
     await wait_all_tasks_blocked()
     task.cancel()
-    with suppress(asyncio.CancelledError):
+    with pytest.raises(asyncio.CancelledError):
         await task
 
     assert started
