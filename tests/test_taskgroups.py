@@ -488,8 +488,6 @@ async def test_cancel_from_shielded_scope():
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
 async def test_cancel_host_asyncgen():
-    done = False
-
     async def host_task():
         nonlocal done
         async with create_task_group() as tg:
@@ -502,6 +500,7 @@ async def test_cancel_host_asyncgen():
 
             with pytest.raises(get_cancelled_exc_class()):
                 await sleep(0)
+
             done = True
 
     async def host_agen_fn():
@@ -509,11 +508,13 @@ async def test_cancel_host_asyncgen():
         yield
         pytest.fail("host_agen_fn should only be __anext__ed once")
 
+    done = False
     host_agen = host_agen_fn()
     try:
         await asyncio.get_event_loop().create_task(host_agen.__anext__())
     finally:
         await host_agen.aclose()
+
     assert done
 
 

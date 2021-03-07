@@ -140,7 +140,7 @@ def _task_started(task: asyncio.Task) -> bool:
             return getgeneratorstate(coro) in (GEN_RUNNING, GEN_SUSPENDED)
         except AttributeError:
             # task coro is async_genenerator_asend https://bugs.python.org/issue37771
-            raise Exception("Cannot determine task state task={task}")
+            raise Exception(f"Cannot determine if task {task} has started or not")
 
 
 def _maybe_set_event_loop_policy(policy: Optional[asyncio.AbstractEventLoopPolicy],
