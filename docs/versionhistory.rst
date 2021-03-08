@@ -12,7 +12,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
   * ``current_time()``
   * ``current_effective_deadline()``
-  * ``get_running_tasks()``
   * ``MemoryObjectReceiveStream.receive_nowait()``
   * ``MemoryObjectSendStream.send_nowait()``
 
@@ -20,6 +19,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   so will emit a deprecation warning):
 
   * ``get_current_task()``
+  * ``get_running_tasks()``
   * ``CancelScope.cancel()``
   * ``CapacityLimiter.acquire_nowait()``
   * ``CapacityLimiter.acquire_on_behalf_of_nowait()``

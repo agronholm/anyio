@@ -5,8 +5,8 @@ import pytest
 
 from anyio import (
     TaskInfo, create_capacity_limiter, create_condition, create_event, create_lock,
-    create_semaphore, create_task_group, fail_after, get_current_task, maybe_async, maybe_async_cm,
-    move_on_after, open_cancel_scope, open_signal_receiver, sleep)
+    create_semaphore, create_task_group, fail_after, get_current_task, get_running_tasks,
+    maybe_async, maybe_async_cm, move_on_after, open_cancel_scope, open_signal_receiver, sleep)
 
 pytestmark = pytest.mark.anyio
 
@@ -27,6 +27,13 @@ class TestDeprecations:
             task = await get_current_task()
 
         assert isinstance(task, TaskInfo)
+
+    async def test_running_tasks(self):
+        with pytest.deprecated_call():
+            tasks = await get_running_tasks()
+
+        assert tasks
+        assert all(isinstance(task, TaskInfo) for task in tasks)
 
     @pytest.mark.skipif(sys.platform == 'win32',
                         reason='Signal delivery cannot be tested on Windows')
