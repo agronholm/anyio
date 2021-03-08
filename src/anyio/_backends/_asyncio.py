@@ -6,7 +6,6 @@ import socket
 import sys
 from collections import OrderedDict, deque
 from concurrent.futures import Future
-from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import partial, wraps
 from inspect import (
@@ -21,6 +20,7 @@ from typing import (
 from weakref import WeakKeyDictionary
 
 from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
+from .._core._compat import DeprecatedAsyncContextManager, DeprecatedAwaitable
 from .._core._eventloop import claim_worker_thread, threadlocals
 from .._core._exceptions import (
     BrokenResourceError, BusyResourceError, ClosedResourceError, EndOfStream)
@@ -195,7 +195,7 @@ sleep = asyncio.sleep
 CancelledError = asyncio.CancelledError
 
 
-class CancelScope(abc.CancelScope):
+class CancelScope(abc.CancelScope, DeprecatedAsyncContextManager):
     __slots__ = ('_deadline', '_shield', '_parent_scope', '_cancel_called', '_active',
                  '_timeout_handle', '_tasks', '_host_task', '_timeout_expired')
 
@@ -303,9 +303,9 @@ class CancelScope(abc.CancelScope):
 
         return False
 
-    def cancel(self) -> None:
+    def cancel(self) -> DeprecatedAwaitable:
         if self._cancel_called:
-            return
+            return DeprecatedAwaitable(self.cancel)
 
         if self._timeout_handle:
             self._timeout_handle.cancel()
@@ -313,6 +313,7 @@ class CancelScope(abc.CancelScope):
 
         self._cancel_called = True
         get_running_loop().call_soon(self._deliver_cancellation)
+        return DeprecatedAwaitable(self.cancel)
 
     @property
     def deadline(self) -> float:
@@ -534,8 +535,9 @@ class TaskGroup(abc.TaskGroup):
         self.cancel_scope._tasks.add(task)
         return task
 
-    def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
+    def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> DeprecatedAwaitable:
         self._spawn(func, args, name)
+        return DeprecatedAwaitable(self.spawn)
 
     async def start(self, func: Callable[..., Coroutine], *args, name=None) -> None:
         future: asyncio.Future = asyncio.Future()
@@ -1347,8 +1349,9 @@ class Event(abc.Event):
     def __init__(self):
         self._event = asyncio.Event()
 
-    def set(self) -> None:
+    def set(self) -> DeprecatedAwaitable:
         self._event.set()
+        return DeprecatedAwaitable(self.set)
 
     def is_set(self) -> bool:
         return self._event.is_set()
@@ -1410,10 +1413,11 @@ class CapacityLimiter(abc.CapacityLimiter):
     def available_tokens(self) -> float:
         return self._total_tokens - len(self._borrowers)
 
-    def acquire_nowait(self) -> None:
+    def acquire_nowait(self) -> DeprecatedAwaitable:
         self.acquire_on_behalf_of_nowait(current_task())
+        return DeprecatedAwaitable(self.acquire_nowait)
 
-    def acquire_on_behalf_of_nowait(self, borrower) -> None:
+    def acquire_on_behalf_of_nowait(self, borrower) -> DeprecatedAwaitable:
         if borrower in self._borrowers:
             raise RuntimeError("this borrower is already holding one of this CapacityLimiter's "
                                "tokens")
@@ -1422,6 +1426,7 @@ class CapacityLimiter(abc.CapacityLimiter):
             raise WouldBlock
 
         self._borrowers.add(borrower)
+        return DeprecatedAwaitable(self.acquire_on_behalf_of_nowait)
 
     async def acquire(self) -> None:
         return await self.acquire_on_behalf_of(current_task())
@@ -1471,15 +1476,29 @@ _default_thread_limiter = CapacityLimiter(40)
 # Operating system signals
 #
 
-class _SignalReceiver:
-    def __init__(self):
+class _SignalReceiver(DeprecatedAsyncContextManager):
+    def __init__(self, signals: Tuple[int, ...]):
+        self._signals = signals
+        self._loop = get_running_loop()
         self._signal_queue: Deque[int] = deque()
-        self._future = asyncio.Future()
+        self._future: asyncio.Future = asyncio.Future()
+        self._handled_signals: Set[int] = set()
 
     def _deliver(self, signum: int) -> None:
         self._signal_queue.append(signum)
         if not self._future.done():
             self._future.set_result(None)
+
+    def __enter__(self):
+        for sig in set(self._signals):
+            self._loop.add_signal_handler(sig, self._deliver, sig)
+            self._handled_signals.add(sig)
+
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        for sig in self._handled_signals:
+            self._loop.remove_signal_handler(sig)
 
     def __aiter__(self):
         return self
@@ -1493,20 +1512,8 @@ class _SignalReceiver:
         return self._signal_queue.popleft()
 
 
-@contextmanager
-def open_signal_receiver(*signals: int) -> Generator[_SignalReceiver, Any, None]:
-    loop = get_running_loop()
-    receiver = _SignalReceiver()
-    handled_signals = set()
-    try:
-        for sig in set(signals):
-            loop.add_signal_handler(sig, receiver._deliver, sig)
-            handled_signals.add(sig)
-
-        yield receiver
-    finally:
-        for sig in handled_signals:
-            loop.remove_signal_handler(sig)
+def open_signal_receiver(*signals: int) -> _SignalReceiver:
+    return _SignalReceiver(signals)
 
 
 #

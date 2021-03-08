@@ -13,7 +13,8 @@ import trio.from_thread
 from outcome import Error, Value
 from trio.to_thread import run_sync
 
-from .. import TaskInfo, abc
+from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
+from .._core._compat import DeprecatedAsyncContextManager, DeprecatedAwaitable, T
 from .._core._eventloop import claim_worker_thread
 from .._core._exceptions import (
     BrokenResourceError, BusyResourceError, ClosedResourceError, EndOfStream)
@@ -52,13 +53,42 @@ sleep = trio.sleep
 # Timeouts and cancellation
 #
 
-abc.CancelScope.register(trio.CancelScope)
+class CancelScope(abc.CancelScope):
+    def __init__(self, original: Optional[trio.CancelScope] = None, **kwargs):
+        self.__original = original or trio.CancelScope(**kwargs)
+
+    def __enter__(self):
+        self.__original.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return self.__original.__exit__(exc_type, exc_val, exc_tb)
+
+    def cancel(self) -> DeprecatedAwaitable:
+        self.__original.cancel()
+        return DeprecatedAwaitable(self.cancel)
+
+    @property
+    def deadline(self) -> float:
+        return self.__original.deadline
+
+    @deadline.setter
+    def deadline(self, value: float) -> None:
+        self.__original.deadline = value
+
+    @property
+    def cancel_called(self) -> bool:
+        return self.__original.cancel_called
+
+    @property
+    def shield(self) -> bool:
+        return self.__original.shield
+
 
 CancelledError = trio.Cancelled
 checkpoint = trio.lowlevel.checkpoint
 checkpoint_if_cancelled = trio.lowlevel.checkpoint_if_cancelled
 cancel_shielded_checkpoint = trio.lowlevel.cancel_shielded_checkpoint
-CancelScope = trio.CancelScope
 current_effective_deadline = trio.current_effective_deadline
 current_time = trio.current_time
 
@@ -93,11 +123,12 @@ class TaskGroup(abc.TaskGroup):
         finally:
             self._active = False
 
-    def spawn(self, func: Callable, *args, name=None) -> None:
+    def spawn(self, func: Callable, *args, name=None) -> DeprecatedAwaitable:
         if not self._active:
             raise RuntimeError('This task group is not active; no new tasks can be spawned.')
 
         self._nursery.start_soon(func, *args, name=name)
+        return DeprecatedAwaitable(self.spawn)
 
     async def start(self, func: Callable[..., Coroutine], *args, name=None):
         if not self._active:
@@ -497,27 +528,103 @@ async def wait_socket_writable(sock):
 # Synchronization
 #
 
-abc.Event.register(trio.Event)
-abc.CapacityLimiter.register(trio.CapacityLimiter)
+class Event(abc.Event):
+    def __init__(self):
+        self.__original = trio.Event()
 
-Event = trio.Event
-CapacityLimiter = trio.CapacityLimiter
+    def is_set(self) -> bool:
+        return self.__original.is_set()
+
+    async def wait(self) -> bool:
+        return await self.__original.wait()
+
+    def statistics(self) -> EventStatistics:
+        return self.__original.statistics()
+
+    def set(self):
+        self.__original.set()
+        return DeprecatedAwaitable(self.set)
+
+
+class CapacityLimiter(abc.CapacityLimiter):
+    def __init__(self, *args, original: Optional[trio.CapacityLimiter] = None, **kwargs):
+        self.__original = original or trio.CapacityLimiter(*args, **kwargs)
+
+    async def __aenter__(self):
+        return await self.__original.__aenter__()
+
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
+        return await self.__original.__aexit__(exc_type, exc_val, exc_tb)
+
+    @property
+    def total_tokens(self) -> float:
+        return self.__original.total_tokens
+
+    @total_tokens.setter
+    def total_tokens(self, value: float) -> None:
+        self.__original.total_tokens = value
+
+    @property
+    def borrowed_tokens(self) -> int:
+        return self.__original.borrowed_tokens
+
+    @property
+    def available_tokens(self) -> float:
+        return self.__original.available_tokens
+
+    def acquire_nowait(self):
+        self.__original.acquire_nowait()
+        return DeprecatedAwaitable(self.acquire_nowait)
+
+    def acquire_on_behalf_of_nowait(self, borrower):
+        self.__original.acquire_on_behalf_of_nowait(borrower)
+        return DeprecatedAwaitable(self.acquire_on_behalf_of_nowait)
+
+    async def acquire(self) -> None:
+        await self.__original.acquire()
+
+    async def acquire_on_behalf_of(self, borrower) -> None:
+        await self.__original.acquire_on_behalf_of(borrower)
+
+    def release(self) -> None:
+        return self.__original.release()
+
+    def release_on_behalf_of(self, borrower) -> None:
+        return self.__original.release_on_behalf_of(borrower)
+
+    def statistics(self) -> CapacityLimiterStatistics:
+        return self.__original.statistics()
 
 
 def current_default_thread_limiter():
-    return trio.to_thread.current_default_thread_limiter()
+    return CapacityLimiter(original=trio.to_thread.current_default_thread_limiter())
 
 
 #
 # Signal handling
 #
 
-open_signal_receiver = trio.open_signal_receiver
+class _SignalReceiver(DeprecatedAsyncContextManager):
+    def __init__(self, cm):
+        self._cm = cm
 
+    def __enter__(self) -> T:
+        return self._cm.__enter__()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return self._cm.__exit__(exc_type, exc_val, exc_tb)
+
+
+def open_signal_receiver(*signals: int):
+    cm = trio.open_signal_receiver(*signals)
+    return _SignalReceiver(cm)
 
 #
 # Testing and debugging
 #
+
 
 def get_current_task() -> TaskInfo:
     task = trio_lowlevel.current_task()

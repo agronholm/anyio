@@ -12,26 +12,30 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
   * ``current_time()``
   * ``current_effective_deadline()``
+  * ``get_current_task()``
+  * ``get_running_tasks()``
+  * ``MemoryObjectReceiveStream.receive_nowait()``
+  * ``MemoryObjectSendStream.send_nowait()``
+
+  The following functions and methods are no longer asynchronous but can still be awaited on (doing
+  so will emit a deprecation warning):
+
   * ``CancelScope.cancel()``
   * ``CapacityLimiter.acquire_nowait()``
   * ``CapacityLimiter.acquire_on_behalf_of_nowait()``
   * ``Condition.release()``
   * ``Event.set()``
-  * ``get_current_task()``
-  * ``get_running_tasks()``
   * ``Lock.release()``
-  * ``MemoryObjectReceiveStream.receive_nowait()``
-  * ``MemoryObjectSendStream.send_nowait()``
-  * ``open_signal_receiver()``
   * ``Semaphore.release()``
   * ``TaskGroup.spawn()``
 
   Likewise, the following functions now return synchronous context managers instead of asynchronous
-  context managers:
+  context managers (and emit deprecation warnings if used as async context managers):
 
   * ``fail_after()``
   * ``move_on_after()``
   * ``open_cancel_scope()``
+  * ``open_signal_receiver()``
 
   See the :doc:`migration documentation <migration>` for instructions on how to deal with these
   changes.

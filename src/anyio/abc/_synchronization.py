@@ -1,7 +1,11 @@
 from abc import ABCMeta, abstractmethod
+from builtins import DeprecationWarning
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Optional, Tuple, Type, TypeVar
+from warnings import warn
+
+from anyio._core._compat import DeprecatedAwaitable
 
 T_Retval = TypeVar('T_Retval')
 
@@ -34,7 +38,7 @@ class CapacityLimiterStatistics:
 
 class Event(metaclass=ABCMeta):
     @abstractmethod
-    def set(self) -> None:
+    def set(self) -> DeprecatedAwaitable:
         """Set the flag, notifying all listeners."""
 
     @abstractmethod
@@ -78,6 +82,15 @@ class CapacityLimiter(metaclass=ABCMeta):
             The property is now writable.
         """
 
+    @total_tokens.setter
+    def total_tokens(self, value: float) -> None:
+        raise NotImplementedError
+
+    async def set_total_tokens(self, value) -> None:
+        warn('CapacityLimiter.set_total_tokens has been deprecated. Set the value of the'
+             '"total_tokens" attribute directly.', DeprecationWarning)
+        self.total_tokens = value
+
     @property
     @abstractmethod
     def borrowed_tokens(self) -> int:
@@ -89,7 +102,7 @@ class CapacityLimiter(metaclass=ABCMeta):
         """The number of tokens currently available to be borrowed"""
 
     @abstractmethod
-    def acquire_nowait(self) -> None:
+    def acquire_nowait(self) -> DeprecatedAwaitable:
         """
         Acquire a token for the current task without waiting for one to become available.
 
@@ -97,7 +110,7 @@ class CapacityLimiter(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def acquire_on_behalf_of_nowait(self, borrower) -> None:
+    def acquire_on_behalf_of_nowait(self, borrower) -> DeprecatedAwaitable:
         """
         Acquire a token without waiting for one to become available.
 
