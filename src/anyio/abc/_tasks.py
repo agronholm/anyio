@@ -2,6 +2,8 @@ from abc import ABCMeta, abstractmethod
 from types import TracebackType
 from typing import Callable, Coroutine, Optional, Type, TypeVar
 
+from anyio._core._compat import DeprecatedAsyncContextManager, DeprecatedAwaitable
+
 T_Retval = TypeVar('T_Retval')
 
 
@@ -26,7 +28,7 @@ class TaskGroup(metaclass=ABCMeta):
     cancel_scope: 'CancelScope'
 
     @abstractmethod
-    def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
+    def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> DeprecatedAwaitable:
         """
         Launch a new task in this task group.
 
@@ -60,9 +62,9 @@ class TaskGroup(metaclass=ABCMeta):
         """Exit the task group context waiting for all tasks to finish."""
 
 
-class CancelScope(metaclass=ABCMeta):
+class CancelScope(DeprecatedAsyncContextManager):
     @abstractmethod
-    def cancel(self) -> None:
+    def cancel(self) -> DeprecatedAwaitable:
         """Cancel this scope immediately."""
 
     @property

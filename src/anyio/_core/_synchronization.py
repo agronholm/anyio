@@ -5,6 +5,7 @@ from typing import Deque, Optional, Tuple, Type
 
 from .. import abc
 from ..lowlevel import checkpoint
+from ._compat import DeprecatedAwaitable
 from ._eventloop import get_asynclib
 from ._exceptions import BusyResourceError, WouldBlock
 from ._tasks import open_cancel_scope
@@ -95,7 +96,7 @@ class Lock:
 
         self._owner_task = task
 
-    def release(self) -> None:
+    def release(self) -> DeprecatedAwaitable:
         """Release the lock."""
         if self._owner_task != get_current_task():
             raise RuntimeError('The current task is not holding this lock')
@@ -105,6 +106,8 @@ class Lock:
             event.set()
         else:
             del self._owner_task
+
+        return DeprecatedAwaitable(self.release)
 
     def locked(self) -> bool:
         """Return True if the lock is currently held."""
@@ -153,9 +156,10 @@ class Condition:
         self._lock.acquire_nowait()
         self._owner_task = get_current_task()
 
-    def release(self) -> None:
+    def release(self) -> DeprecatedAwaitable:
         """Release the underlying lock."""
         self._lock.release()
+        return DeprecatedAwaitable(self.release)
 
     def locked(self) -> bool:
         """Return True if the lock is set."""
@@ -260,7 +264,7 @@ class Semaphore:
 
         self._value -= 1
 
-    def release(self) -> None:
+    def release(self) -> DeprecatedAwaitable:
         """Increment the semaphore value."""
         if self._max_value is not None and self._value == self._max_value:
             raise ValueError('semaphore released too many times')
@@ -268,6 +272,8 @@ class Semaphore:
         self._value += 1
         if self._waiters:
             self._waiters.popleft().set()
+
+        return DeprecatedAwaitable(self.release)
 
     @property
     def value(self) -> int:

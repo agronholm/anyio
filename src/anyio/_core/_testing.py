@@ -1,9 +1,10 @@
-from typing import Coroutine, List, Optional
+from typing import Coroutine, Optional
 
 from .._core._eventloop import get_asynclib
+from ._compat import DeprecatedAwaitable, DeprecatedAwaitableList
 
 
-class TaskInfo:
+class TaskInfo(DeprecatedAwaitable):
     """
     Represents an asynchronous task.
 
@@ -17,10 +18,15 @@ class TaskInfo:
     __slots__ = 'id', 'parent_id', 'name', 'coro'
 
     def __init__(self, id: int, parent_id: Optional[int], name: Optional[str], coro: Coroutine):
+        super().__init__(get_current_task)
         self.id = id
         self.parent_id = parent_id
         self.name = name
         self.coro = coro
+
+    def __await__(self):
+        yield from super().__await__()
+        return self
 
     def __eq__(self, other):
         if isinstance(other, TaskInfo):
@@ -45,14 +51,15 @@ def get_current_task() -> TaskInfo:
     return get_asynclib().get_current_task()
 
 
-def get_running_tasks() -> List[TaskInfo]:
+def get_running_tasks() -> DeprecatedAwaitableList[TaskInfo]:
     """
     Return a list of running tasks in the current event loop.
 
     :return: a list of task info objects
 
     """
-    return get_asynclib().get_running_tasks()
+    tasks = get_asynclib().get_running_tasks()
+    return DeprecatedAwaitableList(tasks, func=get_running_tasks)
 
 
 async def wait_all_tasks_blocked() -> None:

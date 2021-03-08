@@ -1,8 +1,8 @@
 import math
-from contextlib import contextmanager
-from typing import Any, Generator, Optional
+from typing import Optional
 
 from ..abc import CancelScope, TaskGroup, TaskStatus
+from ._compat import DeprecatedAsyncContextManager
 from ._eventloop import get_asynclib
 
 
@@ -25,8 +25,22 @@ def open_cancel_scope(*, shield: bool = False) -> CancelScope:
     return get_asynclib().CancelScope(shield=shield)
 
 
-@contextmanager
-def fail_after(delay: Optional[float], shield: bool = False) -> Generator[CancelScope, Any, None]:
+class FailAfterContextManager(DeprecatedAsyncContextManager):
+    def __init__(self, cancel_scope: CancelScope):
+        self._cancel_scope = cancel_scope
+
+    def __enter__(self):
+        return self._cancel_scope.__enter__()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        retval = self._cancel_scope.__exit__(exc_type, exc_val, exc_tb)
+        if self._cancel_scope.cancel_called:
+            raise TimeoutError
+
+        return retval
+
+
+def fail_after(delay: Optional[float], shield: bool = False) -> FailAfterContextManager:
     """
     Create a context manager which raises a :class:`TimeoutError` if does not finish in time.
 
@@ -38,11 +52,8 @@ def fail_after(delay: Optional[float], shield: bool = False) -> Generator[Cancel
 
     """
     deadline = (get_asynclib().current_time() + delay) if delay is not None else math.inf
-    with get_asynclib().CancelScope(deadline=deadline, shield=shield) as cancel_scope:
-        yield cancel_scope
-
-    if cancel_scope.cancel_called:
-        raise TimeoutError
+    cancel_scope = get_asynclib().CancelScope(deadline=deadline, shield=shield)
+    return FailAfterContextManager(cancel_scope)
 
 
 def move_on_after(delay: Optional[float], shield: bool = False) -> CancelScope:
