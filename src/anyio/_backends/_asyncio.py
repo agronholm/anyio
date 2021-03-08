@@ -29,6 +29,7 @@ from .._core._exceptions import WouldBlock
 from .._core._sockets import GetAddrInfoReturnType, convert_ipv6_sockaddr
 from .._core._synchronization import ResourceGuard
 from ..abc import IPSockAddrType, UDPPacketType
+from ..lowlevel import RunVar
 
 if sys.version_info >= (3, 8):
     get_coro = asyncio.Task.get_coro
@@ -129,6 +130,11 @@ def get_callable_name(func: Callable) -> str:
 #
 # Event loop
 #
+
+_run_vars = WeakKeyDictionary()  # type: WeakKeyDictionary[asyncio.AbstractEventLoop, Any]
+
+current_token = get_running_loop
+
 
 def _task_started(task: asyncio.Task) -> bool:
     """Return ``True`` if the task has been started and has not finished."""
@@ -742,9 +748,6 @@ async def open_process(command, *, shell: bool, stdin: int, stdout: int, stderr:
 # Sockets and networking
 #
 
-_read_events: Dict[socket.SocketType, asyncio.Event] = {}
-_write_events: Dict[socket.SocketType, asyncio.Event] = {}
-
 
 class StreamProtocol(asyncio.Protocol):
     read_queue: Deque[bytes]
@@ -1300,18 +1303,28 @@ async def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Tuple[str, st
     return cast(Tuple[str, str], result)
 
 
+_read_events: RunVar[Dict[Any, asyncio.Event]] = RunVar('read_events')
+_write_events: RunVar[Dict[Any, asyncio.Event]] = RunVar('write_events')
+
+
 async def wait_socket_readable(sock: socket.SocketType) -> None:
     await checkpoint()
-    if _read_events.get(sock):
+    try:
+        read_events = _read_events.get()
+    except LookupError:
+        read_events = {}
+        _read_events.set(read_events)
+
+    if read_events.get(sock):
         raise BusyResourceError('reading from') from None
 
     loop = get_running_loop()
-    event = _read_events[sock] = asyncio.Event()
-    get_running_loop().add_reader(sock, event.set)
+    event = read_events[sock] = asyncio.Event()
+    loop.add_reader(sock, event.set)
     try:
         await event.wait()
     finally:
-        if _read_events.pop(sock, None) is not None:
+        if read_events.pop(sock, None) is not None:
             loop.remove_reader(sock)
             readable = True
         else:
@@ -1323,16 +1336,22 @@ async def wait_socket_readable(sock: socket.SocketType) -> None:
 
 async def wait_socket_writable(sock: socket.SocketType) -> None:
     await checkpoint()
-    if _write_events.get(sock):
+    try:
+        write_events = _write_events.get()
+    except LookupError:
+        write_events = {}
+        _write_events.set(write_events)
+
+    if write_events.get(sock):
         raise BusyResourceError('writing to') from None
 
     loop = get_running_loop()
-    event = _write_events[sock] = asyncio.Event()
+    event = write_events[sock] = asyncio.Event()
     loop.add_writer(sock.fileno(), event.set)
     try:
         await event.wait()
     finally:
-        if _write_events.pop(sock, None) is not None:
+        if write_events.pop(sock, None) is not None:
             loop.remove_writer(sock)
             writable = True
         else:

@@ -39,6 +39,8 @@ T_SockAddr = TypeVar('T_SockAddr', str, IPSockAddrType)
 #
 
 run = trio.run
+current_token = trio.lowlevel.current_trio_token
+RunVar = trio.lowlevel.RunVar
 
 
 #
