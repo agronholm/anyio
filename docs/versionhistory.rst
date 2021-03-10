@@ -10,13 +10,13 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - **BACKWARDS INCOMPATIBLE** The following functions/methods were previously coroutine
   functions/methods and have been converted into synchronous ones:
 
-  * ``current_time()``
-  * ``current_effective_deadline()``
   * ``MemoryObjectReceiveStream.receive_nowait()``
 
   The following functions and methods are no longer asynchronous but can still be awaited on (doing
   so will emit a deprecation warning):
 
+  * ``current_time()``
+  * ``current_effective_deadline()``
   * ``get_current_task()``
   * ``get_running_tasks()``
   * ``CancelScope.cancel()``

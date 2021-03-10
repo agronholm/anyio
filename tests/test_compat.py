@@ -5,9 +5,9 @@ import pytest
 
 from anyio import (
     TaskInfo, create_capacity_limiter, create_condition, create_event, create_lock,
-    create_memory_object_stream, create_semaphore, create_task_group, fail_after, get_current_task,
-    get_running_tasks, maybe_async, maybe_async_cm, move_on_after, open_cancel_scope,
-    open_signal_receiver, sleep)
+    create_memory_object_stream, create_semaphore, create_task_group, current_effective_deadline,
+    current_time, fail_after, get_current_task, get_running_tasks, maybe_async, maybe_async_cm,
+    move_on_after, open_cancel_scope, open_signal_receiver, sleep)
 
 pytestmark = pytest.mark.anyio
 
@@ -23,6 +23,18 @@ async def test_maybe_async_cm():
 
 
 class TestDeprecations:
+    async def test_current_effective_deadlinee(self):
+        with pytest.deprecated_call():
+            deadline = await current_effective_deadline()
+
+        assert isinstance(deadline, float)
+
+    async def test_current_time(self):
+        with pytest.deprecated_call():
+            timestamp = await current_time()
+
+        assert isinstance(timestamp, float)
+
     async def test_get_current_task(self):
         with pytest.deprecated_call():
             task = await get_current_task()

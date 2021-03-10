@@ -2,7 +2,7 @@ import math
 from typing import Optional
 
 from ..abc import CancelScope, TaskGroup, TaskStatus
-from ._compat import DeprecatedAsyncContextManager
+from ._compat import DeprecatedAsyncContextManager, DeprecatedAwaitableFloat
 from ._eventloop import get_asynclib
 
 
@@ -70,7 +70,7 @@ def move_on_after(delay: Optional[float], shield: bool = False) -> CancelScope:
     return get_asynclib().CancelScope(deadline=deadline, shield=shield)
 
 
-def current_effective_deadline() -> float:
+def current_effective_deadline() -> DeprecatedAwaitableFloat:
     """
     Return the nearest deadline among all the cancel scopes effective for the current task.
 
@@ -79,7 +79,8 @@ def current_effective_deadline() -> float:
     :rtype: float
 
     """
-    return get_asynclib().current_effective_deadline()
+    return DeprecatedAwaitableFloat(get_asynclib().current_effective_deadline(),
+                                    current_effective_deadline)
 
 
 def create_task_group() -> TaskGroup:

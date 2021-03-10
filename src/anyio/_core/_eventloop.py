@@ -7,6 +7,8 @@ from typing import Any, Callable, Coroutine, Dict, Generator, Optional, Tuple, T
 import sniffio
 
 # This must be updated when new backends are introduced
+from anyio._core._compat import DeprecatedAwaitableFloat
+
 BACKENDS = 'asyncio', 'trio'
 
 T_Retval = TypeVar('T_Retval', covariant=True)
@@ -66,14 +68,14 @@ async def sleep(delay: float) -> None:
     return await get_asynclib().sleep(delay)
 
 
-def current_time() -> float:
+def current_time() -> DeprecatedAwaitableFloat:
     """
     Return the current value of the event loop's internal clock.
 
     :return: the clock value (seconds)
 
     """
-    return get_asynclib().current_time()
+    return DeprecatedAwaitableFloat(get_asynclib().current_time(), current_time)
 
 
 def get_all_backends() -> Tuple[str, ...]:
