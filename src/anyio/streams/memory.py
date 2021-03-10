@@ -4,7 +4,7 @@ from typing import Deque, Generic, List, NamedTuple, TypeVar
 
 from .. import (
     BrokenResourceError, ClosedResourceError, EndOfStream, WouldBlock, get_cancelled_exc_class)
-from .._core._synchronization import create_event
+from .._core._synchronization import create_event, DeprecatedAwaitable
 from ..abc import Event, ObjectReceiveStream, ObjectSendStream
 from ..lowlevel import checkpoint
 
@@ -138,7 +138,7 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
     def __post_init__(self):
         self._state.open_send_channels += 1
 
-    def send_nowait(self, item: T_Item) -> None:
+    def send_nowait(self, item: T_Item) -> DeprecatedAwaitable:
         """
         Send an item immediately if it can be done without waiting.
 
@@ -163,6 +163,8 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
             self._state.buffer.append(item)
         else:
             raise WouldBlock
+
+        return DeprecatedAwaitable(self.send_nowait)
 
     async def send(self, item: T_Item) -> None:
         await checkpoint()
