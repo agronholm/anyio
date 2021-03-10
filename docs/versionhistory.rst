@@ -68,6 +68,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * The ``checkpoint_if_cancelled()`` function
   * The ``cancel_shielded_checkpoint()`` function
   * The ``RunVar()`` class
+- Fixed ``current_effective_deadline()`` raising ``KeyError`` on asyncio when no cancel scope is
+  active
 - Changed ``CancelScope.deadline`` to be writable
 - ``Lock`` and ``Condition`` can now only be released by the task that acquired them. This behavior
   is now consistent on all backends whereas previously only Trio enforced this.

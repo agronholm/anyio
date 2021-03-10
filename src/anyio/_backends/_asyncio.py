@@ -376,8 +376,12 @@ async def cancel_shielded_checkpoint() -> None:
 
 
 def current_effective_deadline():
+    try:
+        cancel_scope = _task_states[current_task()].cancel_scope
+    except KeyError:
+        return math.inf
+
     deadline = math.inf
-    cancel_scope = _task_states[current_task()].cancel_scope
     while cancel_scope:
         deadline = min(deadline, cancel_scope.deadline)
         if cancel_scope.shield:
