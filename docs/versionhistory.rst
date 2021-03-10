@@ -13,7 +13,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``current_time()``
   * ``current_effective_deadline()``
   * ``MemoryObjectReceiveStream.receive_nowait()``
-  * ``MemoryObjectSendStream.send_nowait()``
 
   The following functions and methods are no longer asynchronous but can still be awaited on (doing
   so will emit a deprecation warning):
@@ -26,6 +25,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``Condition.release()``
   * ``Event.set()``
   * ``Lock.release()``
+  * ``MemoryObjectSendStream.send_nowait()``
   * ``Semaphore.release()``
   * ``TaskGroup.spawn()``
 
