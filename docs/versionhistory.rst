@@ -74,6 +74,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Changed the asyncio test runner to capture unhandled exceptions from asynchronous callbacks and
   unbound native tasks which are then raised after the test function (or async fixture setup or
   teardown) completes
+- Changed, the asyncio ``TaskGroup.spawn()`` now calls the new task function immediately to be
+  consistent across backends.
 
 **2.2.0**
 
