@@ -1,8 +1,8 @@
 from abc import ABCMeta, abstractmethod
 from contextlib import AbstractContextManager
 from typing import (
-    Any, AsyncContextManager, Callable, ContextManager, Coroutine, Generic, List, Optional,
-    TypeVar, Union, overload)
+    Any, AsyncContextManager, Callable, ContextManager, Coroutine, List, Optional, TypeVar, Union,
+    overload)
 from warnings import warn
 
 T = TypeVar('T')
@@ -76,7 +76,7 @@ class DeprecatedAwaitable:
             yield
 
 
-class DeprecatedAwaitableList(Generic[T], List[T], DeprecatedAwaitable):
+class DeprecatedAwaitableList(List[T], DeprecatedAwaitable):
     def __init__(self, *args, func: Callable[..., 'DeprecatedAwaitableList']):
         list.__init__(self, *args)
         DeprecatedAwaitable.__init__(self, func)
