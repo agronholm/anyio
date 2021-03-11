@@ -500,17 +500,13 @@ class TaskGroup(abc.TaskGroup):
         return filtered_exceptions
 
     async def _run_wrapped_task(
-            self, func: Callable[..., Coroutine], args: tuple,
-            task_status_future: Optional[asyncio.Future]) -> None:
+            self, coro: Coroutine, task_status_future: Optional[asyncio.Future]) -> None:
         # This ugly hack is required because ExceptionGroup inherits directly from BaseException
         # and asyncio before v3.8 cannot deal with tasks raising BaseExceptions.
-        kwargs = {}
-        if task_status_future:
-            kwargs['task_status'] = _AsyncioTaskStatus(task_status_future)
 
         task = cast(asyncio.Task, current_task())
         try:
-            await func(*args, **kwargs)
+            await coro
         except BaseException as exc:
             if task_status_future is None or task_status_future.done():
                 self._exceptions.append(exc)
@@ -538,9 +534,10 @@ class TaskGroup(abc.TaskGroup):
 
         kwargs = {}
         if task_status_future:
-            kwargs['task_status_future'] = task_status_future
+            kwargs['task_status'] = _AsyncioTaskStatus(task_status_future)
 
-        task = create_task(self._run_wrapped_task(func, args, task_status_future), **options)
+        task = create_task(self._run_wrapped_task(
+            func(*args, **kwargs), task_status_future), **options)
 
         # Make the spawned task inherit the task group's cancel scope
         _task_states[task] = TaskState(parent_id=id(current_task()), name=name,

@@ -794,3 +794,23 @@ async def test_cancel_completed_task():
         assert exceptions == []
     finally:
         loop.set_exception_handler(old_exception_handler)
+
+
+async def test_task_in_sync_spawn_callback():
+    outer_task_id = anyio.get_current_task().id
+    inner_task_id = None
+
+    def task_wrap():
+        assert anyio.get_current_task().id == outer_task_id
+
+        async def corofn():
+            nonlocal inner_task_id
+            inner_task_id = anyio.get_current_task().id
+
+        return corofn()
+
+    async with create_task_group() as tg:
+        tg.spawn(task_wrap)
+
+    assert inner_task_id is not None
+    assert inner_task_id != outer_task_id
