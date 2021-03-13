@@ -556,8 +556,11 @@ class TaskGroup(abc.TaskGroup):
         if task_status_future:
             kwargs['task_status'] = _AsyncioTaskStatus(task_status_future)
 
-        task = create_task(self._run_wrapped_task(
-            func(*args, **kwargs), task_status_future), **options)
+        coro = func(*args, **kwargs)
+        if not asyncio.iscoroutine(coro):
+            raise TypeError(f'Expected an async function, but {func} appears to be synchronous')
+
+        task = create_task(self._run_wrapped_task(coro, task_status_future), **options)
 
         # Make the spawned task inherit the task group's cancel scope
         _task_states[task] = TaskState(parent_id=id(current_task()), name=name,

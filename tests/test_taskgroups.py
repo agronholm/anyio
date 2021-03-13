@@ -201,6 +201,15 @@ async def test_start_native_child_cancelled():
     assert not finished
 
 
+async def test_start_exception_delivery():
+    def task_fn(*, task_status):
+        task_status.started("hello")
+
+    async with anyio.create_task_group() as tg:
+        with pytest.raises(TypeError, match='to be synchronous$'):
+            await tg.start(task_fn)
+
+
 async def test_host_exception():
     async def set_result(value):
         nonlocal result
