@@ -212,6 +212,7 @@ class CancelScope(abc.CancelScope, DeprecatedAsyncContextManager):
         self._cancel_called = False
         self._active = False
         self._timeout_handle: Optional[asyncio.TimerHandle] = None
+        self._cancel_handle: Optional[asyncio.Handle] = None
         self._tasks: Set[asyncio.Task] = set()
         self._host_task: Optional[asyncio.Task] = None
         self._timeout_expired = False
@@ -251,6 +252,21 @@ class CancelScope(abc.CancelScope, DeprecatedAsyncContextManager):
         if host_task_state is not None and host_task_state.cancel_scope is self:
             host_task_state.cancel_scope = self._parent_scope
 
+        # Restart the cancellation effort in the nearest directly cancelled parent scope if this
+        # one was shielded
+        if self._shield:
+            scope = self._parent_scope
+            while scope is not None:
+                if scope._cancel_called and scope._cancel_handle is None:
+                    scope._deliver_cancellation()
+                    break
+
+                # No point in looking beyond any shielded scope
+                if scope._shield:
+                    break
+
+                scope = scope._parent_scope
+
         if exc_val is not None:
             exceptions = exc_val.exceptions if isinstance(exc_val, ExceptionGroup) else [exc_val]
             if all(isinstance(exc, CancelledError) for exc in exceptions):
@@ -274,32 +290,38 @@ class CancelScope(abc.CancelScope, DeprecatedAsyncContextManager):
             else:
                 self._timeout_handle = loop.call_at(self._deadline, self._timeout)
 
-    def _deliver_cancellation(self):
-        """Deliver cancellation to directly contained tasks and nested cancel scopes."""
+    def _deliver_cancellation(self) -> None:
+        """
+        Deliver cancellation to directly contained tasks and nested cancel scopes.
+
+        Schedule another run at the end if we still have tasks eligible for cancellation.
+        """
+        should_retry = False
+        cancellable_tasks: Set[asyncio.Task] = set()
+        current = current_task()
         for task in self._tasks:
-            # Cancel the task directly, but only if it's blocked and isn't within a shielded scope
+            # The task is eligible for cancellation if it has started and is not in a cancel
+            # scope shielded from this one
+            assert not task.done()
             cancel_scope = _task_states[task].cancel_scope
-            if (cancel_scope is not self and not cancel_scope._is_shielded()
-                    and not cancel_scope.cancel_called):
-                # Deliver cancellation only if the child scope isn't shielded and hasn't been
-                # directly cancelled (in which case it already has a callback cancelling its tasks)
-                cancel_scope._deliver_cancellation()
-            elif cancel_scope is self and (task is self._host_task or _task_started(task)):
-                task.cancel()
+            while cancel_scope is not self:
+                if cancel_scope is None or cancel_scope._shield:
+                    break
+                else:
+                    cancel_scope = cancel_scope._parent_scope
+            else:
+                should_retry = True
+                if task is not current and (task is self._host_task or _task_started(task)):
+                    cancellable_tasks.add(task)
+
+        for task in cancellable_tasks:
+            task.cancel()
 
         # Schedule another callback if there are still tasks left
-        if self._tasks:
-            get_running_loop().call_soon(self._deliver_cancellation)
-
-    def _is_shielded(self) -> bool:
-        cancel_scope: Optional[CancelScope] = self
-        while cancel_scope:
-            if cancel_scope._shield:
-                return True
-
-            cancel_scope = cancel_scope._parent_scope
-
-        return False
+        if should_retry:
+            self._cancel_handle = get_running_loop().call_soon(self._deliver_cancellation)
+        else:
+            self._cancel_handle = None
 
     def _parent_cancelled(self) -> bool:
         # Check whether any parent has been cancelled
@@ -313,15 +335,14 @@ class CancelScope(abc.CancelScope, DeprecatedAsyncContextManager):
         return False
 
     def cancel(self) -> DeprecatedAwaitable:
-        if self._cancel_called:
-            return DeprecatedAwaitable(self.cancel)
+        if not self._cancel_called:
+            if self._timeout_handle:
+                self._timeout_handle.cancel()
+                self._timeout_handle = None
 
-        if self._timeout_handle:
-            self._timeout_handle.cancel()
-            self._timeout_handle = None
+            self._cancel_called = True
+            self._deliver_cancellation()
 
-        self._cancel_called = True
-        get_running_loop().call_soon(self._deliver_cancellation)
         return DeprecatedAwaitable(self.cancel)
 
     @property
@@ -455,8 +476,7 @@ class TaskGroup(abc.TaskGroup):
         ignore_exception = self.cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         if exc_val is not None:
             self.cancel_scope.cancel()
-            if not ignore_exception:
-                self._exceptions.append(exc_val)
+            self._exceptions.append(exc_val)
 
         while self.cancel_scope._tasks:
             try:
@@ -1580,6 +1600,11 @@ async def wait_all_tasks_blocked() -> None:
 class TestRunner(abc.TestRunner):
     def __init__(self, debug: bool = False, use_uvloop: bool = True,
                  policy: Optional[asyncio.AbstractEventLoopPolicy] = None):
+        try:
+            get_running_loop().close()
+        except RuntimeError:
+            pass
+
         _maybe_set_event_loop_policy(policy, use_uvloop)
         self._loop = asyncio.new_event_loop()
         self._loop.set_debug(debug)
