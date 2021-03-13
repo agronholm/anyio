@@ -377,8 +377,8 @@ async def test_exception_group_children():
             tg.spawn(async_error, 'task1')
             tg.spawn(async_error, 'task2', 0.15)
 
-    assert len(exc.value.errors) == 2
-    assert sorted(str(e) for e in exc.value.errors) == ['task1', 'task2']
+    assert len(exc.value.exceptions) == 2
+    assert sorted(str(e) for e in exc.value.exceptions) == ['task1', 'task2']
     assert exc.match('^ExceptionGroup: multiple tasks failed\n')
     assert exc.match(r'Exception: task\d\n  ----')
     assert re.fullmatch(
@@ -393,8 +393,8 @@ async def test_exception_group_host():
             await wait_all_tasks_blocked()
             raise Exception('host')
 
-    assert len(exc.value.errors) == 2
-    assert sorted(str(e) for e in exc.value.errors) == ['child', 'host']
+    assert len(exc.value.exceptions) == 2
+    assert sorted(str(e) for e in exc.value.exceptions) == ['child', 'host']
     assert exc.match('^ExceptionGroup: multiple tasks failed\n')
     assert exc.match(r'Exception: host\n  ----')
 
@@ -406,11 +406,11 @@ async def test_exception_group_host():
 ])
 async def test_exception_group_subgroup(complex_exception_group, condition):
     subgroup = complex_exception_group.subgroup(condition)
-    assert len(subgroup.errors) == 2
-    assert isinstance(subgroup.errors[0], ValueError)
-    assert isinstance(subgroup.errors[1], ExceptionGroup)
-    assert len(subgroup.errors[1].errors) == 1
-    assert isinstance(subgroup.errors[1].errors[0], ValueError)
+    assert len(subgroup.exceptions) == 2
+    assert isinstance(subgroup.exceptions[0], ValueError)
+    assert isinstance(subgroup.exceptions[1], ExceptionGroup)
+    assert len(subgroup.exceptions[1].exceptions) == 1
+    assert isinstance(subgroup.exceptions[1].exceptions[0], ValueError)
     assert subgroup.__cause__ is complex_exception_group.__cause__
     assert subgroup.__context__ is complex_exception_group.__context__
     assert subgroup.__traceback__ is complex_exception_group.__traceback__
@@ -431,19 +431,19 @@ async def test_exception_group_subgroup_everything_matches(complex_exception_gro
 ])
 async def test_exception_group_split(complex_exception_group, condition):
     matching_group, nonmatching_group = complex_exception_group.split(condition)
-    assert len(matching_group.errors) == 2
-    assert isinstance(matching_group.errors[0], ValueError)
-    assert isinstance(matching_group.errors[1], ExceptionGroup)
-    assert len(matching_group.errors[1].errors) == 1
-    assert isinstance(matching_group.errors[1].errors[0], ValueError)
+    assert len(matching_group.exceptions) == 2
+    assert isinstance(matching_group.exceptions[0], ValueError)
+    assert isinstance(matching_group.exceptions[1], ExceptionGroup)
+    assert len(matching_group.exceptions[1].exceptions) == 1
+    assert isinstance(matching_group.exceptions[1].exceptions[0], ValueError)
     assert matching_group.__cause__ is complex_exception_group.__cause__
     assert matching_group.__context__ is complex_exception_group.__context__
     assert matching_group.__traceback__ is complex_exception_group.__traceback__
 
-    assert len(nonmatching_group.errors) == 1
-    assert isinstance(nonmatching_group.errors[0], ExceptionGroup)
+    assert len(nonmatching_group.exceptions) == 1
+    assert isinstance(nonmatching_group.exceptions[0], ExceptionGroup)
     assert all(isinstance(exc, (RuntimeError, LookupError))
-               for exc in nonmatching_group.errors[0].errors)
+               for exc in nonmatching_group.exceptions[0].exceptions)
     assert nonmatching_group.__cause__ is complex_exception_group.__cause__
     assert nonmatching_group.__context__ is complex_exception_group.__context__
     assert nonmatching_group.__traceback__ is complex_exception_group.__traceback__
@@ -786,9 +786,9 @@ async def test_exception_group_filtering():
     with pytest.raises(ExceptionGroup) as exc:
         await fn()
 
-    assert len(exc.value.errors) == 2
-    assert str(exc.value.errors[0]) == 'parent task failed'
-    assert str(exc.value.errors[1]) == 'child task failed'
+    assert len(exc.value.exceptions) == 2
+    assert str(exc.value.exceptions[0]) == 'parent task failed'
+    assert str(exc.value.exceptions[1]) == 'child task failed'
 
 
 async def test_cancel_propagation_with_inner_spawn():

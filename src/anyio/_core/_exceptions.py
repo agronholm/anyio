@@ -46,25 +46,24 @@ class ExceptionGroup(BaseException):
     SEPARATOR = '------------------------------------------------------------\n'
 
     #: the sequence of exceptions raised together
-    errors: Sequence[BaseException]
+    exceptions: Sequence[BaseException]
 
-    def __new__(cls, message: str, errors: List[BaseException]):
+    def __new__(cls, message: str, exceptions: List[BaseException]):
         return BaseException.__new__(cls)
 
-    def __init__(self, message: str, errors: List[BaseException]):
+    def __init__(self, message: str, exceptions: List[BaseException]):
         self.message = message
-        self.errors = errors
-        self.exceptions = errors  # for backwards compatibility
+        self.exceptions = exceptions
 
     def __str__(self):
         tracebacks = self.SEPARATOR.join([
             f'{"".join(format_exception(type(exc), exc, exc.__traceback__))}'
-            for exc in self.errors])
+            for exc in self.exceptions])
         tracebacks = indent(tracebacks, '  ')
         return f'ExceptionGroup: {self.message}\n  {self.SEPARATOR}{tracebacks}'
 
     def __repr__(self) -> str:
-        return f'{self.__class__.__name__}({self.message!r}, {self.errors!r})'
+        return f'{self.__class__.__name__}({self.message!r}, {self.exceptions!r})'
 
     @staticmethod
     def check_direct_subclass(exc: BaseException, parents: Tuple[Type[BaseException]]) -> bool:
@@ -107,7 +106,7 @@ class ExceptionGroup(BaseException):
         condition = self._get_condition_filter(condition)
         exceptions: List[BaseException] = []
         modified = False
-        for exc in self.errors:
+        for exc in self.exceptions:
             if isinstance(exc, ExceptionGroup):
                 subgroup = exc.subgroup(condition)
                 if subgroup is not None:
@@ -154,7 +153,7 @@ class ExceptionGroup(BaseException):
         condition = self._get_condition_filter(condition)
         matching_exceptions: List[BaseException] = []
         nonmatching_exceptions: List[BaseException] = []
-        for exc in self.errors:
+        for exc in self.exceptions:
             if isinstance(exc, ExceptionGroup):
                 matching, nonmatching = exc.split(condition)
                 if matching is not None:

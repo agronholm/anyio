@@ -268,7 +268,7 @@ class CancelScope(abc.CancelScope, DeprecatedAsyncContextManager):
                 scope = scope._parent_scope
 
         if exc_val is not None:
-            exceptions = exc_val.errors if isinstance(exc_val, ExceptionGroup) else [exc_val]
+            exceptions = exc_val.exceptions if isinstance(exc_val, ExceptionGroup) else [exc_val]
             if all(isinstance(exc, CancelledError) for exc in exceptions):
                 if self._timeout_expired:
                     return True
@@ -505,12 +505,12 @@ class TaskGroup(abc.TaskGroup):
         filtered_exceptions: List[BaseException] = []
         for exc in exceptions:
             if isinstance(exc, ExceptionGroup):
-                exc.errors = TaskGroup._filter_cancellation_errors(exc.errors)
-                if exc.errors:
-                    if len(exc.errors) > 1:
+                exc.exceptions = TaskGroup._filter_cancellation_errors(exc.exceptions)
+                if exc.exceptions:
+                    if len(exc.exceptions) > 1:
                         filtered_exceptions.append(exc)
                     else:
-                        filtered_exceptions.append(exc.errors[0])
+                        filtered_exceptions.append(exc.exceptions[0])
             elif not isinstance(exc, CancelledError):
                 filtered_exceptions.append(exc)
 
