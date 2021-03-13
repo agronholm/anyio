@@ -1600,11 +1600,6 @@ async def wait_all_tasks_blocked() -> None:
 class TestRunner(abc.TestRunner):
     def __init__(self, debug: bool = False, use_uvloop: bool = True,
                  policy: Optional[asyncio.AbstractEventLoopPolicy] = None):
-        try:
-            get_running_loop().close()
-        except RuntimeError:
-            pass
-
         _maybe_set_event_loop_policy(policy, use_uvloop)
         self._loop = asyncio.new_event_loop()
         self._loop.set_debug(debug)
