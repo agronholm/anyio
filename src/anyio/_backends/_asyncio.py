@@ -1634,7 +1634,7 @@ class TestRunner(abc.TestRunner):
         def exception_handler(loop: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
             exceptions.append(context['exception'])
 
-        exceptions: List[Exception] = []
+        exceptions: List[BaseException] = []
         self._loop.set_exception_handler(exception_handler)
         try:
             retval = self._loop.run_until_complete(func(*args, **kwargs))
@@ -1647,6 +1647,6 @@ class TestRunner(abc.TestRunner):
         if len(exceptions) == 1:
             raise exceptions[0]
         elif exceptions:
-            raise ExceptionGroup(exceptions)
+            raise ExceptionGroup("multiple tasks failed", exceptions)
 
         return retval
