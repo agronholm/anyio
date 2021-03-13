@@ -62,7 +62,7 @@ def test_run_natively(module):
         try:
             native_run(testfunc())
         finally:
-            asyncio.set_event_loop(asyncio.new_event_loop())
+            asyncio.set_event_loop(None)
     else:
         module.run(testfunc)
 
