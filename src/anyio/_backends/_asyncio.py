@@ -314,7 +314,6 @@ class CancelScope(abc.CancelScope, DeprecatedAsyncContextManager):
                     cancellable_tasks.add(task)
 
         for task in cancellable_tasks:
-            print('cancelling task', id(task))
             task.cancel()
 
         # Schedule another callback if there are still tasks left
@@ -486,18 +485,14 @@ class TaskGroup(abc.TaskGroup):
 
         self._active = False
         if not self.cancel_scope._parent_cancelled():
-            print('task group', id(self), ': parent cancelled, filtering out cancellation errors')
             exceptions = self._filter_cancellation_errors(self._exceptions)
-            print('exceptions left:', exceptions)
         else:
             exceptions = self._exceptions
 
         try:
             if len(exceptions) > 1:
-                print('raising exception group in task group', id(self))
                 raise ExceptionGroup(exceptions)
             elif exceptions and exceptions[0] is not exc_val:
-                print('raising single exception in task group', id(self))
                 raise exceptions[0]
         except BaseException as exc:
             # Clear the context here, as it can only be done in-flight.
@@ -1665,7 +1660,6 @@ class TestRunner(abc.TestRunner):
 
     def call(self, func: Callable[..., Awaitable], *args, **kwargs):
         def exception_handler(loop: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
-            print('unhandled exception:', context['exception'])
             exceptions.append(context['exception'])
 
         exceptions: List[Exception] = []
