@@ -653,14 +653,15 @@ def _thread_pool_worker(work_queue: Queue, workers: Set[Thread],
         work_queue.task_done()
 
 
+_threadpool_work_queue: RunVar[Queue] = RunVar('_threadpool_work_queue')
+_threadpool_idle_workers: RunVar[Set[Thread]] = RunVar('_threadpool_idle_workers')
+_threadpool_workers: RunVar[Set[Thread]] = RunVar('_threadpool_workers')
+
+
 def _loop_shutdown_callback(f: asyncio.Future) -> None:
     """This is called when the root task has finished."""
-    for _ in range(len(threadlocals.threadpool_workers)):
-        threadlocals.threadpool_work_queue.put_nowait((None, None, None))
-
-    del threadlocals.threadpool_work_queue
-    del threadlocals.threadpool_idle_workers
-    del threadlocals.threadpool_workers
+    for _ in range(len(_threadpool_workers.get())):
+        _threadpool_work_queue.get().put_nowait((None, None, None))
 
 
 async def run_sync_in_worker_thread(
@@ -669,21 +670,27 @@ async def run_sync_in_worker_thread(
     await checkpoint()
 
     # If this is the first run in this event loop thread, set up the necessary variables
-    if not hasattr(threadlocals, 'threadpool_work_queue'):
-        threadlocals.threadpool_work_queue = Queue()
-        threadlocals.threadpool_idle_workers = set()
-        threadlocals.threadpool_workers = set()
+    try:
+        work_queue = _threadpool_work_queue.get()
+        idle_workers = _threadpool_idle_workers.get()
+        workers = _threadpool_workers.get()
+    except LookupError:
+        work_queue = Queue()
+        idle_workers = set()
+        workers = set()
+        _threadpool_work_queue.set(work_queue)
+        _threadpool_idle_workers.set(idle_workers)
+        _threadpool_workers.set(workers)
         find_root_task().add_done_callback(_loop_shutdown_callback)
 
     async with (limiter or current_default_thread_limiter()):
         with CancelScope(shield=not cancellable):
             future: asyncio.Future = asyncio.Future()
-            threadlocals.threadpool_work_queue.put_nowait((func, args, future))
-            if not threadlocals.threadpool_idle_workers:
-                args = (threadlocals.threadpool_work_queue, threadlocals.threadpool_workers,
-                        threadlocals.threadpool_idle_workers)
+            work_queue.put_nowait((func, args, future))
+            if not idle_workers:
+                args = (work_queue, workers, idle_workers)
                 thread = Thread(target=_thread_pool_worker, args=args, name='AnyIO worker thread')
-                threadlocals.threadpool_workers.add(thread)
+                workers.add(thread)
                 thread.start()
 
             return await future
@@ -1563,11 +1570,15 @@ class CapacityLimiter(abc.CapacityLimiter):
                                          tuple(self._borrowers), len(self._wait_queue))
 
 
+_default_thread_limiter: RunVar[CapacityLimiter] = RunVar('_default_thread_limiter')
+
+
 def current_default_thread_limiter():
     try:
-        return threadlocals.default_thread_limiter
-    except AttributeError:
-        limiter = threadlocals.default_thread_limiter = CapacityLimiter(40)
+        return _default_thread_limiter.get()
+    except LookupError:
+        limiter = CapacityLimiter(40)
+        _default_thread_limiter.set(limiter)
         return limiter
 
 
