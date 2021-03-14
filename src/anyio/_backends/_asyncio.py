@@ -302,7 +302,6 @@ class CancelScope(abc.CancelScope, DeprecatedAsyncContextManager):
         for task in self._tasks:
             # The task is eligible for cancellation if it has started and is not in a cancel
             # scope shielded from this one
-            assert not task.done()
             cancel_scope = _task_states[task].cancel_scope
             while cancel_scope is not self:
                 if cancel_scope is None or cancel_scope._shield:
@@ -315,6 +314,7 @@ class CancelScope(abc.CancelScope, DeprecatedAsyncContextManager):
                     cancellable_tasks.add(task)
 
         for task in cancellable_tasks:
+            print('cancelling task', id(task))
             task.cancel()
 
         # Schedule another callback if there are still tasks left
@@ -486,14 +486,18 @@ class TaskGroup(abc.TaskGroup):
 
         self._active = False
         if not self.cancel_scope._parent_cancelled():
+            print('task group', id(self), ': parent cancelled, filtering out cancellation errors')
             exceptions = self._filter_cancellation_errors(self._exceptions)
+            print('exceptions left:', exceptions)
         else:
             exceptions = self._exceptions
 
         try:
             if len(exceptions) > 1:
+                print('raising exception group in task group', id(self))
                 raise ExceptionGroup(exceptions)
             elif exceptions and exceptions[0] is not exc_val:
+                print('raising single exception in task group', id(self))
                 raise exceptions[0]
         except BaseException as exc:
             # Clear the context here, as it can only be done in-flight.
@@ -509,11 +513,10 @@ class TaskGroup(abc.TaskGroup):
         for exc in exceptions:
             if isinstance(exc, ExceptionGroup):
                 exc.exceptions = TaskGroup._filter_cancellation_errors(exc.exceptions)
-                if exc.exceptions:
-                    if len(exc.exceptions) > 1:
-                        filtered_exceptions.append(exc)
-                    else:
-                        filtered_exceptions.append(exc.exceptions[0])
+                if len(exc.exceptions) > 1:
+                    filtered_exceptions.append(exc)
+                elif exc.exceptions:
+                    filtered_exceptions.append(exc.exceptions[0])
             elif not isinstance(exc, CancelledError):
                 filtered_exceptions.append(exc)
 
@@ -521,9 +524,9 @@ class TaskGroup(abc.TaskGroup):
 
     async def _run_wrapped_task(
             self, coro: Coroutine, task_status_future: Optional[asyncio.Future]) -> None:
-        # This ugly hack is required because ExceptionGroup inherits directly from BaseException
-        # and asyncio before v3.8 cannot deal with tasks raising BaseExceptions.
-
+        # This is the code path for Python 3.6 and 3.7 on which asyncio freaks out if a task raises
+        # a BaseException.
+        __traceback_hide__ = __tracebackhide__ = True  # noqa: F841
         task = cast(asyncio.Task, current_task())
         try:
             await coro
@@ -544,6 +547,27 @@ class TaskGroup(abc.TaskGroup):
 
     def _spawn(self, func: Callable[..., Coroutine], args: tuple, name,
                task_status_future: Optional[asyncio.Future] = None) -> asyncio.Task:
+        def task_done(_task: asyncio.Task) -> None:
+            # This is the code path for Python 3.8+
+            assert _task in self.cancel_scope._tasks
+            self.cancel_scope._tasks.remove(_task)
+            del _task_states[_task]
+
+            try:
+                exc = _task.exception()
+            except CancelledError as e:
+                exc = e
+
+            if exc is not None:
+                if task_status_future is None or task_status_future.done():
+                    self._exceptions.append(exc)
+                    self.cancel_scope.cancel()
+                else:
+                    task_status_future.set_exception(exc)
+            elif task_status_future is not None and not task_status_future.done():
+                task_status_future.set_exception(
+                    RuntimeError('Child exited without calling task_status.started()'))
+
         if not self._active:
             raise RuntimeError('This task group is not active; no new tasks can be spawned.')
 
@@ -560,7 +584,13 @@ class TaskGroup(abc.TaskGroup):
         if not asyncio.iscoroutine(coro):
             raise TypeError(f'Expected an async function, but {func} appears to be synchronous')
 
-        task = create_task(self._run_wrapped_task(coro, task_status_future), **options)
+        foreign_coro = not hasattr(coro, 'cr_frame') and not hasattr(coro, 'gi_frame')
+        if foreign_coro or sys.version_info < (3, 8):
+            coro = self._run_wrapped_task(coro, task_status_future)
+
+        task = create_task(coro, **options)
+        if not foreign_coro and sys.version_info >= (3, 8):
+            task.add_done_callback(task_done)
 
         # Make the spawned task inherit the task group's cancel scope
         _task_states[task] = TaskState(parent_id=id(current_task()), name=name,
@@ -1635,6 +1665,7 @@ class TestRunner(abc.TestRunner):
 
     def call(self, func: Callable[..., Awaitable], *args, **kwargs):
         def exception_handler(loop: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
+            print('unhandled exception:', context['exception'])
             exceptions.append(context['exception'])
 
         exceptions: List[Exception] = []
