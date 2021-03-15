@@ -79,6 +79,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   teardown) completes
 - Changed the asyncio ``TaskGroup.spawn()`` method to call the target function immediately before
   spawning the task, for consistency across backends
+- Changed the asyncio ``TaskGroup.spawn()`` method to avoid the use of a coroutine wrapper on
+  Python 3.8+ and added a hint for hiding the wrapper in tracebacks on earlier Pythons (supported
+  by Pytest, Sentry etc.)
 - Changed the default thread limiter on asyncio to be scoped to an event loop so that multiple
   running event loops don't conflict with each other
 
