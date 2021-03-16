@@ -1,3 +1,4 @@
+import os
 import pickle
 import subprocess
 import sys
@@ -184,6 +185,6 @@ def current_default_worker_process_limiter() -> CapacityLimiter:
     try:
         return _default_process_limiter.get()
     except LookupError:
-        limiter = create_capacity_limiter(5)
+        limiter = create_capacity_limiter(os.cpu_count())
         _default_process_limiter.set(limiter)
         return limiter
