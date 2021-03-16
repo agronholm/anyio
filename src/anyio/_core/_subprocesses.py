@@ -185,6 +185,6 @@ def current_default_worker_process_limiter() -> CapacityLimiter:
     try:
         return _default_process_limiter.get()
     except LookupError:
-        limiter = create_capacity_limiter(os.cpu_count())
+        limiter = create_capacity_limiter(os.cpu_count() or 2)
         _default_process_limiter.set(limiter)
         return limiter
