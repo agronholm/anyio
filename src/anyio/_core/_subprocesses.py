@@ -127,7 +127,7 @@ async def run_sync_in_process(
                 process = idle_workers.pop()
                 stdout = cast(ByteReceiveStream, process.stdout)
             else:
-                command = [sys.executable, '-m', 'anyio._core._subprocess_worker']
+                command = [sys.executable, '-u', '-m', 'anyio._core._subprocess_worker']
                 process = await open_process(command, stdin=subprocess.PIPE,
                                              stdout=subprocess.PIPE)
                 stdout = cast(ByteReceiveStream, process.stdout)

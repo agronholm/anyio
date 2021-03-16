@@ -4,7 +4,7 @@ import sys
 def process_worker():
     import pickle
 
-    print('READY', flush=True)
+    sys.stdout.buffer.write(b'READY\n')
     while True:
         try:
             command, *args = pickle.load(sys.stdin.buffer)
@@ -37,7 +37,6 @@ def process_worker():
 
         sys.stdout.buffer.write(b'%s %d\n' % (status, len(pickled)))
         sys.stdout.buffer.write(pickled)
-        sys.stdout.buffer.flush()
 
         # Respect SIGTERM
         if isinstance(exception, SystemExit):
