@@ -52,6 +52,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   non-generic
 - Dropped Curio as a backend (see the :doc:`FAQ <faq>` as for why)
 - Added the ``run_sync_from_thread()`` function
+- Added the ``run_sync_in_process()`` function for running code in worker processes
 - Added ``UNIXSocketStream`` as a ``SocketStream`` subclass, capable of sending and receiving
   file descriptors
 - Added thread pooling for asyncio
