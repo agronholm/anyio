@@ -108,8 +108,35 @@ async def run_sync_in_process(
     :return: an awaitable that yields the return value of the function.
 
     """
+    async def send_raw_command(pickled_cmd: bytes):
+        try:
+            await stdin.send(pickled_cmd)
+            response = await buffered.receive_until(b'\n', 50)
+            status, length = response.split(b' ')
+            if status not in (b'RETURN', b'EXCEPTION'):
+                raise RuntimeError('Worker process returned unexpected response:',
+                                   response)
+
+            pickled_response = await buffered.receive_exactly(int(length))
+        except BaseException as exc:
+            workers.discard(process)
+            try:
+                process.kill()
+                await process.wait()
+            except ProcessLookupError:
+                pass
+
+            raise BrokenWorkerProcess from exc
+
+        retval = pickle.loads(pickled_response)
+        if status == b'EXCEPTION':
+            assert isinstance(retval, BaseException)
+            raise retval
+        else:
+            return retval
+
     # First pickle the request before trying to reserve a worker process
-    request = pickle.dumps(('run', func, args, {}), protocol=pickle.HIGHEST_PROTOCOL)
+    request = pickle.dumps(('run', func, args), protocol=pickle.HIGHEST_PROTOCOL)
 
     # If this is the first run in this event loop thread, set up the necessary variables
     try:
@@ -123,56 +150,41 @@ async def run_sync_in_process(
         get_asynclib().setup_process_pool_exit_at_shutdown(workers)
 
     async with (limiter or current_default_worker_process_limiter()):
-        with open_cancel_scope(shield=not cancellable):
-            if idle_workers:
-                process = idle_workers.pop()
-                stdout = cast(ByteReceiveStream, process.stdout)
-            else:
-                command = [sys.executable, '-u', '-m', 'anyio._core._subprocess_worker']
-                process = await open_process(command, stdin=subprocess.PIPE,
-                                             stdout=subprocess.PIPE)
-                stdout = cast(ByteReceiveStream, process.stdout)
-                with fail_after(20):
-                    message = await stdout.receive(6)
+        # Pop processes from the pool until we find one that hasn't exited yet
+        process: Process
+        while idle_workers:
+            process = idle_workers.pop()
+            if process.returncode is None:
+                stdin = cast(ByteSendStream, process.stdin)
+                buffered = BufferedByteReceiveStream(cast(ByteReceiveStream, process.stdout))
+                break
 
-                if message != b'READY\n':
-                    process.kill()
-                    raise BrokenWorkerProcess(
-                        f'Worker process returned unexpected response: {message!r}')
-                else:
-                    workers.add(process)
-
+            workers.remove(process)
+        else:
+            command = [sys.executable, '-u', '-m', 'anyio._core._subprocess_worker']
+            process = await open_process(command, stdin=subprocess.PIPE,
+                                         stdout=subprocess.PIPE)
             stdin = cast(ByteSendStream, process.stdin)
+            buffered = BufferedByteReceiveStream(cast(ByteReceiveStream, process.stdout))
+            with fail_after(20):
+                message = await buffered.receive(6)
+
+            if message != b'READY\n':
+                process.kill()
+                raise BrokenWorkerProcess(
+                    f'Worker process returned unexpected response: {message!r}')
+
+            pickled = pickle.dumps(('run', exec, (f'sys.path = {sys.path!r}',)),
+                                   protocol=pickle.HIGHEST_PROTOCOL)
+            await send_raw_command(pickled)
+            workers.add(process)
+
+        with open_cancel_scope(shield=not cancellable):
             try:
-                # Send the run command
-                await stdin.send(request)
-
-                # Receive the response
-                buffered = BufferedByteReceiveStream(stdout)
-                response = await buffered.receive_until(b'\n', 50)
-                status, length = response.split(b' ')
-                if status not in (b'RETURN', b'EXCEPTION'):
-                    raise RuntimeError('Worker process returned unexpected response:',
-                                       response)
-
-                pickled = await buffered.receive_exactly(int(length))
-            except BaseException as exc:
-                workers.discard(process)
-                try:
-                    process.kill()
-                    await process.wait()
-                except ProcessLookupError:
-                    pass
-
-                raise BrokenWorkerProcess from exc
-
-            idle_workers.add(process)
-            retval = pickle.loads(pickled)
-            if status == b'EXCEPTION':
-                assert isinstance(retval, BaseException)
-                raise retval
-            else:
-                return retval
+                return await send_raw_command(request)
+            finally:
+                if process in workers:
+                    idle_workers.add(process)
 
 
 def current_default_worker_process_limiter() -> CapacityLimiter:

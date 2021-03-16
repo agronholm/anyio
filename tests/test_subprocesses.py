@@ -1,13 +1,13 @@
 import os
 import platform
-import signal
 import sys
+from functools import partial
 from subprocess import CalledProcessError
 from textwrap import dedent
 
 import pytest
 
-from anyio import BrokenWorkerProcess, open_process, run_process, run_sync_in_process
+from anyio import open_process, run_process, run_sync_in_process
 from anyio.streams.buffered import BufferedByteReceiveStream
 
 pytestmark = pytest.mark.anyio
@@ -76,14 +76,15 @@ class TestProcessPool:
         assert worker_pid != os.getpid()
         assert await run_sync_in_process(os.getpid) == worker_pid
 
+    async def test_identical_sys_path(self):
+        """Test that partial() can be used to pass keyword arguments."""
+        assert await run_sync_in_process(eval, 'sys.path') == sys.path
+
+    async def test_partial(self):
+        """Test that partial() can be used to pass keyword arguments."""
+        assert await run_sync_in_process(partial(sorted, reverse=True), ['a', 'b']) == ['b', 'a']
+
     async def test_exception(self):
         """Test that exceptions are delivered properly."""
         with pytest.raises(ValueError, match='invalid literal for int'):
             assert await run_sync_in_process(int, 'a')
-
-    async def test_unexpected_worker_exit(self):
-        """Test that an unexpected worker exit is handled correctly."""
-        worker_pid = await run_sync_in_process(os.getpid)
-        os.kill(worker_pid, signal.SIGKILL)
-        with pytest.raises(BrokenWorkerProcess):
-            await run_sync_in_process(os.getpid)

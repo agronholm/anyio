@@ -20,10 +20,10 @@ def process_worker():
         else:
             idle_timer.cancel()
             if command == 'run':
-                func, args, kwargs = args
+                func, args = args
                 exception = retval = None
                 try:
-                    retval = func(*args, **kwargs)
+                    retval = func(*args)
                 except BaseException as exc:
                     exception = exc
 
