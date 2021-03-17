@@ -6,9 +6,9 @@ from subprocess import DEVNULL, PIPE, CalledProcessError, CompletedProcess
 from typing import Callable, Optional, Sequence, Set, TypeVar, Union, cast
 
 from ..abc import ByteReceiveStream, ByteSendStream, CapacityLimiter, Process
-from ..lowlevel import RunVar
+from ..lowlevel import RunVar, checkpoint_if_cancelled
 from ..streams.buffered import BufferedByteReceiveStream
-from ._eventloop import get_asynclib
+from ._eventloop import get_asynclib, get_cancelled_exc_class
 from ._exceptions import BrokenWorkerProcess
 from ._synchronization import create_capacity_limiter
 from ._tasks import create_task_group, fail_after, open_cancel_scope
@@ -136,6 +136,7 @@ async def run_sync_in_process(
             return retval
 
     # First pickle the request before trying to reserve a worker process
+    await checkpoint_if_cancelled()
     request = pickle.dumps(('run', func, args), protocol=pickle.HIGHEST_PROTOCOL)
 
     # If this is the first run in this event loop thread, set up the necessary variables
@@ -164,19 +165,26 @@ async def run_sync_in_process(
             command = [sys.executable, '-u', '-m', 'anyio._core._subprocess_worker']
             process = await open_process(command, stdin=subprocess.PIPE,
                                          stdout=subprocess.PIPE)
-            stdin = cast(ByteSendStream, process.stdin)
-            buffered = BufferedByteReceiveStream(cast(ByteReceiveStream, process.stdout))
-            with fail_after(20):
-                message = await buffered.receive(6)
+            try:
+                stdin = cast(ByteSendStream, process.stdin)
+                buffered = BufferedByteReceiveStream(cast(ByteReceiveStream, process.stdout))
+                with fail_after(20):
+                    message = await buffered.receive(6)
 
-            if message != b'READY\n':
+                if message != b'READY\n':
+                    raise BrokenWorkerProcess(
+                        f'Worker process returned unexpected response: {message!r}')
+
+                pickled = pickle.dumps(('run', exec, (f'sys.path = {sys.path!r}',)),
+                                       protocol=pickle.HIGHEST_PROTOCOL)
+                await send_raw_command(pickled)
+            except (BrokenWorkerProcess, get_cancelled_exc_class()):
                 process.kill()
-                raise BrokenWorkerProcess(
-                    f'Worker process returned unexpected response: {message!r}')
+                raise
+            except BaseException as exc:
+                process.kill()
+                raise BrokenWorkerProcess('Error during worker process initialization') from exc
 
-            pickled = pickle.dumps(('run', exec, (f'sys.path = {sys.path!r}',)),
-                                   protocol=pickle.HIGHEST_PROTOCOL)
-            await send_raw_command(pickled)
             workers.add(process)
 
         with open_cancel_scope(shield=not cancellable):

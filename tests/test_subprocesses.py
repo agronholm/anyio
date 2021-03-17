@@ -1,13 +1,17 @@
 import os
 import platform
 import sys
+import time
 from functools import partial
 from subprocess import CalledProcessError
 from textwrap import dedent
 
 import pytest
 
-from anyio import open_process, run_process, run_sync_in_process
+from anyio import (
+    create_task_group, fail_after, open_cancel_scope, open_process, run_process,
+    run_sync_in_process, wait_all_tasks_blocked)
+from anyio._core._subprocesses import _process_pool_workers
 from anyio.streams.buffered import BufferedByteReceiveStream
 
 pytestmark = pytest.mark.anyio
@@ -71,6 +75,7 @@ class TestProcessPool:
     async def test_run_sync_in_process_pool(self):
         """
         Test that the function runs in a different process, and the same process in both calls.
+
         """
         worker_pid = await run_sync_in_process(os.getpid)
         assert worker_pid != os.getpid()
@@ -95,3 +100,30 @@ class TestProcessPool:
         await run_sync_in_process(print, 'hello')
         await run_sync_in_process(print, 'world')
         assert await run_sync_in_process(os.getpid) == worker_pid
+
+    async def test_cancel_before(self):
+        """
+        Test that starting run_sync_in_process() in a cancelled scope does not cause a worker
+        process to be reserved.
+
+        """
+        with open_cancel_scope() as scope:
+            scope.cancel()
+            await run_sync_in_process(os.getpid)
+
+        pytest.raises(LookupError, _process_pool_workers.get)
+
+    async def test_cancel_during(self):
+        """
+        Test that cancelling an operation on the worker process causes the process to be killed.
+
+        """
+        worker_pid = await run_sync_in_process(os.getpid)
+        with fail_after(4):
+            async with create_task_group() as tg:
+                tg.spawn(partial(run_sync_in_process, cancellable=True), time.sleep, 5)
+                await wait_all_tasks_blocked()
+                tg.cancel_scope.cancel()
+
+        # The previous worker was killed so we should get a new one now
+        assert await run_sync_in_process(os.getpid) != worker_pid
