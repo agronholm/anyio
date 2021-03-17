@@ -1,15 +1,22 @@
+import os
+import pickle
 import sys
 from threading import Timer
 
 
 def process_worker():
-    import pickle
+    # Redirect standard streams to os.devnull so that user code won't interfere with the
+    # parent-worker communication
+    stdin = sys.stdin
+    stdout = sys.stdout
+    sys.stdin = open(os.devnull)
+    sys.stdout = open(os.devnull, 'w')
 
-    sys.stdout.buffer.write(b'READY\n')
+    stdout.buffer.write(b'READY\n')
     while True:
         idle_timer = Timer(5 * 60, sys.exit)
         try:
-            command, *args = pickle.load(sys.stdin.buffer)
+            command, *args = pickle.load(stdin.buffer)
         except EOFError:
             return
         except BaseException as exc:
@@ -39,8 +46,8 @@ def process_worker():
                     status = b'EXCEPTION'
                     pickled = pickle.dumps(exc, pickle.HIGHEST_PROTOCOL)
 
-        sys.stdout.buffer.write(b'%s %d\n' % (status, len(pickled)))
-        sys.stdout.buffer.write(pickled)
+        stdout.buffer.write(b'%s %d\n' % (status, len(pickled)))
+        stdout.buffer.write(pickled)
 
         # Respect SIGTERM
         if isinstance(exception, SystemExit):

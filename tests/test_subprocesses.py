@@ -88,3 +88,10 @@ class TestProcessPool:
         """Test that exceptions are delivered properly."""
         with pytest.raises(ValueError, match='invalid literal for int'):
             assert await run_sync_in_process(int, 'a')
+
+    async def test_print(self):
+        """Test that print() won't interfere with parent-worker communication."""
+        worker_pid = await run_sync_in_process(os.getpid)
+        await run_sync_in_process(print, 'hello')
+        await run_sync_in_process(print, 'world')
+        assert await run_sync_in_process(os.getpid) == worker_pid
