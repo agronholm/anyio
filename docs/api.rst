@@ -164,7 +164,7 @@ Low level operations
 .. autofunction:: anyio.lowlevel.checkpoint_if_cancelled
 .. autofunction:: anyio.lowlevel.cancel_shielded_checkpoint
 
-.. autoclass:: anyio.abc.RunVar
+.. autoclass:: anyio.lowlevel.RunVar
 
 Compatibility
 -------------
