@@ -102,8 +102,8 @@ async def run_sync_in_process(
 
     :param func: a callable
     :param args: positional arguments for the callable
-    :param cancellable: ``True`` to allow cancellation of the operation
-    :param limiter: capacity limiter to use to limit the total amount of threads running
+    :param cancellable: ``True`` to allow cancellation of the operation while it's running
+    :param limiter: capacity limiter to use to limit the total amount of processes running
         (if omitted, the default limiter is used)
     :return: an awaitable that yields the return value of the function.
 
@@ -114,8 +114,7 @@ async def run_sync_in_process(
             response = await buffered.receive_until(b'\n', 50)
             status, length = response.split(b' ')
             if status not in (b'RETURN', b'EXCEPTION'):
-                raise RuntimeError('Worker process returned unexpected response:',
-                                   response)
+                raise RuntimeError(f'Worker process returned unexpected response: {response!r}')
 
             pickled_response = await buffered.receive_exactly(int(length))
         except BaseException as exc:
