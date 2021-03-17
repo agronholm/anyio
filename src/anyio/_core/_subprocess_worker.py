@@ -1,7 +1,6 @@
 import os
 import pickle
 import sys
-from threading import Timer
 
 
 def process_worker():
@@ -14,18 +13,15 @@ def process_worker():
 
     stdout.buffer.write(b'READY\n')
     while True:
-        idle_timer = Timer(5 * 60, sys.exit)
         try:
             command, *args = pickle.load(stdin.buffer)
         except EOFError:
             return
         except BaseException as exc:
-            idle_timer.cancel()
             exception = exc
             status = b'EXCEPTION'
             pickled = pickle.dumps(exc, pickle.HIGHEST_PROTOCOL)
         else:
-            idle_timer.cancel()
             if command == 'run':
                 func, args = args
                 exception = retval = None
