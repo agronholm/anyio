@@ -404,7 +404,7 @@ class TestTCPListener:
 
                 client.close()
 
-    @pytest.mark.skipif(sys.platform == 'win32', reason='Not supported on Windows')
+    @pytest.mark.skipif(not hasattr(socket, "SO_REUSEPORT"), reason='SO_REUSEPORT option not supported')
     async def test_reuse_port(self, family):
         multi1 = await create_tcp_listener(local_host='localhost', family=family, reuse_port=True)
         assert len(multi1.listeners) == 1
@@ -829,7 +829,7 @@ class TestUDPSocket:
                     assert await client.receive() == (b'654321', (host, port))
                     tg.cancel_scope.cancel()
 
-    @pytest.mark.skipif(sys.platform == 'win32', reason='Not supported on Windows')
+    @pytest.mark.skipif(not hasattr(socket, "SO_REUSEPORT"), reason='SO_REUSEPORT option not supported')
     async def test_reuse_port(self, family):
         async with await create_udp_socket(family=family, local_host='localhost',
                                            reuse_port=True) as udp:
@@ -919,7 +919,7 @@ class TestConnectedUDPSocket:
                     assert await udp1.receive() == (b'654321', (host, port))
                     tg.cancel_scope.cancel()
 
-    @pytest.mark.skipif(sys.platform == 'win32', reason='Not supported on Windows')
+    @pytest.mark.skipif(not hasattr(socket, "SO_REUSEPORT"), reason='SO_REUSEPORT option not supported')
     async def test_reuse_port(self, family):
         async with await create_connected_udp_socket(
                 'localhost', 6000, family=family, local_host='localhost', reuse_port=True) as udp:
