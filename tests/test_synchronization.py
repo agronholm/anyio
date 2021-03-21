@@ -1,9 +1,8 @@
 import pytest
 
 from anyio import (
-    WouldBlock, create_capacity_limiter, create_condition, create_event, create_lock,
-    create_semaphore, create_task_group, current_default_worker_thread_limiter, open_cancel_scope,
-    wait_all_tasks_blocked)
+    Condition, Event, Lock, Semaphore, WouldBlock, create_task_group,
+    current_default_worker_thread_limiter, open_cancel_scope, wait_all_tasks_blocked)
 from anyio.abc import CapacityLimiter
 
 pytestmark = pytest.mark.anyio
@@ -17,7 +16,7 @@ class TestLock:
                 results.append('2')
 
         results = []
-        lock = create_lock()
+        lock = Lock()
         async with create_task_group() as tg:
             async with lock:
                 tg.spawn(task)
@@ -37,7 +36,7 @@ class TestLock:
                 lock.release()
 
         results = []
-        lock = create_lock()
+        lock = Lock()
         async with create_task_group() as tg:
             await lock.acquire()
             try:
@@ -51,7 +50,7 @@ class TestLock:
         assert results == ['1', '2']
 
     async def test_acquire_nowait(self):
-        lock = create_lock()
+        lock = Lock()
         lock.acquire_nowait()
         assert lock.locked()
 
@@ -59,7 +58,7 @@ class TestLock:
         async def try_lock():
             pytest.raises(WouldBlock, lock.acquire_nowait)
 
-        lock = create_lock()
+        lock = Lock()
         async with lock, create_task_group() as tg:
             assert lock.locked()
             tg.spawn(try_lock)
@@ -72,7 +71,7 @@ class TestLock:
                 got_lock = True
 
         task_started = got_lock = False
-        lock = create_lock()
+        lock = Lock()
         async with create_task_group() as tg:
             async with lock:
                 tg.spawn(task)
@@ -86,7 +85,7 @@ class TestLock:
             async with lock:
                 pass
 
-        lock = create_lock()
+        lock = Lock()
         async with create_task_group() as tg:
             assert not lock.statistics().locked
             assert lock.statistics().tasks_waiting == 0
@@ -108,7 +107,7 @@ class TestEvent:
             assert not event.is_set()
             event.set()
 
-        event = create_event()
+        event = Event()
         async with create_task_group() as tg:
             tg.spawn(setter)
             await event.wait()
@@ -123,7 +122,7 @@ class TestEvent:
             event_set = True
 
         task_started = event_set = False
-        event = create_event()
+        event = Event()
         async with create_task_group() as tg:
             tg.spawn(task)
             tg.cancel_scope.cancel()
@@ -136,7 +135,7 @@ class TestEvent:
         async def waiter():
             await event.wait()
 
-        event = create_event()
+        event = Event()
         async with create_task_group() as tg:
             assert event.statistics().tasks_waiting == 0
             for i in range(1, 3):
@@ -155,7 +154,7 @@ class TestCondition:
             async with condition:
                 condition.notify_all()
 
-        condition = create_condition()
+        condition = Condition()
         async with create_task_group() as tg:
             async with condition:
                 assert condition.locked()
@@ -170,7 +169,7 @@ class TestCondition:
             finally:
                 condition.release()
 
-        condition = create_condition()
+        condition = Condition()
         async with create_task_group() as tg:
             await condition.acquire()
             try:
@@ -181,7 +180,7 @@ class TestCondition:
                 condition.release()
 
     async def test_acquire_nowait(self):
-        condition = create_condition()
+        condition = Condition()
         condition.acquire_nowait()
         assert condition.locked()
 
@@ -189,7 +188,7 @@ class TestCondition:
         async def try_lock():
             pytest.raises(WouldBlock, condition.acquire_nowait)
 
-        condition = create_condition()
+        condition = Condition()
         async with condition, create_task_group() as tg:
             assert condition.locked()
             tg.spawn(try_lock)
@@ -204,8 +203,8 @@ class TestCondition:
                 notified = True
 
         task_started = notified = False
-        event = create_event()
-        condition = create_condition()
+        event = Event()
+        condition = Condition()
         async with create_task_group() as tg:
             tg.spawn(task)
             await event.wait()
@@ -220,7 +219,7 @@ class TestCondition:
             async with condition:
                 await condition.wait()
 
-        condition = create_condition()
+        condition = Condition()
         async with create_task_group() as tg:
             assert not condition.statistics().lock_statistics.locked
             assert condition.statistics().tasks_waiting == 0
@@ -250,7 +249,7 @@ class TestSemaphore:
             async with semaphore:
                 assert semaphore.value in (0, 1)
 
-        semaphore = create_semaphore(2)
+        semaphore = Semaphore(2)
         async with create_task_group() as tg:
             tg.spawn(acquire, name='task 1')
             tg.spawn(acquire, name='task 2')
@@ -265,7 +264,7 @@ class TestSemaphore:
             finally:
                 semaphore.release()
 
-        semaphore = create_semaphore(2)
+        semaphore = Semaphore(2)
         async with create_task_group() as tg:
             tg.spawn(acquire, name='task 1')
             tg.spawn(acquire, name='task 2')
@@ -273,7 +272,7 @@ class TestSemaphore:
         assert semaphore.value == 2
 
     async def test_acquire_nowait(self):
-        semaphore = create_semaphore(1)
+        semaphore = Semaphore(1)
         semaphore.acquire_nowait()
         assert semaphore.value == 0
         pytest.raises(WouldBlock, semaphore.acquire_nowait)
@@ -286,7 +285,7 @@ class TestSemaphore:
                     acquired = True
 
         local_scope = acquired = None
-        semaphore = create_semaphore(1)
+        semaphore = Semaphore(1)
         async with create_task_group() as tg:
             async with semaphore:
                 tg.spawn(task)
@@ -297,11 +296,11 @@ class TestSemaphore:
 
     @pytest.mark.parametrize('max_value', [2, None])
     async def test_max_value(self, max_value):
-        semaphore = create_semaphore(0, max_value=max_value)
+        semaphore = Semaphore(0, max_value=max_value)
         assert semaphore.max_value == max_value
 
     async def test_max_value_exceeded(self):
-        semaphore = create_semaphore(1, max_value=2)
+        semaphore = Semaphore(1, max_value=2)
         semaphore.release()
         pytest.raises(ValueError, semaphore.release)
 
@@ -310,7 +309,7 @@ class TestSemaphore:
             async with semaphore:
                 pass
 
-        semaphore = create_semaphore(1)
+        semaphore = Semaphore(1)
         async with create_task_group() as tg:
             assert semaphore.statistics().tasks_waiting == 0
             async with semaphore:
@@ -325,15 +324,15 @@ class TestSemaphore:
 
 class TestCapacityLimiter:
     async def test_bad_init_type(self):
-        pytest.raises(TypeError, create_capacity_limiter, 1.0).\
+        pytest.raises(TypeError, CapacityLimiter, 1.0).\
             match('total_tokens must be an int or math.inf')
 
     async def test_bad_init_value(self):
-        pytest.raises(ValueError, create_capacity_limiter, 0).\
+        pytest.raises(ValueError, CapacityLimiter, 0).\
             match('total_tokens must be >= 1')
 
     async def test_borrow(self):
-        limiter = create_capacity_limiter(2)
+        limiter = CapacityLimiter(2)
         assert limiter.total_tokens == 2
         assert limiter.available_tokens == 2
         assert limiter.borrowed_tokens == 0
@@ -353,13 +352,13 @@ class TestCapacityLimiter:
                     value = 0
 
         value = 0
-        limiter = create_capacity_limiter(1)
+        limiter = CapacityLimiter(1)
         async with create_task_group() as tg:
             for _ in range(3):
                 tg.spawn(taskfunc)
 
     async def test_borrow_twice(self):
-        limiter = create_capacity_limiter(1)
+        limiter = CapacityLimiter(1)
         await limiter.acquire()
         with pytest.raises(RuntimeError) as exc:
             await limiter.acquire()
@@ -367,7 +366,7 @@ class TestCapacityLimiter:
         exc.match("this borrower is already holding one of this CapacityLimiter's tokens")
 
     async def test_bad_release(self):
-        limiter = create_capacity_limiter(1)
+        limiter = CapacityLimiter(1)
         with pytest.raises(RuntimeError) as exc:
             limiter.release()
 
@@ -386,8 +385,8 @@ class TestCapacityLimiter:
                 event1.set()
                 await event2.wait()
 
-        limiter = create_capacity_limiter(1)
-        event1, event2 = create_event(), create_event()
+        limiter = CapacityLimiter(1)
+        event1, event2 = Event(), Event()
         async with create_task_group() as tg:
             tg.spawn(setter)
             tg.spawn(waiter)
@@ -408,7 +407,7 @@ class TestCapacityLimiter:
             async with limiter:
                 pass
 
-        limiter = create_capacity_limiter(1)
+        limiter = CapacityLimiter(1)
         assert limiter.statistics().total_tokens == 1
         assert limiter.statistics().borrowed_tokens == 0
         assert limiter.statistics().tasks_waiting == 0

@@ -8,13 +8,13 @@ from socket import AddressFamily, SocketKind
 from typing import Awaitable, List, Optional, Tuple, Union, cast, overload
 
 from ..abc import (
-    ConnectedUDPSocket, Event, IPAddressType, IPSockAddrType, SocketListener, SocketStream,
-    UDPSocket, UNIXSocketStream)
+    ConnectedUDPSocket, IPAddressType, IPSockAddrType, SocketListener, SocketStream, UDPSocket,
+    UNIXSocketStream)
 from ..streams.stapled import MultiListener
 from ..streams.tls import TLSStream
 from ._eventloop import get_asynclib
 from ._resources import aclose_forcefully
-from ._synchronization import create_event
+from ._synchronization import Event
 from ._tasks import create_task_group, move_on_after
 from ._threads import run_sync_in_worker_thread
 
@@ -172,7 +172,7 @@ async def connect_tcp(
     oserrors: List[OSError] = []
     async with create_task_group() as tg:
         for i, (af, addr) in enumerate(target_addrs):
-            event = create_event()
+            event = Event()
             tg.spawn(try_connect, addr, event)
             with move_on_after(happy_eyeballs_delay):
                 await event.wait()

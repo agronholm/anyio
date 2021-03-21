@@ -39,6 +39,14 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
   See the :doc:`migration documentation <migration>` for instructions on how to deal with these
   changes.
+- The following functions and methods have been deprecated:
+
+  * ``create_capacity_limiter()`` → ``anyio.Event()``
+  * ``create_event()`` → ``anyio.Event()``
+  * ``create_lock()`` → ``anyio.Lock()``
+  * ``create_condition()`` → ``anyio.Condition()``
+  * ``create_semaphore()`` → ``anyio.Semaphore()``
+  * ``CapacityLimiter.set_total_tokens()`` → ``limiter.total_tokens = ...``
 - **BACKWARDS INCOMPATIBLE** The ``CapacityLimiter.set_total_tokens()`` method has been removed in
   exchange of making the ``total_tokens`` property writable
 - **BACKWARDS INCOMPATIBLE** ``start_blocking_portal()`` must now be used as a context manager (it

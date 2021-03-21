@@ -6,8 +6,7 @@ from threading import Thread
 import pytest
 
 from anyio import (
-    BrokenResourceError, EndOfStream, connect_tcp, create_event, create_task_group,
-    create_tcp_listener)
+    BrokenResourceError, EndOfStream, Event, connect_tcp, create_task_group, create_tcp_listener)
 from anyio.abc import AnyByteStream, SocketAttribute, SocketStream
 from anyio.streams.tls import TLSAttribute, TLSListener, TLSStream
 
@@ -269,7 +268,7 @@ class TestTLSListener:
                 event.set()
 
         exception = None
-        event = create_event()
+        event = Event()
         listener = await create_tcp_listener(local_host='127.0.0.1')
         tls_listener = CustomTLSListener(listener, server_context)
         async with tls_listener, create_task_group() as tg:

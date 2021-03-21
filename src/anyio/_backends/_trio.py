@@ -20,6 +20,8 @@ from .._core._exceptions import (
     BrokenResourceError, BusyResourceError, ClosedResourceError, EndOfStream)
 from .._core._exceptions import ExceptionGroup as BaseExceptionGroup
 from .._core._sockets import convert_ipv6_sockaddr
+from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
+from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import ResourceGuard
 from ..abc import IPSockAddrType, UDPPacketType
 
@@ -530,7 +532,10 @@ async def wait_socket_writable(sock):
 # Synchronization
 #
 
-class Event(abc.Event):
+class Event(BaseEvent):
+    def __new__(cls):
+        return object.__new__(cls)
+
     def __init__(self):
         self.__original = trio.Event()
 
@@ -548,9 +553,12 @@ class Event(abc.Event):
         return DeprecatedAwaitable(self.set)
 
 
-class CapacityLimiter(abc.CapacityLimiter):
-    def __init__(self, *args, original: Optional[trio.CapacityLimiter] = None, **kwargs):
-        self.__original = original or trio.CapacityLimiter(*args, **kwargs)
+class CapacityLimiter(BaseCapacityLimiter):
+    def __new__(cls, *args, **kwargs):
+        return object.__new__(cls)
+
+    def __init__(self, *args, original: Optional[trio.CapacityLimiter] = None):
+        self.__original = original or trio.CapacityLimiter(*args)
 
     async def __aenter__(self):
         return await self.__original.__aenter__()
