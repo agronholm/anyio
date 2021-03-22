@@ -29,6 +29,8 @@ from .._core._exceptions import (
 from .._core._exceptions import ExceptionGroup as BaseExceptionGroup
 from .._core._exceptions import WouldBlock
 from .._core._sockets import GetAddrInfoReturnType, convert_ipv6_sockaddr
+from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
+from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import ResourceGuard
 from ..abc import IPSockAddrType, UDPPacketType
 from ..lowlevel import RunVar
@@ -1475,7 +1477,10 @@ async def wait_socket_writable(sock: socket.SocketType) -> None:
 # Synchronization
 #
 
-class Event(abc.Event):
+class Event(BaseEvent):
+    def __new__(cls):
+        return object.__new__(cls)
+
     def __init__(self):
         self._event = asyncio.Event()
 
@@ -1494,8 +1499,11 @@ class Event(abc.Event):
         return EventStatistics(len(self._event._waiters))
 
 
-class CapacityLimiter(abc.CapacityLimiter):
+class CapacityLimiter(BaseCapacityLimiter):
     _total_tokens: float = 0
+
+    def __new__(cls, total_tokens: float):
+        return object.__new__(cls)
 
     def __init__(self, total_tokens: float):
         self._borrowers: Set[Any] = set()

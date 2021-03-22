@@ -8,7 +8,7 @@ from typing import (
     Any, AsyncContextManager, Callable, ContextManager, Coroutine, Dict, Optional, Tuple, Type,
     TypeVar, cast, overload)
 
-from ..abc import Event
+from .._core._synchronization import Event
 from ._tasks import TaskStatus
 
 T_Retval = TypeVar('T_Retval')
@@ -27,10 +27,8 @@ class _BlockingAsyncContextManager(AbstractContextManager):
         self._portal = portal
 
     async def run_async_cm(self):
-        from .._core._synchronization import create_event
-
         try:
-            self._exit_event = create_event()
+            self._exit_event = Event()
             value = await self._async_cm.__aenter__()
         except BaseException as exc:
             self._enter_future.set_exception(exc)
@@ -69,10 +67,10 @@ class BlockingPortal(metaclass=ABCMeta):
     __slots__ = '_task_group', '_event_loop_thread_id', '_stop_event', '_cancelled_exc_class'
 
     def __init__(self):
-        from .. import create_event, create_task_group, get_cancelled_exc_class
+        from .. import create_task_group, get_cancelled_exc_class
 
         self._event_loop_thread_id = threading.get_ident()
-        self._stop_event = create_event()
+        self._stop_event = Event()
         self._task_group = create_task_group()
         self._cancelled_exc_class = get_cancelled_exc_class()
 

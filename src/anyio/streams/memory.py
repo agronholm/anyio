@@ -5,7 +5,6 @@ from typing import Deque, Generic, List, NamedTuple, TypeVar
 from .. import (
     BrokenResourceError, ClosedResourceError, EndOfStream, WouldBlock, get_cancelled_exc_class)
 from .._core._compat import DeprecatedAwaitable
-from .._core._synchronization import create_event
 from ..abc import Event, ObjectReceiveStream, ObjectSendStream
 from ..lowlevel import checkpoint
 
@@ -79,7 +78,7 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
             return self.receive_nowait()
         except WouldBlock:
             # Add ourselves in the queue
-            receive_event = create_event()
+            receive_event = Event()
             container: List[T_Item] = []
             self._state.waiting_receivers[receive_event] = container
 
@@ -173,7 +172,7 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
             self.send_nowait(item)
         except WouldBlock:
             # Wait until there's someone on the receiving end
-            send_event = create_event()
+            send_event = Event()
             self._state.waiting_senders[send_event] = item
             try:
                 await send_event.wait()

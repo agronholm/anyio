@@ -8,9 +8,9 @@ from contextlib import suppress
 import pytest
 
 from anyio import (
-    create_blocking_portal, create_capacity_limiter, create_event, create_task_group,
-    get_cancelled_exc_class, get_current_task, run, run_async_from_thread, run_sync_from_thread,
-    run_sync_in_worker_thread, sleep, start_blocking_portal, wait_all_tasks_blocked)
+    CapacityLimiter, Event, create_blocking_portal, create_task_group, get_cancelled_exc_class,
+    get_current_task, run, run_async_from_thread, run_sync_from_thread, run_sync_in_worker_thread,
+    sleep, start_blocking_portal, wait_all_tasks_blocked)
 
 if sys.version_info < (3, 7):
     current_task = asyncio.Task.current_task
@@ -147,7 +147,7 @@ async def test_run_in_custom_limiter():
 
     event = threading.Event()
     num_active_threads = max_active_threads = 0
-    limiter = create_capacity_limiter(3)
+    limiter = CapacityLimiter(3)
     async with create_task_group() as tg:
         for _ in range(4):
             tg.spawn(task_worker)
@@ -201,8 +201,8 @@ async def test_cancel_worker_thread(cancellable, expected_last_active):
         finally:
             last_active = 'task'
 
-    sleep_event = create_event()
-    finish_event = create_event()
+    sleep_event = Event()
+    finish_event = Event()
     last_active = None
     async with create_task_group() as tg:
         tg.spawn(task_worker)
@@ -343,8 +343,8 @@ class TestBlockingPortal:
             return 'test'
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
-            event1 = portal.call(create_event)
-            event2 = portal.call(create_event)
+            event1 = portal.call(Event)
+            event2 = portal.call(Event)
             future = portal.spawn_task(event_waiter)
             portal.call(event1.set)
             portal.call(event2.wait)

@@ -407,7 +407,7 @@ async def test_fail_after_no_timeout():
 
 
 async def test_fail_after_after_cancellation():
-    event = anyio.create_event()
+    event = anyio.Event()
     async with anyio.create_task_group() as tg:
         tg.cancel_scope.cancel()
         await event.wait()
@@ -828,7 +828,7 @@ async def test_task_in_sync_spawn_callback():
 
 async def test_shielded_cancel_sleep_time():
     """Test that cancelling a shielded tasks spends more time sleeping than cancelling."""
-    event = anyio.create_event()
+    event = anyio.Event()
     hang_time = 0.2
 
     async def set_event():
