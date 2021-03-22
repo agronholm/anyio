@@ -75,7 +75,7 @@ Example::
 
 
     async def main():
-        event = Lock()
+        event = Event()
         async with create_task_group() as tg:
             tg.spawn(notify, event)
             await event.wait()
