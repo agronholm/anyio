@@ -1,4 +1,3 @@
-from abc import ABCMeta, abstractmethod
 from collections import deque
 from dataclasses import dataclass
 from types import TracebackType
@@ -79,19 +78,24 @@ class Event:
 
     def set(self) -> DeprecatedAwaitable:
         """Set the flag, notifying all listeners."""
+        raise NotImplementedError
 
     def is_set(self) -> bool:
         """Return ``True`` if the flag is set, ``False`` if not."""
+        raise NotImplementedError
 
     async def wait(self) -> bool:
         """
         Wait until the flag has been set.
 
         If the flag has already been set when this method is called, it returns immediately.
+
         """
+        raise NotImplementedError
 
     def statistics(self) -> EventStatistics:
         """Return statistics about the current state of this event."""
+        raise NotImplementedError
 
 
 class Lock:
@@ -342,22 +346,19 @@ class Semaphore:
         return SemaphoreStatistics(len(self._waiters))
 
 
-class CapacityLimiter(metaclass=ABCMeta):
+class CapacityLimiter:
     def __new__(cls, total_tokens: float):
         return get_asynclib().CapacityLimiter(total_tokens)
 
-    @abstractmethod
     async def __aenter__(self):
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
     async def __aexit__(self, exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> Optional[bool]:
-        pass
+        raise NotImplementedError
 
     @property
-    @abstractmethod
     def total_tokens(self) -> float:
         """
         The total number of tokens available for borrowing.
@@ -367,7 +368,9 @@ class CapacityLimiter(metaclass=ABCMeta):
 
         .. versionchanged:: 3.0
             The property is now writable.
+
         """
+        raise NotImplementedError
 
     @total_tokens.setter
     def total_tokens(self, value: float) -> None:
@@ -379,68 +382,75 @@ class CapacityLimiter(metaclass=ABCMeta):
         self.total_tokens = value
 
     @property
-    @abstractmethod
     def borrowed_tokens(self) -> int:
         """The number of tokens that have currently been borrowed."""
+        raise NotImplementedError
 
     @property
-    @abstractmethod
     def available_tokens(self) -> float:
         """The number of tokens currently available to be borrowed"""
+        raise NotImplementedError
 
-    @abstractmethod
     def acquire_nowait(self) -> DeprecatedAwaitable:
         """
         Acquire a token for the current task without waiting for one to become available.
 
         :raises ~anyio.WouldBlock: if there are no tokens available for borrowing
-        """
 
-    @abstractmethod
+        """
+        raise NotImplementedError
+
     def acquire_on_behalf_of_nowait(self, borrower) -> DeprecatedAwaitable:
         """
         Acquire a token without waiting for one to become available.
 
         :param borrower: the entity borrowing a token
         :raises ~anyio.WouldBlock: if there are no tokens available for borrowing
-        """
 
-    @abstractmethod
+        """
+        raise NotImplementedError
+
     async def acquire(self) -> None:
         """
         Acquire a token for the current task, waiting if necessary for one to become available.
-        """
 
-    @abstractmethod
+        """
+        raise NotImplementedError
+
     async def acquire_on_behalf_of(self, borrower) -> None:
         """
         Acquire a token, waiting if necessary for one to become available.
 
         :param borrower: the entity borrowing a token
-        """
 
-    @abstractmethod
+        """
+        raise NotImplementedError
+
     def release(self) -> None:
         """
         Release the token held by the current task.
         :raises RuntimeError: if the current task has not borrowed a token from this limiter.
-        """
 
-    @abstractmethod
+        """
+        raise NotImplementedError
+
     def release_on_behalf_of(self, borrower) -> None:
         """
         Release the token held by the given borrower.
 
         :raises RuntimeError: if the borrower has not borrowed a token from this limiter.
-        """
 
-    @abstractmethod
+        """
+        raise NotImplementedError
+
     def statistics(self) -> CapacityLimiterStatistics:
         """
         Return statistics about the current state of this limiter.
 
         .. versionadded:: 3.0
+
         """
+        raise NotImplementedError
 
 
 def create_lock() -> Lock:
