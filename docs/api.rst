@@ -145,6 +145,12 @@ Synchronization
 .. autoclass:: anyio.ConditionStatistics
 .. autoclass:: anyio.CapacityLimiterStatistics
 
+.. autofunction:: anyio.create_event
+.. autofunction:: anyio.create_lock
+.. autofunction:: anyio.create_condition
+.. autofunction:: anyio.create_semaphore
+.. autofunction:: anyio.create_capacity_limiter
+
 Operating system signals
 ------------------------
 

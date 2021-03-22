@@ -459,6 +459,9 @@ def create_lock() -> Lock:
 
     :return: a lock object
 
+    .. deprecated:: 3.0
+       Use :class:`~Lock` directly.
+
     """
     warn('create_lock() is deprecated -- use Lock() directly', DeprecationWarning)
     return Lock()
@@ -471,6 +474,9 @@ def create_condition(lock: Optional[Lock] = None) -> Condition:
     :param lock: the lock to base the condition object on
     :return: a condition object
 
+    .. deprecated:: 3.0
+       Use :class:`~Condition` directly.
+
     """
     warn('create_condition() is deprecated -- use Condition() directly', DeprecationWarning)
     return Condition(lock=lock)
@@ -481,6 +487,9 @@ def create_event() -> Event:
     Create an asynchronous event object.
 
     :return: an event object
+
+    .. deprecated:: 3.0
+       Use :class:`~Event` directly.
 
     """
     warn('create_event() is deprecated -- use Event() directly', DeprecationWarning)
@@ -496,6 +505,9 @@ def create_semaphore(value: int, *, max_value: Optional[int] = None) -> Semaphor
         semaphore's value would exceed this number
     :return: a semaphore object
 
+    .. deprecated:: 3.0
+       Use :class:`~Semaphore` directly.
+
     """
     warn('create_semaphore() is deprecated -- use Semaphore() directly', DeprecationWarning)
     return Semaphore(value, max_value=max_value)
@@ -508,6 +520,9 @@ def create_capacity_limiter(total_tokens: float) -> CapacityLimiter:
     :param total_tokens: the total number of tokens available for borrowing (can be an integer or
         :data:`math.inf`)
     :return: a capacity limiter object
+
+    .. deprecated:: 3.0
+       Use :class:`~CapacityLimiter` directly.
 
     """
     warn('create_capacity_limiter() is deprecated -- use CapacityLimiter() directly',
