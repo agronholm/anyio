@@ -18,13 +18,14 @@ from ._streams import (
     ByteStream, Listener, ObjectReceiveStream, ObjectSendStream, ObjectStream,
     UnreliableObjectReceiveStream, UnreliableObjectSendStream, UnreliableObjectStream)
 from ._subprocesses import Process
-from ._tasks import CancelScope, TaskGroup, TaskStatus
+from ._tasks import TaskGroup, TaskStatus
 from ._testing import TestRunner
 from ._threads import BlockingPortal
 
 # Re-exported here, for backwards compatibility
 # isort: off
 from .._core._synchronization import CapacityLimiter, Condition, Event, Lock, Semaphore
+from .._core._tasks import CancelScope
 
 # Re-export imports so they look like they live directly in this package
 for key, value in list(locals().items()):

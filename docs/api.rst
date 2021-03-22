@@ -33,7 +33,7 @@ Timeouts and cancellation
 .. autofunction:: anyio.fail_after
 .. autofunction:: anyio.current_effective_deadline
 
-.. autoclass:: anyio.abc.CancelScope
+.. autoclass:: anyio.CancelScope
 
 Task groups
 -----------

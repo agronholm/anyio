@@ -8,7 +8,7 @@ from ..lowlevel import checkpoint
 from ._compat import DeprecatedAwaitable
 from ._eventloop import get_asynclib
 from ._exceptions import BusyResourceError, WouldBlock
-from ._tasks import open_cancel_scope
+from ._tasks import CancelScope
 from ._testing import TaskInfo, get_current_task
 
 
@@ -250,7 +250,7 @@ class Condition:
 
             raise
         finally:
-            with open_cancel_scope(shield=True):
+            with CancelScope(shield=True):
                 await self.acquire()
 
     def statistics(self) -> ConditionStatistics:

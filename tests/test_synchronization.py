@@ -1,8 +1,8 @@
 import pytest
 
 from anyio import (
-    Condition, Event, Lock, Semaphore, WouldBlock, create_task_group,
-    current_default_worker_thread_limiter, open_cancel_scope, wait_all_tasks_blocked)
+    CancelScope, Condition, Event, Lock, Semaphore, WouldBlock, create_task_group,
+    current_default_worker_thread_limiter, wait_all_tasks_blocked)
 from anyio.abc import CapacityLimiter
 
 pytestmark = pytest.mark.anyio
@@ -280,7 +280,7 @@ class TestSemaphore:
     async def test_acquire_cancel(self):
         async def task():
             nonlocal local_scope, acquired
-            with open_cancel_scope() as local_scope:
+            with CancelScope() as local_scope:
                 async with semaphore:
                     acquired = True
 

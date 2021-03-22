@@ -4,21 +4,21 @@ import sys
 import pytest
 
 from anyio import (
-    CapacityLimiter, Condition, Event, Lock, Semaphore, TaskInfo, create_memory_object_stream,
-    create_task_group, current_effective_deadline, current_time, fail_after, get_current_task,
-    get_running_tasks, maybe_async, maybe_async_cm, move_on_after, open_cancel_scope,
+    CancelScope, CapacityLimiter, Condition, Event, Lock, Semaphore, TaskInfo,
+    create_memory_object_stream, create_task_group, current_effective_deadline, current_time,
+    fail_after, get_current_task, get_running_tasks, maybe_async, maybe_async_cm, move_on_after,
     open_signal_receiver, sleep)
 
 pytestmark = pytest.mark.anyio
 
 
 async def test_maybe_async():
-    with open_cancel_scope() as scope:
+    with CancelScope() as scope:
         await maybe_async(scope.cancel())
 
 
 async def test_maybe_async_cm():
-    async with maybe_async_cm(open_cancel_scope()):
+    async with maybe_async_cm(CancelScope()):
         pass
 
 
@@ -56,7 +56,7 @@ class TestDeprecations:
                 pass
 
     async def test_cancelscope_cancel(self):
-        with open_cancel_scope() as scope:
+        with CancelScope() as scope:
             with pytest.deprecated_call():
                 await scope.cancel()
 

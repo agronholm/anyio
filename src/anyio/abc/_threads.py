@@ -110,7 +110,7 @@ class BlockingPortal(metaclass=ABCMeta):
 
     async def _call_func(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
                          future: Future) -> None:
-        from .._core._tasks import open_cancel_scope
+        from .._core._tasks import CancelScope
 
         def callback(f: Future):
             if f.cancelled():
@@ -119,7 +119,7 @@ class BlockingPortal(metaclass=ABCMeta):
         try:
             retval = func(*args, **kwargs)
             if iscoroutine(retval):
-                with open_cancel_scope() as scope:
+                with CancelScope() as scope:
                     if future.cancelled():
                         scope.cancel()
                     else:

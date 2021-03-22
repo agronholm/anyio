@@ -10,7 +10,7 @@ __all__ = ('maybe_async', 'maybe_async_cm', 'run', 'sleep', 'current_time', 'get
            'ConditionStatistics', 'Event', 'EventStatistics', 'Lock', 'LockStatistics',
            'Semaphore', 'SemaphoreStatistics', 'create_condition', 'create_event',
            'create_semaphore', 'create_capacity_limiter', 'open_cancel_scope', 'fail_after',
-           'move_on_after', 'current_effective_deadline', 'TASK_STATUS_IGNORED',
+           'move_on_after', 'current_effective_deadline', 'TASK_STATUS_IGNORED', 'CancelScope',
            'create_task_group', 'TaskInfo', 'get_current_task', 'get_running_tasks',
            'wait_all_tasks_blocked', 'run_sync_in_worker_thread', 'run_async_from_thread',
            'run_sync_from_thread', 'current_default_worker_thread_limiter',
@@ -35,8 +35,8 @@ from ._core._synchronization import (
     EventStatistics, Lock, LockStatistics, Semaphore, SemaphoreStatistics, create_capacity_limiter,
     create_condition, create_event, create_lock, create_semaphore)
 from ._core._tasks import (
-    TASK_STATUS_IGNORED, create_task_group, current_effective_deadline, fail_after, move_on_after,
-    open_cancel_scope)
+    TASK_STATUS_IGNORED, CancelScope, create_task_group, current_effective_deadline, fail_after,
+    move_on_after, open_cancel_scope)
 from ._core._testing import TaskInfo, get_current_task, get_running_tasks, wait_all_tasks_blocked
 from ._core._threads import (
     create_blocking_portal, current_default_worker_thread_limiter, run_async_from_thread,
