@@ -11,28 +11,32 @@
   :target: https://gitter.im/python-trio/AnyIO
   :alt: Gitter chat
 
-AnyIO is a asynchronous compatibility API that allows applications and libraries written against
-it to run unmodified on either asyncio_ or trio_.
+AnyIO is an asynchronous networking and concurrency library that works on top of either asyncio_ or
+trio_. It implements trio-like `structured concurrency`_ on top of asyncio, and works in harmony
+with the native SC of trio itself.
 
-It bridges the following functionality:
+Applications and libraries written against AnyIO's API will run unmodified on either asyncio_ or
+trio_. AnyIO can also be adopted into a library or application incrementally – bit by bit, no full
+refactoring necessary. It will blend in with native libraries of your chosen backend.
 
-* Task groups
-* Cancellation
-* Threads
-* Signal handling
-* Asynchronous file I/O
-* Subprocesses
+AnyIO offers the following functionality:
+
+* Task groups (nurseries_ in trio terminology)
+* High level networking (TCP, UDP and UNIX sockets)
+* A versatile API for byte streams and object streams
 * Inter-task synchronization and communication (locks, conditions, events, semaphores, object
   streams)
-* High level networking (TCP, UDP and UNIX sockets)
+* Worker threads
+* Subprocesses
+* Asynchronous file I/O (using worker threads)
+* Signal handling
 
-You can even use it together with native libraries from your selected backend in applications.
-Doing this in libraries is not advisable however since it limits the usefulness of your library.
-
-AnyIO comes with its own pytest_ plugin which also supports asynchronous fixtures.
+AnyIO also comes with its own pytest_ plugin which also supports asynchronous fixtures.
 It even works with the popular Hypothesis_ library.
 
 .. _asyncio: https://docs.python.org/3/library/asyncio.html
 .. _trio: https://github.com/python-trio/trio
+.. _structured concurrency: https://en.wikipedia.org/wiki/Structured_concurrency
+.. _nurseries: https://trio.readthedocs.io/en/stable/reference-core.html#nurseries-and-spawning
 .. _pytest: https://docs.pytest.org/en/latest/
 .. _Hypothesis: https://hypothesis.works/
