@@ -60,6 +60,11 @@ class TestDeprecations:
             with pytest.deprecated_call():
                 await scope.cancel()
 
+    async def test_taskgroup_cancel(self):
+        async with create_task_group() as tg:
+            with pytest.deprecated_call():
+                await tg.cancel_scope.cancel()
+
     async def test_capacitylimiter_acquire_nowait(self):
         limiter = create_capacity_limiter(1)
         with pytest.deprecated_call():
