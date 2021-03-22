@@ -112,7 +112,7 @@ class TaskGroup(abc.TaskGroup):
     async def __aenter__(self):
         self._active = True
         self._nursery = await self._nursery_manager.__aenter__()
-        self.cancel_scope = self._nursery.cancel_scope
+        self.cancel_scope = CancelScope(self._nursery.cancel_scope)
         return self
 
     async def __aexit__(self, exc_type: Optional[Type[BaseException]],
