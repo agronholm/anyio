@@ -5,13 +5,13 @@ import sys
 from subprocess import DEVNULL, PIPE, CalledProcessError, CompletedProcess
 from typing import Callable, Optional, Sequence, Set, TypeVar, Union, cast
 
-from ..abc import ByteReceiveStream, ByteSendStream, CapacityLimiter, Process
+from ..abc import ByteReceiveStream, ByteSendStream, Process
 from ..lowlevel import RunVar, checkpoint_if_cancelled
 from ..streams.buffered import BufferedByteReceiveStream
 from ._eventloop import get_asynclib, get_cancelled_exc_class
 from ._exceptions import BrokenWorkerProcess
-from ._synchronization import create_capacity_limiter
-from ._tasks import create_task_group, fail_after, open_cancel_scope
+from ._synchronization import CapacityLimiter
+from ._tasks import CancelScope, create_task_group, fail_after
 
 T_Retval = TypeVar('T_Retval')
 _process_pool_workers: RunVar[Set[Process]] = RunVar('_process_pool_workers')
@@ -186,7 +186,7 @@ async def run_sync_in_process(
 
             workers.add(process)
 
-        with open_cancel_scope(shield=not cancellable):
+        with CancelScope(shield=not cancellable):
             try:
                 return await send_raw_command(request)
             finally:
@@ -204,6 +204,6 @@ def current_default_worker_process_limiter() -> CapacityLimiter:
     try:
         return _default_process_limiter.get()
     except LookupError:
-        limiter = create_capacity_limiter(os.cpu_count() or 2)
+        limiter = CapacityLimiter(os.cpu_count() or 2)
         _default_process_limiter.set(limiter)
         return limiter
