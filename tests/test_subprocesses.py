@@ -9,8 +9,8 @@ from textwrap import dedent
 import pytest
 
 from anyio import (
-    create_task_group, fail_after, open_cancel_scope, open_process, run_process,
-    run_sync_in_process, wait_all_tasks_blocked)
+    CancelScope, create_task_group, fail_after, open_process, run_process, run_sync_in_process,
+    wait_all_tasks_blocked)
 from anyio._core._subprocesses import _process_pool_workers
 from anyio.streams.buffered import BufferedByteReceiveStream
 
@@ -107,7 +107,7 @@ class TestProcessPool:
         process to be reserved.
 
         """
-        with open_cancel_scope() as scope:
+        with CancelScope() as scope:
             scope.cancel()
             await run_sync_in_process(os.getpid)
 
