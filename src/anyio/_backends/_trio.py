@@ -293,9 +293,12 @@ async def _shutdown_process_pool(workers: Set[Process]) -> None:
             if process.returncode is None:
                 process.kill()
 
-        for process in workers:
-            if process.returncode is None:
-                await process.wait()
+        with CancelScope(shield=True):
+            for process in workers:
+                if process.returncode is None:
+                    await process.wait()
+
+                await process.aclose()
 
 
 def setup_process_pool_exit_at_shutdown(workers: Set[Process]) -> None:
