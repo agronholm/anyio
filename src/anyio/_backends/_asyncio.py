@@ -224,7 +224,7 @@ CancelledError = asyncio.CancelledError
 
 
 class CancelScope(BaseCancelScope, DeprecatedAsyncContextManager):
-    def __new__(cls, *, shield: bool = False, deadline: float = math.inf):
+    def __new__(cls, *, deadline: float = math.inf, shield: bool = False):
         return object.__new__(cls)
 
     def __init__(self, deadline: float = math.inf, shield: bool = False):
