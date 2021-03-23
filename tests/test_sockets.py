@@ -3,18 +3,19 @@ import os
 import platform
 import socket
 import sys
+import threading
 import time
 from contextlib import suppress
 from ssl import SSLError
-from threading import Event, Thread
+from threading import Thread
 
 import pytest
 
 from anyio import (
-    BrokenResourceError, BusyResourceError, ClosedResourceError, ExceptionGroup,
+    BrokenResourceError, BusyResourceError, ClosedResourceError, Event, ExceptionGroup,
     TypedAttributeLookupError, connect_tcp, connect_unix, create_connected_udp_socket,
-    create_event, create_task_group, create_tcp_listener, create_udp_socket, create_unix_listener,
-    fail_after, getaddrinfo, getnameinfo, move_on_after, sleep, wait_all_tasks_blocked)
+    create_task_group, create_tcp_listener, create_udp_socket, create_unix_listener, fail_after,
+    getaddrinfo, getnameinfo, move_on_after, sleep, wait_all_tasks_blocked)
 from anyio.abc import SocketAttribute
 from anyio.streams.stapled import MultiListener
 
@@ -133,7 +134,7 @@ class TestTCPStream:
             client.sendall(b'ah')
             client.close()
 
-        event = Event()
+        event = threading.Event()
         thread = Thread(target=serve, daemon=True)
         thread.start()
         chunks = []
@@ -404,7 +405,8 @@ class TestTCPListener:
 
                 client.close()
 
-    @pytest.mark.skipif(sys.platform == 'win32', reason='Not supported on Windows')
+    @pytest.mark.skipif(not hasattr(socket, "SO_REUSEPORT"),
+                        reason='SO_REUSEPORT option not supported')
     async def test_reuse_port(self, family):
         multi1 = await create_tcp_listener(local_host='localhost', family=family, reuse_port=True)
         assert len(multi1.listeners) == 1
@@ -772,7 +774,7 @@ async def test_multi_listener(tmp_path_factory):
         async with create_task_group() as tg:
             tg.spawn(multi_listener.serve, handle)
             for listener in multi_listener.listeners:
-                event = create_event()
+                event = Event()
                 local_address = listener.extra(SocketAttribute.local_address)
                 if sys.platform != 'win32' and listener.extra(SocketAttribute.family) == \
                         socket.AddressFamily.AF_UNIX:
@@ -829,7 +831,8 @@ class TestUDPSocket:
                     assert await client.receive() == (b'654321', (host, port))
                     tg.cancel_scope.cancel()
 
-    @pytest.mark.skipif(sys.platform == 'win32', reason='Not supported on Windows')
+    @pytest.mark.skipif(not hasattr(socket, "SO_REUSEPORT"),
+                        reason='SO_REUSEPORT option not supported')
     async def test_reuse_port(self, family):
         async with await create_udp_socket(family=family, local_host='localhost',
                                            reuse_port=True) as udp:
@@ -919,7 +922,8 @@ class TestConnectedUDPSocket:
                     assert await udp1.receive() == (b'654321', (host, port))
                     tg.cancel_scope.cancel()
 
-    @pytest.mark.skipif(sys.platform == 'win32', reason='Not supported on Windows')
+    @pytest.mark.skipif(not hasattr(socket, "SO_REUSEPORT"),
+                        reason='SO_REUSEPORT option not supported')
     async def test_reuse_port(self, family):
         async with await create_connected_udp_socket(
                 'localhost', 6000, family=family, local_host='localhost', reuse_port=True) as udp:

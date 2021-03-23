@@ -34,11 +34,20 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
   * ``fail_after()``
   * ``move_on_after()``
-  * ``open_cancel_scope()``
+  * ``open_cancel_scope()`` (now just ``CancelScope()``; see below)
   * ``open_signal_receiver()``
 
   See the :doc:`migration documentation <migration>` for instructions on how to deal with these
   changes.
+- The following functions and methods have been deprecated:
+
+  * ``create_capacity_limiter()`` → ``anyio.Event()``
+  * ``create_event()`` → ``anyio.Event()``
+  * ``create_lock()`` → ``anyio.Lock()``
+  * ``create_condition()`` → ``anyio.Condition()``
+  * ``create_semaphore()`` → ``anyio.Semaphore()``
+  * ``open_cancel_scope()`` → ``anyio.CancelScope()``
+  * ``CapacityLimiter.set_total_tokens()`` → ``limiter.total_tokens = ...``
 - **BACKWARDS INCOMPATIBLE** The ``CapacityLimiter.set_total_tokens()`` method has been removed in
   exchange of making the ``total_tokens`` property writable
 - **BACKWARDS INCOMPATIBLE** ``start_blocking_portal()`` must now be used as a context manager (it
@@ -97,7 +106,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``NotImplementedError``
 - Fixed ``open_signal_receiver()`` on asyncio and curio hanging if the cancel scope was cancelled
   before the function could run
-- Fixed Trio test runner causing unwarranted test errors on ``BaseException``s
+- Fixed Trio test runner causing unwarranted test errors on ``BaseException``
   (PR by Matthias Urlichs)
 - Fixed formatted output of ``ExceptionGroup`` containing too many newlines
 

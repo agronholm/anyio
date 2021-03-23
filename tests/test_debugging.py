@@ -5,7 +5,7 @@ import pytest
 
 import anyio
 from anyio import (
-    create_event, create_task_group, get_current_task, get_running_tasks, wait_all_tasks_blocked)
+    Event, create_task_group, get_current_task, get_running_tasks, wait_all_tasks_blocked)
 
 pytestmark = pytest.mark.anyio
 
@@ -35,7 +35,7 @@ async def test_get_running_tasks():
         task_infos[:] = sorted(new_tasks, key=lambda info: info.name or '')
         event.set()
 
-    event = create_event()
+    event = Event()
     task_infos = []
     host_task = get_current_task()
     async with create_task_group() as tg:

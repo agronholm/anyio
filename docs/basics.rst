@@ -67,9 +67,6 @@ Asyncio:
 * ``policy`` (``AbstractEventLoopPolicy``, default=None): the event loop policy instance to use
   for creating a new event loop (overrides ``use_uvloop``)
 
-Curio: options covered in the
-`official documentation <https://curio.readthedocs.io/en/latest/reference.html#run>`_
-
 Trio: options covered in the
 `official documentation <https://trio.readthedocs.io/en/stable/reference-core.html#trio.run>`_
 

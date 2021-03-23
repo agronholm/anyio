@@ -33,7 +33,7 @@ Timeouts and cancellation
 .. autofunction:: anyio.fail_after
 .. autofunction:: anyio.current_effective_deadline
 
-.. autoclass:: anyio.abc.CancelScope
+.. autoclass:: anyio.CancelScope
 
 Task groups
 -----------
@@ -134,23 +134,22 @@ Subprocesses
 Synchronization
 ---------------
 
-.. autofunction:: anyio.create_event
-.. autofunction:: anyio.create_lock
-.. autofunction:: anyio.create_condition
-.. autofunction:: anyio.create_semaphore
-.. autofunction:: anyio.create_capacity_limiter
-
-
-.. autoclass:: anyio.abc.Event
-.. autoclass:: anyio.abc.Lock
-.. autoclass:: anyio.abc.Condition
-.. autoclass:: anyio.abc.Semaphore
-.. autoclass:: anyio.abc.CapacityLimiter
+.. autoclass:: anyio.Event
+.. autoclass:: anyio.Lock
+.. autoclass:: anyio.Condition
+.. autoclass:: anyio.Semaphore
+.. autoclass:: anyio.CapacityLimiter
 
 .. autoclass:: anyio.LockStatistics
 .. autoclass:: anyio.EventStatistics
 .. autoclass:: anyio.ConditionStatistics
 .. autoclass:: anyio.CapacityLimiterStatistics
+
+.. autofunction:: anyio.create_event
+.. autofunction:: anyio.create_lock
+.. autofunction:: anyio.create_condition
+.. autofunction:: anyio.create_semaphore
+.. autofunction:: anyio.create_capacity_limiter
 
 Operating system signals
 ------------------------

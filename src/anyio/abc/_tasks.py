@@ -1,8 +1,12 @@
+import typing
 from abc import ABCMeta, abstractmethod
 from types import TracebackType
 from typing import Callable, Coroutine, Optional, Type, TypeVar
 
-from anyio._core._compat import DeprecatedAsyncContextManager, DeprecatedAwaitable
+from anyio._core._compat import DeprecatedAwaitable
+
+if typing.TYPE_CHECKING:
+    from anyio._core._tasks import CancelScope
 
 T_Retval = TypeVar('T_Retval')
 
@@ -60,42 +64,3 @@ class TaskGroup(metaclass=ABCMeta):
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> Optional[bool]:
         """Exit the task group context waiting for all tasks to finish."""
-
-
-class CancelScope(DeprecatedAsyncContextManager):
-    @abstractmethod
-    def cancel(self) -> DeprecatedAwaitable:
-        """Cancel this scope immediately."""
-
-    @property
-    @abstractmethod
-    def deadline(self) -> float:
-        """
-        The time (clock value) when this scope is cancelled automatically.
-
-        Will be ``float('inf')`` if no timeout has been set.
-        """
-
-    @property
-    @abstractmethod
-    def cancel_called(self) -> bool:
-        """``True`` if :meth:`cancel` has been called."""
-
-    @property
-    @abstractmethod
-    def shield(self) -> bool:
-        """
-        ``True`` if this scope is shielded from external cancellation.
-
-        While a scope is shielded, it will not receive cancellations from outside.
-        """
-
-    @abstractmethod
-    def __enter__(self):
-        pass
-
-    @abstractmethod
-    def __exit__(self, exc_type: Optional[Type[BaseException]],
-                 exc_val: Optional[BaseException],
-                 exc_tb: Optional[TracebackType]) -> Optional[bool]:
-        pass

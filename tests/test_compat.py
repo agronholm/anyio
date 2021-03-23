@@ -4,21 +4,21 @@ import sys
 import pytest
 
 from anyio import (
-    TaskInfo, create_capacity_limiter, create_condition, create_event, create_lock,
-    create_memory_object_stream, create_semaphore, create_task_group, current_effective_deadline,
-    current_time, fail_after, get_current_task, get_running_tasks, maybe_async, maybe_async_cm,
-    move_on_after, open_cancel_scope, open_signal_receiver, sleep)
+    CancelScope, CapacityLimiter, Condition, Event, Lock, Semaphore, TaskInfo,
+    create_memory_object_stream, create_task_group, current_effective_deadline, current_time,
+    fail_after, get_current_task, get_running_tasks, maybe_async, maybe_async_cm, move_on_after,
+    open_signal_receiver, sleep)
 
 pytestmark = pytest.mark.anyio
 
 
 async def test_maybe_async():
-    with open_cancel_scope() as scope:
+    with CancelScope() as scope:
         await maybe_async(scope.cancel())
 
 
 async def test_maybe_async_cm():
-    async with maybe_async_cm(open_cancel_scope()):
+    async with maybe_async_cm(CancelScope()):
         pass
 
 
@@ -56,40 +56,45 @@ class TestDeprecations:
                 pass
 
     async def test_cancelscope_cancel(self):
-        with open_cancel_scope() as scope:
+        with CancelScope() as scope:
             with pytest.deprecated_call():
                 await scope.cancel()
 
+    async def test_taskgroup_cancel(self):
+        async with create_task_group() as tg:
+            with pytest.deprecated_call():
+                await tg.cancel_scope.cancel()
+
     async def test_capacitylimiter_acquire_nowait(self):
-        limiter = create_capacity_limiter(1)
+        limiter = CapacityLimiter(1)
         with pytest.deprecated_call():
             await limiter.acquire_nowait()
 
     async def test_capacitylimiter_acquire_on_behalf_of_nowait(self):
-        limiter = create_capacity_limiter(1)
+        limiter = CapacityLimiter(1)
         with pytest.deprecated_call():
             await limiter.acquire_on_behalf_of_nowait(object())
 
     async def test_capacitylimiter_set_total_tokens(self):
-        limiter = create_capacity_limiter(1)
+        limiter = CapacityLimiter(1)
         with pytest.deprecated_call():
             await limiter.set_total_tokens(3)
 
         assert limiter.total_tokens == 3
 
     async def test_condition_release(self):
-        condition = create_condition()
+        condition = Condition()
         condition.acquire_nowait()
         with pytest.deprecated_call():
             await condition.release()
 
     async def test_event_set(self):
-        event = create_event()
+        event = Event()
         with pytest.deprecated_call():
             await event.set()
 
     async def test_lock_release(self):
-        lock = create_lock()
+        lock = Lock()
         lock.acquire_nowait()
         with pytest.deprecated_call():
             await lock.release()
@@ -100,7 +105,7 @@ class TestDeprecations:
             await send.send_nowait(None)
 
     async def test_semaphore_release(self):
-        semaphore = create_semaphore(1)
+        semaphore = Semaphore(1)
         semaphore.acquire_nowait()
         with pytest.deprecated_call():
             await semaphore.release()
