@@ -65,10 +65,10 @@ Example 1 – setting an event::
 
 Example 2 – opening a cancel scope::
 
-    from anyio import open_cancel_scope, maybe_async_cm
+    from anyio import CancelScope, maybe_async_cm
 
     async def foo():
-        async with maybe_async_cm(open_cancel_scope()) as scope:
+        async with maybe_async_cm(CancelScope()) as scope:
             ...
 
 .. _trio: https://github.com/python-trio/trio
