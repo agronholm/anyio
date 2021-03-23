@@ -23,6 +23,12 @@ AnyIO offers the following functionality:
 
 * Task groups (nurseries_ in trio terminology)
 * High level networking (TCP, UDP and UNIX sockets)
+
+  * `Happy eyeballs`_ algorithm for TCP connections (more robust than that of asyncio on Python
+    3.8)
+  * async/await style UDP sockets (unlike asyncio where you still have to use Transports and
+    Protocols)
+
 * A versatile API for byte streams and object streams
 * Inter-task synchronization and communication (locks, conditions, events, semaphores, object
   streams)
@@ -38,5 +44,6 @@ It even works with the popular Hypothesis_ library.
 .. _trio: https://github.com/python-trio/trio
 .. _structured concurrency: https://en.wikipedia.org/wiki/Structured_concurrency
 .. _nurseries: https://trio.readthedocs.io/en/stable/reference-core.html#nurseries-and-spawning
+.. _Happy eyeballs: https://en.wikipedia.org/wiki/Happy_Eyeballs
 .. _pytest: https://docs.pytest.org/en/latest/
 .. _Hypothesis: https://hypothesis.works/
