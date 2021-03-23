@@ -23,6 +23,7 @@ from .._core._sockets import convert_ipv6_sockaddr
 from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
 from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import ResourceGuard
+from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import IPSockAddrType, UDPPacketType
 
 try:
@@ -57,7 +58,10 @@ sleep = trio.sleep
 # Timeouts and cancellation
 #
 
-class CancelScope(abc.CancelScope):
+class CancelScope(BaseCancelScope):
+    def __new__(cls, original: Optional[trio.CancelScope] = None, **kwargs):
+        return object.__new__(cls)
+
     def __init__(self, original: Optional[trio.CancelScope] = None, **kwargs):
         self.__original = original or trio.CancelScope(**kwargs)
 

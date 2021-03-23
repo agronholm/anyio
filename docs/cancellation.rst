@@ -57,7 +57,7 @@ The most important such use case is performing shutdown procedures on asynchrono
 
 To accomplish this, open a new cancel scope with the ``shield=True`` argument::
 
-    from anyio import create_task_group, open_cancel_scope, sleep, run
+    from anyio import CancelScope, create_task_group, sleep, run
 
 
     async def external_task():
@@ -68,7 +68,7 @@ To accomplish this, open a new cancel scope with the ``shield=True`` argument::
 
     async def main():
         async with create_task_group() as tg:
-            with open_cancel_scope(shield=True) as scope:
+            with CancelScope(shield=True) as scope:
                 tg.spawn(external_task)
                 tg.cancel_scope.cancel()
                 print('Started sleeping in the host task')

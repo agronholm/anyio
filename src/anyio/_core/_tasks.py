@@ -1,8 +1,10 @@
 import math
-from typing import Optional
+from types import TracebackType
+from typing import Optional, Type
+from warnings import warn
 
-from ..abc import CancelScope, TaskGroup, TaskStatus
-from ._compat import DeprecatedAsyncContextManager, DeprecatedAwaitableFloat
+from ..abc._tasks import TaskGroup, TaskStatus
+from ._compat import DeprecatedAsyncContextManager, DeprecatedAwaitable, DeprecatedAwaitableFloat
 from ._eventloop import get_asynclib
 
 
@@ -14,6 +16,59 @@ class _IgnoredTaskStatus(TaskStatus):
 TASK_STATUS_IGNORED = _IgnoredTaskStatus()
 
 
+class CancelScope(DeprecatedAsyncContextManager):
+    """
+    Wraps a unit of work that can be made separately cancellable.
+
+    :param deadline: The time (clock value) when this scope is cancelled automatically
+    :param shield: ``True`` to shield the cancel scope from external cancellation
+    """
+
+    def __new__(cls, *, deadline: float = math.inf, shield: bool = False):
+        return get_asynclib().CancelScope(shield=shield, deadline=deadline)
+
+    def cancel(self) -> DeprecatedAwaitable:
+        """Cancel this scope immediately."""
+        raise NotImplementedError
+
+    @property
+    def deadline(self) -> float:
+        """
+        The time (clock value) when this scope is cancelled automatically.
+
+        Will be ``float('inf')`` if no timeout has been set.
+
+        """
+        raise NotImplementedError
+
+    @deadline.setter
+    def deadline(self, value: float) -> None:
+        raise NotImplementedError
+
+    @property
+    def cancel_called(self) -> bool:
+        """``True`` if :meth:`cancel` has been called."""
+        raise NotImplementedError
+
+    @property
+    def shield(self) -> bool:
+        """
+        ``True`` if this scope is shielded from external cancellation.
+
+        While a scope is shielded, it will not receive cancellations from outside.
+
+        """
+        raise NotImplementedError
+
+    def __enter__(self):
+        raise NotImplementedError
+
+    def __exit__(self, exc_type: Optional[Type[BaseException]],
+                 exc_val: Optional[BaseException],
+                 exc_tb: Optional[TracebackType]) -> Optional[bool]:
+        raise NotImplementedError
+
+
 def open_cancel_scope(*, shield: bool = False) -> CancelScope:
     """
     Open a cancel scope.
@@ -21,7 +76,11 @@ def open_cancel_scope(*, shield: bool = False) -> CancelScope:
     :param shield: ``True`` to shield the cancel scope from external cancellation
     :return: a cancel scope
 
+    .. deprecated:: 3.0
+       Use :class:`~CancelScope` directly.
+
     """
+    warn('open_cancel_scope() is deprecated -- use CancelScope() directly', DeprecationWarning)
     return get_asynclib().CancelScope(shield=shield)
 
 
@@ -83,7 +142,7 @@ def current_effective_deadline() -> DeprecatedAwaitableFloat:
                                     current_effective_deadline)
 
 
-def create_task_group() -> TaskGroup:
+def create_task_group() -> 'TaskGroup':
     """
     Create a task group.
 

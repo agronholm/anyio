@@ -8,8 +8,8 @@ import trio
 
 import anyio
 from anyio import (
-    ExceptionGroup, create_task_group, current_effective_deadline, current_time, fail_after,
-    get_cancelled_exc_class, move_on_after, open_cancel_scope, sleep, wait_all_tasks_blocked)
+    CancelScope, ExceptionGroup, create_task_group, current_effective_deadline, current_time,
+    fail_after, get_cancelled_exc_class, move_on_after, sleep, wait_all_tasks_blocked)
 
 if sys.version_info < (3, 7):
     current_task = asyncio.Task.current_task
@@ -280,7 +280,7 @@ async def test_failing_host_task_cancels_children():
 async def test_cancel_scope_in_another_task():
     async def child():
         nonlocal result, local_scope
-        with open_cancel_scope() as local_scope:
+        with CancelScope() as local_scope:
             await sleep(2)
             result = True
 
@@ -484,7 +484,7 @@ async def test_shielding():
 
 async def test_cancel_from_shielded_scope():
     async with create_task_group() as tg:
-        with open_cancel_scope(shield=True) as inner_scope:
+        with CancelScope(shield=True) as inner_scope:
             assert inner_scope.shield
             tg.cancel_scope.cancel()
 
@@ -500,7 +500,7 @@ async def test_cancel_host_asyncgen():
     async def host_task():
         nonlocal done
         async with create_task_group() as tg:
-            with open_cancel_scope(shield=True) as inner_scope:
+            with CancelScope(shield=True) as inner_scope:
                 assert inner_scope.shield
                 tg.cancel_scope.cancel()
 
@@ -534,7 +534,7 @@ async def test_shielding_immediate_scope_cancelled():
 
     sleep_completed = False
     async with create_task_group() as tg:
-        with open_cancel_scope(shield=True) as scope:
+        with CancelScope(shield=True) as scope:
             tg.spawn(cancel_when_ready)
             await sleep(0.5)
             sleep_completed = True
@@ -545,7 +545,7 @@ async def test_shielding_immediate_scope_cancelled():
 async def test_cancel_scope_in_child_task():
     async def child():
         nonlocal child_scope
-        with open_cancel_scope() as child_scope:
+        with CancelScope() as child_scope:
             await sleep(2)
 
     child_scope = None
@@ -596,7 +596,7 @@ async def test_cancel_cascade():
 
 async def test_cancelled_parent():
     async def child():
-        with open_cancel_scope():
+        with CancelScope():
             await sleep(1)
 
         raise Exception('foo')
@@ -612,7 +612,7 @@ async def test_cancelled_parent():
 
 async def test_shielded_deadline():
     with move_on_after(10):
-        with open_cancel_scope(shield=True):
+        with CancelScope(shield=True):
             with move_on_after(1000):
                 assert current_effective_deadline() - current_time() > 900
 
@@ -643,8 +643,8 @@ async def test_nested_fail_after():
         scope.cancel()
 
     async with create_task_group() as tg:
-        with open_cancel_scope() as scope:
-            with open_cancel_scope():
+        with CancelScope() as scope:
+            with CancelScope():
                 tg.spawn(killer, scope)
                 with fail_after(1):
                     await sleep(2)
@@ -664,8 +664,8 @@ async def test_nested_shield():
 
     with pytest.raises(TimeoutError):
         async with create_task_group() as tg:
-            with open_cancel_scope() as scope:
-                with open_cancel_scope(shield=True):
+            with CancelScope() as scope:
+                with CancelScope(shield=True):
                     tg.spawn(killer, scope)
                     with fail_after(0.2):
                         await sleep(2)
@@ -722,7 +722,7 @@ async def test_cancel_propagation_with_inner_spawn():
 
 async def test_escaping_cancelled_error_from_cancelled_task():
     """Regression test for issue #88. No CancelledError should escape the outer scope."""
-    with open_cancel_scope() as scope:
+    with CancelScope() as scope:
         with move_on_after(0.1):
             await sleep(1)
 
@@ -734,7 +734,7 @@ def test_cancel_generator_based_task():
     from asyncio import coroutine
 
     async def native_coro_part():
-        with open_cancel_scope() as scope:
+        with CancelScope() as scope:
             scope.cancel()
 
     @coroutine
@@ -774,7 +774,7 @@ async def test_cancel_native_future_tasks():
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
 async def test_cancel_native_future_tasks_cancel_scope():
     async def wait_native_future():
-        with anyio.open_cancel_scope():
+        with anyio.CancelScope():
             loop = asyncio.get_event_loop()
             await loop.create_future()
 
@@ -836,7 +836,7 @@ async def test_shielded_cancel_sleep_time():
         event.set()
 
     async def never_cancel_task():
-        with open_cancel_scope(shield=True):
+        with CancelScope(shield=True):
             await sleep(0.2)
             await event.wait()
 

@@ -32,6 +32,7 @@ from .._core._sockets import GetAddrInfoReturnType, convert_ipv6_sockaddr
 from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
 from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import ResourceGuard
+from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import IPSockAddrType, UDPPacketType
 from ..lowlevel import RunVar
 
@@ -222,9 +223,9 @@ sleep = asyncio.sleep
 CancelledError = asyncio.CancelledError
 
 
-class CancelScope(abc.CancelScope, DeprecatedAsyncContextManager):
-    __slots__ = ('_deadline', '_shield', '_parent_scope', '_cancel_called', '_active',
-                 '_timeout_handle', '_tasks', '_host_task', '_timeout_expired')
+class CancelScope(BaseCancelScope, DeprecatedAsyncContextManager):
+    def __new__(cls, *, deadline: float = math.inf, shield: bool = False):
+        return object.__new__(cls)
 
     def __init__(self, deadline: float = math.inf, shield: bool = False):
         self._deadline = deadline

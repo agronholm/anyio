@@ -40,7 +40,7 @@ async def cancel_shielded_checkpoint() -> None:
 
     Equivalent to (but potentially more efficient than)::
 
-        with open_cancel_scope(shield=True):
+        with CancelScope(shield=True):
             await checkpoint()
 
     .. versionadded:: 3.0

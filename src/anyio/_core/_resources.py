@@ -1,5 +1,5 @@
 from ..abc import AsyncResource
-from ._tasks import open_cancel_scope
+from ._tasks import CancelScope
 
 
 async def aclose_forcefully(resource: AsyncResource) -> None:
@@ -11,6 +11,6 @@ async def aclose_forcefully(resource: AsyncResource) -> None:
     :param resource: the resource to close
 
     """
-    with open_cancel_scope() as scope:
+    with CancelScope() as scope:
         scope.cancel()
         await resource.aclose()

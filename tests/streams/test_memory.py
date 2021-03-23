@@ -1,8 +1,8 @@
 import pytest
 
 from anyio import (
-    BrokenResourceError, ClosedResourceError, EndOfStream, WouldBlock, create_memory_object_stream,
-    create_task_group, fail_after, open_cancel_scope, wait_all_tasks_blocked)
+    BrokenResourceError, CancelScope, ClosedResourceError, EndOfStream, WouldBlock,
+    create_memory_object_stream, create_task_group, fail_after, wait_all_tasks_blocked)
 
 pytestmark = pytest.mark.anyio
 
@@ -192,7 +192,7 @@ async def test_receive_when_cancelled():
         tg.spawn(send.send, 'world')
         await wait_all_tasks_blocked()
 
-        with open_cancel_scope() as scope:
+        with CancelScope() as scope:
             scope.cancel()
             await receive.receive()
 
@@ -213,7 +213,7 @@ async def test_send_when_cancelled():
     send, receive = create_memory_object_stream()
     async with create_task_group() as tg:
         tg.spawn(receiver)
-        with open_cancel_scope() as scope:
+        with CancelScope() as scope:
             scope.cancel()
             await send.send('hello')
 
@@ -230,7 +230,7 @@ async def test_cancel_during_receive():
     """
     async def scoped_receiver():
         nonlocal receiver_scope
-        with open_cancel_scope() as receiver_scope:
+        with CancelScope() as receiver_scope:
             received.append(await receive.receive())
 
         assert receiver_scope.cancel_called

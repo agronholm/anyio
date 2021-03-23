@@ -34,7 +34,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
   * ``fail_after()``
   * ``move_on_after()``
-  * ``open_cancel_scope()``
+  * ``open_cancel_scope()`` (now just ``CancelScope()``; see below)
   * ``open_signal_receiver()``
 
   See the :doc:`migration documentation <migration>` for instructions on how to deal with these
@@ -46,6 +46,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``create_lock()`` → ``anyio.Lock()``
   * ``create_condition()`` → ``anyio.Condition()``
   * ``create_semaphore()`` → ``anyio.Semaphore()``
+  * ``open_cancel_scope()`` → ``anyio.CancelScope()``
   * ``CapacityLimiter.set_total_tokens()`` → ``limiter.total_tokens = ...``
 - **BACKWARDS INCOMPATIBLE** The ``CapacityLimiter.set_total_tokens()`` method has been removed in
   exchange of making the ``total_tokens`` property writable
