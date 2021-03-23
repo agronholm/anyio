@@ -59,7 +59,7 @@ jobs:
         path: ~/.cache/pip
         key: pip-test-${{ matrix.python-version }}-${{ matrix.os }}
     - name: Install dependencies
-      run: pip install .[test,curio,trio] coveralls
+      run: pip install .[test,trio] coveralls
     - name: Test with pytest
       run: coverage run -m pytest
     - name: Upload Coverage
