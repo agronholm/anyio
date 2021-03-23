@@ -17,7 +17,14 @@ TASK_STATUS_IGNORED = _IgnoredTaskStatus()
 
 
 class CancelScope(DeprecatedAsyncContextManager):
-    def __new__(cls, *, shield: bool = False, deadline: float = math.inf):
+    """
+    Wraps a unit of work that can be made separately cancellable.
+
+    :param deadline: The time (clock value) when this scope is cancelled automatically
+    :param shield: ``True`` to shield the cancel scope from external cancellation
+    """
+
+    def __new__(cls, *, deadline: float = math.inf, shield: bool = False):
         return get_asynclib().CancelScope(shield=shield, deadline=deadline)
 
     def cancel(self) -> DeprecatedAwaitable:
@@ -32,6 +39,10 @@ class CancelScope(DeprecatedAsyncContextManager):
         Will be ``float('inf')`` if no timeout has been set.
 
         """
+        raise NotImplementedError
+
+    @deadline.setter
+    def deadline(self, value: float) -> None:
         raise NotImplementedError
 
     @property
