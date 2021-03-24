@@ -175,7 +175,7 @@ async def run_sync_in_process(
                     if now - idle_workers[0][1] < WORKER_MAX_IDLE_TIME:
                         break
 
-                    process, idle_since = idle_workers.pop()
+                    process, idle_since = idle_workers.popleft()
                     process.kill()
                     workers.remove(process)
                     killed_processes.append(process)
