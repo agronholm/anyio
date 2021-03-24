@@ -2,21 +2,25 @@ import os
 import pickle
 import subprocess
 import sys
+from collections import deque
 from subprocess import DEVNULL, PIPE, CalledProcessError, CompletedProcess
-from typing import Callable, Optional, Sequence, Set, TypeVar, Union, cast
+from typing import Callable, Deque, List, Optional, Sequence, Set, Tuple, TypeVar, Union, cast
 
 from ..abc import ByteReceiveStream, ByteSendStream, Process
 from ..lowlevel import RunVar, checkpoint_if_cancelled
 from ..streams.buffered import BufferedByteReceiveStream
-from ._eventloop import get_asynclib, get_cancelled_exc_class
+from ._eventloop import current_time, get_asynclib, get_cancelled_exc_class
 from ._exceptions import BrokenWorkerProcess
 from ._synchronization import CapacityLimiter
 from ._tasks import CancelScope, create_task_group, fail_after
 
 T_Retval = TypeVar('T_Retval')
 _process_pool_workers: RunVar[Set[Process]] = RunVar('_process_pool_workers')
-_process_pool_idle_workers: RunVar[Set[Process]] = RunVar('_process_pool_idle_workers')
+_process_pool_idle_workers: RunVar[Deque[Tuple[Process, float]]] = RunVar(
+    '_process_pool_idle_workers')
 _default_process_limiter: RunVar[CapacityLimiter] = RunVar('_default_process_limiter')
+
+WORKER_MAX_IDLE_TIME = 300  # 5 minutes
 
 
 async def run_process(command: Union[str, Sequence[str]], *, input: Optional[bytes] = None,
@@ -144,19 +148,39 @@ async def run_sync_in_process(
         idle_workers = _process_pool_idle_workers.get()
     except LookupError:
         workers = set()
-        idle_workers = set()
+        idle_workers = deque()
         _process_pool_workers.set(workers)
         _process_pool_idle_workers.set(idle_workers)
         get_asynclib().setup_process_pool_exit_at_shutdown(workers)
 
     async with (limiter or current_default_worker_process_limiter()):
-        # Pop processes from the pool until we find one that hasn't exited yet
+        # Pop processes from the pool (starting from the most recently used) until we find one that
+        # hasn't exited yet
         process: Process
         while idle_workers:
-            process = idle_workers.pop()
+            process, idle_since = idle_workers.pop()
             if process.returncode is None:
                 stdin = cast(ByteSendStream, process.stdin)
                 buffered = BufferedByteReceiveStream(cast(ByteReceiveStream, process.stdout))
+
+                # Prune any other workers that have been idle for WORKER_MAX_IDLE_TIME seconds or
+                # longer
+                now = current_time()
+                killed_processes: List[Process] = []
+                while idle_workers:
+                    if now - idle_workers[0][1] < WORKER_MAX_IDLE_TIME:
+                        break
+
+                    process, idle_since = idle_workers.pop()
+                    process.kill()
+                    workers.remove(process)
+                    killed_processes.append(process)
+
+                with CancelScope(shield=True):
+                    for process in killed_processes:
+                        await process.wait()
+                        await process.aclose()
+
                 break
 
             workers.remove(process)
@@ -191,7 +215,7 @@ async def run_sync_in_process(
                 return await send_raw_command(request)
             finally:
                 if process in workers:
-                    idle_workers.add(process)
+                    idle_workers.append((process, current_time()))
 
 
 def current_default_worker_process_limiter() -> CapacityLimiter:
