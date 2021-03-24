@@ -295,9 +295,6 @@ async def _shutdown_process_pool(workers: Set[Process]) -> None:
 
         with CancelScope(shield=True):
             for process in workers:
-                if process.returncode is None:
-                    await process.wait()
-
                 await process.aclose()
 
 

@@ -125,11 +125,15 @@ async def run_sync_in_process(
             workers.discard(process)
             try:
                 process.kill()
-                await process.wait()
+                with CancelScope(shield=True):
+                    await process.aclose()
             except ProcessLookupError:
                 pass
 
-            raise BrokenWorkerProcess from exc
+            if isinstance(exc, get_cancelled_exc_class()):
+                raise
+            else:
+                raise BrokenWorkerProcess from exc
 
         retval = pickle.loads(pickled_response)
         if status == b'EXCEPTION':
@@ -178,7 +182,6 @@ async def run_sync_in_process(
 
                 with CancelScope(shield=True):
                     for process in killed_processes:
-                        await process.wait()
                         await process.aclose()
 
                 break
