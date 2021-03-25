@@ -201,11 +201,11 @@ async def run_sync_in_process(
                     raise BrokenWorkerProcess(
                         f'Worker process returned unexpected response: {message!r}')
 
-                pickled = pickle.dumps(('run', exec, (f'sys.path = {sys.path!r}',)),
+                main_module_path = getattr(sys.modules['__main__'], '__file__', None)
+                pickled = pickle.dumps(('init', sys.path, main_module_path),
                                        protocol=pickle.HIGHEST_PROTOCOL)
                 await send_raw_command(pickled)
             except (BrokenWorkerProcess, get_cancelled_exc_class()):
-                process.kill()
                 raise
             except BaseException as exc:
                 process.kill()

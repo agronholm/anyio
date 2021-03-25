@@ -1,6 +1,8 @@
 import os
 import pickle
 import sys
+from importlib.util import module_from_spec, spec_from_file_location
+from typing import Optional
 
 
 def process_worker():
@@ -22,9 +24,10 @@ def process_worker():
             status = b'EXCEPTION'
             pickled = pickle.dumps(exc, pickle.HIGHEST_PROTOCOL)
         else:
+            exception = None
             if command == 'run':
                 func, args = args
-                exception = retval = None
+                retval = None
                 try:
                     retval = func(*args)
                 except BaseException as exc:
@@ -41,6 +44,23 @@ def process_worker():
                     exception = exc
                     status = b'EXCEPTION'
                     pickled = pickle.dumps(exc, pickle.HIGHEST_PROTOCOL)
+            elif command == 'init':
+                main_module_path: Optional[str]
+                sys.path, main_module_path = args
+                del sys.modules['__main__']
+                if main_module_path:
+                    # Load the parent's main module but as __mp_main__ instead of __main__
+                    # (like multiprocessing does) to avoid infinite recursion
+                    try:
+                        spec = spec_from_file_location('__mp_main__', main_module_path)
+                        main = module_from_spec(spec)
+                        spec.loader.exec_module(main)
+                        sys.modules['__main__'] = main
+                    except Exception:
+                        pass
+
+                status = b'RETURN'
+                pickled = pickle.dumps(None, pickle.HIGHEST_PROTOCOL)
 
         stdout.buffer.write(b'%s %d\n' % (status, len(pickled)))
         stdout.buffer.write(pickled)

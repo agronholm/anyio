@@ -72,11 +72,22 @@ If the code you wish to run does not belong in this category, it's best to use w
 instead in order to take advantage of multiple CPU cores.
 This is done by using :func:`.run_sync_in_process`::
 
+    import time
+
+    from anyio import run, run_sync_in_process
+
+
     def cpu_intensive_function(arg1, arg2):
-        ...
+        time.sleep(1)
+        return arg1 + arg2
 
     async def main():
-        result = await run_sync_in_process(cpu_intensive_function, 'hello', 'world')
+        result = await run_sync_in_process(cpu_intensive_function, 'Hello, ', 'world!')
+        print(result)
+
+    # This check is important when the application uses run_sync_in_process()
+    if __name__ == '__main__':
+        run(main)
 
 Technical details
 *****************
@@ -90,8 +101,10 @@ There are some limitations regarding the arguments and return values passed:
 Other considerations:
 
 * Even "cancellable" runs can be cancelled before the request has been sent to the worker process
-* If a cancellable call is cancelled during execution on the worker process, the worker process will
-  be killed
+* If a cancellable call is cancelled during execution on the worker process, the worker process
+  will be killed
+* The worker process imports the parent's ``__main__`` module, so guarding for any import time side
+  effects using ``if __name__ == '__main__':`` is required to avoid inifinite recursion
 * ``sys.stdin`` and ``sys.stdout``, ``sys.stderr`` are redirected to ``/dev/null`` so :func:`print`
   and :func:`input` won't work
 * Worker processes terminate after 5 minutes of inactivity, or when the event loop is finished
