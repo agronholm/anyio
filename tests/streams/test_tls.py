@@ -75,6 +75,7 @@ class TestTLSStream:
             assert isinstance(wrapper.extra(TLSAttribute.ssl_object), ssl.SSLObject)
             assert wrapper.extra(TLSAttribute.standard_compatible) is False
             assert wrapper.extra(TLSAttribute.tls_version).startswith('TLSv')
+            await wrapper.send(b'\x00')
 
         server_thread.join()
         server_sock.close()

@@ -792,12 +792,12 @@ class StreamWriterWrapper(abc.ByteSendStream):
         self._stream.close()
 
 
-@dataclass
+@dataclass(eq=False)
 class Process(abc.Process):
     _process: asyncio.subprocess.Process
-    _stdin: Optional[abc.ByteSendStream]
-    _stdout: Optional[abc.ByteReceiveStream]
-    _stderr: Optional[abc.ByteReceiveStream]
+    _stdin: Optional[StreamWriterWrapper]
+    _stdout: Optional[StreamReaderWrapper]
+    _stderr: Optional[StreamReaderWrapper]
 
     async def aclose(self) -> None:
         if self._stdin:
@@ -855,6 +855,53 @@ async def open_process(command, *, shell: bool, stdin: int, stdout: int, stderr:
     stdout_stream = StreamReaderWrapper(process.stdout) if process.stdout else None
     stderr_stream = StreamReaderWrapper(process.stderr) if process.stderr else None
     return Process(process, stdin_stream, stdout_stream, stderr_stream)
+
+
+def _forcibly_shutdown_process_pool_on_exit(workers: Set[Process], _task) -> None:
+    """
+    Forcibly shuts down worker processes belonging to this event loop."""
+    child_watcher: Optional[asyncio.AbstractChildWatcher]
+    try:
+        child_watcher = asyncio.get_event_loop_policy().get_child_watcher()
+    except NotImplementedError:
+        child_watcher = None
+
+    # Close as much as possible (w/o async/await) to avoid warnings
+    for process in workers:
+        if process.returncode is None:
+            continue
+
+        process._stdin._stream._transport.close()  # type: ignore
+        process._stdout._stream._transport.close()  # type: ignore
+        process._stderr._stream._transport.close()  # type: ignore
+        process.kill()
+        if child_watcher:
+            child_watcher.remove_child_handler(process.pid)
+
+
+async def _shutdown_process_pool_on_exit(workers: Set[Process]) -> None:
+    """
+    Shuts down worker processes belonging to this event loop.
+
+    NOTE: this only works when the event loop was started using asyncio.run() or anyio.run().
+
+    """
+    process: Process
+    try:
+        await sleep(math.inf)
+    except asyncio.CancelledError:
+        for process in workers:
+            if process.returncode is None:
+                process.kill()
+
+        for process in workers:
+            await process.aclose()
+
+
+def setup_process_pool_exit_at_shutdown(workers: Set[Process]) -> None:
+    kwargs = {'name': 'AnyIO process pool shutdown task'} if _native_task_names else {}
+    create_task(_shutdown_process_pool_on_exit(workers), **kwargs)
+    find_root_task().add_done_callback(partial(_forcibly_shutdown_process_pool_on_exit, workers))
 
 
 #

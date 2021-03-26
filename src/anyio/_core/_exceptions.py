@@ -9,6 +9,13 @@ class BrokenResourceError(Exception):
     """
 
 
+class BrokenWorkerProcess(Exception):
+    """
+    Raised by :func:`run_sync_in_process` if the worker process terminates abruptly or otherwise
+    misbehaves.
+    """
+
+
 class BusyResourceError(Exception):
     """Raised when two tasks are trying to read from or write to the same resource concurrently."""
 
