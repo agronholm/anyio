@@ -15,35 +15,20 @@ def process_worker():
 
     stdout.buffer.write(b'READY\n')
     while True:
+        retval = exception = None
         try:
             command, *args = pickle.load(stdin.buffer)
         except EOFError:
             return
         except BaseException as exc:
             exception = exc
-            status = b'EXCEPTION'
-            pickled = pickle.dumps(exc, pickle.HIGHEST_PROTOCOL)
         else:
-            exception = None
             if command == 'run':
                 func, args = args
-                retval = None
                 try:
                     retval = func(*args)
                 except BaseException as exc:
                     exception = exc
-
-                try:
-                    if exception is not None:
-                        status = b'EXCEPTION'
-                        pickled = pickle.dumps(exception, pickle.HIGHEST_PROTOCOL)
-                    else:
-                        status = b'RETURN'
-                        pickled = pickle.dumps(retval, pickle.HIGHEST_PROTOCOL)
-                except BaseException as exc:
-                    exception = exc
-                    status = b'EXCEPTION'
-                    pickled = pickle.dumps(exc, pickle.HIGHEST_PROTOCOL)
             elif command == 'init':
                 main_module_path: Optional[str]
                 sys.path, main_module_path = args
@@ -53,14 +38,24 @@ def process_worker():
                     # (like multiprocessing does) to avoid infinite recursion
                     try:
                         spec = spec_from_file_location('__mp_main__', main_module_path)
-                        main = module_from_spec(spec)
-                        spec.loader.exec_module(main)
-                        sys.modules['__main__'] = main
-                    except Exception:
-                        pass
+                        if spec:
+                            main = module_from_spec(spec)
+                            spec.loader.exec_module(main)
+                            sys.modules['__main__'] = main
+                    except BaseException as exc:
+                        exception = exc
 
+        try:
+            if exception is not None:
+                status = b'EXCEPTION'
+                pickled = pickle.dumps(exception, pickle.HIGHEST_PROTOCOL)
+            else:
                 status = b'RETURN'
-                pickled = pickle.dumps(None, pickle.HIGHEST_PROTOCOL)
+                pickled = pickle.dumps(retval, pickle.HIGHEST_PROTOCOL)
+        except BaseException as exc:
+            exception = exc
+            status = b'EXCEPTION'
+            pickled = pickle.dumps(exc, pickle.HIGHEST_PROTOCOL)
 
         stdout.buffer.write(b'%s %d\n' % (status, len(pickled)))
         stdout.buffer.write(pickled)
