@@ -43,8 +43,10 @@ class TestFileReadStream:
         with file_path.open('rb') as file:
             async with FileReadStream(file) as stream:
                 await stream.seek(2)
+                assert await stream.tell() == 2
                 data = await stream.receive()
                 assert data == b'llo'
+                assert await stream.tell() == 5
 
     async def test_extra_attributes(self, file_path):
         async with await FileReadStream.from_path(file_path) as stream:

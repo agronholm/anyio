@@ -92,6 +92,18 @@ class FileReadStream(_BaseFileStream, ByteReceiveStream):
         """
         return await run_sync_in_worker_thread(self._file.seek, position, whence)
 
+    async def tell(self) -> int:
+        """
+        Return the current stream position.
+
+        .. note:: Not all file descriptors are seekable.
+
+        :return: the current absolute position
+        :raises OSError: if the file is not seekable
+
+        """
+        return await run_sync_in_worker_thread(self._file.tell)
+
 
 class FileWriteStream(_BaseFileStream, ByteSendStream):
     """
