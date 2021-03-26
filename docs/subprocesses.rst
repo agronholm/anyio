@@ -108,6 +108,7 @@ Other considerations:
 * ``sys.stdin`` and ``sys.stdout``, ``sys.stderr`` are redirected to ``/dev/null`` so :func:`print`
   and :func:`input` won't work
 * Worker processes terminate after 5 minutes of inactivity, or when the event loop is finished
+
   * On asyncio, either :func:`asyncio.run` or :func:`anyio.run` must be used for proper cleanup
     to happen
 * Multiprocessing-style synchronization primitives are currently not available
