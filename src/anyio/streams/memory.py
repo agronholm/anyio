@@ -20,7 +20,7 @@ class MemoryObjectStreamStatistics(NamedTuple):
     tasks_waiting_receive: int
 
 
-@dataclass
+@dataclass(eq=False)
 class MemoryObjectStreamState(Generic[T_Item]):
     max_buffer_size: float = field()
     buffer: Deque[T_Item] = field(init=False, default_factory=deque)
@@ -36,7 +36,7 @@ class MemoryObjectStreamState(Generic[T_Item]):
             self.open_receive_channels, len(self.waiting_senders), len(self.waiting_receivers))
 
 
-@dataclass
+@dataclass(eq=False)
 class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
     _state: MemoryObjectStreamState[T_Item]
     _closed: bool = field(init=False, default=False)
@@ -130,7 +130,7 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
         return self._state.statistics()
 
 
-@dataclass
+@dataclass(eq=False)
 class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
     _state: MemoryObjectStreamState[T_Item]
     _closed: bool = field(init=False, default=False)

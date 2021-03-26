@@ -4,7 +4,7 @@ from .. import ClosedResourceError, DelimiterNotFound, EndOfStream, IncompleteRe
 from ..abc import AnyByteReceiveStream, ByteReceiveStream
 
 
-@dataclass
+@dataclass(eq=False)
 class BufferedByteReceiveStream(ByteReceiveStream):
     """
     Wraps any bytes-based receive stream and uses a buffer to provide sophisticated receiving

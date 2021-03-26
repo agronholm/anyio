@@ -765,7 +765,7 @@ class BlockingPortal(abc.BlockingPortal):
 # Subprocesses
 #
 
-@dataclass
+@dataclass(eq=False)
 class StreamReaderWrapper(abc.ByteReceiveStream):
     _stream: asyncio.StreamReader
 
@@ -780,7 +780,7 @@ class StreamReaderWrapper(abc.ByteReceiveStream):
         self._stream.feed_eof()
 
 
-@dataclass
+@dataclass(eq=False)
 class StreamWriterWrapper(abc.ByteSendStream):
     _stream: asyncio.StreamWriter
 

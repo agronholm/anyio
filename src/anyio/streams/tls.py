@@ -38,7 +38,7 @@ class TLSAttribute(TypedAttributeSet):
     tls_version: str = typed_attribute()
 
 
-@dataclass
+@dataclass(eq=False)
 class TLSStream(ByteStream):
     """
     A stream wrapper that encrypts all sent data and decrypts received data.
@@ -184,7 +184,7 @@ class TLSStream(ByteStream):
         }
 
 
-@dataclass
+@dataclass(eq=False)
 class TLSListener(Listener[TLSStream]):
     """
     A convenience listener that wraps another listener and auto-negotiates a TLS session on every

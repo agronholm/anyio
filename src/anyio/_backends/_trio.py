@@ -179,7 +179,7 @@ class BlockingPortal(abc.BlockingPortal):
 # Subprocesses
 #
 
-@dataclass
+@dataclass(eq=False)
 class ReceiveStreamWrapper(abc.ByteReceiveStream):
     _stream: trio.abc.ReceiveStream
 
@@ -200,7 +200,7 @@ class ReceiveStreamWrapper(abc.ByteReceiveStream):
         await self._stream.aclose()
 
 
-@dataclass
+@dataclass(eq=False)
 class SendStreamWrapper(abc.ByteSendStream):
     _stream: trio.abc.SendStream
 

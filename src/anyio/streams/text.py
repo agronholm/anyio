@@ -7,7 +7,7 @@ from ..abc import (
     ObjectStream)
 
 
-@dataclass
+@dataclass(eq=False)
 class TextReceiveStream(ObjectReceiveStream[str]):
     """
     Stream wrapper that decodes bytes to strings using the given encoding.
@@ -49,7 +49,7 @@ class TextReceiveStream(ObjectReceiveStream[str]):
         return self.transport_stream.extra_attributes
 
 
-@dataclass
+@dataclass(eq=False)
 class TextSendStream(ObjectSendStream[str]):
     """
     Sends strings to the wrapped stream as bytes using the given encoding.
@@ -83,7 +83,7 @@ class TextSendStream(ObjectSendStream[str]):
         return self.transport_stream.extra_attributes
 
 
-@dataclass
+@dataclass(eq=False)
 class TextStream(ObjectStream[str]):
     """
     A bidirectional stream that decodes bytes to strings on receive and encodes strings to bytes on

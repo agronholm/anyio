@@ -94,6 +94,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   by Pytest, Sentry etc.)
 - Changed the default thread limiter on asyncio to be scoped to an event loop so that multiple
   running event loops don't conflict with each other
+- Made all non-frozen dataclasses hashable with ``eq=False``
 
 **2.2.0**
 

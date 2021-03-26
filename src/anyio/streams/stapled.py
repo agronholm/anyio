@@ -9,7 +9,7 @@ T_Item = TypeVar('T_Item')
 T_Stream = TypeVar('T_Stream')
 
 
-@dataclass
+@dataclass(eq=False)
 class StapledByteStream(ByteStream):
     """
     Combines two byte streams into a single, bidirectional byte stream.
@@ -42,7 +42,7 @@ class StapledByteStream(ByteStream):
         return dict(**self.send_stream.extra_attributes, **self.receive_stream.extra_attributes)
 
 
-@dataclass
+@dataclass(eq=False)
 class StapledObjectStream(Generic[T_Item], ObjectStream[T_Item]):
     """
     Combines two object streams into a single, bidirectional object stream.
@@ -75,7 +75,7 @@ class StapledObjectStream(Generic[T_Item], ObjectStream[T_Item]):
         return dict(**self.send_stream.extra_attributes, **self.receive_stream.extra_attributes)
 
 
-@dataclass
+@dataclass(eq=False)
 class MultiListener(Generic[T_Stream], Listener[T_Stream]):
     """
     Combines multiple listeners into one, serving connections from all of them at once.
