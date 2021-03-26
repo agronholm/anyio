@@ -64,8 +64,6 @@ class _BlockingPortalTaskStatus(TaskStatus):
 class BlockingPortal(metaclass=ABCMeta):
     """An object tied that lets external threads run code in an asynchronous event loop."""
 
-    __slots__ = '_task_group', '_event_loop_thread_id', '_stop_event', '_cancelled_exc_class'
-
     def __init__(self):
         from .. import create_task_group, get_cancelled_exc_class
 

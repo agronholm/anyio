@@ -479,8 +479,6 @@ class _AsyncioTaskStatus(abc.TaskStatus):
 
 
 class TaskGroup(abc.TaskGroup):
-    __slots__ = 'cancel_scope', '_active', '_exceptions'
-
     def __init__(self):
         self.cancel_scope: CancelScope = CancelScope()
         self._active = False
@@ -748,8 +746,6 @@ def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *a
 
 
 class BlockingPortal(abc.BlockingPortal):
-    __slots__ = '_loop'
-
     def __init__(self):
         super().__init__()
         self._loop = get_running_loop()
