@@ -640,7 +640,7 @@ _Retval_Queue_Type = Tuple[Optional[T_Retval], Optional[BaseException]]
 
 
 def _thread_pool_worker(work_queue: Queue, workers: Set[Thread],
-                        idle_workers: Set[Thread]) -> None:
+                        idle_workers: Deque[Thread]) -> None:
     func: Callable
     args: tuple
     future: asyncio.Future
@@ -653,7 +653,10 @@ def _thread_pool_worker(work_queue: Queue, workers: Set[Thread],
             workers.remove(thread)
             return
         finally:
-            idle_workers.discard(thread)
+            try:
+                idle_workers.remove(thread)
+            except ValueError:
+                pass
 
         if func is None:
             # Shutdown command received
@@ -666,21 +669,21 @@ def _thread_pool_worker(work_queue: Queue, workers: Set[Thread],
                 try:
                     result = func(*args)
                 except BaseException as exc:
-                    idle_workers.add(thread)
+                    idle_workers.append(thread)
                     if not loop.is_closed() and not future.cancelled():
                         loop.call_soon_threadsafe(future.set_exception, exc)
                 else:
-                    idle_workers.add(thread)
+                    idle_workers.append(thread)
                     if not loop.is_closed() and not future.cancelled():
                         loop.call_soon_threadsafe(future.set_result, result)
         else:
-            idle_workers.add(thread)
+            idle_workers.append(thread)
 
         work_queue.task_done()
 
 
 _threadpool_work_queue: RunVar[Queue] = RunVar('_threadpool_work_queue')
-_threadpool_idle_workers: RunVar[Set[Thread]] = RunVar('_threadpool_idle_workers')
+_threadpool_idle_workers: RunVar[Deque[Thread]] = RunVar('_threadpool_idle_workers')
 _threadpool_workers: RunVar[Set[Thread]] = RunVar('_threadpool_workers')
 
 
@@ -702,7 +705,7 @@ async def run_sync_in_worker_thread(
         workers = _threadpool_workers.get()
     except LookupError:
         work_queue = Queue()
-        idle_workers = set()
+        idle_workers = deque()
         workers = set()
         _threadpool_work_queue.set(work_queue)
         _threadpool_idle_workers.set(idle_workers)
