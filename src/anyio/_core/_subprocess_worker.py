@@ -1,11 +1,12 @@
 import os
 import pickle
 import sys
+from importlib.abc import Loader
 from importlib.util import module_from_spec, spec_from_file_location
-from typing import Optional
+from typing import Optional, cast
 
 
-def process_worker():
+def process_worker() -> None:
     # Redirect standard streams to os.devnull so that user code won't interfere with the
     # parent-worker communication
     stdin = sys.stdin
@@ -38,9 +39,9 @@ def process_worker():
                     # (like multiprocessing does) to avoid infinite recursion
                     try:
                         spec = spec_from_file_location('__mp_main__', main_module_path)
-                        if spec:
+                        if spec and spec.loader:
                             main = module_from_spec(spec)
-                            spec.loader.exec_module(main)
+                            cast(Loader, spec.loader).exec_module(main)
                             sys.modules['__main__'] = main
                     except BaseException as exc:
                         exception = exc
