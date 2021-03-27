@@ -7,6 +7,34 @@ Synchronization primitives are objects that are used by tasks to communicate and
 each other. They are useful for things like distributing workload, notifying other tasks and
 guarding access to shared resources.
 
+Events
+------
+
+Events are used to notify tasks that something they've been waiting to happen has happened.
+An event object can have multiple listeners and they are all notified when the event is triggered.
+
+Example::
+
+    from anyio import Event, create_task_group, run
+
+
+    async def notify(event):
+        event.set()
+
+
+    async def main():
+        event = Event()
+        async with create_task_group() as tg:
+            tg.spawn(notify, event)
+            await event.wait()
+            print('Received notification!')
+
+    run(main)
+
+.. note:: Unlike standard library Events, AnyIO events cannot be reused, and must be replaced
+          instead. This practice prevents a class of race conditions, and matches the semantics
+          of the trio library.
+
 Semaphores
 ----------
 
@@ -38,7 +66,8 @@ Locks
 -----
 
 Locks are used to guard shared resources to ensure sole access to a single task at once.
-They function much like semaphores with a maximum value of 1.
+They function much like semaphores with a maximum value of 1, except that only the task that
+acquired the lock is allowed to release it.
 
 Example::
 
@@ -59,34 +88,6 @@ Example::
 
     run(main)
 
-Events
-------
-
-Events are used to notify tasks that something they've been waiting to happen has happened.
-An event object can have multiple listeners and they are all notified when the event is triggered.
-
-Example::
-
-    from anyio import Event, create_task_group, run
-
-
-    async def notify(event):
-        event.set()
-
-
-    async def main():
-        event = Event()
-        async with create_task_group() as tg:
-            tg.spawn(notify, event)
-            await event.wait()
-            print('Received notification!')
-
-    run(main)
-
-.. note:: Unlike standard library Events, AnyIO events cannot be reused, and must be replaced
-          instead. This practice prevents a class of race conditions, and matches the semantics
-          of the trio library.
-
 
 Conditions
 ----------
@@ -95,6 +96,9 @@ A condition is basically a combination of an event and a lock. It first acquires
 waits for a notification from the event. Once the condition receives a notification, it releases
 the lock. The notifying task can also choose to wake up more than one listener at once, or even
 all of them.
+
+Like :class:`Lock`, :class:`Condition` also requires that the task which locked it also the one to
+release it.
 
 Example::
 

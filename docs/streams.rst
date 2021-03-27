@@ -32,7 +32,7 @@ By default, memory object streams are created with a buffer size of 0. This mean
 :meth:`~.streams.memory.MemoryObjectSendStream.send` will block until there's another task
 that calls :meth:`~.streams.memory.MemoryObjectReceiveStream.receive`. You can set the buffer
 size to a value of your choosing when creating the stream. It is also possible to have an unbounded
-buffer by passing :data:``math.inf`` as the buffer size but this is not recommended.
+buffer by passing :data:`math.inf` as the buffer size but this is not recommended.
 
 Memory object streams can be cloned by calling the ``clone()`` method. Each clone can be closed
 separately, but each end of the stream is only considered closed once all of its clones have been

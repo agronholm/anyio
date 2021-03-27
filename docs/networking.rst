@@ -101,6 +101,9 @@ And the listener::
 
     run(main)
 
+.. note:: The UNIX socket listener does not remove the socket it creates, so you may need to delete
+          them manually.
+
 Sending and receiving file descriptors
 ++++++++++++++++++++++++++++++++++++++
 

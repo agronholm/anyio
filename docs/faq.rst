@@ -22,5 +22,8 @@ The minimum requirement to support Twisted_ would be for sniffio_ to be able to 
 Twisted event loop (and be able to tell when Twisted_ is being run on top of its asyncio reactor).
 This is not currently supported in sniffio_, so AnyIO cannot support Twisted either.
 
+There is a Twisted `issue <https://github.com/twisted/twisted/pull/1263>`_ that you can follow if
+you're interested in Twisted support in AnyIO.
+
 .. _Twisted: https://twistedmatrix.com/trac/
 .. _sniffio: https://github.com/python-trio/sniffio

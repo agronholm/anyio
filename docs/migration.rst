@@ -39,7 +39,7 @@ The following async context managers changed to regular context managers:
 
 * :func:`fail_after`
 * :func:`move_on_after`
-* :func:`open_cancel_scope`
+* :func:`open_cancel_scope` (now just ``CancelScope()``)
 
 When migrating, just change ``async with`` into a plain ``with``.
 
