@@ -1,24 +1,23 @@
 from abc import ABCMeta, abstractmethod
 from contextlib import AbstractContextManager
 from typing import (
-    Any, AsyncContextManager, Callable, ContextManager, Coroutine, List, Optional, TypeVar, Union,
-    overload)
+    AsyncContextManager, Callable, ContextManager, List, Optional, TypeVar, Union, overload)
 from warnings import warn
 
 T = TypeVar('T')
 
 
 @overload
-async def maybe_async(__obj: Coroutine[Any, Any, T]) -> T:
+async def maybe_async(__obj: 'DeprecatedAwaitableFloat') -> float:
     ...
 
 
 @overload
-async def maybe_async(__obj: T) -> T:
+async def maybe_async(__obj: 'DeprecatedAwaitableList') -> list:
     ...
 
 
-async def maybe_async(__obj):
+async def maybe_async(__obj: 'DeprecatedAwaitable'):
     """
     Await on the given object if necessary.
 
@@ -30,7 +29,7 @@ async def maybe_async(__obj):
     .. versionadded:: 2.2
 
     """
-    return __obj
+    return __obj._unwrap()
 
 
 class _ContextManagerWrapper:
@@ -75,13 +74,16 @@ class DeprecatedAwaitable:
         if False:
             yield
 
+    def _unwrap(self) -> None:
+        return None
 
-class DeprecatedAwaitableFloat(float):
+
+class DeprecatedAwaitableFloat(float, DeprecatedAwaitable):
     def __new__(cls, x, func):
         return super().__new__(cls, x)
 
     def __init__(self, x: float, func: Callable[..., 'DeprecatedAwaitableFloat']):
-        self._name = f'{func.__module__}.{func.__qualname__}'
+        DeprecatedAwaitable.__init__(self, func)
 
     def __await__(self):
         warn(f'Awaiting on {self._name}() is deprecated. Use "await '
@@ -93,6 +95,9 @@ class DeprecatedAwaitableFloat(float):
 
         return float(self)
 
+    def _unwrap(self) -> float:
+        return float(self)
+
 
 class DeprecatedAwaitableList(List[T], DeprecatedAwaitable):
     def __init__(self, *args, func: Callable[..., 'DeprecatedAwaitableList']):
@@ -102,6 +107,9 @@ class DeprecatedAwaitableList(List[T], DeprecatedAwaitable):
     def __await__(self):
         yield from super().__await__()
         return self
+
+    def _unwrap(self) -> List[T]:
+        return list(self)
 
 
 class DeprecatedAsyncContextManager(metaclass=ABCMeta):

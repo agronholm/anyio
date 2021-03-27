@@ -35,6 +35,14 @@ The following functions and methods were changed:
 
 When migrating to AnyIO 3, simply remove the ``await`` from each call to these.
 
+.. note:: For backwards compatibility reasons, :func:`current_time`,
+          :func:`current_effective_deadline` and :func:`get_running_tasks` return objects which are
+          awaitable versions of their original types (:class:`float` and :class:`list`,
+          respectively). These awaitable versions are subclasses of the original types so they
+          should behave as their originals, but if you absolutely need the pristine original types,
+          you can either use :func:`maybe_async` or ``float()`` / ``list()`` on the returned
+          value as appropriate.
+
 The following async context managers changed to regular context managers:
 
 * :func:`fail_after`

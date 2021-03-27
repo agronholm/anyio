@@ -12,9 +12,22 @@ from anyio import (
 pytestmark = pytest.mark.anyio
 
 
-async def test_maybe_async():
-    with CancelScope() as scope:
-        await maybe_async(scope.cancel())
+class TestMaybeAsync:
+    async def test_cancel_scope(self):
+        with CancelScope() as scope:
+            await maybe_async(scope.cancel())
+
+    async def test_current_time(self):
+        value = await maybe_async(current_time())
+        assert type(value) is float
+
+    async def test_current_effective_deadline(self):
+        value = await maybe_async(current_effective_deadline())
+        assert type(value) is float
+
+    async def test_get_running_tasks(self):
+        tasks = await maybe_async(get_running_tasks())
+        assert type(tasks) is list
 
 
 async def test_maybe_async_cm():
