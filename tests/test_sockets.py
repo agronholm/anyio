@@ -756,6 +756,12 @@ class TestUNIXListener:
 
             tg.cancel_scope.cancel()
 
+    async def test_bind_twice(self, socket_path):
+        """Test that the previous socket is removed before binding to the path."""
+        for _ in range(2):
+            async with await create_unix_listener(socket_path):
+                pass
+
 
 async def test_multi_listener(tmp_path_factory):
     async def handle(stream):

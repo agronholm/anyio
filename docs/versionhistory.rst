@@ -69,6 +69,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
   * Added the ``UNIXSocketStream`` class which is capable of sending and receiving file descriptors
   * Added the ``FileReadStream`` and ``FileWriteStream`` classes
+  * ``create_unix_listener()`` now removes any existing socket at the given path before proceeding
+    (instead of raising ``OSError: Address already in use``)
 - Improvements to task groups and cancellation:
 
   * Added the ``TaskGroup.start()`` method and a corresponding ``BlockingPortal.start_task()``

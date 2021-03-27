@@ -282,15 +282,22 @@ async def create_unix_listener(
         65536)
     :return: a listener object
 
+    .. versionchanged:: 3.0
+        If a socket already exists on the file system in the given path, it will be removed first.
+
     """
-    path = str(Path(path))
+    path_str = str(path)
+    path = Path(path)
+    if path.is_socket():
+        path.unlink()
+
     backlog = min(backlog, 65536)
     raw_socket = socket.socket(socket.AF_UNIX)
     raw_socket.setblocking(False)
     try:
-        await run_sync_in_worker_thread(raw_socket.bind, path, cancellable=True)
+        await run_sync_in_worker_thread(raw_socket.bind, path_str, cancellable=True)
         if mode is not None:
-            await run_sync_in_worker_thread(chmod, path, mode, cancellable=True)
+            await run_sync_in_worker_thread(chmod, path_str, mode, cancellable=True)
 
         raw_socket.listen(backlog)
         return get_asynclib().UNIXSocketListener(raw_socket)
