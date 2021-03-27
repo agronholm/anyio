@@ -5,6 +5,8 @@ from typing import (
 from warnings import warn
 
 T = TypeVar('T')
+AnyDeprecatedAwaitable = Union['DeprecatedAwaitable', 'DeprecatedAwaitableFloat',
+                               'DeprecatedAwaitableList']
 
 
 @overload
@@ -17,12 +19,19 @@ async def maybe_async(__obj: 'DeprecatedAwaitableList') -> list:
     ...
 
 
-async def maybe_async(__obj: 'DeprecatedAwaitable'):
+@overload
+async def maybe_async(__obj: 'DeprecatedAwaitable') -> None:
+    ...
+
+
+async def maybe_async(__obj: AnyDeprecatedAwaitable) -> Union[float, list, None]:
     """
     Await on the given object if necessary.
 
     This function is intended to bridge the gap between AnyIO 2.x and 3.x where some functions and
     methods were converted from coroutine functions into regular functions.
+
+    Do **not** try to use this for any other purpose!
 
     :return: the result of awaiting on the object if coroutine, or the object itself otherwise
 
@@ -62,34 +71,35 @@ def maybe_async_cm(cm: Union[ContextManager[T], AsyncContextManager[T]]) -> Asyn
     return _ContextManagerWrapper(cm)
 
 
+def _warn_deprecation(awaitable: AnyDeprecatedAwaitable) -> None:
+    warn(f'Awaiting on {awaitable._name}() is deprecated. Use "await '
+         f'anyio.maybe_awaitable({awaitable._name}(...)) if you have to support both AnyIO 2.x '
+         f'and 3.x, or just remove the "await" if you are completely migrating to AnyIO 3+.',
+         DeprecationWarning)
+
+
 class DeprecatedAwaitable:
     def __init__(self, func: Callable[..., 'DeprecatedAwaitable']):
         self._name = f'{func.__module__}.{func.__qualname__}'
 
     def __await__(self):
-        warn(f'Awaiting on {self._name}() is deprecated. Use "await '
-             f'anyio.maybe_awaitable({self._name}(...)) if you have to support both AnyIO 2.x and '
-             f'3.x, or just remove the "await" if you are completely migrating to AnyIO 3+.',
-             DeprecationWarning)
+        _warn_deprecation(self)
         if False:
             yield
 
-    def _unwrap(self) -> None:
+    def _unwrap(self):
         return None
 
 
-class DeprecatedAwaitableFloat(float, DeprecatedAwaitable):
+class DeprecatedAwaitableFloat(float):
     def __new__(cls, x, func):
         return super().__new__(cls, x)
 
     def __init__(self, x: float, func: Callable[..., 'DeprecatedAwaitableFloat']):
-        DeprecatedAwaitable.__init__(self, func)
+        self._name = f'{func.__module__}.{func.__qualname__}'
 
     def __await__(self):
-        warn(f'Awaiting on {self._name}() is deprecated. Use "await '
-             f'anyio.maybe_awaitable({self._name}(...)) if you have to support both AnyIO 2.x and '
-             f'3.x, or just remove the "await" if you are completely migrating to AnyIO 3+.',
-             DeprecationWarning)
+        _warn_deprecation(self)
         if False:
             yield
 
@@ -99,13 +109,16 @@ class DeprecatedAwaitableFloat(float, DeprecatedAwaitable):
         return float(self)
 
 
-class DeprecatedAwaitableList(List[T], DeprecatedAwaitable):
+class DeprecatedAwaitableList(List[T]):
     def __init__(self, *args, func: Callable[..., 'DeprecatedAwaitableList']):
-        list.__init__(self, *args)
-        DeprecatedAwaitable.__init__(self, func)
+        super().__init__(*args)
+        self._name = f'{func.__module__}.{func.__qualname__}'
 
     def __await__(self):
-        yield from super().__await__()
+        _warn_deprecation(self)
+        if False:
+            yield
+
         return self
 
     def _unwrap(self) -> List[T]:
