@@ -7,6 +7,7 @@ from pathlib import Path
 from socket import AddressFamily, SocketKind
 from typing import Awaitable, List, Optional, Tuple, Union, cast, overload
 
+from .. import to_thread
 from ..abc import (
     ConnectedUDPSocket, IPAddressType, IPSockAddrType, SocketListener, SocketStream, UDPSocket,
     UNIXSocketStream)
@@ -16,7 +17,6 @@ from ._eventloop import get_asynclib
 from ._resources import aclose_forcefully
 from ._synchronization import Event
 from ._tasks import create_task_group, move_on_after
-from ._threads import run_sync_in_worker_thread
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -295,9 +295,9 @@ async def create_unix_listener(
     raw_socket = socket.socket(socket.AF_UNIX)
     raw_socket.setblocking(False)
     try:
-        await run_sync_in_worker_thread(raw_socket.bind, path_str, cancellable=True)
+        await to_thread.run_sync(raw_socket.bind, path_str, cancellable=True)
         if mode is not None:
-            await run_sync_in_worker_thread(chmod, path_str, mode, cancellable=True)
+            await to_thread.run_sync(chmod, path_str, mode, cancellable=True)
 
         raw_socket.listen(backlog)
         return get_asynclib().UNIXSocketListener(raw_socket)

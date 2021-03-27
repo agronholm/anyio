@@ -43,15 +43,25 @@ Task groups
 .. autoclass:: anyio.abc.TaskGroup
 .. autoclass:: anyio.abc.TaskStatus
 
-Threads
--------
+Running code in worker threads
+------------------------------
 
-.. autofunction:: anyio.run_sync_in_worker_thread
-.. autofunction:: anyio.run_async_from_thread
-.. autofunction:: anyio.run_sync_from_thread
-.. autofunction:: anyio.current_default_worker_thread_limiter
-.. autofunction:: anyio.create_blocking_portal
-.. autofunction:: anyio.start_blocking_portal
+.. autofunction:: anyio.to_thread.run_sync
+.. autofunction:: anyio.to_thread.current_default_thread_limiter
+
+Running code in worker processes
+--------------------------------
+
+.. autofunction:: anyio.to_process.run_sync
+.. autofunction:: anyio.to_process.current_default_process_limiter
+
+Running asynchronous code from other threads
+--------------------------------------------
+
+.. autofunction:: anyio.from_thread.run
+.. autofunction:: anyio.from_thread.run_sync
+.. autofunction:: anyio.from_thread.create_blocking_portal
+.. autofunction:: anyio.from_thread.start_blocking_portal
 
 .. autoclass:: anyio.abc.BlockingPortal
 

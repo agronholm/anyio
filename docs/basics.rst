@@ -83,8 +83,7 @@ of your choice. There are a few rules to keep in mind however:
   use a library written for trio together with a library written for asyncio.
 * Tasks spawned by these "native" libraries on backends other than trio_ are not subject to the
   cancellation rules enforced by AnyIO
-* Threads spawned outside of AnyIO cannot use :func:`~run_async_from_thread` to call
-  asynchronous code
+* Threads spawned outside of AnyIO cannot use :func:`.from_thread.run` to call asynchronous code
 
 .. _virtualenv: https://docs.python-guide.org/dev/virtualenvs/
 .. _trio: https://github.com/python-trio/trio

@@ -74,7 +74,7 @@ This is done by using :func:`.run_sync_in_process`::
 
     import time
 
-    from anyio import run, run_sync_in_process
+    from anyio import run, to_process
 
 
     def cpu_intensive_function(arg1, arg2):
@@ -82,7 +82,7 @@ This is done by using :func:`.run_sync_in_process`::
         return arg1 + arg2
 
     async def main():
-        result = await run_sync_in_process(cpu_intensive_function, 'Hello, ', 'world!')
+        result = await to_process.run_sync(cpu_intensive_function, 'Hello, ', 'world!')
         print(result)
 
     # This check is important when the application uses run_sync_in_process()

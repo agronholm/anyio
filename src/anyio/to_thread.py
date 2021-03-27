@@ -1,14 +1,13 @@
-from builtins import DeprecationWarning
 from typing import Callable, Optional, TypeVar
 from warnings import warn
 
-from ..abc import CapacityLimiter
-from ._eventloop import get_asynclib
+from ._core._eventloop import get_asynclib
+from .abc import CapacityLimiter
 
 T_Retval = TypeVar('T_Retval')
 
 
-async def run_sync_in_worker_thread(
+async def run_sync(
         func: Callable[..., T_Retval], *args, cancellable: bool = False,
         limiter: Optional[CapacityLimiter] = None) -> T_Retval:
     """
@@ -26,7 +25,30 @@ async def run_sync_in_worker_thread(
     :return: an awaitable that yields the return value of the function.
 
     """
-    warn('run_sync_in_worker_thread() is deprecated - use anyio.to_thread.run_sync() instead',
-         DeprecationWarning)
     return await get_asynclib().run_sync_in_worker_thread(func, *args, cancellable=cancellable,
                                                           limiter=limiter)
+
+
+async def run_sync_in_worker_thread(
+        func: Callable[..., T_Retval], *args, cancellable: bool = False,
+        limiter: Optional[CapacityLimiter] = None) -> T_Retval:
+    warn('run_sync_in_worker_thread() has been deprecated, use anyio.to_thread.run_sync() instead',
+         DeprecationWarning)
+    return await run_sync(func, *args, cancellable=cancellable, limiter=limiter)
+
+
+def current_default_thread_limiter() -> CapacityLimiter:
+    """
+    Return the capacity limiter that is used by default to limit the number of concurrent threads.
+
+    :return: a capacity limiter object
+
+    """
+    return get_asynclib().current_default_thread_limiter()
+
+
+def current_default_worker_thread_limiter() -> CapacityLimiter:
+    warn('current_default_worker_thread_limiter() has been deprecated, '
+         'use anyio.to_thread.current_default_thread_limiter() instead',
+         DeprecationWarning)
+    return current_default_thread_limiter()

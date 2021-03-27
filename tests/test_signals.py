@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from anyio import create_task_group, fail_after, open_signal_receiver, run_sync_in_worker_thread
+from anyio import create_task_group, fail_after, open_signal_receiver, to_thread
 
 pytestmark = [
     pytest.mark.anyio,
@@ -17,8 +17,8 @@ pytestmark = [
 
 async def test_receive_signals():
     with open_signal_receiver(signal.SIGUSR1, signal.SIGUSR2) as sigiter:
-        await run_sync_in_worker_thread(os.kill, os.getpid(), signal.SIGUSR1)
-        await run_sync_in_worker_thread(os.kill, os.getpid(), signal.SIGUSR2)
+        await to_thread.run_sync(os.kill, os.getpid(), signal.SIGUSR1)
+        await to_thread.run_sync(os.kill, os.getpid(), signal.SIGUSR2)
         with fail_after(1):
             assert await sigiter.__anext__() == signal.SIGUSR1
             assert await sigiter.__anext__() == signal.SIGUSR2

@@ -110,3 +110,16 @@ or, if you need to work with both AnyIO 2 and 3::
 
     async def foo() -> Event:
         return create_event()
+
+Threading functions moved
+-------------------------
+
+Threading functions were restructured to submodules, following the example of trio:
+
+* ``current_default_worker_thread_limiter`` → :func:`.to_thread.current_default_thread_limiter`
+  (NOTE: the function was renamed too!)
+* ``run_sync_in_worker_thread()`` → :func:`.to_thread.run_sync`
+* ``run_async_from_thread()`` → :func:`.from_thread.run`
+* ``run_sync_from_thread()`` → :func:`.from_thread.run_sync`
+
+The old versions are still in place but emit deprecation warnings when called.
