@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**3.0.0rc1**
 
 - Curio support has been dropped (see the :doc:`FAQ <faq>` as for why)
 - API changes:
