@@ -39,8 +39,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     * ``open_cancel_scope()`` (now just ``CancelScope()``; see below)
     * ``open_signal_receiver()``
 
-  See the :doc:`migration documentation <migration>` for instructions on how to deal with these
-  changes.
   * The following functions and methods have been deprecated:
 
     * ``create_capacity_limiter()`` → ``anyio.Event()``
@@ -59,6 +57,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     non-generic
   * Made all non-frozen dataclasses hashable with ``eq=False``
   * Removed ``__slots__`` from ``BlockingPortal``
+
+  See the :doc:`migration documentation <migration>` for instructions on how to deal with these
+  changes.
 - Improvements to running synchronous code:
 
   * Added the ``run_sync_from_thread()`` function
