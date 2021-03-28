@@ -271,8 +271,12 @@ class CancelScope(BaseCancelScope, DeprecatedAsyncContextManager):
         assert self._host_task is not None
         self._tasks.remove(self._host_task)
         host_task_state = _task_states.get(self._host_task)
-        if host_task_state is not None and host_task_state.cancel_scope is self:
-            host_task_state.cancel_scope = self._parent_scope
+        if host_task_state is None or host_task_state.cancel_scope is not self:
+            raise RuntimeError("Cancel scope task corruption detected.\n"
+                               "This means that you tried to exit a cancel scope that wasn't the"
+                               "last entered cancel scope in the current host task.")
+
+        host_task_state.cancel_scope = self._parent_scope
 
         # Restart the cancellation effort in the nearest directly cancelled parent scope if this
         # one was shielded

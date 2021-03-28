@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Changed the asyncio ``CancelScope`` to raise a ``RuntimeError`` if cancel scopes are being exited
+  in a different order than they were entered
+
 **3.0.0rc1**
 
 - Curio support has been dropped (see the :doc:`FAQ <faq>` as for why)

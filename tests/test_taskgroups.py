@@ -849,3 +849,15 @@ async def test_shielded_cancel_sleep_time():
             process_time = time.process_time()
 
         assert (time.process_time() - process_time) < hang_time
+
+
+async def test_cancelscope_wrong_exit_order():
+    """
+    Test that a RuntimeError is raised if the task tries to exit cancel scopes in the wrong order.
+
+    """
+    scope1 = CancelScope()
+    scope2 = CancelScope()
+    scope1.__enter__()
+    scope2.__enter__()
+    pytest.raises(RuntimeError, scope1.__exit__, None, None, None)
