@@ -861,3 +861,9 @@ async def test_cancelscope_wrong_exit_order():
     scope1.__enter__()
     scope2.__enter__()
     pytest.raises(RuntimeError, scope1.__exit__, None, None, None)
+
+
+async def test_cancelscope_exit_before_enter():
+    """Test that a RuntimeError is raised if one tries to exit a cancel scope before entering."""
+    scope = CancelScope()
+    pytest.raises(RuntimeError, scope.__exit__, None, None, None)

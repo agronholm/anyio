@@ -7,6 +7,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Changed the asyncio ``CancelScope`` to raise a ``RuntimeError`` if cancel scopes are being exited
   in a different order than they were entered
+- Changed the asyncio ``CancelScope`` to raise a ``RuntimeError`` if a cancel scope is being exited
+  before it was even entered
 
 **3.0.0rc1**
 

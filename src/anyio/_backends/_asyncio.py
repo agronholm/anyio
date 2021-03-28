@@ -263,6 +263,9 @@ class CancelScope(BaseCancelScope, DeprecatedAsyncContextManager):
 
     def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException],
                  exc_tb: Optional[TracebackType]) -> Optional[bool]:
+        if not self._active:
+            raise RuntimeError('This cancel scope is not active')
+
         self._active = False
         if self._timeout_handle:
             self._timeout_handle.cancel()
