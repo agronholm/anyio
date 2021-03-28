@@ -111,3 +111,45 @@ retrieve the exception class specific to the currently running async framework, 
 
 .. warning:: Always reraise the cancellation exception if you catch it. Failing to do so may cause
              undefined behavior in your application.
+
+If you need to use ``await`` during finalization, you need to enclose it in a shielded cancel
+scope, or the operation will be cancelled immediately since it's in an already cancelled scope::
+
+    async def do_something():
+        try:
+            await run_async_stuff()
+        except get_cancelled_exc_class():
+            with CancelScope(shield=True):
+                await some_cleanup_function()
+
+            raise
+
+Avoiding cancel scope stack corruption
+--------------------------------------
+
+When using cancel scopes, it is important that they are entered and exited in LIFO (last in, first
+out) order within each task. This is usually not an issue since cancel scopes are normally used as
+context managers. However, in certain situations, cancel scope stack corruption might still occur:
+
+* Manually calling ``CancelScope.__enter__()`` and ``CancelScope.__exit__()``, usually from another
+  context manager class, in the wrong order
+* Using cancel scopes with ``[Async]ExitStack`` in a manner that couldn't be achieved by nesting
+  them as context managers
+* Using the low level coroutine protocol to execute parts of the coroutine function in different
+  cancel scopes
+* Yielding in an async generator while enclosed in a cancel scope
+
+Remember that task groups contain their own cancel scopes so the same list of risky situations
+applies to them too.
+
+Therefore, do **NOT** do this::
+
+    async def some_generator():
+        async with create_task_group() as tg:
+            tg.spawn(foo)
+            yield
+
+The problem with this code is that it violates structural concurrency: what happens if the spawned
+task raises an exception? The host task would be cancelled as a result, but the host task might be
+long gone by the time that happens. Even if it weren't, any enclosing ``try...except`` in the
+generator would not be triggered. In other words: it's a Really Bad Idea to do this!
