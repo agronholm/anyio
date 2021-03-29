@@ -6,10 +6,10 @@ import pytest
 
 from anyio import (
     CancelScope, CapacityLimiter, Condition, Event, Lock, Semaphore, TaskInfo,
-    create_memory_object_stream, create_task_group, current_effective_deadline, current_time,
-    fail_after, get_current_task, get_running_tasks, maybe_async, maybe_async_cm, move_on_after,
-    open_signal_receiver, run_async_from_thread, run_sync_from_thread, run_sync_in_worker_thread,
-    sleep, to_thread)
+    create_memory_object_stream, create_task_group, current_default_worker_thread_limiter,
+    current_effective_deadline, current_time, fail_after, get_current_task, get_running_tasks,
+    maybe_async, maybe_async_cm, move_on_after, open_signal_receiver, run_async_from_thread,
+    run_sync_from_thread, run_sync_in_worker_thread, sleep, to_thread)
 
 pytestmark = pytest.mark.anyio
 
@@ -161,3 +161,8 @@ class TestDeprecations:
                 return run_sync_from_thread(threading.get_ident)
 
         assert await to_thread.run_sync(thread_func) == threading.get_ident()
+
+    async def test_current_default_worker_thread_limiter(self):
+        with pytest.deprecated_call():
+            default_limiter = to_thread.current_default_thread_limiter()
+            assert current_default_worker_thread_limiter() is default_limiter
