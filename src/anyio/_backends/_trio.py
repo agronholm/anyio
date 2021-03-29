@@ -651,8 +651,16 @@ class CapacityLimiter(BaseCapacityLimiter):
         return self.__original.statistics()
 
 
-def current_default_thread_limiter():
-    return CapacityLimiter(original=trio.to_thread.current_default_thread_limiter())
+_capacity_limiter_wrapper = RunVar('_capacity_limiter_wrapper')
+
+
+def current_default_thread_limiter() -> CapacityLimiter:
+    try:
+        return _capacity_limiter_wrapper.get()
+    except LookupError:
+        limiter = CapacityLimiter(original=trio.to_thread.current_default_thread_limiter())
+        _capacity_limiter_wrapper.set(limiter)
+        return limiter
 
 
 #
