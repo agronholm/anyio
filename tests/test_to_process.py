@@ -1,4 +1,5 @@
 import os
+import platform
 import sys
 import time
 from functools import partial
@@ -8,6 +9,14 @@ import pytest
 from anyio import CancelScope, create_task_group, fail_after, to_process, wait_all_tasks_blocked
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def check_compatibility(anyio_backend_name):
+    if anyio_backend_name == 'asyncio':
+        if platform.system() == 'Windows' and sys.version_info < (3, 8):
+            pytest.skip('Python < 3.8 uses SelectorEventLoop by default and it does not support '
+                        'subprocesses')
 
 
 async def test_run_sync_in_process_pool():
