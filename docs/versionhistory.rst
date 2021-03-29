@@ -11,6 +11,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``run_sync_in_worker_thread()`` → ``anyio.to_thread.run_sync()``
   * ``run_async_from_thread()`` → ``anyio.from_thread.run()``
   * ``run_sync_from_thread()`` → ``anyio.from_thread.run_sync()``
+- Added check that cancel scopes are entered and exited in the same task (only done on asyncio for
+  now)
 
 **3.0.0rc2**
 

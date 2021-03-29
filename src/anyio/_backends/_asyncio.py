@@ -265,19 +265,22 @@ class CancelScope(BaseCancelScope, DeprecatedAsyncContextManager):
                  exc_tb: Optional[TracebackType]) -> Optional[bool]:
         if not self._active:
             raise RuntimeError('This cancel scope is not active')
+        if current_task() is not self._host_task:
+            raise RuntimeError('Attempted to exit cancel scope in a different task than it was '
+                               'entered in')
+
+        assert self._host_task is not None
+        host_task_state = _task_states.get(self._host_task)
+        if host_task_state is None or host_task_state.cancel_scope is not self:
+            raise RuntimeError("Attempted to exit a cancel scope that isn't the current tasks's "
+                               "current cancel scope")
 
         self._active = False
         if self._timeout_handle:
             self._timeout_handle.cancel()
             self._timeout_handle = None
 
-        assert self._host_task is not None
         self._tasks.remove(self._host_task)
-        host_task_state = _task_states.get(self._host_task)
-        if host_task_state is None or host_task_state.cancel_scope is not self:
-            raise RuntimeError("Cancel scope task corruption detected.\n"
-                               "This means that you tried to exit a cancel scope that wasn't the"
-                               "last entered cancel scope in the current host task.")
 
         host_task_state.cancel_scope = self._parent_scope
 

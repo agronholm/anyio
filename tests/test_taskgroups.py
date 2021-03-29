@@ -867,3 +867,20 @@ async def test_cancelscope_exit_before_enter():
     """Test that a RuntimeError is raised if one tries to exit a cancel scope before entering."""
     scope = CancelScope()
     pytest.raises(RuntimeError, scope.__exit__, None, None, None)
+
+
+@pytest.mark.parametrize('anyio_backend', ['asyncio'])  # trio does not check for this yet
+async def test_cancelscope_exit_in_wrong_task():
+    async def enter_scope(scope):
+        scope.__enter__()
+
+    async def exit_scope(scope):
+        scope.__exit__(None, None, None)
+
+    scope = CancelScope()
+    async with create_task_group() as tg:
+        tg.spawn(enter_scope, scope)
+
+    with pytest.raises(RuntimeError):
+        async with create_task_group() as tg:
+            tg.spawn(exit_scope, scope)
