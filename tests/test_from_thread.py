@@ -1,230 +1,111 @@
-import asyncio
-import sys
 import threading
-import time
 from concurrent.futures import CancelledError
 from contextlib import suppress
 
 import pytest
 
 from anyio import (
-    CapacityLimiter, Event, create_blocking_portal, create_task_group, get_cancelled_exc_class,
-    get_current_task, run, run_async_from_thread, run_sync_from_thread, run_sync_in_worker_thread,
-    sleep, start_blocking_portal, wait_all_tasks_blocked)
-
-if sys.version_info < (3, 7):
-    current_task = asyncio.Task.current_task
-else:
-    current_task = asyncio.current_task
+    Event, create_blocking_portal, from_thread, get_cancelled_exc_class, get_current_task, run,
+    sleep, start_blocking_portal, to_thread, wait_all_tasks_blocked)
 
 pytestmark = pytest.mark.anyio
 
 
-async def test_run_async_from_thread():
-    async def add(a, b):
-        assert threading.get_ident() == event_loop_thread_id
-        return a + b
+class TestRunAsyncFromThread:
+    async def test_run_async_from_thread(self):
+        async def add(a, b):
+            assert threading.get_ident() == event_loop_thread_id
+            return a + b
 
-    def worker(a, b):
-        assert threading.get_ident() != event_loop_thread_id
-        return run_async_from_thread(add, a, b)
+        def worker(a, b):
+            assert threading.get_ident() != event_loop_thread_id
+            return from_thread.run(add, a, b)
 
-    event_loop_thread_id = threading.get_ident()
-    result = await run_sync_in_worker_thread(worker, 1, 2)
-    assert result == 3
+        event_loop_thread_id = threading.get_ident()
+        result = await to_thread.run_sync(worker, 1, 2)
+        assert result == 3
 
+    async def test_run_sync_from_thread(self):
+        def add(a, b):
+            assert threading.get_ident() == event_loop_thread_id
+            return a + b
 
-async def test_run_sync_from_thread():
-    def add(a, b):
-        assert threading.get_ident() == event_loop_thread_id
-        return a + b
+        def worker(a, b):
+            assert threading.get_ident() != event_loop_thread_id
+            return from_thread.run_sync(add, a, b)
 
-    def worker(a, b):
-        assert threading.get_ident() != event_loop_thread_id
-        return run_sync_from_thread(add, a, b)
+        event_loop_thread_id = threading.get_ident()
+        result = await to_thread.run_sync(worker, 1, 2)
+        assert result == 3
 
-    event_loop_thread_id = threading.get_ident()
-    result = await run_sync_in_worker_thread(worker, 1, 2)
-    assert result == 3
+    def test_run_sync_from_thread_pooling(self):
+        async def main():
+            thread_ids = set()
+            for _ in range(5):
+                thread_ids.add(await to_thread.run_sync(threading.get_ident))
 
+            # Expects that all the work has been done in the same worker thread
+            assert len(thread_ids) == 1
+            assert thread_ids.pop() != threading.get_ident()
+            assert threading.active_count() == initial_count + 1
 
-def test_run_sync_from_thread_pooling():
-    async def main():
-        thread_ids = set()
-        for _ in range(5):
-            thread_ids.add(await run_sync_in_worker_thread(threading.get_ident))
+        # The thread should not exist after the event loop has been closed
+        initial_count = threading.active_count()
+        run(main, backend='asyncio')
+        assert threading.active_count() == initial_count
 
-        # Expects that all the work has been done in the same worker thread
-        assert len(thread_ids) == 1
-        assert thread_ids.pop() != threading.get_ident()
-        assert threading.active_count() == initial_count + 1
+    async def test_run_async_from_thread_exception(self):
+        async def add(a, b):
+            assert threading.get_ident() == event_loop_thread_id
+            return a + b
 
-    # The thread should not exist after the event loop has been closed
-    initial_count = threading.active_count()
-    run(main, backend='asyncio')
-    assert threading.active_count() == initial_count
+        def worker(a, b):
+            assert threading.get_ident() != event_loop_thread_id
+            return from_thread.run(add, a, b)
 
+        event_loop_thread_id = threading.get_ident()
+        with pytest.raises(TypeError) as exc:
+            await to_thread.run_sync(worker, 1, 'foo')
 
-async def test_run_async_from_thread_exception():
-    async def add(a, b):
-        assert threading.get_ident() == event_loop_thread_id
-        return a + b
+        exc.match("unsupported operand type")
 
-    def worker(a, b):
-        assert threading.get_ident() != event_loop_thread_id
-        return run_async_from_thread(add, a, b)
+    async def test_run_sync_from_thread_exception(self):
+        def add(a, b):
+            assert threading.get_ident() == event_loop_thread_id
+            return a + b
 
-    event_loop_thread_id = threading.get_ident()
-    with pytest.raises(TypeError) as exc:
-        await run_sync_in_worker_thread(worker, 1, 'foo')
+        def worker(a, b):
+            assert threading.get_ident() != event_loop_thread_id
+            return from_thread.run_sync(add, a, b)
 
-    exc.match("unsupported operand type")
+        event_loop_thread_id = threading.get_ident()
+        with pytest.raises(TypeError) as exc:
+            await to_thread.run_sync(worker, 1, 'foo')
 
+        exc.match("unsupported operand type")
 
-async def test_run_sync_from_thread_exception():
-    def add(a, b):
-        assert threading.get_ident() == event_loop_thread_id
-        return a + b
+    async def test_run_anyio_async_func_from_thread(self):
+        def worker(*args):
+            from_thread.run(sleep, *args)
+            return True
 
-    def worker(a, b):
-        assert threading.get_ident() != event_loop_thread_id
-        return run_sync_from_thread(add, a, b)
+        assert await to_thread.run_sync(worker, 0)
 
-    event_loop_thread_id = threading.get_ident()
-    with pytest.raises(TypeError) as exc:
-        await run_sync_in_worker_thread(worker, 1, 'foo')
+    def test_run_async_from_unclaimed_thread(self):
+        async def foo():
+            pass
 
-    exc.match("unsupported operand type")
-
-
-async def test_run_anyio_async_func_from_thread():
-    def worker(*args):
-        run_async_from_thread(sleep, *args)
-        return True
-
-    assert await run_sync_in_worker_thread(worker, 0)
-
-
-async def test_run_in_thread_cancelled():
-    def thread_worker():
-        nonlocal state
-        state = 2
-
-    async def worker():
-        nonlocal state
-        state = 1
-        await run_sync_in_worker_thread(thread_worker)
-        state = 3
-
-    state = 0
-    async with create_task_group() as tg:
-        tg.spawn(worker)
-        tg.cancel_scope.cancel()
-
-    assert state == 1
+        exc = pytest.raises(RuntimeError, from_thread.run, foo)
+        exc.match('This function can only be run from an AnyIO worker thread')
 
 
-async def test_run_in_thread_exception():
-    def thread_worker():
-        raise ValueError('foo')
+class TestRunSyncFromThread:
+    def test_run_sync_from_unclaimed_thread(self):
+        def foo():
+            pass
 
-    with pytest.raises(ValueError) as exc:
-        await run_sync_in_worker_thread(thread_worker)
-
-    exc.match('^foo$')
-
-
-async def test_run_in_custom_limiter():
-    def thread_worker():
-        nonlocal num_active_threads, max_active_threads
-        num_active_threads += 1
-        max_active_threads = max(num_active_threads, max_active_threads)
-        event.wait(1)
-        num_active_threads -= 1
-
-    async def task_worker():
-        await run_sync_in_worker_thread(thread_worker, limiter=limiter)
-
-    event = threading.Event()
-    num_active_threads = max_active_threads = 0
-    limiter = CapacityLimiter(3)
-    async with create_task_group() as tg:
-        for _ in range(4):
-            tg.spawn(task_worker)
-
-        await sleep(0.1)
-        assert num_active_threads == 3
-        assert limiter.borrowed_tokens == 3
-        event.set()
-
-    assert num_active_threads == 0
-    assert max_active_threads == 3
-
-
-def test_run_async_from_unclaimed_thread():
-    async def foo():
-        pass
-
-    exc = pytest.raises(RuntimeError, run_async_from_thread, foo)
-    exc.match('This function can only be run from an AnyIO worker thread')
-
-
-def test_run_sync_from_unclaimed_thread():
-    def foo():
-        pass
-
-    exc = pytest.raises(RuntimeError, run_sync_from_thread, foo)
-    exc.match('This function can only be run from an AnyIO worker thread')
-
-
-@pytest.mark.parametrize('cancellable, expected_last_active', [
-    (False, 'task'),
-    (True, 'thread')
-], ids=['uncancellable', 'cancellable'])
-async def test_cancel_worker_thread(cancellable, expected_last_active):
-    """
-    Test that when a task running a worker thread is cancelled, the cancellation is not acted on
-    until the thread finishes.
-
-    """
-    def thread_worker():
-        nonlocal last_active
-        run_sync_from_thread(sleep_event.set)
-        time.sleep(0.2)
-        last_active = 'thread'
-        run_sync_from_thread(finish_event.set)
-
-    async def task_worker():
-        nonlocal last_active
-        try:
-            await run_sync_in_worker_thread(thread_worker, cancellable=cancellable)
-        finally:
-            last_active = 'task'
-
-    sleep_event = Event()
-    finish_event = Event()
-    last_active = None
-    async with create_task_group() as tg:
-        tg.spawn(task_worker)
-        await sleep_event.wait()
-        tg.cancel_scope.cancel()
-
-    await finish_event.wait()
-    assert last_active == expected_last_active
-
-
-@pytest.mark.parametrize('anyio_backend', ['asyncio'])
-async def test_cancel_asyncio_native_task():
-    async def run_in_thread():
-        nonlocal task
-        task = current_task()
-        await run_sync_in_worker_thread(time.sleep, 1, cancellable=True)
-
-    task = None
-    async with create_task_group() as tg:
-        tg.spawn(run_in_thread)
-        await wait_all_tasks_blocked()
-        task.cancel()
+        exc = pytest.raises(RuntimeError, from_thread.run_sync, foo)
+        exc.match('This function can only be run from an AnyIO worker thread')
 
 
 class TestBlockingPortal:
@@ -250,7 +131,7 @@ class TestBlockingPortal:
         async with create_blocking_portal() as portal:
             thread = threading.Thread(target=external_thread)
             thread.start()
-            await run_sync_in_worker_thread(thread.join)
+            await to_thread.run_sync(thread.join)
 
         for thread_id in thread_ids:
             assert thread_id == threading.get_ident()
@@ -276,8 +157,8 @@ class TestBlockingPortal:
                 assert not results
                 raise Exception
 
-        await run_sync_in_worker_thread(thread1.join)
-        await run_sync_in_worker_thread(thread2.join)
+        await to_thread.run_sync(thread1.join)
+        await to_thread.run_sync(thread2.join)
 
         assert len(results) == 2
         assert isinstance(results[0], CancelledError)
@@ -302,8 +183,8 @@ class TestBlockingPortal:
             await sleep(0.1)
             assert not results
 
-        await run_sync_in_worker_thread(thread1.join)
-        await run_sync_in_worker_thread(thread2.join)
+        await to_thread.run_sync(thread1.join)
+        await to_thread.run_sync(thread2.join)
 
         assert results == [None, None]
 

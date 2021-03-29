@@ -2,10 +2,10 @@ from io import SEEK_SET, UnsupportedOperation
 from pathlib import Path
 from typing import BinaryIO, Union, cast
 
-from anyio import (
-    BrokenResourceError, ClosedResourceError, EndOfStream, TypedAttributeSet,
-    run_sync_in_worker_thread, typed_attribute)
-from anyio.abc import ByteReceiveStream, ByteSendStream
+from .. import (
+    BrokenResourceError, ClosedResourceError, EndOfStream, TypedAttributeSet, to_thread,
+    typed_attribute)
+from ..abc import ByteReceiveStream, ByteSendStream
 
 
 class FileStreamAttribute(TypedAttributeSet):
@@ -22,7 +22,7 @@ class _BaseFileStream:
         self._file = file
 
     async def aclose(self) -> None:
-        await run_sync_in_worker_thread(self._file.close)
+        await to_thread.run_sync(self._file.close)
 
     @property
     def extra_attributes(self):
@@ -60,12 +60,12 @@ class FileReadStream(_BaseFileStream, ByteReceiveStream):
         :param path: path of the file to read from
 
         """
-        file = await run_sync_in_worker_thread(Path(path).open, 'rb')
+        file = await to_thread.run_sync(Path(path).open, 'rb')
         return cls(cast(BinaryIO, file))
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
         try:
-            data = await run_sync_in_worker_thread(self._file.read, max_bytes)
+            data = await to_thread.run_sync(self._file.read, max_bytes)
         except ValueError:
             raise ClosedResourceError from None
         except OSError as exc:
@@ -90,7 +90,7 @@ class FileReadStream(_BaseFileStream, ByteReceiveStream):
         :raises OSError: if the file is not seekable
 
         """
-        return await run_sync_in_worker_thread(self._file.seek, position, whence)
+        return await to_thread.run_sync(self._file.seek, position, whence)
 
     async def tell(self) -> int:
         """
@@ -102,7 +102,7 @@ class FileReadStream(_BaseFileStream, ByteReceiveStream):
         :raises OSError: if the file is not seekable
 
         """
-        return await run_sync_in_worker_thread(self._file.tell)
+        return await to_thread.run_sync(self._file.tell)
 
 
 class FileWriteStream(_BaseFileStream, ByteSendStream):
@@ -125,12 +125,12 @@ class FileWriteStream(_BaseFileStream, ByteSendStream):
 
         """
         mode = 'ab' if append else 'wb'
-        file = await run_sync_in_worker_thread(Path(path).open, mode)
+        file = await to_thread.run_sync(Path(path).open, mode)
         return cls(cast(BinaryIO, file))
 
     async def send(self, item: bytes) -> None:
         try:
-            await run_sync_in_worker_thread(self._file.write, item)
+            await to_thread.run_sync(self._file.write, item)
         except ValueError:
             raise ClosedResourceError from None
         except OSError as exc:

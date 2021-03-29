@@ -1,8 +1,8 @@
 import pytest
 
 from anyio import (
-    CancelScope, Condition, Event, Lock, Semaphore, WouldBlock, create_task_group,
-    current_default_worker_thread_limiter, wait_all_tasks_blocked)
+    CancelScope, Condition, Event, Lock, Semaphore, WouldBlock, create_task_group, to_thread,
+    wait_all_tasks_blocked)
 from anyio.abc import CapacityLimiter
 
 pytestmark = pytest.mark.anyio
@@ -398,7 +398,7 @@ class TestCapacityLimiter:
         assert event2.is_set()
 
     async def test_current_default_thread_limiter(self):
-        limiter = current_default_worker_thread_limiter()
+        limiter = to_thread.current_default_thread_limiter()
         assert isinstance(limiter, CapacityLimiter)
         assert limiter.total_tokens == 40
 
