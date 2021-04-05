@@ -15,7 +15,7 @@ from ._core._synchronization import Event
 from ._core._tasks import CancelScope, TaskStatus, create_task_group
 
 T_Retval = TypeVar('T_Retval')
-T_co = TypeVar('T_co', covariant=True)
+T_co = TypeVar('T_co')
 
 
 def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args) -> T_Retval:

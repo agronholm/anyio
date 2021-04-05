@@ -12,7 +12,7 @@ from .._core._synchronization import Event
 from ._tasks import TaskStatus
 
 T_Retval = TypeVar('T_Retval')
-T_co = TypeVar('T_co', covariant=True)
+T_co = TypeVar('T_co')
 
 
 class _BlockingAsyncContextManager(AbstractContextManager):

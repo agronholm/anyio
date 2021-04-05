@@ -11,7 +11,7 @@ from anyio._core._compat import DeprecatedAwaitableFloat
 
 BACKENDS = 'asyncio', 'trio'
 
-T_Retval = TypeVar('T_Retval', covariant=True)
+T_Retval = TypeVar('T_Retval')
 threadlocals = threading.local()
 
 
