@@ -109,7 +109,7 @@ class MultiListener(Generic[T_Stream], Listener[T_Stream]):
 
         async with create_task_group() as tg:
             for listener in self.listeners:
-                tg.spawn(listener.serve, handler, task_group)
+                tg.start_soon(listener.serve, handler, task_group)
 
     async def aclose(self) -> None:
         for listener in self.listeners:

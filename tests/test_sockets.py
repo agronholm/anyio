@@ -225,7 +225,7 @@ class TestTCPStream:
 
         async with await connect_tcp(*server_addr) as stream:
             async with create_task_group() as tg:
-                tg.spawn(send_data)
+                tg.start_soon(send_data)
                 await wait_all_tasks_blocked()
                 with pytest.raises(BusyResourceError) as exc:
                     await stream.send(b'foo')
@@ -236,7 +236,7 @@ class TestTCPStream:
     async def test_concurrent_receive(self, server_addr):
         async with await connect_tcp(*server_addr) as client:
             async with create_task_group() as tg:
-                tg.spawn(client.receive)
+                tg.start_soon(client.receive)
                 await wait_all_tasks_blocked()
                 try:
                     with pytest.raises(BusyResourceError) as exc:
@@ -253,7 +253,7 @@ class TestTCPStream:
 
         async with await connect_tcp(*server_addr) as stream:
             async with create_task_group() as tg:
-                tg.spawn(interrupt)
+                tg.start_soon(interrupt)
                 with pytest.raises(ClosedResourceError):
                     await stream.receive()
 
@@ -426,7 +426,7 @@ class TestTCPListener:
         listener = await create_tcp_listener(local_host='localhost', family=family)
         with pytest.raises(ClosedResourceError):
             async with create_task_group() as tg:
-                tg.spawn(listener.serve, lambda stream: None)
+                tg.start_soon(listener.serve, lambda stream: None)
                 await wait_all_tasks_blocked()
                 await listener.aclose()
                 tg.cancel_scope.cancel()
@@ -438,7 +438,7 @@ class TestTCPListener:
 
         multi = await create_tcp_listener(family=family, local_host='localhost')
         async with multi, create_task_group() as tg:
-            tg.spawn(multi.serve, handle)
+            tg.start_soon(multi.serve, handle)
             await wait_all_tasks_blocked()
 
             with socket.socket(family) as client:
@@ -635,7 +635,7 @@ class TestUNIXStream:
 
         async with await connect_unix(socket_path) as client:
             async with create_task_group() as tg:
-                tg.spawn(send_data)
+                tg.start_soon(send_data)
                 await wait_all_tasks_blocked()
                 with pytest.raises(BusyResourceError) as exc:
                     await client.send(b'foo')
@@ -646,7 +646,7 @@ class TestUNIXStream:
     async def test_concurrent_receive(self, server_sock, socket_path):
         async with await connect_unix(socket_path) as client:
             async with create_task_group() as tg:
-                tg.spawn(client.receive)
+                tg.start_soon(client.receive)
                 await wait_all_tasks_blocked()
                 try:
                     with pytest.raises(BusyResourceError) as exc:
@@ -663,7 +663,7 @@ class TestUNIXStream:
 
         async with await connect_unix(socket_path) as stream:
             async with create_task_group() as tg:
-                tg.spawn(interrupt)
+                tg.start_soon(interrupt)
                 with pytest.raises(ClosedResourceError):
                     await stream.receive()
 
@@ -737,7 +737,7 @@ class TestUNIXListener:
                 await stream.send(b'Hello\n')
 
         async with await create_unix_listener(socket_path) as listener, create_task_group() as tg:
-            tg.spawn(listener.serve, handle)
+            tg.start_soon(listener.serve, handle)
             await wait_all_tasks_blocked()
 
             with socket.socket(socket.AF_UNIX) as client:
@@ -778,7 +778,7 @@ async def test_multi_listener(tmp_path_factory):
     expected_addresses = []
     async with MultiListener(listeners) as multi_listener:
         async with create_task_group() as tg:
-            tg.spawn(multi_listener.serve, handle)
+            tg.start_soon(multi_listener.serve, handle)
             for listener in multi_listener.listeners:
                 event = Event()
                 local_address = listener.extra(SocketAttribute.local_address)
@@ -830,7 +830,7 @@ class TestUDPSocket:
             host, port = server.extra(SocketAttribute.local_address)
             async with await create_udp_socket(family=family, local_host='localhost') as client:
                 async with create_task_group() as tg:
-                    tg.spawn(serve)
+                    tg.start_soon(serve)
                     await client.sendto(b'FOOBAR', host, port)
                     assert await client.receive() == (b'RABOOF', (host, port))
                     await client.sendto(b'123456', host, port)
@@ -851,7 +851,7 @@ class TestUDPSocket:
     async def test_concurrent_receive(self):
         async with await create_udp_socket(family=socket.AF_INET, local_host='localhost') as udp:
             async with create_task_group() as tg:
-                tg.spawn(udp.receive)
+                tg.start_soon(udp.receive)
                 await wait_all_tasks_blocked()
                 try:
                     with pytest.raises(BusyResourceError) as exc:
@@ -868,7 +868,7 @@ class TestUDPSocket:
 
         async with await create_udp_socket(family=socket.AF_INET, local_host='localhost') as udp:
             async with create_task_group() as tg:
-                tg.spawn(close_when_blocked)
+                tg.start_soon(close_when_blocked)
                 with pytest.raises(ClosedResourceError):
                     await udp.receive()
 
@@ -921,7 +921,7 @@ class TestConnectedUDPSocket:
             async with await create_connected_udp_socket(host, port) as udp2:
                 host, port = udp2.extra(SocketAttribute.local_address)
                 async with create_task_group() as tg:
-                    tg.spawn(serve)
+                    tg.start_soon(serve)
                     await udp1.sendto(b'FOOBAR', host, port)
                     assert await udp1.receive() == (b'RABOOF', (host, port))
                     await udp1.sendto(b'123456', host, port)
@@ -944,7 +944,7 @@ class TestConnectedUDPSocket:
         async with await create_connected_udp_socket(
                 'localhost', 5000, local_host='localhost', family=socket.AF_INET) as udp:
             async with create_task_group() as tg:
-                tg.spawn(udp.receive)
+                tg.start_soon(udp.receive)
                 await wait_all_tasks_blocked()
                 try:
                     with pytest.raises(BusyResourceError) as exc:
@@ -962,7 +962,7 @@ class TestConnectedUDPSocket:
         async with await create_connected_udp_socket(
                 'localhost', 5000, local_host='localhost', family=socket.AF_INET) as udp:
             async with create_task_group() as tg:
-                tg.spawn(close_when_blocked)
+                tg.start_soon(close_when_blocked)
                 with pytest.raises(ClosedResourceError):
                     await udp.receive()
 

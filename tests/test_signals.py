@@ -35,7 +35,7 @@ async def test_task_group_cancellation_open():
         pytest.fail("open_signal_receiver should not suppress cancellation")
 
     async with create_task_group() as tg:
-        tg.spawn(signal_handler)
+        tg.start_soon(signal_handler)
         tg.cancel_scope.cancel()
 
 
@@ -48,5 +48,5 @@ async def test_task_group_cancellation_consume():
 
     with open_signal_receiver(signal.SIGUSR1) as sigiter:
         async with create_task_group() as tg:
-            tg.spawn(consume, sigiter)
+            tg.start_soon(consume, sigiter)
             tg.cancel_scope.cancel()

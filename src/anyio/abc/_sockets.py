@@ -127,7 +127,7 @@ class SocketListener(Listener[SocketStream], _SocketProvider):
         async with context_manager:
             while True:
                 stream = await self.accept()
-                task_group.spawn(handler, stream)
+                task_group.start_soon(handler, stream)
 
 
 class UDPSocket(UnreliableObjectStream[UDPPacketType], _SocketProvider):

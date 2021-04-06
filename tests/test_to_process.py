@@ -74,7 +74,7 @@ async def test_cancel_during():
     worker_pid = await to_process.run_sync(os.getpid)
     with fail_after(4):
         async with create_task_group() as tg:
-            tg.spawn(partial(to_process.run_sync, cancellable=True), time.sleep, 5)
+            tg.start_soon(partial(to_process.run_sync, cancellable=True), time.sleep, 5)
             await wait_all_tasks_blocked()
             tg.cancel_scope.cancel()
 

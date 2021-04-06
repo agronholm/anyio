@@ -623,9 +623,8 @@ class TaskGroup(abc.TaskGroup):
         self.cancel_scope._tasks.add(task)
         return task
 
-    def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> DeprecatedAwaitable:
+    def start_soon(self, func: Callable[..., Coroutine], *args, name=None) -> None:
         self._spawn(func, args, name)
-        return DeprecatedAwaitable(self.spawn)
 
     async def start(self, func: Callable[..., Coroutine], *args, name=None) -> None:
         future: asyncio.Future = asyncio.Future()
@@ -766,7 +765,7 @@ class BlockingPortal(abc.BlockingPortal):
     def _spawn_task_from_thread(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
                                 name, future: Future) -> None:
         run_sync_from_thread(
-            partial(self._task_group.spawn, name=name), self._call_func, func, args, kwargs,
+            partial(self._task_group.start_soon, name=name), self._call_func, func, args, kwargs,
             future, loop=self._loop)
 
 

@@ -10,7 +10,7 @@ pytestmark = pytest.mark.anyio
 async def test_checkpoint_if_cancelled(cancel):
     async def func():
         nonlocal finished
-        tg.spawn(second_func)
+        tg.start_soon(second_func)
         if cancel:
             tg.cancel_scope.cancel()
 
@@ -24,7 +24,7 @@ async def test_checkpoint_if_cancelled(cancel):
 
     finished = second_finished = False
     async with create_task_group() as tg:
-        tg.spawn(func)
+        tg.start_soon(func)
 
     assert finished != cancel
     assert second_finished
@@ -44,8 +44,8 @@ async def test_cancel_shielded_checkpoint(cancel):
 
     finished = second_finished = False
     async with create_task_group() as tg:
-        tg.spawn(func)
-        tg.spawn(second_func)
+        tg.start_soon(func)
+        tg.start_soon(second_func)
         if cancel:
             tg.cancel_scope.cancel()
 
@@ -67,8 +67,8 @@ async def test_checkpoint(cancel):
 
     finished = second_finished = False
     async with create_task_group() as tg:
-        tg.spawn(func)
-        tg.spawn(second_func)
+        tg.start_soon(func)
+        tg.start_soon(second_func)
         if cancel:
             tg.cancel_scope.cancel()
 
@@ -87,7 +87,7 @@ class TestRunVar:
             for i in range(2):
                 var.set(i)
                 async with create_task_group() as tg:
-                    tg.spawn(taskfunc, i)
+                    tg.start_soon(taskfunc, i)
 
                 assert var.get() == i + 1
 
