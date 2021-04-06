@@ -20,12 +20,12 @@ from ._streams import (
 from ._subprocesses import Process
 from ._tasks import TaskGroup, TaskStatus
 from ._testing import TestRunner
-from ._threads import BlockingPortal
 
 # Re-exported here, for backwards compatibility
 # isort: off
 from .._core._synchronization import CapacityLimiter, Condition, Event, Lock, Semaphore
 from .._core._tasks import CancelScope
+from ..from_thread import BlockingPortal
 
 # Re-export imports so they look like they live directly in this package
 for key, value in list(locals().items()):
