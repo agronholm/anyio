@@ -37,8 +37,9 @@ class TaskGroup(metaclass=ABCMeta):
         :param args: positional arguments to call the function with
         :param name: name of the task, for the purposes of introspection and debugging
 
-        .. versionchanged:: 3.0
-            Soft-deprecated; to be removed in v4.0.
+        .. deprecated:: 3.0
+           Use :meth:`start_soon` instead. If your code needs AnyIO 2 compatibility, you
+           can keep using this until AnyIO 4.
 
         """
         self.start_soon(func, *args, name=name)
