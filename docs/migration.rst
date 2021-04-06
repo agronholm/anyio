@@ -89,8 +89,11 @@ fully migrating to AnyIO 3, simply switch to calling the new method (and remove 
 If your code needs to work with both AnyIO 2 and 3, you can keep using :meth:`~TaskGroup.spawn`
 until AnyIO 4 where it will be removed completely.
 
-.. note:: Unlike the other deprecated functions and methods :meth:`TaskGroup.spawn` does not emit a
-    deprecation warning.
+The :meth:`BlockingPortal.spawn_task` method has also been renamed to
+:meth:`~BlockingPortal.start_task_soon`, so as to be consistent with task groups.
+
+.. note:: Unlike the other deprecated functions and methods :meth:`TaskGroup.spawn` and
+    :meth:`BlockingPortal.spawn_task` do not emit deprecation warnings.
 
 Synchronization primitives
 --------------------------
