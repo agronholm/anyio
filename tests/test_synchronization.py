@@ -1,8 +1,8 @@
 import pytest
 
 from anyio import (
-    CancelScope, Condition, Event, Lock, Semaphore, WouldBlock, create_task_group, to_thread,
-    wait_all_tasks_blocked)
+    CancelScope, Condition, Event, Lock, Semaphore, WouldBlock, create_task_group,
+    get_current_task, to_thread, wait_all_tasks_blocked)
 from anyio.abc import CapacityLimiter
 
 pytestmark = pytest.mark.anyio
@@ -13,7 +13,7 @@ class TestLock:
         async def task():
             assert lock.locked()
             async with lock:
-                results.append('2')
+                results.append("2")
 
         results = []
         lock = Lock()
@@ -21,17 +21,17 @@ class TestLock:
             async with lock:
                 tg.spawn(task)
                 await wait_all_tasks_blocked()
-                results.append('1')
+                results.append("1")
 
         assert not lock.locked()
-        assert results == ['1', '2']
+        assert results == ["1", "2"]
 
     async def test_manual_acquire(self):
         async def task():
             assert lock.locked()
             await lock.acquire()
             try:
-                results.append('2')
+                results.append("2")
             finally:
                 lock.release()
 
@@ -42,12 +42,12 @@ class TestLock:
             try:
                 tg.spawn(task)
                 await wait_all_tasks_blocked()
-                results.append('1')
+                results.append("1")
             finally:
                 lock.release()
 
         assert not lock.locked()
-        assert results == ['1', '2']
+        assert results == ["1", "2"]
 
     async def test_acquire_nowait(self):
         lock = Lock()
@@ -251,8 +251,8 @@ class TestSemaphore:
 
         semaphore = Semaphore(2)
         async with create_task_group() as tg:
-            tg.spawn(acquire, name='task 1')
-            tg.spawn(acquire, name='task 2')
+            tg.spawn(acquire, name="task 1")
+            tg.spawn(acquire, name="task 2")
 
         assert semaphore.value == 2
 
@@ -266,8 +266,8 @@ class TestSemaphore:
 
         semaphore = Semaphore(2)
         async with create_task_group() as tg:
-            tg.spawn(acquire, name='task 1')
-            tg.spawn(acquire, name='task 2')
+            tg.spawn(acquire, name="task 1")
+            tg.spawn(acquire, name="task 2")
 
         assert semaphore.value == 2
 
@@ -294,7 +294,7 @@ class TestSemaphore:
 
         assert not acquired
 
-    @pytest.mark.parametrize('max_value', [2, None])
+    @pytest.mark.parametrize("max_value", [2, None])
     async def test_max_value(self, max_value):
         semaphore = Semaphore(0, max_value=max_value)
         assert semaphore.max_value == max_value
@@ -303,6 +303,52 @@ class TestSemaphore:
         semaphore = Semaphore(1, max_value=2)
         semaphore.release()
         pytest.raises(ValueError, semaphore.release)
+
+    async def test_fifo_race(self, monkeypatch):
+        evt = type(Event())
+        orig_wait = evt.wait
+
+        async def wait_up(self, skip=False):
+            await orig_wait(self)
+            if not skip and get_current_task().name == "B":
+                tg.spawn(C, name="C")
+                await orig_wait(e3)
+
+        monkeypatch.setattr(evt, "wait", wait_up)
+
+        e = Event()
+        e2 = Event()
+        e3 = Event()
+        e4 = Event()
+        s = Semaphore(1)
+        hit = False
+
+        async def A():
+            async with s:
+                e.set()
+                await e2.wait()
+
+        async def B():
+            await e.wait(skip=True)
+            e2.set()
+            async with s:
+                # this must wait for A to get scheduled
+                # The monkeypatched Event.wait then schedules C and waits
+                # for it to start
+                assert not hit
+            await e4.wait()
+
+        async def C():
+            e3.set()
+            async with s:
+                nonlocal hit
+                hit = True
+                e4.set()
+
+        async with create_task_group() as tg:
+            tg.spawn(A, name="A")
+            await e.wait()
+            tg.spawn(B, name="B")
 
     async def test_statistics(self):
         async def waiter():
@@ -324,12 +370,12 @@ class TestSemaphore:
 
 class TestCapacityLimiter:
     async def test_bad_init_type(self):
-        pytest.raises(TypeError, CapacityLimiter, 1.0).\
-            match('total_tokens must be an int or math.inf')
+        pytest.raises(TypeError, CapacityLimiter, 1.0).match(
+            "total_tokens must be an int or math.inf"
+        )
 
     async def test_bad_init_value(self):
-        pytest.raises(ValueError, CapacityLimiter, 0).\
-            match('total_tokens must be >= 1')
+        pytest.raises(ValueError, CapacityLimiter, 0).match("total_tokens must be >= 1")
 
     async def test_borrow(self):
         limiter = CapacityLimiter(2)
@@ -363,7 +409,9 @@ class TestCapacityLimiter:
         with pytest.raises(RuntimeError) as exc:
             await limiter.acquire()
 
-        exc.match("this borrower is already holding one of this CapacityLimiter's tokens")
+        exc.match(
+            "this borrower is already holding one of this CapacityLimiter's tokens"
+        )
 
     async def test_bad_release(self):
         limiter = CapacityLimiter(1)
