@@ -25,7 +25,7 @@ Example::
     async def main():
         event = Event()
         async with create_task_group() as tg:
-            tg.spawn(notify, event)
+            tg.start_soon(notify, event)
             await event.wait()
             print('Received notification!')
 
@@ -58,7 +58,7 @@ Example::
         semaphore = Semaphore(2)
         async with create_task_group() as tg:
             for num in range(10):
-                tg.spawn(use_resource, num, semaphore)
+                tg.start_soon(use_resource, num, semaphore)
 
     run(main)
 
@@ -84,7 +84,7 @@ Example::
         lock = Lock()
         async with create_task_group() as tg:
             for num in range(4):
-                tg.spawn(use_resource, num, lock)
+                tg.start_soon(use_resource, num, lock)
 
     run(main)
 
@@ -115,7 +115,7 @@ Example::
         condition = Condition()
         async with create_task_group() as tg:
             for tasknum in range(6):
-                tg.spawn(listen, tasknum, condition)
+                tg.start_soon(listen, tasknum, condition)
 
             await sleep(1)
             async with condition:
@@ -153,7 +153,7 @@ Example::
         limiter = CapacityLimiter(2)
         async with create_task_group() as tg:
             for num in range(10):
-                tg.spawn(use_resource, num, limiter)
+                tg.start_soon(use_resource, num, limiter)
 
     run(main)
 
