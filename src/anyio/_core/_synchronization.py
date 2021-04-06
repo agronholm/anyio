@@ -275,6 +275,7 @@ class Semaphore:
                 raise ValueError('max_value must be equal to or higher than initial_value')
 
         self._value = initial_value
+        self._waiting = 0
         self._max_value = max_value
         self._waiters: Deque[Event] = deque()
 
@@ -302,6 +303,7 @@ class Semaphore:
 
                 raise
 
+            self._waiting -= 1
             self.acquire_nowait()
 
     def acquire_nowait(self) -> None:
@@ -311,7 +313,7 @@ class Semaphore:
         :raises ~WouldBlock: if the operation would block
 
         """
-        if self._value == 0:
+        if self._value <= self._waiting:
             raise WouldBlock
 
         self._value -= 1
@@ -324,6 +326,7 @@ class Semaphore:
         self._value += 1
         if self._waiters:
             self._waiters.popleft().set()
+            self._waiting += 1
 
         return DeprecatedAwaitable(self.release)
 
