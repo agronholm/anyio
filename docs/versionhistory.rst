@@ -3,6 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed ``Semaphore.acquire()`` raising ``WouldBlock`` when a race condition occurs
+
 **3.0.0rc3**
 
 - The following functions and methods have been moved:

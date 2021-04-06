@@ -302,8 +302,6 @@ class Semaphore:
 
                 raise
 
-            self.acquire_nowait()
-
     def acquire_nowait(self) -> None:
         """
         Acquire the underlying lock, without blocking.
@@ -321,9 +319,10 @@ class Semaphore:
         if self._max_value is not None and self._value == self._max_value:
             raise ValueError('semaphore released too many times')
 
-        self._value += 1
         if self._waiters:
             self._waiters.popleft().set()
+        else:
+            self._value += 1
 
         return DeprecatedAwaitable(self.release)
 

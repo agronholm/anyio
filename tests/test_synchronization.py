@@ -321,6 +321,20 @@ class TestSemaphore:
 
         assert semaphore.statistics().tasks_waiting == 0
 
+    async def test_acquire_race(self):
+        """
+        Test against a race condition: when a task waiting on acquire() is rescheduled but another
+        task snatches the last available slot, the task should not raise WouldBlock.
+
+        """
+        semaphore = Semaphore(1)
+        async with create_task_group() as tg:
+            semaphore.acquire_nowait()
+            tg.spawn(semaphore.acquire)
+            await wait_all_tasks_blocked()
+            semaphore.release()
+            pytest.raises(WouldBlock, semaphore.acquire_nowait)
+
 
 class TestCapacityLimiter:
     async def test_bad_init_type(self):
