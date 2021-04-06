@@ -90,7 +90,7 @@ class _BlockingAsyncContextManager(AbstractContextManager):
 
     def __enter__(self) -> T_co:
         self._enter_future = Future()
-        self._exit_future = self._portal.spawn_task(self.run_async_cm)
+        self._exit_future = self._portal.start_task_soon(self.run_async_cm)
         cm = self._enter_future.result()
         return cast(T_co, cm)
 
@@ -219,9 +219,29 @@ class BlockingPortal(metaclass=ABCMeta):
             the event loop thread
 
         """
-        return self.spawn_task(func, *args).result()
+        return self.start_task_soon(func, *args).result()
 
     def spawn_task(self, func: Callable[..., Coroutine], *args, name=None) -> Future:
+        """
+        Deprecated alias for :meth:`start_task_soon`.
+
+        :param func: the target coroutine function
+        :param args: positional arguments passed to ``func``
+        :param name: name of the task (will be coerced to a string if not ``None``)
+        :return: a future that resolves with the return value of the callable if the task completes
+            successfully, or with the exception raised in the task
+        :raises RuntimeError: if the portal is not running or if this method is called from within
+            the event loop thread
+
+        .. versionadded:: 2.1
+        .. deprecated:: 3.0
+           Use :meth:`start_task_soon` instead. If your code needs AnyIO 2 compatibility, you
+           can keep using this until AnyIO 4.
+
+        """
+        return self.start_task_soon(func, *args, name=name)
+
+    def start_task_soon(self, func: Callable[..., Coroutine], *args, name=None) -> Future:
         """
         Spawn a task in the portal's task group.
 
@@ -236,9 +256,7 @@ class BlockingPortal(metaclass=ABCMeta):
         :raises RuntimeError: if the portal is not running or if this method is called from within
             the event loop thread
 
-        .. versionadded:: 2.1
-        .. versionchanged:: 3.0
-            Added the ``name`` argument.
+        .. versionadded:: 3.0
 
         """
         self._check_running()

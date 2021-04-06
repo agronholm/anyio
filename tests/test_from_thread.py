@@ -217,7 +217,7 @@ class TestBlockingPortal:
         pytest.raises(RuntimeError, portal.call, threading.get_ident).\
             match('This portal is not running')
 
-    def test_spawn_task(self, anyio_backend_name, anyio_backend_options):
+    def test_start_task_soon(self, anyio_backend_name, anyio_backend_options):
         async def event_waiter():
             await event1.wait()
             event2.set()
@@ -226,23 +226,23 @@ class TestBlockingPortal:
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
             event1 = portal.call(Event)
             event2 = portal.call(Event)
-            future = portal.spawn_task(event_waiter)
+            future = portal.start_task_soon(event_waiter)
             portal.call(event1.set)
             portal.call(event2.wait)
             assert future.result() == 'test'
 
-    def test_spawn_task_cancel_later(self, anyio_backend_name, anyio_backend_options):
+    def test_start_task_soon_cancel_later(self, anyio_backend_name, anyio_backend_options):
         async def noop():
             await sleep(2)
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
-            future = portal.spawn_task(noop)
+            future = portal.start_task_soon(noop)
             portal.call(wait_all_tasks_blocked)
             future.cancel()
 
         assert future.cancelled()
 
-    def test_spawn_task_cancel_immediately(self, anyio_backend_name, anyio_backend_options):
+    def test_start_task_soon_cancel_immediately(self, anyio_backend_name, anyio_backend_options):
         async def event_waiter():
             nonlocal cancelled
             try:
@@ -252,19 +252,19 @@ class TestBlockingPortal:
 
         cancelled = False
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
-            future = portal.spawn_task(event_waiter)
+            future = portal.start_task_soon(event_waiter)
             future.cancel()
 
         assert cancelled
 
-    def test_spawn_task_with_name(self, anyio_backend_name, anyio_backend_options):
+    def test_start_task_soon_with_name(self, anyio_backend_name, anyio_backend_options):
         async def taskfunc():
             nonlocal task_name
             task_name = get_current_task().name
 
         task_name = None
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
-            portal.spawn_task(taskfunc, name='testname')
+            portal.start_task_soon(taskfunc, name='testname')
 
         assert task_name == 'testname'
 
