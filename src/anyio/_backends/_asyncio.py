@@ -1549,8 +1549,8 @@ class Event(BaseEvent):
         return self._event.is_set()
 
     async def wait(self):
-        await checkpoint()
-        await self._event.wait()
+        if await self._event.wait():
+            await checkpoint()
 
     def statistics(self) -> EventStatistics:
         return EventStatistics(len(self._event._waiters))
@@ -1627,6 +1627,7 @@ class CapacityLimiter(BaseCapacityLimiter):
         return await self.acquire_on_behalf_of(current_task())
 
     async def acquire_on_behalf_of(self, borrower) -> None:
+        await checkpoint_if_cancelled()
         try:
             self.acquire_on_behalf_of_nowait(borrower)
         except WouldBlock:
@@ -1639,6 +1640,8 @@ class CapacityLimiter(BaseCapacityLimiter):
                 raise
 
             self._borrowers.add(borrower)
+        else:
+            await cancel_shielded_checkpoint()
 
     def release(self) -> None:
         self.release_on_behalf_of(current_task())

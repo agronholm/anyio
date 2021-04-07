@@ -4,7 +4,7 @@ from types import TracebackType
 from typing import Deque, Optional, Tuple, Type
 from warnings import warn
 
-from ..lowlevel import checkpoint
+from ..lowlevel import cancel_shielded_checkpoint, checkpoint, checkpoint_if_cancelled
 from ._compat import DeprecatedAwaitable
 from ._eventloop import get_asynclib
 from ._exceptions import BusyResourceError, WouldBlock
@@ -114,7 +114,7 @@ class Lock:
 
     async def acquire(self) -> None:
         """Acquire the lock."""
-        await checkpoint()
+        await checkpoint_if_cancelled()
         try:
             self.acquire_nowait()
         except WouldBlock:
@@ -131,6 +131,8 @@ class Lock:
                 raise
 
             assert self._owner_task == task
+        else:
+            await cancel_shielded_checkpoint()
 
     def acquire_nowait(self) -> None:
         """
@@ -289,6 +291,7 @@ class Semaphore:
 
     async def acquire(self) -> None:
         """Decrement the semaphore value, blocking if necessary."""
+        await checkpoint_if_cancelled()
         try:
             self.acquire_nowait()
         except WouldBlock:
@@ -301,6 +304,8 @@ class Semaphore:
                     self._waiters.remove(event)
 
                 raise
+        else:
+            await cancel_shielded_checkpoint()
 
     def acquire_nowait(self) -> None:
         """
