@@ -239,6 +239,7 @@ class BlockingPortal(metaclass=ABCMeta):
            can keep using this until AnyIO 4.
 
         """
+        warn('spawn_task() is deprecated -- use start_task_soon() instead', DeprecationWarning)
         return self.start_task_soon(func, *args, name=name)
 
     def start_task_soon(self, func: Callable[..., Coroutine], *args, name=None) -> Future:

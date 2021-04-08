@@ -4,6 +4,7 @@ Migrating from AnyIO 2 to AnyIO 3
 .. py:currentmodule:: anyio
 
 AnyIO 3 changed some functions and methods in a way that needs some adaptation in your code.
+All deprecated functions and methods will be removed in AnyIO 4.
 
 Asynchronous functions converted to synchronous
 -----------------------------------------------
@@ -86,14 +87,19 @@ Starting tasks
 The :meth:`TaskGroup.spawn` coroutine method has been deprecated in favor of the synchronous
 method :meth:`TaskGroup.start_soon` (which mirrors ``start_soon()`` in trio's nurseries). If you're
 fully migrating to AnyIO 3, simply switch to calling the new method (and remove the ``await``).
-If your code needs to work with both AnyIO 2 and 3, you can keep using :meth:`~TaskGroup.spawn`
-until AnyIO 4 where it will be removed completely.
 
 The :meth:`BlockingPortal.spawn_task` method has also been renamed to
 :meth:`~BlockingPortal.start_task_soon`, so as to be consistent with task groups.
 
-.. note:: Unlike the other deprecated functions and methods :meth:`TaskGroup.spawn` and
-    :meth:`BlockingPortal.spawn_task` do not emit deprecation warnings.
+If your code needs to work with both AnyIO 2 and 3, you can keep using :meth:`~TaskGroup.spawn`
+(until AnyIO 4) and suppress the deprecation warning::
+
+    import warnings
+
+    async def foo():
+        async with create_task_group() as tg:
+            with warnings.catch_warnings():
+                await tg.spawn(otherfunc)
 
 Synchronization primitives
 --------------------------

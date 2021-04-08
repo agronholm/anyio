@@ -2,6 +2,7 @@ import typing
 from abc import ABCMeta, abstractmethod
 from types import TracebackType
 from typing import Callable, Coroutine, Optional, Type, TypeVar
+from warnings import warn
 
 if typing.TYPE_CHECKING:
     from anyio._core._tasks import CancelScope
@@ -42,6 +43,8 @@ class TaskGroup(metaclass=ABCMeta):
            can keep using this until AnyIO 4.
 
         """
+        warn('spawn() is deprecated -- use start_soon() (without the "await") instead',
+             DeprecationWarning)
         self.start_soon(func, *args, name=name)
 
     @abstractmethod
