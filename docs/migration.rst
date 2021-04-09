@@ -101,6 +101,14 @@ If your code needs to work with both AnyIO 2 and 3, you can keep using :meth:`~T
 Blocking portal changes
 -----------------------
 
+AnyIO now **requires** :func:`.from_thread.start_blocking_portal` to be used as a context manager::
+
+    from anyio import sleep
+    from anyio.from_thread import start_blocking_portal
+
+    with start_blocking_portal() as portal:
+        portal.call(sleep, 1)
+
 As with :meth:`TaskGroup.spawn`, the :meth:`BlockingPortal.spawn_task` method has also been renamed
 to :meth:`~BlockingPortal.start_task_soon`, so as to be consistent with task groups.
 
