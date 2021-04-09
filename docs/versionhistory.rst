@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**3.0.0rc4**
 
 - Fixed ``Semaphore.acquire()`` raising ``WouldBlock`` when a race condition occurs
 - Changed ``TaskGroup.spawn()`` back into a coroutine function and added
