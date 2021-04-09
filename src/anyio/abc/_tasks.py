@@ -32,7 +32,7 @@ class TaskGroup(metaclass=ABCMeta):
 
     async def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
         """
-        Deprecated alios for :meth:`start_soon`.
+        Start a new task in this task group.
 
         :param func: a coroutine function
         :param args: positional arguments to call the function with
@@ -50,7 +50,7 @@ class TaskGroup(metaclass=ABCMeta):
     @abstractmethod
     def start_soon(self, func: Callable[..., Coroutine], *args, name=None) -> None:
         """
-        Launch a new task in this task group.
+        Start a new task in this task group.
 
         :param func: a coroutine function
         :param args: positional arguments to call the function with
@@ -62,7 +62,7 @@ class TaskGroup(metaclass=ABCMeta):
     @abstractmethod
     async def start(self, func: Callable[..., Coroutine], *args, name=None) -> None:
         """
-        Launch a new task and wait until it signals for readiness.
+        Start a new task and wait until it signals for readiness.
 
         :param func: a coroutine function
         :param args: positional arguments to call the function with

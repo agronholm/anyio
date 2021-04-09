@@ -134,13 +134,13 @@ class TaskGroup(abc.TaskGroup):
 
     def start_soon(self, func: Callable, *args, name=None) -> None:
         if not self._active:
-            raise RuntimeError('This task group is not active; no new tasks can be spawned.')
+            raise RuntimeError('This task group is not active; no new tasks can be started.')
 
         self._nursery.start_soon(func, *args, name=name)
 
     async def start(self, func: Callable[..., Coroutine], *args, name=None):
         if not self._active:
-            raise RuntimeError('This task group is not active; no new tasks can be spawned.')
+            raise RuntimeError('This task group is not active; no new tasks can be started.')
 
         return await self._nursery.start(func, *args, name=name)
 

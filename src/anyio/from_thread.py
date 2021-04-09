@@ -226,7 +226,7 @@ class BlockingPortal:
 
     def spawn_task(self, func: Callable[..., Coroutine], *args, name=None) -> Future:
         """
-        Deprecated alias for :meth:`start_task_soon`.
+        Start a task in the portal's task group.
 
         :param func: the target coroutine function
         :param args: positional arguments passed to ``func``
@@ -247,7 +247,7 @@ class BlockingPortal:
 
     def start_task_soon(self, func: Callable[..., Coroutine], *args, name=None) -> Future:
         """
-        Spawn a task in the portal's task group.
+        Start a task in the portal's task group.
 
         The task will be run inside a cancel scope which can be cancelled by cancelling the
         returned future.
@@ -270,7 +270,7 @@ class BlockingPortal:
 
     def start_task(self, func: Callable[..., Coroutine], *args, name=None) -> Tuple[Future, Any]:
         """
-        Spawn a task in the portal's task group and wait until it signals for readiness.
+        Start a task in the portal's task group and wait until it signals for readiness.
 
         This method works the same way as :meth:`TaskGroup.start`.
 

@@ -176,9 +176,9 @@ class Listener(Generic[T_Stream], AsyncResource, TypedAttributeProvider):
     async def serve(self, handler: Callable[[T_Stream], Any],
                     task_group: Optional[TaskGroup] = None) -> None:
         """
-        Accept incoming connections as they come in and spawn tasks to handle them.
+        Accept incoming connections as they come in and start tasks to handle them.
 
         :param handler: a callable that will be used to handle each accepted connection
-        :param task_group: the task group that will be used to spawn tasks for handling each
+        :param task_group: the task group that will be used to start tasks for handling each
             accepted connection (if omitted, an ad-hoc task group will be created)
         """

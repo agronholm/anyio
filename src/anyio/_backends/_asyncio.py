@@ -594,7 +594,7 @@ class TaskGroup(abc.TaskGroup):
                     RuntimeError('Child exited without calling task_status.started()'))
 
         if not self._active:
-            raise RuntimeError('This task group is not active; no new tasks can be spawned.')
+            raise RuntimeError('This task group is not active; no new tasks can be started.')
 
         options = {}
         name = name or get_callable_name(func)

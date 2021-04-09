@@ -34,7 +34,7 @@ async def test_already_closed():
     with pytest.raises(RuntimeError) as exc:
         tg.start_soon(async_error, 'fail')
 
-    exc.match('This task group is not active; no new tasks can be spawned')
+    exc.match('This task group is not active; no new tasks can be started')
 
 
 async def test_success():
@@ -84,7 +84,7 @@ async def test_start_soon_after_error():
     with pytest.raises(RuntimeError) as exc:
         tg.start_soon(sleep, 0)
 
-    exc.match('This task group is not active; no new tasks can be spawned')
+    exc.match('This task group is not active; no new tasks can be started')
 
 
 async def test_start_no_value():
