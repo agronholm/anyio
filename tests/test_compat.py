@@ -9,7 +9,7 @@ from anyio import (
     create_memory_object_stream, create_task_group, current_default_worker_thread_limiter,
     current_effective_deadline, current_time, fail_after, get_current_task, get_running_tasks,
     maybe_async, maybe_async_cm, move_on_after, open_signal_receiver, run_async_from_thread,
-    run_sync_from_thread, run_sync_in_worker_thread, sleep, to_thread)
+    run_sync_from_thread, run_sync_in_worker_thread, to_thread)
 
 pytestmark = pytest.mark.anyio
 
@@ -124,11 +124,6 @@ class TestDeprecations:
         semaphore.acquire_nowait()
         with pytest.deprecated_call():
             await semaphore.release()
-
-    async def test_taskgroup_spawn(self):
-        async with create_task_group() as tg:
-            with pytest.deprecated_call():
-                await tg.spawn(sleep, 0)
 
     async def test_move_on_after(self):
         with pytest.deprecated_call():

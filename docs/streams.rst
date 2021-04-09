@@ -60,7 +60,7 @@ Example::
     async def main():
         send_stream, receive_stream = create_memory_object_stream()
         async with create_task_group() as tg:
-            tg.spawn(process_items, receive_stream)
+            tg.start_soon(process_items, receive_stream)
             async with send_stream:
                 for num in range(10):
                     await send_stream.send(f'number {num}')

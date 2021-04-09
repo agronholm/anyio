@@ -30,7 +30,7 @@ Here's a demonstration::
     async def main():
         async with create_task_group() as tg:
             for num in range(5):
-                tg.spawn(sometask, num)
+                tg.start_soon(sometask, num)
 
         print('All tasks finished!')
 
@@ -77,7 +77,7 @@ calling will :meth:`TaskGroup.start() <.abc.TaskGroup.start>` will be blocked un
 spawned task never calls it, then the :meth:`TaskGroup.start() <.abc.TaskGroup.start>` call will
 raise a ``RuntimeError``.
 
-.. note:: Unlike :meth:`~.abc.TaskGroup.spawn`, :meth:`~.abc.TaskGroup.start` needs an ``await``.
+.. note:: Unlike :meth:`~.abc.TaskGroup.start_soon`, :meth:`~.abc.TaskGroup.start` needs an ``await``.
 
 Handling multiple errors in a task group
 ----------------------------------------

@@ -132,12 +132,11 @@ class TaskGroup(abc.TaskGroup):
         finally:
             self._active = False
 
-    def spawn(self, func: Callable, *args, name=None) -> DeprecatedAwaitable:
+    def start_soon(self, func: Callable, *args, name=None) -> None:
         if not self._active:
             raise RuntimeError('This task group is not active; no new tasks can be spawned.')
 
         self._nursery.start_soon(func, *args, name=name)
-        return DeprecatedAwaitable(self.spawn)
 
     async def start(self, func: Callable[..., Coroutine], *args, name=None):
         if not self._active:
@@ -171,7 +170,7 @@ class BlockingPortal(abc.BlockingPortal):
     def _spawn_task_from_thread(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
                                 name, future: Future) -> None:
         return trio.from_thread.run_sync(
-            partial(self._task_group.spawn, name=name), self._call_func, func, args, kwargs,
+            partial(self._task_group.start_soon, name=name), self._call_func, func, args, kwargs,
             future, trio_token=self._token)
 
 

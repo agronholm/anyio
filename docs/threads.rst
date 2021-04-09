@@ -85,7 +85,7 @@ Spawning tasks from worker threads
 ----------------------------------
 
 When you need to spawn a task to be run in the background, you can do so using
-:meth:`~.BlockingPortal.spawn_task`::
+:meth:`~.BlockingPortal.start_task_soon`::
 
     from concurrent.futures import as_completed
 
@@ -100,7 +100,7 @@ When you need to spawn a task to be run in the background, you can do so using
 
 
     with start_blocking_portal() as portal:
-        futures = [portal.spawn_task(long_running_task, i) for i in range(1, 5)]
+        futures = [portal.start_task_soon(long_running_task, i) for i in range(1, 5)]
         for future in as_completed(futures):
             print(future.result())
 

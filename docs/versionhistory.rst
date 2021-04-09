@@ -6,6 +6,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **UNRELEASED**
 
 - Fixed ``Semaphore.acquire()`` raising ``WouldBlock`` when a race condition occurs
+- Changed ``TaskGroup.spawn()`` back into a coroutine function and added
+  ``TaskGroup.start_soon`` as the replacement
+- Renamed ``BlockingPortal.spawn_task`` into ``BlockingPortal.start_task_soon``
 
 **3.0.0rc3**
 

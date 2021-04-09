@@ -2,8 +2,7 @@ import typing
 from abc import ABCMeta, abstractmethod
 from types import TracebackType
 from typing import Callable, Coroutine, Optional, Type, TypeVar
-
-from anyio._core._compat import DeprecatedAwaitable
+from warnings import warn
 
 if typing.TYPE_CHECKING:
     from anyio._core._tasks import CancelScope
@@ -31,14 +30,33 @@ class TaskGroup(metaclass=ABCMeta):
 
     cancel_scope: 'CancelScope'
 
+    async def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
+        """
+        Deprecated alios for :meth:`start_soon`.
+
+        :param func: a coroutine function
+        :param args: positional arguments to call the function with
+        :param name: name of the task, for the purposes of introspection and debugging
+
+        .. deprecated:: 3.0
+           Use :meth:`start_soon` instead. If your code needs AnyIO 2 compatibility, you
+           can keep using this until AnyIO 4.
+
+        """
+        warn('spawn() is deprecated -- use start_soon() (without the "await") instead',
+             DeprecationWarning)
+        self.start_soon(func, *args, name=name)
+
     @abstractmethod
-    def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> DeprecatedAwaitable:
+    def start_soon(self, func: Callable[..., Coroutine], *args, name=None) -> None:
         """
         Launch a new task in this task group.
 
         :param func: a coroutine function
         :param args: positional arguments to call the function with
         :param name: name of the task, for the purposes of introspection and debugging
+
+        .. versionadded:: 3.0
         """
 
     @abstractmethod

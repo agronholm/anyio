@@ -4,6 +4,7 @@ Migrating from AnyIO 2 to AnyIO 3
 .. py:currentmodule:: anyio
 
 AnyIO 3 changed some functions and methods in a way that needs some adaptation in your code.
+All deprecated functions and methods will be removed in AnyIO 4.
 
 Asynchronous functions converted to synchronous
 -----------------------------------------------
@@ -31,7 +32,6 @@ The following functions and methods were changed:
 * :meth:`MemoryObjectSendStream.send_nowait() <.streams.memory.MemoryObjectSendStream.send_nowait>`
 * :func:`open_signal_receiver`
 * :meth:`Semaphore.release`
-* :meth:`TaskGroup.spawn() <.abc.TaskGroup.spawn>`
 
 When migrating to AnyIO 3, simply remove the ``await`` from each call to these.
 
@@ -80,6 +80,26 @@ Example 2 – opening a cancel scope::
             ...
 
 .. _trio: https://github.com/python-trio/trio
+
+Starting tasks
+--------------
+
+The :meth:`TaskGroup.spawn` coroutine method has been deprecated in favor of the synchronous
+method :meth:`TaskGroup.start_soon` (which mirrors ``start_soon()`` in trio's nurseries). If you're
+fully migrating to AnyIO 3, simply switch to calling the new method (and remove the ``await``).
+
+The :meth:`BlockingPortal.spawn_task` method has also been renamed to
+:meth:`~BlockingPortal.start_task_soon`, so as to be consistent with task groups.
+
+If your code needs to work with both AnyIO 2 and 3, you can keep using :meth:`~TaskGroup.spawn`
+(until AnyIO 4) and suppress the deprecation warning::
+
+    import warnings
+
+    async def foo():
+        async with create_task_group() as tg:
+            with warnings.catch_warnings():
+                await tg.spawn(otherfunc)
 
 Synchronization primitives
 --------------------------

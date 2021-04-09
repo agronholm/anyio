@@ -273,7 +273,7 @@ class TestTLSListener:
         listener = await create_tcp_listener(local_host='127.0.0.1')
         tls_listener = CustomTLSListener(listener, server_context)
         async with tls_listener, create_task_group() as tg:
-            tg.spawn(tls_listener.serve, handler)
+            tg.start_soon(tls_listener.serve, handler)
             sock = socket.socket()
             sock.connect(listener.extra(SocketAttribute.local_address))
             sock.close()

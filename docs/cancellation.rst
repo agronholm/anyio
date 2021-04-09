@@ -69,7 +69,7 @@ To accomplish this, open a new cancel scope with the ``shield=True`` argument::
     async def main():
         async with create_task_group() as tg:
             with CancelScope(shield=True) as scope:
-                tg.spawn(external_task)
+                tg.start_soon(external_task)
                 tg.cancel_scope.cancel()
                 print('Started sleeping in the host task')
                 await sleep(1)
@@ -146,7 +146,7 @@ Therefore, do **NOT** do this::
 
     async def some_generator():
         async with create_task_group() as tg:
-            tg.spawn(foo)
+            tg.start_soon(foo)
             yield
 
 The problem with this code is that it violates structural concurrency: what happens if the spawned

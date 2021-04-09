@@ -60,7 +60,7 @@ signal handler::
 
     async def main():
         async with create_task_group() as tg:
-            tg.spawn(signal_handler, tg.cancel_scope)
+            tg.start_soon(signal_handler, tg.cancel_scope)
             ...  # proceed with starting the actual application logic
 
     run(main)
