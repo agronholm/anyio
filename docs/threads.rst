@@ -62,20 +62,21 @@ you need a *blocking portal*. This needs to be obtained from within the event lo
 One way to do this is to start a new event loop with a portal, using
 :func:`~start_blocking_portal` (which takes mostly the same arguments as :func:`~run`::
 
-    from anyio import start_blocking_portal
+    from anyio.from_thread import start_blocking_portal
 
 
     with start_blocking_portal(backend='trio') as portal:
         portal.call(...)
 
 If you already have an event loop running and wish to grant access to external threads, you can
-use :func:`~create_blocking_portal` directly::
+create a :class:`~.BlockingPortal` directly::
 
-    from anyio import create_blocking_portal, run
+    from anyio import run
+    from anyio.from_thread import BlockingPortal
 
 
     async def main():
-        async with create_blocking_portal() as portal:
+        async with BlockingPortal() as portal:
             # ...hand off the portal to external threads...
             await portal.sleep_until_stopped()
 
@@ -89,7 +90,8 @@ When you need to spawn a task to be run in the background, you can do so using
 
     from concurrent.futures import as_completed
 
-    from anyio import start_blocking_portal, sleep
+    from anyio import sleep
+    from anyio.from_thread import start_blocking_portal
 
 
     async def long_running_task(index):
@@ -111,7 +113,8 @@ Blocking portals also have a method similar to :meth:`TaskGroup.start() <.abc.Ta
 :meth:`~.BlockingPortal.start_task` which, like its counterpart, waits for the callable to signal
 readiness by calling ``task_status.started()``::
 
-    from anyio import sleep, start_blocking_portal, TASK_STATUS_IGNORED
+    from anyio import sleep, TASK_STATUS_IGNORED
+    from anyio.from_thread import start_blocking_portal
 
 
     async def service_task(*, task_status=TASK_STATUS_IGNORED):
@@ -134,7 +137,7 @@ Using asynchronous context managers from worker threads
 You can use :meth:`~.BlockingPortal.wrap_async_context_manager` to wrap an asynchronous context
 managers as a synchronous one::
 
-    from anyio import start_blocking_portal
+    from anyio.from_thread import start_blocking_portal
 
 
     class AsyncContextManager:

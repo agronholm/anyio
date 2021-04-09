@@ -9,6 +9,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Changed ``TaskGroup.spawn()`` back into a coroutine function and added
   ``TaskGroup.start_soon`` as the replacement
 - Renamed ``BlockingPortal.spawn_task`` into ``BlockingPortal.start_task_soon``
+- Deprecated ``create_blocking_portal`` in favor of instantiating ``BlockingPortal``
+  directly
 
 **3.0.0rc3**
 

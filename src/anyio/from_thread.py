@@ -1,5 +1,4 @@
 import threading
-from abc import ABCMeta, abstractmethod
 from asyncio import iscoroutine
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import AbstractContextManager, contextmanager
@@ -110,8 +109,11 @@ class _BlockingPortalTaskStatus(TaskStatus):
         self._future.set_result(value)
 
 
-class BlockingPortal(metaclass=ABCMeta):
+class BlockingPortal:
     """An object tied that lets external threads run code in an asynchronous event loop."""
+
+    def __new__(cls):
+        return get_asynclib().BlockingPortal()
 
     def __init__(self):
         self._event_loop_thread_id = threading.get_ident()
@@ -184,7 +186,6 @@ class BlockingPortal(metaclass=ABCMeta):
         finally:
             scope = None
 
-    @abstractmethod
     def _spawn_task_from_thread(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
                                 name, future: Future) -> None:
         """
@@ -198,7 +199,9 @@ class BlockingPortal(metaclass=ABCMeta):
         :param name: name of the task (will be coerced to a string if not ``None``)
         :param future: a future that will resolve to the return value of the callable, or the
             exception raised during its execution
+
         """
+        raise NotImplementedError
 
     @overload
     def call(self, func: Callable[..., Coroutine[Any, Any, T_Retval]], *args) -> T_Retval:
@@ -320,8 +323,14 @@ def create_blocking_portal() -> BlockingPortal:
 
     Use this function in asynchronous code when you need to allow external threads access to the
     event loop where your asynchronous code is currently running.
+
+    .. deprecated:: 3.0
+        Use :class:`.BlockingPortal` directly.
+
     """
-    return get_asynclib().BlockingPortal()
+    warn('create_blocking_portal() has been deprecated -- use anyio.from_thread.BlockingPortal() '
+         'directly', DeprecationWarning)
+    return BlockingPortal()
 
 
 @contextmanager
@@ -342,7 +351,7 @@ def start_blocking_portal(
 
     """
     async def run_portal():
-        async with create_blocking_portal() as portal_:
+        async with BlockingPortal() as portal_:
             if future.set_running_or_notify_cancel():
                 future.set_result(portal_)
                 await portal_.sleep_until_stopped()

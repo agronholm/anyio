@@ -88,9 +88,6 @@ The :meth:`TaskGroup.spawn` coroutine method has been deprecated in favor of the
 method :meth:`TaskGroup.start_soon` (which mirrors ``start_soon()`` in trio's nurseries). If you're
 fully migrating to AnyIO 3, simply switch to calling the new method (and remove the ``await``).
 
-The :meth:`BlockingPortal.spawn_task` method has also been renamed to
-:meth:`~BlockingPortal.start_task_soon`, so as to be consistent with task groups.
-
 If your code needs to work with both AnyIO 2 and 3, you can keep using :meth:`~TaskGroup.spawn`
 (until AnyIO 4) and suppress the deprecation warning::
 
@@ -100,6 +97,17 @@ If your code needs to work with both AnyIO 2 and 3, you can keep using :meth:`~T
         async with create_task_group() as tg:
             with warnings.catch_warnings():
                 await tg.spawn(otherfunc)
+
+Blocking portal changes
+-----------------------
+
+As with :meth:`TaskGroup.spawn`, the :meth:`BlockingPortal.spawn_task` method has also been renamed
+to :meth:`~BlockingPortal.start_task_soon`, so as to be consistent with task groups.
+
+The :func:`create_blocking_portal` factory function was also deprecated in favor of instantiating
+:class:`BlockingPortal` directly.
+
+For code requiring cross compatibility, catching the deprecation warning (as above) should work.
 
 Synchronization primitives
 --------------------------

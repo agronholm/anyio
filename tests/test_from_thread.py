@@ -5,8 +5,9 @@ from contextlib import suppress
 import pytest
 
 from anyio import (
-    Event, create_blocking_portal, from_thread, get_cancelled_exc_class, get_current_task, run,
-    sleep, start_blocking_portal, to_thread, wait_all_tasks_blocked)
+    Event, from_thread, get_cancelled_exc_class, get_current_task, run, sleep, to_thread,
+    wait_all_tasks_blocked)
+from anyio.from_thread import BlockingPortal, start_blocking_portal
 
 pytestmark = pytest.mark.anyio
 
@@ -128,7 +129,7 @@ class TestBlockingPortal:
             thread_ids.append(portal.call(async_get_thread_id))
 
         thread_ids = []
-        async with create_blocking_portal() as portal:
+        async with BlockingPortal() as portal:
             thread = threading.Thread(target=external_thread)
             thread.start()
             await to_thread.run_sync(thread.join)
@@ -148,7 +149,7 @@ class TestBlockingPortal:
 
         results = []
         with suppress(Exception):
-            async with create_blocking_portal() as portal:
+            async with BlockingPortal() as portal:
                 thread1 = threading.Thread(target=external_thread)
                 thread1.start()
                 thread2 = threading.Thread(target=external_thread)
@@ -175,7 +176,7 @@ class TestBlockingPortal:
                 results.append(None)
 
         results = []
-        async with create_blocking_portal() as portal:
+        async with BlockingPortal() as portal:
             thread1 = threading.Thread(target=external_thread)
             thread1.start()
             thread2 = threading.Thread(target=external_thread)
@@ -189,7 +190,7 @@ class TestBlockingPortal:
         assert results == [None, None]
 
     async def test_call_portal_from_event_loop_thread(self):
-        async with create_blocking_portal() as portal:
+        async with BlockingPortal() as portal:
             exc = pytest.raises(RuntimeError, portal.call, threading.get_ident)
             exc.match('This method cannot be called from the event loop thread')
 

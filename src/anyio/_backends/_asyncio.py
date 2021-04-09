@@ -758,6 +758,9 @@ def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *a
 
 
 class BlockingPortal(abc.BlockingPortal):
+    def __new__(cls):
+        return object.__new__(cls)
+
     def __init__(self):
         super().__init__()
         self._loop = get_running_loop()

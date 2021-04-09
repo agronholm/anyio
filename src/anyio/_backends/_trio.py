@@ -163,6 +163,9 @@ run_sync_from_thread = trio.from_thread.run_sync
 
 
 class BlockingPortal(abc.BlockingPortal):
+    def __new__(cls):
+        return object.__new__(cls)
+
     def __init__(self):
         super().__init__()
         self._token = trio.lowlevel.current_trio_token()
