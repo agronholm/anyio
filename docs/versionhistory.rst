@@ -3,6 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed race condition in asyncio thread pooling that interfered with worker idleness detection
+
 **3.0.0rc4**
 
 - Fixed ``Semaphore.acquire()`` raising ``WouldBlock`` when a race condition occurs
