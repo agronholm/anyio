@@ -6,6 +6,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **UNRELEASED**
 
 - Fixed race condition in asyncio thread pooling that interfered with worker idleness detection
+- Fixed ``DeprecatedAwaitable*`` types being unpickleable
 
 **3.0.0rc4**
 

@@ -87,6 +87,9 @@ class DeprecatedAwaitable:
         if False:
             yield
 
+    def __reduce__(self):
+        return type(None), ()
+
     def _unwrap(self):
         return None
 
@@ -105,6 +108,9 @@ class DeprecatedAwaitableFloat(float):
 
         return float(self)
 
+    def __reduce__(self):
+        return float, (float(self),)
+
     def _unwrap(self) -> float:
         return float(self)
 
@@ -120,6 +126,9 @@ class DeprecatedAwaitableList(List[T]):
             yield
 
         return self
+
+    def __reduce__(self):
+        return list, (list(self),)
 
     def _unwrap(self) -> List[T]:
         return list(self)

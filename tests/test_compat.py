@@ -1,3 +1,4 @@
+import pickle
 import signal
 import sys
 import threading
@@ -11,6 +12,8 @@ from anyio import (
     get_current_task, get_running_tasks, maybe_async, maybe_async_cm, move_on_after,
     open_signal_receiver, run_async_from_thread, run_sync_from_thread, run_sync_in_worker_thread,
     to_thread)
+from anyio._core._compat import (
+    DeprecatedAwaitable, DeprecatedAwaitableFloat, DeprecatedAwaitableList)
 
 pytestmark = pytest.mark.anyio
 
@@ -167,3 +170,22 @@ class TestDeprecations:
         with pytest.deprecated_call():
             async with create_blocking_portal():
                 pass
+
+
+class TestPickle:
+    def test_deprecated_awaitable_none(self):
+        obj = DeprecatedAwaitable(threading.get_ident)
+        result = pickle.loads(pickle.dumps(obj))
+        assert result is None
+
+    def test_deprecated_awaitable_float(self):
+        obj = DeprecatedAwaitableFloat(2.3, threading.get_ident)
+        result = pickle.loads(pickle.dumps(obj))
+        assert type(result) is float
+        assert result == 2.3
+
+    def test_deprecated_awaitable_list(self):
+        obj = DeprecatedAwaitableList([1, 'a'], func=threading.get_ident)
+        result = pickle.loads(pickle.dumps(obj))
+        assert type(result) is list
+        assert result == [1, 'a']
