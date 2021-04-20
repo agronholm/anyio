@@ -19,6 +19,9 @@ multi_line_output = 4
 [tool.autopep8]
 max_line_length = 99
 
+[tool.flake8]
+max-line-length = 99
+
 [tool.pytest.ini_options]
 addopts = "-rsx --tb=short"
 testpaths = ["tests"]
