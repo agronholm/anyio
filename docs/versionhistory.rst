@@ -3,46 +3,14 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
-
-- Fixed race condition in asyncio thread pooling that interfered with worker idleness detection
-- Fixed ``DeprecatedAwaitable*`` types being unpickleable
-
-**3.0.0rc4**
-
-- Fixed ``Semaphore.acquire()`` raising ``WouldBlock`` when a race condition occurs
-- Changed ``TaskGroup.spawn()`` back into a coroutine function and added
-  ``TaskGroup.start_soon`` as the replacement
-- Renamed ``BlockingPortal.spawn_task`` into ``BlockingPortal.start_task_soon``
-- Deprecated ``create_blocking_portal`` in favor of instantiating ``BlockingPortal``
-  directly
-
-**3.0.0rc3**
-
-- The following functions and methods have been moved:
-
-  * ``current_default_worker_thread_limiter`` → ``anyio.to_thread.current_default_thread_limiter``
-  * ``run_sync_in_worker_thread()`` → ``anyio.to_thread.run_sync()``
-  * ``run_async_from_thread()`` → ``anyio.from_thread.run()``
-  * ``run_sync_from_thread()`` → ``anyio.from_thread.run_sync()``
-- Added check that cancel scopes are entered and exited in the same task (only done on asyncio for
-  now)
-
-**3.0.0rc2**
-
-- Changed the asyncio ``CancelScope`` to raise a ``RuntimeError`` if cancel scopes are being exited
-  in a different order than they were entered
-- Changed the asyncio ``CancelScope`` to raise a ``RuntimeError`` if a cancel scope is being exited
-  before it was even entered
-
-**3.0.0rc1**
+**3.0.0**
 
 - Curio support has been dropped (see the :doc:`FAQ <faq>` as for why)
 - API changes:
 
   * **BACKWARDS INCOMPATIBLE** Submodules under ``anyio.abc.`` have been made private (use only
     ``anyio.abc`` from now on).
-  * **BACKWARDS INCOMPATIBLE** The following method was previously a coroutine methods and has been
+  * **BACKWARDS INCOMPATIBLE** The following method was previously a coroutine method and has been
     converted into a synchronous one:
 
     * ``MemoryObjectReceiveStream.receive_nowait()``
@@ -62,7 +30,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     * ``Lock.release()``
     * ``MemoryObjectSendStream.send_nowait()``
     * ``Semaphore.release()``
-    * ``TaskGroup.spawn()``
   * The following functions now return synchronous context managers instead of asynchronous
     context managers (and emit deprecation warnings if used as async context managers):
 
@@ -71,15 +38,24 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     * ``open_cancel_scope()`` (now just ``CancelScope()``; see below)
     * ``open_signal_receiver()``
 
-  * The following functions and methods have been deprecated:
+  * The following functions and methods have been renamed/moved (will now emit deprecation
+    warnings when you use them by their old names):
 
-    * ``create_capacity_limiter()`` → ``anyio.Event()``
+    * ``create_blocking_portal()`` → ``anyio.from_thread.BlockingPortal()``
+    * ``create_capacity_limiter()`` → ``anyio.CapacityLimiter()``
     * ``create_event()`` → ``anyio.Event()``
     * ``create_lock()`` → ``anyio.Lock()``
     * ``create_condition()`` → ``anyio.Condition()``
     * ``create_semaphore()`` → ``anyio.Semaphore()``
+    * ``current_default_worker_thread_limiter()`` →
+      ``anyio.to_thread.current_default_thread_limiter()``
     * ``open_cancel_scope()`` → ``anyio.CancelScope()``
+    * ``run_sync_in_worker_thread()`` → ``anyio.to_thread.run_sync()``
+    * ``run_async_from_thread()`` → ``anyio.from_thread.run()``
+    * ``run_sync_from_thread()`` → ``anyio.from_thread.run_sync()``
+    * ``BlockingPortal.spawn_task`` → ``BlockingPortal.start_task_soon``
     * ``CapacityLimiter.set_total_tokens()`` → ``limiter.total_tokens = ...``
+    * ``TaskGroup.spawn()`` → ``TaskGroup.start_soon()``
 
   * **BACKWARDS INCOMPATIBLE** ``start_blocking_portal()`` must now be used as a context manager
     (it no longer returns a BlockingPortal, but a context manager that yields one)
@@ -107,7 +83,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
   * Added the ``TaskGroup.start()`` method and a corresponding ``BlockingPortal.start_task()``
     method
-  * Added the ``name`` argument to ``BlockingPortal.spawn_task()``
+  * Added the ``name`` argument to ``BlockingPortal.start_task_soon()``
+    (renamed from ``BlockingPortal.spawn_task()``)
   * Changed ``CancelScope.deadline`` to be writable
   * Added the following functions in the ``anyio.lowlevel`` module:
 
@@ -129,14 +106,16 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
   * Cancel scopes are now properly enforced with native asyncio coroutine functions (without
     any explicit AnyIO checkpoints)
+  * Changed the asyncio ``CancelScope`` to raise a ``RuntimeError`` if a cancel scope is being
+    exited before it was even entered
   * Changed the asyncio test runner to capture unhandled exceptions from asynchronous callbacks and
     unbound native tasks which are then raised after the test function (or async fixture setup or
     teardown) completes
-  * Changed the asyncio ``TaskGroup.spawn()`` method to call the target function immediately before
-    spawning the task, for consistency across backends
-  * Changed the asyncio ``TaskGroup.spawn()`` method to avoid the use of a coroutine wrapper on
-    Python 3.8+ and added a hint for hiding the wrapper in tracebacks on earlier Pythons (supported
-    by Pytest, Sentry etc.)
+  * Changed the asyncio ``TaskGroup.start_soon()`` (formerly ``spawn()``) method to call the target
+    function immediately before starting the task, for consistency across backends
+  * Changed the asyncio ``TaskGroup.start_soon()`` (formerly ``spawn()``) method to avoid the use
+    of a coroutine wrapper on Python 3.8+ and added a hint for hiding the wrapper in tracebacks on
+    earlier Pythons (supported by Pytest, Sentry etc.)
   * Changed the default thread limiter on asyncio to use a ``RunVar`` so it is  scoped to the
     current event loop, thus avoiding potential conflict among multiple running event loops
   * Thread pooling is now used on asyncio with ``run_sync_in_worker_thread()``
