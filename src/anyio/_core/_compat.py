@@ -75,8 +75,7 @@ def _warn_deprecation(awaitable: AnyDeprecatedAwaitable, stacklevel: int = 1) ->
     warn(f'Awaiting on {awaitable._name}() is deprecated. Use "await '
          f'anyio.maybe_awaitable({awaitable._name}(...)) if you have to support both AnyIO 2.x '
          f'and 3.x, or just remove the "await" if you are completely migrating to AnyIO 3+.',
-         DeprecationWarning,
-         stacklevel=stacklevel+1)
+         DeprecationWarning, stacklevel=stacklevel + 1)
 
 
 class DeprecatedAwaitable:
