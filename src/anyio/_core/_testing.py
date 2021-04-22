@@ -93,7 +93,7 @@ class Sequencer:
              async with seq(3):
                  print(3)
          async def main():
-            seq = anyio.testing.Sequencer()
+            seq = anyio.Sequencer()
             async with anyio.create_task_group() as task_group:
                 task_group.start_soon(worker1, seq)
                 task_group.start_soon(worker2, seq)
