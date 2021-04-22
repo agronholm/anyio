@@ -1822,7 +1822,7 @@ class TestRunner(abc.TestRunner):
 
 @dataclass(eq=False)
 class Sequencer(BaseSequencer):
-    # lifted from https://git.io/JOP0M
+    # lifted from trio.testing.Sequencer https://git.io/JOP0M
     _sequence_points: DefaultDict[int, Event] = dataclass_field(
         default_factory=lambda: defaultdict(Event), init=False
     )
