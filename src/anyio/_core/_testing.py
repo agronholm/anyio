@@ -1,7 +1,7 @@
 from typing import Coroutine, Optional
 
-from .._core._eventloop import get_asynclib
 from ._compat import DeprecatedAwaitable, DeprecatedAwaitableList
+from ._eventloop import get_asynclib
 
 
 class TaskInfo(DeprecatedAwaitable):

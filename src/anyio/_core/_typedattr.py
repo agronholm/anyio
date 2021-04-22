@@ -1,7 +1,7 @@
 import sys
 from typing import Callable, Mapping, TypeVar, Union, overload
 
-from .._core._exceptions import TypedAttributeLookupError
+from ._exceptions import TypedAttributeLookupError
 
 if sys.version_info >= (3, 8):
     from typing import final

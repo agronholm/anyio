@@ -7,7 +7,7 @@ from typing import Any, Callable, Coroutine, Dict, Generator, Optional, Tuple, T
 import sniffio
 
 # This must be updated when new backends are introduced
-from anyio._core._compat import DeprecatedAwaitableFloat
+from ._compat import DeprecatedAwaitableFloat
 
 BACKENDS = 'asyncio', 'trio'
 
