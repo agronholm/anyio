@@ -142,7 +142,6 @@ else:
 
         raise RuntimeError('Cannot find root task for setting cleanup callback')
 
-
 T_Retval = TypeVar('T_Retval')
 
 # Check whether there is native support for task names in asyncio (3.8+)
