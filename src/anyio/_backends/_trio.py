@@ -728,7 +728,6 @@ def wait_all_tasks_blocked():
 
 def _sequencer_factory() -> "trio_testing.Sequencer":
     import trio.testing
-
     return trio.testing.Sequencer()
 
 
