@@ -1,4 +1,4 @@
-from typing import Coroutine, Optional
+from typing import AsyncContextManager, Coroutine, Optional
 
 from .._core._eventloop import get_asynclib
 from ._compat import DeprecatedAwaitable, DeprecatedAwaitableList
@@ -65,3 +65,43 @@ def get_running_tasks() -> DeprecatedAwaitableList[TaskInfo]:
 async def wait_all_tasks_blocked() -> None:
     """Wait until all other tasks are waiting for something."""
     await get_asynclib().wait_all_tasks_blocked()
+
+
+class Sequencer:
+    """A convenience class for forcing code in different tasks to run in an
+    explicit linear order.
+    Instances of this class implement a ``__call__`` method which returns an
+    async context manager. The idea is that you pass a sequence number to
+    ``__call__`` to say where this block of code should go in the linear
+    sequence. Block 0 starts immediately, and then block N doesn't start until
+    block N-1 has finished.
+    Example:
+      An extremely elaborate way to print the numbers 0-5, in order::
+         async def worker1(seq):
+             async with seq(0):
+                 print(0)
+             async with seq(4):
+                 print(4)
+         async def worker2(seq):
+             async with seq(2):
+                 print(2)
+             async with seq(5):
+                 print(5)
+         async def worker3(seq):
+             async with seq(1):
+                 print(1)
+             async with seq(3):
+                 print(3)
+         async def main():
+            seq = anyio.testing.Sequencer()
+            async with aynio.create_task_group() as task_group:
+                task_group.start_soon(worker1, seq)
+                task_group.start_soon(worker2, seq)
+                task_group.start_soon(worker3, seq)
+    """
+
+    def __new__(cls):
+        return get_asynclib().Sequencer()
+
+    def __call__(self, position: int) -> AsyncContextManager[None]:
+        raise NotImplementedError

@@ -3,12 +3,13 @@ import math
 import socket
 from concurrent.futures import Future
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from functools import partial
 from io import IOBase
 from types import TracebackType
 from typing import (
-    Any, Awaitable, Callable, Collection, Coroutine, Dict, Generic, List, NoReturn, Optional, Set,
-    Tuple, Type, TypeVar, Union)
+    TYPE_CHECKING, Any, AsyncContextManager, Awaitable, Callable, Collection, Coroutine, Dict,
+    Generic, List, NoReturn, Optional, Set, Tuple, Type, TypeVar, Union)
 
 import trio.from_thread
 from outcome import Error, Value
@@ -25,6 +26,7 @@ from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
 from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import ResourceGuard
 from .._core._tasks import CancelScope as BaseCancelScope
+from .._core._testing import Sequencer as BaseSequencer
 from ..abc import IPSockAddrType, UDPPacketType
 
 try:
@@ -34,6 +36,9 @@ except ImportError:
     from trio.hazmat import wait_readable, wait_writable
 else:
     from trio.lowlevel import wait_readable, wait_writable
+
+if TYPE_CHECKING:
+    from trio import testing as trio_testing
 
 T_Retval = TypeVar('T_Retval')
 T_SockAddr = TypeVar('T_SockAddr', str, IPSockAddrType)
@@ -719,6 +724,24 @@ def get_running_tasks() -> List[TaskInfo]:
 def wait_all_tasks_blocked():
     import trio.testing
     return trio.testing.wait_all_tasks_blocked()
+
+
+def _sequencer_factory() -> "trio_testing.Sequencer":
+    import trio.testing
+
+    return trio.testing.Sequencer()
+
+
+@dataclass(eq=False)
+class Sequencer(BaseSequencer):
+    _sequencer: "trio_testing.Sequencer" = dataclass_field(
+        default_factory=_sequencer_factory, init=False)
+
+    def __new__(cls):
+        return object.__new__(cls)
+
+    def __call__(self, position: int) -> AsyncContextManager[None]:
+        return self._sequencer(position)
 
 
 class TestRunner(abc.TestRunner):

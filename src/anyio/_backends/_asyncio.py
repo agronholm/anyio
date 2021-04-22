@@ -5,9 +5,10 @@ import math
 import socket
 import sys
 from asyncio.base_events import _run_until_complete_cb  # type: ignore
-from collections import OrderedDict, deque
+from collections import OrderedDict, defaultdict, deque
 from concurrent.futures import Future
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from functools import partial, wraps
 from inspect import (
     CORO_RUNNING, CORO_SUSPENDED, GEN_RUNNING, GEN_SUSPENDED, getcoroutinestate, getgeneratorstate)
@@ -17,8 +18,8 @@ from socket import AddressFamily, SocketKind, SocketType
 from threading import Thread
 from types import TracebackType
 from typing import (
-    Any, Awaitable, Callable, Collection, Coroutine, Deque, Dict, Generator, List, Optional,
-    Sequence, Set, Tuple, Type, TypeVar, Union, cast)
+    Any, AsyncGenerator, Awaitable, Callable, Collection, Coroutine, DefaultDict, Deque, Dict,
+    Generator, List, Optional, Sequence, Set, Tuple, Type, TypeVar, Union, cast)
 from weakref import WeakKeyDictionary
 
 from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
@@ -33,6 +34,7 @@ from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
 from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import ResourceGuard
 from .._core._tasks import CancelScope as BaseCancelScope
+from .._core._testing import Sequencer as BaseSequencer
 from ..abc import IPSockAddrType, UDPPacketType
 from ..lowlevel import RunVar
 
@@ -45,6 +47,7 @@ else:
 if sys.version_info >= (3, 7):
     from asyncio import all_tasks, create_task, current_task, get_running_loop
     from asyncio import run as native_run
+    from contextlib import asynccontextmanager
 
     def find_root_task() -> asyncio.Task:
         for task in all_tasks():
@@ -55,6 +58,8 @@ if sys.version_info >= (3, 7):
 
         raise RuntimeError('Cannot find root task for setting cleanup callback')
 else:
+
+    from async_generator import asynccontextmanager
 
     _T = TypeVar('_T')
 
@@ -136,6 +141,7 @@ else:
                     return task
 
         raise RuntimeError('Cannot find root task for setting cleanup callback')
+
 
 T_Retval = TypeVar('T_Retval')
 
@@ -1813,3 +1819,39 @@ class TestRunner(abc.TestRunner):
             raise ExceptionGroup(exceptions)
 
         return retval
+
+
+@dataclass(eq=False)
+class Sequencer(BaseSequencer):
+    # lifted from https://git.io/JOP0M
+    _sequence_points: DefaultDict[int, Event] = dataclass_field(
+        default_factory=lambda: defaultdict(Event), init=False
+    )
+    _claimed: Set[int] = dataclass_field(default_factory=set, init=False)
+    _broken: bool = dataclass_field(default=False, init=False)
+
+    def __new__(cls):
+        return object.__new__(cls)
+
+    @asynccontextmanager
+    async def __call__(self, position: int) -> AsyncGenerator[None, None]:
+        if position in self._claimed:
+            raise RuntimeError("Attempted to re-use sequence point {}".format(position))
+        if self._broken:
+            raise RuntimeError("sequence broken!")
+        self._claimed.add(position)
+        if position != 0:
+            try:
+                await self._sequence_points[position].wait()
+            except CancelledError:
+                self._broken = True
+                for event in self._sequence_points.values():
+                    event.set()
+                raise RuntimeError("Sequencer wait cancelled -- sequence broken")
+            else:
+                if self._broken:
+                    raise RuntimeError("sequence broken!")
+        try:
+            yield
+        finally:
+            self._sequence_points[position + 1].set()

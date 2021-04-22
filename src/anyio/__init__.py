@@ -15,7 +15,7 @@ __all__ = ('maybe_async', 'maybe_async_cm', 'run', 'sleep', 'current_time', 'get
            'wait_all_tasks_blocked', 'run_sync_in_worker_thread', 'run_async_from_thread',
            'run_sync_from_thread', 'current_default_worker_thread_limiter',
            'create_blocking_portal', 'start_blocking_portal', 'typed_attribute',
-           'TypedAttributeSet', 'TypedAttributeProvider')
+           'TypedAttributeSet', 'TypedAttributeProvider', 'Sequencer')
 
 from ._core._compat import maybe_async, maybe_async_cm
 from ._core._eventloop import current_time, get_all_backends, get_cancelled_exc_class, run, sleep
@@ -38,7 +38,8 @@ from ._core._synchronization import (
 from ._core._tasks import (
     TASK_STATUS_IGNORED, CancelScope, create_task_group, current_effective_deadline, fail_after,
     move_on_after, open_cancel_scope)
-from ._core._testing import TaskInfo, get_current_task, get_running_tasks, wait_all_tasks_blocked
+from ._core._testing import (
+    Sequencer, TaskInfo, get_current_task, get_running_tasks, wait_all_tasks_blocked)
 from ._core._typedattr import TypedAttributeProvider, TypedAttributeSet, typed_attribute
 
 # Re-exported here, for backwards compatibility
