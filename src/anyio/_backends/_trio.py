@@ -87,6 +87,10 @@ class CancelScope(BaseCancelScope):
         self.__original.deadline = value
 
     @property
+    def cancelled_caught(self) -> bool:
+        return self.__original.cancelled_caught
+
+    @property
     def cancel_called(self) -> bool:
         return self.__original.cancel_called
 

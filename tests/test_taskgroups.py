@@ -180,6 +180,27 @@ async def test_start_native_host_cancelled():
 
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
+async def test_start_native_host_cancelled_cancel_scope():
+    async def taskfunc():
+        await sleep(2)
+
+    async def start_another():
+        nonlocal cancel_scope
+        with CancelScope() as cancel_scope:
+            await taskfunc()
+
+    cancel_scope = None
+    task = asyncio.get_event_loop().create_task(start_another())
+    await wait_all_tasks_blocked()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert not cancel_scope.cancelled_caught
+    assert not cancel_scope.cancel_called
+
+
+@pytest.mark.parametrize('anyio_backend', ['asyncio'])
 async def test_start_native_child_cancelled():
     async def taskfunc(*, task_status):
         nonlocal task, finished
@@ -395,6 +416,7 @@ async def test_fail_after(delay):
         with fail_after(delay) as scope:
             await sleep(1)
 
+    assert scope.cancelled_caught
     assert scope.cancel_called
 
 
@@ -403,6 +425,7 @@ async def test_fail_after_no_timeout():
         assert scope.deadline == float('inf')
         await sleep(0.1)
 
+    assert not scope.cancelled_caught
     assert not scope.cancel_called
 
 
@@ -429,6 +452,7 @@ async def test_move_on_after(delay):
         result = True
 
     assert not result
+    assert scope.cancelled_caught
     assert scope.cancel_called
 
 
@@ -440,6 +464,7 @@ async def test_move_on_after_no_timeout():
         result = True
 
     assert result
+    assert not scope.cancelled_caught
     assert not scope.cancel_called
 
 
@@ -456,7 +481,9 @@ async def test_nested_move_on_after():
 
     assert not sleep_completed
     assert not inner_scope_completed
+    assert outer_scope.cancelled_caught
     assert outer_scope.cancel_called
+    assert not inner_scope.cancelled_caught
     assert not inner_scope.cancel_called
 
 
@@ -478,7 +505,9 @@ async def test_shielding():
 
     assert inner_sleep_completed
     assert not outer_sleep_completed
+    assert tg.cancel_scope.cancelled_caught
     assert tg.cancel_scope.cancel_called
+    assert not inner_scope.cancelled_caught
     assert not inner_scope.cancel_called
 
 
@@ -581,6 +610,7 @@ async def test_cancel_scope_in_child_task():
         host_done = True
 
     assert host_done
+    assert not tg.cancel_scope.cancelled_caught
     assert not tg.cancel_scope.cancel_called
 
 
@@ -615,6 +645,29 @@ async def test_cancel_cascade():
         tg.start_soon(do_something)
         await wait_all_tasks_blocked()
         tg.cancel_scope.cancel()
+
+
+async def test_cancel_nested_scopes():
+    async def do_something():
+        nonlocal tg2
+        async with create_task_group() as tg2:
+            tg2.start_soon(sleep, 1)
+
+        raise Exception('foo')
+
+    tg2 = None
+    async with create_task_group() as tg:
+        tg.start_soon(do_something)
+        await wait_all_tasks_blocked()
+        tg.cancel_scope.cancel()
+
+        assert not tg.cancel_scope.cancelled_caught
+        assert tg.cancel_scope.cancel_called
+
+    assert tg.cancel_scope.cancelled_caught
+    assert tg.cancel_scope.cancel_called
+    assert not tg2.cancel_scope.cancelled_caught
+    assert tg2.cancel_scope.cancel_called
 
 
 async def test_cancelled_parent():
@@ -677,6 +730,7 @@ async def test_nested_fail_after():
 
             pytest.fail('Execution should also not reach this point')
 
+    assert scope.cancelled_caught
     assert scope.cancel_called
 
 
@@ -948,3 +1002,33 @@ async def test_cancellederror_combination_with_message():
             tg.start_soon(sleep, 5)
             await wait_all_tasks_blocked()
             task.cancel('blah')
+
+
+async def test_cancel_called_but_not_caught():
+    async def task(*, task_status):
+        with CancelScope() as scope:
+            task_status.started(scope)
+            try:
+                await sleep(1)
+            except (asyncio.CancelledError, trio.Cancelled):
+                pass
+
+    async with create_task_group() as tg:
+        scope = await tg.start(task)
+        scope.cancel()
+
+    assert scope.cancel_called
+    assert not scope.cancelled_caught
+
+
+async def test_scope_active_until_children_finish():
+    async def task(scope):
+        await sleep(1)
+
+        # should raise RuntimeError since scope is already active
+        with scope:
+            ...
+
+    with pytest.raises(RuntimeError):
+        async with create_task_group() as tg:
+            tg.start_soon(task, tg.cancel_scope)

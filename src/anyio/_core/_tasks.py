@@ -46,6 +46,11 @@ class CancelScope(DeprecatedAsyncContextManager['CancelScope']):
         raise NotImplementedError
 
     @property
+    def cancelled_caught(self) -> bool:
+        """Records whether this scope caught a ``CancelledError``."""
+        raise NotImplementedError
+
+    @property
     def cancel_called(self) -> bool:
         """``True`` if :meth:`cancel` has been called."""
         raise NotImplementedError
