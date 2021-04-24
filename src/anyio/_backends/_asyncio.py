@@ -17,8 +17,8 @@ from socket import AddressFamily, SocketKind, SocketType
 from threading import Thread
 from types import TracebackType
 from typing import (
-    Any, Awaitable, Callable, Collection, Coroutine, Deque, Dict, Generator, List, Optional,
-    Sequence, Set, Tuple, Type, TypeVar, Union, cast)
+    Any, Awaitable, Callable, Collection, Coroutine, Deque, Dict, Generator, Iterable, List,
+    Optional, Sequence, Set, Tuple, Type, TypeVar, Union, cast)
 from weakref import WeakKeyDictionary
 
 from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
@@ -46,17 +46,13 @@ if sys.version_info >= (3, 7):
     from asyncio import all_tasks, create_task, current_task, get_running_loop
     from asyncio import run as native_run
 
-    def find_root_task() -> asyncio.Task:
-        for task in all_tasks():
-            if task._callbacks:
-                for cb, context in task._callbacks:  # type: ignore
-                    if cb is _run_until_complete_cb or cb.__module__ == 'uvloop.loop':
-                        return task
-
-        raise RuntimeError('Cannot find root task for setting cleanup callback')
+    def _get_task_callbacks(task: asyncio.Task) -> Iterable[Callable]:
+        return [cb for cb, context in task._callbacks]  # type: ignore
 else:
-
     _T = TypeVar('_T')
+
+    def _get_task_callbacks(task: asyncio.Task) -> Iterable[Callable]:
+        return task._callbacks  # type: ignore
 
     def native_run(main, *, debug=False):
         # Snatched from Python 3.7
@@ -129,20 +125,43 @@ else:
 
         return asyncio.Task.current_task(loop)
 
-    def find_root_task() -> asyncio.Task:
-        for task in all_tasks():
-            for cb in task._callbacks:
-                if cb is _run_until_complete_cb or cb.__module__ == 'uvloop.loop':
-                    return task
-
-        raise RuntimeError('Cannot find root task for setting cleanup callback')
-
 T_Retval = TypeVar('T_Retval')
 
 # Check whether there is native support for task names in asyncio (3.8+)
 _native_task_names = hasattr(asyncio.Task, 'get_name')
 
-WORKER_THREAD_MAX_IDLE_TIME = 10  # seconds
+
+_root_task: RunVar[Optional[asyncio.Task]] = RunVar('_root_task')
+
+
+def find_root_task() -> asyncio.Task:
+    try:
+        root_task = _root_task.get()
+    except LookupError:
+        for task in all_tasks():
+            if task._callbacks:
+                for cb in _get_task_callbacks(task):
+                    if cb is _run_until_complete_cb or cb.__module__ == 'uvloop.loop':
+                        _root_task.set(task)
+                        return task
+
+        _root_task.set(None)
+    else:
+        if root_task is not None:
+            return root_task
+
+    # Look up the topmost task in the AnyIO task tree, if possible
+    task = cast(asyncio.Task, current_task())
+    state = _task_states.get(task)
+    if state:
+        cancel_scope = state.cancel_scope
+        while cancel_scope and cancel_scope._parent_scope is not None:
+            cancel_scope = cancel_scope._parent_scope
+
+        if cancel_scope is not None:
+            return cast(asyncio.Task, cancel_scope._host_task)
+
+    return task
 
 
 def get_callable_name(func: Callable) -> str:
@@ -650,41 +669,51 @@ class TaskGroup(abc.TaskGroup):
 _Retval_Queue_Type = Tuple[Optional[T_Retval], Optional[BaseException]]
 
 
-def _thread_pool_worker(work_queue: Queue, loop: asyncio.AbstractEventLoop) -> None:
-    func: Callable
-    args: tuple
-    future: asyncio.Future
-    with claim_worker_thread('asyncio'):
-        loop = threadlocals.loop = loop
-        while True:
-            func, args, future = work_queue.get()
-            if func is None:
-                # Shutdown command received
-                return
+class WorkerThread(Thread):
+    __slots__ = 'root_task', 'loop', 'queue', 'idle_since'
 
-            if not future.cancelled():
-                try:
-                    result = func(*args)
-                except BaseException as exc:
-                    if not loop.is_closed() and not future.cancelled():
-                        loop.call_soon_threadsafe(future.set_exception, exc)
-                else:
-                    if not loop.is_closed() and not future.cancelled():
-                        loop.call_soon_threadsafe(future.set_result, result)
+    MAX_IDLE_TIME = 10  # seconds
 
-            work_queue.task_done()
+    def __init__(self, root_task: asyncio.Task):
+        super().__init__(name='AnyIO worker thread')
+        self.root_task = root_task
+        self.loop = root_task._loop
+        self.queue: Queue[Union[Tuple[Callable, tuple, asyncio.Future], None]] = Queue(2)
+        self.idle_since = current_time()
+
+    def run(self) -> None:
+        with claim_worker_thread('asyncio'):
+            threadlocals.loop = self.loop
+            while True:
+                item = self.queue.get()
+                if item is None:
+                    # Shutdown command received
+                    return
+
+                func, args, future = item
+                if not future.cancelled():
+                    try:
+                        result = func(*args)
+                    except BaseException as exc:
+                        if not self.loop.is_closed() and not future.cancelled():
+                            self.loop.call_soon_threadsafe(future.set_exception, exc)
+                    else:
+                        if not self.loop.is_closed() and not future.cancelled():
+                            self.loop.call_soon_threadsafe(future.set_result, result)
+
+                self.queue.task_done()
+
+    def stop(self, f: Optional[asyncio.Task] = None) -> None:
+        self.queue.put_nowait(None)
+        _threadpool_workers.get().discard(self)
+        try:
+            _threadpool_idle_workers.get().remove(self)
+        except ValueError:
+            pass
 
 
-_threadpool_work_queue: RunVar[Queue] = RunVar('_threadpool_work_queue')
-_threadpool_idle_workers: RunVar[Deque[Tuple[Thread, float]]] = RunVar(
-    '_threadpool_idle_workers')
-_threadpool_workers: RunVar[Set[Thread]] = RunVar('_threadpool_workers')
-
-
-def _loop_shutdown_callback(f: asyncio.Future) -> None:
-    """This is called when the root task has finished."""
-    for _ in range(len(_threadpool_workers.get())):
-        _threadpool_work_queue.get().put_nowait((None, None, None))
+_threadpool_idle_workers: RunVar[Deque[WorkerThread]] = RunVar('_threadpool_idle_workers')
+_threadpool_workers: RunVar[Set[WorkerThread]] = RunVar('_threadpool_workers')
 
 
 async def run_sync_in_worker_thread(
@@ -694,45 +723,42 @@ async def run_sync_in_worker_thread(
 
     # If this is the first run in this event loop thread, set up the necessary variables
     try:
-        work_queue = _threadpool_work_queue.get()
         idle_workers = _threadpool_idle_workers.get()
         workers = _threadpool_workers.get()
     except LookupError:
-        work_queue = Queue()
         idle_workers = deque()
         workers = set()
-        _threadpool_work_queue.set(work_queue)
         _threadpool_idle_workers.set(idle_workers)
         _threadpool_workers.set(workers)
-        find_root_task().add_done_callback(_loop_shutdown_callback)
 
     async with (limiter or current_default_thread_limiter()):
         with CancelScope(shield=not cancellable):
             future: asyncio.Future = asyncio.Future()
-            work_queue.put_nowait((func, args, future))
+            root_task = find_root_task()
             if not idle_workers:
-                thread = Thread(target=_thread_pool_worker, args=(work_queue, get_running_loop()),
-                                name='AnyIO worker thread')
-                workers.add(thread)
-                thread.start()
+                worker = WorkerThread(root_task)
+                worker.start()
+                workers.add(worker)
+                root_task.add_done_callback(worker.stop)
             else:
-                thread, idle_since = idle_workers.pop()
+                worker = idle_workers.pop()
 
-                # Prune any other workers that have been idle for WORKER_MAX_IDLE_TIME seconds or
-                # longer
+                # Prune any other workers that have been idle for MAX_IDLE_TIME seconds or longer
                 now = current_time()
                 while idle_workers:
-                    if now - idle_workers[0][1] < WORKER_THREAD_MAX_IDLE_TIME:
+                    if now - idle_workers[0].idle_since < WorkerThread.MAX_IDLE_TIME:
                         break
 
-                    idle_workers.popleft()
-                    work_queue.put_nowait(None)
-                    workers.remove(thread)
+                    worker = idle_workers.popleft()
+                    worker.root_task.remove_done_callback(worker.stop)
+                    worker.stop()
 
+            worker.queue.put_nowait((func, args, future))
             try:
                 return await future
             finally:
-                idle_workers.append((thread, current_time()))
+                worker.idle_since = current_time()
+                idle_workers.append(worker)
 
 
 def run_sync_from_thread(func: Callable[..., T_Retval], *args,
