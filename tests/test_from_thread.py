@@ -1,4 +1,5 @@
 import threading
+import time
 from concurrent.futures import CancelledError
 from contextlib import suppress
 
@@ -53,7 +54,14 @@ class TestRunAsyncFromThread:
         # The thread should not exist after the event loop has been closed
         initial_count = threading.active_count()
         run(main, backend='asyncio')
-        assert threading.active_count() == initial_count
+
+        for _ in range(10):
+            if threading.active_count() == initial_count:
+                return
+
+            time.sleep(0.1)
+
+        pytest.fail('Worker thread did not exit within 1 second')
 
     async def test_run_async_from_thread_exception(self):
         async def add(a, b):
