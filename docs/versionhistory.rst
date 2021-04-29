@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed ``to_thread.run_sync()`` raising ``RuntimeError`` when no "root" task could be found for
+  setting up a cleanup callback
+
 **3.0.0**
 
 - Curio support has been dropped (see the :doc:`FAQ <faq>` as for why)

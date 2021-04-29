@@ -49,3 +49,12 @@ def client_context(ca):
     client_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
     ca.configure_trust(client_context)
     return client_context
+
+
+@pytest.fixture
+def asyncio_event_loop():
+    loop = asyncio.DefaultEventLoopPolicy().new_event_loop()
+    asyncio.set_event_loop(loop)
+    yield loop
+    asyncio.set_event_loop(None)
+    loop.close()

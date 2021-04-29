@@ -84,6 +84,7 @@ async def test_cancel_worker_thread(cancellable, expected_last_active):
 
     """
     def thread_worker():
+        print('thread worker:', threading.current_thread(), flush=True)
         nonlocal last_active
         from_thread.run_sync(sleep_event.set)
         time.sleep(0.2)
@@ -110,14 +111,40 @@ async def test_cancel_worker_thread(cancellable, expected_last_active):
 
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
-async def test_cancel_asyncio_native_task():
+async def test_asyncio_cancel_native_task():
     async def run_in_thread():
         nonlocal task
         task = current_task()
-        await to_thread.run_sync(time.sleep, 1, cancellable=True)
+        await to_thread.run_sync(time.sleep, 0.2, cancellable=True)
 
     task = None
     async with create_task_group() as tg:
         tg.start_soon(run_in_thread)
         await wait_all_tasks_blocked()
         task.cancel()
+
+
+def test_asyncio_no_root_task(asyncio_event_loop):
+    """
+    Regression test for #264.
+
+    Ensures that to_thread.run_sync() does not raise an error when there is no root task, but
+    instead tries to find the top most parent task by traversing the cancel scope tree, or failing
+    that, uses the current task to set up a shutdown callback.
+
+    """
+    async def run_in_thread():
+        try:
+            await to_thread.run_sync(time.sleep, 0)
+        finally:
+            asyncio_event_loop.call_soon(asyncio_event_loop.stop)
+
+    task = asyncio_event_loop.create_task(run_in_thread())
+    asyncio_event_loop.run_forever()
+    task.result()
+
+    # Wait for worker threads to exit
+    for t in threading.enumerate():
+        if t.name == 'AnyIO worker thread':
+            t.join(2)
+            assert not t.is_alive()
