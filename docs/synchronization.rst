@@ -119,15 +119,15 @@ Example::
 
             await sleep(1)
             async with condition:
-                await condition.notify(1)
+                condition.notify(1)
 
             await sleep(1)
             async with condition:
-                await condition.notify(2)
+                condition.notify(2)
 
             await sleep(1)
             async with condition:
-                await condition.notify_all()
+                condition.notify_all()
 
     run(main)
 
