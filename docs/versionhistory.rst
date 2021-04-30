@@ -5,8 +5,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
-- Fixed ``to_thread.run_sync()`` raising ``RuntimeError`` when no "root" task could be found for
-  setting up a cleanup callback
+- Fixed ``to_thread.run_sync()`` raising ``RuntimeError`` on asyncio when no "root" task could be
+  found for setting up a cleanup callback. This was a problem at least on Tornado and possibly also
+  Twisted in asyncio compatibility mode. The life of worker threads is now bound to the the host
+  task of the topmost cancel scope hierarchy starting from the current one, or if no cancel scope
+  is active, the current task.
 
 **3.0.0**
 
