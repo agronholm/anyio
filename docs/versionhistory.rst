@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**3.0.1**
 
 - Fixed ``to_thread.run_sync()`` raising ``RuntimeError`` on asyncio when no "root" task could be
   found for setting up a cleanup callback. This was a problem at least on Tornado and possibly also
