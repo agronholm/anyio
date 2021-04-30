@@ -1,4 +1,5 @@
 import asyncio
+from functools import partial
 import sys
 import threading
 import time
@@ -148,3 +149,21 @@ def test_asyncio_no_root_task(asyncio_event_loop):
         if t.name == 'AnyIO worker thread':
             t.join(2)
             assert not t.is_alive()
+
+
+def test_asyncio_future_callback_partial(asyncio_event_loop):
+    """
+    Regression test for #272.
+
+    Ensures that futures with partial callbacks are handled correctly when the root task
+    cannot be determined.
+    """
+    def func(future):
+        pass
+
+    async def sleep_sync():
+        return await to_thread.run_sync(time.sleep, 0)
+
+    task = asyncio_event_loop.create_task(sleep_sync())
+    task.add_done_callback(partial(func))
+    asyncio_event_loop.run_until_complete(task)
