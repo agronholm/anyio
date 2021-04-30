@@ -12,12 +12,20 @@
   :alt: Gitter chat
 
 AnyIO is an asynchronous networking and concurrency library that works on top of either asyncio_ or
-trio_. It implements trio-like `structured concurrency`_ on top of asyncio, and works in harmony
+trio_. It implements trio-like `structured concurrency`_ (SC) on top of asyncio, and works in harmony
 with the native SC of trio itself.
 
 Applications and libraries written against AnyIO's API will run unmodified on either asyncio_ or
 trio_. AnyIO can also be adopted into a library or application incrementally – bit by bit, no full
 refactoring necessary. It will blend in with native libraries of your chosen backend.
+
+Documentation
+-------------
+
+View full documentation at: https://anyio.readthedocs.io/
+
+Features
+--------
 
 AnyIO offers the following functionality:
 
