@@ -141,7 +141,8 @@ def find_root_task() -> asyncio.Task:
         for task in all_tasks():
             if task._callbacks:
                 for cb in _get_task_callbacks(task):
-                    if cb is _run_until_complete_cb or cb.__module__ == 'uvloop.loop':
+                    if (cb is _run_until_complete_cb
+                            or getattr(cb, '__module__', None) == 'uvloop.loop'):
                         _root_task.set(task)
                         return task
 

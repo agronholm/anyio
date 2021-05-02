@@ -151,15 +151,19 @@ def test_asyncio_no_root_task(asyncio_event_loop):
             assert not t.is_alive()
 
 
-# @pytest.mark.parametrize('anyio_backend', ['asyncio'])
-def test_foo():
-    def noop(*args, **kwargs):
+def test_asyncio_future_callback_partial(asyncio_event_loop):
+    """
+    Regression test for #272.
+
+    Ensures that futures with partial callbacks are handled correctly when the root task
+    cannot be determined.
+    """
+    def func(future):
         pass
 
-    async def sleep_sync(x):
-        return await to_thread.run_sync(sleep, 0.1)
+    async def sleep_sync():
+        return await to_thread.run_sync(time.sleep, 0)
 
-    # t = asyncio.ensure_future(sleep_sync())
-    # t.add_done_callback(partial(noop, object()))
-    # await t
-    run(partial(sleep_sync, x=1))
+    task = asyncio_event_loop.create_task(sleep_sync())
+    task.add_done_callback(partial(func))
+    asyncio_event_loop.run_until_complete(task)
