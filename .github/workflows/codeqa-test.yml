@@ -25,7 +25,7 @@ jobs:
     - name: Check types with Mypy
       run: mypy src
     - name: Run isort
-      run: isort -c src tests
+      run: isort -c --diff src tests
 
   test:
     needs: [lint]
