@@ -1,8 +1,8 @@
 import asyncio
-from functools import partial
 import sys
 import threading
 import time
+from functools import partial
 
 import pytest
 
