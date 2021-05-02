@@ -2,11 +2,12 @@ import asyncio
 import sys
 import threading
 import time
+from functools import partial
 
 import pytest
 
 from anyio import (
-    CapacityLimiter, Event, create_task_group, from_thread, sleep, to_thread,
+    CapacityLimiter, Event, create_task_group, from_thread, run, sleep, to_thread,
     wait_all_tasks_blocked)
 
 if sys.version_info < (3, 7):
@@ -148,3 +149,17 @@ def test_asyncio_no_root_task(asyncio_event_loop):
         if t.name == 'AnyIO worker thread':
             t.join(2)
             assert not t.is_alive()
+
+
+# @pytest.mark.parametrize('anyio_backend', ['asyncio'])
+def test_foo():
+    def noop(*args, **kwargs):
+        pass
+
+    async def sleep_sync(x):
+        return await to_thread.run_sync(sleep, 0.1)
+
+    # t = asyncio.ensure_future(sleep_sync())
+    # t.add_done_callback(partial(noop, object()))
+    # await t
+    run(partial(sleep_sync, x=1))

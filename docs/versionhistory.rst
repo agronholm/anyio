@@ -3,6 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Added the ``sleep_until()`` function
+
 **3.0.1**
 
 - Fixed ``to_thread.run_sync()`` raising ``RuntimeError`` on asyncio when no "root" task could be
