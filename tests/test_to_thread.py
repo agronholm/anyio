@@ -7,7 +7,7 @@ from functools import partial
 import pytest
 
 from anyio import (
-    CapacityLimiter, Event, create_task_group, from_thread, run, sleep, to_thread,
+    CapacityLimiter, Event, create_task_group, from_thread, sleep, to_thread,
     wait_all_tasks_blocked)
 
 if sys.version_info < (3, 7):
