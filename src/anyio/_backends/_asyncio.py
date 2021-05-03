@@ -420,6 +420,14 @@ class CancelScope(BaseCancelScope):
     def shield(self) -> bool:
         return self._shield
 
+    @shield.setter
+    def shield(self, value: bool) -> None:
+        if self._shield != value:
+            self._shield = value
+            # start cancellation effort if necessary when shield is removed
+            if not value and self._cancel_called and self._cancel_handle is None:
+                self._deliver_cancellation()
+
 
 async def checkpoint() -> None:
     await sleep(0)
