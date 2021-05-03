@@ -351,7 +351,6 @@ class CancelScope(BaseCancelScope, DeprecatedAsyncContextManager):
         Schedule another run at the end if we still have tasks eligible for cancellation.
         """
         should_retry = False
-        cancellable_tasks: Set[asyncio.Task] = set()
         current = current_task()
         for task in self._tasks:
             # The task is eligible for cancellation if it has started and is not in a cancel
@@ -365,10 +364,7 @@ class CancelScope(BaseCancelScope, DeprecatedAsyncContextManager):
             else:
                 should_retry = True
                 if task is not current and (task is self._host_task or _task_started(task)):
-                    cancellable_tasks.add(task)
-
-        for task in cancellable_tasks:
-            task.cancel()
+                    task.cancel()
 
         # Schedule another callback if there are still tasks left
         if should_retry:
