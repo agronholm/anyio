@@ -78,21 +78,3 @@ async def test_process_env(tmp_path):
     cmd = [sys.executable, "-c", "import os; print(os.environ['foo'])"]
     result = await run_process(cmd, env=env)
     assert result.stdout.decode().strip() == env["foo"]
-
-
-@pytest.mark.skipif(platform.system() != 'Linux',
-                    reason='This is a Posix specific test')
-async def test_posix_shell_string():
-    """Test that `run_process` cannot take a string command with `shell=False`"""
-    cmd = sys.executable + " -c 'print()'"
-    with pytest.raises(TypeError):
-        await run_process(cmd, shell=False)
-
-
-@pytest.mark.skipif(platform.system() != 'Linux',
-                    reason='This is a Posix specific test')
-async def test_posix_shell_not_string():
-    """Test that `run_process` cannot take a command list with `shell=True`"""
-    cmd = [sys.executable, "-c", "print()"]
-    with pytest.raises(TypeError):
-        await run_process(cmd, shell=True)
