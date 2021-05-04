@@ -25,7 +25,8 @@ async def run_process(command: Union[str, Sequence[str]], *, input: Optional[byt
     :param check: if ``True``, raise :exc:`~subprocess.CalledProcessError` if the process
         terminates with a return code other than 0
     :param cwd: If not ``None``, change the working directory to this before running the command
-    :param env: if not ``None``, this mapping replaces the inherited environment variables from the parent process
+    :param env: if not ``None``, this mapping replaces the inherited environment variables from the
+        parent process
     :return: an object representing the completed process
     :raises ~subprocess.CalledProcessError: if ``check`` is ``True`` and the process exits with a
         nonzero return code
