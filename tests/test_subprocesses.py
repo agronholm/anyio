@@ -72,7 +72,7 @@ async def test_process_cwd(tmp_path):
     assert result.stdout.decode().strip() == str(tmp_path)
 
 
-async def test_process_env(tmp_path):
+async def test_process_env():
     """Test that `env` is successfully passed to the subprocess implementation"""
     env = {"foo": "bar"}
     cmd = [sys.executable, "-c", "import os; print(os.environ['foo'])"]
