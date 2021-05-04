@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed ``wait_all_tasks_blocked()`` returning prematurely on asyncio when a previously blocked
+  task is cancelled (PR by Thomas Grainger)
+
 **3.0.1**
 
 - Fixed ``to_thread.run_sync()`` raising ``RuntimeError`` on asyncio when no "root" task could be
