@@ -69,7 +69,7 @@ async def test_terminate(tmp_path):
 async def test_process_cwd(tmp_path):
     """Test that `cwd` is successfully passed to the subprocess implementation"""
     cmd = [sys.executable, "-c", "import os; print(os.getcwd())"]
-    result = await run_process(cmd, cwd=str(tmp_path))
+    result = await run_process(cmd, cwd=tmp_path)
     assert result.stdout.decode().strip() == str(tmp_path)
 
 
