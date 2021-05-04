@@ -2,7 +2,7 @@ import array
 import asyncio
 import concurrent.futures
 import math
-import pathlib
+from pathlib import Path
 import socket
 import sys
 from asyncio.base_events import _run_until_complete_cb  # type: ignore
@@ -879,7 +879,7 @@ class Process(abc.Process):
 
 
 async def open_process(command, *, shell: bool, stdin: int, stdout: int, stderr: int,
-                       cwd: Optional[Union[str, pathlib.Path]] = None,
+                       cwd: Union[str, Path, None] = None,
                        env: Optional[Mapping[str, str]] = None) -> Process:
     await checkpoint()
     if shell:

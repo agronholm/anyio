@@ -1,6 +1,6 @@
 import array
 import math
-import pathlib
+from pathlib import Path
 import socket
 from concurrent.futures import Future
 from dataclasses import dataclass
@@ -270,7 +270,7 @@ class Process(abc.Process):
 
 
 async def open_process(command, *, shell: bool, stdin: int, stdout: int, stderr: int,
-                       cwd: Optional[Union[str, pathlib.Path]] = None,
+                       cwd: Union[str, Path, None] = None,
                        env: Optional[Mapping[str, str]] = None) -> Process:
     process = await trio.open_process(command, stdin=stdin, stdout=stdout, stderr=stderr,
                                       shell=shell, cwd=cwd, env=env)
