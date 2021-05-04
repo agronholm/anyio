@@ -1,4 +1,3 @@
-import os
 import pathlib
 from subprocess import DEVNULL, PIPE, CalledProcessError, CompletedProcess
 from typing import Mapping, Optional, Sequence, Union, cast
