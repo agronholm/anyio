@@ -2,7 +2,6 @@ import array
 import asyncio
 import concurrent.futures
 import math
-from pathlib import Path
 import socket
 import sys
 from asyncio.base_events import _run_until_complete_cb  # type: ignore
@@ -13,6 +12,7 @@ from functools import partial, wraps
 from inspect import (
     CORO_RUNNING, CORO_SUSPENDED, GEN_RUNNING, GEN_SUSPENDED, getcoroutinestate, getgeneratorstate)
 from io import IOBase
+from os import PathLike
 from queue import Queue
 from socket import AddressFamily, SocketKind, SocketType
 from threading import Thread
@@ -879,7 +879,7 @@ class Process(abc.Process):
 
 
 async def open_process(command, *, shell: bool, stdin: int, stdout: int, stderr: int,
-                       cwd: Union[str, Path, None] = None,
+                       cwd: Union[str, bytes, PathLike, None] = None,
                        env: Optional[Mapping[str, str]] = None) -> Process:
     await checkpoint()
     if shell:
