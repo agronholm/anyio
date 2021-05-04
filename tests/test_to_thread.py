@@ -85,7 +85,6 @@ async def test_cancel_worker_thread(cancellable, expected_last_active):
 
     """
     def thread_worker():
-        print('thread worker:', threading.current_thread(), flush=True)
         nonlocal last_active
         from_thread.run_sync(sleep_event.set)
         time.sleep(0.2)
