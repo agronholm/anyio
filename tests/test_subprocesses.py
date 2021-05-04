@@ -1,3 +1,4 @@
+import os
 import platform
 import sys
 from subprocess import CalledProcessError
@@ -74,7 +75,8 @@ async def test_process_cwd(tmp_path):
 
 async def test_process_env():
     """Test that `env` is successfully passed to the subprocess implementation"""
-    env = {"foo": "bar"}
+    env = os.environ.copy()
+    env.update({"foo": "bar"})
     cmd = [sys.executable, "-c", "import os; print(os.environ['foo'])"]
     result = await run_process(cmd, env=env)
     assert result.stdout.decode().strip() == env["foo"]
