@@ -91,15 +91,15 @@ async def test_wait_all_tasks_blocked_asend(anyio_backend):
 
 
 async def test_wait_all_tasks_blocked_cancelled_task():
-    done = False
-
     async def self_cancel(*, task_status):
+        nonlocal done
         task_status.started()
         with move_on_after(-1):
             await Event().wait()
-        nonlocal done
+
         done = True
 
+    done = False
     async with create_task_group() as tg:
         await tg.start(self_cancel)
         await wait_all_tasks_blocked()
