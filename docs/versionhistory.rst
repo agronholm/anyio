@@ -7,6 +7,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Fixed ``wait_all_tasks_blocked()`` returning prematurely on asyncio when a previously blocked
   task is cancelled (PR by Thomas Grainger)
+- Added ``env`` and ``cwd`` keyword arguments to ``run_process()`` and ``open_process``.
 
 **3.0.1**
 

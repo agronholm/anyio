@@ -2,6 +2,7 @@ import array
 import asyncio
 import concurrent.futures
 import math
+import pathlib
 import socket
 import sys
 from asyncio.base_events import _run_until_complete_cb  # type: ignore
@@ -18,7 +19,7 @@ from threading import Thread
 from types import TracebackType
 from typing import (
     Any, Awaitable, Callable, Collection, Coroutine, Deque, Dict, Generator, Iterable, List,
-    Optional, Sequence, Set, Tuple, Type, TypeVar, Union, cast)
+    Mapping, Optional, Sequence, Set, Tuple, Type, TypeVar, Union, cast)
 from weakref import WeakKeyDictionary
 
 from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
@@ -877,14 +878,16 @@ class Process(abc.Process):
         return self._stderr
 
 
-async def open_process(command, *, shell: bool, stdin: int, stdout: int, stderr: int):
+async def open_process(command, *, shell: bool, stdin: int, stdout: int, stderr: int,
+                       cwd: Optional[Union[str, pathlib.Path]] = None,
+                       env: Optional[Mapping[str, str]] = None) -> Process:
     await checkpoint()
     if shell:
         process = await asyncio.create_subprocess_shell(command, stdin=stdin, stdout=stdout,
-                                                        stderr=stderr)
+                                                        stderr=stderr, cwd=cwd, env=env)
     else:
         process = await asyncio.create_subprocess_exec(*command, stdin=stdin, stdout=stdout,
-                                                       stderr=stderr)
+                                                       stderr=stderr, cwd=cwd, env=env)
 
     stdin_stream = StreamWriterWrapper(process.stdin) if process.stdin else None
     stdout_stream = StreamReaderWrapper(process.stdout) if process.stdout else None

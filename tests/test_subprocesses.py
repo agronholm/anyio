@@ -63,3 +63,36 @@ async def test_terminate(tmp_path):
 
         process.terminate()
         assert await process.wait() == 2
+
+
+async def test_process_cwd(tmp_path):
+    """Test that `cwd` is successfully passed to the subprocess implementation"""
+    cmd = [sys.executable, "-c", "import os; print(os.getcwd())"]
+    result = await run_process(cmd, cwd=str(tmp_path))
+    assert result.stdout.decode().strip() == str(tmp_path)
+
+
+async def test_process_env(tmp_path):
+    """Test that `env` is successfully passed to the subprocess implementation"""
+    env = {"foo": "bar"}
+    cmd = [sys.executable, "-c", "import os; print(os.environ['foo'])"]
+    result = await run_process(cmd, env=env)
+    assert result.stdout.decode().strip() == env["foo"]
+
+
+@pytest.mark.skipif(platform.system() != 'Linux',
+                    reason='This is a Posix specific test')
+async def test_posix_shell_string():
+    """Test that `run_process` cannot take a string command with `shell=False`"""
+    cmd = sys.executable + " -c 'print()'"
+    with pytest.raises(TypeError):
+        await run_process(cmd, shell=False)
+
+
+@pytest.mark.skipif(platform.system() != 'Linux',
+                    reason='This is a Posix specific test')
+async def test_posix_shell_not_string():
+    """Test that `run_process` cannot take a command list with `shell=True`"""
+    cmd = [sys.executable, "-c", "print()"]
+    with pytest.raises(TypeError):
+        await run_process(cmd, shell=True)
