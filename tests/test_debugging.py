@@ -5,7 +5,8 @@ import pytest
 
 import anyio
 from anyio import (
-    Event, create_task_group, get_current_task, get_running_tasks, wait_all_tasks_blocked)
+    Event, create_task_group, get_current_task, get_running_tasks, move_on_after,
+    wait_all_tasks_blocked)
 
 pytestmark = pytest.mark.anyio
 
@@ -87,3 +88,19 @@ async def test_wait_all_tasks_blocked_asend(anyio_backend):
     await wait_all_tasks_blocked()
     await task
     await agen.aclose()
+
+
+async def test_wait_all_tasks_blocked_cancelled_task():
+    async def self_cancel(*, task_status):
+        nonlocal done
+        task_status.started()
+        with move_on_after(-1):
+            await Event().wait()
+
+        done = True
+
+    done = False
+    async with create_task_group() as tg:
+        await tg.start(self_cancel)
+        await wait_all_tasks_blocked()
+        assert done

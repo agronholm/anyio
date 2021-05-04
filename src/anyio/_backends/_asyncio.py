@@ -1770,13 +1770,14 @@ def get_running_tasks() -> List[TaskInfo]:
 
 
 async def wait_all_tasks_blocked() -> None:
+    await checkpoint()
     this_task = current_task()
     while True:
         for task in all_tasks():
             if task is this_task:
                 continue
 
-            if task._fut_waiter is None:  # type: ignore[attr-defined]
+            if task._fut_waiter is None or task._fut_waiter.done():  # type: ignore[attr-defined]
                 await sleep(0.1)
                 break
         else:
