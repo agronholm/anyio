@@ -12,13 +12,14 @@ from functools import partial, wraps
 from inspect import (
     CORO_RUNNING, CORO_SUSPENDED, GEN_RUNNING, GEN_SUSPENDED, getcoroutinestate, getgeneratorstate)
 from io import IOBase
+from os import PathLike
 from queue import Queue
 from socket import AddressFamily, SocketKind, SocketType
 from threading import Thread
 from types import TracebackType
 from typing import (
     Any, Awaitable, Callable, Collection, Coroutine, Deque, Dict, Generator, Iterable, List,
-    Optional, Sequence, Set, Tuple, Type, TypeVar, Union, cast)
+    Mapping, Optional, Sequence, Set, Tuple, Type, TypeVar, Union, cast)
 from weakref import WeakKeyDictionary
 
 from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
@@ -877,14 +878,16 @@ class Process(abc.Process):
         return self._stderr
 
 
-async def open_process(command, *, shell: bool, stdin: int, stdout: int, stderr: int):
+async def open_process(command, *, shell: bool, stdin: int, stdout: int, stderr: int,
+                       cwd: Union[str, bytes, PathLike, None] = None,
+                       env: Optional[Mapping[str, str]] = None) -> Process:
     await checkpoint()
     if shell:
         process = await asyncio.create_subprocess_shell(command, stdin=stdin, stdout=stdout,
-                                                        stderr=stderr)
+                                                        stderr=stderr, cwd=cwd, env=env)
     else:
         process = await asyncio.create_subprocess_exec(*command, stdin=stdin, stdout=stdout,
-                                                       stderr=stderr)
+                                                       stderr=stderr, cwd=cwd, env=env)
 
     stdin_stream = StreamWriterWrapper(process.stdin) if process.stdin else None
     stdout_stream = StreamReaderWrapper(process.stdout) if process.stdout else None
