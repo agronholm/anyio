@@ -245,7 +245,7 @@ sleep = asyncio.sleep
 CancelledError = asyncio.CancelledError
 
 
-class CancelScope(BaseCancelScope, DeprecatedAsyncContextManager):
+class CancelScope(BaseCancelScope):
     def __new__(cls, *, deadline: float = math.inf, shield: bool = False):
         return object.__new__(cls)
 
