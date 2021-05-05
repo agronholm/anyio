@@ -16,7 +16,7 @@ class _IgnoredTaskStatus(TaskStatus):
 TASK_STATUS_IGNORED = _IgnoredTaskStatus()
 
 
-class CancelScope(DeprecatedAsyncContextManager):
+class CancelScope(DeprecatedAsyncContextManager['CancelScope']):
     """
     Wraps a unit of work that can be made separately cancellable.
 
@@ -60,7 +60,7 @@ class CancelScope(DeprecatedAsyncContextManager):
         """
         raise NotImplementedError
 
-    def __enter__(self) -> 'CancelScope':
+    def __enter__(self):
         raise NotImplementedError
 
     def __exit__(self, exc_type: Optional[Type[BaseException]],
