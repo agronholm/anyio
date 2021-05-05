@@ -1,7 +1,8 @@
 from abc import ABCMeta, abstractmethod
 from contextlib import AbstractContextManager
 from typing import (
-    AsyncContextManager, Callable, ContextManager, List, Optional, TypeVar, Union, overload)
+    AsyncContextManager, Callable, ContextManager, Generic, List, Optional, TypeVar, Union,
+    overload)
 from warnings import warn
 
 T = TypeVar('T')
@@ -134,7 +135,7 @@ class DeprecatedAwaitableList(List[T]):
         return list(self)
 
 
-class DeprecatedAsyncContextManager(metaclass=ABCMeta):
+class DeprecatedAsyncContextManager(Generic[T], metaclass=ABCMeta):
     @abstractmethod
     def __enter__(self) -> T:
         pass
