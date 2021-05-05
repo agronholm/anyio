@@ -60,7 +60,7 @@ class CancelScope(DeprecatedAsyncContextManager):
         """
         raise NotImplementedError
 
-    def __enter__(self):
+    def __enter__(self) -> 'CancelScope':
         raise NotImplementedError
 
     def __exit__(self, exc_type: Optional[Type[BaseException]],
