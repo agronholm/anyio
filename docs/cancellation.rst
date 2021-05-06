@@ -153,3 +153,19 @@ The problem with this code is that it violates structural concurrency: what happ
 task raises an exception? The host task would be cancelled as a result, but the host task might be
 long gone by the time that happens. Even if it weren't, any enclosing ``try...except`` in the
 generator would not be triggered. In other words: it's a Really Bad Idea to do this!
+
+Async generators decorated with ``@asynccontextmanager`` to serve as the template for an async context
+manager are not subject to this constraint, because ``@asynccontextmanager`` uses them in a limited way
+that doesn’t create problems. Remember the rule will still apply to that new async context manager.
+
+Do **NOT** do this either::
+
+    @asynccontextmanager
+    async def some_cm():
+        async with create_task_group() as tg:
+            tg.start_soon(foo)
+            yield
+
+    async def some_generator():
+        async with some_cm():
+            yield
