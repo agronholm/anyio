@@ -612,9 +612,10 @@ class TaskGroup(abc.TaskGroup):
             try:
                 exc = _task.exception()
             except CancelledError as e:
-                exc = e
                 while isinstance(e.__context__, CancelledError):
-                    exc = exc.__context__
+                    e = e.__context__
+
+                exc = e
 
             if exc is not None:
                 if task_status_future is None or task_status_future.done():
