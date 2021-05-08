@@ -895,8 +895,6 @@ def test_unhandled_exception_group(caplog):
             tg.start_soon(anyio.sleep, 5)
             await anyio.sleep(5)
 
-        pytest.fail('Execution should never reach this point')
-
     async def main():
         async with anyio.create_task_group() as tg:
             tg.start_soon(nested)
