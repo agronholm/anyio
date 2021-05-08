@@ -310,17 +310,7 @@ class CancelScope(BaseCancelScope):
         # Restart the cancellation effort in the nearest directly cancelled parent scope if this
         # one was shielded
         if self._shield:
-            scope = self._parent_scope
-            while scope is not None:
-                if scope._cancel_called and scope._cancel_handle is None:
-                    scope._deliver_cancellation()
-                    break
-
-                # No point in looking beyond any shielded scope
-                if scope._shield:
-                    break
-
-                scope = scope._parent_scope
+            self._deliver_cancellation_to_parent()
 
         if exc_val is not None:
             exceptions = exc_val.exceptions if isinstance(exc_val, ExceptionGroup) else [exc_val]
@@ -376,6 +366,21 @@ class CancelScope(BaseCancelScope):
         else:
             self._cancel_handle = None
 
+    def _deliver_cancellation_to_parent(self) -> None:
+        """Start cancellation effort in the nearest directly cancelled parent scope"""
+
+        scope = self._parent_scope
+        while scope is not None:
+            if scope._cancel_called and scope._cancel_handle is None:
+                scope._deliver_cancellation()
+                break
+
+            # No point in looking beyond any shielded scope
+            if scope._shield:
+                break
+
+            scope = scope._parent_scope
+
     def _parent_cancelled(self) -> bool:
         # Check whether any parent has been cancelled
         cancel_scope = self._parent_scope
@@ -424,9 +429,9 @@ class CancelScope(BaseCancelScope):
     def shield(self, value: bool) -> None:
         if self._shield != value:
             self._shield = value
-            # start cancellation effort if necessary when shield is removed
-            if not value and self._cancel_called and self._cancel_handle is None:
-                self._deliver_cancellation()
+            # start cancellation effort in nearest cancelled parent when shield is removed
+            if not value:
+                self._deliver_cancellation_to_parent()
 
 
 async def checkpoint() -> None:
