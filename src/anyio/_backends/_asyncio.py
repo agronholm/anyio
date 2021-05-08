@@ -354,7 +354,7 @@ class CancelScope(BaseCancelScope):
         should_retry = False
         current = current_task()
         for task in self._tasks:
-            if task._must_cancel:
+            if task._must_cancel:  # type: ignore
                 continue
 
             # The task is eligible for cancellation if it has started and is not in a cancel
