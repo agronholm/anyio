@@ -354,6 +354,9 @@ class CancelScope(BaseCancelScope):
         should_retry = False
         current = current_task()
         for task in self._tasks:
+            if task._must_cancel:  # type: ignore
+                continue
+
             # The task is eligible for cancellation if it has started and is not in a cancel
             # scope shielded from this one
             cancel_scope = _task_states[task].cancel_scope
@@ -540,7 +543,11 @@ class TaskGroup(abc.TaskGroup):
 
         try:
             if len(exceptions) > 1:
-                raise ExceptionGroup(exceptions)
+                if all(isinstance(e, CancelledError) and not e.args for e in exceptions):
+                    # Tasks were cancelled natively, without a cancellation message
+                    raise CancelledError
+                else:
+                    raise ExceptionGroup(exceptions)
             elif exceptions and exceptions[0] is not exc_val:
                 raise exceptions[0]
         except BaseException as exc:
@@ -556,12 +563,18 @@ class TaskGroup(abc.TaskGroup):
         filtered_exceptions: List[BaseException] = []
         for exc in exceptions:
             if isinstance(exc, ExceptionGroup):
-                exc.exceptions = TaskGroup._filter_cancellation_errors(exc.exceptions)
-                if len(exc.exceptions) > 1:
+                new_exceptions = TaskGroup._filter_cancellation_errors(exc.exceptions)
+                if len(new_exceptions) > 1:
                     filtered_exceptions.append(exc)
-                elif exc.exceptions:
-                    filtered_exceptions.append(exc.exceptions[0])
-            elif not isinstance(exc, CancelledError):
+                elif len(new_exceptions) == 1:
+                    filtered_exceptions.append(new_exceptions[0])
+                elif new_exceptions:
+                    new_exc = ExceptionGroup(new_exceptions)
+                    new_exc.__cause__ = exc.__cause__
+                    new_exc.__context__ = exc.__context__
+                    new_exc.__traceback__ = exc.__traceback__
+                    filtered_exceptions.append(new_exc)
+            elif not isinstance(exc, CancelledError) or exc.args:
                 filtered_exceptions.append(exc)
 
         return filtered_exceptions
@@ -600,6 +613,9 @@ class TaskGroup(abc.TaskGroup):
             try:
                 exc = _task.exception()
             except CancelledError as e:
+                while isinstance(e.__context__, CancelledError):
+                    e = e.__context__
+
                 exc = e
 
             if exc is not None:

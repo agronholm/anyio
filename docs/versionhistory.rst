@@ -6,6 +6,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **UNRELEASED**
 
 - Added ``env`` and ``cwd`` keyword arguments to ``run_process()`` and ``open_process``.
+- Changed asyncio task groups so that if the host and child tasks have only raised
+  ``CancelledErrors``, just one ``CancelledError`` will now be raised instead of an
+  ``ExceptionGroup``, allowing asyncio to ignore it when it propagates out of the task
+- Fixed odd ``ExceptionGroup: 0 exceptions were raised in the task group`` appearing under certain
+  circumstances on asyncio
 - Fixed ``wait_all_tasks_blocked()`` returning prematurely on asyncio when a previously blocked
   task is cancelled (PR by Thomas Grainger)
 

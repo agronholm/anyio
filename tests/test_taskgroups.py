@@ -884,3 +884,44 @@ async def test_cancelscope_exit_in_wrong_task():
     with pytest.raises(RuntimeError):
         async with create_task_group() as tg:
             tg.start_soon(exit_scope, scope)
+
+
+def test_unhandled_exception_group(caplog):
+    def crash():
+        raise KeyboardInterrupt
+
+    async def nested():
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(anyio.sleep, 5)
+            await anyio.sleep(5)
+
+    async def main():
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(nested)
+            await wait_all_tasks_blocked()
+            asyncio.get_event_loop().call_soon(crash)
+            await anyio.sleep(5)
+
+        pytest.fail('Execution should never reach this point')
+
+    with pytest.raises(KeyboardInterrupt):
+        anyio.run(main, backend='asyncio')
+
+    assert not caplog.messages
+
+
+@pytest.mark.skipif(sys.version_info < (3, 9),
+                    reason='Cancel messages are only supported on py3.9+')
+@pytest.mark.parametrize('anyio_backend', ['asyncio'])
+async def test_cancellederror_combination_with_message():
+    async def taskfunc(*, task_status):
+        task_status.started(asyncio.current_task())
+        await sleep(5)
+        pytest.fail('Execution should never reach this point')
+
+    with pytest.raises(asyncio.CancelledError, match='blah'):
+        async with create_task_group() as tg:
+            task = await tg.start(taskfunc)
+            tg.start_soon(sleep, 5)
+            await wait_all_tasks_blocked()
+            task.cancel('blah')
