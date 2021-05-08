@@ -544,6 +544,7 @@ class TaskGroup(abc.TaskGroup):
         try:
             if len(exceptions) > 1:
                 if all(isinstance(e, CancelledError) and not e.args for e in exceptions):
+                    # Tasks were cancelled natively, without a cancellation message
                     raise CancelledError
                 else:
                     raise ExceptionGroup(exceptions)
