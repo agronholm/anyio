@@ -354,6 +354,9 @@ class CancelScope(BaseCancelScope):
         should_retry = False
         current = current_task()
         for task in self._tasks:
+            if task._must_cancel:
+                continue
+
             # The task is eligible for cancellation if it has started and is not in a cancel
             # scope shielded from this one
             cancel_scope = _task_states[task].cancel_scope
@@ -540,7 +543,7 @@ class TaskGroup(abc.TaskGroup):
 
         try:
             if len(exceptions) > 1:
-                if all(isinstance(e, CancelledError) for e in exceptions):
+                if all(isinstance(e, CancelledError) and not e.args for e in exceptions):
                     raise CancelledError
                 else:
                     raise ExceptionGroup(exceptions)
@@ -570,7 +573,7 @@ class TaskGroup(abc.TaskGroup):
                     new_exc.__context__ = exc.__context__
                     new_exc.__traceback__ = exc.__traceback__
                     filtered_exceptions.append(new_exc)
-            elif not isinstance(exc, CancelledError):
+            elif not isinstance(exc, CancelledError) or exc.args:
                 filtered_exceptions.append(exc)
 
         return filtered_exceptions
@@ -609,7 +612,10 @@ class TaskGroup(abc.TaskGroup):
             try:
                 exc = _task.exception()
             except CancelledError as e:
-                exc = e
+                if isinstance(e.__context__, CancelledError):
+                    exc = e.__context__
+                else:
+                    exc = e
 
             if exc is not None:
                 if task_status_future is None or task_status_future.done():
