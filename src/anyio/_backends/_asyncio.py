@@ -540,7 +540,10 @@ class TaskGroup(abc.TaskGroup):
 
         try:
             if len(exceptions) > 1:
-                raise ExceptionGroup(exceptions)
+                if all(isinstance(e, CancelledError) for e in exceptions):
+                    raise CancelledError
+                else:
+                    raise ExceptionGroup(exceptions)
             elif exceptions and exceptions[0] is not exc_val:
                 raise exceptions[0]
         except BaseException as exc:
@@ -556,11 +559,17 @@ class TaskGroup(abc.TaskGroup):
         filtered_exceptions: List[BaseException] = []
         for exc in exceptions:
             if isinstance(exc, ExceptionGroup):
-                exc.exceptions = TaskGroup._filter_cancellation_errors(exc.exceptions)
-                if len(exc.exceptions) > 1:
+                new_exceptions = TaskGroup._filter_cancellation_errors(exc.exceptions)
+                if len(new_exceptions) > 1:
                     filtered_exceptions.append(exc)
-                elif exc.exceptions:
-                    filtered_exceptions.append(exc.exceptions[0])
+                elif len(new_exceptions) == 1:
+                    filtered_exceptions.append(new_exceptions[0])
+                elif new_exceptions:
+                    new_exc = ExceptionGroup(new_exceptions)
+                    new_exc.__cause__ = exc.__cause__
+                    new_exc.__context__ = exc.__context__
+                    new_exc.__traceback__ = exc.__traceback__
+                    filtered_exceptions.append(new_exc)
             elif not isinstance(exc, CancelledError):
                 filtered_exceptions.append(exc)
 

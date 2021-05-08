@@ -884,3 +884,29 @@ async def test_cancelscope_exit_in_wrong_task():
     with pytest.raises(RuntimeError):
         async with create_task_group() as tg:
             tg.start_soon(exit_scope, scope)
+
+
+def test_unhandled_exception_group(caplog):
+    def crash():
+        raise KeyboardInterrupt
+
+    async def drain_streams():
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(anyio.sleep, 1)
+            await anyio.sleep(1)
+
+        pytest.fail('Execution should never reach this point')
+
+    async def main():
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(drain_streams)
+            await wait_all_tasks_blocked()
+            asyncio.get_event_loop().call_soon(crash)
+            await anyio.sleep(1)
+
+        pytest.fail('Execution should never reach this point')
+
+    with pytest.raises(KeyboardInterrupt):
+        anyio.run(main, backend='asyncio')
+
+    assert not caplog.messages
