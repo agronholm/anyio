@@ -543,25 +543,22 @@ async def test_shielding_immediate_scope_cancelled():
 
 
 async def test_shielding_mutate():
-    async def cancel_on_event(cancel_scope: CancelScope, event: anyio.Event):
-        await event.wait()
-        cancel_scope.cancel()
+    done = anyio.Event()
 
-    completed = False
-    async with create_task_group() as tg:
+    async def task(task_status):
         with CancelScope() as scope:
-            event = anyio.Event()
-            tg.start_soon(cancel_on_event, tg.cancel_scope, event)
-            await wait_all_tasks_blocked()
-            scope.shield = True
-            event.set()
             await sleep(.1)
-            completed = True
+            scope.shield = True
+            task_status.started()
+            await sleep(.1)
             scope.shield = False
-            await sleep(0)
-            assert False
+            done.set()
 
-    assert completed
+    with fail_after(1):
+        async with create_task_group() as tg:
+            await tg.start(task)
+            tg.cancel_scope.cancel()
+            await done.wait()
 
 
 async def test_cancel_scope_in_child_task():
