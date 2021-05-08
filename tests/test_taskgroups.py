@@ -890,19 +890,19 @@ def test_unhandled_exception_group(caplog):
     def crash():
         raise KeyboardInterrupt
 
-    async def drain_streams():
+    async def nested():
         async with anyio.create_task_group() as tg:
-            tg.start_soon(anyio.sleep, 1)
-            await anyio.sleep(1)
+            tg.start_soon(anyio.sleep, 5)
+            await anyio.sleep(5)
 
         pytest.fail('Execution should never reach this point')
 
     async def main():
         async with anyio.create_task_group() as tg:
-            tg.start_soon(drain_streams)
+            tg.start_soon(nested)
             await wait_all_tasks_blocked()
             asyncio.get_event_loop().call_soon(crash)
-            await anyio.sleep(1)
+            await anyio.sleep(5)
 
         pytest.fail('Execution should never reach this point')
 
