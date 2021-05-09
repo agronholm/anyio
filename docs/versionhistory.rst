@@ -13,6 +13,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   circumstances on asyncio
 - Fixed ``wait_all_tasks_blocked()`` returning prematurely on asyncio when a previously blocked
   task is cancelled (PR by Thomas Grainger)
+- Fixed declared return type of ``TaskGroup.start()`` (it was declared as ``None``, but anything
+  can be returned from it)
 
 **3.0.1**
 
