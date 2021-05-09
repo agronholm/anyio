@@ -1,8 +1,9 @@
+import math
 import sys
 
 import pytest
 
-from anyio import sleep_until
+from anyio import sleep_forever, sleep_until
 
 if sys.version_info < (3, 8):
     from mock import AsyncMock
@@ -34,3 +35,8 @@ async def test_sleep_until_in_past(fake_sleep):
     deadline = fake_current_time - sleep_time
     await sleep_until(deadline)
     fake_sleep.assert_called_once_with(0)
+
+
+async def test_sleep_forever(fake_sleep):
+    await sleep_forever()
+    fake_sleep.assert_called_once_with(math.inf)

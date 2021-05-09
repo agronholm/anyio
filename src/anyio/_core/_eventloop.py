@@ -1,8 +1,10 @@
+import math
 import sys
 import threading
 from contextlib import contextmanager
 from importlib import import_module
-from typing import Any, Callable, Coroutine, Dict, Generator, Optional, Tuple, Type, TypeVar
+from typing import (
+    Any, Callable, Coroutine, Dict, Generator, NoReturn, Optional, Tuple, Type, TypeVar)
 
 import sniffio
 
@@ -66,6 +68,18 @@ async def sleep(delay: float) -> None:
 
     """
     return await get_asynclib().sleep(delay)
+
+
+async def sleep_forever() -> NoReturn:
+    """
+    Pause the current task until it's cancelled.
+
+    This is a shortcut for ``sleep(math.inf)``.
+
+    .. versionadded:: 3.1
+
+    """
+    await sleep(math.inf)
 
 
 async def sleep_until(deadline: float) -> None:
