@@ -368,7 +368,6 @@ class CancelScope(BaseCancelScope):
 
     def _deliver_cancellation_to_parent(self) -> None:
         """Start cancellation effort in the nearest directly cancelled parent scope"""
-
         scope = self._parent_scope
         while scope is not None:
             if scope._cancel_called and scope._cancel_handle is None:
@@ -429,7 +428,6 @@ class CancelScope(BaseCancelScope):
     def shield(self, value: bool) -> None:
         if self._shield != value:
             self._shield = value
-            # start cancellation effort in nearest cancelled parent when shield is removed
             if not value:
                 self._deliver_cancellation_to_parent()
 
