@@ -5,10 +5,11 @@ from concurrent.futures import Future
 from dataclasses import dataclass
 from functools import partial
 from io import IOBase
+from os import PathLike
 from types import TracebackType
 from typing import (
-    Any, Awaitable, Callable, Collection, Coroutine, Dict, Generic, List, NoReturn, Optional, Set,
-    Tuple, Type, TypeVar, Union)
+    Any, Awaitable, Callable, Collection, Coroutine, Dict, Generic, List, Mapping, NoReturn,
+    Optional, Set, Tuple, Type, TypeVar, Union)
 
 import trio.from_thread
 from outcome import Error, Value
@@ -268,9 +269,11 @@ class Process(abc.Process):
         return self._stderr
 
 
-async def open_process(command, *, shell: bool, stdin: int, stdout: int, stderr: int):
+async def open_process(command, *, shell: bool, stdin: int, stdout: int, stderr: int,
+                       cwd: Union[str, bytes, PathLike, None] = None,
+                       env: Optional[Mapping[str, str]] = None) -> Process:
     process = await trio.open_process(command, stdin=stdin, stdout=stdout, stderr=stderr,
-                                      shell=shell)
+                                      shell=shell, cwd=cwd, env=env)
     stdin_stream = SendStreamWrapper(process.stdin) if process.stdin else None
     stdout_stream = ReceiveStreamWrapper(process.stdout) if process.stdout else None
     stderr_stream = ReceiveStreamWrapper(process.stderr) if process.stderr else None

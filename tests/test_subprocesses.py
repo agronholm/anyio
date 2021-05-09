@@ -1,3 +1,4 @@
+import os
 import platform
 import sys
 from subprocess import CalledProcessError
@@ -63,3 +64,19 @@ async def test_terminate(tmp_path):
 
         process.terminate()
         assert await process.wait() == 2
+
+
+async def test_process_cwd(tmp_path):
+    """Test that `cwd` is successfully passed to the subprocess implementation"""
+    cmd = [sys.executable, "-c", "import os; print(os.getcwd())"]
+    result = await run_process(cmd, cwd=tmp_path)
+    assert result.stdout.decode().strip() == str(tmp_path)
+
+
+async def test_process_env():
+    """Test that `env` is successfully passed to the subprocess implementation"""
+    env = os.environ.copy()
+    env.update({"foo": "bar"})
+    cmd = [sys.executable, "-c", "import os; print(os.environ['foo'])"]
+    result = await run_process(cmd, env=env)
+    assert result.stdout.decode().strip() == env["foo"]

@@ -16,7 +16,7 @@ class _IgnoredTaskStatus(TaskStatus):
 TASK_STATUS_IGNORED = _IgnoredTaskStatus()
 
 
-class CancelScope(DeprecatedAsyncContextManager):
+class CancelScope(DeprecatedAsyncContextManager['CancelScope']):
     """
     Wraps a unit of work that can be made separately cancellable.
 
