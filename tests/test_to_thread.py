@@ -166,3 +166,14 @@ def test_asyncio_future_callback_partial(asyncio_event_loop):
     task = asyncio_event_loop.create_task(sleep_sync())
     task.add_done_callback(partial(func))
     asyncio_event_loop.run_until_complete(task)
+
+
+def test_asyncio_run_sync_no_asyncio_run(asyncio_event_loop):
+    """Test that the thread pool shutdown callback does not raise an exception."""
+    def exception_handler(loop, context=None):
+        exceptions.append(context['exception'])
+
+    exceptions = []
+    asyncio_event_loop.set_exception_handler(exception_handler)
+    asyncio_event_loop.run_until_complete(to_thread.run_sync(time.sleep, 0))
+    assert not exceptions
