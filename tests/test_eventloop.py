@@ -21,18 +21,13 @@ def fake_sleep(mocker):
 
 
 async def test_sleep_until(fake_sleep):
-    sleep_time = 500.102352
-    deadline = fake_current_time + sleep_time
-    mock = AsyncMock()
-    await mock()
-    mock.assert_called_once()
+    deadline = fake_current_time + 500.102352
     await sleep_until(deadline)
-    fake_sleep.assert_called_once_with(pytest.approx(sleep_time))
+    fake_sleep.assert_called_once_with(pytest.approx(deadline - fake_current_time))
 
 
 async def test_sleep_until_in_past(fake_sleep):
-    sleep_time = 500.102352
-    deadline = fake_current_time - sleep_time
+    deadline = fake_current_time - 500.102352
     await sleep_until(deadline)
     fake_sleep.assert_called_once_with(0)
 
