@@ -73,7 +73,7 @@ class SemaphoreStatistics:
 
 
 class Event:
-    def __new__(cls):
+    def __new__(cls) -> 'Event':
         return get_asynclib().Event()
 
     def set(self) -> DeprecatedAwaitable:
@@ -84,7 +84,7 @@ class Event:
         """Return ``True`` if the flag is set, ``False`` if not."""
         raise NotImplementedError
 
-    async def wait(self) -> bool:
+    async def wait(self) -> None:
         """
         Wait until the flag has been set.
 
@@ -101,10 +101,10 @@ class Event:
 class Lock:
     _owner_task: Optional[TaskInfo] = None
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._waiters: Deque[Tuple[TaskInfo, Event]] = deque()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> None:
         await self.acquire()
 
     async def __aexit__(self, exc_type: Optional[Type[BaseException]],
@@ -183,7 +183,7 @@ class Condition:
         self._lock = lock or Lock()
         self._waiters: Deque[Event] = deque()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> None:
         await self.acquire()
 
     async def __aexit__(self, exc_type: Optional[Type[BaseException]],
@@ -351,10 +351,10 @@ class Semaphore:
 
 
 class CapacityLimiter:
-    def __new__(cls, total_tokens: float):
+    def __new__(cls, total_tokens: float) -> 'CapacityLimiter':
         return get_asynclib().CapacityLimiter(total_tokens)
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> None:
         raise NotImplementedError
 
     async def __aexit__(self, exc_type: Optional[Type[BaseException]],
@@ -380,7 +380,7 @@ class CapacityLimiter:
     def total_tokens(self, value: float) -> None:
         raise NotImplementedError
 
-    async def set_total_tokens(self, value) -> None:
+    async def set_total_tokens(self, value: float) -> None:
         warn('CapacityLimiter.set_total_tokens has been deprecated. Set the value of the'
              '"total_tokens" attribute directly.', DeprecationWarning)
         self.total_tokens = value
@@ -404,7 +404,7 @@ class CapacityLimiter:
         """
         raise NotImplementedError
 
-    def acquire_on_behalf_of_nowait(self, borrower) -> DeprecatedAwaitable:
+    def acquire_on_behalf_of_nowait(self, borrower: object) -> DeprecatedAwaitable:
         """
         Acquire a token without waiting for one to become available.
 
@@ -421,7 +421,7 @@ class CapacityLimiter:
         """
         raise NotImplementedError
 
-    async def acquire_on_behalf_of(self, borrower) -> None:
+    async def acquire_on_behalf_of(self, borrower: object) -> None:
         """
         Acquire a token, waiting if necessary for one to become available.
 
@@ -438,7 +438,7 @@ class CapacityLimiter:
         """
         raise NotImplementedError
 
-    def release_on_behalf_of(self, borrower) -> None:
+    def release_on_behalf_of(self, borrower: object) -> None:
         """
         Release the token held by the given borrower.
 
@@ -541,11 +541,14 @@ class ResourceGuard:
         self.action = action
         self._guarded = False
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         if self._guarded:
             raise BusyResourceError(self.action)
 
         self._guarded = True
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Optional[Type[BaseException]],
+                 exc_val: Optional[BaseException],
+                 exc_tb: Optional[TracebackType]) -> Optional[bool]:
         self._guarded = False
+        return None

@@ -1,4 +1,6 @@
-from typing import Any, Dict, Generic, Set, TypeVar, Union, cast
+import enum
+from dataclasses import dataclass
+from typing import Any, Dict, Generic, NewType, Set, TypeVar, Union, cast
 from weakref import WeakKeyDictionary
 
 from ._core._eventloop import get_asynclib
@@ -22,7 +24,7 @@ async def checkpoint() -> None:
     await get_asynclib().checkpoint()
 
 
-async def checkpoint_if_cancelled():
+async def checkpoint_if_cancelled() -> None:
     """
     Enter a checkpoint if the enclosing cancel scope has been cancelled.
 
@@ -58,25 +60,22 @@ _run_vars = WeakKeyDictionary()  # type: WeakKeyDictionary[Any, Dict[str, Any]]
 _token_wrappers: Dict[Any, '_TokenWrapper'] = {}
 
 
+@dataclass(frozen=True)
 class _TokenWrapper:
-    __slots__ = '_token', '__weakref__'
-
-    def __init__(self, token):
-        self._token = token
-
-    def __eq__(self, other):
-        return self._token is other._token
-
-    def __hash__(self):
-        return hash(self._token)
+    __slots__ = ("_token", "__weakref__")
+    _token: object
 
 
-class RunvarToken:
+class _NoValueSet(enum.Enum):
+    NO_VALUE_SET = enum.auto()
+
+
+class RunvarToken(Generic[T]):
     __slots__ = '_var', '_value', '_redeemed'
 
-    def __init__(self, var: 'RunVar', value):
+    def __init__(self, var: 'RunVar', value: Union[T, _NoValueSet]):
         self._var = var
-        self._value = value
+        self._value: Union[T, _NoValueSet] = value
         self._redeemed = False
 
 
@@ -84,7 +83,7 @@ class RunVar(Generic[T]):
     """Like a :class:`~contextvars.ContextVar`, expect scoped to the running event loop."""
     __slots__ = '_name', '_default'
 
-    NO_VALUE_SET = object()
+    NO_VALUE_SET = _NoValueSet.NO_VALUE_SET
 
     _token_wrappers: Set[_TokenWrapper] = set()
 
@@ -119,20 +118,20 @@ class RunVar(Generic[T]):
 
         raise LookupError(f'Run variable "{self._name}" has no value and no default set')
 
-    def set(self, value: T) -> RunvarToken:
+    def set(self, value: T) -> RunvarToken[T]:
         current_vars = self._current_vars
         token = RunvarToken(self, current_vars.get(self._name, RunVar.NO_VALUE_SET))
         current_vars[self._name] = value
         return token
 
-    def reset(self, token: RunvarToken) -> None:
+    def reset(self, token: RunvarToken[T]) -> None:
         if token._var is not self:
             raise ValueError('This token does not belong to this RunVar')
 
         if token._redeemed:
             raise ValueError('This token has already been used')
 
-        if token._value is RunVar.NO_VALUE_SET:
+        if isinstance(token._value, _NoValueSet):
             try:
                 del self._current_vars[self._name]
             except KeyError:
@@ -142,5 +141,5 @@ class RunVar(Generic[T]):
 
         token._redeemed = True
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<RunVar name={self._name!r}>'

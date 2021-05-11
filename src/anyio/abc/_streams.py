@@ -21,7 +21,7 @@ class UnreliableObjectReceiveStream(Generic[T_Item], AsyncResource, TypedAttribu
     parameter.
     """
 
-    def __aiter__(self):
+    def __aiter__(self) -> "UnreliableObjectReceiveStream[T_Item]":
         return self
 
     async def __anext__(self) -> T_Item:

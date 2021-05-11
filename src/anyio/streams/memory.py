@@ -41,7 +41,7 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
     _state: MemoryObjectStreamState[T_Item]
     _closed: bool = field(init=False, default=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self._state.open_receive_channels += 1
 
     def receive_nowait(self) -> T_Item:
@@ -135,7 +135,7 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
     _state: MemoryObjectStreamState[T_Item]
     _closed: bool = field(init=False, default=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self._state.open_send_channels += 1
 
     def send_nowait(self, item: T_Item) -> DeprecatedAwaitable:

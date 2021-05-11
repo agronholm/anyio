@@ -25,8 +25,8 @@ class _BaseFileStream:
         await to_thread.run_sync(self._file.close)
 
     @property
-    def extra_attributes(self):
-        attributes = {
+    def extra_attributes(self) -> dict:
+        attributes: dict = {
             FileStreamAttribute.file: lambda: self._file,
         }
 

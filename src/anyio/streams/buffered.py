@@ -25,8 +25,8 @@ class BufferedByteReceiveStream(ByteReceiveStream):
         return bytes(self._buffer)
 
     @property
-    def extra_attributes(self):
-        return self.receive_stream.extra_attributes
+    def extra_attributes(self) -> dict:
+        return self.receive_stream.extra_attributes  # type: ignore[return-value]
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
         if self._closed:

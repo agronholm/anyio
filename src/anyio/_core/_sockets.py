@@ -1,6 +1,7 @@
 import socket
 import ssl
 import sys
+from dataclasses import dataclass
 from ipaddress import IPv6Address, ip_address
 from os import PathLike, chmod
 from pathlib import Path
@@ -83,9 +84,9 @@ async def connect_tcp(
 
 
 async def connect_tcp(
-    remote_host, remote_port, *, local_host=None, tls=False, ssl_context=None,
-    tls_standard_compatible=True, tls_hostname=None, happy_eyeballs_delay=0.25
-):
+    remote_host: IPAddressType, remote_port: int, *, local_host: Optional[IPAddressType] = None, tls: bool = False, ssl_context: Optional[ssl.SSLContext] = None,
+    tls_standard_compatible: bool = True, tls_hostname: Optional[str] = None, happy_eyeballs_delay: float = 0.25
+) -> Union[SocketStream, TLSStream]:
     """
     Connect to a host using the TCP protocol.
 
@@ -119,7 +120,7 @@ async def connect_tcp(
     # Placed here due to https://github.com/python/mypy/issues/7057
     connected_stream: Optional[SocketStream] = None
 
-    async def try_connect(remote_host: str, event: Event):
+    async def try_connect(remote_host: str, event: Event) -> None:
         nonlocal connected_stream
         try:
             stream = await asynclib.connect_tcp(remote_host, remote_port, local_address)
@@ -184,7 +185,7 @@ async def connect_tcp(
     if tls or tls_hostname or ssl_context:
         try:
             return await TLSStream.wrap(connected_stream, server_side=False,
-                                        hostname=tls_hostname or remote_host,
+                                        hostname=tls_hostname or cast(Optional[str], remote_host),
                                         ssl_context=ssl_context,
                                         standard_compatible=tls_standard_compatible)
         except BaseException:
@@ -475,7 +476,22 @@ def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
 # Private API
 #
 
-def convert_ipv6_sockaddr(sockaddr):
+@dataclass
+class _SockAddr:
+    host: str
+    port: int
+    flowinfo: Optional[str] = None
+    scope_id: int = 0
+
+    def as_two_tuple(self) -> Tuple[str, int]:
+        if self.scope_id:
+            # Add scopeid to the address
+            return f"{self.host}%{self.scope_id}", self.port
+        else:
+            return self.host, self.port
+
+
+def convert_ipv6_sockaddr(sockaddr: Union[Tuple[str, int, object, object], Tuple[str, int]]) -> Tuple[str, int]:
     """
     Convert a 4-tuple IPv6 socket address to a 2-tuple (address, port) format.
 
@@ -487,12 +503,9 @@ def convert_ipv6_sockaddr(sockaddr):
     :return: the converted socket address
 
     """
+
     # This is more complicated than it should be because of MyPy
     if isinstance(sockaddr, tuple) and len(sockaddr) == 4:
-        if sockaddr[3]:
-            # Add scopeid to the address
-            return sockaddr[0] + '%' + str(sockaddr[3]), sockaddr[1]
-        else:
-            return sockaddr[:2]
+        return _SockAddr(*sockaddr).as_two_tuple()
     else:
-        return sockaddr
+        return cast(Tuple[str, int], sockaddr)
