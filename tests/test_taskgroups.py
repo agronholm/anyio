@@ -548,6 +548,8 @@ async def test_shielding_mutate():
     async def task(task_status):
         nonlocal completed
         with CancelScope() as scope:
+            # Enable the shield a little after the scope starts to make this test
+            # general, even though it has no bearing on the current implementation.
             await sleep(.1)
             scope.shield = True
             task_status.started()
