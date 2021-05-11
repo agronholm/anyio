@@ -11,6 +11,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Changed asyncio task groups so that if the host and child tasks have only raised
   ``CancelledErrors``, just one ``CancelledError`` will now be raised instead of an
   ``ExceptionGroup``, allowing asyncio to ignore it when it propagates out of the task
+- Fixed ``sniffio._impl.AsyncLibraryNotFoundError: unknown async library, or not in async context``
+  on asyncio and Python 3.6 when ``to_thread.run_sync()`` is used from
+  ``loop.run_until_complete()``
 - Fixed odd ``ExceptionGroup: 0 exceptions were raised in the task group`` appearing under certain
   circumstances on asyncio
 - Fixed ``wait_all_tasks_blocked()`` returning prematurely on asyncio when a previously blocked

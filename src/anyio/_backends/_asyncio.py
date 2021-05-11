@@ -695,13 +695,16 @@ _Retval_Queue_Type = Tuple[Optional[T_Retval], Optional[BaseException]]
 
 
 class WorkerThread(Thread):
-    __slots__ = 'root_task', 'loop', 'queue', 'idle_since'
+    __slots__ = 'root_task', 'workers', 'idle_workers', 'loop', 'queue', 'idle_since'
 
     MAX_IDLE_TIME = 10  # seconds
 
-    def __init__(self, root_task: asyncio.Task):
+    def __init__(self, root_task: asyncio.Task, workers: Set['WorkerThread'],
+                 idle_workers: Deque['WorkerThread'],):
         super().__init__(name='AnyIO worker thread')
         self.root_task = root_task
+        self.workers = workers
+        self.idle_workers = idle_workers
         self.loop = root_task._loop
         self.queue: Queue[Union[Tuple[Callable, tuple, asyncio.Future], None]] = Queue(2)
         self.idle_since = current_time()
@@ -730,9 +733,9 @@ class WorkerThread(Thread):
 
     def stop(self, f: Optional[asyncio.Task] = None) -> None:
         self.queue.put_nowait(None)
-        _threadpool_workers.get().discard(self)
+        self.workers.discard(self)
         try:
-            _threadpool_idle_workers.get().remove(self)
+            self.idle_workers.remove(self)
         except ValueError:
             pass
 
@@ -761,7 +764,7 @@ async def run_sync_in_worker_thread(
             future: asyncio.Future = asyncio.Future()
             root_task = find_root_task()
             if not idle_workers:
-                worker = WorkerThread(root_task)
+                worker = WorkerThread(root_task, workers, idle_workers)
                 worker.start()
                 workers.add(worker)
                 root_task.add_done_callback(worker.stop)
