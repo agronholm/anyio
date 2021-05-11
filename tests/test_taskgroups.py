@@ -543,8 +543,6 @@ async def test_shielding_immediate_scope_cancelled():
 
 
 async def test_shielding_mutate():
-    completed = False
-
     async def task(task_status):
         nonlocal completed
         with CancelScope() as scope:
@@ -559,9 +557,11 @@ async def test_shielding_mutate():
             await sleep(1)
             pytest.fail('Execution should not reach this point')
 
+    completed = False
     async with create_task_group() as tg:
         await tg.start(task)
         tg.cancel_scope.cancel()
+
     assert completed
 
 
