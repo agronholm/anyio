@@ -3,6 +3,8 @@ __all__ = (
     'maybe_async_cm',
     'run',
     'sleep',
+    'sleep_forever',
+    'sleep_until',
     'current_time',
     'get_all_backends',
     'get_cancelled_exc_class',
@@ -71,7 +73,9 @@ __all__ = (
 )
 
 from ._core._compat import maybe_async, maybe_async_cm
-from ._core._eventloop import current_time, get_all_backends, get_cancelled_exc_class, run, sleep
+from ._core._eventloop import (
+    current_time, get_all_backends, get_cancelled_exc_class, run, sleep, sleep_forever,
+    sleep_until)
 from ._core._exceptions import (
     BrokenResourceError, BrokenWorkerProcess, BusyResourceError, ClosedResourceError,
     DelimiterNotFound, EndOfStream, ExceptionGroup, IncompleteRead, TypedAttributeLookupError,

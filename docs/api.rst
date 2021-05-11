@@ -8,6 +8,8 @@ Event loop
 .. autofunction:: anyio.get_all_backends
 .. autofunction:: anyio.get_cancelled_exc_class
 .. autofunction:: anyio.sleep
+.. autofunction:: anyio.sleep_forever
+.. autofunction:: anyio.sleep_until
 .. autofunction:: anyio.current_time
 
 Asynchronous resources
