@@ -1,3 +1,4 @@
+import math
 import sys
 import threading
 from contextlib import contextmanager
@@ -66,6 +67,32 @@ async def sleep(delay: float) -> None:
 
     """
     return await get_asynclib().sleep(delay)
+
+
+async def sleep_forever() -> None:
+    """
+    Pause the current task until it's cancelled.
+
+    This is a shortcut for ``sleep(math.inf)``.
+
+    .. versionadded:: 3.1
+
+    """
+    await sleep(math.inf)
+
+
+async def sleep_until(deadline: float) -> None:
+    """
+    Pause the current task until the given time.
+
+    :param deadline: the absolute time to wake up at (according to the internal monotonic clock of
+        the event loop)
+
+    .. versionadded:: 3.1
+
+    """
+    now = current_time()
+    await sleep(max(deadline - now, 0))
 
 
 def current_time() -> DeprecatedAwaitableFloat:

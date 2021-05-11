@@ -60,7 +60,7 @@ class TaskGroup(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    async def start(self, func: Callable[..., Coroutine], *args, name=None) -> None:
+    async def start(self, func: Callable[..., Coroutine], *args, name=None):
         """
         Start a new task and wait until it signals for readiness.
 
