@@ -542,6 +542,29 @@ async def test_shielding_immediate_scope_cancelled():
     assert not sleep_completed
 
 
+async def test_shielding_mutate():
+    async def task(task_status):
+        nonlocal completed
+        with CancelScope() as scope:
+            # Enable the shield a little after the scope starts to make this test
+            # general, even though it has no bearing on the current implementation.
+            await sleep(.1)
+            scope.shield = True
+            task_status.started()
+            await sleep(.1)
+            completed = True
+            scope.shield = False
+            await sleep(1)
+            pytest.fail('Execution should not reach this point')
+
+    completed = False
+    async with create_task_group() as tg:
+        await tg.start(task)
+        tg.cancel_scope.cancel()
+
+    assert completed
+
+
 async def test_cancel_scope_in_child_task():
     async def child():
         nonlocal child_scope

@@ -94,6 +94,10 @@ class CancelScope(BaseCancelScope):
     def shield(self) -> bool:
         return self.__original.shield
 
+    @shield.setter
+    def shield(self, value: bool) -> None:
+        self.__original.shield = value
+
 
 CancelledError = trio.Cancelled
 checkpoint = trio.lowlevel.checkpoint

@@ -6,6 +6,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **UNRELEASED**
 
 - Added ``env`` and ``cwd`` keyword arguments to ``run_process()`` and ``open_process``.
+- Added support for mutation of ``CancelScope.shield``.
 - Added the ``sleep_forever()`` and ``sleep_until()`` functions
 - Changed asyncio task groups so that if the host and child tasks have only raised
   ``CancelledErrors``, just one ``CancelledError`` will now be raised instead of an

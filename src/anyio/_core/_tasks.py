@@ -60,6 +60,10 @@ class CancelScope(DeprecatedAsyncContextManager['CancelScope']):
         """
         raise NotImplementedError
 
+    @shield.setter
+    def shield(self, value: bool) -> None:
+        raise NotImplementedError
+
     def __enter__(self):
         raise NotImplementedError
 
