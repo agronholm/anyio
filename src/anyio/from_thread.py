@@ -186,7 +186,7 @@ class BlockingPortal:
             if not future.cancelled():
                 future.set_result(retval)
         finally:
-            scope = None
+            scope = None  # type: ignore[assignment]
 
     def _spawn_task_from_thread(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
                                 name: Optional[str], future: Future) -> None:
