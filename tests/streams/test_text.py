@@ -55,3 +55,4 @@ async def test_bidirectional_stream():
 
     await send_stream.send(b'\xc3\xa6\xc3\xb8')
     assert await text_stream.receive() == 'æø'
+    assert text_stream.extra_attributes == {}
