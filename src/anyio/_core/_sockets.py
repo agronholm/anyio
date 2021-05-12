@@ -491,7 +491,6 @@ def convert_ipv6_sockaddr(
     :return: the converted socket address
 
     """
-
     # This is more complicated than it should be because of MyPy
     if isinstance(sockaddr, tuple) and len(sockaddr) == 4:
         host, port, flowinfo, scope_id = cast(Tuple[str, int, int, int], sockaddr)
