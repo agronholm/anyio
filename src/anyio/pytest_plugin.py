@@ -16,7 +16,6 @@ else:
 
 if TYPE_CHECKING:
     from _pytest.config import Config
-    from _pytest.fixtures import FixtureDef
 
 _current_runner: Optional[TestRunner] = None
 

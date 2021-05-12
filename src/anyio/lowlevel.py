@@ -1,6 +1,6 @@
 import enum
 from dataclasses import dataclass
-from typing import Any, Dict, Generic, NewType, Set, TypeVar, Union, cast
+from typing import Any, Dict, Generic, Set, TypeVar, Union, cast
 from weakref import WeakKeyDictionary
 
 from ._core._eventloop import get_asynclib

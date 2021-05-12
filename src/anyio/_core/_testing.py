@@ -1,6 +1,6 @@
-from typing import Coroutine, Generator, Iterable, Optional, Tuple, Type
+from typing import Coroutine, Generator, Optional, Tuple, Type
 
-from ._compat import DeprecatedAwaitable, DeprecatedAwaitableList, _warn_deprecation
+from ._compat import DeprecatedAwaitableList, _warn_deprecation
 from ._eventloop import get_asynclib
 
 
