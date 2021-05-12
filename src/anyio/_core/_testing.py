@@ -1,4 +1,4 @@
-from typing import Coroutine, Generator, Optional, Tuple, Type
+from typing import Coroutine, Generator, Optional
 
 from ._compat import DeprecatedAwaitableList, _warn_deprecation
 from ._eventloop import get_asynclib
@@ -42,11 +42,6 @@ class TaskInfo:
         if False:
             yield
         return self
-
-    def __reduce__(self) -> Tuple[
-        Type["TaskInfo"], Tuple[int, Optional[int], Optional[str], Coroutine]
-    ]:
-        return TaskInfo, (self.id, self.parent_id, self.name, self.coro)
 
     def _unwrap(self) -> 'TaskInfo':
         return self
