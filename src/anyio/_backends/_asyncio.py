@@ -1874,9 +1874,9 @@ class TestRunner(abc.TestRunner):
         finally:
             self._loop.set_exception_handler(None)
 
-            if len(exceptions) == 1:
-                raise exceptions[0]
-            elif exceptions:
-                raise ExceptionGroup(exceptions)
+        if len(exceptions) == 1:
+            raise exceptions[0]
+        elif exceptions:
+            raise ExceptionGroup(exceptions)
 
         return retval
