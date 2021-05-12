@@ -1,4 +1,4 @@
-from typing import Coroutine, Iterable, Optional, Tuple, Type
+from typing import Coroutine, Generator, Iterable, Optional, Tuple, Type
 
 from ._compat import DeprecatedAwaitable, DeprecatedAwaitableList, _warn_deprecation
 from ._eventloop import get_asynclib
@@ -37,10 +37,11 @@ class TaskInfo:
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(id={self.id!r}, name={self.name!r})'
 
-    def __await__(self) -> Iterable["TaskInfo"]:
+    def __await__(self) -> Generator[None, None, "TaskInfo"]:
         _warn_deprecation(self)
         if False:
             yield
+        return self
 
     def __reduce__(self) -> Tuple[Type["TaskInfo"], Tuple[int, Optional[int], Optional[str], Coroutine]]:
         return TaskInfo, (self.id, self.parent_id, self.name, self.coro)
