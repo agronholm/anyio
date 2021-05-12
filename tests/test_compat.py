@@ -35,6 +35,10 @@ class TestMaybeAsync:
         tasks = await maybe_async(get_running_tasks())
         assert type(tasks) is list
 
+    async def test_get_current_task(self):
+        task = await maybe_async(get_current_task())
+        assert type(task) is TaskInfo
+
 
 async def test_maybe_async_cm():
     async with maybe_async_cm(CancelScope()):
