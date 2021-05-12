@@ -8,6 +8,8 @@ from warnings import warn
 
 if TYPE_CHECKING:
     from ._testing import TaskInfo
+else:
+    TaskInfo = object
 
 T = TypeVar('T')
 AnyDeprecatedAwaitable = Union['DeprecatedAwaitable', 'DeprecatedAwaitableFloat',
@@ -105,7 +107,7 @@ class DeprecatedAwaitable:
 
 
 class DeprecatedAwaitableFloat(float):
-    def __new__(cls, x: float, func: Callable[..., 'DeprecatedAwaitableFloat']) -> DeprecatedAwaitableFloat:
+    def __new__(cls, x: float, func: Callable[..., 'DeprecatedAwaitableFloat']) -> 'DeprecatedAwaitableFloat':
         return super().__new__(cls, x)
 
     def __init__(self, x: float, func: Callable[..., 'DeprecatedAwaitableFloat']):
