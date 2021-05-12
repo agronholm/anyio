@@ -60,7 +60,9 @@ class _ContextManagerWrapper:
     async def __aenter__(self) -> T:
         return self._cm.__enter__()
 
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
         return self._cm.__exit__(exc_type, exc_val, exc_tb)
 
 
@@ -107,7 +109,9 @@ class DeprecatedAwaitable:
 
 
 class DeprecatedAwaitableFloat(float):
-    def __new__(cls, x: float, func: Callable[..., 'DeprecatedAwaitableFloat']) -> 'DeprecatedAwaitableFloat':
+    def __new__(
+        cls, x: float, func: Callable[..., 'DeprecatedAwaitableFloat']
+    ) -> 'DeprecatedAwaitableFloat':
         return super().__new__(cls, x)
 
     def __init__(self, x: float, func: Callable[..., 'DeprecatedAwaitableFloat']):
@@ -152,7 +156,9 @@ class DeprecatedAsyncContextManager(Generic[T], metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    def __exit__(self, exc_type: Optional[Type[BaseException]],
+                 exc_val: Optional[BaseException],
+                 exc_tb: Optional[TracebackType]) -> Optional[bool]:
         pass
 
     async def __aenter__(self) -> T:
@@ -162,5 +168,7 @@ class DeprecatedAsyncContextManager(Generic[T], metaclass=ABCMeta):
              f'you are completely migrating to AnyIO 3+.', DeprecationWarning)
         return self.__enter__()
 
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
         return self.__exit__(exc_type, exc_val, exc_tb)

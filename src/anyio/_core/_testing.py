@@ -43,7 +43,9 @@ class TaskInfo:
             yield
         return self
 
-    def __reduce__(self) -> Tuple[Type["TaskInfo"], Tuple[int, Optional[int], Optional[str], Coroutine]]:
+    def __reduce__(self) -> Tuple[
+        Type["TaskInfo"], Tuple[int, Optional[int], Optional[str], Coroutine]
+    ]:
         return TaskInfo, (self.id, self.parent_id, self.name, self.coro)
 
     def _unwrap(self) -> 'TaskInfo':

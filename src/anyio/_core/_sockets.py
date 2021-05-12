@@ -84,8 +84,10 @@ async def connect_tcp(
 
 
 async def connect_tcp(
-    remote_host: IPAddressType, remote_port: int, *, local_host: Optional[IPAddressType] = None, tls: bool = False, ssl_context: Optional[ssl.SSLContext] = None,
-    tls_standard_compatible: bool = True, tls_hostname: Optional[str] = None, happy_eyeballs_delay: float = 0.25
+    remote_host: IPAddressType, remote_port: int, *, local_host: Optional[IPAddressType] = None,
+    tls: bool = False, ssl_context: Optional[ssl.SSLContext] = None,
+    tls_standard_compatible: bool = True, tls_hostname: Optional[str] = None,
+    happy_eyeballs_delay: float = 0.25
 ) -> Union[SocketStream, TLSStream]:
     """
     Connect to a host using the TCP protocol.
@@ -491,7 +493,9 @@ class _SockAddr:
             return self.host, self.port
 
 
-def convert_ipv6_sockaddr(sockaddr: Union[Tuple[str, int, object, object], Tuple[str, int]]) -> Tuple[str, int]:
+def convert_ipv6_sockaddr(
+    sockaddr: Union[Tuple[str, int, object, object], Tuple[str, int]]
+) -> Tuple[str, int]:
     """
     Convert a 4-tuple IPv6 socket address to a 2-tuple (address, port) format.
 

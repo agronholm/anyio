@@ -30,7 +30,8 @@ class TaskGroup(metaclass=ABCMeta):
 
     cancel_scope: 'CancelScope'
 
-    async def spawn(self, func: Callable[..., Coroutine], *args: object, name: Optional[str] = None) -> None:
+    async def spawn(self, func: Callable[..., Coroutine],
+                    *args: object, name: Optional[str] = None) -> None:
         """
         Start a new task in this task group.
 
@@ -48,7 +49,8 @@ class TaskGroup(metaclass=ABCMeta):
         self.start_soon(func, *args, name=name)
 
     @abstractmethod
-    def start_soon(self, func: Callable[..., Coroutine], *args: object, name: Optional[str] = None) -> None:
+    def start_soon(self, func: Callable[..., Coroutine],
+                   *args: object, name: Optional[str] = None) -> None:
         """
         Start a new task in this task group.
 
@@ -60,7 +62,8 @@ class TaskGroup(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    async def start(self, func: Callable[..., Coroutine], *args: object, name: Optional[str] = None) -> object:
+    async def start(self, func: Callable[..., Coroutine],
+                    *args: object, name: Optional[str] = None) -> object:
         """
         Start a new task and wait until it signals for readiness.
 

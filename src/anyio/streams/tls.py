@@ -94,7 +94,9 @@ class TLSStream(ByteStream):
         await wrapper._call_sslobject_method(ssl_object.do_handshake)
         return wrapper
 
-    async def _call_sslobject_method(self, func: Callable[..., T_Retval], *args: object) -> T_Retval:
+    async def _call_sslobject_method(
+        self, func: Callable[..., T_Retval], *args: object
+    ) -> T_Retval:
         while True:
             try:
                 result = func(*args)

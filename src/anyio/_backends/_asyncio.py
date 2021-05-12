@@ -213,7 +213,8 @@ def _maybe_set_event_loop_policy(policy: Optional[asyncio.AbstractEventLoopPolic
         asyncio.set_event_loop_policy(policy)
 
 
-def run(func: Callable[..., Awaitable[T_Retval]], *args: object, debug: bool = False, use_uvloop: bool = True,
+def run(func: Callable[..., Awaitable[T_Retval]], *args: object,
+        debug: bool = False, use_uvloop: bool = True,
         policy: Optional[asyncio.AbstractEventLoopPolicy] = None) -> T_Retval:
     @wraps(func)
     async def wrapper() -> T_Retval:
@@ -806,7 +807,9 @@ def run_sync_from_thread(func: Callable[..., T_Retval], *args: object,
     return f.result()
 
 
-def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object) -> T_Retval:
+def run_async_from_thread(
+    func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object
+) -> T_Retval:
     f: concurrent.futures.Future[T_Retval] = asyncio.run_coroutine_threadsafe(
         func(*args), threadlocals.loop)
     return f.result()
@@ -908,13 +911,16 @@ class Process(abc.Process):
         return self._stderr
 
 
-async def open_process(command: Union[str, Sequence[str]], *, shell: bool, stdin: int, stdout: int, stderr: int,
+async def open_process(command: Union[str, Sequence[str]], *, shell: bool,
+                       stdin: int, stdout: int, stderr: int,
                        cwd: Union[str, bytes, PathLike, None] = None,
                        env: Optional[Mapping[str, str]] = None) -> Process:
     await checkpoint()
     if shell:
-        process = await asyncio.create_subprocess_shell(command, stdin=stdin, stdout=stdout,  # type: ignore[arg-type]
-                                                        stderr=stderr, cwd=cwd, env=env)
+        process = await asyncio.create_subprocess_shell(
+            command, stdin=stdin, stdout=stdout,  # type: ignore[arg-type]
+            stderr=stderr, cwd=cwd, env=env,
+        )
     else:
         process = await asyncio.create_subprocess_exec(*command, stdin=stdin, stdout=stdout,
                                                        stderr=stderr, cwd=cwd, env=env)
@@ -1758,7 +1764,9 @@ class _SignalReceiver(DeprecatedAsyncContextManager):
 
         return self
 
-    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    def __exit__(self, exc_type: Optional[Type[BaseException]],
+                 exc_val: Optional[BaseException],
+                 exc_tb: Optional[TracebackType]) -> Optional[bool]:
         for sig in self._handled_signals:
             self._loop.remove_signal_handler(sig)
         return None
@@ -1851,7 +1859,8 @@ class TestRunner(abc.TestRunner):
             asyncio.set_event_loop(None)
             self._loop.close()
 
-    def call(self, func: Callable[..., Awaitable[T_Retval]], *args: object, **kwargs: object) -> T_Retval:
+    def call(self, func: Callable[..., Awaitable[T_Retval]],
+             *args: object, **kwargs: object) -> T_Retval:
         def exception_handler(loop: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
             exceptions.append(context['exception'])
 

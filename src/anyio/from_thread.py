@@ -34,7 +34,8 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object) -> T_
     return asynclib.run_async_from_thread(func, *args)
 
 
-def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object) -> T_Retval:
+def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]],
+                          *args: object) -> T_Retval:
     warn('run_async_from_thread() has been deprecated, use anyio.from_thread.run() instead',
          DeprecationWarning)
     return run(func, *args)
@@ -213,7 +214,8 @@ class BlockingPortal:
     def call(self, func: Callable[..., T_Retval], *args: object) -> T_Retval:
         ...
 
-    def call(self, func: Callable[..., Union[Coroutine[Any, Any, T_Retval], T_Retval]], *args: object) -> T_Retval:
+    def call(self, func: Callable[..., Union[Coroutine[Any, Any, T_Retval], T_Retval]],
+             *args: object) -> T_Retval:
         """
         Call the given function in the event loop thread.
 
@@ -226,7 +228,8 @@ class BlockingPortal:
         """
         return self.start_task_soon(func, *args).result()
 
-    def spawn_task(self, func: Callable[..., Union[Coroutine[Any, Any, T_Retval], T_Retval]], *args: object, name: str = None) -> "Future[T_Retval]":
+    def spawn_task(self, func: Callable[..., Union[Coroutine[Any, Any, T_Retval], T_Retval]],
+                   *args: object, name: str = None) -> "Future[T_Retval]":
         """
         Start a task in the portal's task group.
 
@@ -247,7 +250,8 @@ class BlockingPortal:
         warn('spawn_task() is deprecated -- use start_task_soon() instead', DeprecationWarning)
         return self.start_task_soon(func, *args, name=name)
 
-    def start_task_soon(self, func: Callable[..., Union[Coroutine[Any, Any, T_Retval], T_Retval]], *args: object, name: str = None) -> "Future[T_Retval]":
+    def start_task_soon(self, func: Callable[..., Union[Coroutine[Any, Any, T_Retval], T_Retval]],
+                        *args: object, name: str = None) -> "Future[T_Retval]":
         """
         Start a task in the portal's task group.
 
@@ -270,7 +274,8 @@ class BlockingPortal:
         self._spawn_task_from_thread(func, args, {}, name, f)
         return f
 
-    def start_task(self, func: Callable[..., Coroutine], *args: object, name: str = None) -> Tuple[Future, Any]:
+    def start_task(self, func: Callable[..., Coroutine], *args: object,
+                   name: str = None) -> Tuple[Future, Any]:
         """
         Start a task in the portal's task group and wait until it signals for readiness.
 

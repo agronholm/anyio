@@ -66,7 +66,8 @@ sleep = trio.sleep
 #
 
 class CancelScope(BaseCancelScope):
-    def __new__(cls, original: Optional[trio.CancelScope] = None, **kwargs: object) -> 'CancelScope':
+    def __new__(cls, original: Optional[trio.CancelScope] = None,
+                **kwargs: object) -> 'CancelScope':
         return object.__new__(cls)
 
     def __init__(self, original: Optional[trio.CancelScope] = None, **kwargs: object) -> None:
@@ -76,7 +77,9 @@ class CancelScope(BaseCancelScope):
         self.__original.__enter__()
         return self
 
-    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    def __exit__(self, exc_type: Optional[Type[BaseException]],
+                 exc_val: Optional[BaseException],
+                 exc_tb: Optional[TracebackType]) -> Optional[bool]:
         return self.__original.__exit__(exc_type, exc_val, exc_tb)
 
     def cancel(self) -> DeprecatedAwaitable:
@@ -148,7 +151,8 @@ class TaskGroup(abc.TaskGroup):
 
         self._nursery.start_soon(func, *args, name=name)
 
-    async def start(self, func: Callable[..., Coroutine], *args: object, name: str = None) -> object:
+    async def start(self, func: Callable[..., Coroutine],
+                    *args: object, name: str = None) -> object:
         if not self._active:
             raise RuntimeError('This task group is not active; no new tasks can be started.')
 
@@ -278,7 +282,8 @@ class Process(abc.Process):
         return self._stderr
 
 
-async def open_process(command: Union[str, Sequence[str]], *, shell: bool, stdin: int, stdout: int, stderr: int,
+async def open_process(command: Union[str, Sequence[str]], *, shell: bool,
+                       stdin: int, stdout: int, stderr: int,
                        cwd: Union[str, bytes, PathLike, None] = None,
                        env: Optional[Mapping[str, str]] = None) -> Process:
     process = await trio.open_process(command, stdin=stdin, stdout=stdout, stderr=stderr,
@@ -751,7 +756,8 @@ class TestRunner(abc.TestRunner):
         async with trio.open_nursery() as self._nursery:
             await self._stop_event.wait()
 
-    async def _call_func(self, func: Callable[..., Awaitable[object]], args: tuple, kwargs: dict) -> None:
+    async def _call_func(self, func: Callable[..., Awaitable[object]],
+                         args: tuple, kwargs: dict) -> None:
         try:
             retval = await func(*args, **kwargs)
         except BaseException as exc:
@@ -768,7 +774,8 @@ class TestRunner(abc.TestRunner):
             while self._nursery is not None:
                 self._call_queue.get()()
 
-    def call(self, func: Callable[..., Awaitable[T_Retval]], *args: object, **kwargs: object) -> T_Retval:
+    def call(self, func: Callable[..., Awaitable[T_Retval]],
+             *args: object, **kwargs: object) -> T_Retval:
         if self._nursery is None:
             trio.lowlevel.start_guest_run(
                 self._trio_main, run_sync_soon_threadsafe=self._call_queue.put,
