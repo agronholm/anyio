@@ -1,7 +1,6 @@
 import socket
 import ssl
 import sys
-from dataclasses import dataclass
 from ipaddress import IPv6Address, ip_address
 from os import PathLike, chmod
 from pathlib import Path
@@ -478,23 +477,8 @@ def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
 # Private API
 #
 
-@dataclass
-class _SockAddr:
-    host: str
-    port: int
-    flowinfo: Optional[str] = None
-    scope_id: int = 0
-
-    def as_two_tuple(self) -> Tuple[str, int]:
-        if self.scope_id:
-            # Add scopeid to the address
-            return f"{self.host}%{self.scope_id}", self.port
-        else:
-            return self.host, self.port
-
-
 def convert_ipv6_sockaddr(
-    sockaddr: Union[Tuple[str, int, object, object], Tuple[str, int]]
+    sockaddr: Union[Tuple[str, int, int, int], Tuple[str, int]]
 ) -> Tuple[str, int]:
     """
     Convert a 4-tuple IPv6 socket address to a 2-tuple (address, port) format.
@@ -510,6 +494,11 @@ def convert_ipv6_sockaddr(
 
     # This is more complicated than it should be because of MyPy
     if isinstance(sockaddr, tuple) and len(sockaddr) == 4:
-        return _SockAddr(*sockaddr).as_two_tuple()
+        host, port, flowinfo, scope_id = cast(Tuple[str, int, int, int], sockaddr)
+        if scope_id:
+            # Add scope_id to the address
+            return f"{host}%{scope_id}", port
+        else:
+            return host, port
     else:
         return cast(Tuple[str, int], sockaddr)
