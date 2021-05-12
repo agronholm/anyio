@@ -187,7 +187,7 @@ async def connect_tcp(
     if tls or tls_hostname or ssl_context:
         try:
             return await TLSStream.wrap(connected_stream, server_side=False,
-                                        hostname=tls_hostname or cast(Optional[str], remote_host),
+                                        hostname=tls_hostname or str(remote_host),
                                         ssl_context=ssl_context,
                                         standard_compatible=tls_standard_compatible)
         except BaseException:
