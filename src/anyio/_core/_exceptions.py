@@ -67,7 +67,7 @@ class IncompleteRead(Exception):
     connection is closed before the requested amount of bytes has been read.
     """
 
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__('The stream was closed before the read operation could be completed')
 
 
