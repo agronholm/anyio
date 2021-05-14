@@ -1,4 +1,5 @@
 from typing import Callable, Optional, TypeVar
+from functool import partial
 from warnings import warn
 
 from ._core._eventloop import get_asynclib
@@ -9,7 +10,7 @@ T_Retval = TypeVar('T_Retval')
 
 async def run_sync(
         func: Callable[..., T_Retval], *args, cancellable: bool = False,
-        limiter: Optional[CapacityLimiter] = None) -> T_Retval:
+        limiter: Optional[CapacityLimiter] = None, **kwargs) -> T_Retval:
     """
     Call the given function with the given arguments in a worker thread.
 
@@ -25,7 +26,8 @@ async def run_sync(
     :return: an awaitable that yields the return value of the function.
 
     """
-    return await get_asynclib().run_sync_in_worker_thread(func, *args, cancellable=cancellable,
+    func_kwargs = partial(func, **kwargs)
+    return await get_asynclib().run_sync_in_worker_thread(func_kwargs, *args, cancellable=cancellable,
                                                           limiter=limiter)
 
 
