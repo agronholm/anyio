@@ -1,5 +1,5 @@
 from typing import Callable, Optional, TypeVar
-from functool import partial
+from functools import partial
 from warnings import warn
 
 from ._core._eventloop import get_asynclib
