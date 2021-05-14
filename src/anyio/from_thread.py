@@ -33,7 +33,7 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args, **kwargs) -> 
         raise RuntimeError('This function can only be run from an AnyIO worker thread')
 
     func_kwargs = partial(func, **kwargs)
-    return asynclib.run_async_from_thread(func, *args)
+    return asynclib.run_async_from_thread(func_kwargs, *args)
 
 
 def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args) -> T_Retval:
@@ -57,7 +57,7 @@ def run_sync(func: Callable[..., T_Retval], *args, **kwargs) -> T_Retval:
         raise RuntimeError('This function can only be run from an AnyIO worker thread')
 
     func_kwargs = partial(func, **kwargs)
-    return asynclib.run_sync_from_thread(func, *args)
+    return asynclib.run_sync_from_thread(func_kwargs, *args)
 
 
 def run_sync_from_thread(func: Callable[..., T_Retval], *args) -> T_Retval:
