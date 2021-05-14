@@ -1,4 +1,5 @@
 import threading
+from functools import partial
 from asyncio import iscoroutine
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import AbstractContextManager, contextmanager
@@ -17,7 +18,7 @@ T_Retval = TypeVar('T_Retval')
 T_co = TypeVar('T_co')
 
 
-def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args) -> T_Retval:
+def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args, **kwargs) -> T_Retval:
     """
     Call a coroutine function from a worker thread.
 
@@ -31,6 +32,7 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args) -> T_Retval:
     except AttributeError:
         raise RuntimeError('This function can only be run from an AnyIO worker thread')
 
+    func_kwargs = partial(func, **kwargs)
     return asynclib.run_async_from_thread(func, *args)
 
 
@@ -40,7 +42,7 @@ def run_async_from_thread(func: Callable[..., Coroutine[Any, Any, T_Retval]], *a
     return run(func, *args)
 
 
-def run_sync(func: Callable[..., T_Retval], *args) -> T_Retval:
+def run_sync(func: Callable[..., T_Retval], *args, **kwargs) -> T_Retval:
     """
     Call a function in the event loop thread from a worker thread.
 
@@ -54,6 +56,7 @@ def run_sync(func: Callable[..., T_Retval], *args) -> T_Retval:
     except AttributeError:
         raise RuntimeError('This function can only be run from an AnyIO worker thread')
 
+    func_kwargs = partial(func, **kwargs)
     return asynclib.run_sync_from_thread(func, *args)
 
 
