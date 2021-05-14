@@ -3,6 +3,7 @@ import pickle
 import subprocess
 import sys
 from collections import deque
+from functools import partial
 from importlib.abc import Loader
 from importlib.util import module_from_spec, spec_from_file_location
 from typing import Callable, Deque, List, Optional, Set, Tuple, TypeVar, cast
@@ -27,7 +28,7 @@ _default_process_limiter: RunVar[CapacityLimiter] = RunVar('_default_process_lim
 
 async def run_sync(
         func: Callable[..., T_Retval], *args, cancellable: bool = False,
-        limiter: Optional[CapacityLimiter] = None) -> T_Retval:
+        limiter: Optional[CapacityLimiter] = None, **kwargs) -> T_Retval:
     """
     Call the given function with the given arguments in a worker process.
 
@@ -75,7 +76,8 @@ async def run_sync(
 
     # First pickle the request before trying to reserve a worker process
     await checkpoint_if_cancelled()
-    request = pickle.dumps(('run', func, args), protocol=pickle.HIGHEST_PROTOCOL)
+    func_kwargs = partial(func, **kwargs)
+    request = pickle.dumps(('run', func_kwargs, args), protocol=pickle.HIGHEST_PROTOCOL)
 
     # If this is the first run in this event loop thread, set up the necessary variables
     try:
