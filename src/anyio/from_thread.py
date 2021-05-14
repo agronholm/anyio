@@ -110,7 +110,7 @@ class _BlockingPortalTaskStatus(TaskStatus):
 
 
 class BlockingPortal:
-    """An object tied that lets external threads run code in an asynchronous event loop."""
+    """An object that lets external threads run code in an asynchronous event loop."""
 
     def __new__(cls):
         return get_asynclib().BlockingPortal()
