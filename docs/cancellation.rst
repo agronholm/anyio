@@ -181,7 +181,7 @@ host a task group there, it will wreak havoc with your test suite, at least in t
 
 When you're implementing the async context manager protocol manually and your async context manager
 needs to use other context managers, you may find it necessary to call their ``__aenter__()`` and
-``__aexit__()`` directly. In such cases, it is absolutely vital to ensure that they ``__aexit__()``
+``__aexit__()`` directly. In such cases, it is absolutely vital to ensure that their ``__aexit__()``
 methods are called in the exact reverse order of the ``__aenter__()`` calls. To this end, you may
 find the :class:`~contextlib.AsyncExitStack` (available from Python 3.7 up, or as a backport_)
 class very useful::
