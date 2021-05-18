@@ -13,11 +13,11 @@ else:
 
 T = TypeVar('T')
 AnyDeprecatedAwaitable = Union['DeprecatedAwaitable', 'DeprecatedAwaitableFloat',
-                               'DeprecatedAwaitableList', 'TaskInfo']
+                               'DeprecatedAwaitableList', TaskInfo]
 
 
 @overload
-async def maybe_async(__obj: 'TaskInfo') -> 'TaskInfo':
+async def maybe_async(__obj: TaskInfo) -> TaskInfo:
     ...
 
 
