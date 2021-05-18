@@ -62,7 +62,7 @@ _token_wrappers: Dict[Any, '_TokenWrapper'] = {}
 
 @dataclass(frozen=True)
 class _TokenWrapper:
-    __slots__ = ("_token", "__weakref__")
+    __slots__ = '_token', '__weakref__'
     _token: object
 
 
