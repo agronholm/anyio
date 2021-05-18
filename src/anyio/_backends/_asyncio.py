@@ -644,7 +644,7 @@ class TaskGroup(abc.TaskGroup):
             raise RuntimeError('This task group is not active; no new tasks can be started.')
 
         options = {}
-        name = name or get_callable_name(func)
+        name = get_callable_name(func) if name is None else str(name)
         if _native_task_names:
             options['name'] = name
 
