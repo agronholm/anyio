@@ -145,14 +145,14 @@ class TaskGroup(abc.TaskGroup):
         finally:
             self._active = False
 
-    def start_soon(self, func: Callable, *args: object, name: str = None) -> None:
+    def start_soon(self, func: Callable, *args: object, name: object = None) -> None:
         if not self._active:
             raise RuntimeError('This task group is not active; no new tasks can be started.')
 
         self._nursery.start_soon(func, *args, name=name)
 
     async def start(self, func: Callable[..., Coroutine],
-                    *args: object, name: str = None) -> object:
+                    *args: object, name: object = None) -> object:
         if not self._active:
             raise RuntimeError('This task group is not active; no new tasks can be started.')
 
@@ -185,7 +185,7 @@ class BlockingPortal(abc.BlockingPortal):
         self._token = trio.lowlevel.current_trio_token()
 
     def _spawn_task_from_thread(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
-                                name: Optional[str], future: Future) -> None:
+                                name: object, future: Future) -> None:
         return trio.from_thread.run_sync(
             partial(self._task_group.start_soon, name=name), self._call_func, func, args, kwargs,
             future, trio_token=self._token)

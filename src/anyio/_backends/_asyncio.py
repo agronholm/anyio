@@ -100,8 +100,8 @@ else:
                 events.set_event_loop(None)
                 loop.close()
 
-    def create_task(coro: Union[Generator[Any, None, _T], Awaitable[_T]], *,  # type: ignore
-                    name: Optional[str] = None) -> asyncio.Task:
+    def create_task(coro: Union[Generator[Any, None, _T], Awaitable[_T]], *,
+                    name: object = None) -> asyncio.Task:
         return get_running_loop().create_task(coro)
 
     def get_running_loop() -> asyncio.AbstractEventLoop:
@@ -614,7 +614,7 @@ class TaskGroup(abc.TaskGroup):
                 self.cancel_scope._tasks.remove(task)
                 del _task_states[task]
 
-    def _spawn(self, func: Callable[..., Coroutine], args: tuple, name: Optional[str],
+    def _spawn(self, func: Callable[..., Coroutine], args: tuple, name: object,
                task_status_future: Optional[asyncio.Future] = None) -> asyncio.Task:
         def task_done(_task: asyncio.Task) -> None:
             # This is the code path for Python 3.8+
@@ -670,10 +670,12 @@ class TaskGroup(abc.TaskGroup):
         self.cancel_scope._tasks.add(task)
         return task
 
-    def start_soon(self, func: Callable[..., Coroutine], *args: object, name: str = None) -> None:
+    def start_soon(self, func: Callable[..., Coroutine], *args: object,
+                   name: object = None) -> None:
         self._spawn(func, args, name)
 
-    async def start(self, func: Callable[..., Coroutine], *args: object, name: str = None) -> None:
+    async def start(self, func: Callable[..., Coroutine], *args: object,
+                    name: object = None) -> None:
         future: asyncio.Future = asyncio.Future()
         task = self._spawn(func, args, name, future)
 
@@ -824,7 +826,7 @@ class BlockingPortal(abc.BlockingPortal):
         self._loop = get_running_loop()
 
     def _spawn_task_from_thread(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
-                                name: Optional[str], future: Future) -> None:
+                                name: object, future: Future) -> None:
         run_sync_from_thread(
             partial(self._task_group.start_soon, name=name), self._call_func, func, args, kwargs,
             future, loop=self._loop)
