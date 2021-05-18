@@ -41,6 +41,7 @@ class TaskInfo:
         _warn_deprecation(self)
         if False:
             yield
+
         return self
 
     def _unwrap(self) -> 'TaskInfo':

@@ -133,6 +133,7 @@ def pytest_pyfunc_call(pyfuncitem: Any) -> Optional[bool]:
                 runner.call(pyfuncitem.obj, **testargs)
 
             return True
+
     return None
 
 

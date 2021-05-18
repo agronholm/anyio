@@ -13,7 +13,7 @@ class AsyncResource(metaclass=ABCMeta):
     :meth:`aclose` on exit.
     """
 
-    async def __aenter__(self: T) -> "T":
+    async def __aenter__(self: T) -> T:
         return self
 
     async def __aexit__(self, exc_type: Optional[Type[BaseException]],
