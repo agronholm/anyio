@@ -43,7 +43,7 @@ async def run_sync(
     :return: an awaitable that yields the return value of the function.
 
     """
-    async def send_raw_command(pickled_cmd: bytes) -> T_Retval:
+    async def send_raw_command(pickled_cmd: bytes) -> object:
         try:
             await stdin.send(pickled_cmd)
             response = await buffered.receive_until(b'\n', 50)
@@ -145,7 +145,7 @@ async def run_sync(
 
         with CancelScope(shield=not cancellable):
             try:
-                return await send_raw_command(request)
+                return cast(T_Retval, await send_raw_command(request))
             finally:
                 if process in workers:
                     idle_workers.append((process, current_time()))
