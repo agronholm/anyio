@@ -16,7 +16,7 @@ T_Retval = TypeVar('T_Retval')
 threadlocals = threading.local()
 
 
-def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args,
+def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object,
         backend: str = 'asyncio', backend_options: Optional[Dict[str, Any]] = None) -> T_Retval:
     """
     Run the given coroutine function in an asynchronous event loop.
@@ -120,7 +120,7 @@ def get_cancelled_exc_class() -> Type[BaseException]:
 #
 
 @contextmanager
-def claim_worker_thread(backend) -> Generator[Any, None, None]:
+def claim_worker_thread(backend: str) -> Generator[Any, None, None]:
     module = sys.modules['anyio._backends._' + backend]
     threadlocals.current_async_module = module
     token = sniffio.current_async_library_cvar.set(backend)
@@ -131,7 +131,7 @@ def claim_worker_thread(backend) -> Generator[Any, None, None]:
         del threadlocals.current_async_module
 
 
-def get_asynclib(asynclib_name: Optional[str] = None):
+def get_asynclib(asynclib_name: Optional[str] = None) -> Any:
     if asynclib_name is None:
         asynclib_name = sniffio.current_async_library()
 

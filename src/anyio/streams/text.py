@@ -1,6 +1,6 @@
 import codecs
 from dataclasses import InitVar, dataclass, field
-from typing import Callable, Tuple
+from typing import Any, Callable, Mapping, Tuple
 
 from ..abc import (
     AnyByteReceiveStream, AnyByteSendStream, AnyByteStream, ObjectReceiveStream, ObjectSendStream,
@@ -29,7 +29,7 @@ class TextReceiveStream(ObjectReceiveStream[str]):
     errors: InitVar[str] = 'strict'
     _decoder: codecs.IncrementalDecoder = field(init=False)
 
-    def __post_init__(self, encoding, errors):
+    def __post_init__(self, encoding: str, errors: str) -> None:
         decoder_class = codecs.getincrementaldecoder(encoding)
         self._decoder = decoder_class(errors=errors)
 
@@ -45,8 +45,8 @@ class TextReceiveStream(ObjectReceiveStream[str]):
         self._decoder.reset()
 
     @property
-    def extra_attributes(self):
-        return self.transport_stream.extra_attributes
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
+        return self.transport_stream.extra_attributes  # type: ignore[return-value]
 
 
 @dataclass(eq=False)
@@ -68,8 +68,8 @@ class TextSendStream(ObjectSendStream[str]):
     errors: str = 'strict'
     _encoder: Callable[..., Tuple[bytes, int]] = field(init=False)
 
-    def __post_init__(self, encoding):
-        self._encoder = codecs.getencoder(encoding)
+    def __post_init__(self, encoding: str) -> None:
+        self._encoder = codecs.getencoder(encoding)  # type: ignore[assignment]
 
     async def send(self, item: str) -> None:
         encoded = self._encoder(item, self.errors)[0]
@@ -79,8 +79,8 @@ class TextSendStream(ObjectSendStream[str]):
         await self.transport_stream.aclose()
 
     @property
-    def extra_attributes(self):
-        return self.transport_stream.extra_attributes
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
+        return self.transport_stream.extra_attributes  # type: ignore[return-value]
 
 
 @dataclass(eq=False)
@@ -107,7 +107,7 @@ class TextStream(ObjectStream[str]):
     _receive_stream: TextReceiveStream = field(init=False)
     _send_stream: TextSendStream = field(init=False)
 
-    def __post_init__(self, encoding, errors):
+    def __post_init__(self, encoding: str, errors: str) -> None:
         self._receive_stream = TextReceiveStream(self.transport_stream, encoding=encoding,
                                                  errors=errors)
         self._send_stream = TextSendStream(self.transport_stream, encoding=encoding, errors=errors)
@@ -126,5 +126,5 @@ class TextStream(ObjectStream[str]):
         await self._receive_stream.aclose()
 
     @property
-    def extra_attributes(self):
-        return dict(**self.send_stream.extra_attributes, **self.receive_stream.extra_attributes)
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
+        return {**self._send_stream.extra_attributes, **self._receive_stream.extra_attributes}

@@ -1,12 +1,14 @@
 import os
 from os import PathLike
-from typing import Callable, Optional, Union
+from typing import Any, AsyncIterator, Callable, Generic, Optional, TypeVar, Union
 
 from .. import to_thread
 from ..abc import AsyncResource
 
+T_Fp = TypeVar("T_Fp")
 
-class AsyncFile(AsyncResource):
+
+class AsyncFile(AsyncResource, Generic[T_Fp]):
     """
     An asynchronous file object.
 
@@ -38,18 +40,18 @@ class AsyncFile(AsyncResource):
                 print(line)
     """
 
-    def __init__(self, fp) -> None:
-        self._fp = fp
+    def __init__(self, fp: T_Fp) -> None:
+        self._fp: Any = fp
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> object:
         return getattr(self._fp, name)
 
     @property
-    def wrapped(self):
+    def wrapped(self) -> T_Fp:
         """The wrapped file object."""
         return self._fp
 
-    async def __aiter__(self):
+    async def __aiter__(self) -> AsyncIterator[bytes]:
         while True:
             line = await self.readline()
             if line:

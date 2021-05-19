@@ -11,6 +11,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Changed asyncio task groups so that if the host and child tasks have only raised
   ``CancelledErrors``, just one ``CancelledError`` will now be raised instead of an
   ``ExceptionGroup``, allowing asyncio to ignore it when it propagates out of the task
+- Changed task names to be converted to ``str`` early on asyncio (PR by Thomas Grainger)
 - Fixed ``sniffio._impl.AsyncLibraryNotFoundError: unknown async library, or not in async context``
   on asyncio and Python 3.6 when ``to_thread.run_sync()`` is used from
   ``loop.run_until_complete()``
@@ -20,6 +21,17 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   task is cancelled (PR by Thomas Grainger)
 - Fixed declared return type of ``TaskGroup.start()`` (it was declared as ``None``, but anything
   can be returned from it)
+- Fixed ``TextStream.extra_attributes`` raising ``AttributeError`` (PR by Thomas Grainger)
+- Fixed ``await maybe_async(current_task())`` returning ``None`` (PR by Thomas Grainger)
+- Fixed: ``pickle.dumps(current_task())`` now correctly raises ``TypeError`` instead of pickling to
+  ``None`` (PR by Thomas Grainger)
+- Fixed return type annotation of ``Event.wait()`` (``bool`` → ``None``) (PR by Thomas Grainger)
+- Fixed return type annotation of ``RunVar.get()`` to return either the type of the default value
+  or the type of the contained value (PR by Thomas Grainger)
+- Fixed a deprecation warning message to refer to ``maybe_async()`` and not ``maybe_awaitable()``
+  (PR by Thomas Grainger)
+- Filled in argument and return types for all functions and methods previously missing them
+  (PR by Thomas Grainger)
 
 **3.0.1**
 

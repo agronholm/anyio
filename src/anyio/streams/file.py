@@ -1,6 +1,6 @@
 from io import SEEK_SET, UnsupportedOperation
 from pathlib import Path
-from typing import BinaryIO, Union, cast
+from typing import Any, BinaryIO, Callable, Dict, Mapping, Union, cast
 
 from .. import (
     BrokenResourceError, ClosedResourceError, EndOfStream, TypedAttributeSet, to_thread,
@@ -25,8 +25,8 @@ class _BaseFileStream:
         await to_thread.run_sync(self._file.close)
 
     @property
-    def extra_attributes(self):
-        attributes = {
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
+        attributes: Dict[Any, Callable[[], Any]] = {
             FileStreamAttribute.file: lambda: self._file,
         }
 

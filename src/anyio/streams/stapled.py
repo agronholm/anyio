@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Callable, Generic, Optional, Sequence, TypeVar
+from typing import Any, Callable, Generic, List, Mapping, Optional, Sequence, TypeVar
 
 from ..abc import (
     ByteReceiveStream, ByteSendStream, ByteStream, Listener, ObjectReceiveStream, ObjectSendStream,
@@ -38,8 +38,8 @@ class StapledByteStream(ByteStream):
         await self.receive_stream.aclose()
 
     @property
-    def extra_attributes(self):
-        return dict(**self.send_stream.extra_attributes, **self.receive_stream.extra_attributes)
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
+        return {**self.send_stream.extra_attributes, **self.receive_stream.extra_attributes}
 
 
 @dataclass(eq=False)
@@ -71,8 +71,8 @@ class StapledObjectStream(Generic[T_Item], ObjectStream[T_Item]):
         await self.receive_stream.aclose()
 
     @property
-    def extra_attributes(self):
-        return dict(**self.send_stream.extra_attributes, **self.receive_stream.extra_attributes)
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
+        return {**self.send_stream.extra_attributes, **self.receive_stream.extra_attributes}
 
 
 @dataclass(eq=False)
@@ -92,12 +92,12 @@ class MultiListener(Generic[T_Stream], Listener[T_Stream]):
 
     listeners: Sequence[Listener[T_Stream]]
 
-    def __post_init__(self):
-        listeners = []
+    def __post_init__(self) -> None:
+        listeners: List[Listener[T_Stream]] = []
         for listener in self.listeners:
             if isinstance(listener, MultiListener):
                 listeners.extend(listener.listeners)
-                del listener.listeners[:]
+                del listener.listeners[:]  # type: ignore[attr-defined]
             else:
                 listeners.append(listener)
 
@@ -116,8 +116,8 @@ class MultiListener(Generic[T_Stream], Listener[T_Stream]):
             await listener.aclose()
 
     @property
-    def extra_attributes(self):
-        attributes = {}
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
+        attributes: dict = {}
         for listener in self.listeners:
             attributes.update(listener.extra_attributes)
 

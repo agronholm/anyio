@@ -142,8 +142,9 @@ context managers. However, in certain situations, cancel scope stack corruption 
 Remember that task groups contain their own cancel scopes so the same list of risky situations
 applies to them too.
 
-Therefore, do **NOT** do this::
+As an example, the following code is highly dubious::
 
+    # Bad!
     async def some_generator():
         async with create_task_group() as tg:
             tg.start_soon(foo)
@@ -152,4 +153,51 @@ Therefore, do **NOT** do this::
 The problem with this code is that it violates structural concurrency: what happens if the spawned
 task raises an exception? The host task would be cancelled as a result, but the host task might be
 long gone by the time that happens. Even if it weren't, any enclosing ``try...except`` in the
-generator would not be triggered. In other words: it's a Really Bad Idea to do this!
+generator would not be triggered. Unfortunately there is currently no way to automatically detect
+this condition in AnyIO, so in practice you may simply experience some weird behavior in your
+application as a consequence of running code like above.
+
+Depending on how they are used, this pattern is, however, *usually* safe to use in asynchronous
+context managers, so long as you make sure that the same host task keeps running throughout the
+entire enclosed code block::
+
+    # Okay in most cases!
+    @async_context_manager
+    async def some_context_manager():
+        async with create_task_group() as tg:
+            tg.start_soon(foo)
+            yield
+
+However, in pytest fixtures, even this pattern can be problematic because the AnyIO pytest plugin
+executes the setup and teardown phases of an async fixture in **separate tasks**, so if you try to
+host a task group there, it will wreak havoc with your test suite, at least in the teardown phase::
+
+    # Not okay, will raise an exception!
+    @pytest.fixture
+    async def some_background_service():
+        async with create_task_group() as tg:
+            tg.start_soon(foo)
+            yield
+
+When you're implementing the async context manager protocol manually and your async context manager
+needs to use other context managers, you may find it necessary to call their ``__aenter__()`` and
+``__aexit__()`` directly. In such cases, it is absolutely vital to ensure that their ``__aexit__()``
+methods are called in the exact reverse order of the ``__aenter__()`` calls. To this end, you may
+find the :class:`~contextlib.AsyncExitStack` (available from Python 3.7 up, or as a backport_)
+class very useful::
+
+    from contextlib import AsyncExitStack
+
+    from anyio import create_task_group
+
+
+    class MyAsyncContextManager:
+        async def __aenter__(self):
+            self._exitstack = AsyncExitStack()
+            await self._exitstack.__aenter__()
+            self._task_group = await self._exitstack.enter_async_context(create_task_group())
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            return await self._exitstack.__aexit__(exc_type, exc_val, exc_tb)
+
+.. _backport: https://pypi.org/project/async-exit-stack/
