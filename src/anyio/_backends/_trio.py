@@ -8,8 +8,8 @@ from io import IOBase
 from os import PathLike
 from types import TracebackType
 from typing import (
-    Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Dict, Generic, List, Mapping,
-    NoReturn, Optional, Sequence, Set, Tuple, Type, TypeVar, Union)
+    Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque, Dict, Generic, List,
+    Mapping, NoReturn, Optional, Sequence, Set, Tuple, Type, TypeVar, Union)
 
 import trio.from_thread
 from outcome import Error, Outcome, Value
@@ -743,7 +743,7 @@ class TestRunner(abc.TestRunner):
         from queue import Queue
 
         self._call_queue: "Queue[Callable[..., object]]" = Queue()
-        self._result_queue: Outcome = deque()
+        self._result_queue: Deque[Outcome] = deque()
         self._stop_event: Optional[trio.Event] = None
         self._nursery: Optional[trio.Nursery] = None
         self._options = options
