@@ -190,7 +190,7 @@ class BlockingPortal:
             scope = None  # type: ignore[assignment]
 
     def _spawn_task_from_thread(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
-                                name: Optional[str], future: Future) -> None:
+                                name: object, future: Future) -> None:
         """
         Spawn a new task using the given callable.
 
@@ -229,7 +229,7 @@ class BlockingPortal:
         return self.start_task_soon(func, *args).result()
 
     def spawn_task(self, func: Callable[..., Union[Coroutine[Any, Any, T_Retval], T_Retval]],
-                   *args: object, name: str = None) -> "Future[T_Retval]":
+                   *args: object, name: object = None) -> "Future[T_Retval]":
         """
         Start a task in the portal's task group.
 
@@ -251,7 +251,7 @@ class BlockingPortal:
         return self.start_task_soon(func, *args, name=name)
 
     def start_task_soon(self, func: Callable[..., Union[Coroutine[Any, Any, T_Retval], T_Retval]],
-                        *args: object, name: str = None) -> "Future[T_Retval]":
+                        *args: object, name: object = None) -> "Future[T_Retval]":
         """
         Start a task in the portal's task group.
 
@@ -275,7 +275,7 @@ class BlockingPortal:
         return f
 
     def start_task(self, func: Callable[..., Coroutine], *args: object,
-                   name: str = None) -> Tuple[Future, Any]:
+                   name: object = None) -> Tuple[Future, Any]:
         """
         Start a task in the portal's task group and wait until it signals for readiness.
 
