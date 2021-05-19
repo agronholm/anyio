@@ -30,7 +30,7 @@ async def run_sync(
 
 
 async def run_sync_in_worker_thread(
-    func: Callable[..., T_Retval], *args: object, cancellable: bool = False,
+        func: Callable[..., T_Retval], *args: object, cancellable: bool = False,
         limiter: Optional[CapacityLimiter] = None) -> T_Retval:
     warn('run_sync_in_worker_thread() has been deprecated, use anyio.to_thread.run_sync() instead',
          DeprecationWarning)
