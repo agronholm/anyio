@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Callable, Generic, List, Optional, Sequence, TypeVar
+from typing import Any, Callable, Generic, List, Mapping, Optional, Sequence, TypeVar
 
 from ..abc import (
     ByteReceiveStream, ByteSendStream, ByteStream, Listener, ObjectReceiveStream, ObjectSendStream,
@@ -38,7 +38,7 @@ class StapledByteStream(ByteStream):
         await self.receive_stream.aclose()
 
     @property
-    def extra_attributes(self) -> dict:
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
         return {**self.send_stream.extra_attributes, **self.receive_stream.extra_attributes}
 
 
@@ -71,7 +71,7 @@ class StapledObjectStream(Generic[T_Item], ObjectStream[T_Item]):
         await self.receive_stream.aclose()
 
     @property
-    def extra_attributes(self) -> dict:
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
         return {**self.send_stream.extra_attributes, **self.receive_stream.extra_attributes}
 
 
@@ -116,7 +116,7 @@ class MultiListener(Generic[T_Stream], Listener[T_Stream]):
             await listener.aclose()
 
     @property
-    def extra_attributes(self) -> dict:
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
         attributes: dict = {}
         for listener in self.listeners:
             attributes.update(listener.extra_attributes)

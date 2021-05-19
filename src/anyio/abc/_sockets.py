@@ -4,7 +4,8 @@ from ipaddress import IPv4Address, IPv6Address
 from socket import AddressFamily, SocketType
 from types import TracebackType
 from typing import (
-    Any, AsyncContextManager, Callable, Collection, List, Optional, Tuple, Type, TypeVar, Union)
+    Any, AsyncContextManager, Callable, Collection, List, Mapping, Optional, Tuple, Type, TypeVar,
+    Union)
 
 from .._core._typedattr import TypedAttributeProvider, TypedAttributeSet, typed_attribute
 from ._streams import ByteStream, Listener, T_Stream, UnreliableObjectStream
@@ -44,7 +45,7 @@ class SocketAttribute(TypedAttributeSet):
 
 class _SocketProvider(TypedAttributeProvider):
     @property
-    def extra_attributes(self) -> dict:
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
         from .._core._sockets import convert_ipv6_sockaddr as convert
 
         attributes = {

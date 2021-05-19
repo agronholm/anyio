@@ -1,6 +1,6 @@
 import codecs
 from dataclasses import InitVar, dataclass, field
-from typing import Callable, Tuple
+from typing import Any, Callable, Mapping, Tuple
 
 from ..abc import (
     AnyByteReceiveStream, AnyByteSendStream, AnyByteStream, ObjectReceiveStream, ObjectSendStream,
@@ -45,7 +45,7 @@ class TextReceiveStream(ObjectReceiveStream[str]):
         self._decoder.reset()
 
     @property
-    def extra_attributes(self) -> dict:
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
         return self.transport_stream.extra_attributes  # type: ignore[return-value]
 
 
@@ -79,7 +79,7 @@ class TextSendStream(ObjectSendStream[str]):
         await self.transport_stream.aclose()
 
     @property
-    def extra_attributes(self) -> dict:
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
         return self.transport_stream.extra_attributes  # type: ignore[return-value]
 
 
@@ -126,5 +126,5 @@ class TextStream(ObjectStream[str]):
         await self._receive_stream.aclose()
 
     @property
-    def extra_attributes(self) -> dict:
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
         return {**self._send_stream.extra_attributes, **self._receive_stream.extra_attributes}

@@ -3,7 +3,7 @@ import re
 import ssl
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, TypeVar, Union
 
 from .. import BrokenResourceError, EndOfStream, aclose_forcefully, get_cancelled_exc_class
 from .._core._typedattr import TypedAttributeSet, typed_attribute
@@ -170,7 +170,7 @@ class TLSStream(ByteStream):
         raise NotImplementedError('send_eof() has not yet been implemented for TLS streams')
 
     @property
-    def extra_attributes(self) -> dict:
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
         return {
             **self.transport_stream.extra_attributes,
             TLSAttribute.alpn_protocol: self._ssl_object.selected_alpn_protocol,
@@ -256,7 +256,7 @@ class TLSListener(Listener[TLSStream]):
         await self.listener.aclose()
 
     @property
-    def extra_attributes(self) -> dict:
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
         return {
             TLSAttribute.standard_compatible: lambda: self.standard_compatible,
         }
