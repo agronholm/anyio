@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**3.1.0**
 
 - Added ``env`` and ``cwd`` keyword arguments to ``run_process()`` and ``open_process``.
 - Added support for mutation of ``CancelScope.shield`` (PR by John Belmonte)
