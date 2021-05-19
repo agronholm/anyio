@@ -30,6 +30,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   or the type of the contained value (PR by Thomas Grainger)
 - Fixed a deprecation warning message to refer to ``maybe_async()`` and not ``maybe_awaitable()``
   (PR by Thomas Grainger)
+- Filled in argument and return types for all functions and methods
+  previously missing them
+  (PR by Thomas Grainger)
 
 **3.0.1**
 
