@@ -8,11 +8,12 @@ from io import IOBase
 from os import PathLike
 from types import TracebackType
 from typing import (
-    TYPE_CHECKING, Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Dict, Generic,
-    List, Mapping, NoReturn, Optional, Sequence, Set, Tuple, Type, TypeVar, Union)
+    Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Dict, Generic, List, Mapping,
+    NoReturn, Optional, Sequence, Set, Tuple, Type, TypeVar, Union)
 
 import trio.from_thread
 from outcome import Error, Outcome, Value
+from trio.socket import SocketType as TrioSocketType
 from trio.to_thread import run_sync
 
 from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
@@ -36,10 +37,6 @@ except ImportError:
 else:
     from trio.lowlevel import wait_readable, wait_writable
 
-if TYPE_CHECKING:
-    from trio.socket import SocketType as TrioSocketType
-else:
-    TrioSocketType = object
 
 T_Retval = TypeVar('T_Retval')
 T_SockAddr = TypeVar('T_SockAddr', str, IPSockAddrType)
