@@ -1,10 +1,10 @@
-from typing import Coroutine, Optional
+from typing import Coroutine, Generator, Optional
 
-from ._compat import DeprecatedAwaitable, DeprecatedAwaitableList
+from ._compat import DeprecatedAwaitableList, _warn_deprecation
 from ._eventloop import get_asynclib
 
 
-class TaskInfo(DeprecatedAwaitable):
+class TaskInfo:
     """
     Represents an asynchronous task.
 
@@ -15,30 +15,37 @@ class TaskInfo(DeprecatedAwaitable):
     :ivar ~collections.abc.Coroutine coro: the coroutine object of the task
     """
 
-    __slots__ = 'id', 'parent_id', 'name', 'coro'
+    __slots__ = '_name', 'id', 'parent_id', 'name', 'coro'
 
     def __init__(self, id: int, parent_id: Optional[int], name: Optional[str], coro: Coroutine):
-        super().__init__(get_current_task)
+        func = get_current_task
+        self._name = f'{func.__module__}.{func.__qualname__}'
         self.id = id
         self.parent_id = parent_id
         self.name = name
         self.coro = coro
 
-    def __await__(self):
-        yield from super().__await__()
-        return self
-
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if isinstance(other, TaskInfo):
             return self.id == other.id
 
         return NotImplemented
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.id)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'{self.__class__.__name__}(id={self.id!r}, name={self.name!r})'
+
+    def __await__(self) -> Generator[None, None, "TaskInfo"]:
+        _warn_deprecation(self)
+        if False:
+            yield
+
+        return self
+
+    def _unwrap(self) -> 'TaskInfo':
+        return self
 
 
 def get_current_task() -> TaskInfo:

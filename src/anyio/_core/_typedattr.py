@@ -1,5 +1,5 @@
 import sys
-from typing import Callable, Mapping, TypeVar, Union, overload
+from typing import Any, Callable, Mapping, TypeVar, Union, overload
 
 from ._exceptions import TypedAttributeLookupError
 
@@ -13,7 +13,7 @@ T_Default = TypeVar('T_Default')
 undefined = object()
 
 
-def typed_attribute():
+def typed_attribute() -> Any:
     """Return a unique object, used to mark typed attributes."""
     return object()
 
@@ -58,7 +58,7 @@ class TypedAttributeProvider:
         ...
 
     @final
-    def extra(self, attribute, default=undefined):
+    def extra(self, attribute: Any, default: object = undefined) -> object:
         """
         extra(attribute, default=undefined)
 

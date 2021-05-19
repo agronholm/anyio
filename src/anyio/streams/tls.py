@@ -3,7 +3,7 @@ import re
 import ssl
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, TypeVar, Union
 
 from .. import BrokenResourceError, EndOfStream, aclose_forcefully, get_cancelled_exc_class
 from .._core._typedattr import TypedAttributeSet, typed_attribute
@@ -94,7 +94,9 @@ class TLSStream(ByteStream):
         await wrapper._call_sslobject_method(ssl_object.do_handshake)
         return wrapper
 
-    async def _call_sslobject_method(self, func: Callable[..., T_Retval], *args) -> T_Retval:
+    async def _call_sslobject_method(
+        self, func: Callable[..., T_Retval], *args: object
+    ) -> T_Retval:
         while True:
             try:
                 result = func(*args)
@@ -168,7 +170,7 @@ class TLSStream(ByteStream):
         raise NotImplementedError('send_eof() has not yet been implemented for TLS streams')
 
     @property
-    def extra_attributes(self):
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
         return {
             **self.transport_stream.extra_attributes,
             TLSAttribute.alpn_protocol: self._ssl_object.selected_alpn_protocol,
@@ -236,7 +238,7 @@ class TLSListener(Listener[TLSStream]):
     async def serve(self, handler: Callable[[TLSStream], Any],
                     task_group: Optional[TaskGroup] = None) -> None:
         @wraps(handler)
-        async def handler_wrapper(stream: AnyByteStream):
+        async def handler_wrapper(stream: AnyByteStream) -> None:
             from .. import fail_after
             try:
                 with fail_after(self.handshake_timeout):
@@ -254,7 +256,7 @@ class TLSListener(Listener[TLSStream]):
         await self.listener.aclose()
 
     @property
-    def extra_attributes(self):
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
         return {
             TLSAttribute.standard_compatible: lambda: self.standard_compatible,
         }

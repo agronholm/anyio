@@ -9,7 +9,7 @@ from ._eventloop import get_asynclib
 
 
 class _IgnoredTaskStatus(TaskStatus):
-    def started(self, value=None) -> None:
+    def started(self, value: object = None) -> None:
         pass
 
 
@@ -24,7 +24,7 @@ class CancelScope(DeprecatedAsyncContextManager['CancelScope']):
     :param shield: ``True`` to shield the cancel scope from external cancellation
     """
 
-    def __new__(cls, *, deadline: float = math.inf, shield: bool = False):
+    def __new__(cls, *, deadline: float = math.inf, shield: bool = False) -> 'CancelScope':
         return get_asynclib().CancelScope(shield=shield, deadline=deadline)
 
     def cancel(self) -> DeprecatedAwaitable:
@@ -64,7 +64,7 @@ class CancelScope(DeprecatedAsyncContextManager['CancelScope']):
     def shield(self, value: bool) -> None:
         raise NotImplementedError
 
-    def __enter__(self):
+    def __enter__(self) -> 'CancelScope':
         raise NotImplementedError
 
     def __exit__(self, exc_type: Optional[Type[BaseException]],
@@ -92,10 +92,12 @@ class FailAfterContextManager(DeprecatedAsyncContextManager):
     def __init__(self, cancel_scope: CancelScope):
         self._cancel_scope = cancel_scope
 
-    def __enter__(self):
+    def __enter__(self) -> CancelScope:
         return self._cancel_scope.__enter__()
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Optional[Type[BaseException]],
+                 exc_val: Optional[BaseException],
+                 exc_tb: Optional[TracebackType]) -> Optional[bool]:
         retval = self._cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         if self._cancel_scope.cancel_called:
             raise TimeoutError

@@ -29,6 +29,25 @@ def test_main_task_name(anyio_backend_name, anyio_backend_options):
             loop.close()
 
 
+@pytest.mark.parametrize(
+    "name_input,expected",
+    [
+        (None, 'test_debugging.test_non_main_task_name.<locals>.non_main'),
+        (b'name', "b'name'"),
+        ("name", "name"),
+        ("", ""),
+    ],
+)
+async def test_non_main_task_name(name_input, expected):
+    async def non_main(*, task_status):
+        task_status.started(anyio.get_current_task().name)
+
+    async with anyio.create_task_group() as tg:
+        name = await tg.start(non_main, name=name_input)
+
+    assert name == expected
+
+
 async def test_get_running_tasks():
     async def inspect():
         await wait_all_tasks_blocked()

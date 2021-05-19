@@ -1,6 +1,6 @@
 from os import PathLike
 from subprocess import DEVNULL, PIPE, CalledProcessError, CompletedProcess
-from typing import Mapping, Optional, Sequence, Union, cast
+from typing import AsyncIterable, List, Mapping, Optional, Sequence, Union, cast
 
 from ..abc import Process
 from ._eventloop import get_asynclib
@@ -32,13 +32,13 @@ async def run_process(command: Union[str, Sequence[str]], *, input: Optional[byt
         nonzero return code
 
     """
-    async def drain_stream(stream, index):
+    async def drain_stream(stream: AsyncIterable[bytes], index: int) -> None:
         chunks = [chunk async for chunk in stream]
         stream_contents[index] = b''.join(chunks)
 
     async with await open_process(command, stdin=PIPE if input else DEVNULL, stdout=stdout,
                                   stderr=stderr, cwd=cwd, env=env) as process:
-        stream_contents = [None, None]
+        stream_contents: List[Optional[bytes]] = [None, None]
         try:
             async with create_task_group() as tg:
                 if process.stdout:

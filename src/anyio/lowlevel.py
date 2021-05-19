@@ -1,7 +1,15 @@
-from typing import Any, Dict, Generic, Set, TypeVar, Union, cast
+import enum
+import sys
+from dataclasses import dataclass
+from typing import Any, Dict, Generic, Set, TypeVar, Union, overload
 from weakref import WeakKeyDictionary
 
 from ._core._eventloop import get_asynclib
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 T = TypeVar('T')
 D = TypeVar('D')
@@ -22,7 +30,7 @@ async def checkpoint() -> None:
     await get_asynclib().checkpoint()
 
 
-async def checkpoint_if_cancelled():
+async def checkpoint_if_cancelled() -> None:
     """
     Enter a checkpoint if the enclosing cancel scope has been cancelled.
 
@@ -58,25 +66,22 @@ _run_vars = WeakKeyDictionary()  # type: WeakKeyDictionary[Any, Dict[str, Any]]
 _token_wrappers: Dict[Any, '_TokenWrapper'] = {}
 
 
+@dataclass(frozen=True)
 class _TokenWrapper:
     __slots__ = '_token', '__weakref__'
-
-    def __init__(self, token):
-        self._token = token
-
-    def __eq__(self, other):
-        return self._token is other._token
-
-    def __hash__(self):
-        return hash(self._token)
+    _token: object
 
 
-class RunvarToken:
+class _NoValueSet(enum.Enum):
+    NO_VALUE_SET = enum.auto()
+
+
+class RunvarToken(Generic[T]):
     __slots__ = '_var', '_value', '_redeemed'
 
-    def __init__(self, var: 'RunVar', value):
+    def __init__(self, var: 'RunVar', value: Union[T, Literal[_NoValueSet.NO_VALUE_SET]]):
         self._var = var
-        self._value = value
+        self._value: Union[T, Literal[_NoValueSet.NO_VALUE_SET]] = value
         self._redeemed = False
 
 
@@ -84,11 +89,12 @@ class RunVar(Generic[T]):
     """Like a :class:`~contextvars.ContextVar`, expect scoped to the running event loop."""
     __slots__ = '_name', '_default'
 
-    NO_VALUE_SET = object()
+    NO_VALUE_SET: Literal[_NoValueSet.NO_VALUE_SET] = _NoValueSet.NO_VALUE_SET
 
     _token_wrappers: Set[_TokenWrapper] = set()
 
-    def __init__(self, name: str, default: Union[T, object] = NO_VALUE_SET):
+    def __init__(self, name: str,
+                 default: Union[T, Literal[_NoValueSet.NO_VALUE_SET]] = NO_VALUE_SET):
         self._name = name
         self._default = default
 
@@ -108,31 +114,39 @@ class RunVar(Generic[T]):
                 run_vars = _run_vars[token] = {}
                 return run_vars
 
-    def get(self, default: Union[T, object] = NO_VALUE_SET) -> T:
+    @overload
+    def get(self, default: D) -> Union[T, D]: ...
+
+    @overload
+    def get(self) -> T: ...
+
+    def get(
+        self, default: Union[D, Literal[_NoValueSet.NO_VALUE_SET]] = NO_VALUE_SET
+    ) -> Union[T, D]:
         try:
             return self._current_vars[self._name]
         except KeyError:
             if default is not RunVar.NO_VALUE_SET:
-                return cast(T, default)
+                return default
             elif self._default is not RunVar.NO_VALUE_SET:
-                return cast(T, self._default)
+                return self._default
 
         raise LookupError(f'Run variable "{self._name}" has no value and no default set')
 
-    def set(self, value: T) -> RunvarToken:
+    def set(self, value: T) -> RunvarToken[T]:
         current_vars = self._current_vars
         token = RunvarToken(self, current_vars.get(self._name, RunVar.NO_VALUE_SET))
         current_vars[self._name] = value
         return token
 
-    def reset(self, token: RunvarToken) -> None:
+    def reset(self, token: RunvarToken[T]) -> None:
         if token._var is not self:
             raise ValueError('This token does not belong to this RunVar')
 
         if token._redeemed:
             raise ValueError('This token has already been used')
 
-        if token._value is RunVar.NO_VALUE_SET:
+        if token._value is _NoValueSet.NO_VALUE_SET:
             try:
                 del self._current_vars[self._name]
             except KeyError:
@@ -142,5 +156,5 @@ class RunVar(Generic[T]):
 
         token._redeemed = True
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<RunVar name={self._name!r}>'

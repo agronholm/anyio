@@ -26,7 +26,7 @@ _default_process_limiter: RunVar[CapacityLimiter] = RunVar('_default_process_lim
 
 
 async def run_sync(
-        func: Callable[..., T_Retval], *args, cancellable: bool = False,
+        func: Callable[..., T_Retval], *args: object, cancellable: bool = False,
         limiter: Optional[CapacityLimiter] = None) -> T_Retval:
     """
     Call the given function with the given arguments in a worker process.
@@ -43,7 +43,7 @@ async def run_sync(
     :return: an awaitable that yields the return value of the function.
 
     """
-    async def send_raw_command(pickled_cmd: bytes):
+    async def send_raw_command(pickled_cmd: bytes) -> object:
         try:
             await stdin.send(pickled_cmd)
             response = await buffered.receive_until(b'\n', 50)
@@ -145,7 +145,7 @@ async def run_sync(
 
         with CancelScope(shield=not cancellable):
             try:
-                return await send_raw_command(request)
+                return cast(T_Retval, await send_raw_command(request))
             finally:
                 if process in workers:
                     idle_workers.append((process, current_time()))

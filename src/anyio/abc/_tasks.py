@@ -12,7 +12,7 @@ T_Retval = TypeVar('T_Retval')
 
 class TaskStatus(metaclass=ABCMeta):
     @abstractmethod
-    def started(self, value=None) -> None:
+    def started(self, value: object = None) -> None:
         """
         Signal that the task has started.
 
@@ -30,7 +30,8 @@ class TaskGroup(metaclass=ABCMeta):
 
     cancel_scope: 'CancelScope'
 
-    async def spawn(self, func: Callable[..., Coroutine], *args, name=None) -> None:
+    async def spawn(self, func: Callable[..., Coroutine],
+                    *args: object, name: object = None) -> None:
         """
         Start a new task in this task group.
 
@@ -48,7 +49,8 @@ class TaskGroup(metaclass=ABCMeta):
         self.start_soon(func, *args, name=name)
 
     @abstractmethod
-    def start_soon(self, func: Callable[..., Coroutine], *args, name=None) -> None:
+    def start_soon(self, func: Callable[..., Coroutine],
+                   *args: object, name: object = None) -> None:
         """
         Start a new task in this task group.
 
@@ -60,7 +62,8 @@ class TaskGroup(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    async def start(self, func: Callable[..., Coroutine], *args, name=None):
+    async def start(self, func: Callable[..., Coroutine],
+                    *args: object, name: object = None) -> object:
         """
         Start a new task and wait until it signals for readiness.
 

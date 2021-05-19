@@ -49,7 +49,7 @@ class ExceptionGroup(BaseException):
     #: the sequence of exceptions raised together
     exceptions: Sequence[BaseException]
 
-    def __str__(self):
+    def __str__(self) -> str:
         tracebacks = [''.join(format_exception(type(exc), exc, exc.__traceback__))
                       for exc in self.exceptions]
         return f'{len(self.exceptions)} exceptions were raised in the task group:\n' \
@@ -67,7 +67,7 @@ class IncompleteRead(Exception):
     connection is closed before the requested amount of bytes has been read.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__('The stream was closed before the read operation could be completed')
 
 

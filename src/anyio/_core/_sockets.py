@@ -83,9 +83,11 @@ async def connect_tcp(
 
 
 async def connect_tcp(
-    remote_host, remote_port, *, local_host=None, tls=False, ssl_context=None,
-    tls_standard_compatible=True, tls_hostname=None, happy_eyeballs_delay=0.25
-):
+    remote_host: IPAddressType, remote_port: int, *, local_host: Optional[IPAddressType] = None,
+    tls: bool = False, ssl_context: Optional[ssl.SSLContext] = None,
+    tls_standard_compatible: bool = True, tls_hostname: Optional[str] = None,
+    happy_eyeballs_delay: float = 0.25
+) -> Union[SocketStream, TLSStream]:
     """
     Connect to a host using the TCP protocol.
 
@@ -119,7 +121,7 @@ async def connect_tcp(
     # Placed here due to https://github.com/python/mypy/issues/7057
     connected_stream: Optional[SocketStream] = None
 
-    async def try_connect(remote_host: str, event: Event):
+    async def try_connect(remote_host: str, event: Event) -> None:
         nonlocal connected_stream
         try:
             stream = await asynclib.connect_tcp(remote_host, remote_port, local_address)
@@ -184,7 +186,7 @@ async def connect_tcp(
     if tls or tls_hostname or ssl_context:
         try:
             return await TLSStream.wrap(connected_stream, server_side=False,
-                                        hostname=tls_hostname or remote_host,
+                                        hostname=tls_hostname or str(remote_host),
                                         ssl_context=ssl_context,
                                         standard_compatible=tls_standard_compatible)
         except BaseException:
@@ -475,7 +477,9 @@ def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
 # Private API
 #
 
-def convert_ipv6_sockaddr(sockaddr):
+def convert_ipv6_sockaddr(
+    sockaddr: Union[Tuple[str, int, int, int], Tuple[str, int]]
+) -> Tuple[str, int]:
     """
     Convert a 4-tuple IPv6 socket address to a 2-tuple (address, port) format.
 
@@ -489,10 +493,11 @@ def convert_ipv6_sockaddr(sockaddr):
     """
     # This is more complicated than it should be because of MyPy
     if isinstance(sockaddr, tuple) and len(sockaddr) == 4:
-        if sockaddr[3]:
-            # Add scopeid to the address
-            return sockaddr[0] + '%' + str(sockaddr[3]), sockaddr[1]
+        host, port, flowinfo, scope_id = cast(Tuple[str, int, int, int], sockaddr)
+        if scope_id:
+            # Add scope_id to the address
+            return f"{host}%{scope_id}", port
         else:
-            return sockaddr[:2]
+            return host, port
     else:
-        return sockaddr
+        return cast(Tuple[str, int], sockaddr)

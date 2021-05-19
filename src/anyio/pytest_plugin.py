@@ -1,7 +1,7 @@
 import sys
 from contextlib import contextmanager
 from inspect import iscoroutinefunction
-from typing import Any, Dict, Iterator, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, Iterator, Optional, Tuple, cast
 
 import pytest
 import sniffio
@@ -14,10 +14,13 @@ if sys.version_info >= (3, 7):
 else:
     from async_generator import isasyncgenfunction
 
+if TYPE_CHECKING:
+    from _pytest.config import Config
+
 _current_runner: Optional[TestRunner] = None
 
 
-def extract_backend_and_options(backend) -> Tuple[str, Dict[str, Any]]:
+def extract_backend_and_options(backend: object) -> Tuple[str, Dict[str, Any]]:
     if isinstance(backend, str):
         return backend, {}
     elif isinstance(backend, tuple) and len(backend) == 2:
@@ -51,13 +54,13 @@ def get_runner(backend_name: str, backend_options: Dict[str, Any]) -> Iterator[T
             sniffio.current_async_library_cvar.reset(token)
 
 
-def pytest_configure(config):
+def pytest_configure(config: "Config") -> None:
     config.addinivalue_line('markers', 'anyio: mark the (coroutine function) test to be run '
                                        'asynchronously via anyio.')
 
 
-def pytest_fixture_setup(fixturedef, request):
-    def wrapper(*args, anyio_backend, **kwargs):
+def pytest_fixture_setup(fixturedef: Any, request: Any) -> None:
+    def wrapper(*args, anyio_backend, **kwargs):  # type: ignore[no-untyped-def]
         backend_name, backend_options = extract_backend_and_options(anyio_backend)
         if has_backend_arg:
             kwargs['anyio_backend'] = anyio_backend
@@ -94,7 +97,7 @@ def pytest_fixture_setup(fixturedef, request):
 
 
 @pytest.hookimpl(tryfirst=True)
-def pytest_pycollect_makeitem(collector, name, obj):
+def pytest_pycollect_makeitem(collector: Any, name: Any, obj: Any) -> None:
     if collector.istestfunction(obj, name):
         inner_func = obj.hypothesis.inner_test if hasattr(obj, 'hypothesis') else obj
         if iscoroutinefunction(inner_func):
@@ -105,8 +108,8 @@ def pytest_pycollect_makeitem(collector, name, obj):
 
 
 @pytest.hookimpl(tryfirst=True)
-def pytest_pyfunc_call(pyfuncitem):
-    def run_with_hypothesis(**kwargs):
+def pytest_pyfunc_call(pyfuncitem: Any) -> Optional[bool]:
+    def run_with_hypothesis(**kwargs: Any) -> None:
         with get_runner(backend_name, backend_options) as runner:
             runner.call(original_func, **kwargs)
 
@@ -131,14 +134,16 @@ def pytest_pyfunc_call(pyfuncitem):
 
             return True
 
+    return None
+
 
 @pytest.fixture(params=get_all_backends())
-def anyio_backend(request):
+def anyio_backend(request: Any) -> Any:
     return request.param
 
 
 @pytest.fixture
-def anyio_backend_name(anyio_backend) -> str:
+def anyio_backend_name(anyio_backend: Any) -> str:
     if isinstance(anyio_backend, str):
         return anyio_backend
     else:
@@ -146,7 +151,7 @@ def anyio_backend_name(anyio_backend) -> str:
 
 
 @pytest.fixture
-def anyio_backend_options(anyio_backend) -> Dict[str, Any]:
+def anyio_backend_options(anyio_backend: Any) -> Dict[str, Any]:
     if isinstance(anyio_backend, str):
         return {}
     else:
