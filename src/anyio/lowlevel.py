@@ -1,9 +1,15 @@
 import enum
+import sys
 from dataclasses import dataclass
-from typing import Any, Dict, Generic, Set, TypeVar, Union, cast
+from typing import Any, Dict, Generic, Set, TypeVar, Union, overload
 from weakref import WeakKeyDictionary
 
 from ._core._eventloop import get_asynclib
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 T = TypeVar('T')
 D = TypeVar('D')
@@ -73,9 +79,9 @@ class _NoValueSet(enum.Enum):
 class RunvarToken(Generic[T]):
     __slots__ = '_var', '_value', '_redeemed'
 
-    def __init__(self, var: 'RunVar', value: Union[T, _NoValueSet]):
+    def __init__(self, var: 'RunVar', value: Union[T, Literal[_NoValueSet.NO_VALUE_SET]]):
         self._var = var
-        self._value: Union[T, _NoValueSet] = value
+        self._value: Union[T, Literal[_NoValueSet.NO_VALUE_SET]] = value
         self._redeemed = False
 
 
@@ -83,11 +89,12 @@ class RunVar(Generic[T]):
     """Like a :class:`~contextvars.ContextVar`, expect scoped to the running event loop."""
     __slots__ = '_name', '_default'
 
-    NO_VALUE_SET = _NoValueSet.NO_VALUE_SET
+    NO_VALUE_SET: Literal[_NoValueSet.NO_VALUE_SET] = _NoValueSet.NO_VALUE_SET
 
     _token_wrappers: Set[_TokenWrapper] = set()
 
-    def __init__(self, name: str, default: Union[T, object] = NO_VALUE_SET):
+    def __init__(self, name: str,
+                 default: Union[T, Literal[_NoValueSet.NO_VALUE_SET]] = NO_VALUE_SET):
         self._name = name
         self._default = default
 
@@ -107,14 +114,22 @@ class RunVar(Generic[T]):
                 run_vars = _run_vars[token] = {}
                 return run_vars
 
-    def get(self, default: Union[T, object] = NO_VALUE_SET) -> T:
+    @overload
+    def get(self, default: D) -> Union[T, D]: ...
+
+    @overload
+    def get(self) -> T: ...
+
+    def get(
+        self, default: Union[D, Literal[_NoValueSet.NO_VALUE_SET]] = NO_VALUE_SET
+    ) -> Union[T, D]:
         try:
             return self._current_vars[self._name]
         except KeyError:
             if default is not RunVar.NO_VALUE_SET:
-                return cast(T, default)
+                return default
             elif self._default is not RunVar.NO_VALUE_SET:
-                return cast(T, self._default)
+                return self._default
 
         raise LookupError(f'Run variable "{self._name}" has no value and no default set')
 
@@ -131,7 +146,7 @@ class RunVar(Generic[T]):
         if token._redeemed:
             raise ValueError('This token has already been used')
 
-        if isinstance(token._value, _NoValueSet):
+        if token._value is _NoValueSet.NO_VALUE_SET:
             try:
                 del self._current_vars[self._name]
             except KeyError:
