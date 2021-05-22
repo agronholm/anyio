@@ -27,7 +27,7 @@ class BufferedByteReceiveStream(ByteReceiveStream):
 
     @property
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
-        return self.receive_stream.extra_attributes  # type: ignore[return-value]
+        return self.receive_stream.extra_attributes
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
         if self._closed:

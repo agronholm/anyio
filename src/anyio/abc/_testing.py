@@ -26,7 +26,7 @@ class TestRunner(metaclass=ABCMeta):
 
     @abstractmethod
     def call(self, func: Callable[..., Awaitable[_T]],
-             *args: tuple, **kwargs: Dict[str, Any]) -> _T:
+             *args: object, **kwargs: Dict[str, Any]) -> _T:
         """
         Call the given function within the backend's event loop.
 

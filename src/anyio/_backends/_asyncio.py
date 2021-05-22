@@ -53,7 +53,7 @@ else:
     _T = TypeVar('_T')
 
     def _get_task_callbacks(task: asyncio.Task) -> Iterable[Callable]:
-        return task._callbacks  # type: ignore
+        return task._callbacks
 
     def native_run(main, *, debug=False):
         # Snatched from Python 3.7
@@ -1534,9 +1534,7 @@ async def getaddrinfo(host: Union[bytearray, bytes, str], port: Union[str, int, 
 
 
 async def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Tuple[str, str]:
-    # https://github.com/python/typeshed/pull/4305
-    result = await get_running_loop().getnameinfo(sockaddr, flags)
-    return cast(Tuple[str, str], result)
+    return await get_running_loop().getnameinfo(sockaddr, flags)
 
 
 _read_events: RunVar[Dict[Any, asyncio.Event]] = RunVar('read_events')
@@ -1796,7 +1794,7 @@ def open_signal_receiver(*signals: int) -> _SignalReceiver:
 def _create_task_info(task: asyncio.Task) -> TaskInfo:
     task_state = _task_states.get(task)
     if task_state is None:
-        name = task.get_name() if _native_task_names else None  # type: ignore
+        name = task.get_name() if _native_task_names else None
         parent_id = None
     else:
         name = task_state.name

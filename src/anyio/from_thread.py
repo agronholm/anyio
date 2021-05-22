@@ -11,7 +11,8 @@ from warnings import warn
 from ._core import _eventloop
 from ._core._eventloop import get_asynclib, get_cancelled_exc_class, threadlocals
 from ._core._synchronization import Event
-from ._core._tasks import CancelScope, TaskStatus, create_task_group
+from ._core._tasks import CancelScope, create_task_group
+from .abc._tasks import TaskStatus
 
 T_Retval = TypeVar('T_Retval')
 T_co = TypeVar('T_co')

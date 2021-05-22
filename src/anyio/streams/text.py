@@ -46,7 +46,7 @@ class TextReceiveStream(ObjectReceiveStream[str]):
 
     @property
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
-        return self.transport_stream.extra_attributes  # type: ignore[return-value]
+        return self.transport_stream.extra_attributes
 
 
 @dataclass(eq=False)
@@ -80,7 +80,7 @@ class TextSendStream(ObjectSendStream[str]):
 
     @property
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
-        return self.transport_stream.extra_attributes  # type: ignore[return-value]
+        return self.transport_stream.extra_attributes
 
 
 @dataclass(eq=False)
