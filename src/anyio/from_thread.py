@@ -227,7 +227,16 @@ class BlockingPortal:
             the event loop thread
 
         """
-        return self.start_task_soon(func, *args).result()
+        return cast(T_Retval, self.start_task_soon(func, *args).result())
+
+    @overload
+    def spawn_task(self, func: Callable[..., Coroutine[Any, Any, T_Retval]],
+                   *args: object, name: object = None) -> "Future[T_Retval]":
+        ...
+
+    @overload
+    def spawn_task(self, func: Callable[..., T_Retval],
+                   *args: object, name: object = None) -> "Future[T_Retval]": ...
 
     def spawn_task(self, func: Callable[..., Union[Coroutine[Any, Any, T_Retval], T_Retval]],
                    *args: object, name: object = None) -> "Future[T_Retval]":
@@ -249,7 +258,16 @@ class BlockingPortal:
 
         """
         warn('spawn_task() is deprecated -- use start_task_soon() instead', DeprecationWarning)
-        return self.start_task_soon(func, *args, name=name)
+        return self.start_task_soon(func, *args, name=name)  # type: ignore[arg-type]
+
+    @overload
+    def start_task_soon(self, func: Callable[..., Coroutine[Any, Any, T_Retval]],
+                        *args: object, name: object = None) -> "Future[T_Retval]":
+        ...
+
+    @overload
+    def start_task_soon(self, func: Callable[..., T_Retval],
+                        *args: object, name: object = None) -> "Future[T_Retval]": ...
 
     def start_task_soon(self, func: Callable[..., Union[Coroutine[Any, Any, T_Retval], T_Retval]],
                         *args: object, name: object = None) -> "Future[T_Retval]":
