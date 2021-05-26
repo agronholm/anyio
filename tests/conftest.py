@@ -1,8 +1,12 @@
 import asyncio
 import ssl
+from ssl import SSLContext
+from typing import Dict, Generator, Tuple, Union
 
 import pytest
 import trustme
+from _pytest.fixtures import SubRequest
+from trustme import CA
 
 uvloop_marks = []
 uvloop_policy = None
@@ -28,31 +32,33 @@ pytest_plugins = ['pytester']
                  id='asyncio+uvloop'),
     pytest.param('trio')
 ])
-def anyio_backend(request):
+def anyio_backend(
+    request: SubRequest,
+) -> Tuple[str, Dict[str, Union[bool, asyncio.AbstractEventLoopPolicy]]]:
     return request.param
 
 
 @pytest.fixture(scope='session')
-def ca():
+def ca() -> CA:
     return trustme.CA()
 
 
 @pytest.fixture(scope='session')
-def server_context(ca):
+def server_context(ca: CA) -> SSLContext:
     server_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     ca.issue_cert('localhost').configure_cert(server_context)
     return server_context
 
 
 @pytest.fixture(scope='session')
-def client_context(ca):
+def client_context(ca: CA) -> SSLContext:
     client_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
     ca.configure_trust(client_context)
     return client_context
 
 
 @pytest.fixture
-def asyncio_event_loop():
+def asyncio_event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
     loop = asyncio.DefaultEventLoopPolicy().new_event_loop()
     asyncio.set_event_loop(loop)
     yield loop

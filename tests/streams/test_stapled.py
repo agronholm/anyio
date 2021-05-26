@@ -18,7 +18,7 @@ class TestStapledByteStream:
         buffer: bytearray = field(init=False)
         _closed: bool = field(init=False, default=False)
 
-        def __post_init__(self, data: bytes):
+        def __post_init__(self, data: bytes) -> None:
             self.buffer = bytearray(data)
 
         async def receive(self, max_bytes: int = 65536) -> bytes:
@@ -84,7 +84,7 @@ class TestStapledObjectStream:
         buffer: deque = field(init=False)
         _closed: bool = field(init=False, default=False)
 
-        def __post_init__(self, data: Iterable):
+        def __post_init__(self, data: Iterable) -> None:
             self.buffer = deque(data)
 
         async def receive(self):
@@ -103,7 +103,7 @@ class TestStapledObjectStream:
         buffer: list = field(init=False, default_factory=list)
         _closed: bool = field(init=False, default=False)
 
-        async def send(self, item) -> None:
+        async def send(self, item: object) -> None:
             if self._closed:
                 raise ClosedResourceError
 

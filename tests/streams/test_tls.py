@@ -101,9 +101,9 @@ class TestTLSStream:
             wrapper = await TLSStream.wrap(stream, hostname='localhost',
                                            ssl_context=client_context)
             msg1 = await wrapper.receive()
-            stream, msg2 = await wrapper.unwrap()
+            unwrapped_stream, msg2 = await wrapper.unwrap()
             if msg2 != b'unencrypted':
-                msg2 += await stream.receive()
+                msg2 += await unwrapped_stream.receive()
 
         server_thread.join()
         server_sock.close()
@@ -147,6 +147,8 @@ class TestTLSStream:
     ])
     async def test_ragged_eofs(self, server_context, client_context, server_compatible,
                                client_compatible):
+        server_exc = None
+
         def serve_sync():
             nonlocal server_exc
             conn, addr = server_sock.accept()
@@ -164,7 +166,6 @@ class TestTLSStream:
         if client_compatible and not server_compatible:
             client_cm = pytest.raises(BrokenResourceError)
 
-        server_exc = None
         server_sock = server_context.wrap_socket(socket.socket(), server_side=True,
                                                  suppress_ragged_eofs=not server_compatible)
         server_sock.settimeout(1)
@@ -259,16 +260,18 @@ class TestTLSListener:
         def handler(stream):
             pytest.fail('This function should never be called in this scenario')
 
+        exception = None
+
         class CustomTLSListener(TLSListener):
-            async def handle_handshake_error(self, exc: BaseException,
+            @staticmethod
+            async def handle_handshake_error(exc: BaseException,
                                              stream: AnyByteStream) -> None:
                 nonlocal exception
-                await super().handle_handshake_error(exc, stream)
+                await TLSListener.handle_handshake_error(exc, stream)
                 assert isinstance(stream, SocketStream)
                 exception = exc
                 event.set()
 
-        exception = None
         event = Event()
         listener = await create_tcp_listener(local_host='127.0.0.1')
         tls_listener = CustomTLSListener(listener, server_context)

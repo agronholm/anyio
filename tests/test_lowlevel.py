@@ -1,3 +1,6 @@
+import asyncio
+from typing import Dict, Union
+
 import pytest
 
 from anyio import create_task_group, run
@@ -7,7 +10,9 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.mark.parametrize('cancel', [False, True])
-async def test_checkpoint_if_cancelled(cancel):
+async def test_checkpoint_if_cancelled(cancel: bool) -> None:
+    finished = second_finished = False
+
     async def func():
         nonlocal finished
         tg.start_soon(second_func)
@@ -22,7 +27,6 @@ async def test_checkpoint_if_cancelled(cancel):
         assert finished != cancel
         second_finished = True
 
-    finished = second_finished = False
     async with create_task_group() as tg:
         tg.start_soon(func)
 
@@ -31,7 +35,9 @@ async def test_checkpoint_if_cancelled(cancel):
 
 
 @pytest.mark.parametrize('cancel', [False, True])
-async def test_cancel_shielded_checkpoint(cancel):
+async def test_cancel_shielded_checkpoint(cancel: bool) -> None:
+    finished = second_finished = False
+
     async def func():
         nonlocal finished
         await cancel_shielded_checkpoint()
@@ -42,7 +48,6 @@ async def test_cancel_shielded_checkpoint(cancel):
         assert not finished
         second_finished = True
 
-    finished = second_finished = False
     async with create_task_group() as tg:
         tg.start_soon(func)
         tg.start_soon(second_func)
@@ -54,7 +59,9 @@ async def test_cancel_shielded_checkpoint(cancel):
 
 
 @pytest.mark.parametrize('cancel', [False, True])
-async def test_checkpoint(cancel):
+async def test_checkpoint(cancel: bool) -> None:
+    finished = second_finished = False
+
     async def func():
         nonlocal finished
         await checkpoint()
@@ -65,7 +72,6 @@ async def test_checkpoint(cancel):
         assert not finished
         second_finished = True
 
-    finished = second_finished = False
     async with create_task_group() as tg:
         tg.start_soon(func)
         tg.start_soon(second_func)
@@ -77,7 +83,11 @@ async def test_checkpoint(cancel):
 
 
 class TestRunVar:
-    def test_get_set(self, anyio_backend_name, anyio_backend_options):
+    def test_get_set(
+        self,
+        anyio_backend_name: str,
+        anyio_backend_options: Dict[str, Union[bool, asyncio.AbstractEventLoopPolicy]],
+    ) -> None:
         async def taskfunc(index):
             assert var.get() == index
             var.set(index + 1)
@@ -91,19 +101,19 @@ class TestRunVar:
 
                 assert var.get() == i + 1
 
-        var = RunVar('var')
+        var = RunVar[int]('var')
         for _ in range(2):
             run(main, backend=anyio_backend_name, backend_options=anyio_backend_options)
 
-    async def test_reset_token_used_on_wrong_runvar(self):
-        var1 = RunVar('var1')
-        var2 = RunVar('var2')
+    async def test_reset_token_used_on_wrong_runvar(self) -> None:
+        var1 = RunVar[str]('var1')
+        var2 = RunVar[str]('var2')
         token = var1.set('blah')
         with pytest.raises(ValueError, match='This token does not belong to this RunVar'):
             var2.reset(token)
 
-    async def test_reset_token_used_twice(self):
-        var = RunVar('var')
+    async def test_reset_token_used_twice(self) -> None:
+        var = RunVar[str]('var')
         token = var.set('blah')
         var.reset(token)
         with pytest.raises(ValueError, match='This token has already been used'):

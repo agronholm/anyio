@@ -1,4 +1,5 @@
 import pytest
+from _pytest.pytester import Testdir
 
 from anyio import get_all_backends
 
@@ -6,7 +7,7 @@ pytestmark = pytest.mark.filterwarnings(
     'ignore:The TerminalReporter.writer attribute is deprecated:pytest.PytestDeprecationWarning:')
 
 
-def test_plugin(testdir):
+def test_plugin(testdir: Testdir) -> None:
     testdir.makeconftest(
         """
         import sniffio
@@ -64,7 +65,7 @@ def test_plugin(testdir):
     result.assert_outcomes(passed=3 * len(get_all_backends()), skipped=len(get_all_backends()))
 
 
-def test_asyncio(testdir):
+def test_asyncio(testdir: Testdir) -> None:
     testdir.makeconftest(
         """
         import asyncio
@@ -137,7 +138,7 @@ def test_asyncio(testdir):
     result.assert_outcomes(passed=2, failed=1, errors=2)
 
 
-def test_autouse_async_fixture(testdir):
+def test_autouse_async_fixture(testdir: Testdir) -> None:
     testdir.makeconftest(
         """
         import pytest
@@ -174,7 +175,7 @@ def test_autouse_async_fixture(testdir):
     result.assert_outcomes(passed=len(get_all_backends()))
 
 
-def test_cancel_scope_in_asyncgen_fixture(testdir):
+def test_cancel_scope_in_asyncgen_fixture(testdir: Testdir) -> None:
     testdir.makepyfile(
         """
         import pytest
@@ -201,7 +202,7 @@ def test_cancel_scope_in_asyncgen_fixture(testdir):
     result.assert_outcomes(passed=len(get_all_backends()))
 
 
-def test_hypothesis_module_mark(testdir):
+def test_hypothesis_module_mark(testdir: Testdir) -> None:
     testdir.makepyfile(
         """
         import pytest
@@ -232,7 +233,7 @@ def test_hypothesis_module_mark(testdir):
     result.assert_outcomes(passed=len(get_all_backends()) + 1, xfailed=len(get_all_backends()))
 
 
-def test_hypothesis_function_mark(testdir):
+def test_hypothesis_function_mark(testdir: Testdir) -> None:
     testdir.makepyfile(
         """
         import pytest

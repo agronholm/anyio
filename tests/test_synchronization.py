@@ -64,13 +64,14 @@ class TestLock:
             tg.start_soon(try_lock)
 
     async def test_cancel(self):
+        task_started = got_lock = False
+
         async def task():
             nonlocal task_started, got_lock
             task_started = True
             async with lock:
                 got_lock = True
 
-        task_started = got_lock = False
         lock = Lock()
         async with create_task_group() as tg:
             async with lock:
@@ -115,13 +116,14 @@ class TestEvent:
         assert event.is_set()
 
     async def test_event_cancel(self):
+        task_started = event_set = False
+
         async def task():
             nonlocal task_started, event_set
             task_started = True
             await event.wait()
             event_set = True
 
-        task_started = event_set = False
         event = Event()
         async with create_task_group() as tg:
             tg.start_soon(task)
@@ -194,6 +196,8 @@ class TestCondition:
             tg.start_soon(try_lock)
 
     async def test_wait_cancel(self):
+        task_started = notified = False
+
         async def task():
             nonlocal task_started, notified
             task_started = True
@@ -202,7 +206,6 @@ class TestCondition:
                 await condition.wait()
                 notified = True
 
-        task_started = notified = False
         event = Event()
         condition = Condition()
         async with create_task_group() as tg:
@@ -278,18 +281,20 @@ class TestSemaphore:
         pytest.raises(WouldBlock, semaphore.acquire_nowait)
 
     async def test_acquire_cancel(self):
+        local_scope = acquired = None
+
         async def task():
             nonlocal local_scope, acquired
             with CancelScope() as local_scope:
                 async with semaphore:
                     acquired = True
 
-        local_scope = acquired = None
         semaphore = Semaphore(1)
         async with create_task_group() as tg:
             async with semaphore:
                 tg.start_soon(task)
                 await wait_all_tasks_blocked()
+                assert local_scope is not None
                 local_scope.cancel()
 
         assert not acquired
@@ -356,6 +361,8 @@ class TestCapacityLimiter:
             assert limiter.borrowed_tokens == 1
 
     async def test_limit(self):
+        value = 0
+
         async def taskfunc():
             nonlocal value
             for _ in range(5):
@@ -365,7 +372,6 @@ class TestCapacityLimiter:
                     await wait_all_tasks_blocked()
                     value = 0
 
-        value = 0
         limiter = CapacityLimiter(1)
         async with create_task_group() as tg:
             for _ in range(3):

@@ -2,8 +2,8 @@ from abc import ABCMeta, abstractmethod
 from contextlib import AbstractContextManager
 from types import TracebackType
 from typing import (
-    TYPE_CHECKING, AsyncContextManager, Callable, ContextManager, Generic, Iterable, List,
-    Optional, Tuple, Type, TypeVar, Union, overload)
+    TYPE_CHECKING, AsyncContextManager, Callable, ContextManager, Generator, Generic, Iterable,
+    List, Optional, Tuple, Type, TypeVar, Union, overload)
 from warnings import warn
 
 if TYPE_CHECKING:
@@ -96,7 +96,7 @@ class DeprecatedAwaitable:
     def __init__(self, func: Callable[..., 'DeprecatedAwaitable']):
         self._name = f'{func.__module__}.{func.__qualname__}'
 
-    def __await__(self) -> Iterable[None]:
+    def __await__(self) -> Generator[None, None, None]:
         _warn_deprecation(self)
         if False:
             yield
@@ -117,7 +117,7 @@ class DeprecatedAwaitableFloat(float):
     def __init__(self, x: float, func: Callable[..., 'DeprecatedAwaitableFloat']):
         self._name = f'{func.__module__}.{func.__qualname__}'
 
-    def __await__(self) -> Iterable[float]:
+    def __await__(self) -> Generator[None, None, float]:
         _warn_deprecation(self)
         if False:
             yield
@@ -132,11 +132,12 @@ class DeprecatedAwaitableFloat(float):
 
 
 class DeprecatedAwaitableList(List[T]):
-    def __init__(self, *args: T, func: Callable[..., 'DeprecatedAwaitableList']):
-        super().__init__(*args)
+    def __init__(self, iterable: Iterable[T] = (), *,
+                 func: Callable[..., 'DeprecatedAwaitableList']):
+        super().__init__(iterable)
         self._name = f'{func.__module__}.{func.__qualname__}'
 
-    def __await__(self) -> Iterable[List[T]]:
+    def __await__(self) -> Generator[None, None, List[T]]:
         _warn_deprecation(self)
         if False:
             yield

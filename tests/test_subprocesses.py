@@ -58,7 +58,9 @@ async def test_terminate(tmp_path):
         time.sleep(5)
     """))
     async with await open_process([sys.executable, str(script_path)]) as process:
-        buffered_stdout = BufferedByteReceiveStream(process.stdout)
+        stdout = process.stdout
+        assert stdout is not None
+        buffered_stdout = BufferedByteReceiveStream(stdout)
         line = await buffered_stdout.receive_until(b'\n', 100)
         assert line.rstrip() == b'ready'
 

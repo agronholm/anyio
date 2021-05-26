@@ -3,6 +3,7 @@ import sys
 import threading
 import time
 from functools import partial
+from typing import List, Optional
 
 import pytest
 
@@ -19,6 +20,8 @@ pytestmark = pytest.mark.anyio
 
 
 async def test_run_in_thread_cancelled():
+    state = 0
+
     def thread_worker():
         nonlocal state
         state = 2
@@ -29,7 +32,6 @@ async def test_run_in_thread_cancelled():
         await to_thread.run_sync(thread_worker)
         state = 3
 
-    state = 0
     async with create_task_group() as tg:
         tg.start_soon(worker)
         tg.cancel_scope.cancel()
@@ -48,6 +50,8 @@ async def test_run_in_thread_exception():
 
 
 async def test_run_in_custom_limiter():
+    num_active_threads = max_active_threads = 0
+
     def thread_worker():
         nonlocal num_active_threads, max_active_threads
         num_active_threads += 1
@@ -59,7 +63,6 @@ async def test_run_in_custom_limiter():
         await to_thread.run_sync(thread_worker, limiter=limiter)
 
     event = threading.Event()
-    num_active_threads = max_active_threads = 0
     limiter = CapacityLimiter(3)
     async with create_task_group() as tg:
         for _ in range(4):
@@ -84,6 +87,8 @@ async def test_cancel_worker_thread(cancellable, expected_last_active):
     until the thread finishes.
 
     """
+    last_active: Optional[str] = None
+
     def thread_worker():
         nonlocal last_active
         from_thread.run_sync(sleep_event.set)
@@ -100,7 +105,6 @@ async def test_cancel_worker_thread(cancellable, expected_last_active):
 
     sleep_event = Event()
     finish_event = Event()
-    last_active = None
     async with create_task_group() as tg:
         tg.start_soon(task_worker)
         await sleep_event.wait()
@@ -112,15 +116,17 @@ async def test_cancel_worker_thread(cancellable, expected_last_active):
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
 async def test_asyncio_cancel_native_task():
+    task: "Optional[asyncio.Task[None]]" = None
+
     async def run_in_thread():
         nonlocal task
         task = current_task()
         await to_thread.run_sync(time.sleep, 0.2, cancellable=True)
 
-    task = None
     async with create_task_group() as tg:
         tg.start_soon(run_in_thread)
         await wait_all_tasks_blocked()
+        assert task is not None
         task.cancel()
 
 
@@ -173,7 +179,7 @@ def test_asyncio_run_sync_no_asyncio_run(asyncio_event_loop):
     def exception_handler(loop, context=None):
         exceptions.append(context['exception'])
 
-    exceptions = []
+    exceptions: List[BaseException] = []
     asyncio_event_loop.set_exception_handler(exception_handler)
     asyncio_event_loop.run_until_complete(to_thread.run_sync(time.sleep, 0))
     assert not exceptions

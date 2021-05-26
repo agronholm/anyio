@@ -1,6 +1,6 @@
 import os
 from os import PathLike
-from typing import Any, AsyncIterator, Callable, Generic, Optional, TypeVar, Union
+from typing import Any, AsyncIterator, Callable, Generic, Iterable, List, Optional, TypeVar, Union
 
 from .. import to_thread
 from ..abc import AsyncResource
@@ -51,7 +51,7 @@ class AsyncFile(AsyncResource, Generic[T_Fp]):
         """The wrapped file object."""
         return self._fp
 
-    async def __aiter__(self) -> AsyncIterator[bytes]:
+    async def __aiter__(self) -> AsyncIterator[Union[bytes, str]]:
         while True:
             line = await self.readline()
             if line:
@@ -68,10 +68,10 @@ class AsyncFile(AsyncResource, Generic[T_Fp]):
     async def read1(self, size: int = -1) -> Union[bytes, str]:
         return await to_thread.run_sync(self._fp.read1, size)
 
-    async def readline(self) -> bytes:
+    async def readline(self) -> Union[bytes, str]:
         return await to_thread.run_sync(self._fp.readline)
 
-    async def readlines(self) -> bytes:
+    async def readlines(self) -> List[Union[bytes, str]]:
         return await to_thread.run_sync(self._fp.readlines)
 
     async def readinto(self, b: Union[bytes, memoryview]) -> bytes:
@@ -80,10 +80,10 @@ class AsyncFile(AsyncResource, Generic[T_Fp]):
     async def readinto1(self, b: Union[bytes, memoryview]) -> bytes:
         return await to_thread.run_sync(self._fp.readinto1, b)
 
-    async def write(self, b: bytes) -> None:
+    async def write(self, b: Union[bytes, str]) -> None:
         return await to_thread.run_sync(self._fp.write, b)
 
-    async def writelines(self, lines: bytes) -> None:
+    async def writelines(self, lines: Iterable[Union[bytes, str]]) -> None:
         return await to_thread.run_sync(self._fp.writelines, lines)
 
     async def truncate(self, size: Optional[int] = None) -> int:

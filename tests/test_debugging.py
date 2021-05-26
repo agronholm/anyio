@@ -1,24 +1,29 @@
 import asyncio
 import sys
+from typing import Any, Dict, List, Optional, Union
 
 import pytest
 
 import anyio
 from anyio import (
-    Event, create_task_group, get_current_task, get_running_tasks, move_on_after,
+    Event, TaskInfo, create_task_group, get_current_task, get_running_tasks, move_on_after,
     wait_all_tasks_blocked)
 
 pytestmark = pytest.mark.anyio
 
 
-def test_main_task_name(anyio_backend_name, anyio_backend_options):
+def test_main_task_name(
+    anyio_backend_name: str,
+    anyio_backend_options: Dict[str, Union[bool, asyncio.AbstractEventLoopPolicy]],
+) -> None:
+    task_name = None
+
     async def main():
         nonlocal task_name
         task_name = get_current_task().name
 
-    task_name = None
     anyio.run(main, backend=anyio_backend_name, backend_options=anyio_backend_options)
-    assert task_name == 'test_debugging.test_main_task_name.<locals>.main'
+    assert task_name == 'tests.test_debugging.test_main_task_name.<locals>.main'
 
     # Work around sniffio/asyncio bug that leaves behind an unclosed event loop
     if anyio_backend_name == 'asyncio':
@@ -32,13 +37,13 @@ def test_main_task_name(anyio_backend_name, anyio_backend_options):
 @pytest.mark.parametrize(
     "name_input,expected",
     [
-        (None, 'test_debugging.test_non_main_task_name.<locals>.non_main'),
+        (None, 'tests.test_debugging.test_non_main_task_name.<locals>.non_main'),
         (b'name', "b'name'"),
         ("name", "name"),
         ("", ""),
     ],
 )
-async def test_non_main_task_name(name_input, expected):
+async def test_non_main_task_name(name_input: Optional[Union[bytes, str]], expected: str) -> None:
     async def non_main(*, task_status):
         task_status.started(anyio.get_current_task().name)
 
@@ -56,7 +61,7 @@ async def test_get_running_tasks():
         event.set()
 
     event = Event()
-    task_infos = []
+    task_infos: List[TaskInfo] = []
     host_task = get_current_task()
     async with create_task_group() as tg:
         existing_tasks = set(get_running_tasks())
@@ -65,22 +70,31 @@ async def test_get_running_tasks():
         tg.start_soon(inspect)
 
     assert len(task_infos) == 3
-    expected_names = ['task1', 'task2', 'test_debugging.test_get_running_tasks.<locals>.inspect']
+    expected_names = ['task1', 'task2',
+                      'tests.test_debugging.test_get_running_tasks.<locals>.inspect']
     for task, expected_name in zip(task_infos, expected_names):
         assert task.parent_id == host_task.id
         assert task.name == expected_name
         assert repr(task) == f'TaskInfo(id={task.id}, name={expected_name!r})'
 
 
+if sys.version_info >= (3, 8):
+    get_coro = asyncio.Task.get_coro
+else:
+    def get_coro(self: asyncio.Task) -> Any:
+        return self._coro
+
+
 @pytest.mark.filterwarnings('ignore:"@coroutine" decorator is deprecated:DeprecationWarning')
-def test_wait_generator_based_task_blocked(asyncio_event_loop):
+def test_wait_generator_based_task_blocked(asyncio_event_loop: asyncio.AbstractEventLoop) -> None:
     async def native_coro_part():
         await wait_all_tasks_blocked()
-        assert not gen_task._coro.gi_running
+        coro = get_coro(gen_task)
+        assert not coro.gi_running
         if sys.version_info < (3, 7):
-            assert gen_task._coro.gi_yieldfrom.gi_code.co_name == 'wait'
+            assert coro.gi_yieldfrom.gi_code.co_name == 'wait'
         else:
-            assert gen_task._coro.gi_yieldfrom.cr_code.co_name == 'wait'
+            assert coro.gi_yieldfrom.cr_code.co_name == 'wait'
 
         event.set()
 
@@ -94,7 +108,7 @@ def test_wait_generator_based_task_blocked(asyncio_event_loop):
 
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
-async def test_wait_all_tasks_blocked_asend(anyio_backend):
+async def test_wait_all_tasks_blocked_asend(anyio_backend: str) -> None:
     """Test that wait_all_tasks_blocked() does not crash on an `asend()` object."""
 
     async def agen_func():
@@ -109,7 +123,9 @@ async def test_wait_all_tasks_blocked_asend(anyio_backend):
     await agen.aclose()
 
 
-async def test_wait_all_tasks_blocked_cancelled_task():
+async def test_wait_all_tasks_blocked_cancelled_task() -> None:
+    done = False
+
     async def self_cancel(*, task_status):
         nonlocal done
         task_status.started()
@@ -118,7 +134,6 @@ async def test_wait_all_tasks_blocked_cancelled_task():
 
         done = True
 
-    done = False
     async with create_task_group() as tg:
         await tg.start(self_cancel)
         await wait_all_tasks_blocked()

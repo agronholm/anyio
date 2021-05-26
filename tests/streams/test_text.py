@@ -29,7 +29,7 @@ async def test_send():
 
 
 @pytest.mark.xfail(platform.python_implementation() == 'PyPy'
-                   and sys.pypy_version_info < (7, 3, 2),
+                   and sys.pypy_version_info < (7, 3, 2),  # type: ignore[attr-defined]
                    reason='PyPy has a bug in its incremental UTF-8 decoder (#3274)')
 async def test_receive_encoding_error():
     send_stream, receive_stream = create_memory_object_stream(1)

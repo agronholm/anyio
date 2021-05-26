@@ -2,6 +2,7 @@ import threading
 import time
 from concurrent.futures import CancelledError
 from contextlib import suppress
+from typing import List, Optional
 
 import pytest
 
@@ -136,7 +137,7 @@ class TestBlockingPortal:
             thread_ids.append(portal.call(threading.get_ident))
             thread_ids.append(portal.call(async_get_thread_id))
 
-        thread_ids = []
+        thread_ids: List[int] = []
         async with BlockingPortal() as portal:
             thread = threading.Thread(target=external_thread)
             thread.start()
@@ -155,7 +156,7 @@ class TestBlockingPortal:
             else:
                 results.append(None)
 
-        results = []
+        results: List[Optional[BaseException]] = []
         with suppress(Exception):
             async with BlockingPortal() as portal:
                 thread1 = threading.Thread(target=external_thread)
@@ -183,7 +184,7 @@ class TestBlockingPortal:
             else:
                 results.append(None)
 
-        results = []
+        results: List[Optional[BaseException]] = []
         async with BlockingPortal() as portal:
             thread1 = threading.Thread(target=external_thread)
             thread1.start()
@@ -252,6 +253,8 @@ class TestBlockingPortal:
         assert future.cancelled()
 
     def test_start_task_soon_cancel_immediately(self, anyio_backend_name, anyio_backend_options):
+        cancelled = False
+
         async def event_waiter():
             nonlocal cancelled
             try:
@@ -259,7 +262,6 @@ class TestBlockingPortal:
             except get_cancelled_exc_class():
                 cancelled = True
 
-        cancelled = False
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
             future = portal.start_task_soon(event_waiter)
             future.cancel()
@@ -267,11 +269,12 @@ class TestBlockingPortal:
         assert cancelled
 
     def test_start_task_soon_with_name(self, anyio_backend_name, anyio_backend_options):
+        task_name = None
+
         async def taskfunc():
             nonlocal task_name
             task_name = get_current_task().name
 
-        task_name = None
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
             portal.start_task_soon(taskfunc, name='testname')
 
