@@ -1,5 +1,4 @@
-import asyncio
-from typing import Dict, Union
+from typing import Any, Dict
 
 import pytest
 
@@ -13,7 +12,7 @@ pytestmark = pytest.mark.anyio
 async def test_checkpoint_if_cancelled(cancel: bool) -> None:
     finished = second_finished = False
 
-    async def func():
+    async def func() -> None:
         nonlocal finished
         tg.start_soon(second_func)
         if cancel:
@@ -22,7 +21,7 @@ async def test_checkpoint_if_cancelled(cancel: bool) -> None:
         await checkpoint_if_cancelled()
         finished = True
 
-    async def second_func():
+    async def second_func() -> None:
         nonlocal second_finished
         assert finished != cancel
         second_finished = True
@@ -38,12 +37,12 @@ async def test_checkpoint_if_cancelled(cancel: bool) -> None:
 async def test_cancel_shielded_checkpoint(cancel: bool) -> None:
     finished = second_finished = False
 
-    async def func():
+    async def func() -> None:
         nonlocal finished
         await cancel_shielded_checkpoint()
         finished = True
 
-    async def second_func():
+    async def second_func() -> None:
         nonlocal second_finished
         assert not finished
         second_finished = True
@@ -62,12 +61,12 @@ async def test_cancel_shielded_checkpoint(cancel: bool) -> None:
 async def test_checkpoint(cancel: bool) -> None:
     finished = second_finished = False
 
-    async def func():
+    async def func() -> None:
         nonlocal finished
         await checkpoint()
         finished = True
 
-    async def second_func():
+    async def second_func() -> None:
         nonlocal second_finished
         assert not finished
         second_finished = True
@@ -86,13 +85,13 @@ class TestRunVar:
     def test_get_set(
         self,
         anyio_backend_name: str,
-        anyio_backend_options: Dict[str, Union[bool, asyncio.AbstractEventLoopPolicy]],
+        anyio_backend_options: Dict[str, Any],
     ) -> None:
-        async def taskfunc(index):
+        async def taskfunc(index: int) -> None:
             assert var.get() == index
             var.set(index + 1)
 
-        async def main():
+        async def main() -> None:
             pytest.raises(LookupError, var.get)
             for i in range(2):
                 var.set(i)

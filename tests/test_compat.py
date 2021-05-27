@@ -150,17 +150,17 @@ class TestDeprecations:
             assert thread_id != threading.get_ident()
 
     async def test_run_async_from_thread(self) -> None:
-        async def get_ident():
+        async def get_ident() -> int:
             return threading.get_ident()
 
-        def thread_func():
+        def thread_func() -> int:
             with pytest.deprecated_call():
                 return run_async_from_thread(get_ident)
 
         assert await to_thread.run_sync(thread_func) == threading.get_ident()
 
     async def test_run_sync_from_thread(self) -> None:
-        def thread_func():
+        def thread_func() -> int:
             with pytest.deprecated_call():
                 return run_sync_from_thread(threading.get_ident)
 

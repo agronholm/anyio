@@ -1,7 +1,7 @@
 import asyncio
 import ssl
 from ssl import SSLContext
-from typing import Dict, Generator, Tuple, Union
+from typing import Any, Dict, Generator, Tuple
 
 import pytest
 import trustme
@@ -34,7 +34,7 @@ pytest_plugins = ['pytester']
 ])
 def anyio_backend(
     request: SubRequest,
-) -> Tuple[str, Dict[str, Union[bool, asyncio.AbstractEventLoopPolicy]]]:
+) -> Tuple[str, Dict[str, Any]]:
     return request.param
 
 

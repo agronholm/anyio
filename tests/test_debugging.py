@@ -1,6 +1,6 @@
 import asyncio
 import sys
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, AsyncGenerator, Dict, Generator, List, Optional, Union
 
 import pytest
 
@@ -8,17 +8,18 @@ import anyio
 from anyio import (
     Event, TaskInfo, create_task_group, get_current_task, get_running_tasks, move_on_after,
     wait_all_tasks_blocked)
+from anyio.abc import TaskStatus
 
 pytestmark = pytest.mark.anyio
 
 
 def test_main_task_name(
     anyio_backend_name: str,
-    anyio_backend_options: Dict[str, Union[bool, asyncio.AbstractEventLoopPolicy]],
+    anyio_backend_options: Dict[str, Any],
 ) -> None:
     task_name = None
 
-    async def main():
+    async def main() -> None:
         nonlocal task_name
         task_name = get_current_task().name
 
@@ -44,7 +45,7 @@ def test_main_task_name(
     ],
 )
 async def test_non_main_task_name(name_input: Optional[Union[bytes, str]], expected: str) -> None:
-    async def non_main(*, task_status):
+    async def non_main(*, task_status: TaskStatus) -> None:
         task_status.started(anyio.get_current_task().name)
 
     async with anyio.create_task_group() as tg:
@@ -53,8 +54,8 @@ async def test_non_main_task_name(name_input: Optional[Union[bytes, str]], expec
     assert name == expected
 
 
-async def test_get_running_tasks():
-    async def inspect():
+async def test_get_running_tasks() -> None:
+    async def inspect() -> None:
         await wait_all_tasks_blocked()
         new_tasks = set(get_running_tasks()) - existing_tasks
         task_infos[:] = sorted(new_tasks, key=lambda info: info.name or '')
@@ -87,7 +88,7 @@ else:
 
 @pytest.mark.filterwarnings('ignore:"@coroutine" decorator is deprecated:DeprecationWarning')
 def test_wait_generator_based_task_blocked(asyncio_event_loop: asyncio.AbstractEventLoop) -> None:
-    async def native_coro_part():
+    async def native_coro_part() -> None:
         await wait_all_tasks_blocked()
         coro = get_coro(gen_task)
         assert not coro.gi_running
@@ -99,7 +100,7 @@ def test_wait_generator_based_task_blocked(asyncio_event_loop: asyncio.AbstractE
         event.set()
 
     @asyncio.coroutine
-    def generator_part():
+    def generator_part() -> Generator[object, BaseException, None]:
         yield from event.wait()
 
     event = asyncio.Event()
@@ -111,7 +112,7 @@ def test_wait_generator_based_task_blocked(asyncio_event_loop: asyncio.AbstractE
 async def test_wait_all_tasks_blocked_asend(anyio_backend: str) -> None:
     """Test that wait_all_tasks_blocked() does not crash on an `asend()` object."""
 
-    async def agen_func():
+    async def agen_func() -> AsyncGenerator[None, None]:
         yield
 
     agen = agen_func()
@@ -126,7 +127,7 @@ async def test_wait_all_tasks_blocked_asend(anyio_backend: str) -> None:
 async def test_wait_all_tasks_blocked_cancelled_task() -> None:
     done = False
 
-    async def self_cancel(*, task_status):
+    async def self_cancel(*, task_status: TaskStatus) -> None:
         nonlocal done
         task_status.started()
         with move_on_after(-1):

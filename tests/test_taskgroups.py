@@ -2,7 +2,7 @@ import asyncio
 import re
 import sys
 import time
-from typing import Generator, Set
+from typing import Any, AsyncGenerator, Coroutine, Dict, Generator, NoReturn, Set
 
 import pytest
 import trio
@@ -11,6 +11,7 @@ import anyio
 from anyio import (
     CancelScope, ExceptionGroup, create_task_group, current_effective_deadline, current_time,
     fail_after, get_cancelled_exc_class, move_on_after, sleep, wait_all_tasks_blocked)
+from anyio.abc import TaskGroup, TaskStatus
 
 if sys.version_info < (3, 7):
     current_task = asyncio.Task.current_task
@@ -20,7 +21,7 @@ else:
 pytestmark = pytest.mark.anyio
 
 
-async def async_error(text, delay=0.1):
+async def async_error(text: str, delay: float = 0.1) -> NoReturn:
     try:
         if delay:
             await sleep(delay)
@@ -28,7 +29,7 @@ async def async_error(text, delay=0.1):
         raise Exception(text)
 
 
-async def test_already_closed():
+async def test_already_closed() -> None:
     async with create_task_group() as tg:
         pass
 
@@ -38,8 +39,8 @@ async def test_already_closed():
     exc.match('This task group is not active; no new tasks can be started')
 
 
-async def test_success():
-    async def async_add(value):
+async def test_success() -> None:
+    async def async_add(value: str) -> None:
         results.add(value)
 
     results: Set[str] = set()
@@ -54,8 +55,8 @@ async def test_success():
     pytest.param(asyncio, id='asyncio'),
     pytest.param(trio, id='trio')
 ])
-def test_run_natively(module):
-    async def testfunc():
+def test_run_natively(module: Any) -> None:
+    async def testfunc() -> None:
         async with create_task_group() as tg:
             tg.start_soon(sleep, 0)
 
@@ -69,15 +70,15 @@ def test_run_natively(module):
         module.run(testfunc)
 
 
-async def test_start_soon_while_running():
-    async def task_func():
+async def test_start_soon_while_running() -> None:
+    async def task_func() -> None:
         tg.start_soon(sleep, 0)
 
     async with create_task_group() as tg:
         tg.start_soon(task_func)
 
 
-async def test_start_soon_after_error():
+async def test_start_soon_after_error() -> None:
     with pytest.raises(ZeroDivisionError):
         async with create_task_group() as tg:
             a = 1 / 0  # noqa: F841
@@ -88,8 +89,8 @@ async def test_start_soon_after_error():
     exc.match('This task group is not active; no new tasks can be started')
 
 
-async def test_start_no_value():
-    async def taskfunc(*, task_status):
+async def test_start_no_value() -> None:
+    async def taskfunc(*, task_status: TaskStatus) -> None:
         task_status.started()
 
     async with create_task_group() as tg:
@@ -97,8 +98,8 @@ async def test_start_no_value():
         assert value is None
 
 
-async def test_start_with_value():
-    async def taskfunc(*, task_status):
+async def test_start_with_value() -> None:
+    async def taskfunc(*, task_status: TaskStatus) -> None:
         task_status.started('foo')
 
     async with create_task_group() as tg:
@@ -106,8 +107,8 @@ async def test_start_with_value():
         assert value == 'foo'
 
 
-async def test_start_crash_before_started_call():
-    async def taskfunc(*, task_status):
+async def test_start_crash_before_started_call() -> None:
+    async def taskfunc(*, task_status: TaskStatus) -> NoReturn:
         raise Exception('foo')
 
     async with create_task_group() as tg:
@@ -117,8 +118,8 @@ async def test_start_crash_before_started_call():
     exc.match('foo')
 
 
-async def test_start_crash_after_started_call():
-    async def taskfunc(*, task_status):
+async def test_start_crash_after_started_call() -> None:
+    async def taskfunc(*, task_status: TaskStatus) -> NoReturn:
         task_status.started(2)
         raise Exception('foo')
 
@@ -130,8 +131,8 @@ async def test_start_crash_after_started_call():
     assert value == 2
 
 
-async def test_start_no_started_call():
-    async def taskfunc(*, task_status):
+async def test_start_no_started_call() -> None:
+    async def taskfunc(*, task_status: TaskStatus) -> None:
         pass
 
     async with create_task_group() as tg:
@@ -141,10 +142,10 @@ async def test_start_no_started_call():
     exc.match('hild exited')
 
 
-async def test_start_cancelled():
+async def test_start_cancelled() -> None:
     started = finished = False
 
-    async def taskfunc(*, task_status):
+    async def taskfunc(*, task_status: TaskStatus) -> None:
         nonlocal started, finished
         started = True
         await sleep(2)
@@ -159,16 +160,16 @@ async def test_start_cancelled():
 
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
-async def test_start_native_host_cancelled():
+async def test_start_native_host_cancelled() -> None:
     started = finished = False
 
-    async def taskfunc(*, task_status):
+    async def taskfunc(*, task_status: TaskStatus) -> None:
         nonlocal started, finished
         started = True
         await sleep(2)
         finished = True
 
-    async def start_another():
+    async def start_another() -> None:
         async with create_task_group() as tg:
             await tg.start(taskfunc)
 
@@ -183,17 +184,17 @@ async def test_start_native_host_cancelled():
 
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
-async def test_start_native_child_cancelled():
+async def test_start_native_child_cancelled() -> None:
     task = None
     finished = False
 
-    async def taskfunc(*, task_status):
+    async def taskfunc(*, task_status: TaskStatus) -> None:
         nonlocal task, finished
         task = current_task()
         await sleep(2)
         finished = True
 
-    async def start_another():
+    async def start_another() -> None:
         async with create_task_group() as tg2:
             await tg2.start(taskfunc)
 
@@ -206,19 +207,19 @@ async def test_start_native_child_cancelled():
     assert not finished
 
 
-async def test_start_exception_delivery():
-    def task_fn(*, task_status):
+async def test_start_exception_delivery() -> None:
+    def task_fn(*, task_status: TaskStatus) -> None:
         task_status.started("hello")
 
     async with anyio.create_task_group() as tg:
         with pytest.raises(TypeError, match='to be synchronous$'):
-            await tg.start(task_fn)
+            await tg.start(task_fn)  # type: ignore[arg-type]
 
 
-async def test_host_exception():
+async def test_host_exception() -> None:
     result = None
 
-    async def set_result(value):
+    async def set_result(value: str) -> None:
         nonlocal result
         await sleep(3)
         result = value
@@ -232,10 +233,10 @@ async def test_host_exception():
     assert result is None
 
 
-async def test_edge_cancellation():
+async def test_edge_cancellation() -> None:
     marker = None
 
-    async def dummy():
+    async def dummy() -> None:
         nonlocal marker
         marker = 1
         # At this point the task has been cancelled so sleep() will raise an exception
@@ -251,8 +252,8 @@ async def test_edge_cancellation():
     assert marker == 1
 
 
-async def test_failing_child_task_cancels_host():
-    async def child():
+async def test_failing_child_task_cancels_host() -> None:
+    async def child() -> NoReturn:
         await wait_all_tasks_blocked()
         raise Exception('foo')
 
@@ -267,10 +268,10 @@ async def test_failing_child_task_cancels_host():
     assert not sleep_completed
 
 
-async def test_failing_host_task_cancels_children():
+async def test_failing_host_task_cancels_children() -> None:
     sleep_completed = False
 
-    async def child():
+    async def child() -> None:
         nonlocal sleep_completed
         await sleep(1)
         sleep_completed = True
@@ -285,11 +286,11 @@ async def test_failing_host_task_cancels_children():
     assert not sleep_completed
 
 
-async def test_cancel_scope_in_another_task():
+async def test_cancel_scope_in_another_task() -> None:
     local_scope = None
     result = False
 
-    async def child():
+    async def child() -> None:
         nonlocal result, local_scope
         with CancelScope() as local_scope:
             await sleep(2)
@@ -305,8 +306,8 @@ async def test_cancel_scope_in_another_task():
     assert not result
 
 
-async def test_cancel_propagation():
-    async def g():
+async def test_cancel_propagation() -> None:
+    async def g() -> NoReturn:
         async with create_task_group():
             await sleep(1)
 
@@ -318,9 +319,9 @@ async def test_cancel_propagation():
         tg.cancel_scope.cancel()
 
 
-async def test_cancel_twice():
+async def test_cancel_twice() -> None:
     """Test that the same task can receive two cancellations."""
-    async def cancel_group():
+    async def cancel_group() -> None:
         await wait_all_tasks_blocked()
         tg.cancel_scope.cancel()
 
@@ -331,7 +332,7 @@ async def test_cancel_twice():
             pytest.fail('Execution should not reach this point')
 
 
-async def test_cancel_exiting_task_group():
+async def test_cancel_exiting_task_group() -> None:
     """
     Test that if a task group is waiting for subtasks to finish and it receives a cancellation, the
     subtasks are also cancelled and the waiting continues.
@@ -339,14 +340,14 @@ async def test_cancel_exiting_task_group():
     """
     cancel_received = False
 
-    async def waiter():
+    async def waiter() -> None:
         nonlocal cancel_received
         try:
             await sleep(5)
         finally:
             cancel_received = True
 
-    async def subgroup():
+    async def subgroup() -> None:
         async with create_task_group() as tg2:
             tg2.start_soon(waiter)
 
@@ -358,7 +359,7 @@ async def test_cancel_exiting_task_group():
     assert cancel_received
 
 
-async def test_exception_group_children():
+async def test_exception_group_children() -> None:
     with pytest.raises(ExceptionGroup) as exc:
         async with create_task_group() as tg:
             tg.start_soon(async_error, 'task1')
@@ -373,7 +374,7 @@ async def test_exception_group_children():
         repr(exc.value))
 
 
-async def test_exception_group_host():
+async def test_exception_group_host() -> None:
     with pytest.raises(ExceptionGroup) as exc:
         async with create_task_group() as tg:
             tg.start_soon(async_error, 'child', 2)
@@ -386,13 +387,13 @@ async def test_exception_group_host():
     assert exc.match(r'Exception: host\n----')
 
 
-async def test_escaping_cancelled_exception():
+async def test_escaping_cancelled_exception() -> None:
     async with create_task_group() as tg:
         tg.cancel_scope.cancel()
         await sleep(0)
 
 
-async def test_cancel_scope_cleared():
+async def test_cancel_scope_cleared() -> None:
     with move_on_after(0.1):
         await sleep(1)
 
@@ -400,7 +401,7 @@ async def test_cancel_scope_cleared():
 
 
 @pytest.mark.parametrize('delay', [0, 0.1], ids=['instant', 'delayed'])
-async def test_fail_after(delay):
+async def test_fail_after(delay: float) -> None:
     with pytest.raises(TimeoutError):
         with fail_after(delay) as scope:
             await sleep(1)
@@ -408,7 +409,7 @@ async def test_fail_after(delay):
     assert scope.cancel_called
 
 
-async def test_fail_after_no_timeout():
+async def test_fail_after_no_timeout() -> None:
     with fail_after(None) as scope:
         assert scope.deadline == float('inf')
         await sleep(0.1)
@@ -416,7 +417,7 @@ async def test_fail_after_no_timeout():
     assert not scope.cancel_called
 
 
-async def test_fail_after_after_cancellation():
+async def test_fail_after_after_cancellation() -> None:
     event = anyio.Event()
     async with anyio.create_task_group() as tg:
         tg.cancel_scope.cancel()
@@ -432,7 +433,7 @@ async def test_fail_after_after_cancellation():
 
 
 @pytest.mark.parametrize('delay', [0, 0.1], ids=['instant', 'delayed'])
-async def test_move_on_after(delay):
+async def test_move_on_after(delay: float) -> None:
     result = False
     with move_on_after(delay) as scope:
         await sleep(1)
@@ -442,7 +443,7 @@ async def test_move_on_after(delay):
     assert scope.cancel_called
 
 
-async def test_move_on_after_no_timeout():
+async def test_move_on_after_no_timeout() -> None:
     result = False
     with move_on_after(None) as scope:
         assert scope.deadline == float('inf')
@@ -453,7 +454,7 @@ async def test_move_on_after_no_timeout():
     assert not scope.cancel_called
 
 
-async def test_nested_move_on_after():
+async def test_nested_move_on_after() -> None:
     sleep_completed = inner_scope_completed = False
     with move_on_after(0.1) as outer_scope:
         assert current_effective_deadline() == outer_scope.deadline
@@ -470,8 +471,8 @@ async def test_nested_move_on_after():
     assert not inner_scope.cancel_called
 
 
-async def test_shielding():
-    async def cancel_when_ready():
+async def test_shielding() -> None:
+    async def cancel_when_ready() -> None:
         await wait_all_tasks_blocked()
         tg.cancel_scope.cancel()
 
@@ -492,7 +493,7 @@ async def test_shielding():
     assert not inner_scope.cancel_called
 
 
-async def test_cancel_from_shielded_scope():
+async def test_cancel_from_shielded_scope() -> None:
     async with create_task_group() as tg:
         with CancelScope(shield=True) as inner_scope:
             assert inner_scope.shield
@@ -506,10 +507,10 @@ async def test_cancel_from_shielded_scope():
 
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
-async def test_cancel_host_asyncgen():
+async def test_cancel_host_asyncgen() -> None:
     done = False
 
-    async def host_task():
+    async def host_task() -> None:
         nonlocal done
         async with create_task_group() as tg:
             with CancelScope(shield=True) as inner_scope:
@@ -524,7 +525,7 @@ async def test_cancel_host_asyncgen():
 
             done = True
 
-    async def host_agen_fn():
+    async def host_agen_fn() -> AsyncGenerator[None, None]:
         await host_task()
         yield
         pytest.fail("host_agen_fn should only be __anext__ed once")
@@ -538,8 +539,8 @@ async def test_cancel_host_asyncgen():
     assert done
 
 
-async def test_shielding_immediate_scope_cancelled():
-    async def cancel_when_ready():
+async def test_shielding_immediate_scope_cancelled() -> None:
+    async def cancel_when_ready() -> None:
         await wait_all_tasks_blocked()
         scope.cancel()
 
@@ -553,10 +554,10 @@ async def test_shielding_immediate_scope_cancelled():
     assert not sleep_completed
 
 
-async def test_shielding_mutate():
+async def test_shielding_mutate() -> None:
     completed = False
 
-    async def task(task_status):
+    async def task(task_status: TaskStatus) -> NoReturn:  # type: ignore[misc]
         nonlocal completed
         with CancelScope() as scope:
             # Enable the shield a little after the scope starts to make this test
@@ -577,10 +578,10 @@ async def test_shielding_mutate():
     assert completed
 
 
-async def test_cancel_scope_in_child_task():
+async def test_cancel_scope_in_child_task() -> None:
     child_scope = None
 
-    async def child():
+    async def child() -> None:
         nonlocal child_scope
         with CancelScope() as child_scope:
             await sleep(2)
@@ -598,10 +599,10 @@ async def test_cancel_scope_in_child_task():
     assert not tg.cancel_scope.cancel_called
 
 
-async def test_exception_cancels_siblings():
+async def test_exception_cancels_siblings() -> None:
     sleep_completed = False
 
-    async def child(fail):
+    async def child(fail: bool) -> None:
         if fail:
             raise Exception('foo')
         else:
@@ -619,8 +620,8 @@ async def test_exception_cancels_siblings():
     assert not sleep_completed
 
 
-async def test_cancel_cascade():
-    async def do_something():
+async def test_cancel_cascade() -> None:
+    async def do_something() -> NoReturn:
         async with create_task_group() as tg2:
             tg2.start_soon(sleep, 1)
 
@@ -632,14 +633,14 @@ async def test_cancel_cascade():
         tg.cancel_scope.cancel()
 
 
-async def test_cancelled_parent():
-    async def child():
+async def test_cancelled_parent() -> None:
+    async def child() -> NoReturn:
         with CancelScope():
             await sleep(1)
 
         raise Exception('foo')
 
-    async def parent(tg):
+    async def parent(tg: TaskGroup) -> None:
         await wait_all_tasks_blocked()
         tg.start_soon(child)
 
@@ -648,26 +649,26 @@ async def test_cancelled_parent():
         tg.cancel_scope.cancel()
 
 
-async def test_shielded_deadline():
+async def test_shielded_deadline() -> None:
     with move_on_after(10):
         with CancelScope(shield=True):
             with move_on_after(1000):
                 assert current_effective_deadline() - current_time() > 900
 
 
-async def test_deadline_reached_on_start():
+async def test_deadline_reached_on_start() -> None:
     with move_on_after(0):
         await sleep(0)
         pytest.fail('Execution should not reach this point')
 
 
-async def test_deadline_moved():
+async def test_deadline_moved() -> None:
     with fail_after(0.1) as scope:
         scope.deadline += 0.3
         await sleep(0.2)
 
 
-async def test_timeout_error_with_multiple_cancellations():
+async def test_timeout_error_with_multiple_cancellations() -> None:
     with pytest.raises(TimeoutError):
         with fail_after(0.1):
             async with create_task_group() as tg:
@@ -675,8 +676,8 @@ async def test_timeout_error_with_multiple_cancellations():
                 await sleep(2)
 
 
-async def test_nested_fail_after():
-    async def killer(scope):
+async def test_nested_fail_after() -> None:
+    async def killer(scope: CancelScope) -> None:
         await wait_all_tasks_blocked()
         scope.cancel()
 
@@ -695,8 +696,8 @@ async def test_nested_fail_after():
     assert scope.cancel_called
 
 
-async def test_nested_shield():
-    async def killer(scope):
+async def test_nested_shield() -> None:
+    async def killer(scope: CancelScope) -> None:
         await wait_all_tasks_blocked()
         scope.cancel()
 
@@ -709,27 +710,29 @@ async def test_nested_shield():
                         await sleep(2)
 
 
-def test_task_group_in_generator(anyio_backend_name, anyio_backend_options):
-    async def task_group_generator():
+def test_task_group_in_generator(anyio_backend_name: str,
+                                 anyio_backend_options: Dict[str, Any]) -> None:
+    async def task_group_generator() -> AsyncGenerator[None, None]:
         async with create_task_group():
             yield
 
     gen = task_group_generator()
-    anyio.run(gen.__anext__, backend=anyio_backend_name, backend_options=anyio_backend_options)
+    anyio.run(gen.__anext__, backend=anyio_backend_name,  # type: ignore[arg-type]
+              backend_options=anyio_backend_options)
     pytest.raises(StopAsyncIteration, anyio.run, gen.__anext__, backend=anyio_backend_name,
                   backend_options=anyio_backend_options)
 
 
-async def test_exception_group_filtering():
+async def test_exception_group_filtering() -> None:
     """Test that CancelledErrors are filtered out of nested exception groups."""
 
-    async def fail(name):
+    async def fail(name: str) -> NoReturn:
         try:
             await anyio.sleep(.1)
         finally:
             raise Exception('%s task failed' % name)
 
-    async def fn():
+    async def fn() -> None:
         async with anyio.create_task_group() as tg:
             tg.start_soon(fail, 'parent')
             async with anyio.create_task_group() as tg2:
@@ -744,8 +747,8 @@ async def test_exception_group_filtering():
     assert str(exc.value.exceptions[1]) == 'child task failed'
 
 
-async def test_cancel_propagation_with_inner_spawn():
-    async def g():
+async def test_cancel_propagation_with_inner_spawn() -> None:
+    async def g() -> NoReturn:
         async with anyio.create_task_group() as tg2:
             tg2.start_soon(anyio.sleep, 10)
             await anyio.sleep(1)
@@ -758,7 +761,7 @@ async def test_cancel_propagation_with_inner_spawn():
         tg.cancel_scope.cancel()
 
 
-async def test_escaping_cancelled_error_from_cancelled_task():
+async def test_escaping_cancelled_error_from_cancelled_task() -> None:
     """Regression test for issue #88. No CancelledError should escape the outer scope."""
     with CancelScope() as scope:
         with move_on_after(0.1):
@@ -768,7 +771,7 @@ async def test_escaping_cancelled_error_from_cancelled_task():
 
 
 @pytest.mark.filterwarnings('ignore:"@coroutine" decorator is deprecated:DeprecationWarning')
-def test_cancel_generator_based_task():
+def test_cancel_generator_based_task() -> None:
     from asyncio import coroutine
 
     async def native_coro_part() -> None:
@@ -782,7 +785,7 @@ def test_cancel_generator_based_task():
     anyio.run(generator_part, backend='asyncio')  # type: ignore[arg-type]
 
 
-async def test_suppress_exception_context():
+async def test_suppress_exception_context() -> None:
     """
     Test that the __context__ attribute has been cleared when the exception is re-raised in the
     exception group. This prevents recursive tracebacks.
@@ -799,8 +802,8 @@ async def test_suppress_exception_context():
 
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
-async def test_cancel_native_future_tasks():
-    async def wait_native_future():
+async def test_cancel_native_future_tasks() -> None:
+    async def wait_native_future() -> None:
         loop = asyncio.get_event_loop()
         await loop.create_future()
 
@@ -810,8 +813,8 @@ async def test_cancel_native_future_tasks():
 
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
-async def test_cancel_native_future_tasks_cancel_scope():
-    async def wait_native_future():
+async def test_cancel_native_future_tasks_cancel_scope() -> None:
+    async def wait_native_future() -> None:
         with anyio.CancelScope():
             loop = asyncio.get_event_loop()
             await loop.create_future()
@@ -822,17 +825,17 @@ async def test_cancel_native_future_tasks_cancel_scope():
 
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
-async def test_cancel_completed_task():
+async def test_cancel_completed_task() -> None:
     loop = asyncio.get_event_loop()
     old_exception_handler = loop.get_exception_handler()
     exceptions = []
 
-    def exception_handler(*args, **kwargs):
+    def exception_handler(*args: object, **kwargs: object) -> None:
         exceptions.append((args, kwargs))
 
     loop.set_exception_handler(exception_handler)
     try:
-        async def noop():
+        async def noop() -> None:
             pass
 
         async with anyio.create_task_group() as tg:
@@ -844,14 +847,14 @@ async def test_cancel_completed_task():
         loop.set_exception_handler(old_exception_handler)
 
 
-async def test_task_in_sync_spawn_callback():
+async def test_task_in_sync_spawn_callback() -> None:
     outer_task_id = anyio.get_current_task().id
     inner_task_id = None
 
-    def task_wrap():
+    def task_wrap() -> Coroutine[object, object, None]:
         assert anyio.get_current_task().id == outer_task_id
 
-        async def corofn():
+        async def corofn() -> None:
             nonlocal inner_task_id
             inner_task_id = anyio.get_current_task().id
 
@@ -864,16 +867,16 @@ async def test_task_in_sync_spawn_callback():
     assert inner_task_id != outer_task_id
 
 
-async def test_shielded_cancel_sleep_time():
+async def test_shielded_cancel_sleep_time() -> None:
     """Test that cancelling a shielded tasks spends more time sleeping than cancelling."""
     event = anyio.Event()
     hang_time = 0.2
 
-    async def set_event():
+    async def set_event() -> None:
         await sleep(hang_time)
         event.set()
 
-    async def never_cancel_task():
+    async def never_cancel_task() -> None:
         with CancelScope(shield=True):
             await sleep(0.2)
             await event.wait()
@@ -889,7 +892,7 @@ async def test_shielded_cancel_sleep_time():
         assert (time.process_time() - process_time) < hang_time
 
 
-async def test_cancelscope_wrong_exit_order():
+async def test_cancelscope_wrong_exit_order() -> None:
     """
     Test that a RuntimeError is raised if the task tries to exit cancel scopes in the wrong order.
 
@@ -901,18 +904,18 @@ async def test_cancelscope_wrong_exit_order():
     pytest.raises(RuntimeError, scope1.__exit__, None, None, None)
 
 
-async def test_cancelscope_exit_before_enter():
+async def test_cancelscope_exit_before_enter() -> None:
     """Test that a RuntimeError is raised if one tries to exit a cancel scope before entering."""
     scope = CancelScope()
     pytest.raises(RuntimeError, scope.__exit__, None, None, None)
 
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])  # trio does not check for this yet
-async def test_cancelscope_exit_in_wrong_task():
-    async def enter_scope(scope):
+async def test_cancelscope_exit_in_wrong_task() -> None:
+    async def enter_scope(scope: CancelScope) -> None:
         scope.__enter__()
 
-    async def exit_scope(scope):
+    async def exit_scope(scope: CancelScope) -> None:
         scope.__exit__(None, None, None)
 
     scope = CancelScope()
@@ -924,16 +927,16 @@ async def test_cancelscope_exit_in_wrong_task():
             tg.start_soon(exit_scope, scope)
 
 
-def test_unhandled_exception_group(caplog):
-    def crash():
+def test_unhandled_exception_group(caplog: pytest.LogCaptureFixture) -> None:
+    def crash() -> NoReturn:
         raise KeyboardInterrupt
 
-    async def nested():
+    async def nested() -> None:
         async with anyio.create_task_group() as tg:
             tg.start_soon(anyio.sleep, 5)
             await anyio.sleep(5)
 
-    async def main():
+    async def main() -> NoReturn:  # type: ignore[misc]
         async with anyio.create_task_group() as tg:
             tg.start_soon(nested)
             await wait_all_tasks_blocked()
@@ -951,8 +954,8 @@ def test_unhandled_exception_group(caplog):
 @pytest.mark.skipif(sys.version_info < (3, 9),
                     reason='Cancel messages are only supported on py3.9+')
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
-async def test_cancellederror_combination_with_message():
-    async def taskfunc(*, task_status):
+async def test_cancellederror_combination_with_message() -> None:
+    async def taskfunc(*, task_status: TaskStatus) -> NoReturn:  # type: ignore[misc]
         task_status.started(asyncio.current_task())
         await sleep(5)
         pytest.fail('Execution should never reach this point')

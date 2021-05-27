@@ -2,8 +2,10 @@ import socket
 import ssl
 from contextlib import ExitStack
 from threading import Thread
+from typing import NoReturn
 
 import pytest
+from trustme import CA
 
 from anyio import (
     BrokenResourceError, EndOfStream, Event, connect_tcp, create_task_group, create_tcp_listener)
@@ -14,8 +16,9 @@ pytestmark = pytest.mark.anyio
 
 
 class TestTLSStream:
-    async def test_send_receive(self, server_context, client_context):
-        def serve_sync():
+    async def test_send_receive(self, server_context: ssl.SSLContext,
+                                client_context: ssl.SSLContext) -> None:
+        def serve_sync() -> None:
             conn, addr = server_sock.accept()
             conn.settimeout(1)
             data = conn.recv(10)
@@ -40,8 +43,9 @@ class TestTLSStream:
         server_sock.close()
         assert response == b'olleh'
 
-    async def test_extra_attributes(self, server_context, client_context):
-        def serve_sync():
+    async def test_extra_attributes(self, server_context: ssl.SSLContext,
+                                    client_context: ssl.SSLContext) -> None:
+        def serve_sync() -> None:
             conn, addr = server_sock.accept()
             with conn:
                 conn.settimeout(1)
@@ -80,8 +84,9 @@ class TestTLSStream:
         server_thread.join()
         server_sock.close()
 
-    async def test_unwrap(self, server_context, client_context):
-        def serve_sync():
+    async def test_unwrap(self, server_context: ssl.SSLContext,
+                          client_context: ssl.SSLContext) -> None:
+        def serve_sync() -> None:
             conn, addr = server_sock.accept()
             conn.settimeout(1)
             conn.send(b'encrypted')
@@ -111,11 +116,14 @@ class TestTLSStream:
         assert msg2 == b'unencrypted'
 
     @pytest.mark.skipif(not ssl.HAS_ALPN, reason='ALPN support not available')
-    async def test_alpn_negotiation(self, server_context, client_context):
-        def serve_sync():
+    async def test_alpn_negotiation(self, server_context: ssl.SSLContext,
+                                    client_context: ssl.SSLContext) -> None:
+        def serve_sync() -> None:
             conn, addr = server_sock.accept()
             conn.settimeout(1)
-            conn.send(conn.selected_alpn_protocol().encode())
+            selected_alpn_protocol = conn.selected_alpn_protocol()
+            assert selected_alpn_protocol is not None
+            conn.send(selected_alpn_protocol.encode())
             conn.close()
 
         server_context.set_alpn_protocols(['dummy1', 'dummy2'])
@@ -145,11 +153,12 @@ class TestTLSStream:
         pytest.param(False, True, id='client_standard'),
         pytest.param(False, False, id='neither_standard')
     ])
-    async def test_ragged_eofs(self, server_context, client_context, server_compatible,
-                               client_compatible):
+    async def test_ragged_eofs(self, server_context: ssl.SSLContext,
+                               client_context: ssl.SSLContext, server_compatible: bool,
+                               client_compatible: bool) -> None:
         server_exc = None
 
-        def serve_sync():
+        def serve_sync() -> None:
             nonlocal server_exc
             conn, addr = server_sock.accept()
             try:
@@ -189,8 +198,9 @@ class TestTLSStream:
         else:
             assert server_exc is None
 
-    async def test_receive_send_after_eof(self, server_context, client_context):
-        def serve_sync():
+    async def test_receive_send_after_eof(self, server_context: ssl.SSLContext,
+                                          client_context: ssl.SSLContext) -> None:
+        def serve_sync() -> None:
             conn, addr = server_sock.accept()
             conn.sendall(b'hello')
             conn.unwrap()
@@ -219,8 +229,9 @@ class TestTLSStream:
                                                       reason='No TLS 1.3 support')]),
         pytest.param(True)
     ], ids=['tlsv13', 'tlsv12'])
-    async def test_send_eof_not_implemented(self, server_context, ca, force_tlsv12):
-        def serve_sync():
+    async def test_send_eof_not_implemented(self, server_context: ssl.SSLContext,
+                                            ca: CA, force_tlsv12: bool) -> None:
+        def serve_sync() -> None:
             conn, addr = server_sock.accept()
             conn.sendall(b'hello')
             conn.unwrap()
@@ -256,8 +267,8 @@ class TestTLSStream:
 
 
 class TestTLSListener:
-    async def test_handshake_fail(self, server_context):
-        def handler(stream):
+    async def test_handshake_fail(self, server_context: ssl.SSLContext) -> None:
+        def handler(stream: object) -> NoReturn:  # type: ignore[misc]
             pytest.fail('This function should never be called in this scenario')
 
         exception = None

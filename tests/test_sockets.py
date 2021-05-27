@@ -1,5 +1,7 @@
 import array
+import io
 import os
+import pathlib
 import platform
 import socket
 import sys
@@ -9,11 +11,12 @@ from contextlib import suppress
 from socket import AddressFamily
 from ssl import SSLContext, SSLError
 from threading import Thread
-from typing import Any, Iterator, List, Tuple, Type, Union
+from typing import Any, Iterable, Iterator, List, NoReturn, Tuple, Type, Union
 
 import pytest
 from _pytest.fixtures import SubRequest
 from _pytest.monkeypatch import MonkeyPatch
+from _pytest.tmpdir import TempPathFactory
 
 from anyio import (
     BrokenResourceError, BusyResourceError, ClosedResourceError, Event, ExceptionGroup,
@@ -28,12 +31,15 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal
 
+AnyIPAddressFamily = Literal[AddressFamily.AF_UNSPEC, AddressFamily.AF_INET,
+                             AddressFamily.AF_INET6]
+
 pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
 def fake_localhost_dns(monkeypatch: MonkeyPatch) -> None:
-    def fake_getaddrinfo(*args, **kwargs):
+    def fake_getaddrinfo(*args: Any, **kwargs: Any) -> object:
         # Make it return IPv4 addresses first so we can test the IPv6 preference
         results = real_getaddrinfo(*args, **kwargs)
         return sorted(results, key=lambda item: item[0])
@@ -47,12 +53,12 @@ def fake_localhost_dns(monkeypatch: MonkeyPatch) -> None:
     pytest.param(AddressFamily.AF_INET6, id='ipv6',
                  marks=[pytest.mark.skipif(not socket.has_ipv6, reason='no IPv6 support')])
 ])
-def family(request: SubRequest) -> AddressFamily:
+def family(request: SubRequest) -> AnyIPAddressFamily:
     return request.param
 
 
 @pytest.fixture
-def check_asyncio_bug(anyio_backend_name, family):
+def check_asyncio_bug(anyio_backend_name: str, family: AnyIPAddressFamily) -> None:
     if (
         anyio_backend_name == 'asyncio'
         and sys.platform == 'win32'
@@ -66,7 +72,7 @@ def check_asyncio_bug(anyio_backend_name, family):
 
 class TestTCPStream:
     @pytest.fixture
-    def server_sock(self, family: AddressFamily) -> Iterator[socket.socket]:
+    def server_sock(self, family: AnyIPAddressFamily) -> Iterator[socket.socket]:
         sock = socket.socket(family, socket.SOCK_STREAM)
         sock.settimeout(1)
         sock.bind(('localhost', 0))
@@ -79,7 +85,8 @@ class TestTCPStream:
         return server_sock.getsockname()[:2]
 
     async def test_extra_attributes(self, server_sock: socket.socket,
-                                    server_addr: Tuple[str, int], family: AddressFamily) -> None:
+                                    server_addr: Tuple[str, int],
+                                    family: AnyIPAddressFamily) -> None:
         async with await connect_tcp(*server_addr) as stream:
             raw_socket = stream.extra(SocketAttribute.raw_socket)
             assert stream.extra(SocketAttribute.family) == family
@@ -102,7 +109,7 @@ class TestTCPStream:
 
     async def test_send_large_buffer(self, server_sock: socket.socket,
                                      server_addr: Tuple[str, int]) -> None:
-        def serve():
+        def serve() -> None:
             client, _ = server_sock.accept()
             client.sendall(buffer)
             client.close()
@@ -120,7 +127,7 @@ class TestTCPStream:
 
     async def test_send_eof(self, server_sock: socket.socket,
                             server_addr: Tuple[str, int]) -> None:
-        def serve():
+        def serve() -> None:
             client, _ = server_sock.accept()
             request = b''
             while True:
@@ -144,7 +151,7 @@ class TestTCPStream:
         assert response == b'\ndlrow ,olleh'
 
     async def test_iterate(self, server_sock: socket.socket, server_addr: Tuple[str, int]) -> None:
-        def serve():
+        def serve() -> None:
             client, _ = server_sock.accept()
             client.sendall(b'bl')
             event.wait(1)
@@ -163,7 +170,7 @@ class TestTCPStream:
         thread.join()
         assert chunks == [b'bl', b'ah']
 
-    async def test_socket_options(self, family: AddressFamily,
+    async def test_socket_options(self, family: AnyIPAddressFamily,
                                   server_addr: Tuple[str, int]) -> None:
         async with await connect_tcp(*server_addr) as stream:
             raw_socket = stream.extra(SocketAttribute.raw_socket)
@@ -179,7 +186,7 @@ class TestTCPStream:
                                   fake_localhost_dns: None) -> None:
         client_addr = None, None
 
-        def serve():
+        def serve() -> None:
             nonlocal client_addr
             client, client_addr = server_sock.accept()
             client.close()
@@ -228,7 +235,7 @@ class TestTCPStream:
 
     async def test_receive_timeout(self, server_sock: socket.socket,
                                    server_addr: Tuple[str, int]) -> None:
-        def serve():
+        def serve() -> None:
             conn, _ = server_sock.accept()
             time.sleep(1)
             conn.close()
@@ -244,7 +251,7 @@ class TestTCPStream:
                 pytest.fail('The timeout was not respected')
 
     async def test_concurrent_send(self, server_addr: Tuple[str, int]) -> None:
-        async def send_data():
+        async def send_data() -> NoReturn:
             while True:
                 await stream.send(b'\x00' * 4096)
 
@@ -272,7 +279,7 @@ class TestTCPStream:
                     tg.cancel_scope.cancel()
 
     async def test_close_during_receive(self, server_addr: Tuple[str, int]) -> None:
-        async def interrupt():
+        async def interrupt() -> None:
             await wait_all_tasks_blocked()
             await stream.aclose()
 
@@ -294,8 +301,8 @@ class TestTCPStream:
         with pytest.raises(ClosedResourceError):
             await stream.send(b'foo')
 
-    async def test_send_after_peer_closed(self, family: AddressFamily) -> None:
-        def serve_once():
+    async def test_send_after_peer_closed(self, family: AnyIPAddressFamily) -> None:
+        def serve_once() -> None:
             client_sock, _ = server_sock.accept()
             client_sock.close()
             server_sock.close()
@@ -318,7 +325,7 @@ class TestTCPStream:
     async def test_connect_tcp_with_tls(self, server_context: SSLContext,
                                         client_context: SSLContext, server_sock: socket.socket,
                                         server_addr: Tuple[str, int]) -> None:
-        def serve():
+        def serve() -> None:
             with suppress(socket.timeout):
                 client, addr = server_sock.accept()
                 client.settimeout(1)
@@ -344,7 +351,7 @@ class TestTCPStream:
                                                         server_addr: Tuple[str, int]) -> None:
         thread_exception = None
 
-        def serve():
+        def serve() -> None:
             nonlocal thread_exception
             client, addr = server_sock.accept()
             with client:
@@ -363,10 +370,6 @@ class TestTCPStream:
 
         thread.join()
         assert thread_exception is None
-
-
-AnyIPAddressFamily = Literal[AddressFamily.AF_UNSPEC, AddressFamily.AF_INET,
-                             AddressFamily.AF_INET6]
 
 
 class TestTCPListener:
@@ -466,8 +469,8 @@ class TestTCPListener:
                 await listener.aclose()
                 tg.cancel_scope.cancel()
 
-    async def test_send_after_eof(self, family):
-        async def handle(stream):
+    async def test_send_after_eof(self, family: AnyIPAddressFamily) -> None:
+        async def handle(stream: SocketStream) -> None:
             async with stream:
                 await stream.send(b'Hello\n')
 
@@ -497,11 +500,16 @@ class TestTCPListener:
                     reason='UNIX sockets are not available on Windows')
 class TestUNIXStream:
     @pytest.fixture
-    def socket_path(self, tmp_path_factory):
+    def socket_path(self, tmp_path_factory: TempPathFactory) -> pathlib.Path:
         return tmp_path_factory.mktemp('unix').joinpath('socket')
 
+    @pytest.fixture(params=[False, True], ids=["str", "path"])
+    def socket_path_or_str(self, request: SubRequest,
+                           socket_path: pathlib.Path) -> Union[pathlib.Path, str]:
+        return socket_path if request.param else str(socket_path)
+
     @pytest.fixture
-    def server_sock(self, socket_path):
+    def server_sock(self, socket_path: pathlib.Path) -> Iterable[socket.socket]:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.settimeout(1)
         sock.bind(str(socket_path))
@@ -509,7 +517,8 @@ class TestUNIXStream:
         yield sock
         sock.close()
 
-    async def test_extra_attributes(self, server_sock, socket_path):
+    async def test_extra_attributes(self, server_sock: socket.socket,
+                                    socket_path: pathlib.Path) -> None:
         async with await connect_unix(socket_path) as stream:
             raw_socket = stream.extra(SocketAttribute.raw_socket)
             assert stream.extra(SocketAttribute.family) == socket.AF_UNIX
@@ -518,9 +527,9 @@ class TestUNIXStream:
             pytest.raises(TypedAttributeLookupError, stream.extra, SocketAttribute.local_port)
             pytest.raises(TypedAttributeLookupError, stream.extra, SocketAttribute.remote_port)
 
-    @pytest.mark.parametrize('as_path', [False, True], ids=['str', 'path'])
-    async def test_send_receive(self, server_sock, socket_path, as_path):
-        async with await connect_unix(socket_path) as stream:
+    async def test_send_receive(self, server_sock: socket.socket,
+                                socket_path_or_str: Union[pathlib.Path, str]) -> None:
+        async with await connect_unix(socket_path_or_str) as stream:
             client, _ = server_sock.accept()
             await stream.send(b'blah')
             request = client.recv(100)
@@ -530,8 +539,9 @@ class TestUNIXStream:
 
         assert response == b'halb'
 
-    async def test_send_large_buffer(self, server_sock, socket_path):
-        def serve():
+    async def test_send_large_buffer(self, server_sock: socket.socket,
+                                     socket_path: pathlib.Path) -> None:
+        def serve() -> None:
             client, _ = server_sock.accept()
             client.sendall(buffer)
             client.close()
@@ -547,8 +557,9 @@ class TestUNIXStream:
         thread.join()
         assert response == buffer
 
-    async def test_receive_fds(self, server_sock, socket_path, tmp_path):
-        def serve():
+    async def test_receive_fds(self, server_sock: socket.socket,
+                               socket_path: pathlib.Path, tmp_path: pathlib.Path) -> None:
+        def serve() -> None:
             path1 = tmp_path / 'file1'
             path2 = tmp_path / 'file2'
             path1.write_text('Hello, ')
@@ -556,8 +567,9 @@ class TestUNIXStream:
             with path1.open() as file1, path2.open() as file2:
                 fdarray = array.array('i', [file1.fileno(), file2.fileno()])
                 client, _ = server_sock.accept()
+                cmsg = (socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)
                 with client:
-                    client.sendmsg([b'test'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)])
+                    client.sendmsg([b'test'], [cmsg])  # type: ignore[list-item]
 
         async with await connect_unix(socket_path) as stream:
             thread = Thread(target=serve, daemon=True)
@@ -573,7 +585,8 @@ class TestUNIXStream:
         assert message == b'test'
         assert text == 'Hello, World!'
 
-    async def test_receive_fds_bad_args(self, server_sock, socket_path):
+    async def test_receive_fds_bad_args(self, server_sock: socket.socket,
+                                        socket_path: pathlib.Path) -> None:
         async with await connect_unix(socket_path) as stream:
             for msglen in (-1, 'foo'):
                 with pytest.raises(ValueError, match='msglen must be a non-negative integer'):
@@ -583,8 +596,9 @@ class TestUNIXStream:
                 with pytest.raises(ValueError, match='maxfds must be a positive integer'):
                     await stream.receive_fds(0, maxfds)  # type: ignore[arg-type]
 
-    async def test_send_fds(self, server_sock, socket_path, tmp_path):
-        def serve():
+    async def test_send_fds(self, server_sock: socket.socket,
+                            socket_path: pathlib.Path, tmp_path: pathlib.Path) -> None:
+        def serve() -> None:
             fds = array.array('i')
             client, _ = server_sock.accept()
             msg, ancdata, *_ = client.recvmsg(10, socket.CMSG_LEN(2 * fds.itemsize))
@@ -607,14 +621,16 @@ class TestUNIXStream:
         path1.write_text('Hello, ')
         path2.write_text('World!')
         with path1.open() as file1, path2.open() as file2, fail_after(2):
+            assert isinstance(file1, io.TextIOWrapper)
+            assert isinstance(file2, io.TextIOWrapper)
             async with await connect_unix(socket_path) as stream:
                 thread = Thread(target=serve, daemon=True)
                 thread.start()
                 await stream.send_fds(b'test', [file1, file2])
                 thread.join()
 
-    async def test_send_eof(self, server_sock, socket_path):
-        def serve():
+    async def test_send_eof(self, server_sock: socket.socket, socket_path: pathlib.Path) -> None:
+        def serve() -> None:
             client, _ = server_sock.accept()
             request = b''
             while True:
@@ -637,8 +653,8 @@ class TestUNIXStream:
         thread.join()
         assert response == b'\ndlrow ,olleh'
 
-    async def test_iterate(self, server_sock, socket_path):
-        def serve():
+    async def test_iterate(self, server_sock: socket.socket, socket_path: pathlib.Path) -> None:
+        def serve() -> None:
             client, _ = server_sock.accept()
             client.sendall(b'bl')
             time.sleep(0.05)
@@ -655,7 +671,8 @@ class TestUNIXStream:
         thread.join()
         assert chunks == [b'bl', b'ah']
 
-    async def test_send_fds_bad_args(self, server_sock, socket_path):
+    async def test_send_fds_bad_args(self, server_sock: socket.socket,
+                                     socket_path: pathlib.Path) -> None:
         async with await connect_unix(socket_path) as stream:
             with pytest.raises(ValueError, match='message must not be empty'):
                 await stream.send_fds(b'', [0])
@@ -663,8 +680,9 @@ class TestUNIXStream:
             with pytest.raises(ValueError, match='fds must not be empty'):
                 await stream.send_fds(b'test', [])
 
-    async def test_concurrent_send(self, server_sock, socket_path):
-        async def send_data():
+    async def test_concurrent_send(self, server_sock: socket.socket,
+                                   socket_path: pathlib.Path) -> None:
+        async def send_data() -> NoReturn:
             while True:
                 await client.send(b'\x00' * 4096)
 
@@ -678,7 +696,8 @@ class TestUNIXStream:
                 exc.match('already writing to')
                 tg.cancel_scope.cancel()
 
-    async def test_concurrent_receive(self, server_sock, socket_path):
+    async def test_concurrent_receive(self, server_sock: socket.socket,
+                                      socket_path: pathlib.Path) -> None:
         async with await connect_unix(socket_path) as client:
             async with create_task_group() as tg:
                 tg.start_soon(client.receive)
@@ -691,8 +710,9 @@ class TestUNIXStream:
                 finally:
                     tg.cancel_scope.cancel()
 
-    async def test_close_during_receive(self, server_sock, socket_path):
-        async def interrupt():
+    async def test_close_during_receive(self, server_sock: socket.socket,
+                                        socket_path: pathlib.Path) -> None:
+        async def interrupt() -> None:
             await wait_all_tasks_blocked()
             await stream.aclose()
 
@@ -702,13 +722,15 @@ class TestUNIXStream:
                 with pytest.raises(ClosedResourceError):
                     await stream.receive()
 
-    async def test_receive_after_close(self, server_sock, socket_path):
+    async def test_receive_after_close(self, server_sock: socket.socket,
+                                       socket_path: pathlib.Path) -> None:
         stream = await connect_unix(socket_path)
         await stream.aclose()
         with pytest.raises(ClosedResourceError):
             await stream.receive()
 
-    async def test_send_after_close(self, server_sock, socket_path):
+    async def test_send_after_close(self, server_sock: socket.socket,
+                                    socket_path: pathlib.Path) -> None:
         stream = await connect_unix(socket_path)
         await stream.aclose()
         with pytest.raises(ClosedResourceError):
@@ -719,10 +741,15 @@ class TestUNIXStream:
                     reason='UNIX sockets are not available on Windows')
 class TestUNIXListener:
     @pytest.fixture
-    def socket_path(self, tmp_path_factory):
+    def socket_path(self, tmp_path_factory: TempPathFactory) -> pathlib.Path:
         return tmp_path_factory.mktemp('unix').joinpath('socket')
 
-    async def test_extra_attributes(self, socket_path):
+    @pytest.fixture(params=[False, True], ids=["str", "path"])
+    def socket_path_or_str(self, request: SubRequest,
+                           socket_path: pathlib.Path) -> Union[pathlib.Path, str]:
+        return socket_path if request.param else str(socket_path)
+
+    async def test_extra_attributes(self, socket_path: pathlib.Path) -> None:
         async with await create_unix_listener(socket_path) as listener:
             raw_socket = listener.extra(SocketAttribute.raw_socket)
             assert listener.extra(SocketAttribute.family) == socket.AF_UNIX
@@ -732,15 +759,11 @@ class TestUNIXListener:
                           SocketAttribute.remote_address)
             pytest.raises(TypedAttributeLookupError, listener.extra, SocketAttribute.remote_port)
 
-    @pytest.mark.parametrize('as_path', [False, True], ids=['str', 'path'])
-    async def test_accept(self, socket_path, as_path):
-        if not as_path:
-            socket_path = str(socket_path)
-
-        async with await create_unix_listener(socket_path) as listener:
+    async def test_accept(self, socket_path_or_str: Union[pathlib.Path, str]) -> None:
+        async with await create_unix_listener(socket_path_or_str) as listener:
             client = socket.socket(socket.AF_UNIX)
             client.settimeout(1)
-            client.connect(str(socket_path))
+            client.connect(str(socket_path_or_str))
             stream = await listener.accept()
             client.sendall(b'blah')
             request = await stream.receive()
@@ -749,7 +772,7 @@ class TestUNIXListener:
             client.close()
             await stream.aclose()
 
-    async def test_socket_options(self, socket_path):
+    async def test_socket_options(self, socket_path: pathlib.Path) -> None:
         async with await create_unix_listener(socket_path) as listener:
             listener_socket = listener.extra(SocketAttribute.raw_socket)
             assert listener_socket.family == socket.AddressFamily.AF_UNIX
@@ -766,8 +789,8 @@ class TestUNIXListener:
 
             client.close()
 
-    async def test_send_after_eof(self, socket_path):
-        async def handle(stream):
+    async def test_send_after_eof(self, socket_path: pathlib.Path) -> None:
+        async def handle(stream: SocketStream) -> None:
             async with stream:
                 await stream.send(b'Hello\n')
 
@@ -791,7 +814,7 @@ class TestUNIXListener:
 
             tg.cancel_scope.cancel()
 
-    async def test_bind_twice(self, socket_path):
+    async def test_bind_twice(self, socket_path: pathlib.Path) -> None:
         """Test that the previous socket is removed before binding to the path."""
         for _ in range(2):
             async with await create_unix_listener(socket_path):
@@ -801,8 +824,8 @@ class TestUNIXListener:
 IPSockAddrType = Tuple[str, int]
 
 
-async def test_multi_listener(tmp_path_factory: Any) -> None:
-    async def handle(stream):
+async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
+    async def handle(stream: SocketStream) -> None:
         client_addresses.append(stream.extra(SocketAttribute.remote_address))
         event.set()
         await stream.aclose()
@@ -839,7 +862,7 @@ async def test_multi_listener(tmp_path_factory: Any) -> None:
 
 @pytest.mark.usefixtures('check_asyncio_bug')
 class TestUDPSocket:
-    async def test_extra_attributes(self, family):
+    async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_udp_socket(family=family, local_host='localhost') as udp:
             raw_socket = udp.extra(SocketAttribute.raw_socket)
             assert udp.extra(SocketAttribute.family) == family
@@ -848,7 +871,7 @@ class TestUDPSocket:
             pytest.raises(TypedAttributeLookupError, udp.extra, SocketAttribute.remote_address)
             pytest.raises(TypedAttributeLookupError, udp.extra, SocketAttribute.remote_port)
 
-    async def test_send_receive(self, family):
+    async def test_send_receive(self, family: AnyIPAddressFamily) -> None:
         async with await create_udp_socket(local_host='localhost', family=family) as sock:
             host, port = sock.extra(SocketAttribute.local_address)  # type: ignore[misc]
             await sock.sendto(b'blah', host, port)
@@ -861,8 +884,8 @@ class TestUDPSocket:
             assert response == b'halb'
             assert addr == (host, port)
 
-    async def test_iterate(self, family):
-        async def serve():
+    async def test_iterate(self, family: AnyIPAddressFamily) -> None:
+        async def serve() -> None:
             async for packet, addr in server:
                 await server.send((packet[::-1], addr))
 
@@ -879,7 +902,7 @@ class TestUDPSocket:
 
     @pytest.mark.skipif(not hasattr(socket, "SO_REUSEPORT"),
                         reason='SO_REUSEPORT option not supported')
-    async def test_reuse_port(self, family):
+    async def test_reuse_port(self, family: AnyIPAddressFamily) -> None:
         async with await create_udp_socket(family=family, local_host='localhost',
                                            reuse_port=True) as udp:
             port = udp.extra(SocketAttribute.local_port)
@@ -888,7 +911,7 @@ class TestUDPSocket:
                                                local_port=port, reuse_port=True) as udp2:
                 assert port == udp2.extra(SocketAttribute.local_port)
 
-    async def test_concurrent_receive(self):
+    async def test_concurrent_receive(self) -> None:
         async with await create_udp_socket(family=AddressFamily.AF_INET,
                                            local_host='localhost') as udp:
             async with create_task_group() as tg:
@@ -902,8 +925,8 @@ class TestUDPSocket:
                 finally:
                     tg.cancel_scope.cancel()
 
-    async def test_close_during_receive(self):
-        async def close_when_blocked():
+    async def test_close_during_receive(self) -> None:
+        async def close_when_blocked() -> None:
             await wait_all_tasks_blocked()
             await udp.aclose()
 
@@ -914,13 +937,13 @@ class TestUDPSocket:
                 with pytest.raises(ClosedResourceError):
                     await udp.receive()
 
-    async def test_receive_after_close(self):
+    async def test_receive_after_close(self) -> None:
         udp = await create_udp_socket(family=AddressFamily.AF_INET, local_host='localhost')
         await udp.aclose()
         with pytest.raises(ClosedResourceError):
             await udp.receive()
 
-    async def test_send_after_close(self):
+    async def test_send_after_close(self) -> None:
         udp = await create_udp_socket(family=AddressFamily.AF_INET, local_host='localhost')
         host, port = udp.extra(SocketAttribute.local_address)  # type: ignore[misc]
         await udp.aclose()
@@ -930,7 +953,7 @@ class TestUDPSocket:
 
 @pytest.mark.usefixtures('check_asyncio_bug')
 class TestConnectedUDPSocket:
-    async def test_extra_attributes(self, family):
+    async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_connected_udp_socket('localhost', 5000, family=family) as udp:
             raw_socket = udp.extra(SocketAttribute.raw_socket)
             assert udp.extra(SocketAttribute.family) == family
@@ -939,7 +962,7 @@ class TestConnectedUDPSocket:
             assert udp.extra(SocketAttribute.remote_address) == raw_socket.getpeername()[:2]
             assert udp.extra(SocketAttribute.remote_port) == 5000
 
-    async def test_send_receive(self, family):
+    async def test_send_receive(self, family: AnyIPAddressFamily) -> None:
         async with await create_udp_socket(family=family, local_host='localhost') as udp1:
             host, port = udp1.extra(SocketAttribute.local_address)  # type: ignore[misc]
             async with await create_connected_udp_socket(
@@ -953,8 +976,8 @@ class TestConnectedUDPSocket:
                 response = await udp2.receive()
                 assert response == b'halb'
 
-    async def test_iterate(self, family):
-        async def serve():
+    async def test_iterate(self, family: AnyIPAddressFamily) -> None:
+        async def serve() -> None:
             async for packet in udp2:
                 await udp2.send(packet[::-1])
 
@@ -972,7 +995,7 @@ class TestConnectedUDPSocket:
 
     @pytest.mark.skipif(not hasattr(socket, "SO_REUSEPORT"),
                         reason='SO_REUSEPORT option not supported')
-    async def test_reuse_port(self, family):
+    async def test_reuse_port(self, family: AnyIPAddressFamily) -> None:
         async with await create_connected_udp_socket(
                 'localhost', 6000, family=family, local_host='localhost', reuse_port=True) as udp:
             port = udp.extra(SocketAttribute.local_port)
@@ -982,7 +1005,7 @@ class TestConnectedUDPSocket:
                     reuse_port=True) as udp2:
                 assert port == udp2.extra(SocketAttribute.local_port)
 
-    async def test_concurrent_receive(self):
+    async def test_concurrent_receive(self) -> None:
         async with await create_connected_udp_socket(
                 'localhost', 5000, local_host='localhost', family=AddressFamily.AF_INET) as udp:
             async with create_task_group() as tg:
@@ -996,8 +1019,8 @@ class TestConnectedUDPSocket:
                 finally:
                     tg.cancel_scope.cancel()
 
-    async def test_close_during_receive(self):
-        async def close_when_blocked():
+    async def test_close_during_receive(self) -> None:
+        async def close_when_blocked() -> None:
             await wait_all_tasks_blocked()
             await udp.aclose()
 
@@ -1008,14 +1031,14 @@ class TestConnectedUDPSocket:
                 with pytest.raises(ClosedResourceError):
                     await udp.receive()
 
-    async def test_receive_after_close(self, family):
+    async def test_receive_after_close(self, family: AnyIPAddressFamily) -> None:
         udp = await create_connected_udp_socket('localhost', 5000, local_host='localhost',
                                                 family=family)
         await udp.aclose()
         with pytest.raises(ClosedResourceError):
             await udp.receive()
 
-    async def test_send_after_close(self, family):
+    async def test_send_after_close(self, family: AnyIPAddressFamily) -> None:
         udp = await create_connected_udp_socket('localhost', 5000, local_host='localhost',
                                                 family=family)
         await udp.aclose()
@@ -1024,7 +1047,7 @@ class TestConnectedUDPSocket:
 
 
 @pytest.mark.network
-async def test_getaddrinfo():
+async def test_getaddrinfo() -> None:
     # IDNA 2003 gets this wrong
     correct = await getaddrinfo('faß.de', 0)
     wrong = await getaddrinfo('fass.de', 0)
@@ -1032,7 +1055,7 @@ async def test_getaddrinfo():
 
 
 @pytest.mark.parametrize('sock_type', [socket.SOCK_STREAM, socket.SocketKind.SOCK_STREAM])
-async def test_getaddrinfo_ipv6addr(sock_type):
+async def test_getaddrinfo_ipv6addr(sock_type: Literal[socket.SocketKind.SOCK_STREAM]) -> None:
     # IDNA trips up over raw IPv6 addresses
     proto = 0 if platform.system() == 'Windows' else 6
     assert await getaddrinfo('::1', 0, type=sock_type) == [
@@ -1040,7 +1063,7 @@ async def test_getaddrinfo_ipv6addr(sock_type):
     ]
 
 
-async def test_getnameinfo():
+async def test_getnameinfo() -> None:
     expected_result = socket.getnameinfo(('127.0.0.1', 6666), 0)
     result = await getnameinfo(('127.0.0.1', 6666))
     assert result == expected_result

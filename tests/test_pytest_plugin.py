@@ -41,7 +41,7 @@ def test_plugin(testdir: Testdir) -> None:
 
 
         @pytest.mark.anyio
-        async def test_marked_test():
+        async def test_marked_test() -> None:
             # Test that tests marked with @pytest.mark.anyio are run
             pass
 
@@ -115,7 +115,7 @@ def test_asyncio(testdir: Testdir) -> None:
                 assert anyio_backend_name == 'asyncio'
                 assert async_class_fixture == 'asyncio'
 
-        async def test_callback_exception_during_test():
+        async def test_callback_exception_during_test() -> None:
             def callback():
                 nonlocal started
                 started = True
