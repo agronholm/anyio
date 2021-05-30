@@ -14,7 +14,7 @@ from inspect import (
 from io import IOBase
 from os import PathLike
 from queue import Queue
-from socket import AddressFamily, SocketKind, SocketType
+from socket import AddressFamily, SocketKind
 from threading import Thread
 from types import TracebackType
 from typing import (
@@ -1139,14 +1139,14 @@ class UNIXSocketStream(abc.SocketStream):
     _send_future: Optional[asyncio.Future] = None
     _closing = False
 
-    def __init__(self, raw_socket: socket.SocketType):
+    def __init__(self, raw_socket: socket.socket):
         self.__raw_socket = raw_socket
         self._loop = get_running_loop()
         self._receive_guard = ResourceGuard('reading from')
         self._send_guard = ResourceGuard('writing to')
 
     @property
-    def _raw_socket(self) -> SocketType:
+    def _raw_socket(self) -> socket.socket:
         return self.__raw_socket
 
     def _wait_until_readable(self, loop: asyncio.AbstractEventLoop) -> asyncio.Future:
@@ -1293,7 +1293,7 @@ class TCPSocketListener(abc.SocketListener):
     _accept_scope: Optional[CancelScope] = None
     _closed = False
 
-    def __init__(self, raw_socket: socket.SocketType):
+    def __init__(self, raw_socket: socket.socket):
         self.__raw_socket = raw_socket
         self._loop = cast(asyncio.BaseEventLoop, get_running_loop())
         self._accept_guard = ResourceGuard('accepting connections from')
@@ -1348,7 +1348,7 @@ class TCPSocketListener(abc.SocketListener):
 
 
 class UNIXSocketListener(abc.SocketListener):
-    def __init__(self, raw_socket: socket.SocketType):
+    def __init__(self, raw_socket: socket.socket):
         self.__raw_socket = raw_socket
         self._loop = get_running_loop()
         self._accept_guard = ResourceGuard('accepting connections from')
@@ -1377,7 +1377,7 @@ class UNIXSocketListener(abc.SocketListener):
         self.__raw_socket.close()
 
     @property
-    def _raw_socket(self) -> SocketType:
+    def _raw_socket(self) -> socket.socket:
         return self.__raw_socket
 
 
@@ -1390,7 +1390,7 @@ class UDPSocket(abc.UDPSocket):
         self._closed = False
 
     @property
-    def _raw_socket(self) -> SocketType:
+    def _raw_socket(self) -> socket.socket:
         return self._transport.get_extra_info('socket')
 
     async def aclose(self) -> None:
@@ -1436,7 +1436,7 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
         self._closed = False
 
     @property
-    def _raw_socket(self) -> SocketType:
+    def _raw_socket(self) -> socket.socket:
         return self._transport.get_extra_info('socket')
 
     async def aclose(self) -> None:
@@ -1541,7 +1541,7 @@ _read_events: RunVar[Dict[Any, asyncio.Event]] = RunVar('read_events')
 _write_events: RunVar[Dict[Any, asyncio.Event]] = RunVar('write_events')
 
 
-async def wait_socket_readable(sock: socket.SocketType) -> None:
+async def wait_socket_readable(sock: socket.socket) -> None:
     await checkpoint()
     try:
         read_events = _read_events.get()
@@ -1568,7 +1568,7 @@ async def wait_socket_readable(sock: socket.SocketType) -> None:
         raise ClosedResourceError
 
 
-async def wait_socket_writable(sock: socket.SocketType) -> None:
+async def wait_socket_writable(sock: socket.socket) -> None:
     await checkpoint()
     try:
         write_events = _write_events.get()
