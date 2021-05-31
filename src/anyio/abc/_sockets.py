@@ -1,7 +1,7 @@
+import socket
 from abc import abstractmethod
 from io import IOBase
 from ipaddress import IPv4Address, IPv6Address
-import socket
 from socket import AddressFamily
 from types import TracebackType
 from typing import (
