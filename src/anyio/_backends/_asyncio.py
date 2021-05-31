@@ -1240,7 +1240,7 @@ class UNIXSocketStream(abc.SocketStream):
 
         for cmsg_level, cmsg_type, cmsg_data in ancdata:
             if cmsg_level != socket.SOL_SOCKET or cmsg_type != socket.SCM_RIGHTS:
-                raise RuntimeError(f'Received unexpected ancillary data; message = {message}, '
+                raise RuntimeError(f'Received unexpected ancillary data; message = {message!r}, '
                                    f'cmsg_level = {cmsg_level}, cmsg_type = {cmsg_type}')
 
             fds.frombytes(cmsg_data[:len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])
@@ -1266,8 +1266,10 @@ class UNIXSocketStream(abc.SocketStream):
         with self._send_guard:
             while True:
                 try:
+                    # The ignore can be removed after mypy picks up
+                    # https://github.com/python/typeshed/pull/5545
                     self.__raw_socket.sendmsg([message],
-                                              [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)])
+                                              [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)])  # type: ignore
                     break
                 except BlockingIOError:
                     await self._wait_until_writable(loop)

@@ -443,7 +443,7 @@ class UNIXSocketStream(SocketStream, abc.UNIXSocketStream):
 
 
 class TCPSocketListener(_TrioSocketMixin, abc.SocketListener):
-    def __init__(self, raw_socket: socket.SocketType):
+    def __init__(self, raw_socket: socket.socket):
         super().__init__(trio.socket.from_stdlib_socket(raw_socket))
         self._accept_guard = ResourceGuard('accepting connections from')
 
@@ -459,7 +459,7 @@ class TCPSocketListener(_TrioSocketMixin, abc.SocketListener):
 
 
 class UNIXSocketListener(_TrioSocketMixin, abc.SocketListener):
-    def __init__(self, raw_socket: socket.SocketType):
+    def __init__(self, raw_socket: socket.socket):
         super().__init__(trio.socket.from_stdlib_socket(raw_socket))
         self._accept_guard = ResourceGuard('accepting connections from')
 
@@ -569,7 +569,7 @@ getaddrinfo = trio.socket.getaddrinfo
 getnameinfo = trio.socket.getnameinfo
 
 
-async def wait_socket_readable(sock: socket.SocketType) -> None:
+async def wait_socket_readable(sock: socket.socket) -> None:
     try:
         await wait_readable(sock)
     except trio.ClosedResourceError as exc:
@@ -578,7 +578,7 @@ async def wait_socket_readable(sock: socket.SocketType) -> None:
         raise BusyResourceError('reading from') from None
 
 
-async def wait_socket_writable(sock: socket.SocketType) -> None:
+async def wait_socket_writable(sock: socket.socket) -> None:
     try:
         await wait_writable(sock)
     except trio.ClosedResourceError as exc:
