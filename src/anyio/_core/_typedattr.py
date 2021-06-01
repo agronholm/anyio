@@ -1,5 +1,5 @@
 import sys
-from typing import Any, Callable, Mapping, TypeVar, Union, overload
+from typing import Any, Callable, Dict, Mapping, TypeVar, Union, overload
 
 from ._exceptions import TypedAttributeLookupError
 
@@ -26,7 +26,7 @@ class TypedAttributeSet:
     """
 
     def __init_subclass__(cls) -> None:
-        annotations = getattr(cls, '__annotations__', {})
+        annotations: Dict[str, Any] = getattr(cls, '__annotations__', {})
         for attrname in dir(cls):
             if not attrname.startswith('_') and attrname not in annotations:
                 raise TypeError(f'Attribute {attrname!r} is missing its type annotation')

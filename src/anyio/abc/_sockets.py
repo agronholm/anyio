@@ -1,11 +1,12 @@
+import socket
 from abc import abstractmethod
 from io import IOBase
 from ipaddress import IPv4Address, IPv6Address
-from socket import AddressFamily, SocketType
+from socket import AddressFamily
 from types import TracebackType
 from typing import (
-    Any, AsyncContextManager, Callable, Collection, List, Mapping, Optional, Tuple, Type, TypeVar,
-    Union)
+    Any, AsyncContextManager, Callable, Collection, Dict, List, Mapping, Optional, Tuple, Type,
+    TypeVar, Union)
 
 from .._core._typedattr import TypedAttributeProvider, TypedAttributeSet, typed_attribute
 from ._streams import ByteStream, Listener, T_Stream, UnreliableObjectStream
@@ -36,7 +37,7 @@ class SocketAttribute(TypedAttributeSet):
     #: for IP addresses, the local port the underlying socket is bound to
     local_port: int = typed_attribute()
     #: the underlying stdlib socket object
-    raw_socket: SocketType = typed_attribute()
+    raw_socket: socket.socket = typed_attribute()
     #: the remote address the underlying socket is connected to
     remote_address: SockAddrType = typed_attribute()
     #: for IP addresses, the remote port the underlying socket is connected to
@@ -48,7 +49,7 @@ class _SocketProvider(TypedAttributeProvider):
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
         from .._core._sockets import convert_ipv6_sockaddr as convert
 
-        attributes = {
+        attributes: Dict[Any, Callable[[], Any]] = {
             SocketAttribute.family: lambda: self._raw_socket.family,
             SocketAttribute.local_address: lambda: convert(self._raw_socket.getsockname()),
             SocketAttribute.raw_socket: lambda: self._raw_socket
@@ -73,7 +74,7 @@ class _SocketProvider(TypedAttributeProvider):
 
     @property
     @abstractmethod
-    def _raw_socket(self) -> SocketType:
+    def _raw_socket(self) -> socket.socket:
         pass
 
 
