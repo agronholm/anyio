@@ -47,4 +47,4 @@ async def test_async_iteration(tmp_path: PosixPath) -> None:
     async with await open_file(str(testpath)) as f:
         lines_i = iter(lines)
         async for line in f:
-            assert line == next(lines_i)
+            assert line == next(lines_i)  # type: ignore[comparison-overlap]
