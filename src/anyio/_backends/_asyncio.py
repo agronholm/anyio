@@ -1268,8 +1268,10 @@ class UNIXSocketStream(abc.SocketStream):
                 try:
                     # The ignore can be removed after mypy picks up
                     # https://github.com/python/typeshed/pull/5545
-                    self.__raw_socket.sendmsg([message],
-                                              [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)])  # type: ignore
+                    self.__raw_socket.sendmsg(
+                        [message],
+                        [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)]  # type: ignore
+                    )
                     break
                 except BlockingIOError:
                     await self._wait_until_writable(loop)
