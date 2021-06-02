@@ -519,7 +519,10 @@ class _AsyncioTaskStatus(abc.TaskStatus):
         self._future = future
 
     def started(self, value: object = None) -> None:
-        self._future.set_result(value)
+        try:
+            self._future.set_result(value)
+        except asyncio.InvalidStateError:
+            raise RuntimeError("called 'started' twice on the same task status") from None
 
 
 class TaskGroup(abc.TaskGroup):
