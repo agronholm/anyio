@@ -96,6 +96,19 @@ async def test_start_no_value():
         assert value is None
 
 
+async def test_start_called_twice():
+    async def taskfunc(*, task_status):
+        task_status.started()
+
+        with pytest.raises(RuntimeError,
+                           match="called 'started' twice on the same task status"):
+            task_status.started()
+
+    async with create_task_group() as tg:
+        value = await tg.start(taskfunc)
+        assert value is None
+
+
 async def test_start_with_value():
     async def taskfunc(*, task_status):
         task_status.started('foo')
