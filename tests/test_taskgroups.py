@@ -98,8 +98,8 @@ async def test_start_no_value() -> None:
         assert value is None
 
 
-async def test_start_called_twice():
-    async def taskfunc(*, task_status):
+async def test_start_called_twice() -> None:
+    async def taskfunc(*, task_status: TaskStatus) -> None:
         task_status.started()
 
         with pytest.raises(RuntimeError,
