@@ -101,7 +101,7 @@ async def test_start_called_twice():
         task_status.started()
 
         with pytest.raises(RuntimeError,
-                           match="[Cc]alled 'started' twice on the same task status"):
+                           match="called 'started' twice on the same task status"):
             task_status.started()
 
     async with create_task_group() as tg:
