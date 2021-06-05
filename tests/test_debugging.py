@@ -13,6 +13,13 @@ from anyio.abc import TaskStatus
 pytestmark = pytest.mark.anyio
 
 
+if sys.version_info >= (3, 8):
+    get_coro = asyncio.Task.get_coro
+else:
+    def get_coro(self: asyncio.Task) -> Any:
+        return self._coro
+
+
 def test_main_task_name(anyio_backend_name: str, anyio_backend_options: Dict[str, Any]) -> None:
     task_name = None
 
@@ -74,13 +81,6 @@ async def test_get_running_tasks() -> None:
         assert task.parent_id == host_task.id
         assert task.name == expected_name
         assert repr(task) == f'TaskInfo(id={task.id}, name={expected_name!r})'
-
-
-if sys.version_info >= (3, 8):
-    get_coro = asyncio.Task.get_coro
-else:
-    def get_coro(self: asyncio.Task) -> Any:
-        return self._coro
 
 
 @pytest.mark.filterwarnings('ignore:"@coroutine" decorator is deprecated:DeprecationWarning')
