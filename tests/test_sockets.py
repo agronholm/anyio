@@ -1,13 +1,13 @@
 import array
 import io
 import os
-import pathlib
 import platform
 import socket
 import sys
 import threading
 import time
 from contextlib import suppress
+from pathlib import Path
 from socket import AddressFamily
 from ssl import SSLContext, SSLError
 from threading import Thread
@@ -500,16 +500,16 @@ class TestTCPListener:
                     reason='UNIX sockets are not available on Windows')
 class TestUNIXStream:
     @pytest.fixture
-    def socket_path(self, tmp_path_factory: TempPathFactory) -> pathlib.Path:
+    def socket_path(self, tmp_path_factory: TempPathFactory) -> Path:
         return tmp_path_factory.mktemp('unix').joinpath('socket')
 
     @pytest.fixture(params=[False, True], ids=["str", "path"])
     def socket_path_or_str(self, request: SubRequest,
-                           socket_path: pathlib.Path) -> Union[pathlib.Path, str]:
+                           socket_path: Path) -> Union[Path, str]:
         return socket_path if request.param else str(socket_path)
 
     @pytest.fixture
-    def server_sock(self, socket_path: pathlib.Path) -> Iterable[socket.socket]:
+    def server_sock(self, socket_path: Path) -> Iterable[socket.socket]:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.settimeout(1)
         sock.bind(str(socket_path))
@@ -518,7 +518,7 @@ class TestUNIXStream:
         sock.close()
 
     async def test_extra_attributes(self, server_sock: socket.socket,
-                                    socket_path: pathlib.Path) -> None:
+                                    socket_path: Path) -> None:
         async with await connect_unix(socket_path) as stream:
             raw_socket = stream.extra(SocketAttribute.raw_socket)
             assert stream.extra(SocketAttribute.family) == socket.AF_UNIX
@@ -528,7 +528,7 @@ class TestUNIXStream:
             pytest.raises(TypedAttributeLookupError, stream.extra, SocketAttribute.remote_port)
 
     async def test_send_receive(self, server_sock: socket.socket,
-                                socket_path_or_str: Union[pathlib.Path, str]) -> None:
+                                socket_path_or_str: Union[Path, str]) -> None:
         async with await connect_unix(socket_path_or_str) as stream:
             client, _ = server_sock.accept()
             await stream.send(b'blah')
@@ -540,7 +540,7 @@ class TestUNIXStream:
         assert response == b'halb'
 
     async def test_send_large_buffer(self, server_sock: socket.socket,
-                                     socket_path: pathlib.Path) -> None:
+                                     socket_path: Path) -> None:
         def serve() -> None:
             client, _ = server_sock.accept()
             client.sendall(buffer)
@@ -558,7 +558,7 @@ class TestUNIXStream:
         assert response == buffer
 
     async def test_receive_fds(self, server_sock: socket.socket,
-                               socket_path: pathlib.Path, tmp_path: pathlib.Path) -> None:
+                               socket_path: Path, tmp_path: Path) -> None:
         def serve() -> None:
             path1 = tmp_path / 'file1'
             path2 = tmp_path / 'file2'
@@ -586,7 +586,7 @@ class TestUNIXStream:
         assert text == 'Hello, World!'
 
     async def test_receive_fds_bad_args(self, server_sock: socket.socket,
-                                        socket_path: pathlib.Path) -> None:
+                                        socket_path: Path) -> None:
         async with await connect_unix(socket_path) as stream:
             for msglen in (-1, 'foo'):
                 with pytest.raises(ValueError, match='msglen must be a non-negative integer'):
@@ -597,7 +597,7 @@ class TestUNIXStream:
                     await stream.receive_fds(0, maxfds)  # type: ignore[arg-type]
 
     async def test_send_fds(self, server_sock: socket.socket,
-                            socket_path: pathlib.Path, tmp_path: pathlib.Path) -> None:
+                            socket_path: Path, tmp_path: Path) -> None:
         def serve() -> None:
             fds = array.array('i')
             client, _ = server_sock.accept()
@@ -629,7 +629,7 @@ class TestUNIXStream:
                 await stream.send_fds(b'test', [file1, file2])
                 thread.join()
 
-    async def test_send_eof(self, server_sock: socket.socket, socket_path: pathlib.Path) -> None:
+    async def test_send_eof(self, server_sock: socket.socket, socket_path: Path) -> None:
         def serve() -> None:
             client, _ = server_sock.accept()
             request = b''
@@ -653,7 +653,7 @@ class TestUNIXStream:
         thread.join()
         assert response == b'\ndlrow ,olleh'
 
-    async def test_iterate(self, server_sock: socket.socket, socket_path: pathlib.Path) -> None:
+    async def test_iterate(self, server_sock: socket.socket, socket_path: Path) -> None:
         def serve() -> None:
             client, _ = server_sock.accept()
             client.sendall(b'bl')
@@ -672,7 +672,7 @@ class TestUNIXStream:
         assert chunks == [b'bl', b'ah']
 
     async def test_send_fds_bad_args(self, server_sock: socket.socket,
-                                     socket_path: pathlib.Path) -> None:
+                                     socket_path: Path) -> None:
         async with await connect_unix(socket_path) as stream:
             with pytest.raises(ValueError, match='message must not be empty'):
                 await stream.send_fds(b'', [0])
@@ -681,7 +681,7 @@ class TestUNIXStream:
                 await stream.send_fds(b'test', [])
 
     async def test_concurrent_send(self, server_sock: socket.socket,
-                                   socket_path: pathlib.Path) -> None:
+                                   socket_path: Path) -> None:
         async def send_data() -> NoReturn:
             while True:
                 await client.send(b'\x00' * 4096)
@@ -697,7 +697,7 @@ class TestUNIXStream:
                 tg.cancel_scope.cancel()
 
     async def test_concurrent_receive(self, server_sock: socket.socket,
-                                      socket_path: pathlib.Path) -> None:
+                                      socket_path: Path) -> None:
         async with await connect_unix(socket_path) as client:
             async with create_task_group() as tg:
                 tg.start_soon(client.receive)
@@ -711,7 +711,7 @@ class TestUNIXStream:
                     tg.cancel_scope.cancel()
 
     async def test_close_during_receive(self, server_sock: socket.socket,
-                                        socket_path: pathlib.Path) -> None:
+                                        socket_path: Path) -> None:
         async def interrupt() -> None:
             await wait_all_tasks_blocked()
             await stream.aclose()
@@ -723,14 +723,14 @@ class TestUNIXStream:
                     await stream.receive()
 
     async def test_receive_after_close(self, server_sock: socket.socket,
-                                       socket_path: pathlib.Path) -> None:
+                                       socket_path: Path) -> None:
         stream = await connect_unix(socket_path)
         await stream.aclose()
         with pytest.raises(ClosedResourceError):
             await stream.receive()
 
     async def test_send_after_close(self, server_sock: socket.socket,
-                                    socket_path: pathlib.Path) -> None:
+                                    socket_path: Path) -> None:
         stream = await connect_unix(socket_path)
         await stream.aclose()
         with pytest.raises(ClosedResourceError):
@@ -741,15 +741,15 @@ class TestUNIXStream:
                     reason='UNIX sockets are not available on Windows')
 class TestUNIXListener:
     @pytest.fixture
-    def socket_path(self, tmp_path_factory: TempPathFactory) -> pathlib.Path:
+    def socket_path(self, tmp_path_factory: TempPathFactory) -> Path:
         return tmp_path_factory.mktemp('unix').joinpath('socket')
 
     @pytest.fixture(params=[False, True], ids=["str", "path"])
     def socket_path_or_str(self, request: SubRequest,
-                           socket_path: pathlib.Path) -> Union[pathlib.Path, str]:
+                           socket_path: Path) -> Union[Path, str]:
         return socket_path if request.param else str(socket_path)
 
-    async def test_extra_attributes(self, socket_path: pathlib.Path) -> None:
+    async def test_extra_attributes(self, socket_path: Path) -> None:
         async with await create_unix_listener(socket_path) as listener:
             raw_socket = listener.extra(SocketAttribute.raw_socket)
             assert listener.extra(SocketAttribute.family) == socket.AF_UNIX
@@ -759,7 +759,7 @@ class TestUNIXListener:
                           SocketAttribute.remote_address)
             pytest.raises(TypedAttributeLookupError, listener.extra, SocketAttribute.remote_port)
 
-    async def test_accept(self, socket_path_or_str: Union[pathlib.Path, str]) -> None:
+    async def test_accept(self, socket_path_or_str: Union[Path, str]) -> None:
         async with await create_unix_listener(socket_path_or_str) as listener:
             client = socket.socket(socket.AF_UNIX)
             client.settimeout(1)
@@ -772,7 +772,7 @@ class TestUNIXListener:
             client.close()
             await stream.aclose()
 
-    async def test_socket_options(self, socket_path: pathlib.Path) -> None:
+    async def test_socket_options(self, socket_path: Path) -> None:
         async with await create_unix_listener(socket_path) as listener:
             listener_socket = listener.extra(SocketAttribute.raw_socket)
             assert listener_socket.family == socket.AddressFamily.AF_UNIX
@@ -789,7 +789,7 @@ class TestUNIXListener:
 
             client.close()
 
-    async def test_send_after_eof(self, socket_path: pathlib.Path) -> None:
+    async def test_send_after_eof(self, socket_path: Path) -> None:
         async def handle(stream: SocketStream) -> None:
             async with stream:
                 await stream.send(b'Hello\n')
@@ -814,7 +814,7 @@ class TestUNIXListener:
 
             tg.cancel_scope.cancel()
 
-    async def test_bind_twice(self, socket_path: pathlib.Path) -> None:
+    async def test_bind_twice(self, socket_path: Path) -> None:
         """Test that the previous socket is removed before binding to the path."""
         for _ in range(2):
             async with await create_unix_listener(socket_path):

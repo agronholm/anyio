@@ -1,7 +1,7 @@
 import os
-import pathlib
 import platform
 import sys
+from pathlib import Path
 from subprocess import CalledProcessError
 from textwrap import dedent
 from typing import List, Union
@@ -48,7 +48,7 @@ async def test_run_process_checked() -> None:
 
 @pytest.mark.skipif(platform.system() == 'Windows',
                     reason='process.terminate() kills the process instantly on Windows')
-async def test_terminate(tmp_path: pathlib.Path) -> None:
+async def test_terminate(tmp_path: Path) -> None:
     script_path = tmp_path / 'script.py'
     script_path.write_text(dedent("""\
         import signal, sys, time
@@ -71,7 +71,7 @@ async def test_terminate(tmp_path: pathlib.Path) -> None:
         assert await process.wait() == 2
 
 
-async def test_process_cwd(tmp_path: pathlib.Path) -> None:
+async def test_process_cwd(tmp_path: Path) -> None:
     """Test that `cwd` is successfully passed to the subprocess implementation"""
     cmd = [sys.executable, "-c", "import os; print(os.getcwd())"]
     result = await run_process(cmd, cwd=tmp_path)
