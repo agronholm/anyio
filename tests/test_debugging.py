@@ -13,10 +13,7 @@ from anyio.abc import TaskStatus
 pytestmark = pytest.mark.anyio
 
 
-def test_main_task_name(
-    anyio_backend_name: str,
-    anyio_backend_options: Dict[str, Any],
-) -> None:
+def test_main_task_name(anyio_backend_name: str, anyio_backend_options: Dict[str, Any]) -> None:
     task_name = None
 
     async def main() -> None:

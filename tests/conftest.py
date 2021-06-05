@@ -32,9 +32,7 @@ pytest_plugins = ['pytester']
                  id='asyncio+uvloop'),
     pytest.param('trio')
 ])
-def anyio_backend(
-    request: SubRequest,
-) -> Tuple[str, Dict[str, Any]]:
+def anyio_backend(request: SubRequest) -> Tuple[str, Dict[str, Any]]:
     return request.param
 
 
