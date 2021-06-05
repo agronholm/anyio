@@ -1751,7 +1751,7 @@ def current_default_thread_limiter() -> CapacityLimiter:
 # Operating system signals
 #
 
-class _SignalReceiver(DeprecatedAsyncContextManager):
+class _SignalReceiver(DeprecatedAsyncContextManager["_SignalReceiver"]):
     def __init__(self, signals: Tuple[int, ...]):
         self._signals = signals
         self._loop = get_running_loop()

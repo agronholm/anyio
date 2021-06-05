@@ -683,7 +683,7 @@ def current_default_thread_limiter() -> CapacityLimiter:
 # Signal handling
 #
 
-class _SignalReceiver(DeprecatedAsyncContextManager):
+class _SignalReceiver(DeprecatedAsyncContextManager[T]):
     def __init__(self, cm: ContextManager[T]):
         self._cm = cm
 

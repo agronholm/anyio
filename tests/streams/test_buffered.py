@@ -6,7 +6,7 @@ from anyio.streams.buffered import BufferedByteReceiveStream
 pytestmark = pytest.mark.anyio
 
 
-async def test_receive_exactly():
+async def test_receive_exactly() -> None:
     send_stream, receive_stream = create_memory_object_stream(2)
     buffered_stream = BufferedByteReceiveStream(receive_stream)
     await send_stream.send(b'abcd')
@@ -16,7 +16,7 @@ async def test_receive_exactly():
     assert isinstance(result, bytes)
 
 
-async def test_receive_exactly_incomplete():
+async def test_receive_exactly_incomplete() -> None:
     send_stream, receive_stream = create_memory_object_stream(1)
     buffered_stream = BufferedByteReceiveStream(receive_stream)
     await send_stream.send(b'abcd')
@@ -25,7 +25,7 @@ async def test_receive_exactly_incomplete():
         await buffered_stream.receive_exactly(8)
 
 
-async def test_receive_until():
+async def test_receive_until() -> None:
     send_stream, receive_stream = create_memory_object_stream(2)
     buffered_stream = BufferedByteReceiveStream(receive_stream)
     await send_stream.send(b'abcd')
@@ -40,7 +40,7 @@ async def test_receive_until():
     assert isinstance(result, bytes)
 
 
-async def test_receive_until_incomplete():
+async def test_receive_until_incomplete() -> None:
     send_stream, receive_stream = create_memory_object_stream(1)
     buffered_stream = BufferedByteReceiveStream(receive_stream)
     await send_stream.send(b'abcd')

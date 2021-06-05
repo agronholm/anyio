@@ -1,6 +1,12 @@
+from pathlib import Path
+from typing import Union
+
 import pytest
+from _pytest.fixtures import SubRequest
+from _pytest.tmpdir import TempPathFactory
 
 from anyio import ClosedResourceError, EndOfStream
+from anyio.abc import ByteReceiveStream
 from anyio.streams.file import FileReadStream, FileStreamAttribute, FileWriteStream
 
 pytestmark = pytest.mark.anyio
@@ -8,38 +14,39 @@ pytestmark = pytest.mark.anyio
 
 class TestFileReadStream:
     @pytest.fixture(scope='class')
-    def file_path(self, tmp_path_factory):
+    def file_path(self, tmp_path_factory: TempPathFactory) -> Path:
         path = tmp_path_factory.mktemp('filestream') / 'data.txt'
         path.write_text('Hello')
         return path
 
-    async def _run_filestream_test(self, stream):
+    @pytest.fixture(params=[False, True], ids=["str", "path"])
+    def file_path_or_str(self, request: SubRequest,
+                         file_path: Path) -> Union[Path, str]:
+        return file_path if request.param else str(file_path)
+
+    async def _run_filestream_test(self, stream: ByteReceiveStream) -> None:
         assert await stream.receive(3) == b'Hel'
         assert await stream.receive(3) == b'lo'
         with pytest.raises(EndOfStream):
             await stream.receive(1)
 
-    @pytest.mark.parametrize('as_path', [True, False], ids=['path', 'str'])
-    async def test_read_file_as_path(self, file_path, as_path):
-        if not as_path:
-            file_path = str(file_path)
-
-        async with await FileReadStream.from_path(file_path) as stream:
+    async def test_read_file_as_path(self, file_path_or_str: Union[Path, str]) -> None:
+        async with await FileReadStream.from_path(file_path_or_str) as stream:
             await self._run_filestream_test(stream)
 
-    async def test_read_file(self, file_path):
+    async def test_read_file(self, file_path: Path) -> None:
         with file_path.open('rb') as file:
             async with FileReadStream(file) as stream:
                 await self._run_filestream_test(stream)
 
-    async def test_read_after_close(self, file_path):
+    async def test_read_after_close(self, file_path: Path) -> None:
         async with await FileReadStream.from_path(file_path) as stream:
             pass
 
         with pytest.raises(ClosedResourceError):
             await stream.receive()
 
-    async def test_seek(self, file_path):
+    async def test_seek(self, file_path: Path) -> None:
         with file_path.open('rb') as file:
             async with FileReadStream(file) as stream:
                 await stream.seek(2)
@@ -48,7 +55,7 @@ class TestFileReadStream:
                 assert data == b'llo'
                 assert await stream.tell() == 5
 
-    async def test_extra_attributes(self, file_path):
+    async def test_extra_attributes(self, file_path: Path) -> None:
         async with await FileReadStream.from_path(file_path) as stream:
             path = stream.extra(FileStreamAttribute.path)
             assert path == file_path
@@ -62,31 +69,31 @@ class TestFileReadStream:
 
 class TestFileWriteStream:
     @pytest.fixture
-    def file_path(self, tmp_path):
+    def file_path(self, tmp_path: Path) -> Path:
         return tmp_path / 'written_data.txt'
 
-    async def test_write_file(self, file_path):
+    async def test_write_file(self, file_path: Path) -> None:
         async with await FileWriteStream.from_path(file_path) as stream:
             await stream.send(b'Hel')
             await stream.send(b'lo')
 
         assert file_path.read_text() == 'Hello'
 
-    async def test_append_file(self, file_path):
+    async def test_append_file(self, file_path: Path) -> None:
         file_path.write_text('Hello')
         async with await FileWriteStream.from_path(file_path, True) as stream:
             await stream.send(b', World!')
 
         assert file_path.read_text() == 'Hello, World!'
 
-    async def test_write_after_close(self, file_path):
+    async def test_write_after_close(self, file_path: Path) -> None:
         async with await FileWriteStream.from_path(file_path, True) as stream:
             pass
 
         with pytest.raises(ClosedResourceError):
             await stream.send(b'foo')
 
-    async def test_extra_attributes(self, file_path):
+    async def test_extra_attributes(self, file_path: Path) -> None:
         async with await FileWriteStream.from_path(file_path) as stream:
             path = stream.extra(FileStreamAttribute.path)
             assert path == file_path

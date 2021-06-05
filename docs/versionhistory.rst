@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed the type annotation of ``open_signal_receiver()`` as a synchronous context manager
+- Fixed the type annotation of ``DeprecatedAwaitable(|List|Float).__await__`` to match the ``typing.Awaitable`` protocol
+
 **3.1.0**
 
 - Added ``env`` and ``cwd`` keyword arguments to ``run_process()`` and ``open_process``.

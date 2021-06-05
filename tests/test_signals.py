@@ -1,6 +1,7 @@
 import os
 import signal
 import sys
+from typing import AsyncIterable
 
 import pytest
 
@@ -15,7 +16,7 @@ pytestmark = [
 ]
 
 
-async def test_receive_signals():
+async def test_receive_signals() -> None:
     with open_signal_receiver(signal.SIGUSR1, signal.SIGUSR2) as sigiter:
         await to_thread.run_sync(os.kill, os.getpid(), signal.SIGUSR1)
         await to_thread.run_sync(os.kill, os.getpid(), signal.SIGUSR2)
@@ -24,8 +25,8 @@ async def test_receive_signals():
             assert await sigiter.__anext__() == signal.SIGUSR2
 
 
-async def test_task_group_cancellation_open():
-    async def signal_handler():
+async def test_task_group_cancellation_open() -> None:
+    async def signal_handler() -> None:
         with open_signal_receiver(signal.SIGUSR1) as sigiter:
             async for v in sigiter:
                 pytest.fail("SIGUSR1 should not be sent")
@@ -39,8 +40,8 @@ async def test_task_group_cancellation_open():
         tg.cancel_scope.cancel()
 
 
-async def test_task_group_cancellation_consume():
-    async def consume(sigiter):
+async def test_task_group_cancellation_consume() -> None:
+    async def consume(sigiter: AsyncIterable[int]) -> None:
         async for v in sigiter:
             pytest.fail("SIGUSR1 should not be sent")
 
