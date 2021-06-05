@@ -13,12 +13,13 @@ from anyio import (
 from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
 
-pytestmark = pytest.mark.anyio
-
 if sys.version_info >= (3, 8):
     from typing import Literal
 else:
     from typing_extensions import Literal
+
+
+pytestmark = pytest.mark.anyio
 
 
 class TestRunAsyncFromThread:
