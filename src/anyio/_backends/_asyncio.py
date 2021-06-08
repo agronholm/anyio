@@ -136,7 +136,7 @@ _root_task: RunVar[Optional[asyncio.Task]] = RunVar('_root_task')
 
 
 def find_root_task() -> asyncio.Task:
-    root_task: Optional[asyncio.Task] = _root_task.get(None)  # type: ignore[arg-type]
+    root_task = _root_task.get(None)
     if root_task is not None and not root_task.done():
         return root_task
 
