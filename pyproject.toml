@@ -22,6 +22,14 @@ max_line_length = 99
 [tool.flake8]
 max-line-length = 99
 
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
+disallow_any_generics = false
+warn_return_any = false
+disallow_untyped_decorators = false
+disallow_subclassing_any = false
+
 [tool.pytest.ini_options]
 addopts = "-rsx --tb=short"
 testpaths = ["tests"]

@@ -69,7 +69,7 @@ class TextSendStream(ObjectSendStream[str]):
     _encoder: Callable[..., Tuple[bytes, int]] = field(init=False)
 
     def __post_init__(self, encoding: str) -> None:
-        self._encoder = codecs.getencoder(encoding)  # type: ignore[assignment]
+        self._encoder = codecs.getencoder(encoding)
 
     async def send(self, item: str) -> None:
         encoded = self._encoder(item, self.errors)[0]
