@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added the ability to close memory object streams synchronously (including support for use as a
+  synchronous context manager)
 - Fixed ``to_thread.run_sync()`` hanging on the second call on asyncio when used with
   ``loop.run_until_complete()``
 - Fixed the type annotation of ``open_signal_receiver()`` as a synchronous context manager

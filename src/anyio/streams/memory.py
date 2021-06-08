@@ -1,6 +1,7 @@
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
-from typing import Deque, Generic, List, NamedTuple, TypeVar
+from types import TracebackType
+from typing import Deque, Generic, List, NamedTuple, Optional, Type, TypeVar
 
 from .. import (
     BrokenResourceError, ClosedResourceError, EndOfStream, WouldBlock, get_cancelled_exc_class)
@@ -112,7 +113,14 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
 
         return MemoryObjectReceiveStream(_state=self._state)
 
-    async def aclose(self) -> None:
+    def close(self) -> None:
+        """
+        Close the stream.
+
+        This works the exact same way as :meth:`aclose`, but is provided as a special case for the
+        benefit of synchronous callbacks.
+
+        """
         if not self._closed:
             self._closed = True
             self._state.open_receive_channels -= 1
@@ -121,6 +129,9 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
                 for event in send_events:
                     event.set()
 
+    async def aclose(self) -> None:
+        self.close()
+
     def statistics(self) -> MemoryObjectStreamStatistics:
         """
         Return statistics about the current state of this stream.
@@ -128,6 +139,14 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
         .. versionadded:: 3.0
         """
         return self._state.statistics()
+
+    def __enter__(self) -> 'MemoryObjectReceiveStream[T_Item]':
+        return self
+
+    def __exit__(self, exc_type: Optional[Type[BaseException]],
+                 exc_val: Optional[BaseException],
+                 exc_tb: Optional[TracebackType]) -> None:
+        self.close()
 
 
 @dataclass(eq=False)
@@ -198,7 +217,14 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
 
         return MemoryObjectSendStream(_state=self._state)
 
-    async def aclose(self) -> None:
+    def close(self) -> None:
+        """
+        Close the stream.
+
+        This works the exact same way as :meth:`aclose`, but is provided as a special case for the
+        benefit of synchronous callbacks.
+
+        """
         if not self._closed:
             self._closed = True
             self._state.open_send_channels -= 1
@@ -208,6 +234,9 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
                 for event in receive_events:
                     event.set()
 
+    async def aclose(self) -> None:
+        self.close()
+
     def statistics(self) -> MemoryObjectStreamStatistics:
         """
         Return statistics about the current state of this stream.
@@ -215,3 +244,11 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
         .. versionadded:: 3.0
         """
         return self._state.statistics()
+
+    def __enter__(self) -> 'MemoryObjectSendStream[T_Item]':
+        return self
+
+    def __exit__(self, exc_type: Optional[Type[BaseException]],
+                 exc_val: Optional[BaseException],
+                 exc_tb: Optional[TracebackType]) -> None:
+        self.close()

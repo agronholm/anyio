@@ -320,3 +320,15 @@ async def test_statistics() -> None:
         assert stream.statistics().current_buffer_used == 0
         assert stream.statistics().tasks_waiting_send == 0
         assert stream.statistics().tasks_waiting_receive == 0
+
+
+async def test_sync_close():
+    send_stream, receive_stream = create_memory_object_stream(1)
+    with send_stream, receive_stream:
+        pass
+
+    with pytest.raises(ClosedResourceError):
+        send_stream.send_nowait(None)
+
+    with pytest.raises(ClosedResourceError):
+        receive_stream.receive_nowait()
