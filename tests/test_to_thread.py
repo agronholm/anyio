@@ -190,3 +190,8 @@ def test_asyncio_run_sync_multiple(asyncio_event_loop: asyncio.AbstractEventLoop
     asyncio_event_loop.call_later(0.5, asyncio_event_loop.stop)
     for _ in range(3):
         asyncio_event_loop.run_until_complete(to_thread.run_sync(time.sleep, 0))
+
+    for t in threading.enumerate():
+        if t.name == 'AnyIO worker thread':
+            t.join(2)
+            assert not t.is_alive()
