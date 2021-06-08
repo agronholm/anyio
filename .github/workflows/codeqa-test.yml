@@ -23,7 +23,7 @@ jobs:
     - name: Run flake8
       run: pflake8 src tests
     - name: Check types with Mypy
-      run: mypy src
+      run: mypy --install-types src tests
     - name: Run isort
       run: isort -c --diff src tests
 

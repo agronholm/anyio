@@ -15,8 +15,8 @@ author = 'Alex Grönholm'
 copyright = '2018, ' + author
 
 v = pkg_resources.get_distribution('anyio').parsed_version
-version = v.base_version  # type: ignore[attr-defined]
-release = v.public  # type: ignore[attr-defined]
+version = v.base_version
+release = v.public
 
 language = None
 
