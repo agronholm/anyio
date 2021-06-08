@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed ``to_thread.run_sync()`` hanging on the second call on asyncio when used with
+  ``loop.run_until_complete()``
 - Fixed the type annotation of ``open_signal_receiver()`` as a synchronous context manager
 - Fixed the type annotation of ``DeprecatedAwaitable(|List|Float).__await__`` to match the ``typing.Awaitable`` protocol
 

@@ -136,21 +136,18 @@ _root_task: RunVar[Optional[asyncio.Task]] = RunVar('_root_task')
 
 
 def find_root_task() -> asyncio.Task:
-    try:
-        root_task = _root_task.get()
-    except LookupError:
-        for task in all_tasks():
-            if task._callbacks:
-                for cb in _get_task_callbacks(task):
-                    if (cb is _run_until_complete_cb
-                            or getattr(cb, '__module__', None) == 'uvloop.loop'):
-                        _root_task.set(task)
-                        return task
+    root_task: Optional[asyncio.Task] = _root_task.get(None)  # type: ignore[arg-type]
+    if root_task is not None and not root_task.done():
+        return root_task
 
-        _root_task.set(None)
-    else:
-        if root_task is not None:
-            return root_task
+    # Look for a task that has been started via run_until_complete()
+    for task in all_tasks():
+        if task._callbacks and not task.done():
+            for cb in _get_task_callbacks(task):
+                if (cb is _run_until_complete_cb
+                        or getattr(cb, '__module__', None) == 'uvloop.loop'):
+                    _root_task.set(task)
+                    return task
 
     # Look up the topmost task in the AnyIO task tree, if possible
     task = cast(asyncio.Task, current_task())
@@ -791,6 +788,7 @@ async def run_sync_in_worker_thread(
             try:
                 return await future
             finally:
+                assert worker.is_alive()
                 worker.idle_since = current_time()
                 idle_workers.append(worker)
 
