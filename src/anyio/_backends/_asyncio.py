@@ -1504,6 +1504,9 @@ async def connect_unix(path: str) -> UNIXSocketStream:
             loop.add_writer(raw_socket, f.set_result, None)
             f.add_done_callback(lambda _: loop.remove_writer(raw_socket))
             await f
+        except BaseException:
+            raw_socket.close()
+            raise
         else:
             return UNIXSocketStream(raw_socket)
 
