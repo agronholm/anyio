@@ -736,6 +736,10 @@ class TestUNIXStream:
         with pytest.raises(ClosedResourceError):
             await stream.send(b'foo')
 
+    async def test_cannot_connect(self, socket_path: Path) -> None:
+        with pytest.raises(FileNotFoundError):
+            await connect_unix(socket_path)
+
 
 @pytest.mark.skipif(sys.platform == 'win32',
                     reason='UNIX sockets are not available on Windows')
