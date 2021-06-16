@@ -979,4 +979,4 @@ async def test_cancellederror_combination_with_message() -> None:
             tg.start_soon(sleep, 5)
             await wait_all_tasks_blocked()
             assert isinstance(task, asyncio.Task)
-            task.cancel('blah')  # type: ignore[call-arg]
+            task.cancel('blah')
