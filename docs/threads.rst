@@ -53,6 +53,28 @@ If you need to call a coroutine function from a worker thread, you can do this::
 .. note:: The worker thread must have been spawned using :func:`~run_sync_in_worker_thread`
    for this to work.
 
+Calling synchronous code from a worker thread
+---------------------------------------------
+
+AnyIO primitives should not be assumed thread-safe, therefore they should not be used directly
+from worker threads.  It is important to call synchronous code using :func:`~from_thread.run_sync`
+when inside a worker thread::
+
+    import time
+
+    from anyio import Event, from_thread, to_thread, run
+
+    def worker(event):
+        time.sleep(1)
+        from_thread.run_sync(event.set)
+
+    async def main():
+        event = Event()
+        await to_thread.run_sync(worker, event)
+        await event.wait()
+
+    run(main)
+
 Calling asynchronous code from an external thread
 -------------------------------------------------
 
