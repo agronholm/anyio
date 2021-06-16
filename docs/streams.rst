@@ -67,6 +67,14 @@ Example::
 
     run(main)
 
+In contrast to other AnyIO streams (but in line with trio's Channels), memory object streams can be
+closed synchronously, using either the ``close()`` method or by using the stream as a context
+manager::
+
+    def synchronous_callback(send_stream: MemoryObjectSendStream) -> None:
+        with stream:
+            stream.send_nowait('hello')
+
 Stapled streams
 ---------------
 
