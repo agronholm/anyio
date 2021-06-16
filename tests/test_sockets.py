@@ -11,7 +11,7 @@ from pathlib import Path
 from socket import AddressFamily
 from ssl import SSLContext, SSLError
 from threading import Thread
-from typing import Any, Iterable, Iterator, List, NoReturn, Tuple, Type, Union
+from typing import Any, Iterable, Iterator, List, NoReturn, Tuple, Type, TypeVar, Union
 
 import pytest
 from _pytest.fixtures import SubRequest
@@ -70,6 +70,22 @@ def check_asyncio_bug(anyio_backend_name: str, family: AnyIPAddressFamily) -> No
             pytest.skip('Does not work due to a known bug (39148)')
 
 
+_T = TypeVar("_T")
+
+
+def _identity(v: _T) -> _T:
+    return v
+
+
+#  _ProactorBasePipeTransport.abort() after _ProactorBasePipeTransport.close()
+# does not cancel writes: https://bugs.python.org/issue44428
+_ignore_win32_resource_warnings = pytest.mark.filterwarnings(
+    "ignore:unclosed <socket.socket:ResourceWarning",
+    "ignore:unclosed transport <_ProactorSocketTransport closing:ResourceWarning",
+) if sys.platform == "win32" else _identity
+
+
+@_ignore_win32_resource_warnings
 class TestTCPStream:
     @pytest.fixture
     def server_sock(self, family: AnyIPAddressFamily) -> Iterator[socket.socket]:
@@ -735,6 +751,10 @@ class TestUNIXStream:
         await stream.aclose()
         with pytest.raises(ClosedResourceError):
             await stream.send(b'foo')
+
+    async def test_cannot_connect(self, socket_path: Path) -> None:
+        with pytest.raises(FileNotFoundError):
+            await connect_unix(socket_path)
 
 
 @pytest.mark.skipif(sys.platform == 'win32',

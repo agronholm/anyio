@@ -31,9 +31,9 @@ disallow_untyped_decorators = false
 disallow_subclassing_any = false
 
 [tool.pytest.ini_options]
-addopts = "-rsx --tb=short"
+addopts = "-rsx --tb=short --strict-config --strict-markers"
 testpaths = ["tests"]
-filterwarnings = "always"
+filterwarnings = "error"
 markers = [
     "network: marks tests as requiring Internet access",
 ]
