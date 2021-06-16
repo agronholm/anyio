@@ -322,7 +322,7 @@ async def test_statistics() -> None:
         assert stream.statistics().tasks_waiting_receive == 0
 
 
-async def test_sync_close():
+async def test_sync_close() -> None:
     send_stream, receive_stream = create_memory_object_stream(1)
     with send_stream, receive_stream:
         pass
