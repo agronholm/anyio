@@ -115,12 +115,13 @@ async def test_cancel_worker_thread(cancellable: bool, expected_last_active: str
 
 
 async def test_cancel_wait_on_thread() -> None:
+    event_triggered: bool = False
+    event = threading.Event()
+
     def wait_event() -> None:
         nonlocal event_triggered
         event_triggered = event.wait(1)
 
-    event_triggered: bool = False
-    event = threading.Event()
     async with create_task_group() as tg:
         tg.start_soon(partial(to_thread.run_sync, cancellable=True), wait_event)
         await wait_all_tasks_blocked()
