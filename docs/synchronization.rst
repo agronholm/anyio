@@ -7,6 +7,9 @@ Synchronization primitives are objects that are used by tasks to communicate and
 each other. They are useful for things like distributing workload, notifying other tasks and
 guarding access to shared resources.
 
+.. note:: AnyIO primitives are not thread-safe, therefore they should not be used directly from
+          worker threads.  Use :func:`~from_thread.run_sync` for that.
+
 Events
 ------
 

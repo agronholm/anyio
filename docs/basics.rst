@@ -62,13 +62,15 @@ Backend specific options
 Asyncio:
 
 * ``debug`` (``bool``, default=False): Enables `debug mode`_ in the event loop
-* ``use_uvloop`` (``bool``, default=True): Use the faster uvloop_ event loop implementation, if
+* ``use_uvloop`` (``bool``, default=False): Use the faster uvloop_ event loop implementation, if
   available
 * ``policy`` (``AbstractEventLoopPolicy``, default=None): the event loop policy instance to use
   for creating a new event loop (overrides ``use_uvloop``)
 
 Trio: options covered in the
 `official documentation <https://trio.readthedocs.io/en/stable/reference-core.html#trio.run>`_
+
+.. note:: The default value of ``use_uvloop`` was ``True`` before v3.2.0.
 
 .. _debug mode: https://docs.python.org/3/library/asyncio-eventloop.html#enabling-debug-mode
 .. _uvloop: https://pypi.org/project/uvloop/

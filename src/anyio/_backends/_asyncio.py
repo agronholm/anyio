@@ -211,7 +211,7 @@ def _maybe_set_event_loop_policy(policy: Optional[asyncio.AbstractEventLoopPolic
 
 
 def run(func: Callable[..., Awaitable[T_Retval]], *args: object,
-        debug: bool = False, use_uvloop: bool = True,
+        debug: bool = False, use_uvloop: bool = False,
         policy: Optional[asyncio.AbstractEventLoopPolicy] = None) -> T_Retval:
     @wraps(func)
     async def wrapper() -> T_Retval:
@@ -1856,8 +1856,7 @@ class TestRunner(abc.TestRunner):
         for task in to_cancel:
             task.cancel()
 
-        self._loop.run_until_complete(
-            asyncio.gather(*to_cancel, loop=self._loop, return_exceptions=True))
+        self._loop.run_until_complete(asyncio.gather(*to_cancel, return_exceptions=True))
 
         for task in to_cancel:
             if task.cancelled():
