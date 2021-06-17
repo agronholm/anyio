@@ -9,6 +9,9 @@ passes tests locally. To that end, the use of tox_ is recommended. The default t
 code style fixing tools and then the actual test suite. To only run the code style fixers, run
 ``tox -e lint``. To run the checks on all environments in parallel, invoke tox with ``tox -p``.
 
+To build the documentation, run ``tox -e docs`` which will generate a directory named ``build``
+in which you may view the formatted HTML documentation.
+
 The use of pre-commit_ is also highly recommended. You can find a sample configuration file at the
 root of the repository.
 
