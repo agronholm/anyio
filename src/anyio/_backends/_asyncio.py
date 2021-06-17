@@ -712,6 +712,16 @@ class WorkerThread(Thread):
         self.queue: Queue[Union[Tuple[Callable, tuple, asyncio.Future], None]] = Queue(2)
         self.idle_since = current_time()
 
+    def _report_result(self, future: asyncio.Future, result: Any,
+                       exc: Optional[BaseException]) -> None:
+        self.idle_since = current_time()
+        self.idle_workers.append(self)
+        if not future.cancelled():
+            if exc is not None:
+                future.set_exception(exc)
+            else:
+                future.set_result(result)
+
     def run(self) -> None:
         with claim_worker_thread('asyncio'):
             threadlocals.loop = self.loop
@@ -723,16 +733,17 @@ class WorkerThread(Thread):
 
                 func, args, future = item
                 if not future.cancelled():
+                    result = None
+                    exception: Optional[BaseException] = None
                     try:
                         result = func(*args)
                     except BaseException as exc:
-                        if not self.loop.is_closed() and not future.cancelled():
-                            self.loop.call_soon_threadsafe(future.set_exception, exc)
-                    else:
-                        if not self.loop.is_closed() and not future.cancelled():
-                            self.loop.call_soon_threadsafe(future.set_result, result)
+                        exception = exc
 
-                self.queue.task_done()
+                    self.queue.task_done()
+                    if not self.loop.is_closed():
+                        self.loop.call_soon_threadsafe(
+                            self._report_result, future, result, exception)
 
     def stop(self, f: Optional[asyncio.Task] = None) -> None:
         self.queue.put_nowait(None)
@@ -785,12 +796,7 @@ async def run_sync_in_worker_thread(
                     worker.stop()
 
             worker.queue.put_nowait((func, args, future))
-            try:
-                return await future
-            finally:
-                assert worker.is_alive()
-                worker.idle_since = current_time()
-                idle_workers.append(worker)
+            return await future
 
 
 def run_sync_from_thread(func: Callable[..., T_Retval], *args: object,
