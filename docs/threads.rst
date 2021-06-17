@@ -56,9 +56,7 @@ If you need to call a coroutine function from a worker thread, you can do this::
 Calling synchronous code from a worker thread
 ---------------------------------------------
 
-AnyIO primitives should not be assumed thread-safe, therefore they should not be used directly
-from worker threads.  It is important to call synchronous code using :func:`~from_thread.run_sync`
-when inside a worker thread::
+Occasionally you may need to call synchronous code in the event loop thread from a worker thread. Common cases include setting asynchronous events or sending data to a memory object stream. Because these methods aren't thread safe, you need to arrange them to be called inside the event loop thread using :func:`~from_thread.run_sync`::
 
     import time
 
