@@ -1,3 +1,4 @@
+from io import BytesIO
 from os import PathLike
 from subprocess import DEVNULL, PIPE, CalledProcessError, CompletedProcess
 from typing import AsyncIterable, List, Mapping, Optional, Sequence, Union, cast
@@ -33,8 +34,11 @@ async def run_process(command: Union[str, Sequence[str]], *, input: Optional[byt
 
     """
     async def drain_stream(stream: AsyncIterable[bytes], index: int) -> None:
-        chunks = [chunk async for chunk in stream]
-        stream_contents[index] = b''.join(chunks)
+        buffer = BytesIO()
+        async for chunk in stream:
+            buffer.write(chunk)
+
+        stream_contents[index] = buffer.getvalue()
 
     async with await open_process(command, stdin=PIPE if input else DEVNULL, stdout=stdout,
                                   stderr=stderr, cwd=cwd, env=env) as process:
