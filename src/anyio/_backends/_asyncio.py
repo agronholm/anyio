@@ -1850,8 +1850,7 @@ class TestRunner(abc.TestRunner):
         for task in to_cancel:
             task.cancel()
 
-        self._loop.run_until_complete(
-            asyncio.gather(*to_cancel, loop=self._loop, return_exceptions=True))
+        self._loop.run_until_complete(asyncio.gather(*to_cancel, return_exceptions=True))
 
         for task in to_cancel:
             if task.cancelled():
