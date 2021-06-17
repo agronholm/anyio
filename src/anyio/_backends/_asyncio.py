@@ -211,7 +211,7 @@ def _maybe_set_event_loop_policy(policy: Optional[asyncio.AbstractEventLoopPolic
 
 
 def run(func: Callable[..., Awaitable[T_Retval]], *args: object,
-        debug: bool = False, use_uvloop: bool = True,
+        debug: bool = False, use_uvloop: bool = False,
         policy: Optional[asyncio.AbstractEventLoopPolicy] = None) -> T_Retval:
     @wraps(func)
     async def wrapper() -> T_Retval:
