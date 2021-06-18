@@ -1,7 +1,6 @@
 import asyncio
 import platform
 import ssl
-import warnings
 from ssl import SSLContext
 from typing import Any, Dict, Generator, Tuple
 
@@ -12,7 +11,7 @@ from trustme import CA
 
 # Ignore resource warnings on Windows due to a bug (https://bugs.python.org/issue44428)
 if platform.system() == 'Windows':
-    warnings.simplefilter('ignore', ResourceWarning)
+    pytestmark = pytest.mark.filterwarnings('ignore:unclosed <socket.socket.*:ResourceWarning')
 
 uvloop_marks = []
 uvloop_policy = None
