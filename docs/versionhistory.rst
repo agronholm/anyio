@@ -14,6 +14,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   the result is cancelled
 - Changed the default value of the ``use_uvloop`` asyncio backend option to ``False`` to prevent
   unsafe event loop policy changes in different threads
+- Fixed ``ResourceWarning`` about an unclosed socket when UNIX socket connect fails on asyncio
 - Fixed the type annotation of ``open_signal_receiver()`` as a synchronous context manager
 - Fixed the type annotation of ``DeprecatedAwaitable(|List|Float).__await__`` to match the ``typing.Awaitable`` protocol
 
