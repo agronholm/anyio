@@ -8,12 +8,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added Python 3.10 compatibility
 - Added the ability to close memory object streams synchronously (including support for use as a
   synchronous context manager)
+- Changed the default value of the ``use_uvloop`` asyncio backend option to ``False`` to prevent
+  unsafe event loop policy changes in different threads
 - Fixed ``to_thread.run_sync()`` hanging on the second call on asyncio when used with
   ``loop.run_until_complete()``
 - Fixed ``to_thread.run_sync()`` prematurely marking a worker thread inactive when a task await on
   the result is cancelled
-- Changed the default value of the ``use_uvloop`` asyncio backend option to ``False`` to prevent
-  unsafe event loop policy changes in different threads
 - Fixed ``ResourceWarning`` about an unclosed socket when UNIX socket connect fails on asyncio
 - Fixed the type annotation of ``open_signal_receiver()`` as a synchronous context manager
 - Fixed the type annotation of ``DeprecatedAwaitable(|List|Float).__await__`` to match the ``typing.Awaitable`` protocol
