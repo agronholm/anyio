@@ -15,5 +15,8 @@ def open_signal_receiver(*signals: int) -> DeprecatedAsyncContextManager[AsyncIt
     .. warning:: Windows does not support signals natively so it is best to avoid relying on this
         in cross-platform applications.
 
+    .. warning:: On asyncio, this permanently replaces any previous signal handler for the given
+        signals, as set via :meth:`~asyncio.loop.add_signal_handler`.
+
     """
     return get_asynclib().open_signal_receiver(*signals)
