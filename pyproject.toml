@@ -31,10 +31,10 @@ warn_return_any = false
 disallow_untyped_decorators = false
 disallow_subclassing_any = false
 
-# Ignore resource warnings due to a CPython/Windows bug (https://bugs.python.org/issue44428)
 [tool.pytest.ini_options]
 addopts = "-rsx --tb=short --strict-config --strict-markers"
 testpaths = ["tests"]
+# Ignore resource warnings due to a CPython/Windows bug (https://bugs.python.org/issue44428)
 filterwarnings = [
     "error",
     "ignore:unclosed <socket.socket.*:ResourceWarning",
