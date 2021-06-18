@@ -37,7 +37,8 @@ addopts = "-rsx --tb=short --strict-config --strict-markers"
 testpaths = ["tests"]
 filterwarnings = [
     "error",
-    "ignore:unclosed <socket.socket.*:ResourceWarning"
+    "ignore:unclosed <socket.socket.*:ResourceWarning",
+    "ignore:unclosed transport <_ProactorSocketTransport.*:ResourceWarning"
 ]
 markers = [
     "network: marks tests as requiring Internet access",
