@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**3.2.0**
 
 - Added Python 3.10 compatibility
 - Added the ability to close memory object streams synchronously (including support for use as a
