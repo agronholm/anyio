@@ -740,10 +740,11 @@ class WorkerThread(Thread):
                     except BaseException as exc:
                         exception = exc
 
-                    self.queue.task_done()
                     if not self.loop.is_closed():
                         self.loop.call_soon_threadsafe(
                             self._report_result, future, result, exception)
+
+                self.queue.task_done()
 
     def stop(self, f: Optional[asyncio.Task] = None) -> None:
         self.queue.put_nowait(None)
