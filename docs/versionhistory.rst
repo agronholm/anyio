@@ -10,6 +10,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   synchronous context manager)
 - Fixed ``to_thread.run_sync()`` hanging on the second call on asyncio when used with
   ``loop.run_until_complete()``
+- Fixed ``to_thread.run_sync()`` prematurely marking a worker thread inactive when a task await on
+  the result is cancelled
 - Changed the default value of the ``use_uvloop`` asyncio backend option to ``False`` to prevent
   unsafe event loop policy changes in different threads
 - Fixed the type annotation of ``open_signal_receiver()`` as a synchronous context manager

@@ -2,6 +2,7 @@ import asyncio
 import sys
 import threading
 import time
+from concurrent.futures import Future
 from functools import partial
 from typing import Any, List, NoReturn, Optional
 
@@ -112,6 +113,22 @@ async def test_cancel_worker_thread(cancellable: bool, expected_last_active: str
 
     await finish_event.wait()
     assert last_active == expected_last_active
+
+
+async def test_cancel_wait_on_thread() -> None:
+    event = threading.Event()
+    future: Future[bool] = Future()
+
+    def wait_event() -> None:
+        future.set_result(event.wait(1))
+
+    async with create_task_group() as tg:
+        tg.start_soon(partial(to_thread.run_sync, cancellable=True), wait_event)
+        await wait_all_tasks_blocked()
+        tg.cancel_scope.cancel()
+
+    await to_thread.run_sync(event.set)
+    assert future.result(1)
 
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
