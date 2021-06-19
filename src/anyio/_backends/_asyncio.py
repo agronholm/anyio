@@ -704,7 +704,7 @@ class WorkerThread(Thread):
 
     def __init__(self, root_task: asyncio.Task, workers: Set['WorkerThread'],
                  idle_workers: Deque['WorkerThread'],):
-        super().__init__(name='AnyIO worker thread')
+        super().__init__(name='AnyIO worker thread', daemon=True)
         self.root_task = root_task
         self.workers = workers
         self.idle_workers = idle_workers
