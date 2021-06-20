@@ -74,7 +74,7 @@ This can be done with :meth:`TaskGroup.start() <.abc.TaskGroup.start>`::
     run(main)
 
 The target coroutine function **must** call ``task_status.started()`` because the task that is
-calling will :meth:`TaskGroup.start() <.abc.TaskGroup.start>` will be blocked until then. If the
+calling with :meth:`TaskGroup.start() <.abc.TaskGroup.start>` will be blocked until then. If the
 spawned task never calls it, then the :meth:`TaskGroup.start() <.abc.TaskGroup.start>` call will
 raise a ``RuntimeError``.
 

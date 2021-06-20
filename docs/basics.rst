@@ -15,7 +15,7 @@ To install AnyIO, run:
 
     pip install anyio
 
-To install a supported version of trio_, you can use install it as an extra like this:
+To install a supported version of trio_, you can install it as an extra like this:
 
 .. code-block:: bash
 
