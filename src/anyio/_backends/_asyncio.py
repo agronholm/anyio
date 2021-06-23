@@ -792,9 +792,9 @@ async def run_sync_in_worker_thread(
                     if now - idle_workers[0].idle_since < WorkerThread.MAX_IDLE_TIME:
                         break
 
-                    worker = idle_workers.popleft()
-                    worker.root_task.remove_done_callback(worker.stop)
-                    worker.stop()
+                    expired_worker = idle_workers.popleft()
+                    expired_worker.root_task.remove_done_callback(expired_worker.stop)
+                    expired_worker.stop()
 
             worker.queue.put_nowait((func, args, future))
             return await future

@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed idle thread pruning on asyncio sometimes causing an expired worker thread to be assigned a
+  task
+
 **3.2.0**
 
 - Added Python 3.10 compatibility
