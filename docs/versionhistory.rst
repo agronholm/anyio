@@ -16,7 +16,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   the result is cancelled
 - Fixed ``ResourceWarning`` about an unclosed socket when UNIX socket connect fails on asyncio
 - Fixed the type annotation of ``open_signal_receiver()`` as a synchronous context manager
-- Fixed the type annotation of ``DeprecatedAwaitable(|List|Float).__await__`` to match the ``typing.Awaitable`` protocol
+- Fixed the type annotation of ``DeprecatedAwaitable(|List|Float).__await__`` to match the
+  ``typing.Awaitable`` protocol
 
 **3.1.0**
 
