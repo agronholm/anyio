@@ -5,13 +5,17 @@ import time
 from typing import Any, AsyncGenerator, Coroutine, Dict, Generator, NoReturn, Set
 
 import pytest
-import trio
 
 import anyio
 from anyio import (
     CancelScope, ExceptionGroup, create_task_group, current_effective_deadline, current_time,
     fail_after, get_cancelled_exc_class, move_on_after, sleep, wait_all_tasks_blocked)
 from anyio.abc import TaskGroup, TaskStatus
+
+try:
+    import trio
+except ImportError:
+    trio = None
 
 if sys.version_info < (3, 7):
     current_task = asyncio.Task.current_task
@@ -53,7 +57,9 @@ async def test_success() -> None:
 
 @pytest.mark.parametrize('module', [
     pytest.param(asyncio, id='asyncio'),
-    pytest.param(trio, id='trio')
+    pytest.param(trio, id='trio',
+                 marks=[pytest.mark.skipif(trio is None,
+                                           reason='trio is not available')])
 ])
 def test_run_natively(module: Any) -> None:
     async def testfunc() -> None:

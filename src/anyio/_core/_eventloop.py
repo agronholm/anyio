@@ -10,8 +10,6 @@ import sniffio
 # This must be updated when new backends are introduced
 from ._compat import DeprecatedAwaitableFloat
 
-BACKENDS = 'asyncio', 'trio'
-
 T_Retval = TypeVar('T_Retval')
 threadlocals = threading.local()
 
@@ -106,8 +104,15 @@ def current_time() -> DeprecatedAwaitableFloat:
 
 
 def get_all_backends() -> Tuple[str, ...]:
-    """Return a tuple of the names of all built-in backends."""
-    return BACKENDS
+    """Return a tuple of the names of all available built-in backends."""
+    backends = ['asyncio']
+    try:
+        import trio
+    except ImportError:
+        pass
+    else:
+        backends.append(trio)
+    return tuple(backends)
 
 
 def get_cancelled_exc_class() -> Type[BaseException]:

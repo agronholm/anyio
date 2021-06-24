@@ -8,6 +8,11 @@ import trustme
 from _pytest.fixtures import SubRequest
 from trustme import CA
 
+try:
+    import trio
+except ImportError:
+    trio = None
+
 uvloop_marks = []
 uvloop_policy = None
 try:
@@ -30,7 +35,9 @@ pytest_plugins = ['pytester']
                  id='asyncio'),
     pytest.param(('asyncio', {'debug': True, 'policy': uvloop_policy}), marks=uvloop_marks,
                  id='asyncio+uvloop'),
-    pytest.param('trio')
+    pytest.param('trio',
+                 marks=[pytest.mark.skipif(trio is None,
+                                           reason='trio is not available')])
 ])
 def anyio_backend(request: SubRequest) -> Tuple[str, Dict[str, Any]]:
     return request.param

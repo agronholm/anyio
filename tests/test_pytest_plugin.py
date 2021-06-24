@@ -135,7 +135,7 @@ def test_asyncio(testdir: Testdir) -> None:
     )
 
     result = testdir.runpytest('-v')
-    result.assert_outcomes(passed=2, failed=1, errors=2)
+    result.assert_outcomes(passed=2, failed=1, errors=len(get_all_backends()))
 
 
 def test_autouse_async_fixture(testdir: Testdir) -> None:
