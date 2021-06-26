@@ -19,6 +19,7 @@ __all__ = (
     'TypedAttributeLookupError',
     'WouldBlock',
     'AsyncFile',
+    'Path',
     'open_file',
     'aclose_forcefully',
     'open_signal_receiver',
@@ -72,6 +73,7 @@ __all__ = (
     'TypedAttributeProvider'
 )
 
+# isort: off
 from ._core._compat import maybe_async, maybe_async_cm
 from ._core._eventloop import (
     current_time, get_all_backends, get_cancelled_exc_class, run, sleep, sleep_forever,
@@ -80,7 +82,6 @@ from ._core._exceptions import (
     BrokenResourceError, BrokenWorkerProcess, BusyResourceError, ClosedResourceError,
     DelimiterNotFound, EndOfStream, ExceptionGroup, IncompleteRead, TypedAttributeLookupError,
     WouldBlock)
-from ._core._fileio import AsyncFile, open_file
 from ._core._resources import aclose_forcefully
 from ._core._signals import open_signal_receiver
 from ._core._sockets import (
@@ -97,6 +98,7 @@ from ._core._tasks import (
     move_on_after, open_cancel_scope)
 from ._core._testing import TaskInfo, get_current_task, get_running_tasks, wait_all_tasks_blocked
 from ._core._typedattr import TypedAttributeProvider, TypedAttributeSet, typed_attribute
+from ._core._fileio import AsyncFile, Path, open_file
 
 # Re-exported here, for backwards compatibility
 # isort: off

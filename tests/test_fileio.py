@@ -3,7 +3,7 @@ from pathlib import PosixPath
 import pytest
 from _pytest.tmpdir import TempPathFactory
 
-from anyio import open_file
+from anyio import Path, open_file
 
 pytestmark = pytest.mark.anyio
 
@@ -48,3 +48,45 @@ async def test_async_iteration(tmp_path: PosixPath) -> None:
         lines_i = iter(lines)
         async for line in f:
             assert line == next(lines_i)  # type: ignore[comparison-overlap]
+
+
+class TestPath:
+    @pytest.fixture
+    def populated_tmpdir(self, tmp_path):
+        tmp_path.joinpath('testfile').touch()
+        tmp_path.joinpath('testfile2').touch()
+        subdir = tmp_path / 'subdir'
+        subdir.mkdir()
+        subdir.joinpath('dummyfile1.txt').touch()
+        subdir.joinpath('dummyfile2.txt').touch()
+        return tmp_path
+
+    async def test_glob(self, populated_tmpdir: PosixPath) -> None:
+        all_paths = []
+        async for path in Path(populated_tmpdir).glob('**/*.txt'):
+            all_paths.append(path.name)
+
+        all_paths.sort()
+        assert all_paths == ['dummyfile1.txt', 'dummyfile2.txt']
+
+    async def test_rglob(self, populated_tmpdir: PosixPath) -> None:
+        all_paths = []
+        async for path in Path(populated_tmpdir).rglob('*.txt'):
+            all_paths.append(path.name)
+
+        all_paths.sort()
+        assert all_paths == ['dummyfile1.txt', 'dummyfile2.txt']
+
+    async def test_iterdir(self, populated_tmpdir: PosixPath) -> None:
+        all_paths = []
+        async for path in Path(populated_tmpdir).iterdir():
+            print(path)
+            all_paths.append(path.name)
+
+        all_paths.sort()
+        assert all_paths == ['subdir', 'testfile', 'testfile2']
+
+    async def test_touch(self, tmp_path):
+        path = Path(tmp_path) / 'file'
+        await path.touch()
+        assert await path.is_file()
