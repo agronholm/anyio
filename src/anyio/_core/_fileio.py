@@ -4,7 +4,7 @@ import sys
 from dataclasses import dataclass
 from functools import partial
 from os import PathLike
-from typing import Any, AsyncIterator, Callable, Generic, Iterator, Optional, TypeVar, Union
+from typing import Any, AsyncIterator, Callable, Generic, Iterator, Optional, TypeVar, Union, cast
 
 from .. import to_thread
 from ..abc import AsyncResource
@@ -137,7 +137,7 @@ class _PathIterator(AsyncIterator['Path']):
         if nextval is None:
             raise StopAsyncIteration from None
 
-        return nextval
+        return Path(cast(pathlib.Path, nextval))
 
 
 class Path(PathLike):

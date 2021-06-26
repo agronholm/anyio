@@ -1,3 +1,4 @@
+import pathlib
 from pathlib import PosixPath
 
 import pytest
@@ -52,7 +53,7 @@ async def test_async_iteration(tmp_path: PosixPath) -> None:
 
 class TestPath:
     @pytest.fixture
-    def populated_tmpdir(self, tmp_path):
+    def populated_tmpdir(self, tmp_path: pathlib.Path) -> pathlib.Path:
         tmp_path.joinpath('testfile').touch()
         tmp_path.joinpath('testfile2').touch()
         subdir = tmp_path / 'subdir'
@@ -61,32 +62,34 @@ class TestPath:
         subdir.joinpath('dummyfile2.txt').touch()
         return tmp_path
 
-    async def test_glob(self, populated_tmpdir: PosixPath) -> None:
+    async def test_glob(self, populated_tmpdir: pathlib.Path) -> None:
         all_paths = []
         async for path in Path(populated_tmpdir).glob('**/*.txt'):
+            assert isinstance(path, Path)
             all_paths.append(path.name)
 
         all_paths.sort()
         assert all_paths == ['dummyfile1.txt', 'dummyfile2.txt']
 
-    async def test_rglob(self, populated_tmpdir: PosixPath) -> None:
+    async def test_rglob(self, populated_tmpdir: pathlib.Path) -> None:
         all_paths = []
         async for path in Path(populated_tmpdir).rglob('*.txt'):
+            assert isinstance(path, Path)
             all_paths.append(path.name)
 
         all_paths.sort()
         assert all_paths == ['dummyfile1.txt', 'dummyfile2.txt']
 
-    async def test_iterdir(self, populated_tmpdir: PosixPath) -> None:
+    async def test_iterdir(self, populated_tmpdir: pathlib.Path) -> None:
         all_paths = []
         async for path in Path(populated_tmpdir).iterdir():
-            print(path)
+            assert isinstance(path, Path)
             all_paths.append(path.name)
 
         all_paths.sort()
         assert all_paths == ['subdir', 'testfile', 'testfile2']
 
-    async def test_touch(self, tmp_path):
+    async def test_touch(self, tmp_path: pathlib.Path) -> None:
         path = Path(tmp_path) / 'file'
         await path.touch()
         assert await path.is_file()
