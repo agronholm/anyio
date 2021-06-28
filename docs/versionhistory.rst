@@ -239,7 +239,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   - **BACKWARDS INCOMPATIBLE** Some functions have been renamed or removed (see further below for
     socket/fileio API changes):
 
-    - ``finalize()`` → (removed; use ``async_generator.aclosing()`` instead)
+    - ``finalize()`` → (removed; use ``contextlib.aclosing()`` instead)
     - ``receive_signals()`` → ``open_signal_receiver()``
     - ``run_in_thread()`` → ``run_sync_in_worker_thread()``
     - ``current_default_thread_limiter()`` → ``current_default_worker_thread_limiter()``
