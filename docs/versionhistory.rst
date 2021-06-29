@@ -5,8 +5,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
-- Removed dependency on ``async_generator.isasyncgenfunction``, use ``inspect.isasyncgenfunction``
-  instead
+- Dropped unnecessary dependency on the ``async_generator`` library
 
 **3.2.1**
 
