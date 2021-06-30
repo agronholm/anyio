@@ -1,6 +1,5 @@
-import sys
 from contextlib import contextmanager
-from inspect import iscoroutinefunction
+from inspect import isasyncgenfunction, iscoroutinefunction
 from typing import TYPE_CHECKING, Any, Dict, Iterator, Optional, Tuple, cast
 
 import pytest
@@ -8,11 +7,6 @@ import sniffio
 
 from ._core._eventloop import get_all_backends, get_asynclib
 from .abc import TestRunner
-
-if sys.version_info >= (3, 7):
-    from inspect import isasyncgenfunction
-else:
-    from async_generator import isasyncgenfunction
 
 if TYPE_CHECKING:
     from _pytest.config import Config
