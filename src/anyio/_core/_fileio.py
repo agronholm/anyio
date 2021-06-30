@@ -277,8 +277,8 @@ class Path(PathLike):
 
         await to_thread.run_sync(self._path.replace, target)
 
-    async def resolve(self) -> 'Path':
-        return Path(await to_thread.run_sync(self._path.resolve, cancellable=True))
+    async def resolve(self, strict: bool = False) -> 'Path':
+        return Path(await to_thread.run_sync(self._path.resolve, strict, cancellable=True))
 
     def rglob(self, pattern: str) -> AsyncIterator['Path']:
         gen = self._path.rglob(pattern)
