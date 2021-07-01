@@ -152,7 +152,7 @@ class Path(PathLike):
     def __str__(self) -> str:
         return self._path.__str__()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'{self.__class__.__name__}({self.as_posix()!r})'
 
     def __bytes__(self) -> bytes:
