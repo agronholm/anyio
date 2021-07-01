@@ -1,4 +1,5 @@
 from io import SEEK_SET, UnsupportedOperation
+from os import PathLike
 from pathlib import Path
 from typing import Any, BinaryIO, Callable, Dict, Mapping, Union, cast
 
@@ -53,7 +54,7 @@ class FileReadStream(_BaseFileStream, ByteReceiveStream):
     """
 
     @classmethod
-    async def from_path(cls, path: Union[str, Path]) -> 'FileReadStream':
+    async def from_path(cls, path: Union[str, PathLike]) -> 'FileReadStream':
         """
         Create a file read stream by opening the given file.
 
@@ -115,7 +116,8 @@ class FileWriteStream(_BaseFileStream, ByteSendStream):
     """
 
     @classmethod
-    async def from_path(cls, path: Union[str, Path], append: bool = False) -> 'FileWriteStream':
+    async def from_path(cls, path: Union[str, PathLike],
+                        append: bool = False) -> 'FileWriteStream':
         """
         Create a file write stream by opening the given file for writing.
 
