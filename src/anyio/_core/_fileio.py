@@ -342,13 +342,12 @@ class Path:
     async def read_text(self, encoding: Optional[str] = None, errors: Optional[str] = None) -> str:
         return await to_thread.run_sync(self._path.read_text, encoding, errors)
 
-    def relative_to(self, *other: Union['Path', PathLike]) -> 'Path':
-        other = tuple((p._path if isinstance(p, Path) else p) for p in other)
+    def relative_to(self, *other: Union[str, PathLike]) -> 'Path':
         return Path(self._path.relative_to(*other))
 
     async def readlink(self) -> 'Path':
         target = await to_thread.run_sync(os.readlink, self._path)
-        return Path(target)
+        return Path(cast(str, target))
 
     async def rename(self, target: Union[str, pathlib.PurePath, 'Path']) -> None:
         if isinstance(target, Path):
