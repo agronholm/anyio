@@ -1,5 +1,6 @@
 import pathlib
 import platform
+from typing import Tuple
 
 import pytest
 from _pytest.tmpdir import TempPathFactory
@@ -63,6 +64,7 @@ class TestPath:
         path = pathlib.Path('/test/path/another/part')
         stdlib_properties = {p for p in dir(path) if p.startswith('__') or not p.startswith('_')}
         stdlib_properties.discard('link_to')
+        stdlib_properties.discard('__class_getitem__')
 
         async_path = Path(path)
         anyio_properties = {p for p in dir(async_path)
@@ -95,6 +97,13 @@ class TestPath:
 
     def test_suffixes_property(self) -> None:
         assert Path('/abc/xyz/foo.tar.gz').suffixes == ['.tar', '.gz']
+
+    @pytest.mark.parametrize('args, result', [
+        (('/xyz', 'abc'), True),
+        (('/xyz', 'baz'), False)
+    ])
+    def test_is_relative_to(self, args: Tuple[str], result: bool) -> None:
+        assert Path('/xyz/abc/foo').is_relative_to(*args) == result
 
     async def test_glob(self, populated_tmpdir: pathlib.Path) -> None:
         all_paths = []
@@ -130,6 +139,15 @@ class TestPath:
         path.touch(0o666)
         await Path(path).chmod(0o444)
         assert path.stat().st_mode & 0o777 == 0o444
+
+    @pytest.mark.skipif(platform.platform() == 'Windows',
+                        reason='symbolic links are not supported on Windows')
+    async def test_readlink(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path.joinpath('testfile')
+        path.symlink_to('/foo/bar/baz')
+        link_target = await Path(path).readlink()
+        assert isinstance(link_target, Path)
+        assert str(link_target) == '/foo/bar/baz'
 
     async def test_read_bytes(self, tmp_path: pathlib.Path) -> None:
         path = tmp_path / 'testfile'

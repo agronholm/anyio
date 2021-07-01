@@ -242,6 +242,13 @@ class Path:
     def match(self, path_pattern: str) -> bool:
         return self._path.match(path_pattern)
 
+    def is_relative_to(self, *other: Union[str, PathLike]) -> bool:
+        try:
+            self.relative_to(*other)
+            return True
+        except ValueError:
+            return False
+
     async def chmod(self, mode: int, *, follow_symlinks: bool = True) -> None:
         func = partial(os.chmod, follow_symlinks=follow_symlinks)
         return await to_thread.run_sync(func, self._path, mode)
@@ -338,6 +345,10 @@ class Path:
     def relative_to(self, *other: Union['Path', PathLike]) -> 'Path':
         other = tuple((p._path if isinstance(p, Path) else p) for p in other)
         return Path(self._path.relative_to(*other))
+
+    async def readlink(self) -> 'Path':
+        target = await to_thread.run_sync(os.readlink, self._path)
+        return Path(target)
 
     async def rename(self, target: Union[str, pathlib.PurePath, 'Path']) -> None:
         if isinstance(target, Path):
