@@ -1,3 +1,4 @@
+import os
 import pathlib
 import platform
 from typing import Tuple
@@ -79,15 +80,15 @@ class TestPath:
     def test_parent_property(self) -> None:
         parent = Path('/abc/xyz/foo.txt').parent
         assert isinstance(parent, Path)
-        assert str(parent) == '/abc/xyz'
+        assert str(parent) == f'{os.path.sep}abc{os.path.sep}xyz'
 
     def test_parents_property(self) -> None:
         parents = Path('/abc/xyz/foo.txt').parents
         assert len(parents) == 3
         assert all(isinstance(parent, Path) for parent in parents)
-        assert str(parents[0]) == '/abc/xyz'
-        assert str(parents[1]) == '/abc'
-        assert str(parents[2]) == '/'
+        assert str(parents[0]) == f'{os.path.sep}abc{os.path.sep}xyz'
+        assert str(parents[1]) == f'{os.path.sep}abc'
+        assert str(parents[2]) == os.path.sep
 
     def test_stem_property(self) -> None:
         assert Path('/abc/xyz/foo.txt.zip').stem == 'foo.txt'
