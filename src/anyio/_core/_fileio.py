@@ -140,7 +140,7 @@ class _PathIterator(AsyncIterator['Path']):
         return Path(cast(PathLike, nextval))
 
 
-class Path(PathLike):
+class Path:
     __slots__ = '_path'
 
     def __init__(self, *args: Union[str, PathLike]) -> None:
@@ -403,3 +403,6 @@ class Path(PathLike):
     async def write_text(self, data: str, encoding: Optional[str] = None,
                          errors: Optional[str] = None) -> int:
         return await to_thread.run_sync(self._path.write_text, data, encoding, errors)
+
+
+PathLike.register(Path)
