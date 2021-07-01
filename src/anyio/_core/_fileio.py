@@ -4,11 +4,13 @@ import sys
 from dataclasses import dataclass
 from functools import partial
 from os import PathLike
-from typing import Any, AsyncIterator, Callable, Generic, Iterator, Optional, TypeVar, Union, cast
+from types import TracebackType
+from typing import (
+    Any, AsyncIterator, Callable, Generic, Iterator, List, Optional, Sequence, Tuple, Type,
+    TypeVar, Union, cast)
 
 from .. import to_thread
 from ..abc import AsyncResource
-from ._synchronization import CapacityLimiter
 
 if sys.version_info >= (3, 8):
     from typing import Final
@@ -128,48 +130,121 @@ async def open_file(file: Union[str, PathLike, int], mode: str = 'r', buffering:
 
 @dataclass(eq=False)
 class _PathIterator(AsyncIterator['Path']):
-    iterator: Iterator[pathlib.Path]
-    limiter: Optional[CapacityLimiter] = None
+    iterator: Iterator[PathLike]
 
     async def __anext__(self) -> 'Path':
-        nextval = await to_thread.run_sync(next, self.iterator, None, cancellable=True,
-                                           limiter=self.limiter)
+        nextval = await to_thread.run_sync(next, self.iterator, None, cancellable=True)
         if nextval is None:
             raise StopAsyncIteration from None
 
-        return Path(cast(pathlib.Path, nextval))
+        return Path(cast(PathLike, nextval))
 
 
 class Path(PathLike):
-    def __init__(self, *args: Union[str, pathlib.Path]) -> None:
-        self._path: Final[pathlib.Path] = pathlib.Path(*args)
+    __slots__ = '_path'
 
-    def __getattr__(self, item: str) -> Any:
-        return getattr(self._path, item)
+    def __init__(self, *args: Union[str, PathLike]) -> None:
+        self._path: Final[pathlib.Path] = pathlib.Path(*args)
 
     def __fspath__(self) -> str:
         return self._path.__fspath__()
 
-    def __truediv__(self, other: object) -> 'Path':
-        if isinstance(other, Path):
-            other = other._path
+    def __str__(self) -> str:
+        return self._path.__str__()
 
-        if isinstance(other, (str, pathlib.PurePath)):
-            return Path(self._path / other)
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.as_posix()!r})'
 
-        return NotImplemented
+    def __bytes__(self) -> bytes:
+        return self._path.__bytes__()
+
+    def __hash__(self) -> int:
+        return self._path.__hash__()
+
+    def __eq__(self, other: object) -> bool:
+        return self._path.__eq__(other)
+
+    def __lt__(self, other: 'Path') -> bool:
+        return self._path.__lt__(other._path)
+
+    def __le__(self, other: 'Path') -> bool:
+        return self._path.__le__(other._path)
+
+    def __gt__(self, other: 'Path') -> bool:
+        return self._path.__gt__(other._path)
+
+    def __ge__(self, other: 'Path') -> bool:
+        return self._path.__ge__(other._path)
+
+    def __truediv__(self, other: Any) -> 'Path':
+        return Path(self._path / other)
+
+    def __rtruediv__(self, other: Any) -> 'Path':
+        return Path(other) / self
+
+    def __enter__(self) -> 'Path':
+        self._path.__enter__()
+        return self
+
+    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException,
+                 exc_tb: TracebackType) -> Optional[bool]:
+        return self._path.__exit__(exc_type, exc_val, exc_tb)
+
+    @property
+    def anchor(self) -> str:
+        return self._path.anchor
+
+    @property
+    def drive(self) -> str:
+        return self._path.drive
+
+    @property
+    def root(self) -> str:
+        return self._path.root
+
+    @property
+    def parent(self) -> 'Path':
+        return Path(self._path.parent)
+
+    @property
+    def stem(self) -> str:
+        return self._path.stem
+
+    @property
+    def name(self) -> str:
+        return self._path.name
+
+    @property
+    def parts(self) -> Tuple[str, ...]:
+        return self._path.parts
+
+    @property
+    def parents(self) -> Sequence['Path']:
+        return tuple(Path(p) for p in self._path.parents)
+
+    @property
+    def suffix(self) -> str:
+        return self._path.suffix
+
+    @property
+    def suffixes(self) -> List[str]:
+        return self._path.suffixes
 
     def absolute(self) -> 'Path':
         return Path(self._path.absolute())
 
-    def as_posix(self) -> 'Path':
-        return Path(self._path.as_posix())
+    def as_posix(self) -> str:
+        return self._path.as_posix()
 
-    def as_uri(self) -> 'Path':
-        return Path(self._path.as_uri())
+    def as_uri(self) -> str:
+        return self._path.as_uri()
 
-    async def chmod(self, mode: int) -> None:
-        return await to_thread.run_sync(self._path.chmod, mode)
+    def match(self, path_pattern: str) -> bool:
+        return self._path.match(path_pattern)
+
+    async def chmod(self, mode: int, *, follow_symlinks: bool = True) -> None:
+        func = partial(os.chmod, follow_symlinks=follow_symlinks)
+        return await to_thread.run_sync(func, self._path, mode)
 
     @classmethod
     async def cwd(cls) -> 'Path':
@@ -249,8 +324,7 @@ class Path(PathLike):
 
     async def open(self, mode: str = 'r', buffering: int = -1, encoding: Optional[str] = None,
                    errors: Optional[str] = None, newline: Optional[str] = None) -> AsyncFile:
-        fp = await to_thread.run_sync(self._path.open, mode, buffering, encoding, errors, newline)
-        return AsyncFile(fp)
+        return await open_file(self._path, mode, buffering, encoding, errors, newline)
 
     async def owner(self) -> str:
         return await to_thread.run_sync(self._path.owner, cancellable=True)
@@ -277,8 +351,8 @@ class Path(PathLike):
 
         await to_thread.run_sync(self._path.replace, target)
 
-    async def resolve(self, strict: bool = False) -> 'Path':
-        return Path(await to_thread.run_sync(self._path.resolve, strict, cancellable=True))
+    async def resolve(self) -> 'Path':
+        return Path(await to_thread.run_sync(self._path.resolve, cancellable=True))
 
     def rglob(self, pattern: str) -> AsyncIterator['Path']:
         gen = self._path.rglob(pattern)
@@ -287,13 +361,15 @@ class Path(PathLike):
     async def rmdir(self) -> None:
         await to_thread.run_sync(self._path.rmdir)
 
-    if sys.version_info >= (3, 10):
-        async def stat(self, *, follow_symlinks: bool = True) -> os.stat_result:
-            func = partial(self._path.stat, follow_symlinks=follow_symlinks)
-            return await to_thread.run_sync(func, cancellable=True)
-    else:
-        async def stat(self) -> os.stat_result:
-            return await to_thread.run_sync(self._path.stat, cancellable=True)
+    async def samefile(self, other_path: Union[str, bytes, int, pathlib.Path, 'Path']) -> bool:
+        if isinstance(other_path, Path):
+            other_path = other_path._path
+
+        return await to_thread.run_sync(self._path.samefile, other_path, cancellable=True)
+
+    async def stat(self, *, follow_symlinks: bool = True) -> os.stat_result:
+        func = partial(os.stat, follow_symlinks=follow_symlinks)
+        return await to_thread.run_sync(func, self._path, cancellable=True)
 
     async def symlink_to(self, target: Union[str, pathlib.Path, 'Path'],
                          target_is_directory: bool = False) -> None:
@@ -302,17 +378,11 @@ class Path(PathLike):
 
         await to_thread.run_sync(self.symlink_to, target, target_is_directory)
 
-    async def touch(self, mode: int = 0o777, exist_ok: bool = True) -> None:
+    async def touch(self, mode: int = 0o666, exist_ok: bool = True) -> None:
         await to_thread.run_sync(self._path.touch, mode, exist_ok)
 
     async def unlink(self, missing_ok: bool = False) -> None:
         await to_thread.run_sync(self._path.unlink, missing_ok)
-
-    async def samefile(self, other_path: Union[str, bytes, int, pathlib.Path, 'Path']) -> bool:
-        if isinstance(other_path, Path):
-            other_path = other_path._path
-
-        return await to_thread.run_sync(self._path.samefile, other_path, cancellable=True)
 
     def with_name(self, name: str) -> 'Path':
         return Path(self._path.with_name(name))
