@@ -132,7 +132,7 @@ class TestPath:
         all_paths.sort()
         assert all_paths == ['subdir', 'testfile', 'testfile2']
 
-    @pytest.mark.skipif(platform.platform() == 'Windows',
+    @pytest.mark.skipif(platform.system() == 'Windows',
                         reason='chmod() is not available on Windows')
     async def test_chmod(self, tmp_path: pathlib.Path) -> None:
         path = tmp_path / 'testfile'
@@ -140,7 +140,7 @@ class TestPath:
         await Path(path).chmod(0o444)
         assert path.stat().st_mode & 0o777 == 0o444
 
-    @pytest.mark.skipif(platform.platform() == 'Windows',
+    @pytest.mark.skipif(platform.system() == 'Windows',
                         reason='symbolic links are not supported on Windows')
     async def test_readlink(self, tmp_path: pathlib.Path) -> None:
         path = tmp_path.joinpath('testfile')
