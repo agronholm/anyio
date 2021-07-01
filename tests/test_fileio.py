@@ -62,6 +62,7 @@ class TestPath:
         """Ensure that all public properties and methods are available on the async Path class."""
         path = pathlib.Path('/test/path/another/part')
         stdlib_properties = {p for p in dir(path) if p.startswith('__') or not p.startswith('_')}
+        stdlib_properties.discard('link_to')
 
         async_path = Path(path)
         anyio_properties = {p for p in dir(async_path)
