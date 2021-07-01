@@ -43,5 +43,6 @@ original in a number of ways:
   thread and thus require an ``await``
 * Methods like :meth:`~pathlib.Path.glob` return an asynchronous iterator that yields asynchronous
   :class:`~.Path` objects
-* The ``parents`` property returns a sequence of :class:`~.Path` objects, and not
-  :class:`pathlib.Path` objects like its trio counterpart
+* Properties and methods that normally return :class:`pathlib.Path` objects return :class:`~.Path`
+  objects instead
+* Methods and properties from the Python 3.10 API are available on all versions

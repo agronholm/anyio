@@ -1,4 +1,5 @@
 import pathlib
+import platform
 
 import pytest
 from _pytest.tmpdir import TempPathFactory
@@ -69,15 +70,15 @@ class TestPath:
         missing = stdlib_properties - anyio_properties
         assert not missing
 
-    def test_name_property(self):
-        assert Path('/abc/xyz/foo.txt').name == 'foo.txt'
+    def test_name_property(self) -> None:
+        assert Path('/abc/xyz/foo.txt.zip').name == 'foo.txt.zip'
 
-    def test_parent_property(self):
+    def test_parent_property(self) -> None:
         parent = Path('/abc/xyz/foo.txt').parent
         assert isinstance(parent, Path)
         assert str(parent) == '/abc/xyz'
 
-    def test_parents_property(self):
+    def test_parents_property(self) -> None:
         parents = Path('/abc/xyz/foo.txt').parents
         assert len(parents) == 3
         assert all(isinstance(parent, Path) for parent in parents)
@@ -85,13 +86,13 @@ class TestPath:
         assert str(parents[1]) == '/abc'
         assert str(parents[2]) == '/'
 
-    def test_stem_property(self):
-        assert Path('/abc/xyz/foo.txt').stem == 'foo'
+    def test_stem_property(self) -> None:
+        assert Path('/abc/xyz/foo.txt.zip').stem == 'foo.txt'
 
-    def test_suffix_property(self):
-        assert Path('/abc/xyz/foo.txt').suffix == '.txt'
+    def test_suffix_property(self) -> None:
+        assert Path('/abc/xyz/foo.txt.zip').suffix == '.zip'
 
-    def test_suffixes_property(self):
+    def test_suffixes_property(self) -> None:
         assert Path('/abc/xyz/foo.tar.gz').suffixes == ['.tar', '.gz']
 
     async def test_glob(self, populated_tmpdir: pathlib.Path) -> None:
@@ -121,6 +122,14 @@ class TestPath:
         all_paths.sort()
         assert all_paths == ['subdir', 'testfile', 'testfile2']
 
+    @pytest.mark.skipif(platform.platform() == 'Windows',
+                        reason='chmod() is not available on Windows')
+    async def test_chmod(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'testfile'
+        path.touch(0o666)
+        await Path(path).chmod(0o444)
+        assert path.stat().st_mode & 0o777 == 0o444
+
     async def test_read_bytes(self, tmp_path: pathlib.Path) -> None:
         path = tmp_path / 'testfile'
         path.write_bytes(b'bibbitibobbitiboo')
@@ -132,9 +141,24 @@ class TestPath:
         assert await Path(path).read_text(encoding='utf-8') == 'some text åäö'
 
     async def test_touch(self, tmp_path: pathlib.Path) -> None:
-        path = Path(tmp_path) / 'file'
-        await path.touch()
-        assert await path.is_file()
+        path = tmp_path / 'testfile'
+        await Path(path).touch()
+        assert path.is_file()
+
+    async def test_unlink(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'testfile'
+        path.touch()
+        await Path(path).unlink()
+        assert not path.exists()
+
+    def test_with_name(self) -> None:
+        assert Path('/xyz/foo.txt').with_name('bar').name == 'bar'
+
+    def test_with_stem(self) -> None:
+        assert Path('/xyz/foo.txt').with_stem('bar').name == 'bar.txt'
+
+    def test_with_suffix(self) -> None:
+        assert Path('/xyz/foo.txt.gz').with_suffix('.zip').name == 'foo.txt.zip'
 
     async def test_write_bytes(self, tmp_path: pathlib.Path) -> None:
         path = tmp_path / 'testfile'

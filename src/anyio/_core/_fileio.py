@@ -382,13 +382,17 @@ class Path(PathLike):
         await to_thread.run_sync(self._path.touch, mode, exist_ok)
 
     async def unlink(self, missing_ok: bool = False) -> None:
-        await to_thread.run_sync(self._path.unlink, missing_ok)
+        try:
+            await to_thread.run_sync(self._path.unlink)
+        except FileNotFoundError:
+            if not missing_ok:
+                raise
 
     def with_name(self, name: str) -> 'Path':
         return Path(self._path.with_name(name))
 
     def with_stem(self, stem: str) -> 'Path':
-        return Path(self._path.with_stem(stem))
+        return Path(self._path.with_name(stem + self._path.suffix))
 
     def with_suffix(self, suffix: str) -> 'Path':
         return Path(self._path.with_suffix(suffix))
