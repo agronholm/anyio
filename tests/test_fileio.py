@@ -153,8 +153,10 @@ class TestPath:
         assert Path('c:\\foo\\bar').as_posix() == 'c:/foo/bar'
 
     def test_as_uri(self) -> None:
-        root = 'c:' if platform.system() == 'Windows' else ''
-        assert Path(f'{root}/foo/bar').as_uri() == f'file:///{root}foo/bar'
+        if platform.system() == 'Windows':
+            assert Path('c:\\foo\\bar').as_uri() == 'file:///c:/foo/bar'
+        else:
+            assert Path('/foo/bar').as_uri() == 'file:///foo/bar'
 
     async def test_cwd(self) -> None:
         result = await Path.cwd()
