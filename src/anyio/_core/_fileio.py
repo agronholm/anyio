@@ -162,19 +162,34 @@ class Path:
         return self._path.__hash__()
 
     def __eq__(self, other: object) -> bool:
+        if isinstance(other, Path):
+            other = other._path
+
         return self._path.__eq__(other)
 
     def __lt__(self, other: 'Path') -> bool:
-        return self._path.__lt__(other._path)
+        if isinstance(other, Path):
+            other = other._path
+
+        return self._path.__lt__(other)
 
     def __le__(self, other: 'Path') -> bool:
-        return self._path.__le__(other._path)
+        if isinstance(other, Path):
+            other = other._path
+
+        return self._path.__le__(other)
 
     def __gt__(self, other: 'Path') -> bool:
-        return self._path.__gt__(other._path)
+        if isinstance(other, Path):
+            other = other._path
+
+        return self._path.__gt__(other)
 
     def __ge__(self, other: 'Path') -> bool:
-        return self._path.__ge__(other._path)
+        if isinstance(other, Path):
+            other = other._path
+
+        return self._path.__ge__(other)
 
     def __truediv__(self, other: Any) -> 'Path':
         return Path(self._path / other)
@@ -320,7 +335,7 @@ class Path:
         return Path(self._path.joinpath(*args))
 
     async def lchmod(self, mode: int) -> None:
-        await to_thread.run_sync(self.lchmod, mode)
+        await to_thread.run_sync(self._path.lchmod, mode)
 
     async def lstat(self) -> os.stat_result:
         return await to_thread.run_sync(self._path.lstat, cancellable=True)
@@ -349,20 +364,23 @@ class Path:
         target = await to_thread.run_sync(os.readlink, self._path)
         return Path(cast(str, target))
 
-    async def rename(self, target: Union[str, pathlib.PurePath, 'Path']) -> None:
+    async def rename(self, target: Union[str, pathlib.PurePath, 'Path']) -> 'Path':
         if isinstance(target, Path):
             target = target._path
 
         await to_thread.run_sync(self._path.rename, target)
+        return Path(target)
 
-    async def replace(self, target: Union[str, pathlib.PurePath, 'Path']) -> None:
+    async def replace(self, target: Union[str, pathlib.PurePath, 'Path']) -> 'Path':
         if isinstance(target, Path):
             target = target._path
 
         await to_thread.run_sync(self._path.replace, target)
+        return Path(target)
 
-    async def resolve(self) -> 'Path':
-        return Path(await to_thread.run_sync(self._path.resolve, cancellable=True))
+    async def resolve(self, strict: bool = False) -> 'Path':
+        func = partial(self._path.resolve, strict=strict)
+        return Path(await to_thread.run_sync(func, cancellable=True))
 
     def rglob(self, pattern: str) -> AsyncIterator['Path']:
         gen = self._path.rglob(pattern)
@@ -386,7 +404,7 @@ class Path:
         if isinstance(target, Path):
             target = target._path
 
-        await to_thread.run_sync(self.symlink_to, target, target_is_directory)
+        await to_thread.run_sync(self._path.symlink_to, target, target_is_directory)
 
     async def touch(self, mode: int = 0o666, exist_ok: bool = True) -> None:
         await to_thread.run_sync(self._path.touch, mode, exist_ok)

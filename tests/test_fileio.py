@@ -6,7 +6,7 @@ from typing import Tuple
 import pytest
 from _pytest.tmpdir import TempPathFactory
 
-from anyio import Path, open_file
+from anyio import AsyncFile, Path, open_file
 
 pytestmark = pytest.mark.anyio
 
@@ -133,6 +133,10 @@ class TestPath:
         all_paths.sort()
         assert all_paths == ['subdir', 'testfile', 'testfile2']
 
+    def test_joinpath(self):
+        path = Path('/foo').joinpath('bar')
+        assert path == Path('/foo/bar')
+
     @pytest.mark.skipif(platform.system() == 'Windows',
                         reason='chmod() is not available on Windows')
     async def test_chmod(self, tmp_path: pathlib.Path) -> None:
@@ -140,6 +144,48 @@ class TestPath:
         path.touch(0o666)
         await Path(path).chmod(0o444)
         assert path.stat().st_mode & 0o777 == 0o444
+
+    @pytest.mark.skipif(not hasattr(os, 'lchmod'), reason='os.lchmod() is not available')
+    async def test_lchmod(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'testfile'
+        path.symlink_to('/foo/bar/baz')
+        await Path(path).lchmod(0o600)
+        assert path.lstat().st_mode & 0o777 == 0o600
+
+    @pytest.mark.skipif(platform.system() == 'Windows',
+                        reason='symbolic links are not supported on Windows')
+    async def test_lstat(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path.joinpath('testfile')
+        path.symlink_to('/foo/bar/baz')
+        result = await Path(path).lstat()
+        assert isinstance(result, os.stat_result)
+
+    @pytest.mark.skipif(platform.system() == 'Windows',
+                        reason='owner and group are not supported on Windows')
+    async def test_group(self, tmp_path: pathlib.Path) -> None:
+        import grp
+        group_name = grp.getgrgid(os.getegid()).gr_name
+        assert await Path(tmp_path).group() == group_name
+
+    async def test_mkdir(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'testdir'
+        await Path(path).mkdir()
+        assert path.is_dir()
+
+    async def test_open(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'testfile'
+        path.write_bytes(b'bibbitibobbitiboo')
+        fp = await Path(path).open('rb')
+        assert isinstance(fp, AsyncFile)
+        assert fp.name == str(path)
+        await fp.aclose()
+
+    @pytest.mark.skipif(platform.system() == 'Windows',
+                        reason='owner and group are not supported on Windows')
+    async def test_owner(self, tmp_path: pathlib.Path) -> None:
+        import pwd
+        user_name = pwd.getpwuid(os.geteuid()).pw_name
+        assert await Path(tmp_path).owner() == user_name
 
     @pytest.mark.skipif(platform.system() == 'Windows',
                         reason='symbolic links are not supported on Windows')
@@ -160,16 +206,68 @@ class TestPath:
         path.write_text('some text åäö', encoding='utf-8')
         assert await Path(path).read_text(encoding='utf-8') == 'some text åäö'
 
+    async def test_rename(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'somefile'
+        path.touch()
+        target = tmp_path / 'anotherfile'
+        result = await Path(path).rename(Path(target))
+        assert isinstance(result, Path)
+        assert result == target
+
+    async def test_replace(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'somefile'
+        path.write_text('hello')
+        target = tmp_path / 'anotherfile'
+        target.write_text('world')
+        result = await Path(path).replace(Path(target))
+        assert isinstance(result, Path)
+        assert result == target
+        assert target.read_text() == 'hello'
+
+    async def test_resolve(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'somedir' / '..' / 'somefile'
+        result = await Path(path).resolve()
+        assert result == tmp_path / 'somefile'
+
+    async def test_rmdir(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'somedir'
+        path.mkdir()
+        await Path(path).rmdir()
+        assert not path.exists()
+
+    async def test_samefile(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'somefile'
+        path.touch()
+        assert await Path(tmp_path / 'somefile').samefile(Path(path))
+
+    async def test_stat(self, tmp_path: pathlib.Path) -> None:
+        result = await Path(tmp_path).stat()
+        assert isinstance(result, os.stat_result)
+
     async def test_touch(self, tmp_path: pathlib.Path) -> None:
         path = tmp_path / 'testfile'
         await Path(path).touch()
         assert path.is_file()
+
+    @pytest.mark.skipif(platform.system() == 'Windows',
+                        reason='symbolic links are not supported on Windows')
+    async def test_symlink_to(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'testfile'
+        target = tmp_path / 'link'
+        await Path(path).symlink_to(Path(target))
+        assert path.is_symlink()
 
     async def test_unlink(self, tmp_path: pathlib.Path) -> None:
         path = tmp_path / 'testfile'
         path.touch()
         await Path(path).unlink()
         assert not path.exists()
+
+    async def test_unlink_missing_file(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'testfile'
+        await Path(path).unlink(missing_ok=True)
+        with pytest.raises(FileNotFoundError):
+            await Path(path).unlink(missing_ok=False)
 
     def test_with_name(self) -> None:
         assert Path('/xyz/foo.txt').with_name('bar').name == 'bar'
