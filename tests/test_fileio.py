@@ -90,7 +90,7 @@ class TestPath:
         assert repr(Path('/foo')) == "Path('/foo')"
 
     def test_bytes(self) -> None:
-        assert bytes(Path('/foo-åäö')) == os.fsencode('/foo-åäö')
+        assert bytes(Path('/foo-åäö')) == os.fsencode(f'{os.path.sep}foo-åäö')
 
     def test_hash(self) -> None:
         assert hash(Path('/foo')) == hash(pathlib.Path('/foo'))
@@ -124,7 +124,7 @@ class TestPath:
         assert Path('/abc/xyz/foo.txt').root == os.path.sep
 
     def test_anchor_property(self) -> None:
-        assert Path('/abc/xyz/foo.txt.zip').anchor == '/'
+        assert Path('/abc/xyz/foo.txt.zip').anchor == os.path.sep
 
     def test_parents_property(self) -> None:
         parents = Path('/abc/xyz/foo.txt').parents
@@ -161,7 +161,8 @@ class TestPath:
         assert Path('c:\\foo\\bar').as_posix() == 'c:/foo/bar'
 
     def test_as_uri(self) -> None:
-        assert Path('/foo/bar').as_uri() == 'file:///foo/bar'
+        drive = 'c:' if platform.system() == 'Windows' else ''
+        assert Path(f'{drive}/foo/bar').as_uri() == f'file://{drive}/foo/bar'
 
     async def test_cwd(self) -> None:
         result = await Path.cwd()
@@ -175,7 +176,7 @@ class TestPath:
     async def test_expanduser(self) -> None:
         result = await Path('~/btelkbee').expanduser()
         assert isinstance(result, Path)
-        assert str(result) == os.path.expanduser('~/btelkbee')
+        assert str(result) == os.path.expanduser(f'~{os.path.sep}btelkbee')
 
     async def test_home(self) -> None:
         result = await Path.home()
@@ -183,7 +184,7 @@ class TestPath:
         assert result == pathlib.Path.home()
 
     @pytest.mark.parametrize('arg, result', [
-        ('/xyz', True),
+        (f'{os.path.sep}xyz', True),
         ('../xyz', False)
     ])
     def test_is_absolute(self, arg: str, result: bool) -> None:
