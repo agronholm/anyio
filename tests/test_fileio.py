@@ -11,6 +11,7 @@ from _pytest.tmpdir import TempPathFactory
 from anyio import AsyncFile, Path, open_file
 
 pytestmark = pytest.mark.anyio
+ROOT = 'c:' if platform.system() == 'Windows' else '/'
 
 
 class TestAsyncFile:
@@ -68,6 +69,8 @@ class TestPath:
         stdlib_properties = {p for p in dir(path) if p.startswith('__') or not p.startswith('_')}
         stdlib_properties.discard('link_to')
         stdlib_properties.discard('__class_getitem__')
+        stdlib_properties.discard('__enter__')
+        stdlib_properties.discard('__exit__')
 
         async_path = Path(path)
         anyio_properties = {p for p in dir(async_path)
@@ -75,16 +78,6 @@ class TestPath:
 
         missing = stdlib_properties - anyio_properties
         assert not missing
-
-    async def test_contextmanager(self, tmp_path: pathlib.Path) -> None:
-        path = Path(tmp_path / 'somefile')
-        with path as new_path:
-            assert new_path is path
-            async with await path.open('wb'):
-                pass
-
-        with pytest.raises(ValueError, match='I/O operation on closed path'):
-            await path.open('rb')
 
     def test_repr(self) -> None:
         assert repr(Path('/foo')) == "Path('/foo')"
@@ -161,8 +154,7 @@ class TestPath:
         assert Path('c:\\foo\\bar').as_posix() == 'c:/foo/bar'
 
     def test_as_uri(self) -> None:
-        drive = 'c:' if platform.system() == 'Windows' else ''
-        assert Path(f'{drive}/foo/bar').as_uri() == f'file://{drive}/foo/bar'
+        assert Path(f'{ROOT}/foo/bar').as_uri() == f'file://{ROOT}/foo/bar'
 
     async def test_cwd(self) -> None:
         result = await Path.cwd()
@@ -184,7 +176,7 @@ class TestPath:
         assert result == pathlib.Path.home()
 
     @pytest.mark.parametrize('arg, result', [
-        (f'{os.path.sep}xyz', True),
+        (f'{ROOT}xyz', True),
         ('../xyz', False)
     ])
     def test_is_absolute(self, arg: str, result: bool) -> None:

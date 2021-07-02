@@ -4,10 +4,9 @@ import sys
 from dataclasses import dataclass
 from functools import partial
 from os import PathLike
-from types import TracebackType
 from typing import (
-    Any, AsyncIterator, Callable, Generic, Iterator, List, Optional, Sequence, Tuple, Type,
-    TypeVar, Union, cast)
+    Any, AsyncIterator, Callable, Generic, Iterator, List, Optional, Sequence, Tuple, TypeVar,
+    Union, cast)
 
 from .. import to_thread
 from ..abc import AsyncResource
@@ -186,14 +185,6 @@ class Path:
 
     def __rtruediv__(self, other: Any) -> 'Path':
         return Path(other) / self
-
-    def __enter__(self) -> 'Path':
-        self._path.__enter__()
-        return self
-
-    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException,
-                 exc_tb: TracebackType) -> Optional[bool]:
-        return self._path.__exit__(exc_type, exc_val, exc_tb)
 
     @property
     def parts(self) -> Tuple[str, ...]:

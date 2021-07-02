@@ -46,3 +46,4 @@ original in a number of ways:
 * Properties and methods that normally return :class:`pathlib.Path` objects return :class:`~.Path`
   objects instead
 * Methods and properties from the Python 3.10 API are available on all versions
+* Use as a context manager is not supported, as it is deprecated in pathlib
