@@ -162,34 +162,24 @@ class Path:
         return self._path.__hash__()
 
     def __eq__(self, other: object) -> bool:
-        if isinstance(other, Path):
-            other = other._path
-
-        return self._path.__eq__(other)
+        target = other._path if isinstance(other, Path) else other
+        return self._path.__eq__(target)
 
     def __lt__(self, other: 'Path') -> bool:
-        if isinstance(other, Path):
-            other = other._path
-
-        return self._path.__lt__(other)
+        target = other._path if isinstance(other, Path) else other
+        return self._path.__lt__(target)
 
     def __le__(self, other: 'Path') -> bool:
-        if isinstance(other, Path):
-            other = other._path
-
-        return self._path.__le__(other)
+        target = other._path if isinstance(other, Path) else other
+        return self._path.__le__(target)
 
     def __gt__(self, other: 'Path') -> bool:
-        if isinstance(other, Path):
-            other = other._path
-
-        return self._path.__gt__(other)
+        target = other._path if isinstance(other, Path) else other
+        return self._path.__gt__(target)
 
     def __ge__(self, other: 'Path') -> bool:
-        if isinstance(other, Path):
-            other = other._path
-
-        return self._path.__ge__(other)
+        target = other._path if isinstance(other, Path) else other
+        return self._path.__ge__(target)
 
     def __truediv__(self, other: Any) -> 'Path':
         return Path(self._path / other)

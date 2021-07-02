@@ -133,7 +133,7 @@ class TestPath:
         all_paths.sort()
         assert all_paths == ['subdir', 'testfile', 'testfile2']
 
-    def test_joinpath(self):
+    def test_joinpath(self) -> None:
         path = Path('/foo').joinpath('bar')
         assert path == Path('/foo/bar')
 
