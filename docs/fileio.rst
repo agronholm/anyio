@@ -47,3 +47,29 @@ original in a number of ways:
   objects instead
 * Methods and properties from the Python 3.10 API are available on all versions
 * Use as a context manager is not supported, as it is deprecated in pathlib
+
+For example, to create a file with binary content::
+
+    from anyio import Path, run
+
+
+    async def main():
+        path = Path('/foo/bar')
+        await path.write_bytes(b'hello, world')
+
+    run(main)
+
+Asynchronously iterating a directory contents can be done as follows::
+
+    from anyio import Path, run
+
+
+    async def main():
+        # Print the contents of every file (assumed to be text) in the directory /foo/bar
+        dir_path = Path('/foo/bar')
+        async for path in dir_path.iterdir():
+            if await path.is_file():
+                print(await path.read_text())
+                print('---------------------')
+
+    run(main)
