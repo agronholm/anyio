@@ -196,8 +196,8 @@ class Path:
         return self._path.__exit__(exc_type, exc_val, exc_tb)
 
     @property
-    def anchor(self) -> str:
-        return self._path.anchor
+    def parts(self) -> Tuple[str, ...]:
+        return self._path.parts
 
     @property
     def drive(self) -> str:
@@ -208,24 +208,20 @@ class Path:
         return self._path.root
 
     @property
-    def parent(self) -> 'Path':
-        return Path(self._path.parent)
-
-    @property
-    def stem(self) -> str:
-        return self._path.stem
-
-    @property
-    def name(self) -> str:
-        return self._path.name
-
-    @property
-    def parts(self) -> Tuple[str, ...]:
-        return self._path.parts
+    def anchor(self) -> str:
+        return self._path.anchor
 
     @property
     def parents(self) -> Sequence['Path']:
         return tuple(Path(p) for p in self._path.parents)
+
+    @property
+    def parent(self) -> 'Path':
+        return Path(self._path.parent)
+
+    @property
+    def name(self) -> str:
+        return self._path.name
 
     @property
     def suffix(self) -> str:
@@ -235,8 +231,13 @@ class Path:
     def suffixes(self) -> List[str]:
         return self._path.suffixes
 
-    def absolute(self) -> 'Path':
-        return Path(self._path.absolute())
+    @property
+    def stem(self) -> str:
+        return self._path.stem
+
+    async def absolute(self) -> 'Path':
+        path = await to_thread.run_sync(self._path.absolute)
+        return Path(path)
 
     def as_posix(self) -> str:
         return self._path.as_posix()
@@ -280,7 +281,7 @@ class Path:
         if isinstance(target, Path):
             target = target._path
 
-        await to_thread.run_sync(self.hardlink_to, target)
+        await to_thread.run_sync(os.link, target, self)
 
     @classmethod
     async def home(cls) -> 'Path':
@@ -306,7 +307,7 @@ class Path:
         return await to_thread.run_sync(self._path.is_file, cancellable=True)
 
     async def is_mount(self) -> bool:
-        return await to_thread.run_sync(self._path.is_mount, cancellable=True)
+        return await to_thread.run_sync(os.path.ismount, self._path, cancellable=True)
 
     def is_reserved(self) -> bool:
         return self._path.is_reserved()
@@ -336,7 +337,8 @@ class Path:
 
     async def open(self, mode: str = 'r', buffering: int = -1, encoding: Optional[str] = None,
                    errors: Optional[str] = None, newline: Optional[str] = None) -> AsyncFile:
-        return await open_file(self._path, mode, buffering, encoding, errors, newline)
+        fp = await to_thread.run_sync(self._path.open, mode, buffering, encoding, errors, newline)
+        return AsyncFile(fp)
 
     async def owner(self) -> str:
         return await to_thread.run_sync(self._path.owner, cancellable=True)

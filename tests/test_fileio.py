@@ -1,6 +1,8 @@
 import os
 import pathlib
 import platform
+import socket
+import stat
 from typing import Tuple
 
 import pytest
@@ -74,13 +76,55 @@ class TestPath:
         missing = stdlib_properties - anyio_properties
         assert not missing
 
-    def test_name_property(self) -> None:
-        assert Path('/abc/xyz/foo.txt.zip').name == 'foo.txt.zip'
+    async def test_contextmanager(self, tmp_path: pathlib.Path) -> None:
+        path = Path(tmp_path / 'somefile')
+        with path as new_path:
+            assert new_path is path
+            async with await path.open('wb'):
+                pass
 
-    def test_parent_property(self) -> None:
-        parent = Path('/abc/xyz/foo.txt').parent
-        assert isinstance(parent, Path)
-        assert str(parent) == f'{os.path.sep}abc{os.path.sep}xyz'
+        with pytest.raises(ValueError, match='I/O operation on closed path'):
+            await path.open('rb')
+
+    def test_repr(self) -> None:
+        assert repr(Path('/foo')) == "Path('/foo')"
+
+    def test_bytes(self) -> None:
+        assert bytes(Path('/foo-åäö')) == os.fsencode('/foo-åäö')
+
+    def test_hash(self) -> None:
+        assert hash(Path('/foo')) == hash(pathlib.Path('/foo'))
+
+    def test_comparison(self) -> None:
+        path1 = Path('/foo1')
+        path2 = Path('/foo2')
+        assert path1 < path2
+        assert path1 <= path2
+        assert path2 > path1
+        assert path2 >= path1
+
+    def test_truediv(self) -> None:
+        result = Path('/foo') / 'bar'
+        assert isinstance(result, Path)
+        assert result == pathlib.Path('/foo/bar')
+
+    def test_rtruediv(self) -> None:
+        result = '/foo' / Path('bar')
+        assert isinstance(result, Path)
+        assert result == pathlib.Path('/foo/bar')
+
+    def test_parts_property(self) -> None:
+        assert Path('/abc/xyz/foo.txt').parts == ('/', 'abc', 'xyz', 'foo.txt')
+
+    @pytest.mark.skipif(platform.system() != 'Windows', reason='Drive only makes sense on Windows')
+    def test_drive_property(self) -> None:
+        assert Path('c:\\abc\\xyz').drive == 'c:'
+
+    def test_root_property(self) -> None:
+        assert Path('/abc/xyz/foo.txt').root == os.path.sep
+
+    def test_anchor_property(self) -> None:
+        assert Path('/abc/xyz/foo.txt.zip').anchor == '/'
 
     def test_parents_property(self) -> None:
         parents = Path('/abc/xyz/foo.txt').parents
@@ -90,14 +134,123 @@ class TestPath:
         assert str(parents[1]) == f'{os.path.sep}abc'
         assert str(parents[2]) == os.path.sep
 
-    def test_stem_property(self) -> None:
-        assert Path('/abc/xyz/foo.txt.zip').stem == 'foo.txt'
+    def test_parent_property(self) -> None:
+        parent = Path('/abc/xyz/foo.txt').parent
+        assert isinstance(parent, Path)
+        assert str(parent) == f'{os.path.sep}abc{os.path.sep}xyz'
+
+    def test_name_property(self) -> None:
+        assert Path('/abc/xyz/foo.txt.zip').name == 'foo.txt.zip'
 
     def test_suffix_property(self) -> None:
         assert Path('/abc/xyz/foo.txt.zip').suffix == '.zip'
 
     def test_suffixes_property(self) -> None:
         assert Path('/abc/xyz/foo.tar.gz').suffixes == ['.tar', '.gz']
+
+    def test_stem_property(self) -> None:
+        assert Path('/abc/xyz/foo.txt.zip').stem == 'foo.txt'
+
+    async def test_absolute(self) -> None:
+        result = await Path('../foo/bar').absolute()
+        assert isinstance(result, Path)
+        assert result == pathlib.Path.cwd() / '../foo/bar'
+
+    @pytest.mark.skipif(platform.system() != 'Windows', reason='Only makes sense on Windows')
+    def test_as_posix(self) -> None:
+        assert Path('c:\\foo\\bar').as_posix() == 'c:/foo/bar'
+
+    def test_as_uri(self) -> None:
+        assert Path('/foo/bar').as_uri() == 'file:///foo/bar'
+
+    async def test_cwd(self) -> None:
+        result = await Path.cwd()
+        assert isinstance(result, Path)
+        assert result == pathlib.Path.cwd()
+
+    async def test_exists(self, tmp_path: pathlib.Path) -> None:
+        assert not await Path('~/btelkbee').exists()
+        assert await Path(tmp_path).exists()
+
+    async def test_expanduser(self) -> None:
+        result = await Path('~/btelkbee').expanduser()
+        assert isinstance(result, Path)
+        assert str(result) == os.path.expanduser('~/btelkbee')
+
+    async def test_home(self) -> None:
+        result = await Path.home()
+        assert isinstance(result, Path)
+        assert result == pathlib.Path.home()
+
+    @pytest.mark.parametrize('arg, result', [
+        ('/xyz', True),
+        ('../xyz', False)
+    ])
+    def test_is_absolute(self, arg: str, result: bool) -> None:
+        assert Path(arg).is_absolute() == result
+
+    @pytest.mark.skipif(platform.system() == 'Windows',
+                        reason='Block devices are not available on Windows')
+    async def test_is_block_device(self) -> None:
+        assert not await Path('/btelkbee').is_block_device()
+        with os.scandir('/dev') as iterator:
+            for entry in iterator:
+                if stat.S_ISBLK(entry.stat().st_mode):
+                    assert await Path(entry.path).is_block_device()
+                    break
+            else:
+                pytest.fail('Could not find a suitable block device')
+
+    @pytest.mark.skipif(platform.system() == 'Windows',
+                        reason='Character devices are not available on Windows')
+    async def test_is_char_device(self) -> None:
+        assert not await Path('/btelkbee').is_char_device()
+        assert await Path('/dev/random').is_char_device()
+
+    async def test_is_dir(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'somedir'
+        assert not await Path(path).is_dir()
+        path.mkdir()
+        assert await Path(path).is_dir()
+
+    @pytest.mark.skipif(platform.system() == 'Windows',
+                        reason='mkfifo() is not available on Windows')
+    async def test_is_fifo(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'somefifo'
+        assert not await Path(path).is_fifo()
+        os.mkfifo(path)
+        assert await Path(path).is_fifo()
+
+    async def test_is_file(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'somefile'
+        assert not await Path(path).is_file()
+        path.touch()
+        assert await Path(path).is_file()
+
+    async def test_is_mount(self) -> None:
+        assert not await Path('/gfobj4ewiotj').is_mount()
+        assert await Path('/').is_mount()
+
+    def test_is_reserved(self) -> None:
+        expected_result = platform.system() == 'Windows'
+        assert Path('nul').is_reserved() == expected_result
+
+    @pytest.mark.skipif(platform.system() == 'Windows',
+                        reason='UNIX sockets are not available on Windows')
+    async def test_is_socket(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'somesocket'
+        assert not await Path(path).is_socket()
+        with socket.socket(socket.AF_UNIX) as sock:
+            sock.bind(str(path))
+            assert await Path(path).is_socket()
+
+    @pytest.mark.skipif(platform.system() == 'Windows',
+                        reason='symbolic links are not supported on Windows')
+    async def test_is_symlink(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'testfile'
+        assert not await Path(path).is_symlink()
+        path.symlink_to('/foo')
+        assert await Path(path).is_symlink()
 
     @pytest.mark.parametrize('args, result', [
         (('/xyz', 'abc'), True),
@@ -137,6 +290,10 @@ class TestPath:
         path = Path('/foo').joinpath('bar')
         assert path == Path('/foo/bar')
 
+    def test_match(self) -> None:
+        assert Path('/foo/bar').match('/foo/*')
+        assert not Path('/foo/bar').match('/baz/*')
+
     @pytest.mark.skipif(platform.system() == 'Windows',
                         reason='chmod() is not available on Windows')
     async def test_chmod(self, tmp_path: pathlib.Path) -> None:
@@ -144,6 +301,16 @@ class TestPath:
         path.touch(0o666)
         await Path(path).chmod(0o444)
         assert path.stat().st_mode & 0o777 == 0o444
+
+    @pytest.mark.skipif(platform.system() == 'Windows',
+                        reason='hard links are not supported on Windows')
+    async def test_hardlink_to(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'testfile'
+        target = tmp_path / 'link'
+        target.touch()
+        await Path(path).hardlink_to(Path(target))
+        assert path.stat().st_nlink == 2
+        assert target.stat().st_nlink == 2
 
     @pytest.mark.skipif(not hasattr(os, 'lchmod'), reason='os.lchmod() is not available')
     async def test_lchmod(self, tmp_path: pathlib.Path) -> None:
