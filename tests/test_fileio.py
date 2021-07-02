@@ -230,7 +230,7 @@ class TestPath:
 
     @pytest.mark.skipif(platform.system() == 'Windows',
                         reason='UNIX sockets are not available on Windows')
-    async def test_is_socket(self, tmp_path_factory) -> None:
+    async def test_is_socket(self, tmp_path_factory: TempPathFactory) -> None:
         path = tmp_path_factory.mktemp('unix').joinpath('socket')
         assert not await Path(path).is_socket()
         with socket.socket(socket.AF_UNIX) as sock:
