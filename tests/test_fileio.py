@@ -11,7 +11,6 @@ from _pytest.tmpdir import TempPathFactory
 from anyio import AsyncFile, Path, open_file
 
 pytestmark = pytest.mark.anyio
-ROOT = 'c:' if platform.system() == 'Windows' else '/'
 
 
 class TestAsyncFile:
@@ -107,7 +106,7 @@ class TestPath:
         assert result == pathlib.Path('/foo/bar')
 
     def test_parts_property(self) -> None:
-        assert Path('/abc/xyz/foo.txt').parts == ('/', 'abc', 'xyz', 'foo.txt')
+        assert Path('/abc/xyz/foo.txt').parts == (os.path.sep, 'abc', 'xyz', 'foo.txt')
 
     @pytest.mark.skipif(platform.system() != 'Windows', reason='Drive only makes sense on Windows')
     def test_drive_property(self) -> None:
@@ -154,7 +153,8 @@ class TestPath:
         assert Path('c:\\foo\\bar').as_posix() == 'c:/foo/bar'
 
     def test_as_uri(self) -> None:
-        assert Path(f'{ROOT}/foo/bar').as_uri() == f'file://{ROOT}/foo/bar'
+        root = 'c:' if platform.system() == 'Windows' else ''
+        assert Path(f'{root}/foo/bar').as_uri() == f'file:///{root}foo/bar'
 
     async def test_cwd(self) -> None:
         result = await Path.cwd()
@@ -176,7 +176,7 @@ class TestPath:
         assert result == pathlib.Path.home()
 
     @pytest.mark.parametrize('arg, result', [
-        (f'{ROOT}xyz', True),
+        ('c:/xyz' if platform.system() == 'Windows' else '/xyz', True),
         ('../xyz', False)
     ])
     def test_is_absolute(self, arg: str, result: bool) -> None:
@@ -230,8 +230,8 @@ class TestPath:
 
     @pytest.mark.skipif(platform.system() == 'Windows',
                         reason='UNIX sockets are not available on Windows')
-    async def test_is_socket(self, tmp_path: pathlib.Path) -> None:
-        path = tmp_path / 'somesocket'
+    async def test_is_socket(self, tmp_path_factory) -> None:
+        path = tmp_path_factory.mktemp('unix').joinpath('socket')
         assert not await Path(path).is_socket()
         with socket.socket(socket.AF_UNIX) as sock:
             sock.bind(str(path))
