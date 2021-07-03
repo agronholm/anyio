@@ -140,6 +140,56 @@ class _PathIterator(AsyncIterator['Path']):
 
 
 class Path:
+    """
+    An asynchronous version of :class:`pathlib.Path`.
+
+    This class cannot be substituted for :class:`pathlib.Path` or :class:`pathlib.PurePath`, but
+    it is compatible with the :class:`os.PathLike` interface.
+
+    It implements the Python 3.10 version of :class:`pathlib.Path` interface, except for the
+    deprecated :meth:`~pathlib.Path.link_to` method.
+
+    Any methods that do disk I/O need to be awaited on. These methods are:
+
+    * :meth:`~pathlib.Path.absolute`
+    * :meth:`~pathlib.Path.chmod`
+    * :meth:`~pathlib.Path.cwd`
+    * :meth:`~pathlib.Path.exists`
+    * :meth:`~pathlib.Path.expanduser`
+    * :meth:`~pathlib.Path.group`
+    * :meth:`~pathlib.Path.hardlink_to`
+    * :meth:`~pathlib.Path.home`
+    * :meth:`~pathlib.Path.is_block_device`
+    * :meth:`~pathlib.Path.is_char_device`
+    * :meth:`~pathlib.Path.is_dir`
+    * :meth:`~pathlib.Path.is_fifo`
+    * :meth:`~pathlib.Path.is_file`
+    * :meth:`~pathlib.Path.is_mount`
+    * :meth:`~pathlib.Path.lchmod`
+    * :meth:`~pathlib.Path.lstat`
+    * :meth:`~pathlib.Path.mkdir`
+    * :meth:`~pathlib.Path.open`
+    * :meth:`~pathlib.Path.owner`
+    * :meth:`~pathlib.Path.read_bytes`
+    * :meth:`~pathlib.Path.read_text`
+    * :meth:`~pathlib.Path.readlink`
+    * :meth:`~pathlib.Path.rename`
+    * :meth:`~pathlib.Path.replace`
+    * :meth:`~pathlib.Path.rmdir`
+    * :meth:`~pathlib.Path.samefile`
+    * :meth:`~pathlib.Path.stat`
+    * :meth:`~pathlib.Path.touch`
+    * :meth:`~pathlib.Path.unlink`
+    * :meth:`~pathlib.Path.write_bytes`
+    * :meth:`~pathlib.Path.write_text`
+
+    Additionally, the following methods return an async iterator yielding :class:`~.Path` objects:
+
+    * :meth:`~pathlib.Path.glob`
+    * :meth:`~pathlib.Path.iterdir`
+    * :meth:`~pathlib.Path.rglob`
+    """
+
     __slots__ = '_path'
 
     def __init__(self, *args: Union[str, PathLike]) -> None:
