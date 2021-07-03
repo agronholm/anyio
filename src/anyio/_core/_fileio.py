@@ -91,7 +91,7 @@ class AsyncFile(AsyncResource, Generic[T_Fp]):
     async def readinto1(self, b: Union[bytes, memoryview]) -> bytes:
         return await to_thread.run_sync(self._fp.readinto1, b)
 
-    async def write(self, b: bytes) -> None:
+    async def write(self, b: bytes) -> int:
         return await to_thread.run_sync(self._fp.write, b)
 
     async def writelines(self, lines: bytes) -> None:
@@ -462,8 +462,9 @@ class Path:
         return await to_thread.run_sync(self._path.write_bytes, data)
 
     async def write_text(self, data: str, encoding: Optional[str] = None,
-                         errors: Optional[str] = None) -> int:
-        return await to_thread.run_sync(self._path.write_text, data, encoding, errors)
+                         errors: Optional[str] = None, newline: Optional[str] = None) -> int:
+        async with await self.open('w', encoding=encoding, errors=errors, newline=newline) as fp:
+            return await fp.write(data)  # type: ignore[arg-type]
 
 
 PathLike.register(Path)
