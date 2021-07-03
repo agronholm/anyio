@@ -190,7 +190,7 @@ class Path:
     * :meth:`~pathlib.Path.rglob`
     """
 
-    __slots__ = '_path'
+    __slots__ = '_path', '__weakref__'
 
     def __init__(self, *args: Union[str, PathLike]) -> None:
         self._path: Final[pathlib.Path] = pathlib.Path(*args)
