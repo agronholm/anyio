@@ -73,7 +73,7 @@ Async file I/O
 .. autofunction:: anyio.open_file
 
 .. autoclass:: anyio.AsyncFile
-
+.. autoclass:: anyio.Path
 
 Streams and stream wrappers
 ---------------------------

@@ -19,6 +19,7 @@ __all__ = (
     'TypedAttributeLookupError',
     'WouldBlock',
     'AsyncFile',
+    'Path',
     'open_file',
     'aclose_forcefully',
     'open_signal_receiver',
@@ -80,7 +81,7 @@ from ._core._exceptions import (
     BrokenResourceError, BrokenWorkerProcess, BusyResourceError, ClosedResourceError,
     DelimiterNotFound, EndOfStream, ExceptionGroup, IncompleteRead, TypedAttributeLookupError,
     WouldBlock)
-from ._core._fileio import AsyncFile, open_file
+from ._core._fileio import AsyncFile, Path, open_file
 from ._core._resources import aclose_forcefully
 from ._core._signals import open_signal_receiver
 from ._core._sockets import (
