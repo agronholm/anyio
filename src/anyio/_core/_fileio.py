@@ -463,8 +463,12 @@ class Path:
 
     async def write_text(self, data: str, encoding: Optional[str] = None,
                          errors: Optional[str] = None, newline: Optional[str] = None) -> int:
-        async with await self.open('w', encoding=encoding, errors=errors, newline=newline) as fp:
-            return await fp.write(data)  # type: ignore[arg-type]
+        # Path.write_text() does not support the "newline" parameter before Python 3.10
+        def sync_write_text() -> int:
+            with self._path.open('w', encoding=encoding, errors=errors, newline=newline) as fp:
+                return fp.write(data)
+
+        return await to_thread.run_sync(sync_write_text)
 
 
 PathLike.register(Path)
