@@ -155,8 +155,8 @@ class BlockingPortal:
             finish before returning
 
         """
-        self._event_loop_thread_id = None
         self._stop_event.set()
+        self._event_loop_thread_id = None
         if cancel_remaining:
             self._task_group.cancel_scope.cancel()
 
