@@ -9,6 +9,7 @@ from typing import (
 from warnings import warn
 
 from ._core import _eventloop
+from ._core._compat import DeprecatedAwaitable
 from ._core._eventloop import get_asynclib, get_cancelled_exc_class, threadlocals
 from ._core._synchronization import Event
 from ._core._tasks import CancelScope, create_task_group
@@ -130,7 +131,7 @@ class BlockingPortal:
     async def __aexit__(self, exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> Optional[bool]:
-        await self.stop()
+        self.stop()
         return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
 
     def _check_running(self) -> None:
@@ -143,7 +144,7 @@ class BlockingPortal:
         """Sleep until :meth:`stop` is called."""
         await self._stop_event.wait()
 
-    async def stop(self, cancel_remaining: bool = False) -> None:
+    def stop(self, cancel_remaining: bool = False) -> DeprecatedAwaitable:
         """
         Signal the portal to shut down.
 
@@ -154,10 +155,17 @@ class BlockingPortal:
             finish before returning
 
         """
+        if self._event_loop_thread_id is None:
+            return
+        if threading.get_ident() != self._event_loop_thread_id:
+            raise RuntimeError('This method must be called from the event loop thread')
+
         self._event_loop_thread_id = None
         self._stop_event.set()
         if cancel_remaining:
             self._task_group.cancel_scope.cancel()
+
+        return DeprecatedAwaitable(self.stop)
 
     async def _call_func(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
                          future: Future) -> None:

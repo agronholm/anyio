@@ -10,6 +10,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``FileWriteStream``so they accept any path-like object (including the new asynchronous ``Path``
   class)
 - Dropped unnecessary dependency on the ``async_generator`` library
+- API changes:
+  * The following functions and methods are no longer asynchronous but can still be awaited on
+    (doing so will emit a deprecation warning):
+
+    * ``abc.BlockingPortal.stop``
 
 **3.2.1**
 
