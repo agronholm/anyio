@@ -155,8 +155,13 @@ class BlockingPortal:
             finish before returning
 
         """
-        self._stop_event.set()
+        if self._event_loop_thread_id is None:
+            return
+        if threading.get_ident() != self._event_loop_thread_id:
+            raise RuntimeError('This method must be called from the event loop thread')
+
         self._event_loop_thread_id = None
+        self._stop_event.set()
         if cancel_remaining:
             self._task_group.cancel_scope.cancel()
 
