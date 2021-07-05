@@ -10,6 +10,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``FileWriteStream``so they accept any path-like object (including the new asynchronous ``Path``
   class)
 - Dropped unnecessary dependency on the ``async_generator`` library
+- Widen ``current_token()`` to AsynclibToken.
+- ``from_thread.run_sync`` and ``from_thread.run`` gain an ``asynclib_token`` kwarg to allow
+  re-entry into the event loop using tokens.
 
 **3.2.1**
 
