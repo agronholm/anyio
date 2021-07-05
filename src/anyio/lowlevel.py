@@ -5,6 +5,7 @@ from typing import Any, Dict, Generic, Set, TypeVar, Union, overload
 from weakref import WeakKeyDictionary
 
 from ._core._eventloop import get_asynclib
+from .abc._lowlevel import AsynclibToken
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -57,19 +58,19 @@ async def cancel_shielded_checkpoint() -> None:
     await get_asynclib().cancel_shielded_checkpoint()
 
 
-def current_token() -> object:
+def current_token() -> AsynclibToken:
     """Return a backend specific token object that can be used to get back to the event loop."""
     return get_asynclib().current_token()
 
 
-_run_vars = WeakKeyDictionary()  # type: WeakKeyDictionary[Any, Dict[str, Any]]
+_run_vars: "WeakKeyDictionary[AsynclibToken, Dict[str, Any]]" = WeakKeyDictionary()
 _token_wrappers: Dict[Any, '_TokenWrapper'] = {}
 
 
 @dataclass(frozen=True)
 class _TokenWrapper:
     __slots__ = '_token', '__weakref__'
-    _token: object
+    _token: AsynclibToken
 
 
 class _NoValueSet(enum.Enum):
@@ -108,8 +109,9 @@ class RunVar(Generic[T]):
                 # Happens when token isn't weak referable (TrioToken).
                 # This workaround does mean that some memory will leak on Trio until the problem
                 # is fixed on their end.
-                token = _TokenWrapper(token)
-                self._token_wrappers.add(token)
+                wrapper = _TokenWrapper(token)
+                token = AsynclibToken(wrapper)
+                self._token_wrappers.add(wrapper)
             except KeyError:
                 run_vars = _run_vars[token] = {}
                 return run_vars

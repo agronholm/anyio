@@ -6,8 +6,9 @@ __all__ = ('AsyncResource', 'IPAddressType', 'IPSockAddrType', 'SocketAttribute'
            'AnyUnreliableByteSendStream', 'AnyUnreliableByteStream', 'AnyByteReceiveStream',
            'AnyByteSendStream', 'AnyByteStream', 'Listener', 'Process', 'Event',
            'Condition', 'Lock', 'Semaphore', 'CapacityLimiter', 'CancelScope', 'TaskGroup',
-           'TaskStatus', 'TestRunner', 'BlockingPortal')
+           'TaskStatus', 'TestRunner', 'BlockingPortal', 'AsynclibToken')
 
+from ._lowlevel import AsynclibToken
 from ._resources import AsyncResource
 from ._sockets import (
     ConnectedUDPSocket, IPAddressType, IPSockAddrType, SocketAttribute, SocketListener,
