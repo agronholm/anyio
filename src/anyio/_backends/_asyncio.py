@@ -825,21 +825,6 @@ def run_async_from_thread(
     return f.result()
 
 
-class BlockingPortal(abc.BlockingPortal):
-    def __new__(cls) -> "BlockingPortal":
-        return object.__new__(cls)
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._loop = get_running_loop()
-
-    def _spawn_task_from_thread(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
-                                name: object, future: Future) -> None:
-        run_sync_from_thread(
-            partial(self._task_group.start_soon, name=name), self._call_func, func, args, kwargs,
-            future, loop=self._loop)
-
-
 #
 # Subprocesses
 #

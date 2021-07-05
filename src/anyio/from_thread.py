@@ -2,6 +2,7 @@ import threading
 from asyncio import AbstractEventLoop, iscoroutine
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import AbstractContextManager, contextmanager
+from functools import partial
 from types import TracebackType
 from typing import (
     Any, AsyncContextManager, Callable, ContextManager, Coroutine, Dict, Generator, Iterable,
@@ -14,6 +15,7 @@ from ._core._synchronization import Event
 from ._core._tasks import CancelScope, create_task_group
 from .abc._lowlevel import AsynclibToken
 from .abc._tasks import TaskStatus
+from .lowlevel import current_token
 
 T_Retval = TypeVar('T_Retval')
 T_co = TypeVar('T_co')
@@ -133,10 +135,8 @@ class _BlockingPortalTaskStatus(TaskStatus):
 class BlockingPortal:
     """An object that lets external threads run code in an asynchronous event loop."""
 
-    def __new__(cls) -> 'BlockingPortal':
-        return get_asynclib().BlockingPortal()
-
     def __init__(self) -> None:
+        self.token = current_token()
         self._event_loop_thread_id: Optional[int] = threading.get_ident()
         self._stop_event = Event()
         self._task_group = create_task_group()
@@ -224,7 +224,9 @@ class BlockingPortal:
             exception raised during its execution
 
         """
-        raise NotImplementedError
+        return run_sync(
+            partial(self._task_group.start_soon, name=name), self._call_func, func, args, kwargs,
+            future, asynclib_token=self.token)
 
     @overload
     def call(self, func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object) -> T_Retval:

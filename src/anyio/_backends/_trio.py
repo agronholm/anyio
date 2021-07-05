@@ -1,15 +1,13 @@
 import array
 import math
 import socket
-from concurrent.futures import Future
 from dataclasses import dataclass
-from functools import partial
 from io import IOBase
 from os import PathLike
 from types import TracebackType
 from typing import (
-    Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque, Dict, Generic, List,
-    Mapping, NoReturn, Optional, Sequence, Set, Tuple, Type, TypeVar, Union)
+    Awaitable, Callable, Collection, ContextManager, Coroutine, Deque, Generic, List, Mapping,
+    NoReturn, Optional, Sequence, Set, Tuple, Type, TypeVar, Union)
 
 import trio.from_thread
 from outcome import Error, Outcome, Value
@@ -171,21 +169,6 @@ async def run_sync_in_worker_thread(
 
 run_async_from_thread = trio.from_thread.run
 run_sync_from_thread = trio.from_thread.run_sync
-
-
-class BlockingPortal(abc.BlockingPortal):
-    def __new__(cls) -> 'BlockingPortal':
-        return object.__new__(cls)
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._token = trio.lowlevel.current_trio_token()
-
-    def _spawn_task_from_thread(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
-                                name: object, future: Future) -> None:
-        return trio.from_thread.run_sync(
-            partial(self._task_group.start_soon, name=name), self._call_func, func, args, kwargs,
-            future, trio_token=self._token)
 
 
 #
