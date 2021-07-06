@@ -163,7 +163,7 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
     async def readline(self) -> AnyStr:
         return await to_thread.run_sync(self._fp.readline)
 
-    async def readlines(self) -> AnyStr:
+    async def readlines(self) -> List[AnyStr]:
         return await to_thread.run_sync(self._fp.readlines)
 
     async def readinto(self, b: WriteableBuffer) -> bytes:
