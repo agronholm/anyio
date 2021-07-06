@@ -172,10 +172,22 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
     async def readinto1(self: 'AsyncFile[bytes]', b: WriteableBuffer) -> bytes:
         return await to_thread.run_sync(self._fp.readinto1, b)
 
-    async def write(self, b: ReadableBuffer) -> int:
+    @overload
+    async def write(self: 'AsyncFile[bytes]', b: ReadableBuffer) -> int: ...
+
+    @overload
+    async def write(self: 'AsyncFile[str]', b: str) -> int: ...
+
+    async def write(self, b: Union[ReadableBuffer, str]) -> int:
         return await to_thread.run_sync(self._fp.write, b)
 
-    async def writelines(self, lines: Iterable[ReadableBuffer]) -> None:
+    @overload
+    async def writelines(self: 'AsyncFile[bytes]', lines: Iterable[ReadableBuffer]) -> None: ...
+
+    @overload
+    async def writelines(self: 'AsyncFile[str]', lines: Iterable[str]) -> None: ...
+
+    async def writelines(self, lines: Union[Iterable[ReadableBuffer], Iterable[str]]) -> None:
         return await to_thread.run_sync(self._fp.writelines, lines)
 
     async def truncate(self, size: Optional[int] = None) -> int:
