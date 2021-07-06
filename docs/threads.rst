@@ -178,5 +178,5 @@ managers as a synchronous one::
 .. note:: You cannot use wrapped async context managers in synchronous callbacks inside the event
           loop thread.
 
-.. note:: The ``__aenter__()`` and ``__aexit__()`` methods will be called from different
-          tasks so a task group as the async context manager will not work here.
+.. note:: The ``__aenter__()`` and ``__aexit__()`` methods will be called in the same task
+          so a task group as the async context manager will work here.
