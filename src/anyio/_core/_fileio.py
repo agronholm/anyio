@@ -157,7 +157,7 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
     async def read(self, size: int = -1) -> AnyStr:
         return await to_thread.run_sync(self._fp.read, size)
 
-    async def read1(self, size: int = -1) -> bytes:
+    async def read1(self: 'AsyncFile[bytes]', size: int = -1) -> bytes:
         return await to_thread.run_sync(self._fp.read1, size)
 
     async def readline(self) -> AnyStr:
@@ -166,10 +166,10 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
     async def readlines(self) -> List[AnyStr]:
         return await to_thread.run_sync(self._fp.readlines)
 
-    async def readinto(self, b: WriteableBuffer) -> bytes:
+    async def readinto(self: 'AsyncFile[bytes]', b: WriteableBuffer) -> bytes:
         return await to_thread.run_sync(self._fp.readinto, b)
 
-    async def readinto1(self, b: WriteableBuffer) -> bytes:
+    async def readinto1(self: 'AsyncFile[bytes]', b: WriteableBuffer) -> bytes:
         return await to_thread.run_sync(self._fp.readinto1, b)
 
     async def write(self, b: ReadableBuffer) -> int:
