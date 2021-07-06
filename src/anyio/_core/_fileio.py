@@ -1,5 +1,3 @@
-import array
-import mmap
 import os
 import pathlib
 import sys
@@ -7,97 +5,21 @@ from dataclasses import dataclass
 from functools import partial
 from os import PathLike
 from typing import (
-    IO, Any, AnyStr, AsyncIterator, Callable, Generic, Iterable, Iterator, List, Optional,
-    Sequence, Tuple, Union, cast, overload)
+    IO, TYPE_CHECKING, Any, AnyStr, AsyncIterator, Callable, Generic, Iterable, Iterator, List,
+    Optional, Sequence, Tuple, Union, cast, overload)
 
 from .. import to_thread
 from ..abc import AsyncResource
 
 if sys.version_info >= (3, 8):
-    from typing import Final, Literal
+    from typing import Final
 else:
-    from typing_extensions import Final, Literal
+    from typing_extensions import Final
 
-# Copied from typeshed
-ReadableBuffer = Union[bytes, bytearray, memoryview, array.array, mmap.mmap]
-WriteableBuffer = Union[bytearray, memoryview, array.array, mmap.mmap]
-OpenTextModeUpdating = Literal[
-    "r+",
-    "+r",
-    "rt+",
-    "r+t",
-    "+rt",
-    "tr+",
-    "t+r",
-    "+tr",
-    "w+",
-    "+w",
-    "wt+",
-    "w+t",
-    "+wt",
-    "tw+",
-    "t+w",
-    "+tw",
-    "a+",
-    "+a",
-    "at+",
-    "a+t",
-    "+at",
-    "ta+",
-    "t+a",
-    "+ta",
-    "x+",
-    "+x",
-    "xt+",
-    "x+t",
-    "+xt",
-    "tx+",
-    "t+x",
-    "+tx",
-]
-OpenTextModeWriting = Literal[
-    "w",
-    "wt",
-    "tw",
-    "a",
-    "at",
-    "ta",
-    "x",
-    "xt",
-    "tx",
-]
-OpenTextModeReading = Literal["r", "rt", "tr", "U", "rU", "Ur", "rtU", "rUt", "Urt", "trU", "tUr",
-                              "Utr"]
-OpenTextMode = Union[OpenTextModeUpdating, OpenTextModeWriting, OpenTextModeReading]
-OpenBinaryModeUpdating = Literal[
-    "rb+",
-    "r+b",
-    "+rb",
-    "br+",
-    "b+r",
-    "+br",
-    "wb+",
-    "w+b",
-    "+wb",
-    "bw+",
-    "b+w",
-    "+bw",
-    "ab+",
-    "a+b",
-    "+ab",
-    "ba+",
-    "b+a",
-    "+ba",
-    "xb+",
-    "x+b",
-    "+xb",
-    "bx+",
-    "b+x",
-    "+bx",
-]
-OpenBinaryModeWriting = Literal["wb", "bw", "ab", "ba", "xb", "bx"]
-OpenBinaryModeReading = Literal["rb", "br", "rbU", "rUb", "Urb", "brU", "bUr", "Ubr"]
-OpenBinaryMode = Union[OpenBinaryModeUpdating, OpenBinaryModeReading, OpenBinaryModeWriting]
+if TYPE_CHECKING:
+    from _typeshed import OpenBinaryMode, OpenTextMode, ReadableBuffer, WriteableBuffer
+else:
+    ReadableBuffer = OpenBinaryMode = OpenTextMode = WriteableBuffer = object
 
 
 class AsyncFile(AsyncResource, Generic[AnyStr]):
