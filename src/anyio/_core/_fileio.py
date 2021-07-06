@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from functools import partial
 from os import PathLike
 from typing import (
-    IO, Any, AsyncIterator, Callable, Generic, Iterator, List, Optional, Sequence, Tuple, TypeVar,
-    Union, cast, overload)
+    IO, Any, AnyStr, AsyncIterator, Callable, Generic, Iterable, Iterator, List, Optional,
+    Sequence, Tuple, Union, cast, overload)
 
 from .. import to_thread
 from ..abc import AsyncResource
@@ -17,8 +17,6 @@ if sys.version_info >= (3, 8):
     from typing import Final, Literal
 else:
     from typing_extensions import Final, Literal
-
-T_IO = TypeVar("T_IO", bytes, str)
 
 # Copied from typeshed
 ReadableBuffer = Union[bytes, bytearray, memoryview, array.array, mmap.mmap]
@@ -102,7 +100,7 @@ OpenBinaryModeReading = Literal["rb", "br", "rbU", "rUb", "Urb", "brU", "bUr", "
 OpenBinaryMode = Union[OpenBinaryModeUpdating, OpenBinaryModeReading, OpenBinaryModeWriting]
 
 
-class AsyncFile(AsyncResource, Generic[T_IO]):
+class AsyncFile(AsyncResource, Generic[AnyStr]):
     """
     An asynchronous file object.
 
@@ -134,18 +132,18 @@ class AsyncFile(AsyncResource, Generic[T_IO]):
                 print(line)
     """
 
-    def __init__(self, fp: IO[T_IO]) -> None:
+    def __init__(self, fp: IO[AnyStr]) -> None:
         self._fp: Any = fp
 
     def __getattr__(self, name: str) -> object:
         return getattr(self._fp, name)
 
     @property
-    def wrapped(self) -> IO[T_IO]:
+    def wrapped(self) -> IO[AnyStr]:
         """The wrapped file object."""
         return self._fp
 
-    async def __aiter__(self) -> AsyncIterator[T_IO]:
+    async def __aiter__(self) -> AsyncIterator[AnyStr]:
         while True:
             line = await self.readline()
             if line:
@@ -156,28 +154,28 @@ class AsyncFile(AsyncResource, Generic[T_IO]):
     async def aclose(self) -> None:
         return await to_thread.run_sync(self._fp.close)
 
-    async def read(self, size: int = -1) -> T_IO:
+    async def read(self, size: int = -1) -> AnyStr:
         return await to_thread.run_sync(self._fp.read, size)
 
     async def read1(self, size: int = -1) -> bytes:
         return await to_thread.run_sync(self._fp.read1, size)
 
-    async def readline(self) -> T_IO:
+    async def readline(self) -> AnyStr:
         return await to_thread.run_sync(self._fp.readline)
 
-    async def readlines(self) -> T_IO:
+    async def readlines(self) -> AnyStr:
         return await to_thread.run_sync(self._fp.readlines)
 
-    async def readinto(self, b: Union[bytes, memoryview]) -> bytes:
+    async def readinto(self, b: WriteableBuffer) -> bytes:
         return await to_thread.run_sync(self._fp.readinto, b)
 
-    async def readinto1(self, b: Union[bytes, memoryview]) -> bytes:
+    async def readinto1(self, b: WriteableBuffer) -> bytes:
         return await to_thread.run_sync(self._fp.readinto1, b)
 
-    async def write(self, b: T_IO) -> int:
+    async def write(self, b: ReadableBuffer) -> int:
         return await to_thread.run_sync(self._fp.write, b)
 
-    async def writelines(self, lines: T_IO) -> None:
+    async def writelines(self, lines: Iterable[ReadableBuffer]) -> None:
         return await to_thread.run_sync(self._fp.writelines, lines)
 
     async def truncate(self, size: Optional[int] = None) -> int:
