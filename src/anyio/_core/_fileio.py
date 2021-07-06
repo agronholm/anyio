@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from functools import partial
 from os import PathLike
 from typing import (
-    Any, AsyncIterator, Callable, Generic, Iterator, List, Optional, Sequence, Tuple, TypeVar,
-    Union, cast)
+    IO, TYPE_CHECKING, Any, AnyStr, AsyncIterator, Callable, Generic, Iterable, Iterator, List,
+    Optional, Sequence, Tuple, Union, cast, overload)
 
 from .. import to_thread
 from ..abc import AsyncResource
@@ -16,10 +16,13 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Final
 
-T_Fp = TypeVar("T_Fp")
+if TYPE_CHECKING:
+    from _typeshed import OpenBinaryMode, OpenTextMode, ReadableBuffer, WriteableBuffer
+else:
+    ReadableBuffer = OpenBinaryMode = OpenTextMode = WriteableBuffer = object
 
 
-class AsyncFile(AsyncResource, Generic[T_Fp]):
+class AsyncFile(AsyncResource, Generic[AnyStr]):
     """
     An asynchronous file object.
 
@@ -51,18 +54,18 @@ class AsyncFile(AsyncResource, Generic[T_Fp]):
                 print(line)
     """
 
-    def __init__(self, fp: T_Fp) -> None:
+    def __init__(self, fp: IO[AnyStr]) -> None:
         self._fp: Any = fp
 
     def __getattr__(self, name: str) -> object:
         return getattr(self._fp, name)
 
     @property
-    def wrapped(self) -> T_Fp:
+    def wrapped(self) -> IO[AnyStr]:
         """The wrapped file object."""
         return self._fp
 
-    async def __aiter__(self) -> AsyncIterator[bytes]:
+    async def __aiter__(self) -> AsyncIterator[AnyStr]:
         while True:
             line = await self.readline()
             if line:
@@ -73,28 +76,40 @@ class AsyncFile(AsyncResource, Generic[T_Fp]):
     async def aclose(self) -> None:
         return await to_thread.run_sync(self._fp.close)
 
-    async def read(self, size: int = -1) -> Union[bytes, str]:
+    async def read(self, size: int = -1) -> AnyStr:
         return await to_thread.run_sync(self._fp.read, size)
 
-    async def read1(self, size: int = -1) -> Union[bytes, str]:
+    async def read1(self: 'AsyncFile[bytes]', size: int = -1) -> bytes:
         return await to_thread.run_sync(self._fp.read1, size)
 
-    async def readline(self) -> bytes:
+    async def readline(self) -> AnyStr:
         return await to_thread.run_sync(self._fp.readline)
 
-    async def readlines(self) -> bytes:
+    async def readlines(self) -> List[AnyStr]:
         return await to_thread.run_sync(self._fp.readlines)
 
-    async def readinto(self, b: Union[bytes, memoryview]) -> bytes:
+    async def readinto(self: 'AsyncFile[bytes]', b: WriteableBuffer) -> bytes:
         return await to_thread.run_sync(self._fp.readinto, b)
 
-    async def readinto1(self, b: Union[bytes, memoryview]) -> bytes:
+    async def readinto1(self: 'AsyncFile[bytes]', b: WriteableBuffer) -> bytes:
         return await to_thread.run_sync(self._fp.readinto1, b)
 
-    async def write(self, b: bytes) -> int:
+    @overload
+    async def write(self: 'AsyncFile[bytes]', b: ReadableBuffer) -> int: ...
+
+    @overload
+    async def write(self: 'AsyncFile[str]', b: str) -> int: ...
+
+    async def write(self, b: Union[ReadableBuffer, str]) -> int:
         return await to_thread.run_sync(self._fp.write, b)
 
-    async def writelines(self, lines: bytes) -> None:
+    @overload
+    async def writelines(self: 'AsyncFile[bytes]', lines: Iterable[ReadableBuffer]) -> None: ...
+
+    @overload
+    async def writelines(self: 'AsyncFile[str]', lines: Iterable[str]) -> None: ...
+
+    async def writelines(self, lines: Union[Iterable[ReadableBuffer], Iterable[str]]) -> None:
         return await to_thread.run_sync(self._fp.writelines, lines)
 
     async def truncate(self, size: Optional[int] = None) -> int:
@@ -108,6 +123,22 @@ class AsyncFile(AsyncResource, Generic[T_Fp]):
 
     async def flush(self) -> None:
         return await to_thread.run_sync(self._fp.flush)
+
+
+@overload
+async def open_file(file: Union[str, PathLike, int], mode: OpenBinaryMode,
+                    buffering: int = ..., encoding: Optional[str] = ...,
+                    errors: Optional[str] = ..., newline: Optional[str] = ..., closefd: bool = ...,
+                    opener: Optional[Callable] = ...) -> AsyncFile[bytes]:
+    ...
+
+
+@overload
+async def open_file(file: Union[str, PathLike, int], mode: OpenTextMode = ...,
+                    buffering: int = ..., encoding: Optional[str] = ...,
+                    errors: Optional[str] = ..., newline: Optional[str] = ..., closefd: bool = ...,
+                    opener: Optional[Callable] = ...) -> AsyncFile[str]:
+    ...
 
 
 async def open_file(file: Union[str, PathLike, int], mode: str = 'r', buffering: int = -1,
@@ -375,6 +406,17 @@ class Path:
     async def mkdir(self, mode: int = 0o777, parents: bool = False,
                     exist_ok: bool = False) -> None:
         await to_thread.run_sync(self._path.mkdir, mode, parents, exist_ok)
+
+    @overload
+    async def open(self, mode: OpenBinaryMode, buffering: int = ..., encoding: Optional[str] = ...,
+                   errors: Optional[str] = ..., newline: Optional[str] = ...) -> AsyncFile[bytes]:
+        ...
+
+    @overload
+    async def open(self, mode: OpenTextMode = ..., buffering: int = ...,
+                   encoding: Optional[str] = ..., errors: Optional[str] = ...,
+                   newline: Optional[str] = ...) -> AsyncFile[str]:
+        ...
 
     async def open(self, mode: str = 'r', buffering: int = -1, encoding: Optional[str] = None,
                    errors: Optional[str] = None, newline: Optional[str] = None) -> AsyncFile:

@@ -48,7 +48,7 @@ class TestAsyncFile:
         async with await open_file(str(testpath)) as f:
             lines_i = iter(lines)
             async for line in f:
-                assert line == next(lines_i)  # type: ignore[comparison-overlap]
+                assert line == next(lines_i)
 
 
 class TestPath:
