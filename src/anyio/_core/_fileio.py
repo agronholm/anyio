@@ -485,6 +485,17 @@ class Path:
                     exist_ok: bool = False) -> None:
         await to_thread.run_sync(self._path.mkdir, mode, parents, exist_ok)
 
+    @overload
+    async def open(self, mode: OpenBinaryMode, buffering: int = ..., encoding: Optional[str] = ...,
+                   errors: Optional[str] = ..., newline: Optional[str] = ...) -> AsyncFile[bytes]:
+        ...
+
+    @overload
+    async def open(self, mode: OpenTextMode = ..., buffering: int = ...,
+                   encoding: Optional[str] = ..., errors: Optional[str] = ...,
+                   newline: Optional[str] = ...) -> AsyncFile[str]:
+        ...
+
     async def open(self, mode: str = 'r', buffering: int = -1, encoding: Optional[str] = None,
                    errors: Optional[str] = None, newline: Optional[str] = None) -> AsyncFile:
         fp = await to_thread.run_sync(self._path.open, mode, buffering, encoding, errors, newline)
