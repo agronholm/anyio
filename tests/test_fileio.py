@@ -8,7 +8,7 @@ from typing import Tuple
 import pytest
 from _pytest.tmpdir import TempPathFactory
 
-from anyio import AsyncFile, Path, open_file
+from anyio import AsyncFile, Path, open_file, wrap_file
 
 pytestmark = pytest.mark.anyio
 
@@ -49,6 +49,14 @@ class TestAsyncFile:
             lines_i = iter(lines)
             async for line in f:
                 assert line == next(lines_i)
+
+    async def test_wrap_file(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / 'testdata'
+        with path.open('w') as fp:
+            wrapped = wrap_file(fp)
+            await wrapped.write('dummydata')
+
+        assert path.read_text() == 'dummydata'
 
 
 class TestPath:

@@ -158,6 +158,27 @@ async def open_file(file: Union[str, PathLike, int], mode: str = 'r', buffering:
     return AsyncFile(fp)
 
 
+@overload
+def wrap_file(file: IO[bytes]) -> AsyncFile[bytes]:
+    ...
+
+
+@overload
+def wrap_file(file: IO[str]) -> AsyncFile[str]:
+    ...
+
+
+def wrap_file(file: IO) -> AsyncFile:
+    """
+    Wrap an existing file as an asynchronous file.
+
+    :param file: an existing file-like object
+    :return: an asynchronous file object
+
+    """
+    return AsyncFile(file)
+
+
 @dataclass(eq=False)
 class _PathIterator(AsyncIterator['Path']):
     iterator: Iterator[PathLike]
