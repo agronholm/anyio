@@ -129,7 +129,7 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
 async def open_file(file: Union[str, PathLike, int], mode: OpenBinaryMode,
                     buffering: int = ..., encoding: Optional[str] = ...,
                     errors: Optional[str] = ..., newline: Optional[str] = ..., closefd: bool = ...,
-                    opener: Optional[Callable] = ...) -> AsyncFile[bytes]:
+                    opener: Optional[Callable[[str, int], int]] = ...) -> AsyncFile[bytes]:
     ...
 
 
@@ -137,14 +137,14 @@ async def open_file(file: Union[str, PathLike, int], mode: OpenBinaryMode,
 async def open_file(file: Union[str, PathLike, int], mode: OpenTextMode = ...,
                     buffering: int = ..., encoding: Optional[str] = ...,
                     errors: Optional[str] = ..., newline: Optional[str] = ..., closefd: bool = ...,
-                    opener: Optional[Callable] = ...) -> AsyncFile[str]:
+                    opener: Optional[Callable[[str, int], int]] = ...) -> AsyncFile[str]:
     ...
 
 
 async def open_file(file: Union[str, PathLike, int], mode: str = 'r', buffering: int = -1,
                     encoding: Optional[str] = None, errors: Optional[str] = None,
                     newline: Optional[str] = None, closefd: bool = True,
-                    opener: Optional[Callable] = None) -> AsyncFile:
+                    opener: Optional[Callable[[str, int], int]] = None) -> AsyncFile:
     """
     Open a file asynchronously.
 
