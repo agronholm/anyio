@@ -158,17 +158,7 @@ async def open_file(file: Union[str, PathLike, int], mode: str = 'r', buffering:
     return AsyncFile(fp)
 
 
-@overload
-def wrap_file(file: IO[bytes]) -> AsyncFile[bytes]:
-    ...
-
-
-@overload
-def wrap_file(file: IO[str]) -> AsyncFile[str]:
-    ...
-
-
-def wrap_file(file: IO) -> AsyncFile:
+def wrap_file(file: IO[AnyStr]) -> AsyncFile[AnyStr]:
     """
     Wrap an existing file as an asynchronous file.
 
