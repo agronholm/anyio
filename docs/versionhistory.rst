@@ -13,6 +13,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Widen ``current_token()`` to AsynclibToken.
 - ``from_thread.run_sync`` and ``from_thread.run`` gain an ``asynclib_token`` kwarg to allow
   re-entry into the event loop using tokens.
+- Changed the generics in ``AsyncFile`` so that the methods correctly return either ``str`` or
+  ``bytes`` based on the argument to ``open_file()``
 
 **3.2.1**
 
