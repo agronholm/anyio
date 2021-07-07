@@ -36,6 +36,7 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object,
             asynclib = threadlocals.current_async_module
         except AttributeError:
             raise RuntimeError('This function can only be run from an AnyIO worker thread')
+
         return asynclib.run_async_from_thread(func, *args)
 
     if isinstance(asynclib_token, AbstractEventLoop):
