@@ -31,6 +31,20 @@ file objects support synchronous iteration::
 
     run(main)
 
+To wrap an existing open file object as an asynchronous file, you can use :func:`.wrap_file`::
+
+    from anyio import wrap_file, run
+
+
+    async def main():
+        with open('/some/path/somewhere') as f:
+            async for line in wrap_file(f):
+                print(line, end='')
+
+    run(main)
+
+.. note:: Closing the wrapper also closes the underlying synchronous file object.
+
 .. seealso:: :ref:`FileStreams`
 
 Asynchronous path operations
