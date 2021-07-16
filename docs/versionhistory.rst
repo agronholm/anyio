@@ -8,7 +8,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added asynchronous ``Path`` class
 - Added the ``wrap_file()`` function for wrapping existing files as asynchronous file objects
 - Relaxed the type of the ``path`` initializer argument to ``FileReadStream`` and
-  ``FileWriteStream``so they accept any path-like object (including the new asynchronous ``Path``
+  ``FileWriteStream`` so they accept any path-like object (including the new asynchronous ``Path``
   class)
 - Dropped unnecessary dependency on the ``async_generator`` library
 - Changed the generics in ``AsyncFile`` so that the methods correctly return either ``str`` or
