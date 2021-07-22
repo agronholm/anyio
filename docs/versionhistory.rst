@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**3.3.0**
 
 - Added asynchronous ``Path`` class
 - Added the ``wrap_file()`` function for wrapping existing files as asynchronous file objects
