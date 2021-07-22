@@ -8,6 +8,7 @@ from typing import Any, List, NoReturn, Optional
 
 import pytest
 
+import anyio.to_thread
 from anyio import (
     CapacityLimiter, Event, create_task_group, from_thread, sleep, to_thread,
     wait_all_tasks_blocked)
@@ -212,3 +213,25 @@ def test_asyncio_run_sync_multiple(asyncio_event_loop: asyncio.AbstractEventLoop
         if t.name == 'AnyIO worker thread':
             t.join(2)
             assert not t.is_alive()
+
+
+def test_asyncio_no_recycle_stopping_worker(asyncio_event_loop: asyncio.AbstractEventLoop) -> None:
+    """Regression test for #323."""
+    async def taskfunc1() -> None:
+        await anyio.to_thread.run_sync(time.sleep, 0)
+        event1.set()
+        await event2.wait()
+
+    async def taskfunc2() -> None:
+        await event1.wait()
+        asyncio_event_loop.call_soon(event2.set)
+        await anyio.to_thread.run_sync(time.sleep, 0)
+        # At this point, the worker would be stopped but still in the idle workers pool, so the
+        # following would hang prior to the fix
+        await anyio.to_thread.run_sync(time.sleep, 0)
+
+    event1 = asyncio.Event()
+    event2 = asyncio.Event()
+    task1 = asyncio_event_loop.create_task(taskfunc1())
+    task2 = asyncio_event_loop.create_task(taskfunc2())
+    asyncio_event_loop.run_until_complete(asyncio.gather(task1, task2))

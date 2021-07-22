@@ -13,6 +13,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Dropped unnecessary dependency on the ``async_generator`` library
 - Changed the generics in ``AsyncFile`` so that the methods correctly return either ``str`` or
   ``bytes`` based on the argument to ``open_file()``
+- Fixed an asyncio bug where under certain circumstances, a stopping worker thread would still
+  accept new assignments, leading to a hang
 
 **3.2.1**
 
