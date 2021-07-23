@@ -202,7 +202,7 @@ class TestPath:
                     assert await Path(entry.path).is_block_device()
                     break
             else:
-                pytest.fail('Could not find a suitable block device')
+                pytest.skip('Could not find a suitable block device')
 
     @pytest.mark.skipif(platform.system() == 'Windows',
                         reason='Character devices are not available on Windows')
