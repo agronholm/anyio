@@ -11,6 +11,7 @@ Event loop
 .. autofunction:: anyio.sleep_forever
 .. autofunction:: anyio.sleep_until
 .. autofunction:: anyio.current_time
+.. autofunction:: anyio.current_token
 
 Asynchronous resources
 ----------------------
