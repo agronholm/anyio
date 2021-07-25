@@ -11,7 +11,6 @@ Event loop
 .. autofunction:: anyio.sleep_forever
 .. autofunction:: anyio.sleep_until
 .. autofunction:: anyio.current_time
-.. autofunction:: anyio.current_token
 
 Asynchronous resources
 ----------------------
@@ -176,6 +175,7 @@ Low level operations
 .. autofunction:: anyio.lowlevel.checkpoint
 .. autofunction:: anyio.lowlevel.checkpoint_if_cancelled
 .. autofunction:: anyio.lowlevel.cancel_shielded_checkpoint
+.. autofunction:: anyio.lowlevel.current_token
 
 .. autoclass:: anyio.lowlevel.RunVar
 
