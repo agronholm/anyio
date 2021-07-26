@@ -3,11 +3,12 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**3.3.0**
 
 - Added asynchronous ``Path`` class
+- Added the ``wrap_file()`` function for wrapping existing files as asynchronous file objects
 - Relaxed the type of the ``path`` initializer argument to ``FileReadStream`` and
-  ``FileWriteStream``so they accept any path-like object (including the new asynchronous ``Path``
+  ``FileWriteStream`` so they accept any path-like object (including the new asynchronous ``Path``
   class)
 - Dropped unnecessary dependency on the ``async_generator`` library
 - Widen ``current_token()`` to AsynclibToken.
@@ -15,6 +16,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   re-entry into the event loop using tokens.
 - Changed the generics in ``AsyncFile`` so that the methods correctly return either ``str`` or
   ``bytes`` based on the argument to ``open_file()``
+- Fixed an asyncio bug where under certain circumstances, a stopping worker thread would still
+  accept new assignments, leading to a hang
 
 **3.2.1**
 

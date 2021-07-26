@@ -71,6 +71,7 @@ Async file I/O
 --------------
 
 .. autofunction:: anyio.open_file
+.. autofunction:: anyio.wrap_file
 
 .. autoclass:: anyio.AsyncFile
 .. autoclass:: anyio.Path
@@ -174,6 +175,7 @@ Low level operations
 .. autofunction:: anyio.lowlevel.checkpoint
 .. autofunction:: anyio.lowlevel.checkpoint_if_cancelled
 .. autofunction:: anyio.lowlevel.cancel_shielded_checkpoint
+.. autofunction:: anyio.lowlevel.current_token
 
 .. autoclass:: anyio.lowlevel.RunVar
 
