@@ -72,7 +72,10 @@ def run_sync(func: Callable[..., T_Retval], *args: object,
         try:
             asynclib = threadlocals.current_async_module
         except AttributeError:
-            raise RuntimeError('This function can only be run from an AnyIO worker thread')
+            raise RuntimeError(
+                "This thread wasn't created by an async library, "
+                "pass kwarg asynclib_token=..."
+            )
 
         return asynclib.run_sync_from_thread(func, *args)
 
