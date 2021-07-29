@@ -23,7 +23,7 @@ Timeouts
 
 Networked operations can often take a long time, and you usually want to set up some kind of a
 timeout to ensure that your application doesn't stall forever. There are two principal ways to do
-this: :func:`~move_on_after` and :func:`~fail_after`. Both are used as asynchronous
+this: :func:`~move_on_after` and :func:`~fail_after`. Both are used as synchronous
 context managers. The difference between these two is that the former simply exits the context
 block prematurely on a timeout, while the other raises a :exc:`TimeoutError`.
 
