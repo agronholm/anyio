@@ -74,7 +74,7 @@ Exceptions to this rule are:
 
 If the code you wish to run does not belong in this category, it's best to use worker processes
 instead in order to take advantage of multiple CPU cores.
-This is done by using :func:`.run_sync_in_process`::
+This is done by using :func:`.to_process.run_sync`::
 
     import time
 
@@ -104,7 +104,7 @@ There are some limitations regarding the arguments and return values passed:
 
 Other considerations:
 
-* Even "cancellable" runs can be cancelled before the request has been sent to the worker process
+* Even "cancellable=False" runs can be cancelled before the request has been sent to the worker process
 * If a cancellable call is cancelled during execution on the worker process, the worker process
   will be killed
 * The worker process imports the parent's ``__main__`` module, so guarding for any import time side
