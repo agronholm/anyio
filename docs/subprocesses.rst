@@ -74,7 +74,7 @@ Exceptions to this rule are:
 
 If the code you wish to run does not belong in this category, it's best to use worker processes
 instead in order to take advantage of multiple CPU cores.
-This is done by using :func:`~to_process.run_sync`::
+This is done by using :func:`.to_process.run_sync`::
 
     import time
 
