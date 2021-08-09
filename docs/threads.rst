@@ -179,4 +179,3 @@ managers as a synchronous one::
           loop thread.
 
 .. note:: The ``__aenter__()`` and ``__aexit__()`` methods will be called in the same task
-          so a task group as the async context manager will work here.
