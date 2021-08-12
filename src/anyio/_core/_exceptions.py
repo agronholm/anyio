@@ -42,11 +42,14 @@ class EndOfStream(Exception):
 
 
 class ExceptionGroup(BaseException):
-    """Raised when multiple exceptions have been raised in a task group."""
+    """
+    Raised when multiple exceptions have been raised in a task group.
+
+    :var ~typing.Sequence[BaseException] exceptions: the sequence of exceptions raised together
+    """
 
     SEPARATOR = '----------------------------\n'
 
-    #: the sequence of exceptions raised together
     exceptions: Sequence[BaseException]
 
     def __str__(self) -> str:

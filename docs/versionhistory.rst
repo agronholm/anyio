@@ -5,6 +5,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added missing documentation for the ``ExceptionGroup.exceptions`` attribute
 - Fixed ``RuntimeError`` on asyncio when a ``CancelledError`` is raised from a task spawned through
   a ``BlockingPortal`` (`#357 <https://github.com/agronholm/anyio/issues/357>`_)
 
