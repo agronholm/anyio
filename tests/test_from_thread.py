@@ -6,6 +6,7 @@ from contextlib import suppress
 from typing import Any, Dict, List, NoReturn, Optional
 
 import pytest
+from _pytest.logging import LogCaptureFixture
 
 from anyio import (
     Event, from_thread, get_cancelled_exc_class, get_current_task, run, sleep, to_thread,
@@ -378,9 +379,9 @@ class TestBlockingPortal:
             assert start_value == 'testname'
 
     @pytest.mark.parametrize('anyio_backend', ['asyncio'])
-    async def test_asyncio_run_sync_called(self, caplog):
+    async def test_asyncio_run_sync_called(self, caplog: LogCaptureFixture) -> None:
         """Regression test for #357."""
-        async def in_loop():
+        async def in_loop() -> None:
             raise CancelledError
 
         async with BlockingPortal() as portal:
