@@ -162,7 +162,7 @@ class BlockingPortal:
     async def _call_func(self, func: Callable, args: tuple, kwargs: Dict[str, Any],
                          future: Future) -> None:
         def callback(f: Future) -> None:
-            if f.cancelled():
+            if f.cancelled() and self._event_loop_thread_id not in (None, threading.get_ident()):
                 self.call(scope.cancel)
 
         try:

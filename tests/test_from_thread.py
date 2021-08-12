@@ -376,3 +376,14 @@ class TestBlockingPortal:
             future, start_value = portal.start_task(
                 taskfunc, name='testname')  # type: ignore[arg-type]
             assert start_value == 'testname'
+
+    @pytest.mark.parametrize('anyio_backend', ['asyncio'])
+    async def test_asyncio_run_sync_called(self, caplog):
+        """Regression test for #357."""
+        async def in_loop():
+            raise CancelledError
+
+        async with BlockingPortal() as portal:
+            await to_thread.run_sync(portal.start_task_soon, in_loop)
+
+        assert not caplog.text
