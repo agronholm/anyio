@@ -1844,7 +1844,7 @@ async def wait_all_tasks_blocked() -> None:
 
 
 class TestRunner(abc.TestRunner):
-    def __init__(self, debug: bool = False, use_uvloop: bool = True,
+    def __init__(self, debug: bool = False, use_uvloop: bool = False,
                  policy: Optional[asyncio.AbstractEventLoopPolicy] = None):
         _maybe_set_event_loop_policy(policy, use_uvloop)
         self._loop = asyncio.new_event_loop()
