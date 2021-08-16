@@ -4,7 +4,7 @@ import sys
 import pytest
 from pytest_mock.plugin import MockerFixture
 
-from anyio import sleep_forever, sleep_until
+from anyio import run, sleep_forever, sleep_until
 
 if sys.version_info < (3, 8):
     from mock import AsyncMock
@@ -36,3 +36,34 @@ async def test_sleep_until_in_past(fake_sleep: AsyncMock) -> None:
 async def test_sleep_forever(fake_sleep: AsyncMock) -> None:
     await sleep_forever()
     fake_sleep.assert_called_once_with(math.inf)
+
+
+@pytest.mark.parametrize('anyio_backend', ['asyncio'])
+async def test_asyncio_shutdown_agen_testrunner() -> None:
+    """
+    Tests against ``RuntimeError: can't send non-None value to a just-started coroutine``
+    happening on the asyncio test runner.
+
+    """
+    async def foo():
+        yield
+
+    agen = foo()
+    await agen.__anext__()
+
+
+def test_asyncio_shutdown_agen_anyio_run(caplog) -> None:
+    """
+    Tests against ``RuntimeError: can't send non-None value to a just-started coroutine``
+    happening in anyio.run().
+
+    """
+    async def foo():
+        yield
+
+    async def main():
+        agen = foo()
+        await agen.__anext__()
+
+    run(main, backend='asyncio')
+    assert not caplog.text

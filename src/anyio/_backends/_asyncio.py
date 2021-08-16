@@ -65,7 +65,9 @@ else:
                 return
 
             for task in to_cancel:
-                task.cancel()
+                # Workaround for async generator shutdown on Python 3.6
+                if not isinstance(get_coro(task), async_generator_athrow):
+                    task.cancel()
 
             loop.run_until_complete(
                 tasks.gather(*to_cancel, loop=loop, return_exceptions=True))
@@ -125,6 +127,14 @@ else:
             loop = get_running_loop()
 
         return asyncio.Task.current_task(loop)
+
+
+# Needed for the workaround for async generator shutdown on Python 3.6
+async def _dummy_asyncgen():
+    yield
+
+async_generator_athrow = _dummy_asyncgen().athrow(Exception).__class__
+del _dummy_asyncgen
 
 T_Retval = TypeVar('T_Retval')
 
@@ -1857,7 +1867,9 @@ class TestRunner(abc.TestRunner):
             return
 
         for task in to_cancel:
-            task.cancel()
+            # Workaround for async generator shutdown on Python 3.6
+            if not isinstance(get_coro(task), async_generator_athrow):
+                task.cancel()
 
         self._loop.run_until_complete(asyncio.gather(*to_cancel, return_exceptions=True))
 

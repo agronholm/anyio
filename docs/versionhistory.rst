@@ -10,6 +10,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``anyio.run()``)
 - Fixed ``RuntimeError`` on asyncio when a ``CancelledError`` is raised from a task spawned through
   a ``BlockingPortal`` (`#357 <https://github.com/agronholm/anyio/issues/357>`_)
+- Fixed ``RuntimeError: can't send non-None value to a just-started coroutine`` on
+  Python 3.6 + asyncio when an unclosed async generator is garbage collected
 
 **3.3.0**
 
