@@ -1,7 +1,9 @@
 import math
 import sys
+from typing import AsyncGenerator
 
 import pytest
+from _pytest.logging import LogCaptureFixture
 from pytest_mock.plugin import MockerFixture
 
 from anyio import run, sleep_forever, sleep_until
@@ -45,23 +47,23 @@ async def test_asyncio_shutdown_agen_testrunner() -> None:
     happening on the asyncio test runner.
 
     """
-    async def foo():
+    async def foo() -> AsyncGenerator:
         yield
 
     agen = foo()
     await agen.__anext__()
 
 
-def test_asyncio_shutdown_agen_anyio_run(caplog) -> None:
+def test_asyncio_shutdown_agen_anyio_run(caplog: LogCaptureFixture) -> None:
     """
     Tests against ``RuntimeError: can't send non-None value to a just-started coroutine``
     happening in anyio.run().
 
     """
-    async def foo():
+    async def foo() -> AsyncGenerator:
         yield
 
-    async def main():
+    async def main() -> None:
         agen = foo()
         await agen.__anext__()
 

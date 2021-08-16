@@ -18,8 +18,8 @@ from socket import AddressFamily, SocketKind
 from threading import Thread
 from types import TracebackType
 from typing import (
-    Any, Awaitable, Callable, Collection, Coroutine, Deque, Dict, Generator, Iterable, List,
-    Mapping, Optional, Sequence, Set, Tuple, Type, TypeVar, Union, cast)
+    Any, AsyncGenerator, Awaitable, Callable, Collection, Coroutine, Deque, Dict, Generator,
+    Iterable, List, Mapping, Optional, Sequence, Set, Tuple, Type, TypeVar, Union, cast)
 from weakref import WeakKeyDictionary
 
 from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
@@ -130,7 +130,7 @@ else:
 
 
 # Needed for the workaround for async generator shutdown on Python 3.6
-async def _dummy_asyncgen():
+async def _dummy_asyncgen() -> AsyncGenerator:
     yield
 
 async_generator_athrow = _dummy_asyncgen().athrow(Exception).__class__
