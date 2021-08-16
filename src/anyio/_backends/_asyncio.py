@@ -7,6 +7,7 @@ import sys
 from asyncio.base_events import _run_until_complete_cb  # type: ignore
 from collections import OrderedDict, deque
 from concurrent.futures import Future
+from contextlib import closing
 from dataclasses import dataclass
 from functools import partial, wraps
 from inspect import (
@@ -133,8 +134,15 @@ else:
 async def _dummy_asyncgen() -> AsyncGenerator:
     yield
 
-async_generator_athrow = _dummy_asyncgen().athrow(Exception).__class__
+_dummygen = _dummy_asyncgen()
+_aclose = _dummygen.aclose()
+with closing(_aclose.__await__()) as coro:
+    async_generator_athrow = type(_aclose)
+
+del _aclose
+del _dummygen
 del _dummy_asyncgen
+
 
 T_Retval = TypeVar('T_Retval')
 
