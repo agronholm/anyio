@@ -66,7 +66,8 @@ else:
                 return
 
             for task in to_cancel:
-                # Workaround for async generator shutdown on Python 3.6
+                # Workaround for async generator shutdown on Python 3.6-3.7.5
+                # https://bugs.python.org/issue38013
                 if not isinstance(get_coro(task), async_generator_athrow):
                     task.cancel()
 
