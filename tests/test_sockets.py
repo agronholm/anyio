@@ -1,4 +1,5 @@
 import array
+import gc
 import io
 import os
 import platform
@@ -15,6 +16,7 @@ from typing import Any, Iterable, Iterator, List, NoReturn, Tuple, Type, TypeVar
 
 import pytest
 from _pytest.fixtures import SubRequest
+from _pytest.logging import LogCaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
 from _pytest.tmpdir import TempPathFactory
 
@@ -386,6 +388,38 @@ class TestTCPStream:
 
         thread.join()
         assert thread_exception is None
+
+    @pytest.mark.parametrize('anyio_backend', ['asyncio'])
+    async def test_unretrieved_future_exception_server_crash(
+            self, family: AnyIPAddressFamily, caplog: LogCaptureFixture) -> None:
+        """
+        Tests that there won't be any leftover Futures that don't get their exceptions retrieved.
+
+        See https://github.com/encode/httpcore/issues/382 for details.
+
+        """
+        def serve() -> None:
+            sock, addr = server_sock.accept()
+            event.wait(3)
+            del sock
+
+        server_sock = socket.socket(family, socket.SOCK_STREAM)
+        server_sock.settimeout(1)
+        server_sock.bind(('localhost', 0))
+        server_sock.listen()
+        server_addr = server_sock.getsockname()[:2]
+        event = threading.Event()
+        thread = Thread(target=serve)
+        thread.start()
+        async with await connect_tcp(*server_addr) as stream:
+            await stream.send(b'GET')
+            event.set()
+            with pytest.raises(BrokenResourceError):
+                await stream.receive()
+
+        thread.join()
+        gc.collect()
+        assert not caplog.text
 
 
 class TestTCPListener:
