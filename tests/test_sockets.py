@@ -402,6 +402,7 @@ class TestTCPStream:
             sock, addr = server_sock.accept()
             event.wait(3)
             del sock
+            gc.collect()
 
         server_sock = socket.socket(family, socket.SOCK_STREAM)
         server_sock.settimeout(1)
