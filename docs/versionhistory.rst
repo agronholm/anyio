@@ -10,6 +10,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``anyio.run()``)
 - Fixed ``RuntimeError`` on asyncio when a ``CancelledError`` is raised from a task spawned through
   a ``BlockingPortal`` (`#357 <https://github.com/agronholm/anyio/issues/357>`_)
+- Fixed asyncio warning about a ``Future`` with an exception that was never retrieved which
+  happened when a socket was already written to but the peer abruptly closed the connection
 
 **3.3.0**
 
