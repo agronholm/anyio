@@ -1110,9 +1110,9 @@ class SocketStream(abc.SocketStream):
             await checkpoint()
 
             if self._closed:
-                raise ClosedResourceError from None
+                raise ClosedResourceError
             elif self._protocol.exception is not None:
-                raise self._protocol.exception from None
+                raise self._protocol.exception
 
             try:
                 self._transport.write(item)
