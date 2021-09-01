@@ -1017,14 +1017,14 @@ def setup_process_pool_exit_at_shutdown(workers: Set[Process]) -> None:
 class StreamProtocol(asyncio.Protocol):
     read_queue: Deque[bytes]
     read_event: asyncio.Event
-    write_future: asyncio.Future
+    write_event: asyncio.Event
     exception: Optional[Exception] = None
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.read_queue = deque()
         self.read_event = asyncio.Event()
-        self.write_future = asyncio.Future()
-        self.write_future.set_result(None)
+        self.write_event = asyncio.Event()
+        self.write_event.set()
         cast(asyncio.Transport, transport).set_write_buffer_limits(0)
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
@@ -1033,11 +1033,7 @@ class StreamProtocol(asyncio.Protocol):
             self.exception.__cause__ = exc
 
         self.read_event.set()
-        self.write_future = asyncio.Future()
-        if self.exception:
-            self.write_future.set_exception(self.exception)
-        else:
-            self.write_future.set_result(None)
+        self.write_event.set()
 
     def data_received(self, data: bytes) -> None:
         self.read_queue.append(data)
@@ -1048,10 +1044,10 @@ class StreamProtocol(asyncio.Protocol):
         return True
 
     def pause_writing(self) -> None:
-        self.write_future = asyncio.Future()
+        self.write_event = asyncio.Event()
 
     def resume_writing(self) -> None:
-        self.write_future.set_result(None)
+        self.write_event.set()
 
 
 class DatagramProtocol(asyncio.DatagramProtocol):
@@ -1100,6 +1096,7 @@ class SocketStream(abc.SocketStream):
     async def receive(self, max_bytes: int = 65536) -> bytes:
         with self._receive_guard:
             await checkpoint()
+
             if not self._protocol.read_event.is_set() and not self._transport.is_closing():
                 self._transport.resume_reading()
                 await self._protocol.read_event.wait()
@@ -1113,7 +1110,7 @@ class SocketStream(abc.SocketStream):
                 elif self._protocol.exception:
                     raise self._protocol.exception
                 else:
-                    raise EndOfStream
+                    raise EndOfStream from None
 
             if len(chunk) > max_bytes:
                 # Split the oversized chunk
@@ -1130,19 +1127,21 @@ class SocketStream(abc.SocketStream):
     async def send(self, item: bytes) -> None:
         with self._send_guard:
             await checkpoint()
+
+            if self._closed:
+                raise ClosedResourceError
+            elif self._protocol.exception is not None:
+                raise self._protocol.exception
+
             try:
                 self._transport.write(item)
             except RuntimeError as exc:
-                if self._protocol.write_future.exception():
-                    await self._protocol.write_future
-                elif self._closed:
-                    raise ClosedResourceError from None
-                elif self._transport.is_closing():
+                if self._transport.is_closing():
                     raise BrokenResourceError from exc
                 else:
                     raise
 
-            await self._protocol.write_future
+            await self._protocol.write_event.wait()
 
     async def send_eof(self) -> None:
         try:

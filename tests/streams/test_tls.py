@@ -65,21 +65,22 @@ class TestTLSStream:
         async with await connect_tcp(*server_sock.getsockname()) as stream:
             wrapper = await TLSStream.wrap(stream, hostname='localhost',
                                            ssl_context=client_context, standard_compatible=False)
-            for name, attribute in SocketAttribute.__dict__.items():
-                if not name.startswith('_'):
-                    assert wrapper.extra(attribute) == stream.extra(attribute)
+            async with wrapper:
+                for name, attribute in SocketAttribute.__dict__.items():
+                    if not name.startswith('_'):
+                        assert wrapper.extra(attribute) == stream.extra(attribute)
 
-            assert wrapper.extra(TLSAttribute.alpn_protocol) == 'h2'
-            assert isinstance(wrapper.extra(TLSAttribute.channel_binding_tls_unique), bytes)
-            assert isinstance(wrapper.extra(TLSAttribute.cipher), tuple)
-            assert isinstance(wrapper.extra(TLSAttribute.peer_certificate), dict)
-            assert isinstance(wrapper.extra(TLSAttribute.peer_certificate_binary), bytes)
-            assert wrapper.extra(TLSAttribute.server_side) is False
-            assert isinstance(wrapper.extra(TLSAttribute.shared_ciphers), list)
-            assert isinstance(wrapper.extra(TLSAttribute.ssl_object), ssl.SSLObject)
-            assert wrapper.extra(TLSAttribute.standard_compatible) is False
-            assert wrapper.extra(TLSAttribute.tls_version).startswith('TLSv')
-            await wrapper.send(b'\x00')
+                assert wrapper.extra(TLSAttribute.alpn_protocol) == 'h2'
+                assert isinstance(wrapper.extra(TLSAttribute.channel_binding_tls_unique), bytes)
+                assert isinstance(wrapper.extra(TLSAttribute.cipher), tuple)
+                assert isinstance(wrapper.extra(TLSAttribute.peer_certificate), dict)
+                assert isinstance(wrapper.extra(TLSAttribute.peer_certificate_binary), bytes)
+                assert wrapper.extra(TLSAttribute.server_side) is False
+                assert isinstance(wrapper.extra(TLSAttribute.shared_ciphers), list)
+                assert isinstance(wrapper.extra(TLSAttribute.ssl_object), ssl.SSLObject)
+                assert wrapper.extra(TLSAttribute.standard_compatible) is False
+                assert wrapper.extra(TLSAttribute.tls_version).startswith('TLSv')
+                await wrapper.send(b'\x00')
 
         server_thread.join()
         server_sock.close()
