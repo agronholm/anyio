@@ -305,7 +305,7 @@ class CancelScope(BaseCancelScope):
 
         host_task_state.cancel_scope = self._parent_scope
 
-        # Restart the cancellation effort in the nearest directly cancelled parent scope if this
+        # Restart the cancellation effort in the farthest directly cancelled parent scope if this
         # one was shielded
         if self._shield:
             self._deliver_cancellation_to_parent()
@@ -365,18 +365,21 @@ class CancelScope(BaseCancelScope):
             self._cancel_handle = None
 
     def _deliver_cancellation_to_parent(self) -> None:
-        """Start cancellation effort in the nearest directly cancelled parent scope"""
+        """Start cancellation effort in the farthest directly cancelled parent scope"""
         scope = self._parent_scope
+        scope_to_cancel: Optional[CancelScope] = None
         while scope is not None:
             if scope._cancel_called and scope._cancel_handle is None:
-                scope._deliver_cancellation()
-                break
+                scope_to_cancel = scope
 
             # No point in looking beyond any shielded scope
             if scope._shield:
                 break
 
             scope = scope._parent_scope
+
+        if scope_to_cancel is not None:
+            scope_to_cancel._deliver_cancellation()
 
     def _parent_cancelled(self) -> bool:
         # Check whether any parent has been cancelled

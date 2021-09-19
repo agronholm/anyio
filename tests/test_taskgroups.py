@@ -12,6 +12,7 @@ from anyio import (
     CancelScope, ExceptionGroup, create_task_group, current_effective_deadline, current_time,
     fail_after, get_cancelled_exc_class, move_on_after, sleep, wait_all_tasks_blocked)
 from anyio.abc import TaskGroup, TaskStatus
+from anyio.lowlevel import checkpoint
 
 if sys.version_info < (3, 7):
     current_task = asyncio.Task.current_task
@@ -721,6 +722,29 @@ async def test_nested_shield() -> None:
                     tg.start_soon(killer, scope)
                     with fail_after(0.2):
                         await sleep(2)
+
+
+async def test_triple_nested_shield() -> None:
+    """Regression test for #370."""
+
+    got_past_checkpoint = False
+
+    async def taskfunc() -> None:
+        nonlocal got_past_checkpoint
+
+        with CancelScope() as scope1:
+            with CancelScope() as scope2:
+                with CancelScope(shield=True):
+                    scope1.cancel()
+                    scope2.cancel()
+
+            await checkpoint()
+            got_past_checkpoint = True
+
+    async with create_task_group() as tg:
+        tg.start_soon(taskfunc)
+
+    assert not got_past_checkpoint
 
 
 def test_task_group_in_generator(anyio_backend_name: str,

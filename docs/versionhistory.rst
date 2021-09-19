@@ -3,6 +3,12 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed cancellation problem on asyncio where level-triggered cancellation for **all** parent
+  cancel scopes would not resume after exiting a shielded nested scope
+  (`#370 <https://github.com/agronholm/anyio/issues/370>`_)
+
 **3.3.1**
 
 - Added missing documentation for the ``ExceptionGroup.exceptions`` attribute
