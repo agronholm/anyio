@@ -246,7 +246,7 @@ async def test_host_exception() -> None:
     assert result is None
 
 
-async def test_edge_cancellation() -> None:
+async def test_level_cancellation() -> None:
     marker = None
 
     async def dummy() -> None:
