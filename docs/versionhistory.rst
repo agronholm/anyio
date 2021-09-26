@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**3.3.2**
 
 - Fixed cancellation problem on asyncio where level-triggered cancellation for **all** parent
   cancel scopes would not resume after exiting a shielded nested scope
