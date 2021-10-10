@@ -1376,6 +1376,7 @@ class UNIXSocketListener(abc.SocketListener):
             while True:
                 try:
                     client_sock, _ = self.__raw_socket.accept()
+                    client_sock.setblocking(False)
                     return UNIXSocketStream(client_sock)
                 except BlockingIOError:
                     f: asyncio.Future = asyncio.Future()

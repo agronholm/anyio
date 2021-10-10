@@ -489,6 +489,7 @@ class TestTCPListener:
                 assert isinstance(listener, SocketListener)
                 async with await listener.accept() as stream:
                     raw_socket = stream.extra(SocketAttribute.raw_socket)
+                    assert raw_socket.gettimeout() == 0
                     assert raw_socket.family == listener.extra(SocketAttribute.family)
                     assert raw_socket.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
 
@@ -840,6 +841,7 @@ class TestUNIXListener:
             client.connect(listener_socket.getsockname())
 
             async with await listener.accept() as stream:
+                assert stream.extra(SocketAttribute.raw_socket).gettimeout() == 0
                 assert stream.extra(SocketAttribute.family) == listener_socket.family
 
             client.close()
@@ -920,6 +922,7 @@ class TestUDPSocket:
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_udp_socket(family=family, local_host='localhost') as udp:
             raw_socket = udp.extra(SocketAttribute.raw_socket)
+            assert raw_socket.gettimeout() == 0
             assert udp.extra(SocketAttribute.family) == family
             assert udp.extra(SocketAttribute.local_address) == raw_socket.getsockname()[:2]
             assert udp.extra(SocketAttribute.local_port) == raw_socket.getsockname()[1]

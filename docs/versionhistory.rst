@@ -3,6 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed UNIX socket listener not setting accepted sockets to non-blocking mode on asyncio
+
 **3.3.2**
 
 - Fixed cancellation problem on asyncio where level-triggered cancellation for **all** parent
