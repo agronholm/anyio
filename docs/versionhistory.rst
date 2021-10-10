@@ -6,6 +6,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **UNRELEASED**
 
 - Fixed UNIX socket listener not setting accepted sockets to non-blocking mode on asyncio
+- Changed unconnected UDP sockets to be always bound to a local port (on "any" interface) to avoid
+  errors on asyncio + Windows
 
 **3.3.2**
 

@@ -12,7 +12,7 @@ from pathlib import Path
 from socket import AddressFamily
 from ssl import SSLContext, SSLError
 from threading import Thread
-from typing import Any, Iterable, Iterator, List, NoReturn, Tuple, Type, TypeVar, Union
+from typing import Any, Iterable, Iterator, List, NoReturn, Tuple, Type, TypeVar, Union, cast
 
 import pytest
 from _pytest.fixtures import SubRequest
@@ -25,7 +25,7 @@ from anyio import (
     TypedAttributeLookupError, connect_tcp, connect_unix, create_connected_udp_socket,
     create_task_group, create_tcp_listener, create_udp_socket, create_unix_listener, fail_after,
     getaddrinfo, getnameinfo, move_on_after, sleep, wait_all_tasks_blocked)
-from anyio.abc import Listener, SocketAttribute, SocketListener, SocketStream
+from anyio.abc import IPSockAddrType, Listener, SocketAttribute, SocketListener, SocketStream
 from anyio.streams.stapled import MultiListener
 
 if sys.version_info >= (3, 8):
@@ -878,9 +878,6 @@ class TestUNIXListener:
                 pass
 
 
-IPSockAddrType = Tuple[str, int]
-
-
 async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
     async def handle(stream: SocketStream) -> None:
         client_addresses.append(stream.extra(SocketAttribute.remote_address))
@@ -1007,6 +1004,12 @@ class TestUDPSocket:
         await udp.aclose()
         with pytest.raises(ClosedResourceError):
             await udp.sendto(b'foo', host, port)
+
+    async def test_create_unbound_socket(self, family: AnyIPAddressFamily) -> None:
+        """Regression test for #360."""
+        async with await create_udp_socket(family=family) as udp:
+            local_address = cast(IPSockAddrType, udp.extra(SocketAttribute.local_address))
+            assert local_address[1] > 0
 
 
 @pytest.mark.usefixtures('check_asyncio_bug')

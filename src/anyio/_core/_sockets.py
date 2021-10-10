@@ -330,13 +330,16 @@ async def create_udp_socket(
     if family is AddressFamily.AF_UNSPEC and not local_host:
         raise ValueError('Either "family" or "local_host" must be given')
 
-    local_address: Optional[IPSockAddrType] = None
     if local_host:
         gai_res = await getaddrinfo(str(local_host), local_port, family=family,
                                     type=socket.SOCK_DGRAM,
                                     flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG)
         family = cast(AnyIPAddressFamily, gai_res[0][0])
         local_address = gai_res[0][-1]
+    elif family is AddressFamily.AF_INET6:
+        local_address = ('::', 0)
+    else:
+        local_address = ('0.0.0.0', 0)
 
     return await get_asynclib().create_udp_socket(family, local_address, None, reuse_port)
 
