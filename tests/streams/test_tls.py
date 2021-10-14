@@ -199,6 +199,42 @@ class TestTLSStream:
         else:
             assert server_exc is None
 
+    async def test_ragged_eof_on_receive(self, server_context: ssl.SSLContext,
+                                         client_context: ssl.SSLContext):
+        server_exc = None
+
+        def serve_sync() -> None:
+            nonlocal server_exc
+            conn, addr = server_sock.accept()
+            try:
+                conn.settimeout(1)
+                conn.sendall(b'hello')
+            except BaseException as exc:
+                server_exc = exc
+            finally:
+                conn.close()
+
+        server_sock = server_context.wrap_socket(socket.socket(), server_side=True,
+                                                 suppress_ragged_eofs=True)
+        server_sock.settimeout(1)
+        server_sock.bind(('127.0.0.1', 0))
+        server_sock.listen()
+        server_thread = Thread(target=serve_sync, daemon=True)
+        server_thread.start()
+        try:
+            async with await connect_tcp(*server_sock.getsockname()) as stream:
+                wrapper = await TLSStream.wrap(stream, hostname='localhost',
+                                               ssl_context=client_context,
+                                               standard_compatible=False)
+                assert await wrapper.receive() == b'hello'
+                with pytest.raises(EndOfStream):
+                    await wrapper.receive()
+        finally:
+            server_thread.join()
+            server_sock.close()
+
+        assert server_exc is None
+
     async def test_receive_send_after_eof(self, server_context: ssl.SSLContext,
                                           client_context: ssl.SSLContext) -> None:
         def serve_sync() -> None:
