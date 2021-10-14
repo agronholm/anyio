@@ -118,11 +118,15 @@ class TLSStream(ByteStream):
             except ssl.SSLWantWriteError:
                 await self.transport_stream.send(self._write_bio.read())
             except ssl.SSLEOFError as exc:
+                self._read_bio.write_eof()
+                self._write_bio.write_eof()
                 if self.standard_compatible:
                     raise BrokenResourceError from exc
                 else:
                     raise EndOfStream from None
             except ssl.SSLSyscallError as exc:
+                self._read_bio.write_eof()
+                self._write_bio.write_eof()
                 raise BrokenResourceError from exc
             else:
                 # Flush any pending writes first
