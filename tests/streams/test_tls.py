@@ -200,7 +200,7 @@ class TestTLSStream:
             assert server_exc is None
 
     async def test_ragged_eof_on_receive(self, server_context: ssl.SSLContext,
-                                         client_context: ssl.SSLContext):
+                                         client_context: ssl.SSLContext) -> None:
         server_exc = None
 
         def serve_sync() -> None:
