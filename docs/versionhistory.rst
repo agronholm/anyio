@@ -3,6 +3,12 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed ``BrokenResourceError`` instead of ``EndOfStream`` being raised in ``TLSStream`` when the
+  peer abruptly closes the connection while ``TLSStream`` is receiving data with
+  ``standard_compatible=False`` set
+
 **3.3.3**
 
 - Fixed UNIX socket listener not setting accepted sockets to non-blocking mode on asyncio
