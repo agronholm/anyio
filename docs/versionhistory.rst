@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**3.3.4**
 
 - Fixed ``BrokenResourceError`` instead of ``EndOfStream`` being raised in ``TLSStream`` when the
   peer abruptly closes the connection while ``TLSStream`` is receiving data with
