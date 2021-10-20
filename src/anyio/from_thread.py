@@ -70,7 +70,7 @@ class _BlockingAsyncContextManager(AbstractContextManager):
     _exit_future: Future
     _exit_event: Event
     _exit_exc_info: Tuple[Optional[Type[BaseException]], Optional[BaseException],
-                          Optional[TracebackType]]
+                          Optional[TracebackType]] = (None, None, None)
 
     def __init__(self, async_cm: AsyncContextManager[T_co], portal: 'BlockingPortal'):
         self._async_cm = async_cm
@@ -86,8 +86,18 @@ class _BlockingAsyncContextManager(AbstractContextManager):
         else:
             self._enter_future.set_result(value)
 
-        await self._exit_event.wait()
-        return await self._async_cm.__aexit__(*self._exit_exc_info)
+        try:
+            # Wait for the sync context manager to exit.
+            # This next statement can raise `get_cancelled_exc_class()` if
+            # something went wrong in a task group in this async context
+            # manager.
+            await self._exit_event.wait()
+        finally:
+            # In case of cancellation, it could be that we end up here before
+            # `_BlockingAsyncContextManager.__exit__` is called, and an
+            # `_exit_exc_info` has been set.
+            result = await self._async_cm.__aexit__(*self._exit_exc_info)
+            return result
 
     def __enter__(self) -> T_co:
         self._enter_future = Future()

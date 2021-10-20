@@ -3,14 +3,14 @@ import threading
 import time
 from concurrent.futures import CancelledError
 from contextlib import suppress
-from typing import Any, Dict, List, NoReturn, Optional
+from typing import Any, AsyncGenerator, Dict, List, NoReturn, Optional
 
 import pytest
 from _pytest.logging import LogCaptureFixture
 
 from anyio import (
-    Event, from_thread, get_cancelled_exc_class, get_current_task, run, sleep, to_thread,
-    wait_all_tasks_blocked)
+    Event, create_task_group, from_thread, get_cancelled_exc_class, get_current_task, run, sleep,
+    to_thread, wait_all_tasks_blocked)
 from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
 
@@ -19,6 +19,8 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal
 
+if sys.version_info >= (3, 7):
+    from contextlib import asynccontextmanager
 
 pytestmark = pytest.mark.anyio
 
@@ -388,3 +390,22 @@ class TestBlockingPortal:
             await to_thread.run_sync(portal.start_task_soon, in_loop)
 
         assert not caplog.text
+
+    @pytest.mark.skipif(sys.version_info < (3, 7),
+                        reason='@asynccontextmanager only available on py3.7+')
+    def test_exception_in_task_group_in_wrap_async_context_manager(
+            self, anyio_backend_name: str) -> None:
+        """Regression test for #381."""
+        async def failing_func() -> None:
+            0 / 0
+
+        @asynccontextmanager
+        async def run_in_context() -> AsyncGenerator[None, None]:
+            async with create_task_group() as tg:
+                tg.start_soon(failing_func)
+                yield
+
+        with pytest.raises(ZeroDivisionError):
+            with start_blocking_portal(backend=anyio_backend_name) as portal:
+                with portal.wrap_async_context_manager(run_in_context()):
+                    pass
