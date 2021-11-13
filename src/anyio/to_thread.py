@@ -1,3 +1,4 @@
+from contextvars import copy_context
 from typing import Callable, Optional, TypeVar
 from warnings import warn
 
@@ -25,8 +26,8 @@ async def run_sync(
     :return: an awaitable that yields the return value of the function.
 
     """
-    return await get_asynclib().run_sync_in_worker_thread(func, *args, cancellable=cancellable,
-                                                          limiter=limiter)
+    return await get_asynclib().run_sync_in_worker_thread(
+        copy_context().run, func, *args, cancellable=cancellable, limiter=limiter)
 
 
 async def run_sync_in_worker_thread(

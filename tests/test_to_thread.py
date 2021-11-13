@@ -3,6 +3,7 @@ import sys
 import threading
 import time
 from concurrent.futures import Future
+from contextvars import ContextVar
 from functools import partial
 from typing import Any, List, NoReturn, Optional
 
@@ -130,6 +131,12 @@ async def test_cancel_wait_on_thread() -> None:
 
     await to_thread.run_sync(event.set)
     assert future.result(1)
+
+
+async def test_contextvar_propagation() -> None:
+    var = ContextVar('var', default=1)
+    var.set(6)
+    assert await to_thread.run_sync(var.get) == 6
 
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
