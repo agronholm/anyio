@@ -82,7 +82,6 @@ class _BlockingAsyncContextManager(AbstractContextManager):
             value = await self._async_cm.__aenter__()
         except BaseException as exc:
             self._enter_future.set_exception(exc)
-            raise
         else:
             self._enter_future.set_result(value)
 
