@@ -69,7 +69,7 @@ class TestLock:
         pytest.param(False, id='releaselast'),
         pytest.param(True, id='releasefirst')
     ])
-    async def test_cancel_during_acquire(self, release_first) -> None:
+    async def test_cancel_during_acquire(self, release_first: bool) -> None:
         acquired = False
 
         async def task(*, task_status: TaskStatus) -> None:
@@ -297,7 +297,7 @@ class TestSemaphore:
         pytest.param(False, id='releaselast'),
         pytest.param(True, id='releasefirst')
     ])
-    async def test_cancel_during_acquire(self, release_first) -> None:
+    async def test_cancel_during_acquire(self, release_first: bool) -> None:
         acquired = False
 
         async def task(*, task_status: TaskStatus) -> None:
