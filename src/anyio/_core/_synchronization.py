@@ -305,7 +305,7 @@ class Semaphore:
                 if not event.is_set():
                     self._waiters.remove(event)
                 else:
-                    self._value += 1
+                    self.release()
 
                 raise
         else:
