@@ -7,6 +7,7 @@ import sys
 from asyncio.base_events import _run_until_complete_cb  # type: ignore
 from collections import OrderedDict, deque
 from concurrent.futures import Future
+from contextvars import copy_context
 from dataclasses import dataclass
 from functools import partial, wraps
 from inspect import (
@@ -818,7 +819,11 @@ def run_sync_from_thread(func: Callable[..., T_Retval], *args: object,
 
     f: concurrent.futures.Future[T_Retval] = Future()
     loop = loop or threadlocals.loop
-    loop.call_soon_threadsafe(wrapper)
+    if sys.version_info < (3, 7):
+        loop.call_soon_threadsafe(copy_context().run, wrapper)
+    else:
+        loop.call_soon_threadsafe(wrapper)
+
     return f.result()
 
 

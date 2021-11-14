@@ -90,3 +90,17 @@ the task group context manager? The answer is "both". In practice this means tha
 exception, :exc:`~ExceptionGroup` is raised which contains both exception objects.
 Unfortunately this complicates any code that wishes to catch a specific exception because it could
 be wrapped in an :exc:`~ExceptionGroup`.
+
+Context propagation
+-------------------
+
+Whenever a new task is spawned, `context`_ will be copied to the new task. It is important to note
+*which* content will be copied to the newly spawned task. It is not the context of the task group's
+host task that will be copied, but the context of the task that calls
+:meth:`TaskGroup.start() <.abc.TaskGroup.start>` or
+:meth:`TaskGroup.start_soon() <.abc.TaskGroup.start_soon>`.
+
+.. note:: Context propagation **does not work** on asyncio when using Python 3.6, as asyncio
+    support for this only landed in v3.7.
+
+.. _context: https://docs.python.org/3/library/contextvars.html

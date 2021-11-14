@@ -177,3 +177,15 @@ managers as a synchronous one::
 
 .. note:: You cannot use wrapped async context managers in synchronous callbacks inside the event
           loop thread.
+
+Context propagation
+-------------------
+
+When running functions in worker threads, the current context is copied to the worker thread.
+Therefore any context variables available on the task will also be available to the code running
+on the thread. As always with context variables, any changes made to them will not propagate back
+to the calling asynchronous task.
+
+When calling asynchronous code from worker threads, context is again copied to the task that calls
+the target function in the event loop thread. Note, however, that this **does not work** on asyncio
+when running on Python 3.6.

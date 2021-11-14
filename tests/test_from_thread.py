@@ -3,6 +3,7 @@ import threading
 import time
 from concurrent.futures import CancelledError
 from contextlib import suppress
+from contextvars import ContextVar
 from typing import Any, Dict, List, NoReturn, Optional
 
 import pytest
@@ -117,6 +118,21 @@ class TestRunAsyncFromThread:
         exc = pytest.raises(RuntimeError, from_thread.run, foo)
         exc.match('This function can only be run from an AnyIO worker thread')
 
+    async def test_contextvar_propagation(self, anyio_backend_name: str) -> None:
+        if anyio_backend_name == 'asyncio' and sys.version_info < (3, 7):
+            pytest.skip('Asyncio does not propagate context before Python 3.7')
+
+        var = ContextVar('var', default=1)
+
+        async def async_func() -> int:
+            return var.get()
+
+        def worker() -> int:
+            var.set(6)
+            return from_thread.run(async_func)
+
+        assert await to_thread.run_sync(worker) == 6
+
 
 class TestRunSyncFromThread:
     def test_run_sync_from_unclaimed_thread(self) -> None:
@@ -125,6 +141,15 @@ class TestRunSyncFromThread:
 
         exc = pytest.raises(RuntimeError, from_thread.run_sync, foo)
         exc.match('This function can only be run from an AnyIO worker thread')
+
+    async def test_contextvar_propagation(self) -> None:
+        var = ContextVar('var', default=1)
+
+        def worker() -> int:
+            var.set(6)
+            return from_thread.run_sync(var.get)
+
+        assert await to_thread.run_sync(worker) == 6
 
 
 class TestBlockingPortal:
