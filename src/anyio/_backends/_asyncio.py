@@ -1,6 +1,7 @@
 import array
 import asyncio
 import concurrent.futures
+import contextvars
 import math
 import socket
 import sys
@@ -21,6 +22,8 @@ from typing import (
     Any, Awaitable, Callable, Collection, Coroutine, Deque, Dict, Generator, Iterable, List,
     Mapping, Optional, Sequence, Set, Tuple, Type, TypeVar, Union, cast)
 from weakref import WeakKeyDictionary
+
+from sniffio import current_async_library_cvar
 
 from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
 from .._core._compat import DeprecatedAsyncContextManager, DeprecatedAwaitable
@@ -800,17 +803,21 @@ async def run_sync_in_worker_thread(
                     expired_worker = idle_workers.popleft()
                     expired_worker.root_task.remove_done_callback(expired_worker.stop)
                     expired_worker.stop()
-
-            worker.queue.put_nowait((func, args, future))
+            context = contextvars.copy_context()
+            context.run(current_async_library_cvar.set, None)
+            contextvars_aware_func = partial(context.run, func)
+            worker.queue.put_nowait((contextvars_aware_func, args, future))
             return await future
 
 
 def run_sync_from_thread(func: Callable[..., T_Retval], *args: object,
                          loop: Optional[asyncio.AbstractEventLoop] = None) -> T_Retval:
+    context = contextvars.copy_context()
+    context.run(current_async_library_cvar.set, "asyncio")
     @wraps(func)
     def wrapper() -> None:
         try:
-            f.set_result(func(*args))
+            f.set_result(context.run(func, *args))
         except BaseException as exc:
             f.set_exception(exc)
             if not isinstance(exc, Exception):
@@ -825,8 +832,9 @@ def run_sync_from_thread(func: Callable[..., T_Retval], *args: object,
 def run_async_from_thread(
     func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object
 ) -> T_Retval:
+    context = contextvars.copy_context()
     f: concurrent.futures.Future[T_Retval] = asyncio.run_coroutine_threadsafe(
-        func(*args), threadlocals.loop)
+        context.run(func, *args), threadlocals.loop)
     return f.result()
 
 
