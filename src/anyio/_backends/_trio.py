@@ -1,4 +1,6 @@
 import array
+import contextvars
+import functools
 import math
 import socket
 from concurrent.futures import Future
@@ -10,6 +12,8 @@ from types import TracebackType
 from typing import (
     Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque, Dict, Generic, List,
     Mapping, NoReturn, Optional, Sequence, Set, Tuple, Type, TypeVar, Union)
+
+from sniffio import current_async_library_cvar
 
 import trio.from_thread
 from outcome import Error, Outcome, Value
@@ -163,14 +167,22 @@ class TaskGroup(abc.TaskGroup):
 async def run_sync_in_worker_thread(
         func: Callable[..., T_Retval], *args: object, cancellable: bool = False,
         limiter: Optional[trio.CapacityLimiter] = None) -> T_Retval:
+    context = contextvars.copy_context()
+    context.run(current_async_library_cvar.set, None)
+
     def wrapper() -> T_Retval:
         with claim_worker_thread('trio'):
-            return func(*args)
+            return context.run(func, *args)
 
     return await run_sync(wrapper, cancellable=cancellable, limiter=limiter)
 
 run_async_from_thread = trio.from_thread.run
-run_sync_from_thread = trio.from_thread.run_sync
+
+
+def run_sync_from_thread(fn, *args, trio_token=None):
+    context = contextvars.copy_context()
+    context.run(current_async_library_cvar.set, "trio")
+    return trio.from_thread.run_sync(context.run, fn, *args, trio_token=trio_token)
 
 
 class BlockingPortal(abc.BlockingPortal):
