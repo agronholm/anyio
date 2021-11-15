@@ -1,10 +1,13 @@
 import asyncio
+import contextvars
 import sys
 import threading
 import time
 from concurrent.futures import Future
 from functools import partial
 from typing import Any, List, NoReturn, Optional
+
+from sniffio import current_async_library_cvar, current_async_library
 
 import pytest
 
@@ -235,3 +238,308 @@ def test_asyncio_no_recycle_stopping_worker(asyncio_event_loop: asyncio.Abstract
     task1 = asyncio_event_loop.create_task(taskfunc1())
     task2 = asyncio_event_loop.create_task(taskfunc2())
     asyncio_event_loop.run_until_complete(asyncio.gather(task1, task2))
+
+
+anyio_test_contextvar = contextvars.ContextVar("anyio_test_contextvar")
+
+
+async def test_to_thread_run_sync_contextvars():
+    thread = threading.current_thread()
+    anyio_test_contextvar.set("main")
+
+    def f():
+        value = anyio_test_contextvar.get()
+        sniffio_cvar_value = current_async_library_cvar.get()
+        return (value, sniffio_cvar_value, threading.current_thread())
+
+    value, sniffio_cvar_value, child_thread = await to_thread.run_sync(f)
+    assert value == "main"
+    assert sniffio_cvar_value == None
+    assert child_thread != thread
+
+    def g():
+        parent_value = anyio_test_contextvar.get()
+        anyio_test_contextvar.set("worker")
+        inner_value = anyio_test_contextvar.get()
+        sniffio_cvar_value = current_async_library_cvar.get()
+        return (
+            parent_value,
+            inner_value,
+            sniffio_cvar_value,
+            threading.current_thread(),
+        )
+
+    (
+        parent_value,
+        inner_value,
+        sniffio_cvar_value,
+        child_thread,
+    ) = await to_thread.run_sync(g)
+    current_value = anyio_test_contextvar.get()
+    assert parent_value == "main"
+    assert inner_value == "worker"
+    assert (
+        current_value == "main"
+    ), "The contextvar value set on the worker would not propagate back to the main thread"
+    assert sniffio_cvar_value is None
+
+
+async def test_from_thread_run_sync_contextvars():
+    anyio_test_contextvar.set("main")
+
+    def thread_fn():
+        thread_parent_value = anyio_test_contextvar.get()
+        anyio_test_contextvar.set("worker")
+        thread_current_value = anyio_test_contextvar.get()
+        sniffio_cvar_thread_pre_value = current_async_library_cvar.get()
+
+        def back_in_main():
+            back_parent_value = anyio_test_contextvar.get()
+            anyio_test_contextvar.set("back_in_main")
+            back_current_value = anyio_test_contextvar.get()
+            sniffio_cvar_back_value = current_async_library_cvar.get()
+            return back_parent_value, back_current_value, sniffio_cvar_back_value
+
+        (
+            back_parent_value,
+            back_current_value,
+            sniffio_cvar_back_value,
+        ) = from_thread.run_sync(back_in_main)
+        thread_after_value = anyio_test_contextvar.get()
+        sniffio_cvar_thread_after_value = current_async_library_cvar.get()
+        return (
+            thread_parent_value,
+            thread_current_value,
+            thread_after_value,
+            sniffio_cvar_thread_pre_value,
+            sniffio_cvar_thread_after_value,
+            back_parent_value,
+            back_current_value,
+            sniffio_cvar_back_value,
+        )
+
+    (
+        thread_parent_value,
+        thread_current_value,
+        thread_after_value,
+        sniffio_cvar_thread_pre_value,
+        sniffio_cvar_thread_after_value,
+        back_parent_value,
+        back_current_value,
+        sniffio_cvar_back_value,
+    ) = await to_thread.run_sync(thread_fn)
+    current_value = anyio_test_contextvar.get()
+    sniffio_cvar_value = current_async_library_cvar.get()
+    assert current_value == thread_parent_value == "main"
+    assert thread_current_value == back_parent_value == thread_after_value == "worker"
+    assert back_current_value == "back_in_main"
+    assert sniffio_cvar_value == sniffio_cvar_back_value
+    assert sniffio_cvar_thread_pre_value == sniffio_cvar_thread_after_value == None
+
+
+async def test_from_thread_run_contextvars():
+    anyio_test_contextvar.set("main")
+
+    def thread_fn():
+        thread_parent_value = anyio_test_contextvar.get()
+        anyio_test_contextvar.set("worker")
+        thread_current_value = anyio_test_contextvar.get()
+        sniffio_cvar_thread_pre_value = current_async_library_cvar.get()
+
+        async def async_back_in_main():
+            back_parent_value = anyio_test_contextvar.get()
+            anyio_test_contextvar.set("back_in_main")
+            back_current_value = anyio_test_contextvar.get()
+            sniffio_cvar_back_value = current_async_library()
+            return back_parent_value, back_current_value, sniffio_cvar_back_value
+
+        (
+            back_parent_value,
+            back_current_value,
+            sniffio_cvar_back_value,
+        ) = from_thread.run(async_back_in_main)
+        thread_after_value = anyio_test_contextvar.get()
+        sniffio_cvar_thread_after_value = current_async_library_cvar.get()
+        return (
+            thread_parent_value,
+            thread_current_value,
+            thread_after_value,
+            sniffio_cvar_thread_pre_value,
+            sniffio_cvar_thread_after_value,
+            back_parent_value,
+            back_current_value,
+            sniffio_cvar_back_value,
+        )
+
+    (
+        thread_parent_value,
+        thread_current_value,
+        thread_after_value,
+        sniffio_cvar_thread_pre_value,
+        sniffio_cvar_thread_after_value,
+        back_parent_value,
+        back_current_value,
+        sniffio_cvar_back_value,
+    ) = await to_thread.run_sync(thread_fn)
+    current_value = anyio_test_contextvar.get()
+    current_sniffio_cvar_value = current_async_library_cvar.get()
+    assert current_value == thread_parent_value == "main"
+    assert thread_current_value == back_parent_value == thread_after_value == "worker"
+    assert back_current_value == "back_in_main"
+    assert sniffio_cvar_thread_pre_value == sniffio_cvar_thread_after_value == None
+    assert sniffio_cvar_back_value == current_sniffio_cvar_value
+
+
+def test_asyncio_to_thread_run_sync_contextvars(asyncio_event_loop: asyncio.AbstractEventLoop):
+    async def task():
+        thread = threading.current_thread()
+        anyio_test_contextvar.set("main")
+
+        def f():
+            value = anyio_test_contextvar.get()
+            sniffio_cvar_value = current_async_library_cvar.get()
+            return (value, sniffio_cvar_value, threading.current_thread())
+
+        value, sniffio_cvar_value, child_thread = await to_thread.run_sync(f)
+        assert value == "main"
+        assert sniffio_cvar_value == None
+        assert child_thread != thread
+
+        def g():
+            parent_value = anyio_test_contextvar.get()
+            anyio_test_contextvar.set("worker")
+            inner_value = anyio_test_contextvar.get()
+            sniffio_cvar_value = current_async_library_cvar.get()
+            return (
+                parent_value,
+                inner_value,
+                sniffio_cvar_value,
+                threading.current_thread(),
+            )
+
+        (
+            parent_value,
+            inner_value,
+            sniffio_cvar_value,
+            child_thread,
+        ) = await to_thread.run_sync(g)
+        current_value = anyio_test_contextvar.get()
+        assert parent_value == "main"
+        assert inner_value == "worker"
+        assert (
+            current_value == "main"
+        ), "The contextvar value set on the worker would not propagate back to the main thread"
+        assert sniffio_cvar_value is None
+    asyncio_event_loop.run_until_complete(task())
+
+
+def test_asyncio_from_thread_run_sync_contextvars(asyncio_event_loop: asyncio.AbstractEventLoop):
+    async def task():
+        anyio_test_contextvar.set("main")
+
+        def thread_fn():
+            thread_parent_value = anyio_test_contextvar.get()
+            anyio_test_contextvar.set("worker")
+            thread_current_value = anyio_test_contextvar.get()
+            sniffio_cvar_thread_pre_value = current_async_library_cvar.get()
+
+            def back_in_main():
+                back_parent_value = anyio_test_contextvar.get()
+                anyio_test_contextvar.set("back_in_main")
+                back_current_value = anyio_test_contextvar.get()
+                sniffio_cvar_back_value = current_async_library_cvar.get()
+                return back_parent_value, back_current_value, sniffio_cvar_back_value
+
+            (
+                back_parent_value,
+                back_current_value,
+                sniffio_cvar_back_value,
+            ) = from_thread.run_sync(back_in_main)
+            thread_after_value = anyio_test_contextvar.get()
+            sniffio_cvar_thread_after_value = current_async_library_cvar.get()
+            return (
+                thread_parent_value,
+                thread_current_value,
+                thread_after_value,
+                sniffio_cvar_thread_pre_value,
+                sniffio_cvar_thread_after_value,
+                back_parent_value,
+                back_current_value,
+                sniffio_cvar_back_value,
+            )
+
+        (
+            thread_parent_value,
+            thread_current_value,
+            thread_after_value,
+            sniffio_cvar_thread_pre_value,
+            sniffio_cvar_thread_after_value,
+            back_parent_value,
+            back_current_value,
+            sniffio_cvar_back_value,
+        ) = await to_thread.run_sync(thread_fn)
+        current_value = anyio_test_contextvar.get()
+        sniffio_cvar_value = current_async_library_cvar.get()
+        assert current_value == thread_parent_value == "main"
+        assert thread_current_value == back_parent_value == thread_after_value == "worker"
+        assert back_current_value == "back_in_main"
+        assert sniffio_cvar_value == sniffio_cvar_back_value
+        assert sniffio_cvar_thread_pre_value == sniffio_cvar_thread_after_value == None
+    asyncio_event_loop.run_until_complete(task())
+
+
+def test_asyncio_from_thread_run_contextvars(asyncio_event_loop: asyncio.AbstractEventLoop):
+    async def task():
+        anyio_test_contextvar.set("main")
+
+        def thread_fn():
+            thread_parent_value = anyio_test_contextvar.get()
+            anyio_test_contextvar.set("worker")
+            thread_current_value = anyio_test_contextvar.get()
+            sniffio_cvar_thread_pre_value = current_async_library_cvar.get()
+
+            async def async_back_in_main():
+                back_parent_value = anyio_test_contextvar.get()
+                anyio_test_contextvar.set("back_in_main")
+                back_current_value = anyio_test_contextvar.get()
+                # sniffio_cvar_back_value = current_async_library_cvar.get()
+                sniffio_cvar_back_value = current_async_library()
+                # raise RuntimeError(sniffio_cvar_back_value)
+                return back_parent_value, back_current_value, sniffio_cvar_back_value
+
+            (
+                back_parent_value,
+                back_current_value,
+                sniffio_cvar_back_value,
+            ) = from_thread.run(async_back_in_main)
+            thread_after_value = anyio_test_contextvar.get()
+            sniffio_cvar_thread_after_value = current_async_library_cvar.get()
+            return (
+                thread_parent_value,
+                thread_current_value,
+                thread_after_value,
+                sniffio_cvar_thread_pre_value,
+                sniffio_cvar_thread_after_value,
+                back_parent_value,
+                back_current_value,
+                sniffio_cvar_back_value,
+            )
+
+        (
+            thread_parent_value,
+            thread_current_value,
+            thread_after_value,
+            sniffio_cvar_thread_pre_value,
+            sniffio_cvar_thread_after_value,
+            back_parent_value,
+            back_current_value,
+            sniffio_cvar_back_value,
+        ) = await to_thread.run_sync(thread_fn)
+        current_value = anyio_test_contextvar.get()
+        current_sniffio_cvar_value = current_async_library_cvar.get()
+        assert current_value == thread_parent_value == "main"
+        assert thread_current_value == back_parent_value == thread_after_value == "worker"
+        assert back_current_value == "back_in_main"
+        assert sniffio_cvar_thread_pre_value == sniffio_cvar_thread_after_value == None
+        assert sniffio_cvar_back_value == current_sniffio_cvar_value
+    asyncio_event_loop.run_until_complete(task())
