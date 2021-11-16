@@ -127,6 +127,8 @@ class Lock:
             except BaseException:
                 if not event.is_set():
                     self._waiters.remove(token)
+                elif self._owner_task == task:
+                    self.release()
 
                 raise
 
@@ -302,6 +304,8 @@ class Semaphore:
             except BaseException:
                 if not event.is_set():
                     self._waiters.remove(event)
+                else:
+                    self.release()
 
                 raise
         else:

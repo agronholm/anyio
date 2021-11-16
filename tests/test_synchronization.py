@@ -5,7 +5,7 @@ import pytest
 from anyio import (
     CancelScope, Condition, Event, Lock, Semaphore, WouldBlock, create_task_group, to_thread,
     wait_all_tasks_blocked)
-from anyio.abc import CapacityLimiter
+from anyio.abc import CapacityLimiter, TaskStatus
 
 pytestmark = pytest.mark.anyio
 
@@ -65,23 +65,34 @@ class TestLock:
             assert lock.locked()
             tg.start_soon(try_lock)
 
-    async def test_cancel(self) -> None:
-        task_started = got_lock = False
+    @pytest.mark.parametrize('release_first', [
+        pytest.param(False, id='releaselast'),
+        pytest.param(True, id='releasefirst')
+    ])
+    async def test_cancel_during_acquire(self, release_first: bool) -> None:
+        acquired = False
 
-        async def task() -> None:
-            nonlocal task_started, got_lock
-            task_started = True
+        async def task(*, task_status: TaskStatus) -> None:
+            nonlocal acquired
+            task_status.started()
             async with lock:
-                got_lock = True
+                acquired = True
 
         lock = Lock()
         async with create_task_group() as tg:
-            async with lock:
-                tg.start_soon(task)
-                tg.cancel_scope.cancel()
+            await lock.acquire()
+            await tg.start(task)
+            tg.cancel_scope.cancel()
+            with CancelScope(shield=True):
+                if release_first:
+                    lock.release()
+                    await wait_all_tasks_blocked()
+                else:
+                    await wait_all_tasks_blocked()
+                    lock.release()
 
-        assert task_started
-        assert not got_lock
+        assert not acquired
+        assert not lock.locked()
 
     async def test_statistics(self) -> None:
         async def waiter() -> None:
@@ -282,24 +293,34 @@ class TestSemaphore:
         assert semaphore.value == 0
         pytest.raises(WouldBlock, semaphore.acquire_nowait)
 
-    async def test_acquire_cancel(self) -> None:
-        local_scope = acquired = None
+    @pytest.mark.parametrize('release_first', [
+        pytest.param(False, id='releaselast'),
+        pytest.param(True, id='releasefirst')
+    ])
+    async def test_cancel_during_acquire(self, release_first: bool) -> None:
+        acquired = False
 
-        async def task() -> None:
-            nonlocal local_scope, acquired
-            with CancelScope() as local_scope:
-                async with semaphore:
-                    acquired = True
+        async def task(*, task_status: TaskStatus) -> None:
+            nonlocal acquired
+            task_status.started()
+            async with semaphore:
+                acquired = True
 
         semaphore = Semaphore(1)
         async with create_task_group() as tg:
-            async with semaphore:
-                tg.start_soon(task)
-                await wait_all_tasks_blocked()
-                assert local_scope is not None
-                local_scope.cancel()
+            await semaphore.acquire()
+            await tg.start(task)
+            tg.cancel_scope.cancel()
+            with CancelScope(shield=True):
+                if release_first:
+                    semaphore.release()
+                    await wait_all_tasks_blocked()
+                else:
+                    await wait_all_tasks_blocked()
+                    semaphore.release()
 
         assert not acquired
+        assert semaphore.value == 1
 
     @pytest.mark.parametrize('max_value', [2, None])
     async def test_max_value(self, max_value: Optional[int]) -> None:

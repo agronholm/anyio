@@ -3,6 +3,12 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed race condition in ``Lock`` and ``Semaphore`` classes when a task waiting on ``acquire()``
+  is cancelled while another task is waiting to acquire the same primitive
+  (`#387 <https://github.com/agronholm/anyio/issues/387>`_)
+
 **3.3.4**
 
 - Fixed ``BrokenResourceError`` instead of ``EndOfStream`` being raised in ``TLSStream`` when the
