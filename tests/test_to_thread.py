@@ -8,6 +8,7 @@ from functools import partial
 from typing import Any, List, NoReturn, Optional
 
 import pytest
+import sniffio
 
 import anyio.to_thread
 from anyio import (
@@ -137,6 +138,11 @@ async def test_contextvar_propagation() -> None:
     var = ContextVar('var', default=1)
     var.set(6)
     assert await to_thread.run_sync(var.get) == 6
+
+
+async def test_asynclib_detection() -> None:
+    with pytest.raises(sniffio.AsyncLibraryNotFoundError):
+        await to_thread.run_sync(sniffio.current_async_library)
 
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])

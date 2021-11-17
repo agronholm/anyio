@@ -2,7 +2,6 @@ import array
 import math
 import socket
 from concurrent.futures import Future
-from contextvars import copy_context
 from dataclasses import dataclass
 from functools import partial
 from io import IOBase
@@ -170,28 +169,8 @@ async def run_sync_in_worker_thread(
 
     return await run_sync(wrapper, cancellable=cancellable, limiter=limiter)
 
-
-def run_async_from_thread(fn: Callable[..., Awaitable[T_Retval]], *args: Any) -> T_Retval:
-    async def wrapper() -> Optional[T_Retval]:
-        retval: T_Retval
-
-        async def inner() -> None:
-            nonlocal retval
-            __tracebackhide__ = True
-            retval = await fn(*args)
-
-        async with trio.open_nursery() as n:
-            ctx.run(n.start_soon, inner)
-
-        __tracebackhide__ = True
-        return retval
-
-    ctx = copy_context()
-    return trio.from_thread.run(wrapper)
-
-
-def run_sync_from_thread(fn: Callable[..., T_Retval], *args: Any) -> T_Retval:
-    return trio.from_thread.run_sync(copy_context().run, fn, *args)
+run_async_from_thread = trio.from_thread.run
+run_sync_from_thread = trio.from_thread.run_sync
 
 
 class BlockingPortal(abc.BlockingPortal):

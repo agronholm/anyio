@@ -14,6 +14,7 @@ from anyio import (
     wait_all_tasks_blocked)
 from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
+from anyio.lowlevel import checkpoint
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -125,6 +126,7 @@ class TestRunAsyncFromThread:
         var = ContextVar('var', default=1)
 
         async def async_func() -> int:
+            await checkpoint()
             return var.get()
 
         def worker() -> int:
@@ -402,6 +404,29 @@ class TestBlockingPortal:
             future, start_value = portal.start_task(
                 taskfunc, name='testname')  # type: ignore[arg-type]
             assert start_value == 'testname'
+
+    def test_contextvar_propagation_sync(self, anyio_backend_name: str,
+                                         anyio_backend_options: Dict[str, Any]) -> None:
+        var = ContextVar('var', default=1)
+        var.set(6)
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            propagated_value = portal.call(var.get)
+
+        assert propagated_value == 6
+
+    def test_contextvar_propagation_async(self, anyio_backend_name: str,
+                                          anyio_backend_options: Dict[str, Any]) -> None:
+        var = ContextVar('var', default=1)
+        var.set(6)
+
+        async def get_var() -> int:
+            await checkpoint()
+            return var.get()
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            propagated_value = portal.call(get_var)
+
+        assert propagated_value == 6
 
     @pytest.mark.parametrize('anyio_backend', ['asyncio'])
     async def test_asyncio_run_sync_called(self, caplog: LogCaptureFixture) -> None:
