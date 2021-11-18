@@ -407,6 +407,9 @@ class TestBlockingPortal:
 
     def test_contextvar_propagation_sync(self, anyio_backend_name: str,
                                          anyio_backend_options: Dict[str, Any]) -> None:
+        if anyio_backend_name == 'asyncio' and sys.version_info < (3, 7):
+            pytest.skip('Asyncio does not propagate context before Python 3.7')
+
         var = ContextVar('var', default=1)
         var.set(6)
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
@@ -416,6 +419,9 @@ class TestBlockingPortal:
 
     def test_contextvar_propagation_async(self, anyio_backend_name: str,
                                           anyio_backend_options: Dict[str, Any]) -> None:
+        if anyio_backend_name == 'asyncio' and sys.version_info < (3, 7):
+            pytest.skip('Asyncio does not propagate context before Python 3.7')
+
         var = ContextVar('var', default=1)
         var.set(6)
 
