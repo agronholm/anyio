@@ -12,6 +12,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``from_thread.run()`` and ``from_thread.run_sync()``
   (`#363 <https://github.com/agronholm/anyio/issues/363>`_; does **not** work from threads to async
   on Python 3.6 + asyncio!)
+- Fixed worker threads being marked as being event loop threads in sniffio
 
 **3.3.4**
 

@@ -123,11 +123,9 @@ def get_cancelled_exc_class() -> Type[BaseException]:
 def claim_worker_thread(backend: str) -> Generator[Any, None, None]:
     module = sys.modules['anyio._backends._' + backend]
     threadlocals.current_async_module = module
-    token = sniffio.current_async_library_cvar.set(backend)
     try:
         yield
     finally:
-        sniffio.current_async_library_cvar.reset(token)
         del threadlocals.current_async_module
 
 
