@@ -283,8 +283,8 @@ async def open_process(command: Union[str, Sequence[str]], *, shell: bool,
                        stdin: int, stdout: int, stderr: int,
                        cwd: Union[str, bytes, PathLike, None] = None,
                        env: Optional[Mapping[str, str]] = None) -> Process:
-    process = await trio.open_process(command, stdin=stdin, stdout=stdout, stderr=stderr,
-                                      shell=shell, cwd=cwd, env=env)
+    process = await trio.lowlevel.open_process(command, stdin=stdin, stdout=stdout, stderr=stderr,
+                                               shell=shell, cwd=cwd, env=env)
     stdin_stream = SendStreamWrapper(process.stdin) if process.stdin else None
     stdout_stream = ReceiveStreamWrapper(process.stdout) if process.stdout else None
     stderr_stream = ReceiveStreamWrapper(process.stderr) if process.stderr else None
