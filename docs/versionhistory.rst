@@ -11,6 +11,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed async context manager's ``__aexit__()`` method not being called in
   ``BlockingPortal.wrap_async_context_manager()`` if the host task is cancelled
   (`#381 <https://github.com/agronholm/anyio/issues/381>`_; PR by Jonathan Slenders)
+- Fixed worker threads being marked as being event loop threads in sniffio
 
 **3.3.4**
 
