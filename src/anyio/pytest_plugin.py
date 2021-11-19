@@ -96,8 +96,18 @@ def pytest_pycollect_makeitem(collector: Any, name: Any, obj: Any) -> None:
         inner_func = obj.hypothesis.inner_test if hasattr(obj, 'hypothesis') else obj
         if iscoroutinefunction(inner_func):
             marker = collector.get_closest_marker('anyio')
-            own_markers = getattr(obj, 'pytestmark', ())
-            if marker or any(marker.name == 'anyio' for marker in own_markers):
+            own_markers = getattr(obj, 'pytestmark', [])
+            parametrized_markers = [
+                mark
+                for own_marker in own_markers
+                for paramset in (
+                    own_marker.args[1] if len(own_marker.args) >= 2 else ()
+                )
+                for mark in paramset.marks
+                if own_marker.name == 'parametrize'
+            ]
+            markers = own_markers + parametrized_markers
+            if marker or any(marker.name == 'anyio' for marker in markers):
                 pytest.mark.usefixtures('anyio_backend')(obj)
 
 

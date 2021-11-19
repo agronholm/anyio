@@ -58,11 +58,22 @@ def test_plugin(testdir: Testdir) -> None:
         async def test_skip_inline(some_feature):
             # Test for github #214
             pytest.skip("Test that skipping works")
+
+        @pytest.mark.parametrize(
+            "value",
+            [
+                pytest.param("1", marks=[pytest.mark.anyio]),
+                pytest.param("2", marks=[pytest.mark.anyio, pytest.mark.skip]),
+            ]
+        )
+        async def test_param(value):
+            assert True
         """
     )
 
     result = testdir.runpytest('-v', '-p', 'no:asyncio')
-    result.assert_outcomes(passed=3 * len(get_all_backends()), skipped=len(get_all_backends()))
+    result.assert_outcomes(passed=4 * len(get_all_backends()),
+                           skipped=2 * len(get_all_backends()))
 
 
 def test_asyncio(testdir: Testdir) -> None:
