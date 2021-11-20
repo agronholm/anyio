@@ -21,6 +21,9 @@ else:
 
 if sys.version_info >= (3, 7):
     from contextlib import asynccontextmanager
+else:
+    from contextlib2 import asynccontextmanager
+
 
 pytestmark = pytest.mark.anyio
 
@@ -320,6 +323,23 @@ class TestBlockingPortal:
                 assert cm == 'test'
                 raise Exception('should be ignored')
 
+    def test_async_context_manager_exception_in_task_group(
+            self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]) -> None:
+        """Regression test for #381."""
+        async def failing_func() -> None:
+            0 / 0
+
+        @asynccontextmanager
+        async def run_in_context() -> AsyncGenerator[None, None]:
+            async with create_task_group() as tg:
+                tg.start_soon(failing_func)
+                yield
+
+        with pytest.raises(ZeroDivisionError):
+            with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+                with portal.wrap_async_context_manager(run_in_context()):
+                    pass
+
     def test_start_no_value(self, anyio_backend_name: str,
                             anyio_backend_options: Dict[str, Any]) -> None:
         def taskfunc(*, task_status: TaskStatus) -> None:
@@ -390,22 +410,3 @@ class TestBlockingPortal:
             await to_thread.run_sync(portal.start_task_soon, in_loop)
 
         assert not caplog.text
-
-    @pytest.mark.skipif(sys.version_info < (3, 7),
-                        reason='@asynccontextmanager only available on py3.7+')
-    def test_exception_in_task_group_in_wrap_async_context_manager(
-            self, anyio_backend_name: str) -> None:
-        """Regression test for #381."""
-        async def failing_func() -> None:
-            0 / 0
-
-        @asynccontextmanager
-        async def run_in_context() -> AsyncGenerator[None, None]:
-            async with create_task_group() as tg:
-                tg.start_soon(failing_func)
-                yield
-
-        with pytest.raises(ZeroDivisionError):
-            with start_blocking_portal(backend=anyio_backend_name) as portal:
-                with portal.wrap_async_context_manager(run_in_context()):
-                    pass
