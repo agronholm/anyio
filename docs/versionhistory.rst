@@ -8,6 +8,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed race condition in ``Lock`` and ``Semaphore`` classes when a task waiting on ``acquire()``
   is cancelled while another task is waiting to acquire the same primitive
   (`#387 <https://github.com/agronholm/anyio/issues/387>`_)
+- Fixed async context manager's ``__aexit__()`` method not being called in
+  ``BlockingPortal.wrap_async_context_manager()`` if the host task is cancelled
+  (`#381 <https://github.com/agronholm/anyio/issues/381>`_; PR by Jonathan Slenders)
 - Fixed context variables not propagating to/from worker threads in ``to_thread.run_sync()``,
   ``from_thread.run()`` and ``from_thread.run_sync()``
   (`#363 <https://github.com/agronholm/anyio/issues/363>`_; does **not** work from threads to async

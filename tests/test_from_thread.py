@@ -4,14 +4,14 @@ import time
 from concurrent.futures import CancelledError
 from contextlib import suppress
 from contextvars import ContextVar
-from typing import Any, Dict, List, NoReturn, Optional
+from typing import Any, AsyncGenerator, Dict, List, NoReturn, Optional
 
 import pytest
 from _pytest.logging import LogCaptureFixture
 
 from anyio import (
-    Event, from_thread, get_cancelled_exc_class, get_current_task, run, sleep, to_thread,
-    wait_all_tasks_blocked)
+    Event, create_task_group, from_thread, get_cancelled_exc_class, get_current_task, run, sleep,
+    to_thread, wait_all_tasks_blocked)
 from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
 from anyio.lowlevel import checkpoint
@@ -20,6 +20,11 @@ if sys.version_info >= (3, 8):
     from typing import Literal
 else:
     from typing_extensions import Literal
+
+if sys.version_info >= (3, 7):
+    from contextlib import asynccontextmanager
+else:
+    from contextlib2 import asynccontextmanager
 
 
 pytestmark = pytest.mark.anyio
@@ -344,6 +349,23 @@ class TestBlockingPortal:
             with portal.wrap_async_context_manager(TestBlockingPortal.AsyncCM(True)) as cm:
                 assert cm == 'test'
                 raise Exception('should be ignored')
+
+    def test_async_context_manager_exception_in_task_group(
+            self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]) -> None:
+        """Regression test for #381."""
+        async def failing_func() -> None:
+            0 / 0
+
+        @asynccontextmanager
+        async def run_in_context() -> AsyncGenerator[None, None]:
+            async with create_task_group() as tg:
+                tg.start_soon(failing_func)
+                yield
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            with pytest.raises(ZeroDivisionError):
+                with portal.wrap_async_context_manager(run_in_context()):
+                    pass
 
     def test_start_no_value(self, anyio_backend_name: str,
                             anyio_backend_options: Dict[str, Any]) -> None:
