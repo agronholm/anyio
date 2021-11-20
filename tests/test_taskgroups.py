@@ -2,7 +2,7 @@ import asyncio
 import re
 import sys
 import time
-from typing import Any, AsyncGenerator, Coroutine, Dict, Generator, NoReturn, Set
+from typing import Any, AsyncGenerator, Coroutine, Dict, Generator, NoReturn, Optional, Set
 
 import pytest
 import trio
@@ -10,7 +10,8 @@ import trio
 import anyio
 from anyio import (
     CancelScope, ExceptionGroup, create_task_group, current_effective_deadline, current_time,
-    fail_after, get_cancelled_exc_class, move_on_after, sleep, wait_all_tasks_blocked)
+    fail_after, get_cancelled_exc_class, get_current_task, move_on_after, sleep,
+    wait_all_tasks_blocked)
 from anyio.abc import TaskGroup, TaskStatus
 from anyio.lowlevel import checkpoint
 
@@ -1004,3 +1005,45 @@ async def test_cancellederror_combination_with_message() -> None:
             await wait_all_tasks_blocked()
             assert isinstance(task, asyncio.Task)
             task.cancel('blah')
+
+
+async def test_start_soon_parent_id() -> None:
+    root_task_id = get_current_task().id
+    parent_id: Optional[int] = None
+
+    async def subtask() -> None:
+        nonlocal parent_id
+        parent_id = get_current_task().parent_id
+
+    async def starter_task() -> None:
+        tg.start_soon(subtask)
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(starter_task)
+
+    assert parent_id == root_task_id
+
+
+async def test_start_parent_id() -> None:
+    root_task_id = get_current_task().id
+    starter_task_id: Optional[int] = None
+    initial_parent_id: Optional[int] = None
+    permanent_parent_id: Optional[int] = None
+
+    async def subtask(*, task_status: TaskStatus) -> None:
+        nonlocal initial_parent_id, permanent_parent_id
+        initial_parent_id = get_current_task().parent_id
+        task_status.started()
+        permanent_parent_id = get_current_task().parent_id
+
+    async def starter_task() -> None:
+        nonlocal starter_task_id
+        starter_task_id = get_current_task().id
+        await tg.start(subtask)
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(starter_task)
+
+    assert initial_parent_id != permanent_parent_id
+    assert initial_parent_id == starter_task_id
+    assert permanent_parent_id == root_task_id
