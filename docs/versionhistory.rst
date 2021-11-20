@@ -10,7 +10,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#387 <https://github.com/agronholm/anyio/issues/387>`_)
 - Fixed async context manager's ``__aexit__()`` method not being called in
   ``BlockingPortal.wrap_async_context_manager()`` if the host task is cancelled
-  (`#381 <https://github.com/agronholm/anyio/issues/381>`_)
+  (`#381 <https://github.com/agronholm/anyio/issues/381>`_; PR by Jonathan Slenders)
 
 **3.3.4**
 
