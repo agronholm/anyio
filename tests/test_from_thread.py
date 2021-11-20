@@ -335,8 +335,8 @@ class TestBlockingPortal:
                 tg.start_soon(failing_func)
                 yield
 
-        with pytest.raises(ZeroDivisionError):
-            with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            with pytest.raises(ZeroDivisionError):
                 with portal.wrap_async_context_manager(run_in_context()):
                     pass
 
