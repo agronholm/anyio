@@ -40,7 +40,7 @@ pytestmark = pytest.mark.anyio
 
 # If a socket can bind to ::1, the current environment has IPv6 properly configured
 has_ipv6 = False
-if has_ipv6:
+if socket.has_ipv6:
     s = socket.socket(AddressFamily.AF_INET6)
     try:
         s.bind(('::1', 0))
