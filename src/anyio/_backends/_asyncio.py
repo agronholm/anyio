@@ -515,14 +515,18 @@ class ExceptionGroup(BaseExceptionGroup):
 
 
 class _AsyncioTaskStatus(abc.TaskStatus):
-    def __init__(self, future: asyncio.Future):
+    def __init__(self, future: asyncio.Future, parent_id: int):
         self._future = future
+        self._parent_id = parent_id
 
     def started(self, value: object = None) -> None:
         try:
             self._future.set_result(value)
         except asyncio.InvalidStateError:
             raise RuntimeError("called 'started' twice on the same task status") from None
+
+        task = cast(asyncio.Task, current_task())
+        _task_states[task].parent_id = self._parent_id
 
 
 class TaskGroup(abc.TaskGroup):
@@ -653,7 +657,11 @@ class TaskGroup(abc.TaskGroup):
 
         kwargs = {}
         if task_status_future:
-            kwargs['task_status'] = _AsyncioTaskStatus(task_status_future)
+            parent_id = id(current_task())
+            kwargs['task_status'] = _AsyncioTaskStatus(task_status_future,
+                                                       id(self.cancel_scope._host_task))
+        else:
+            parent_id = id(self.cancel_scope._host_task)
 
         coro = func(*args, **kwargs)
         if not asyncio.iscoroutine(coro):
@@ -668,7 +676,7 @@ class TaskGroup(abc.TaskGroup):
             task.add_done_callback(task_done)
 
         # Make the spawned task inherit the task group's cancel scope
-        _task_states[task] = TaskState(parent_id=id(current_task()), name=name,
+        _task_states[task] = TaskState(parent_id=parent_id, name=name,
                                        cancel_scope=self.cancel_scope)
         self.cancel_scope._tasks.add(task)
         return task

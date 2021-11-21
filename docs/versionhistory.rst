@@ -12,6 +12,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``BlockingPortal.wrap_async_context_manager()`` if the host task is cancelled
   (`#381 <https://github.com/agronholm/anyio/issues/381>`_; PR by Jonathan Slenders)
 - Fixed worker threads being marked as being event loop threads in sniffio
+- Fixed task parent ID not getting set to the correct value on asyncio
 
 **3.3.4**
 
