@@ -5,6 +5,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added context propagation to/from worker threads in ``to_thread.run_sync()``,
+  ``from_thread.run()`` and ``from_thread.run_sync()``
+  (`#363 <https://github.com/agronholm/anyio/issues/363>`_; partially based on a PR by Sebastián
+  Ramírez)
+
+  **NOTE**: Requires Python 3.7 to work properly on asyncio!
 - Fixed race condition in ``Lock`` and ``Semaphore`` classes when a task waiting on ``acquire()``
   is cancelled while another task is waiting to acquire the same primitive
   (`#387 <https://github.com/agronholm/anyio/issues/387>`_)

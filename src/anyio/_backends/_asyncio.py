@@ -7,6 +7,7 @@ import sys
 from asyncio.base_events import _run_until_complete_cb  # type: ignore
 from collections import OrderedDict, deque
 from concurrent.futures import Future
+from contextvars import Context, copy_context
 from dataclasses import dataclass
 from functools import partial, wraps
 from inspect import (
@@ -21,6 +22,8 @@ from typing import (
     Any, Awaitable, Callable, Collection, Coroutine, Deque, Dict, Generator, Iterable, List,
     Mapping, Optional, Sequence, Set, Tuple, Type, TypeVar, Union, cast)
 from weakref import WeakKeyDictionary
+
+import sniffio
 
 from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
 from .._core._compat import DeprecatedAsyncContextManager, DeprecatedAwaitable
@@ -718,7 +721,7 @@ class WorkerThread(Thread):
         self.workers = workers
         self.idle_workers = idle_workers
         self.loop = root_task._loop
-        self.queue: Queue[Union[Tuple[Callable, tuple, asyncio.Future], None]] = Queue(2)
+        self.queue: Queue[Union[Tuple[Context, Callable, tuple, asyncio.Future], None]] = Queue(2)
         self.idle_since = current_time()
         self.stopping = False
 
@@ -743,12 +746,12 @@ class WorkerThread(Thread):
                     # Shutdown command received
                     return
 
-                func, args, future = item
+                context, func, args, future = item
                 if not future.cancelled():
                     result = None
                     exception: Optional[BaseException] = None
                     try:
-                        result = func(*args)
+                        result = context.run(func, *args)
                     except BaseException as exc:
                         exception = exc
 
@@ -809,7 +812,9 @@ async def run_sync_in_worker_thread(
                     expired_worker.root_task.remove_done_callback(expired_worker.stop)
                     expired_worker.stop()
 
-            worker.queue.put_nowait((func, args, future))
+            context = copy_context()
+            context.run(sniffio.current_async_library_cvar.set, None)
+            worker.queue.put_nowait((context, func, args, future))
             return await future
 
 
@@ -826,7 +831,11 @@ def run_sync_from_thread(func: Callable[..., T_Retval], *args: object,
 
     f: concurrent.futures.Future[T_Retval] = Future()
     loop = loop or threadlocals.loop
-    loop.call_soon_threadsafe(wrapper)
+    if sys.version_info < (3, 7):
+        loop.call_soon_threadsafe(copy_context().run, wrapper)
+    else:
+        loop.call_soon_threadsafe(wrapper)
+
     return f.result()
 
 
