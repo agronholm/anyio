@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import threading
 from asyncio import iscoroutine
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait

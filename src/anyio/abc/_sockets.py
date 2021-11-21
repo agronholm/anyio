@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import socket
 from abc import abstractmethod
 from io import IOBase

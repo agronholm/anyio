@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import enum
 import sys
 from dataclasses import dataclass

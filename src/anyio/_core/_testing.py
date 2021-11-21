@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Coroutine, List, Optional
 
 from ._eventloop import get_asynclib

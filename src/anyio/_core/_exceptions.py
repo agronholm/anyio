@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from traceback import format_exception
 from typing import Sequence
 

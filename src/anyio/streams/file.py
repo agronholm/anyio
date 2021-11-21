@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from io import SEEK_SET, UnsupportedOperation
 from os import PathLike
 from pathlib import Path

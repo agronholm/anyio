@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from io import BytesIO
 from os import PathLike
 from subprocess import DEVNULL, PIPE, CalledProcessError, CompletedProcess

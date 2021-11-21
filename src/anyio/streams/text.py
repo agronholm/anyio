@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import codecs
 from dataclasses import InitVar, dataclass, field
 from typing import Any, Callable, Mapping, Tuple

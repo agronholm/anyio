@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABCMeta, abstractmethod
 from types import TracebackType
 from typing import Optional, Type, TypeVar

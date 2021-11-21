@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import types
 from abc import ABCMeta, abstractmethod
 from typing import Any, Awaitable, Callable, Dict, Optional, Type, TypeVar
