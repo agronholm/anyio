@@ -2,7 +2,7 @@ import sys
 import threading
 import time
 from concurrent.futures import CancelledError
-from contextlib import suppress
+from contextlib import asynccontextmanager, suppress
 from typing import Any, AsyncGenerator, Dict, List, NoReturn, Optional
 
 import pytest
@@ -18,12 +18,6 @@ if sys.version_info >= (3, 8):
     from typing import Literal
 else:
     from typing_extensions import Literal
-
-if sys.version_info >= (3, 7):
-    from contextlib import asynccontextmanager
-else:
-    from contextlib2 import asynccontextmanager
-
 
 pytestmark = pytest.mark.anyio
 

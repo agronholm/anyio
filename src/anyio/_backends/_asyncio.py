@@ -4,6 +4,8 @@ import concurrent.futures
 import math
 import socket
 import sys
+from asyncio import all_tasks, create_task, current_task, get_running_loop
+from asyncio import run as native_run
 from asyncio.base_events import _run_until_complete_cb  # type: ignore
 from collections import OrderedDict, deque
 from concurrent.futures import Future
@@ -18,8 +20,8 @@ from socket import AddressFamily, SocketKind
 from threading import Thread
 from types import TracebackType
 from typing import (
-    Any, Awaitable, Callable, Collection, Coroutine, Deque, Dict, Generator, Iterable, List,
-    Mapping, Optional, Sequence, Set, Tuple, Type, TypeVar, Union, cast)
+    Any, Awaitable, Callable, Collection, Coroutine, Deque, Dict, Generator, List, Mapping,
+    Optional, Sequence, Set, Tuple, Type, TypeVar, Union, cast)
 from weakref import WeakKeyDictionary
 
 from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
@@ -42,89 +44,6 @@ else:
     def get_coro(task: asyncio.Task) -> Union[Coroutine, Generator]:
         return task._coro
 
-if sys.version_info >= (3, 7):
-    from asyncio import all_tasks, create_task, current_task, get_running_loop
-    from asyncio import run as native_run
-
-    def _get_task_callbacks(task: asyncio.Task) -> Iterable[Callable]:
-        return [cb for cb, context in task._callbacks]  # type: ignore
-else:
-    _T = TypeVar('_T')
-
-    def _get_task_callbacks(task: asyncio.Task) -> Iterable[Callable]:
-        return task._callbacks
-
-    def native_run(main, *, debug=False):
-        # Snatched from Python 3.7
-        from asyncio import coroutines, events, tasks
-
-        def _cancel_all_tasks(loop):
-            to_cancel = all_tasks(loop)
-            if not to_cancel:
-                return
-
-            for task in to_cancel:
-                task.cancel()
-
-            loop.run_until_complete(
-                tasks.gather(*to_cancel, loop=loop, return_exceptions=True))
-
-            for task in to_cancel:
-                if task.cancelled():
-                    continue
-                if task.exception() is not None:
-                    loop.call_exception_handler({
-                        'message': 'unhandled exception during asyncio.run() shutdown',
-                        'exception': task.exception(),
-                        'task': task,
-                    })
-
-        if events._get_running_loop() is not None:
-            raise RuntimeError(
-                "asyncio.run() cannot be called from a running event loop")
-
-        if not coroutines.iscoroutine(main):
-            raise ValueError("a coroutine was expected, got {!r}".format(main))
-
-        loop = events.new_event_loop()
-        try:
-            events.set_event_loop(loop)
-            loop.set_debug(debug)
-            return loop.run_until_complete(main)
-        finally:
-            try:
-                _cancel_all_tasks(loop)
-                loop.run_until_complete(loop.shutdown_asyncgens())
-            finally:
-                events.set_event_loop(None)
-                loop.close()
-
-    def create_task(coro: Union[Generator[Any, None, _T], Awaitable[_T]], *,
-                    name: object = None) -> asyncio.Task:
-        return get_running_loop().create_task(coro)
-
-    def get_running_loop() -> asyncio.AbstractEventLoop:
-        loop = asyncio._get_running_loop()
-        if loop is not None:
-            return loop
-        else:
-            raise RuntimeError('no running event loop')
-
-    def all_tasks(loop: Optional[asyncio.AbstractEventLoop] = None) -> Set[asyncio.Task]:
-        """Return a set of all tasks for the loop."""
-        from asyncio import Task
-
-        if loop is None:
-            loop = get_running_loop()
-
-        return {t for t in Task.all_tasks(loop) if not t.done()}
-
-    def current_task(loop: Optional[asyncio.AbstractEventLoop] = None) -> Optional[asyncio.Task]:
-        if loop is None:
-            loop = get_running_loop()
-
-        return asyncio.Task.current_task(loop)
-
 T_Retval = TypeVar('T_Retval')
 
 # Check whether there is native support for task names in asyncio (3.8+)
@@ -142,7 +61,8 @@ def find_root_task() -> asyncio.Task:
     # Look for a task that has been started via run_until_complete()
     for task in all_tasks():
         if task._callbacks and not task.done():
-            for cb in _get_task_callbacks(task):
+            callbacks = [cb for cb, context in task._callbacks]  # type: ignore
+            for cb in callbacks:
                 if (cb is _run_until_complete_cb
                         or getattr(cb, '__module__', None) == 'uvloop.loop'):
                     _root_task.set(task)

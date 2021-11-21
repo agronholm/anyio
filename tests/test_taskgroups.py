@@ -15,11 +15,6 @@ from anyio import (
 from anyio.abc import TaskGroup, TaskStatus
 from anyio.lowlevel import checkpoint
 
-if sys.version_info < (3, 7):
-    current_task = asyncio.Task.current_task
-else:
-    current_task = asyncio.current_task
-
 pytestmark = pytest.mark.anyio
 
 
@@ -205,7 +200,7 @@ async def test_start_native_child_cancelled() -> None:
 
     async def taskfunc(*, task_status: TaskStatus) -> None:
         nonlocal task, finished
-        task = current_task()
+        task = asyncio.current_task()
         await sleep(2)
         finished = True
 
