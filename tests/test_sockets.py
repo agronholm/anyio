@@ -48,6 +48,9 @@ if has_ipv6:
         pass
     else:
         has_ipv6 = True
+    finally:
+        s.close()
+        del s
 
 
 @pytest.fixture
