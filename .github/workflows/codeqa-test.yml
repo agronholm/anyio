@@ -2,7 +2,7 @@ name: Python codeqa/test
 
 on:
   push:
-    branches: [master]
+    branches: [master, 4.0-dev]
   pull_request:
 
 jobs:
