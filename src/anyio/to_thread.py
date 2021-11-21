@@ -1,5 +1,4 @@
 from typing import Callable, Optional, TypeVar
-from warnings import warn
 
 from ._core._eventloop import get_asynclib
 from .abc import CapacityLimiter
@@ -29,14 +28,6 @@ async def run_sync(
                                                           limiter=limiter)
 
 
-async def run_sync_in_worker_thread(
-        func: Callable[..., T_Retval], *args: object, cancellable: bool = False,
-        limiter: Optional[CapacityLimiter] = None) -> T_Retval:
-    warn('run_sync_in_worker_thread() has been deprecated, use anyio.to_thread.run_sync() instead',
-         DeprecationWarning)
-    return await run_sync(func, *args, cancellable=cancellable, limiter=limiter)
-
-
 def current_default_thread_limiter() -> CapacityLimiter:
     """
     Return the capacity limiter that is used by default to limit the number of concurrent threads.
@@ -45,10 +36,3 @@ def current_default_thread_limiter() -> CapacityLimiter:
 
     """
     return get_asynclib().current_default_thread_limiter()
-
-
-def current_default_worker_thread_limiter() -> CapacityLimiter:
-    warn('current_default_worker_thread_limiter() has been deprecated, '
-         'use anyio.to_thread.current_default_thread_limiter() instead',
-         DeprecationWarning)
-    return current_default_thread_limiter()

@@ -1,10 +1,9 @@
-from typing import AsyncIterator
+from typing import AsyncIterator, ContextManager
 
-from ._compat import DeprecatedAsyncContextManager
 from ._eventloop import get_asynclib
 
 
-def open_signal_receiver(*signals: int) -> DeprecatedAsyncContextManager[AsyncIterator[int]]:
+def open_signal_receiver(*signals: int) -> ContextManager[AsyncIterator[int]]:
     """
     Start receiving operating system signals.
 

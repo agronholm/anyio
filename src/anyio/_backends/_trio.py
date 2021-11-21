@@ -17,7 +17,6 @@ from trio.socket import SocketType as TrioSocketType
 from trio.to_thread import run_sync
 
 from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
-from .._core._compat import DeprecatedAsyncContextManager, DeprecatedAwaitable, T
 from .._core._eventloop import claim_worker_thread
 from .._core._exceptions import (
     BrokenResourceError, BusyResourceError, ClosedResourceError, EndOfStream)
@@ -38,6 +37,7 @@ else:
     from trio.lowlevel import wait_readable, wait_writable
 
 
+T = TypeVar('T')
 T_Retval = TypeVar('T_Retval')
 T_SockAddr = TypeVar('T_SockAddr', str, IPSockAddrType)
 
@@ -79,9 +79,8 @@ class CancelScope(BaseCancelScope):
                  exc_tb: Optional[TracebackType]) -> Optional[bool]:
         return self.__original.__exit__(exc_type, exc_val, exc_tb)
 
-    def cancel(self) -> DeprecatedAwaitable:
+    def cancel(self) -> None:
         self.__original.cancel()
-        return DeprecatedAwaitable(self.cancel)
 
     @property
     def deadline(self) -> float:
@@ -607,9 +606,8 @@ class Event(BaseEvent):
     def statistics(self) -> EventStatistics:
         return self.__original.statistics()
 
-    def set(self) -> DeprecatedAwaitable:
+    def set(self) -> None:
         self.__original.set()
-        return DeprecatedAwaitable(self.set)
 
 
 class CapacityLimiter(BaseCapacityLimiter):
@@ -643,13 +641,11 @@ class CapacityLimiter(BaseCapacityLimiter):
     def available_tokens(self) -> float:
         return self.__original.available_tokens
 
-    def acquire_nowait(self) -> DeprecatedAwaitable:
+    def acquire_nowait(self) -> None:
         self.__original.acquire_nowait()
-        return DeprecatedAwaitable(self.acquire_nowait)
 
-    def acquire_on_behalf_of_nowait(self, borrower: object) -> DeprecatedAwaitable:
+    def acquire_on_behalf_of_nowait(self, borrower: object) -> None:
         self.__original.acquire_on_behalf_of_nowait(borrower)
-        return DeprecatedAwaitable(self.acquire_on_behalf_of_nowait)
 
     async def acquire(self) -> None:
         await self.__original.acquire()
@@ -683,7 +679,7 @@ def current_default_thread_limiter() -> CapacityLimiter:
 # Signal handling
 #
 
-class _SignalReceiver(DeprecatedAsyncContextManager[T]):
+class _SignalReceiver(Generic[T]):
     def __init__(self, cm: ContextManager[T]):
         self._cm = cm
 

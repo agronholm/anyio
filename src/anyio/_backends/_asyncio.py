@@ -23,7 +23,6 @@ from typing import (
 from weakref import WeakKeyDictionary
 
 from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
-from .._core._compat import DeprecatedAsyncContextManager, DeprecatedAwaitable
 from .._core._eventloop import claim_worker_thread, threadlocals
 from .._core._exceptions import (
     BrokenResourceError, BusyResourceError, ClosedResourceError, EndOfStream)
@@ -392,7 +391,7 @@ class CancelScope(BaseCancelScope):
 
         return False
 
-    def cancel(self) -> DeprecatedAwaitable:
+    def cancel(self) -> None:
         if not self._cancel_called:
             if self._timeout_handle:
                 self._timeout_handle.cancel()
@@ -400,8 +399,6 @@ class CancelScope(BaseCancelScope):
 
             self._cancel_called = True
             self._deliver_cancellation()
-
-        return DeprecatedAwaitable(self.cancel)
 
     @property
     def deadline(self) -> float:
@@ -1634,9 +1631,8 @@ class Event(BaseEvent):
     def __init__(self) -> None:
         self._event = asyncio.Event()
 
-    def set(self) -> DeprecatedAwaitable:
+    def set(self) -> None:
         self._event.set()
-        return DeprecatedAwaitable(self.set)
 
     def is_set(self) -> bool:
         return self._event.is_set()
@@ -1701,11 +1697,10 @@ class CapacityLimiter(BaseCapacityLimiter):
     def available_tokens(self) -> float:
         return self._total_tokens - len(self._borrowers)
 
-    def acquire_nowait(self) -> DeprecatedAwaitable:
+    def acquire_nowait(self) -> None:
         self.acquire_on_behalf_of_nowait(current_task())
-        return DeprecatedAwaitable(self.acquire_nowait)
 
-    def acquire_on_behalf_of_nowait(self, borrower: object) -> DeprecatedAwaitable:
+    def acquire_on_behalf_of_nowait(self, borrower: object) -> None:
         if borrower in self._borrowers:
             raise RuntimeError("this borrower is already holding one of this CapacityLimiter's "
                                "tokens")
@@ -1714,7 +1709,6 @@ class CapacityLimiter(BaseCapacityLimiter):
             raise WouldBlock
 
         self._borrowers.add(borrower)
-        return DeprecatedAwaitable(self.acquire_on_behalf_of_nowait)
 
     async def acquire(self) -> None:
         return await self.acquire_on_behalf_of(current_task())
@@ -1772,7 +1766,7 @@ def current_default_thread_limiter() -> CapacityLimiter:
 # Operating system signals
 #
 
-class _SignalReceiver(DeprecatedAsyncContextManager["_SignalReceiver"]):
+class _SignalReceiver:
     def __init__(self, signals: Tuple[int, ...]):
         self._signals = signals
         self._loop = get_running_loop()

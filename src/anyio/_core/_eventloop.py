@@ -8,8 +8,6 @@ from typing import Any, Callable, Coroutine, Dict, Generator, Optional, Tuple, T
 import sniffio
 
 # This must be updated when new backends are introduced
-from ._compat import DeprecatedAwaitableFloat
-
 BACKENDS = 'asyncio', 'trio'
 
 T_Retval = TypeVar('T_Retval')
@@ -95,14 +93,14 @@ async def sleep_until(deadline: float) -> None:
     await sleep(max(deadline - now, 0))
 
 
-def current_time() -> DeprecatedAwaitableFloat:
+def current_time() -> float:
     """
     Return the current value of the event loop's internal clock.
 
     :return: the clock value (seconds)
 
     """
-    return DeprecatedAwaitableFloat(get_asynclib().current_time(), current_time)
+    return get_asynclib().current_time()
 
 
 def get_all_backends() -> Tuple[str, ...]:
