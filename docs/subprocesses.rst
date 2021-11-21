@@ -108,7 +108,7 @@ Other considerations:
 * If a cancellable call is cancelled during execution on the worker process, the worker process
   will be killed
 * The worker process imports the parent's ``__main__`` module, so guarding for any import time side
-  effects using ``if __name__ == '__main__':`` is required to avoid inifinite recursion
+  effects using ``if __name__ == '__main__':`` is required to avoid infinite recursion
 * ``sys.stdin`` and ``sys.stdout``, ``sys.stderr`` are redirected to ``/dev/null`` so :func:`print`
   and :func:`input` won't work
 * Worker processes terminate after 5 minutes of inactivity, or when the event loop is finished
