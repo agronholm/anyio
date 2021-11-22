@@ -6,6 +6,8 @@ from anyio import get_all_backends
 pytestmark = pytest.mark.filterwarnings(
     'ignore:The TerminalReporter.writer attribute is deprecated:pytest.PytestDeprecationWarning:')
 
+pytest_args = '-v', '-p', 'anyio', '-p', 'no:asyncio'
+
 
 def test_plugin(testdir: Testdir) -> None:
     testdir.makeconftest(
@@ -61,7 +63,7 @@ def test_plugin(testdir: Testdir) -> None:
         """
     )
 
-    result = testdir.runpytest('-v', '-p', 'no:asyncio')
+    result = testdir.runpytest(*pytest_args)
     result.assert_outcomes(passed=3 * len(get_all_backends()), skipped=len(get_all_backends()))
 
 
@@ -134,7 +136,7 @@ def test_asyncio(testdir: Testdir) -> None:
         """
     )
 
-    result = testdir.runpytest('-v', '-p', 'no:asyncio')
+    result = testdir.runpytest(*pytest_args)
     result.assert_outcomes(passed=2, failed=1, errors=2)
 
 
@@ -171,7 +173,7 @@ def test_autouse_async_fixture(testdir: Testdir) -> None:
         """
     )
 
-    result = testdir.runpytest('-v', '-p', 'no:asyncio')
+    result = testdir.runpytest_subprocess(*pytest_args)
     result.assert_outcomes(passed=len(get_all_backends()))
 
 
@@ -198,7 +200,7 @@ def test_cancel_scope_in_asyncgen_fixture(testdir: Testdir) -> None:
         """
     )
 
-    result = testdir.runpytest('-v', '-p', 'no:asyncio')
+    result = testdir.runpytest_subprocess(*pytest_args)
     result.assert_outcomes(passed=len(get_all_backends()))
 
 
@@ -229,7 +231,7 @@ def test_hypothesis_module_mark(testdir: Testdir) -> None:
         """
     )
 
-    result = testdir.runpytest('-v', '-p', 'no:asyncio')
+    result = testdir.runpytest(*pytest_args)
     result.assert_outcomes(passed=len(get_all_backends()) + 1, xfailed=len(get_all_backends()))
 
 
@@ -268,5 +270,5 @@ def test_hypothesis_function_mark(testdir: Testdir) -> None:
         """
     )
 
-    result = testdir.runpytest('-v', '-p', 'no:asyncio')
+    result = testdir.runpytest(*pytest_args)
     result.assert_outcomes(passed=2 * len(get_all_backends()), xfailed=2 * len(get_all_backends()))

@@ -66,6 +66,8 @@ jobs:
       run: pip install .[test,trio] coveralls
     - name: Test with pytest
       run: coverage run -m pytest
+      env:
+        PYTEST_DISABLE_PLUGIN_AUTOLOAD: 1
     - name: Upload Coverage
       run: coveralls --service=github
       env:
