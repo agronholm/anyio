@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, Optional, TypeVar
+from typing import Callable, TypeVar
 
 from ._core._eventloop import get_asynclib
 from .abc import CapacityLimiter
@@ -10,7 +10,7 @@ T_Retval = TypeVar('T_Retval')
 
 async def run_sync(
         func: Callable[..., T_Retval], *args: object, cancellable: bool = False,
-        limiter: Optional[CapacityLimiter] = None) -> T_Retval:
+        limiter: CapacityLimiter | None = None) -> T_Retval:
     """
     Call the given function with the given arguments in a worker thread.
 

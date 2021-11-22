@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 import sys
 from dataclasses import dataclass
-from typing import Any, Dict, Generic, Set, TypeVar, Union, overload
+from typing import Any, Dict, Generic, TypeVar, overload
 from weakref import WeakKeyDictionary
 
 from ._core._eventloop import get_asynclib
@@ -65,7 +65,7 @@ def current_token() -> object:
 
 
 _run_vars = WeakKeyDictionary()  # type: WeakKeyDictionary[Any, Dict[str, Any]]
-_token_wrappers: Dict[Any, '_TokenWrapper'] = {}
+_token_wrappers: dict[Any, _TokenWrapper] = {}
 
 
 @dataclass(frozen=True)
@@ -81,9 +81,9 @@ class _NoValueSet(enum.Enum):
 class RunvarToken(Generic[T]):
     __slots__ = '_var', '_value', '_redeemed'
 
-    def __init__(self, var: 'RunVar', value: Union[T, Literal[_NoValueSet.NO_VALUE_SET]]):
+    def __init__(self, var: RunVar, value: T | Literal[_NoValueSet.NO_VALUE_SET]):
         self._var = var
-        self._value: Union[T, Literal[_NoValueSet.NO_VALUE_SET]] = value
+        self._value: T | Literal[_NoValueSet.NO_VALUE_SET] = value
         self._redeemed = False
 
 
@@ -93,15 +93,15 @@ class RunVar(Generic[T]):
 
     NO_VALUE_SET: Literal[_NoValueSet.NO_VALUE_SET] = _NoValueSet.NO_VALUE_SET
 
-    _token_wrappers: Set[_TokenWrapper] = set()
+    _token_wrappers: set[_TokenWrapper] = set()
 
     def __init__(self, name: str,
-                 default: Union[T, Literal[_NoValueSet.NO_VALUE_SET]] = NO_VALUE_SET):
+                 default: T | Literal[_NoValueSet.NO_VALUE_SET] = NO_VALUE_SET):
         self._name = name
         self._default = default
 
     @property
-    def _current_vars(self) -> Dict[str, T]:
+    def _current_vars(self) -> dict[str, T]:
         token = current_token()
         while True:
             try:
@@ -117,14 +117,14 @@ class RunVar(Generic[T]):
                 return run_vars
 
     @overload
-    def get(self, default: D) -> Union[T, D]: ...
+    def get(self, default: D) -> T | D: ...
 
     @overload
     def get(self) -> T: ...
 
     def get(
-        self, default: Union[D, Literal[_NoValueSet.NO_VALUE_SET]] = NO_VALUE_SET
-    ) -> Union[T, D]:
+        self, default: D | Literal[_NoValueSet.NO_VALUE_SET] = NO_VALUE_SET
+    ) -> T | D:
         try:
             return self._current_vars[self._name]
         except KeyError:

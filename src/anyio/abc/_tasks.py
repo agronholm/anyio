@@ -3,7 +3,7 @@ from __future__ import annotations
 import typing
 from abc import ABCMeta, abstractmethod
 from types import TracebackType
-from typing import Callable, Coroutine, Optional, Type, TypeVar
+from typing import Callable, Coroutine, TypeVar
 
 if typing.TYPE_CHECKING:
     from anyio._core._tasks import CancelScope
@@ -29,7 +29,7 @@ class TaskGroup(metaclass=ABCMeta):
     :vartype cancel_scope: CancelScope
     """
 
-    cancel_scope: 'CancelScope'
+    cancel_scope: CancelScope
 
     @abstractmethod
     def start_soon(self, func: Callable[..., Coroutine],
@@ -64,7 +64,7 @@ class TaskGroup(metaclass=ABCMeta):
         """Enter the task group context and allow starting new tasks."""
 
     @abstractmethod
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    async def __aexit__(self, exc_type: type[BaseException] | None,
+                        exc_val: BaseException | None,
+                        exc_tb: TracebackType | None) -> bool | None:
         """Exit the task group context waiting for all tasks to finish."""

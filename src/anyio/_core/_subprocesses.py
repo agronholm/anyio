@@ -3,17 +3,17 @@ from __future__ import annotations
 from io import BytesIO
 from os import PathLike
 from subprocess import DEVNULL, PIPE, CalledProcessError, CompletedProcess
-from typing import AsyncIterable, List, Mapping, Optional, Sequence, Union, cast
+from typing import AsyncIterable, Mapping, Sequence, cast
 
 from ..abc import Process
 from ._eventloop import get_asynclib
 from ._tasks import create_task_group
 
 
-async def run_process(command: Union[str, Sequence[str]], *, input: Optional[bytes] = None,
+async def run_process(command: str | Sequence[str], *, input: bytes | None = None,
                       stdout: int = PIPE, stderr: int = PIPE, check: bool = True,
-                      cwd: Union[str, bytes, PathLike, None] = None,
-                      env: Optional[Mapping[str, str]] = None) -> CompletedProcess:
+                      cwd: str | bytes | PathLike | None = None,
+                      env: Mapping[str, str] | None = None) -> CompletedProcess:
     """
     Run an external command in a subprocess and wait until it completes.
 
@@ -44,7 +44,7 @@ async def run_process(command: Union[str, Sequence[str]], *, input: Optional[byt
 
     async with await open_process(command, stdin=PIPE if input else DEVNULL, stdout=stdout,
                                   stderr=stderr, cwd=cwd, env=env) as process:
-        stream_contents: List[Optional[bytes]] = [None, None]
+        stream_contents: list[bytes | None] = [None, None]
         try:
             async with create_task_group() as tg:
                 if process.stdout:
@@ -67,10 +67,10 @@ async def run_process(command: Union[str, Sequence[str]], *, input: Optional[byt
     return CompletedProcess(command, cast(int, process.returncode), output, errors)
 
 
-async def open_process(command: Union[str, Sequence[str]], *, stdin: int = PIPE,
+async def open_process(command: str | Sequence[str], *, stdin: int = PIPE,
                        stdout: int = PIPE, stderr: int = PIPE,
-                       cwd: Union[str, bytes, PathLike, None] = None,
-                       env: Optional[Mapping[str, str]] = None) -> Process:
+                       cwd: str | bytes | PathLike | None = None,
+                       env: Mapping[str, str] | None = None) -> Process:
     """
     Start an external command in a subprocess.
 

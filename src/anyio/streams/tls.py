@@ -5,7 +5,7 @@ import re
 import ssl
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, TypeVar, Union
+from typing import Any, Callable, Mapping, TypeVar
 
 from .. import BrokenResourceError, EndOfStream, aclose_forcefully, get_cancelled_exc_class
 from .._core._typedattr import TypedAttributeSet, typed_attribute
@@ -17,20 +17,20 @@ T_Retval = TypeVar('T_Retval')
 class TLSAttribute(TypedAttributeSet):
     """Contains Transport Layer Security related attributes."""
     #: the selected ALPN protocol
-    alpn_protocol: Optional[str] = typed_attribute()
+    alpn_protocol: str | None = typed_attribute()
     #: the channel binding for type ``tls-unique``
     channel_binding_tls_unique: bytes = typed_attribute()
     #: the selected cipher
-    cipher: Tuple[str, str, int] = typed_attribute()
+    cipher: tuple[str, str, int] = typed_attribute()
     #: the peer certificate in dictionary form (see :meth:`ssl.SSLSocket.getpeercert` for more
     #: information)
-    peer_certificate: Optional[Dict[str, Union[str, tuple]]] = typed_attribute()
+    peer_certificate: dict[str, str | tuple] | None = typed_attribute()
     #: the peer certificate in binary form
-    peer_certificate_binary: Optional[bytes] = typed_attribute()
+    peer_certificate_binary: bytes | None = typed_attribute()
     #: ``True`` if this is the server side of the connection
     server_side: bool = typed_attribute()
     #: ciphers shared between both ends of the TLS connection
-    shared_ciphers: List[Tuple[str, str, int]] = typed_attribute()
+    shared_ciphers: list[tuple[str, str, int]] = typed_attribute()
     #: the :class:`~ssl.SSLObject` used for encryption
     ssl_object: ssl.SSLObject = typed_attribute()
     #: ``True`` if this stream does (and expects) a closing TLS handshake when the stream is being
@@ -58,8 +58,8 @@ class TLSStream(ByteStream):
     _write_bio: ssl.MemoryBIO
 
     @classmethod
-    async def wrap(cls, transport_stream: AnyByteStream, *, server_side: Optional[bool] = None,
-                   hostname: Optional[str] = None, ssl_context: Optional[ssl.SSLContext] = None,
+    async def wrap(cls, transport_stream: AnyByteStream, *, server_side: bool | None = None,
+                   hostname: str | None = None, ssl_context: ssl.SSLContext | None = None,
                    standard_compatible: bool = True) -> 'TLSStream':
         """
         Wrap an existing stream with Transport Layer Security.
@@ -137,7 +137,7 @@ class TLSStream(ByteStream):
 
                 return result
 
-    async def unwrap(self) -> Tuple[AnyByteStream, bytes]:
+    async def unwrap(self) -> tuple[AnyByteStream, bytes]:
         """
         Does the TLS closing handshake.
 
@@ -247,7 +247,7 @@ class TLSListener(Listener[TLSStream]):
             raise
 
     async def serve(self, handler: Callable[[TLSStream], Any],
-                    task_group: Optional[TaskGroup] = None) -> None:
+                    task_group: TaskGroup | None = None) -> None:
         @wraps(handler)
         async def handler_wrapper(stream: AnyByteStream) -> None:
             from .. import fail_after

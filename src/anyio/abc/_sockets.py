@@ -6,9 +6,7 @@ from io import IOBase
 from ipaddress import IPv4Address, IPv6Address
 from socket import AddressFamily
 from types import TracebackType
-from typing import (
-    Any, AsyncContextManager, Callable, Collection, Dict, List, Mapping, Optional, Tuple, Type,
-    TypeVar, Union)
+from typing import Any, AsyncContextManager, Callable, Collection, Mapping, Tuple, TypeVar, Union
 
 from .._core._typedattr import TypedAttributeProvider, TypedAttributeSet, typed_attribute
 from ._streams import ByteStream, Listener, T_Stream, UnreliableObjectStream
@@ -25,9 +23,9 @@ class _NullAsyncContextManager:
     async def __aenter__(self) -> None:
         pass
 
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    async def __aexit__(self, exc_type: type[BaseException] | None,
+                        exc_val: BaseException | None,
+                        exc_tb: TracebackType | None) -> bool | None:
         return None
 
 
@@ -51,13 +49,13 @@ class _SocketProvider(TypedAttributeProvider):
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
         from .._core._sockets import convert_ipv6_sockaddr as convert
 
-        attributes: Dict[Any, Callable[[], Any]] = {
+        attributes: dict[Any, Callable[[], Any]] = {
             SocketAttribute.family: lambda: self._raw_socket.family,
             SocketAttribute.local_address: lambda: convert(self._raw_socket.getsockname()),
             SocketAttribute.raw_socket: lambda: self._raw_socket
         }
         try:
-            peername: Optional[Tuple[str, int]] = convert(self._raw_socket.getpeername())
+            peername: tuple[str, int] | None = convert(self._raw_socket.getpeername())
         except OSError:
             peername = None
 
@@ -90,7 +88,7 @@ class SocketStream(ByteStream, _SocketProvider):
 
 class UNIXSocketStream(SocketStream):
     @abstractmethod
-    async def send_fds(self, message: bytes, fds: Collection[Union[int, IOBase]]) -> None:
+    async def send_fds(self, message: bytes, fds: Collection[int | IOBase]) -> None:
         """
         Send file descriptors along with a message to the peer.
 
@@ -100,7 +98,7 @@ class UNIXSocketStream(SocketStream):
         """
 
     @abstractmethod
-    async def receive_fds(self, msglen: int, maxfds: int) -> Tuple[bytes, List[int]]:
+    async def receive_fds(self, msglen: int, maxfds: int) -> tuple[bytes, list[int]]:
         """
         Receive file descriptors along with a message from the peer.
 
@@ -122,7 +120,7 @@ class SocketListener(Listener[SocketStream], _SocketProvider):
         """Accept an incoming connection."""
 
     async def serve(self, handler: Callable[[T_Stream], Any],
-                    task_group: Optional[TaskGroup] = None) -> None:
+                    task_group: TaskGroup | None = None) -> None:
         from .. import create_task_group
 
         context_manager: AsyncContextManager

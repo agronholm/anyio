@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Coroutine, List, Optional
+from typing import Coroutine
 
 from ._eventloop import get_asynclib
 
@@ -18,7 +18,7 @@ class TaskInfo:
 
     __slots__ = '_name', 'id', 'parent_id', 'name', 'coro'
 
-    def __init__(self, id: int, parent_id: Optional[int], name: Optional[str], coro: Coroutine):
+    def __init__(self, id: int, parent_id: int | None, name: str | None, coro: Coroutine):
         func = get_current_task
         self._name = f'{func.__module__}.{func.__qualname__}'
         self.id = id
@@ -38,7 +38,7 @@ class TaskInfo:
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(id={self.id!r}, name={self.name!r})'
 
-    def _unwrap(self) -> 'TaskInfo':
+    def _unwrap(self) -> TaskInfo:
         return self
 
 
@@ -52,7 +52,7 @@ def get_current_task() -> TaskInfo:
     return get_asynclib().get_current_task()
 
 
-def get_running_tasks() -> List[TaskInfo]:
+def get_running_tasks() -> list[TaskInfo]:
     """
     Return a list of running tasks in the current event loop.
 

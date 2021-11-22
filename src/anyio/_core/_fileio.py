@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from functools import partial
 from os import PathLike
 from typing import (
-    IO, TYPE_CHECKING, Any, AnyStr, AsyncIterator, Callable, Generic, Iterable, Iterator, List,
-    Optional, Sequence, Tuple, Union, cast, overload)
+    IO, TYPE_CHECKING, Any, AnyStr, AsyncIterator, Callable, Generic, Iterable, Iterator, Sequence,
+    Union, cast, overload)
 
 from .. import to_thread
 from ..abc import AsyncResource
@@ -87,7 +87,7 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
     async def readline(self) -> AnyStr:
         return await to_thread.run_sync(self._fp.readline)
 
-    async def readlines(self) -> List[AnyStr]:
+    async def readlines(self) -> list[AnyStr]:
         return await to_thread.run_sync(self._fp.readlines)
 
     async def readinto(self: 'AsyncFile[bytes]', b: WriteableBuffer) -> bytes:
@@ -102,7 +102,7 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
     @overload
     async def write(self: 'AsyncFile[str]', b: str) -> int: ...
 
-    async def write(self, b: Union[ReadableBuffer, str]) -> int:
+    async def write(self, b: ReadableBuffer | str) -> int:
         return await to_thread.run_sync(self._fp.write, b)
 
     @overload
@@ -111,13 +111,13 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
     @overload
     async def writelines(self: 'AsyncFile[str]', lines: Iterable[str]) -> None: ...
 
-    async def writelines(self, lines: Union[Iterable[ReadableBuffer], Iterable[str]]) -> None:
+    async def writelines(self, lines: Iterable[ReadableBuffer] | Iterable[str]) -> None:
         return await to_thread.run_sync(self._fp.writelines, lines)
 
-    async def truncate(self, size: Optional[int] = None) -> int:
+    async def truncate(self, size: int | None = None) -> int:
         return await to_thread.run_sync(self._fp.truncate, size)
 
-    async def seek(self, offset: int, whence: Optional[int] = os.SEEK_SET) -> int:
+    async def seek(self, offset: int, whence: int | None = os.SEEK_SET) -> int:
         return await to_thread.run_sync(self._fp.seek, offset, whence)
 
     async def tell(self) -> int:
@@ -128,25 +128,25 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
 
 
 @overload
-async def open_file(file: Union[str, PathLike, int], mode: OpenBinaryMode,
-                    buffering: int = ..., encoding: Optional[str] = ...,
-                    errors: Optional[str] = ..., newline: Optional[str] = ..., closefd: bool = ...,
-                    opener: Optional[Callable[[str, int], int]] = ...) -> AsyncFile[bytes]:
+async def open_file(file: str | PathLike | int, mode: OpenBinaryMode,
+                    buffering: int = ..., encoding: str | None = ...,
+                    errors: str | None = ..., newline: str | None = ..., closefd: bool = ...,
+                    opener: Callable[[str, int], int] | None = ...) -> AsyncFile[bytes]:
     ...
 
 
 @overload
-async def open_file(file: Union[str, PathLike, int], mode: OpenTextMode = ...,
-                    buffering: int = ..., encoding: Optional[str] = ...,
-                    errors: Optional[str] = ..., newline: Optional[str] = ..., closefd: bool = ...,
-                    opener: Optional[Callable[[str, int], int]] = ...) -> AsyncFile[str]:
+async def open_file(file: str | PathLike | int, mode: OpenTextMode = ...,
+                    buffering: int = ..., encoding: str | None = ...,
+                    errors: str | None = ..., newline: str | None = ..., closefd: bool = ...,
+                    opener: Callable[[str, int], int] | None = ...) -> AsyncFile[str]:
     ...
 
 
-async def open_file(file: Union[str, PathLike, int], mode: str = 'r', buffering: int = -1,
-                    encoding: Optional[str] = None, errors: Optional[str] = None,
-                    newline: Optional[str] = None, closefd: bool = True,
-                    opener: Optional[Callable[[str, int], int]] = None) -> AsyncFile:
+async def open_file(file: str | PathLike | int, mode: str = 'r', buffering: int = -1,
+                    encoding: str | None = None, errors: str | None = None,
+                    newline: str | None = None, closefd: bool = True,
+                    opener: Callable[[str, int], int] | None = None) -> AsyncFile:
     """
     Open a file asynchronously.
 
@@ -236,7 +236,7 @@ class Path:
 
     __slots__ = '_path', '__weakref__'
 
-    def __init__(self, *args: Union[str, PathLike]) -> None:
+    def __init__(self, *args: str | PathLike) -> None:
         self._path: Final[pathlib.Path] = pathlib.Path(*args)
 
     def __fspath__(self) -> str:
@@ -258,30 +258,30 @@ class Path:
         target = other._path if isinstance(other, Path) else other
         return self._path.__eq__(target)
 
-    def __lt__(self, other: 'Path') -> bool:
+    def __lt__(self, other: Path) -> bool:
         target = other._path if isinstance(other, Path) else other
         return self._path.__lt__(target)
 
-    def __le__(self, other: 'Path') -> bool:
+    def __le__(self, other: Path) -> bool:
         target = other._path if isinstance(other, Path) else other
         return self._path.__le__(target)
 
-    def __gt__(self, other: 'Path') -> bool:
+    def __gt__(self, other: Path) -> bool:
         target = other._path if isinstance(other, Path) else other
         return self._path.__gt__(target)
 
-    def __ge__(self, other: 'Path') -> bool:
+    def __ge__(self, other: Path) -> bool:
         target = other._path if isinstance(other, Path) else other
         return self._path.__ge__(target)
 
-    def __truediv__(self, other: Any) -> 'Path':
+    def __truediv__(self, other: Any) -> Path:
         return Path(self._path / other)
 
-    def __rtruediv__(self, other: Any) -> 'Path':
+    def __rtruediv__(self, other: Any) -> Path:
         return Path(other) / self
 
     @property
-    def parts(self) -> Tuple[str, ...]:
+    def parts(self) -> tuple[str, ...]:
         return self._path.parts
 
     @property
@@ -297,11 +297,11 @@ class Path:
         return self._path.anchor
 
     @property
-    def parents(self) -> Sequence['Path']:
+    def parents(self) -> Sequence[Path]:
         return tuple(Path(p) for p in self._path.parents)
 
     @property
-    def parent(self) -> 'Path':
+    def parent(self) -> Path:
         return Path(self._path.parent)
 
     @property
@@ -313,7 +313,7 @@ class Path:
         return self._path.suffix
 
     @property
-    def suffixes(self) -> List[str]:
+    def suffixes(self) -> list[str]:
         return self._path.suffixes
 
     @property
@@ -333,7 +333,7 @@ class Path:
     def match(self, path_pattern: str) -> bool:
         return self._path.match(path_pattern)
 
-    def is_relative_to(self, *other: Union[str, PathLike]) -> bool:
+    def is_relative_to(self, *other: str | PathLike) -> bool:
         try:
             self.relative_to(*other)
             return True
@@ -355,7 +355,7 @@ class Path:
     async def expanduser(self) -> 'Path':
         return Path(await to_thread.run_sync(self._path.expanduser, cancellable=True))
 
-    def glob(self, pattern: str) -> AsyncIterator['Path']:
+    def glob(self, pattern: str) -> AsyncIterator[Path]:
         gen = self._path.glob(pattern)
         return _PathIterator(gen)
 
@@ -403,11 +403,11 @@ class Path:
     async def is_symlink(self) -> bool:
         return await to_thread.run_sync(self._path.is_symlink, cancellable=True)
 
-    def iterdir(self) -> AsyncIterator['Path']:
+    def iterdir(self) -> AsyncIterator[Path]:
         gen = self._path.iterdir()
         return _PathIterator(gen)
 
-    def joinpath(self, *args: Union[str, 'PathLike[str]']) -> 'Path':
+    def joinpath(self, *args: Union[str, PathLike[str]]) -> Path:
         return Path(self._path.joinpath(*args))
 
     async def lchmod(self, mode: int) -> None:
@@ -421,18 +421,18 @@ class Path:
         await to_thread.run_sync(self._path.mkdir, mode, parents, exist_ok)
 
     @overload
-    async def open(self, mode: OpenBinaryMode, buffering: int = ..., encoding: Optional[str] = ...,
-                   errors: Optional[str] = ..., newline: Optional[str] = ...) -> AsyncFile[bytes]:
+    async def open(self, mode: OpenBinaryMode, buffering: int = ..., encoding: str | None = ...,
+                   errors: str | None = ..., newline: str | None = ...) -> AsyncFile[bytes]:
         ...
 
     @overload
     async def open(self, mode: OpenTextMode = ..., buffering: int = ...,
-                   encoding: Optional[str] = ..., errors: Optional[str] = ...,
-                   newline: Optional[str] = ...) -> AsyncFile[str]:
+                   encoding: str | None = ..., errors: str | None = ...,
+                   newline: str | None = ...) -> AsyncFile[str]:
         ...
 
-    async def open(self, mode: str = 'r', buffering: int = -1, encoding: Optional[str] = None,
-                   errors: Optional[str] = None, newline: Optional[str] = None) -> AsyncFile:
+    async def open(self, mode: str = 'r', buffering: int = -1, encoding: str | None = None,
+                   errors: str | None = None, newline: str | None = None) -> AsyncFile:
         fp = await to_thread.run_sync(self._path.open, mode, buffering, encoding, errors, newline)
         return AsyncFile(fp)
 
@@ -442,10 +442,10 @@ class Path:
     async def read_bytes(self) -> bytes:
         return await to_thread.run_sync(self._path.read_bytes)
 
-    async def read_text(self, encoding: Optional[str] = None, errors: Optional[str] = None) -> str:
+    async def read_text(self, encoding: str | None = None, errors: str | None = None) -> str:
         return await to_thread.run_sync(self._path.read_text, encoding, errors)
 
-    def relative_to(self, *other: Union[str, PathLike]) -> 'Path':
+    def relative_to(self, *other: str | PathLike) -> Path:
         return Path(self._path.relative_to(*other))
 
     async def readlink(self) -> 'Path':
@@ -470,7 +470,7 @@ class Path:
         func = partial(self._path.resolve, strict=strict)
         return Path(await to_thread.run_sync(func, cancellable=True))
 
-    def rglob(self, pattern: str) -> AsyncIterator['Path']:
+    def rglob(self, pattern: str) -> AsyncIterator[Path]:
         gen = self._path.rglob(pattern)
         return _PathIterator(gen)
 
@@ -504,20 +504,20 @@ class Path:
             if not missing_ok:
                 raise
 
-    def with_name(self, name: str) -> 'Path':
+    def with_name(self, name: str) -> Path:
         return Path(self._path.with_name(name))
 
-    def with_stem(self, stem: str) -> 'Path':
+    def with_stem(self, stem: str) -> Path:
         return Path(self._path.with_name(stem + self._path.suffix))
 
-    def with_suffix(self, suffix: str) -> 'Path':
+    def with_suffix(self, suffix: str) -> Path:
         return Path(self._path.with_suffix(suffix))
 
     async def write_bytes(self, data: bytes) -> int:
         return await to_thread.run_sync(self._path.write_bytes, data)
 
-    async def write_text(self, data: str, encoding: Optional[str] = None,
-                         errors: Optional[str] = None, newline: Optional[str] = None) -> int:
+    async def write_text(self, data: str, encoding: str | None = None,
+                         errors: str | None = None, newline: str | None = None) -> int:
         # Path.write_text() does not support the "newline" parameter before Python 3.10
         def sync_write_text() -> int:
             with self._path.open('w', encoding=encoding, errors=errors, newline=newline) as fp:

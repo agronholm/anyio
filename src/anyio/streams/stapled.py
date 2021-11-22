@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Generic, List, Mapping, Optional, Sequence, TypeVar
+from typing import Any, Callable, Generic, Mapping, Sequence, TypeVar
 
 from ..abc import (
     ByteReceiveStream, ByteSendStream, ByteStream, Listener, ObjectReceiveStream, ObjectSendStream,
@@ -95,7 +95,7 @@ class MultiListener(Generic[T_Stream], Listener[T_Stream]):
     listeners: Sequence[Listener[T_Stream]]
 
     def __post_init__(self) -> None:
-        listeners: List[Listener[T_Stream]] = []
+        listeners: list[Listener[T_Stream]] = []
         for listener in self.listeners:
             if isinstance(listener, MultiListener):
                 listeners.extend(listener.listeners)
@@ -106,7 +106,7 @@ class MultiListener(Generic[T_Stream], Listener[T_Stream]):
         self.listeners = listeners
 
     async def serve(self, handler: Callable[[T_Stream], Any],
-                    task_group: Optional[TaskGroup] = None) -> None:
+                    task_group: TaskGroup | None = None) -> None:
         from .. import create_task_group
 
         async with create_task_group() as tg:

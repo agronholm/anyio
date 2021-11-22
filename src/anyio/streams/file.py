@@ -3,7 +3,7 @@ from __future__ import annotations
 from io import SEEK_SET, UnsupportedOperation
 from os import PathLike
 from pathlib import Path
-from typing import Any, BinaryIO, Callable, Dict, Mapping, Union, cast
+from typing import Any, BinaryIO, Callable, Mapping, cast
 
 from .. import (
     BrokenResourceError, ClosedResourceError, EndOfStream, TypedAttributeSet, to_thread,
@@ -29,7 +29,7 @@ class _BaseFileStream:
 
     @property
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
-        attributes: Dict[Any, Callable[[], Any]] = {
+        attributes: dict[Any, Callable[[], Any]] = {
             FileStreamAttribute.file: lambda: self._file,
         }
 
@@ -56,7 +56,7 @@ class FileReadStream(_BaseFileStream, ByteReceiveStream):
     """
 
     @classmethod
-    async def from_path(cls, path: Union[str, PathLike]) -> 'FileReadStream':
+    async def from_path(cls, path: str | PathLike) -> 'FileReadStream':
         """
         Create a file read stream by opening the given file.
 
@@ -118,7 +118,7 @@ class FileWriteStream(_BaseFileStream, ByteSendStream):
     """
 
     @classmethod
-    async def from_path(cls, path: Union[str, PathLike],
+    async def from_path(cls, path: str | PathLike,
                         append: bool = False) -> 'FileWriteStream':
         """
         Create a file write stream by opening the given file for writing.

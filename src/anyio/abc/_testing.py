@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import types
 from abc import ABCMeta, abstractmethod
-from typing import Any, Awaitable, Callable, Dict, Optional, Type, TypeVar
+from typing import Any, Awaitable, Callable, TypeVar
 
 _T = TypeVar("_T")
 
@@ -13,12 +13,12 @@ class TestRunner(metaclass=ABCMeta):
     loop.
     """
 
-    def __enter__(self) -> 'TestRunner':
+    def __enter__(self) -> TestRunner:
         return self
 
-    def __exit__(self, exc_type: Optional[Type[BaseException]],
-                 exc_val: Optional[BaseException],
-                 exc_tb: Optional[types.TracebackType]) -> Optional[bool]:
+    def __exit__(self, exc_type: type[BaseException] | None,
+                 exc_val: BaseException | None,
+                 exc_tb: types.TracebackType | None) -> bool | None:
         self.close()
         return None
 
@@ -28,7 +28,7 @@ class TestRunner(metaclass=ABCMeta):
 
     @abstractmethod
     def call(self, func: Callable[..., Awaitable[_T]],
-             *args: object, **kwargs: Dict[str, Any]) -> _T:
+             *args: object, **kwargs: dict[str, Any]) -> _T:
         """
         Call the given function within the backend's event loop.
 
