@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**3.4.0**
 
 - Added context propagation to/from worker threads in ``to_thread.run_sync()``,
   ``from_thread.run()`` and ``from_thread.run_sync()``
