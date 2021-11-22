@@ -5,7 +5,6 @@ import time
 from typing import Any, AsyncGenerator, Coroutine, Dict, Generator, NoReturn, Optional, Set
 
 import pytest
-import trio
 
 import anyio
 from anyio import (
@@ -55,7 +54,7 @@ async def test_success() -> None:
 
 @pytest.mark.parametrize('module', [
     pytest.param(asyncio, id='asyncio'),
-    pytest.param(trio, id='trio')
+    pytest.param(pytest.importorskip('trio'), id='trio')
 ])
 def test_run_natively(module: Any) -> None:
     async def testfunc() -> None:
