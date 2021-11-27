@@ -47,12 +47,11 @@ if socket.has_ipv6:
             s.bind(('::1', 0))
         finally:
             s.close()
+            del s
     except OSError:
         pass
     else:
         has_ipv6 = True
-    finally:
-        del s
 
 
 @pytest.fixture
