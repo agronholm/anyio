@@ -54,7 +54,7 @@ class FileReadStream(_BaseFileStream, ByteReceiveStream):
     """
 
     @classmethod
-    async def from_path(cls, path: Union[str, PathLike]) -> 'FileReadStream':
+    async def from_path(cls, path: Union[str, 'PathLike[str]']) -> 'FileReadStream':
         """
         Create a file read stream by opening the given file.
 
@@ -116,7 +116,7 @@ class FileWriteStream(_BaseFileStream, ByteSendStream):
     """
 
     @classmethod
-    async def from_path(cls, path: Union[str, PathLike],
+    async def from_path(cls, path: Union[str, 'PathLike[str]'],
                         append: bool = False) -> 'FileWriteStream':
         """
         Create a file write stream by opening the given file for writing.

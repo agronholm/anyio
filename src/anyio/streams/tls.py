@@ -10,6 +10,8 @@ from .._core._typedattr import TypedAttributeSet, typed_attribute
 from ..abc import AnyByteStream, ByteStream, Listener, TaskGroup
 
 T_Retval = TypeVar('T_Retval')
+_PCTRTT = Tuple[Tuple[str, str], ...]
+_PCTRTTT = Tuple[_PCTRTT, ...]
 
 
 class TLSAttribute(TypedAttributeSet):
@@ -22,7 +24,7 @@ class TLSAttribute(TypedAttributeSet):
     cipher: Tuple[str, str, int] = typed_attribute()
     #: the peer certificate in dictionary form (see :meth:`ssl.SSLSocket.getpeercert` for more
     #: information)
-    peer_certificate: Optional[Dict[str, Union[str, tuple]]] = typed_attribute()
+    peer_certificate: Optional[Dict[str, Union[str, _PCTRTTT, _PCTRTT]]] = typed_attribute()
     #: the peer certificate in binary form
     peer_certificate_binary: Optional[bytes] = typed_attribute()
     #: ``True`` if this is the server side of the connection
@@ -213,7 +215,7 @@ class TLSListener(Listener[TLSStream]):
         (passed to :func:`~anyio.fail_after`)
     """
 
-    listener: Listener
+    listener: Listener[Any]
     ssl_context: ssl.SSLContext
     standard_compatible: bool = True
     handshake_timeout: float = 30

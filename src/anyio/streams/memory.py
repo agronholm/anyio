@@ -100,7 +100,7 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
             else:
                 raise EndOfStream
 
-    def clone(self) -> 'MemoryObjectReceiveStream':
+    def clone(self) -> 'MemoryObjectReceiveStream[T_Item]':
         """
         Create a clone of this receive stream.
 
@@ -204,7 +204,7 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
             if self._state.waiting_senders.pop(send_event, None):  # type: ignore[arg-type]
                 raise BrokenResourceError
 
-    def clone(self) -> 'MemoryObjectSendStream':
+    def clone(self) -> 'MemoryObjectSendStream[T_Item]':
         """
         Create a clone of this send stream.
 

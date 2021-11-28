@@ -196,7 +196,7 @@ async def connect_tcp(
     return connected_stream
 
 
-async def connect_unix(path: Union[str, PathLike]) -> UNIXSocketStream:
+async def connect_unix(path: Union[str, 'PathLike[str]']) -> UNIXSocketStream:
     """
     Connect to the given UNIX socket.
 
@@ -271,7 +271,7 @@ async def create_tcp_listener(
 
 
 async def create_unix_listener(
-        path: Union[str, PathLike], *, mode: Optional[int] = None,
+        path: Union[str, 'PathLike[str]'], *, mode: Optional[int] = None,
         backlog: int = 65536) -> SocketListener:
     """
     Create a UNIX socket listener.

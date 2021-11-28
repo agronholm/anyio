@@ -19,13 +19,17 @@ jobs:
         path: ~/.cache/pip
         key: pip-lint
     - name: Install dependencies
-      run: pip install pyproject-flake8 isort mypy
+      run: pip install pyproject-flake8 isort mypy pyright
     - name: Run flake8
       run: pflake8 src tests
-    - name: Check types with Mypy
-      run: mypy src tests
     - name: Run isort
       run: isort -c --diff src tests
+    - name: Check types with Mypy
+      run: mypy src tests
+    - name: Check type completeness with pyright
+      run: |
+        pip install --no-deps -e . pytest
+        pyright --verifytypes anyio
 
   test:
     needs: [lint]

@@ -79,7 +79,7 @@ class _NoValueSet(enum.Enum):
 class RunvarToken(Generic[T]):
     __slots__ = '_var', '_value', '_redeemed'
 
-    def __init__(self, var: 'RunVar', value: Union[T, Literal[_NoValueSet.NO_VALUE_SET]]):
+    def __init__(self, var: 'RunVar[T]', value: Union[T, Literal[_NoValueSet.NO_VALUE_SET]]):
         self._var = var
         self._value: Union[T, Literal[_NoValueSet.NO_VALUE_SET]] = value
         self._redeemed = False

@@ -8,6 +8,8 @@ __all__ = ('AsyncResource', 'IPAddressType', 'IPSockAddrType', 'SocketAttribute'
            'Condition', 'Lock', 'Semaphore', 'CapacityLimiter', 'CancelScope', 'TaskGroup',
            'TaskStatus', 'TestRunner', 'BlockingPortal')
 
+from typing import Any
+
 from ._resources import AsyncResource
 from ._sockets import (
     ConnectedUDPSocket, IPAddressType, IPSockAddrType, SocketAttribute, SocketListener,
@@ -28,6 +30,8 @@ from .._core._tasks import CancelScope
 from ..from_thread import BlockingPortal
 
 # Re-export imports so they look like they live directly in this package
+key: str
+value: Any
 for key, value in list(locals().items()):
     if getattr(value, '__module__', '').startswith('anyio.abc.'):
         value.__module__ = __name__

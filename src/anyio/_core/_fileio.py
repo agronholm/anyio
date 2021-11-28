@@ -126,7 +126,7 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
 
 
 @overload
-async def open_file(file: Union[str, PathLike, int], mode: OpenBinaryMode,
+async def open_file(file: Union[str, 'PathLike[str]', int], mode: OpenBinaryMode,
                     buffering: int = ..., encoding: Optional[str] = ...,
                     errors: Optional[str] = ..., newline: Optional[str] = ..., closefd: bool = ...,
                     opener: Optional[Callable[[str, int], int]] = ...) -> AsyncFile[bytes]:
@@ -134,17 +134,17 @@ async def open_file(file: Union[str, PathLike, int], mode: OpenBinaryMode,
 
 
 @overload
-async def open_file(file: Union[str, PathLike, int], mode: OpenTextMode = ...,
+async def open_file(file: Union[str, 'PathLike[str]', int], mode: OpenTextMode = ...,
                     buffering: int = ..., encoding: Optional[str] = ...,
                     errors: Optional[str] = ..., newline: Optional[str] = ..., closefd: bool = ...,
                     opener: Optional[Callable[[str, int], int]] = ...) -> AsyncFile[str]:
     ...
 
 
-async def open_file(file: Union[str, PathLike, int], mode: str = 'r', buffering: int = -1,
+async def open_file(file: Union[str, 'PathLike[str]', int], mode: str = 'r', buffering: int = -1,
                     encoding: Optional[str] = None, errors: Optional[str] = None,
                     newline: Optional[str] = None, closefd: bool = True,
-                    opener: Optional[Callable[[str, int], int]] = None) -> AsyncFile:
+                    opener: Optional[Callable[[str, int], int]] = None) -> AsyncFile[Any]:
     """
     Open a file asynchronously.
 
@@ -171,14 +171,14 @@ def wrap_file(file: IO[AnyStr]) -> AsyncFile[AnyStr]:
 
 @dataclass(eq=False)
 class _PathIterator(AsyncIterator['Path']):
-    iterator: Iterator[PathLike]
+    iterator: Iterator['PathLike[str]']
 
     async def __anext__(self) -> 'Path':
         nextval = await to_thread.run_sync(next, self.iterator, None, cancellable=True)
         if nextval is None:
             raise StopAsyncIteration from None
 
-        return Path(cast(PathLike, nextval))
+        return Path(cast('PathLike[str]', nextval))
 
 
 class Path:
@@ -234,7 +234,9 @@ class Path:
 
     __slots__ = '_path', '__weakref__'
 
-    def __init__(self, *args: Union[str, PathLike]) -> None:
+    __weakref__: Any
+
+    def __init__(self, *args: Union[str, 'PathLike[str]']) -> None:
         self._path: Final[pathlib.Path] = pathlib.Path(*args)
 
     def __fspath__(self) -> str:
@@ -331,7 +333,7 @@ class Path:
     def match(self, path_pattern: str) -> bool:
         return self._path.match(path_pattern)
 
-    def is_relative_to(self, *other: Union[str, PathLike]) -> bool:
+    def is_relative_to(self, *other: Union[str, 'PathLike[str]']) -> bool:
         try:
             self.relative_to(*other)
             return True
@@ -430,7 +432,7 @@ class Path:
         ...
 
     async def open(self, mode: str = 'r', buffering: int = -1, encoding: Optional[str] = None,
-                   errors: Optional[str] = None, newline: Optional[str] = None) -> AsyncFile:
+                   errors: Optional[str] = None, newline: Optional[str] = None) -> AsyncFile[Any]:
         fp = await to_thread.run_sync(self._path.open, mode, buffering, encoding, errors, newline)
         return AsyncFile(fp)
 
@@ -443,7 +445,7 @@ class Path:
     async def read_text(self, encoding: Optional[str] = None, errors: Optional[str] = None) -> str:
         return await to_thread.run_sync(self._path.read_text, encoding, errors)
 
-    def relative_to(self, *other: Union[str, PathLike]) -> 'Path':
+    def relative_to(self, *other: Union[str, 'PathLike[str]']) -> 'Path':
         return Path(self._path.relative_to(*other))
 
     async def readlink(self) -> 'Path':
