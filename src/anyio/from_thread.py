@@ -304,7 +304,7 @@ class BlockingPortal:
         return f
 
     def start_task(self, func: Callable[..., Coroutine[Any, Any, Any]], *args: object,
-                   name: object = None) -> Tuple[Future[Any], Any]:
+                   name: object = None) -> Tuple['Future[Any]', Any]:
         """
         Start a task in the portal's task group and wait until it signals for readiness.
 
