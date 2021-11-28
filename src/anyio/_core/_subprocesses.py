@@ -10,8 +10,8 @@ from ._tasks import create_task_group
 
 async def run_process(command: Union[str, Sequence[str]], *, input: Optional[bytes] = None,
                       stdout: int = PIPE, stderr: int = PIPE, check: bool = True,
-                      cwd: Union[str, bytes, PathLike, None] = None,
-                      env: Optional[Mapping[str, str]] = None) -> CompletedProcess:
+                      cwd: Union[str, bytes, PathLike[str], None] = None,
+                      env: Optional[Mapping[str, str]] = None) -> CompletedProcess[bytes]:
     """
     Run an external command in a subprocess and wait until it completes.
 
@@ -67,7 +67,7 @@ async def run_process(command: Union[str, Sequence[str]], *, input: Optional[byt
 
 async def open_process(command: Union[str, Sequence[str]], *, stdin: int = PIPE,
                        stdout: int = PIPE, stderr: int = PIPE,
-                       cwd: Union[str, bytes, PathLike, None] = None,
+                       cwd: Union[str, bytes, PathLike[str], None] = None,
                        env: Optional[Mapping[str, str]] = None) -> Process:
     """
     Start an external command in a subprocess.

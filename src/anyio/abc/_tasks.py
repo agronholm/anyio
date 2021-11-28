@@ -1,7 +1,7 @@
 import typing
 from abc import ABCMeta, abstractmethod
 from types import TracebackType
-from typing import Callable, Coroutine, Optional, Type, TypeVar
+from typing import Any, Callable, Coroutine, Optional, Type, TypeVar
 from warnings import warn
 
 if typing.TYPE_CHECKING:
@@ -30,7 +30,7 @@ class TaskGroup(metaclass=ABCMeta):
 
     cancel_scope: 'CancelScope'
 
-    async def spawn(self, func: Callable[..., Coroutine],
+    async def spawn(self, func: Callable[..., Coroutine[Any, Any, Any]],
                     *args: object, name: object = None) -> None:
         """
         Start a new task in this task group.
@@ -49,7 +49,7 @@ class TaskGroup(metaclass=ABCMeta):
         self.start_soon(func, *args, name=name)
 
     @abstractmethod
-    def start_soon(self, func: Callable[..., Coroutine],
+    def start_soon(self, func: Callable[..., Coroutine[Any, Any, Any]],
                    *args: object, name: object = None) -> None:
         """
         Start a new task in this task group.
@@ -62,7 +62,7 @@ class TaskGroup(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    async def start(self, func: Callable[..., Coroutine],
+    async def start(self, func: Callable[..., Coroutine[Any, Any, Any]],
                     *args: object, name: object = None) -> object:
         """
         Start a new task and wait until it signals for readiness.

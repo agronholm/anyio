@@ -88,7 +88,7 @@ def open_cancel_scope(*, shield: bool = False) -> CancelScope:
     return get_asynclib().CancelScope(shield=shield)
 
 
-class FailAfterContextManager(DeprecatedAsyncContextManager):
+class FailAfterContextManager(DeprecatedAsyncContextManager[CancelScope]):
     def __init__(self, cancel_scope: CancelScope):
         self._cancel_scope = cancel_scope
 

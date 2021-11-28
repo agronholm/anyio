@@ -74,6 +74,8 @@ __all__ = (
     'TypedAttributeProvider'
 )
 
+from typing import Any
+
 from ._core._compat import maybe_async, maybe_async_cm
 from ._core._eventloop import (
     current_time, get_all_backends, get_cancelled_exc_class, run, sleep, sleep_forever,
@@ -107,6 +109,8 @@ from .from_thread import (
     create_blocking_portal, run_async_from_thread, run_sync_from_thread, start_blocking_portal)
 
 # Re-export imports so they look like they live directly in this package
+key: str
+value: Any
 for key, value in list(locals().items()):
     if getattr(value, '__module__', '').startswith('anyio.'):
         value.__module__ = __name__

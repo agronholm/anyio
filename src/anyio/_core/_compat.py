@@ -13,7 +13,7 @@ else:
 
 T = TypeVar('T')
 AnyDeprecatedAwaitable = Union['DeprecatedAwaitable', 'DeprecatedAwaitableFloat',
-                               'DeprecatedAwaitableList', TaskInfo]
+                               'DeprecatedAwaitableList[T]', TaskInfo]
 
 
 @overload
@@ -36,7 +36,7 @@ async def maybe_async(__obj: 'DeprecatedAwaitable') -> None:
     ...
 
 
-async def maybe_async(__obj: AnyDeprecatedAwaitable) -> Union[TaskInfo, float, list, None]:
+async def maybe_async(__obj: AnyDeprecatedAwaitable) -> Union[TaskInfo, float, List[T], None]:
     """
     Await on the given object if necessary.
 
@@ -101,7 +101,7 @@ class DeprecatedAwaitable:
         if False:
             yield
 
-    def __reduce__(self) -> Tuple[Type[None], Tuple]:
+    def __reduce__(self) -> Tuple[Type[None], Tuple[()]]:
         return type(None), ()
 
     def _unwrap(self) -> None:
@@ -133,7 +133,7 @@ class DeprecatedAwaitableFloat(float):
 
 class DeprecatedAwaitableList(List[T]):
     def __init__(self, iterable: Iterable[T] = (), *,
-                 func: Callable[..., 'DeprecatedAwaitableList']):
+                 func: Callable[..., 'DeprecatedAwaitableList[T]']):
         super().__init__(iterable)
         self._name = f'{func.__module__}.{func.__qualname__}'
 
@@ -144,7 +144,7 @@ class DeprecatedAwaitableList(List[T]):
 
         return list(self)
 
-    def __reduce__(self) -> Tuple[Type[list], Tuple[List[T]]]:
+    def __reduce__(self) -> Tuple[Type[List[T]], Tuple[List[T]]]:
         return list, (list(self),)
 
     def _unwrap(self) -> List[T]:
