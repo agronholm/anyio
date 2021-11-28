@@ -36,7 +36,7 @@ async def maybe_async(__obj: 'DeprecatedAwaitable') -> None:
     ...
 
 
-async def maybe_async(__obj: AnyDeprecatedAwaitable[T]) -> Union[TaskInfo, float, List[T], None]:
+async def maybe_async(__obj: 'AnyDeprecatedAwaitable[T]') -> Union[TaskInfo, float, List[T], None]:
     """
     Await on the given object if necessary.
 
