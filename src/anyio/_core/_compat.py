@@ -2,8 +2,8 @@ from abc import ABCMeta, abstractmethod
 from contextlib import AbstractContextManager
 from types import TracebackType
 from typing import (
-    TYPE_CHECKING, AsyncContextManager, Callable, ContextManager, Generator, Generic, Iterable,
-    List, Optional, Tuple, Type, TypeVar, Union, overload)
+    TYPE_CHECKING, Any, AsyncContextManager, Callable, ContextManager, Generator, Generic,
+    Iterable, List, Optional, Tuple, Type, TypeVar, Union, overload)
 from warnings import warn
 
 if TYPE_CHECKING:
@@ -85,7 +85,7 @@ def maybe_async_cm(cm: Union[ContextManager[T], AsyncContextManager[T]]) -> Asyn
     return _ContextManagerWrapper(cm)
 
 
-def _warn_deprecation(awaitable: AnyDeprecatedAwaitable, stacklevel: int = 1) -> None:
+def _warn_deprecation(awaitable: 'AnyDeprecatedAwaitable[Any]', stacklevel: int = 1) -> None:
     warn(f'Awaiting on {awaitable._name}() is deprecated. Use "await '
          f'anyio.maybe_async({awaitable._name}(...)) if you have to support both AnyIO 2.x '
          f'and 3.x, or just remove the "await" if you are completely migrating to AnyIO 3+.',
