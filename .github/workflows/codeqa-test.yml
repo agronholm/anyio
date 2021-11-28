@@ -28,7 +28,7 @@ jobs:
       run: mypy src tests
     - name: Check type completeness with pyright
       run: |
-        pip install --no-deps -e .
+        pip install --no-deps -e . pytest
         pyright --verifytypes anyio
 
   test:
