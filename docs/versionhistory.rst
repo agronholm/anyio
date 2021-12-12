@@ -3,6 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed compatibility with OpenSSL 3.0
+
 **3.4.0**
 
 - Added context propagation to/from worker threads in ``to_thread.run_sync()``,

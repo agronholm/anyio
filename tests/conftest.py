@@ -44,6 +44,9 @@ def ca() -> CA:
 @pytest.fixture(scope='session')
 def server_context(ca: CA) -> SSLContext:
     server_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    if hasattr(ssl, 'OP_IGNORE_UNEXPECTED_EOF'):
+        server_context.options ^= ssl.OP_IGNORE_UNEXPECTED_EOF  # type: ignore[attr-defined]
+
     ca.issue_cert('localhost').configure_cert(server_context)
     return server_context
 
@@ -51,6 +54,9 @@ def server_context(ca: CA) -> SSLContext:
 @pytest.fixture(scope='session')
 def client_context(ca: CA) -> SSLContext:
     client_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
+    if hasattr(ssl, 'OP_IGNORE_UNEXPECTED_EOF'):
+        client_context.options ^= ssl.OP_IGNORE_UNEXPECTED_EOF  # type: ignore[attr-defined]
+
     ca.configure_trust(client_context)
     return client_context
 
