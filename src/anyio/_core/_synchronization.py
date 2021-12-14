@@ -134,7 +134,11 @@ class Lock:
 
             assert self._owner_task == task
         else:
-            await cancel_shielded_checkpoint()
+            try:
+                await cancel_shielded_checkpoint()
+            except BaseException:
+                self.release()
+                raise
 
     def acquire_nowait(self) -> None:
         """
@@ -309,7 +313,11 @@ class Semaphore:
 
                 raise
         else:
-            await cancel_shielded_checkpoint()
+            try:
+                await cancel_shielded_checkpoint()
+            except BaseException:
+                self.release()
+                raise
 
     def acquire_nowait(self) -> None:
         """

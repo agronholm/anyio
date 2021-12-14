@@ -1,3 +1,4 @@
+import asyncio
 from typing import Optional
 
 import pytest
@@ -113,6 +114,22 @@ class TestLock:
 
         assert not lock.statistics().locked
         assert lock.statistics().tasks_waiting == 0
+
+    @pytest.mark.parametrize('anyio_backend', ['asyncio'])
+    async def test_asyncio_deadlock(self) -> None:
+        """Regression test for #398."""
+        lock = Lock()
+
+        async def acquire() -> None:
+            async with lock:
+                await asyncio.sleep(0)
+
+        loop = asyncio.get_event_loop()
+        task1 = loop.create_task(acquire())
+        task2 = loop.create_task(acquire())
+        await asyncio.sleep(0)
+        task1.cancel()
+        await asyncio.wait_for(task2, 1)
 
 
 class TestEvent:
@@ -363,6 +380,22 @@ class TestSemaphore:
             semaphore.release()
             pytest.raises(WouldBlock, semaphore.acquire_nowait)
 
+    @pytest.mark.parametrize('anyio_backend', ['asyncio'])
+    async def test_asyncio_deadlock(self) -> None:
+        """Regression test for #398."""
+        semaphore = Semaphore(1)
+
+        async def acquire() -> None:
+            async with semaphore:
+                await asyncio.sleep(0)
+
+        loop = asyncio.get_event_loop()
+        task1 = loop.create_task(acquire())
+        task2 = loop.create_task(acquire())
+        await asyncio.sleep(0)
+        task1.cancel()
+        await asyncio.wait_for(task2, 1)
+
 
 class TestCapacityLimiter:
     async def test_bad_init_type(self) -> None:
@@ -465,3 +498,19 @@ class TestCapacityLimiter:
 
         assert limiter.statistics().tasks_waiting == 0
         assert limiter.statistics().borrowed_tokens == 0
+
+    @pytest.mark.parametrize('anyio_backend', ['asyncio'])
+    async def test_asyncio_deadlock(self) -> None:
+        """Regression test for #398."""
+        limiter = CapacityLimiter(1)
+
+        async def acquire() -> None:
+            async with limiter:
+                await asyncio.sleep(0)
+
+        loop = asyncio.get_event_loop()
+        task1 = loop.create_task(acquire())
+        task2 = loop.create_task(acquire())
+        await asyncio.sleep(0)
+        task1.cancel()
+        await asyncio.wait_for(task2, 1)
