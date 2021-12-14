@@ -1743,7 +1743,11 @@ class CapacityLimiter(BaseCapacityLimiter):
 
             self._borrowers.add(borrower)
         else:
-            await cancel_shielded_checkpoint()
+            try:
+                await cancel_shielded_checkpoint()
+            except BaseException:
+                self.release()
+                raise
 
     def release(self) -> None:
         self.release_on_behalf_of(current_task())

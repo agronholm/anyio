@@ -5,6 +5,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed deadlock in synchronization primitives on asyncio which can happen if a task acquiring a
+  primitive is hit with a native (not AnyIO) cancellation with just the right timing, leaving the
+  next acquiring task waiting forever (`#398 <https://github.com/agronholm/anyio/issues/398>`_)
 - Fixed compatibility with OpenSSL 3.0
 
 **3.4.0**
