@@ -316,9 +316,11 @@ class Process(abc.Process):
 async def open_process(command: Union[str, Sequence[str]], *, shell: bool,
                        stdin: int, stdout: int, stderr: int,
                        cwd: Union[str, bytes, PathLike, None] = None,
-                       env: Optional[Mapping[str, str]] = None) -> Process:
+                       env: Optional[Mapping[str, str]] = None,
+                       start_new_session: bool = False) -> Process:
     process = await trio_open_process(command, stdin=stdin, stdout=stdout, stderr=stderr,
-                                      shell=shell, cwd=cwd, env=env)
+                                      shell=shell, cwd=cwd, env=env,
+                                      start_new_session=start_new_session)
     stdin_stream = SendStreamWrapper(process.stdin) if process.stdin else None
     stdout_stream = ReceiveStreamWrapper(process.stdout) if process.stdout else None
     stderr_stream = ReceiveStreamWrapper(process.stderr) if process.stderr else None

@@ -946,16 +946,18 @@ class Process(abc.Process):
 async def open_process(command: Union[str, Sequence[str]], *, shell: bool,
                        stdin: int, stdout: int, stderr: int,
                        cwd: Union[str, bytes, PathLike, None] = None,
-                       env: Optional[Mapping[str, str]] = None) -> Process:
+                       env: Optional[Mapping[str, str]] = None,
+                       start_new_session: bool = False) -> Process:
     await checkpoint()
     if shell:
         process = await asyncio.create_subprocess_shell(
             command, stdin=stdin, stdout=stdout,  # type: ignore[arg-type]
-            stderr=stderr, cwd=cwd, env=env,
+            stderr=stderr, cwd=cwd, env=env, start_new_session=start_new_session,
         )
     else:
         process = await asyncio.create_subprocess_exec(*command, stdin=stdin, stdout=stdout,
-                                                       stderr=stderr, cwd=cwd, env=env)
+                                                       stderr=stderr, cwd=cwd, env=env,
+                                                       start_new_session=start_new_session)
 
     stdin_stream = StreamWriterWrapper(process.stdin) if process.stdin else None
     stdout_stream = StreamReaderWrapper(process.stdout) if process.stdout else None

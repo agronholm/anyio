@@ -85,3 +85,15 @@ async def test_process_env() -> None:
     cmd = [sys.executable, "-c", "import os; print(os.environ['foo'])"]
     result = await run_process(cmd, env=env)
     assert result.stdout.decode().strip() == env["foo"]
+
+
+async def test_process_new_session_sid() -> None:
+    """Test that start_new_session is successfully passed to the subprocess implementation"""
+    sid = os.getsid(os.getpid())
+    cmd = [sys.executable, "-c", "import os; print(os.getsid(os.getpid()))"]
+
+    result = await run_process(cmd)
+    assert result.stdout.decode().strip() == str(sid)
+
+    result = await run_process(cmd, start_new_session=True)
+    assert result.stdout.decode().strip() != str(sid)

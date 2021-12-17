@@ -5,6 +5,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added ``start_new_session`` keyword argument to ``run_process()`` and ``open_process()``.
 - Fixed deadlock in synchronization primitives on asyncio which can happen if a task acquiring a
   primitive is hit with a native (not AnyIO) cancellation with just the right timing, leaving the
   next acquiring task waiting forever (`#398 <https://github.com/agronholm/anyio/issues/398>`_)
