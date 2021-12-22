@@ -1,3 +1,5 @@
+import functools
+import sys
 import threading
 from asyncio import iscoroutine
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
@@ -8,6 +10,11 @@ from typing import (
     Optional, Tuple, Type, TypeVar, Union, cast, overload)
 from warnings import warn
 
+if sys.version_info >= (3, 10):
+    from typing import ParamSpec
+else:
+    from typing_extensions import ParamSpec
+
 from ._core import _eventloop
 from ._core._eventloop import get_asynclib, get_cancelled_exc_class, threadlocals
 from ._core._synchronization import Event
@@ -16,6 +23,38 @@ from .abc._tasks import TaskStatus
 
 T_Retval = TypeVar('T_Retval')
 T_co = TypeVar('T_co')
+T_ParamSpec = ParamSpec("T_ParamSpec")
+
+
+def syncify(
+    func: Callable[T_ParamSpec, Coroutine[Any, Any, T_Retval]],
+) -> Callable[T_ParamSpec, T_Retval]:
+    """
+    Take the given async function and create a regular one that receives the same
+    positional and keyword arguments, and that when called, calls the original async
+    function in the main async loop from the worker thread using ``to_thread.run()``.
+    Internally, ``from_thread.syncify()`` uses the same ``from_thread.run()``, but it
+    supports keyword arguments additional to positional arguments and it adds better
+    support for tooling (e.g. editor autocompletion and inline errors) for the
+    arguments and return value of the function.
+
+    Use it like this:
+
+        async def do_work(arg1, arg2, kwarg1="", kwarg2=""):
+            # Do work
+
+        result = from_thread.syncify(do_work)("spam", "ham", kwarg1="a", kwarg2="b")
+
+    :param func: an async function
+    :return: a regular function that takes the same positional and keyword arguments
+        as the original async one, that when called runs the same original function in
+        the main async loop and returns the result.
+
+    """
+    def wrapper(*args: T_ParamSpec.args, **kwargs: T_ParamSpec.kwargs) -> T_Retval:
+        partial_f = functools.partial(func, *args, **kwargs)
+        return run(partial_f)
+    return wrapper
 
 
 def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object) -> T_Retval:
