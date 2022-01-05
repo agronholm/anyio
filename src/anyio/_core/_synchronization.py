@@ -326,7 +326,7 @@ class Semaphore:
         :raises ~WouldBlock: if the operation would block
 
         """
-        if self._value == 0:
+        if self._value <= 0:
             raise WouldBlock
 
         self._value -= 1
@@ -336,7 +336,7 @@ class Semaphore:
         if self._max_value is not None and self._value == self._max_value:
             raise ValueError('semaphore released too many times')
 
-        if self._waiters:
+        if self._value >= 0 and self._waiters:
             self._waiters.popleft().set()
         else:
             self._value += 1
@@ -352,6 +352,22 @@ class Semaphore:
     def max_value(self) -> Optional[int]:
         """The maximum value of the semaphore."""
         return self._max_value
+
+    @max_value.setter
+    def max_value(self, value: Optional[int]) -> None:
+        """Set the maximum value of the semaphore."""
+        if self._max_value is None:
+            raise RuntimeError('Cannot safely set max_value with unknown acquired values')
+
+        if value is None:
+            self._max_value = value
+            return
+
+        if not isinstance(value, int) or value < 0:
+            raise TypeError('max_value must be an integer or None and >= 0')
+
+        self._value = value - (self._max_value - self._value)
+        self._max_value = value
 
     def statistics(self) -> SemaphoreStatistics:
         """

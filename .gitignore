@@ -3,6 +3,7 @@
 *.pyc
 build
 dist
+venv
 docs/_build
 __pycache__
 .coverage

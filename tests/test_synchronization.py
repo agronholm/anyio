@@ -349,6 +349,27 @@ class TestSemaphore:
         semaphore.release()
         pytest.raises(ValueError, semaphore.release)
 
+    async def test_release_max_value_set(self) -> None:
+        semaphore = Semaphore(3, max_value=3)
+
+        semaphore.acquire_nowait()
+        semaphore.acquire_nowait()
+
+        semaphore.max_value = 1
+        assert semaphore.max_value == 1
+
+        # If max_value wasn't adjusted this would not have blocked
+        pytest.raises(WouldBlock, semaphore.acquire_nowait)
+
+        semaphore.release()
+        semaphore.release()
+
+        # All the acquired tokens have been released,
+        # this should be at max_value and as such fail
+        pytest.raises(ValueError, semaphore.release)
+
+        assert semaphore.value == 1
+
     async def test_statistics(self) -> None:
         async def waiter() -> None:
             async with semaphore:
