@@ -376,7 +376,7 @@ class Semaphore:
             return
 
         if not isinstance(value, int) or value < 0:
-            raise TypeError('max_value must be an integer or None and >= 0')
+            raise TypeError('max_value must be an integer >= 0 or None')
 
         self._value = value - (self._max_value - self._value)
         self._max_value = value
