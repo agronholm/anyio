@@ -350,12 +350,24 @@ class Semaphore:
 
     @property
     def max_value(self) -> Optional[int]:
-        """The maximum value of the semaphore."""
+        """The maximum value of the semaphore.
+
+        The `max_value` can be changed at runtime. When `max_value` is changed, `value` is changed
+        accordingly with equally many acquired tokens.
+
+        An example of this is if `max_value` is set to `10` and `value` is `2`, then if `max_value`
+        is set to `5`, `value` will be changed to `5 - (10 - 2) == -3`.
+
+        A limitation of this is that if `max_value` is None this behavior cannot be guaranteed and
+        will instead raise a `RuntimeError`.
+
+        When `value` is negative and a token is released no other task will be notified until
+        `value` is positive again.
+        """
         return self._max_value
 
     @max_value.setter
     def max_value(self, value: Optional[int]) -> None:
-        """Set the maximum value of the semaphore."""
         if self._max_value is None:
             raise RuntimeError('Cannot safely set max_value with unknown acquired values')
 
