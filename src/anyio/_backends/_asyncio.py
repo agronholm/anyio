@@ -43,7 +43,7 @@ from ..lowlevel import RunVar
 if sys.version_info >= (3, 8):
     get_coro = asyncio.Task.get_coro
 else:
-    def get_coro(task: asyncio.Task) -> Union[Coroutine, Generator]:
+    def get_coro(task: asyncio.Task) -> Union[Generator, Awaitable[Any]]:
         return task._coro
 
 if sys.version_info >= (3, 7):
@@ -188,7 +188,7 @@ def _task_started(task: asyncio.Task) -> bool:
         return getcoroutinestate(coro) in (CORO_RUNNING, CORO_SUSPENDED)
     except AttributeError:
         try:
-            return getgeneratorstate(coro) in (GEN_RUNNING, GEN_SUSPENDED)
+            return getgeneratorstate(cast(Generator, coro)) in (GEN_RUNNING, GEN_SUSPENDED)
         except AttributeError:
             # task coro is async_genenerator_asend https://bugs.python.org/issue37771
             raise Exception(f"Cannot determine if task {task} has started or not")
@@ -512,7 +512,7 @@ _task_states = WeakKeyDictionary()  # type: WeakKeyDictionary[asyncio.Task, Task
 #
 
 class ExceptionGroup(BaseExceptionGroup):
-    def __init__(self, exceptions: Sequence[BaseException]):
+    def __init__(self, exceptions: List[BaseException]):
         super().__init__()
         self.exceptions = exceptions
 
@@ -1299,7 +1299,7 @@ class UNIXSocketStream(abc.SocketStream):
                     # https://github.com/python/typeshed/pull/5545
                     self.__raw_socket.sendmsg(
                         [message],
-                        [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)]  # type: ignore
+                        [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)]
                     )
                     break
                 except BlockingIOError:
@@ -1904,7 +1904,7 @@ class TestRunner(abc.TestRunner):
         def exception_handler(loop: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
             exceptions.append(context['exception'])
 
-        exceptions: List[Exception] = []
+        exceptions: List[BaseException] = []
         self._loop.set_exception_handler(exception_handler)
         try:
             retval: T_Retval = self._loop.run_until_complete(func(*args, **kwargs))
