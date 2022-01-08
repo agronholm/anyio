@@ -42,10 +42,15 @@ repos:
       - id: mypy
         additional_dependencies: [ "pytest", "trio-typing", "packaging" ]
 
-  - repo: https://github.com/necaris/pre-commit-pyright
-    rev: 1.1.53
+  - repo: local
     hooks:
       - id: pyright
+        name: pyright
+        entry: pyright
+        language: node
+        pass_filenames: false
+        types: [ python ]
+        additional_dependencies: [ 'pyright@1.1.205' ]
         args: [ "--verifytypes", "anyio" ]
 
   - repo: https://github.com/pre-commit/pygrep-hooks
