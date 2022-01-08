@@ -87,6 +87,8 @@ async def test_process_env() -> None:
     assert result.stdout.decode().strip() == env["foo"]
 
 
+@pytest.mark.skipif(platform.system() == 'Windows',
+                    reason='Windows does not have os.getsid()')
 async def test_process_new_session_sid() -> None:
     """Test that start_new_session is successfully passed to the subprocess implementation"""
     sid = os.getsid(os.getpid())
