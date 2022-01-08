@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-import pkg_resources
+from importlib.metadata import version as get_version
+
+from packaging.version import parse
 
 extensions = [
     'sphinx.ext.autodoc',
@@ -14,7 +16,7 @@ project = 'AnyIO'
 author = 'Alex Grönholm'
 copyright = '2018, ' + author
 
-v = pkg_resources.get_distribution('anyio').parsed_version
+v = parse(get_version('anyio'))
 version = v.base_version
 release = v.public
 

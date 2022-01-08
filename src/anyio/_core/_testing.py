@@ -1,4 +1,4 @@
-from typing import Any, Coroutine, Generator, Optional
+from typing import Any, Awaitable, Generator, Optional, Union
 
 from ._compat import DeprecatedAwaitableList, _warn_deprecation
 from ._eventloop import get_asynclib
@@ -18,13 +18,13 @@ class TaskInfo:
     __slots__ = '_name', 'id', 'parent_id', 'name', 'coro'
 
     def __init__(self, id: int, parent_id: Optional[int], name: Optional[str],
-                 coro: Coroutine[Any, Any, Any]):
+                 coro: Union[Generator, Awaitable[Any]]):
         func = get_current_task
         self._name = f'{func.__module__}.{func.__qualname__}'
         self.id: int = id
         self.parent_id: Optional[int] = parent_id
         self.name: Optional[str] = name
-        self.coro: Coroutine[Any, Any, Any] = coro
+        self.coro: Union[Generator, Awaitable[Any]] = coro
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, TaskInfo):
