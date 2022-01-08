@@ -6,6 +6,23 @@ on:
   pull_request:
 
 jobs:
+  pyright:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.x
+    - uses: actions/cache@v2
+      with:
+        path: ~/.cache/pip
+        key: pip-pyright
+    - name: Install dependencies
+      run: pip -e . pyright
+    - name: Run pyright
+      run: pyright --verifytypes anyio
+
   test:
     strategy:
       fail-fast: false
