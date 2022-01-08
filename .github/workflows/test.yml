@@ -19,7 +19,7 @@ jobs:
         path: ~/.cache/pip
         key: pip-pyright
     - name: Install dependencies
-      run: pip -e . pyright
+      run: pip install -e . pyright
     - name: Run pyright
       run: pyright --verifytypes anyio
 
