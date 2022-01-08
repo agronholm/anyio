@@ -7,10 +7,11 @@ from dataclasses import dataclass
 from functools import partial
 from io import IOBase
 from os import PathLike
+from signal import Signals
 from types import TracebackType
 from typing import (
     Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque, Dict, Generic, List,
-    Mapping, NoReturn, Optional, Sequence, Set, Tuple, Type, TypeVar, Union)
+    Mapping, NoReturn, Optional, Sequence, Set, Tuple, Type, TypeVar, Union, cast)
 
 import sniffio
 import trio.from_thread
@@ -34,13 +35,13 @@ from ..abc import IPSockAddrType, UDPPacketType
 try:
     from trio import lowlevel as trio_lowlevel
 except ImportError:
-    from trio import hazmat as trio_lowlevel
+    from trio import hazmat as trio_lowlevel  # type: ignore[no-redef]
     from trio.hazmat import wait_readable, wait_writable
 else:
     from trio.lowlevel import wait_readable, wait_writable
 
 try:
-    from trio.lowlevel import open_process as trio_open_process
+    from trio.lowlevel import open_process as trio_open_process  # type: ignore[attr-defined]
 except ImportError:
     from trio import open_process as trio_open_process
 
@@ -73,7 +74,7 @@ class CancelScope(BaseCancelScope):
                 **kwargs: object) -> 'CancelScope':
         return object.__new__(cls)
 
-    def __init__(self, original: Optional[trio.CancelScope] = None, **kwargs: object) -> None:
+    def __init__(self, original: Optional[trio.CancelScope] = None, **kwargs: Any) -> None:
         self.__original = original or trio.CancelScope(**kwargs)
 
     def __enter__(self) -> 'CancelScope':
@@ -181,7 +182,7 @@ async def run_sync_in_worker_thread(
 
 # TODO: remove this workaround when trio 0.20 is the minimum requirement
 def run_async_from_thread(fn: Callable[..., Awaitable[T_Retval]], *args: Any) -> T_Retval:
-    async def wrapper() -> Optional[T_Retval]:
+    async def wrapper() -> T_Retval:
         retval: T_Retval
 
         async def inner() -> None:
@@ -202,7 +203,8 @@ def run_async_from_thread(fn: Callable[..., Awaitable[T_Retval]], *args: Any) ->
 
 def run_sync_from_thread(fn: Callable[..., T_Retval], *args: Any) -> T_Retval:
     # TODO: remove explicit context copying when trio 0.20 is the minimum requirement
-    return trio.from_thread.run_sync(copy_context().run, fn, *args)
+    retval = trio.from_thread.run_sync(copy_context().run, fn, *args)
+    return cast(T_Retval, retval)
 
 
 class BlockingPortal(abc.BlockingPortal):
@@ -217,7 +219,7 @@ class BlockingPortal(abc.BlockingPortal):
                                 name: object, future: Future) -> None:
         context = copy_context()
         context.run(sniffio.current_async_library_cvar.set, 'trio')
-        return trio.from_thread.run_sync(
+        trio.from_thread.run_sync(
             context.run, partial(self._task_group.start_soon, name=name), self._call_func, func,
             args, kwargs, future, trio_token=self._token)
 
@@ -289,7 +291,7 @@ class Process(abc.Process):
     def kill(self) -> None:
         self._process.kill()
 
-    def send_signal(self, signal: int) -> None:
+    def send_signal(self, signal: Signals) -> None:
         self._process.send_signal(signal)
 
     @property
@@ -332,7 +334,7 @@ class _ProcessPoolShutdownInstrument(trio.abc.Instrument):
         super().after_run()
 
 
-current_default_worker_process_limiter = trio.lowlevel.RunVar(
+current_default_worker_process_limiter: RunVar = RunVar(
     'current_default_worker_process_limiter')
 
 
@@ -371,7 +373,7 @@ class _TrioSocketMixin(Generic[T_SockAddr]):
 
     @property
     def _raw_socket(self) -> socket.socket:
-        return self._trio_socket._sock
+        return self._trio_socket._sock  # type: ignore[attr-defined]
 
     async def aclose(self) -> None:
         if self._trio_socket.fileno() >= 0:
@@ -446,7 +448,7 @@ class UNIXSocketStream(SocketStream, abc.UNIXSocketStream):
 
         for cmsg_level, cmsg_type, cmsg_data in ancdata:
             if cmsg_level != socket.SOL_SOCKET or cmsg_type != socket.SCM_RIGHTS:
-                raise RuntimeError(f'Received unexpected ancillary data; message = {message}, '
+                raise RuntimeError(f'Received unexpected ancillary data; message = {message!r}, '
                                    f'cmsg_level = {cmsg_level}, cmsg_type = {cmsg_type}')
 
             fds.frombytes(cmsg_data[:len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])
@@ -472,7 +474,10 @@ class UNIXSocketStream(SocketStream, abc.UNIXSocketStream):
             while True:
                 try:
                     await self._trio_socket.sendmsg(
-                        [message], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)])
+                        [message],
+                        [(socket.SOL_SOCKET, socket.SCM_RIGHTS,  # type: ignore[list-item]
+                          fdarray)]
+                    )
                     break
                 except BaseException as exc:
                     self._convert_socket_error(exc)
@@ -641,7 +646,8 @@ class Event(BaseEvent):
         return await self.__original.wait()
 
     def statistics(self) -> EventStatistics:
-        return self.__original.statistics()
+        orig_statistics = self.__original.statistics()
+        return EventStatistics(tasks_waiting=orig_statistics.tasks_waiting)
 
     def set(self) -> DeprecatedAwaitable:
         self.__original.set()
@@ -652,7 +658,7 @@ class CapacityLimiter(BaseCapacityLimiter):
     def __new__(cls, *args: object, **kwargs: object) -> "CapacityLimiter":
         return object.__new__(cls)
 
-    def __init__(self, *args: object, original: Optional[trio.CapacityLimiter] = None) -> None:
+    def __init__(self, *args: Any, original: Optional[trio.CapacityLimiter] = None) -> None:
         self.__original = original or trio.CapacityLimiter(*args)
 
     async def __aenter__(self) -> None:
@@ -700,10 +706,13 @@ class CapacityLimiter(BaseCapacityLimiter):
         return self.__original.release_on_behalf_of(borrower)
 
     def statistics(self) -> CapacityLimiterStatistics:
-        return self.__original.statistics()
+        orig = self.__original.statistics()
+        return CapacityLimiterStatistics(
+            borrowed_tokens=orig.borrowed_tokens, total_tokens=orig.total_tokens,
+            borrowers=orig.borrowers, tasks_waiting=orig.tasks_waiting)
 
 
-_capacity_limiter_wrapper = RunVar('_capacity_limiter_wrapper')
+_capacity_limiter_wrapper: RunVar = RunVar('_capacity_limiter_wrapper')
 
 
 def current_default_thread_limiter() -> CapacityLimiter:
@@ -732,7 +741,7 @@ class _SignalReceiver(DeprecatedAsyncContextManager[T]):
         return self._cm.__exit__(exc_type, exc_val, exc_tb)
 
 
-def open_signal_receiver(*signals: int) -> _SignalReceiver:
+def open_signal_receiver(*signals: Signals) -> _SignalReceiver:
     cm = trio.open_signal_receiver(*signals)
     return _SignalReceiver(cm)
 
@@ -774,7 +783,7 @@ def wait_all_tasks_blocked() -> Awaitable[None]:
 
 
 class TestRunner(abc.TestRunner):
-    def __init__(self, **options: object) -> None:
+    def __init__(self, **options: Any) -> None:
         from collections import deque
         from queue import Queue
 

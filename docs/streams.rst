@@ -72,8 +72,8 @@ closed synchronously, using either the ``close()`` method or by using the stream
 manager::
 
     def synchronous_callback(send_stream: MemoryObjectSendStream) -> None:
-        with stream:
-            stream.send_nowait('hello')
+        with send_stream:
+            send_stream.send_nowait('hello')
 
 Stapled streams
 ---------------

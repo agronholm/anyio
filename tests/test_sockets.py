@@ -102,7 +102,7 @@ _ignore_win32_resource_warnings = pytest.mark.filterwarnings(
 ) if sys.platform == "win32" else _identity
 
 
-@_ignore_win32_resource_warnings
+@_ignore_win32_resource_warnings  # type: ignore[operator]
 class TestTCPStream:
     @pytest.fixture
     def server_sock(self, family: AnyIPAddressFamily) -> Iterator[socket.socket]:
@@ -262,9 +262,9 @@ class TestTCPStream:
 
         assert exc.match('All connection attempts failed')
         assert isinstance(exc.value.__cause__, exception_class)
-        if exception_class is ExceptionGroup:
-            for exc in exc.value.__cause__.exceptions:
-                assert isinstance(exc, ConnectionRefusedError)
+        if isinstance(exc.value.__cause__, ExceptionGroup):
+            for exception in exc.value.__cause__.exceptions:
+                assert isinstance(exception, ConnectionRefusedError)
 
     async def test_receive_timeout(self, server_sock: socket.socket,
                                    server_addr: Tuple[str, int]) -> None:
@@ -636,7 +636,7 @@ class TestUNIXStream:
                 client, _ = server_sock.accept()
                 cmsg = (socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)
                 with client:
-                    client.sendmsg([b'test'], [cmsg])  # type: ignore[list-item]
+                    client.sendmsg([b'test'], [cmsg])
 
         async with await connect_unix(socket_path) as stream:
             thread = Thread(target=serve, daemon=True)
