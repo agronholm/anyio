@@ -34,8 +34,7 @@ repos:
     rev: v0.931
     hooks:
       - id: mypy
-        additional_dependencies: [ "trio-typing" ]
-        args: [ "src", "tests" ]
+        additional_dependencies: [ "pytest", "trio-typing", "packaging" ]
 
   - repo: https://github.com/necaris/pre-commit-pyright
     rev: 1.1.53
