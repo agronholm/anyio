@@ -571,7 +571,7 @@ async def test_shielding_immediate_scope_cancelled() -> None:
 async def test_shielding_mutate() -> None:
     completed = False
 
-    async def task(task_status: TaskStatus) -> NoReturn:  # type: ignore[misc]
+    async def task(task_status: TaskStatus) -> NoReturn:
         nonlocal completed
         with CancelScope() as scope:
             # Enable the shield a little after the scope starts to make this test
@@ -973,7 +973,7 @@ def test_unhandled_exception_group(caplog: pytest.LogCaptureFixture) -> None:
             tg.start_soon(anyio.sleep, 5)
             await anyio.sleep(5)
 
-    async def main() -> NoReturn:  # type: ignore[misc]
+    async def main() -> NoReturn:
         async with anyio.create_task_group() as tg:
             tg.start_soon(nested)
             await wait_all_tasks_blocked()
@@ -992,7 +992,7 @@ def test_unhandled_exception_group(caplog: pytest.LogCaptureFixture) -> None:
                     reason='Cancel messages are only supported on py3.9+')
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
 async def test_cancellederror_combination_with_message() -> None:
-    async def taskfunc(*, task_status: TaskStatus) -> NoReturn:  # type: ignore[misc]
+    async def taskfunc(*, task_status: TaskStatus) -> NoReturn:
         task_status.started(asyncio.current_task())
         await sleep(5)
         pytest.fail('Execution should never reach this point')

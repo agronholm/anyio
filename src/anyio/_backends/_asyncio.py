@@ -4,7 +4,7 @@ import concurrent.futures
 import math
 import socket
 import sys
-from asyncio.base_events import _run_until_complete_cb  # type: ignore
+from asyncio.base_events import _run_until_complete_cb  # type: ignore[attr-defined]
 from collections import OrderedDict, deque
 from concurrent.futures import Future
 from contextvars import Context, copy_context
@@ -43,7 +43,7 @@ from ..lowlevel import RunVar
 if sys.version_info >= (3, 8):
     get_coro = asyncio.Task.get_coro
 else:
-    def get_coro(task: asyncio.Task) -> Union[Coroutine, Generator]:
+    def get_coro(task: asyncio.Task) -> Union[Generator, Awaitable[Any]]:
         return task._coro
 
 if sys.version_info >= (3, 7):
@@ -51,7 +51,7 @@ if sys.version_info >= (3, 7):
     from asyncio import run as native_run
 
     def _get_task_callbacks(task: asyncio.Task) -> Iterable[Callable]:
-        return [cb for cb, context in task._callbacks]  # type: ignore
+        return [cb for cb, context in task._callbacks]  # type: ignore[attr-defined]
 else:
     _T = TypeVar('_T')
 
@@ -88,7 +88,7 @@ else:
                 "asyncio.run() cannot be called from a running event loop")
 
         if not coroutines.iscoroutine(main):
-            raise ValueError("a coroutine was expected, got {!r}".format(main))
+            raise ValueError(f"a coroutine was expected, got {main!r}")
 
         loop = events.new_event_loop()
         try:
@@ -188,7 +188,7 @@ def _task_started(task: asyncio.Task) -> bool:
         return getcoroutinestate(coro) in (CORO_RUNNING, CORO_SUSPENDED)
     except AttributeError:
         try:
-            return getgeneratorstate(coro) in (GEN_RUNNING, GEN_SUSPENDED)
+            return getgeneratorstate(cast(Generator, coro)) in (GEN_RUNNING, GEN_SUSPENDED)
         except AttributeError:
             # task coro is async_genenerator_asend https://bugs.python.org/issue37771
             raise Exception(f"Cannot determine if task {task} has started or not")
@@ -345,7 +345,7 @@ class CancelScope(BaseCancelScope):
         should_retry = False
         current = current_task()
         for task in self._tasks:
-            if task._must_cancel:  # type: ignore
+            if task._must_cancel:  # type: ignore[attr-defined]
                 continue
 
             # The task is eligible for cancellation if it has started and is not in a cancel
@@ -512,7 +512,7 @@ _task_states = WeakKeyDictionary()  # type: WeakKeyDictionary[asyncio.Task, Task
 #
 
 class ExceptionGroup(BaseExceptionGroup):
-    def __init__(self, exceptions: Sequence[BaseException]):
+    def __init__(self, exceptions: List[BaseException]):
         super().__init__()
         self.exceptions = exceptions
 
@@ -977,9 +977,9 @@ def _forcibly_shutdown_process_pool_on_exit(workers: Set[Process], _task: object
         if process.returncode is None:
             continue
 
-        process._stdin._stream._transport.close()  # type: ignore
-        process._stdout._stream._transport.close()  # type: ignore
-        process._stderr._stream._transport.close()  # type: ignore
+        process._stdin._stream._transport.close()  # type: ignore[union-attr]
+        process._stdout._stream._transport.close()  # type: ignore[union-attr]
+        process._stderr._stream._transport.close()  # type: ignore[union-attr]
         process.kill()
         if child_watcher:
             child_watcher.remove_child_handler(process.pid)
@@ -1299,7 +1299,7 @@ class UNIXSocketStream(abc.SocketStream):
                     # https://github.com/python/typeshed/pull/5545
                     self.__raw_socket.sendmsg(
                         [message],
-                        [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)]  # type: ignore
+                        [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)]
                     )
                     break
                 except BlockingIOError:
@@ -1845,7 +1845,7 @@ def _create_task_info(task: asyncio.Task) -> TaskInfo:
 
 
 def get_current_task() -> TaskInfo:
-    return _create_task_info(current_task())  # type: ignore
+    return _create_task_info(current_task())  # type: ignore[arg-type]
 
 
 def get_running_tasks() -> List[TaskInfo]:
@@ -1904,7 +1904,7 @@ class TestRunner(abc.TestRunner):
         def exception_handler(loop: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
             exceptions.append(context['exception'])
 
-        exceptions: List[Exception] = []
+        exceptions: List[BaseException] = []
         self._loop.set_exception_handler(exception_handler)
         try:
             retval: T_Retval = self._loop.run_until_complete(func(*args, **kwargs))

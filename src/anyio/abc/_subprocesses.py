@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from signal import Signals
 from typing import Optional
 
 from ._resources import AsyncResource
@@ -39,7 +40,7 @@ class Process(AsyncResource):
         """
 
     @abstractmethod
-    def send_signal(self, signal: int) -> None:
+    def send_signal(self, signal: Signals) -> None:
         """
         Send a signal to the subprocess.
 
