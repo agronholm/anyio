@@ -12,8 +12,9 @@ code style fixing tools and then the actual test suite. To only run the code sty
 To build the documentation, run ``tox -e docs`` which will generate a directory named ``build``
 in which you may view the formatted HTML documentation.
 
-The use of pre-commit_ is also highly recommended. You can find a sample configuration file at the
-root of the repository.
+AnyIO uses pre-commit_ to perform several code style/quality checks. It is recommended to activate
+pre-commit_ on your local clone of the repository (using ``pre-commit install``) to ensure that
+your changes will pass the same checks on GitHub.
 
 .. _tox: https://tox.readthedocs.io/en/latest/install.html
 .. _pre-commit: https://pre-commit.com/#installation
