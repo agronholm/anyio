@@ -4,7 +4,7 @@ import concurrent.futures
 import math
 import socket
 import sys
-from asyncio.base_events import _run_until_complete_cb  # type: ignore
+from asyncio.base_events import _run_until_complete_cb  # type: ignore[attr-defined]
 from collections import OrderedDict, deque
 from concurrent.futures import Future
 from contextvars import Context, copy_context
@@ -51,7 +51,7 @@ if sys.version_info >= (3, 7):
     from asyncio import run as native_run
 
     def _get_task_callbacks(task: asyncio.Task) -> Iterable[Callable]:
-        return [cb for cb, context in task._callbacks]  # type: ignore
+        return [cb for cb, context in task._callbacks]  # type: ignore[attr-defined]
 else:
     _T = TypeVar('_T')
 
@@ -345,7 +345,7 @@ class CancelScope(BaseCancelScope):
         should_retry = False
         current = current_task()
         for task in self._tasks:
-            if task._must_cancel:  # type: ignore
+            if task._must_cancel:  # type: ignore[attr-defined]
                 continue
 
             # The task is eligible for cancellation if it has started and is not in a cancel
@@ -977,9 +977,9 @@ def _forcibly_shutdown_process_pool_on_exit(workers: Set[Process], _task: object
         if process.returncode is None:
             continue
 
-        process._stdin._stream._transport.close()  # type: ignore
-        process._stdout._stream._transport.close()  # type: ignore
-        process._stderr._stream._transport.close()  # type: ignore
+        process._stdin._stream._transport.close()  # type: ignore[union-attr]
+        process._stdout._stream._transport.close()  # type: ignore[union-attr]
+        process._stderr._stream._transport.close()  # type: ignore[union-attr]
         process.kill()
         if child_watcher:
             child_watcher.remove_child_handler(process.pid)
@@ -1845,7 +1845,7 @@ def _create_task_info(task: asyncio.Task) -> TaskInfo:
 
 
 def get_current_task() -> TaskInfo:
-    return _create_task_info(current_task())  # type: ignore
+    return _create_task_info(current_task())  # type: ignore[arg-type]
 
 
 def get_running_tasks() -> List[TaskInfo]:
