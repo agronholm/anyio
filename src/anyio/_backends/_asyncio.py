@@ -88,7 +88,7 @@ else:
                 "asyncio.run() cannot be called from a running event loop")
 
         if not coroutines.iscoroutine(main):
-            raise ValueError("a coroutine was expected, got {!r}".format(main))
+            raise ValueError(f"a coroutine was expected, got {main!r}")
 
         loop = events.new_event_loop()
         try:

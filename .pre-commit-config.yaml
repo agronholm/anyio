@@ -15,6 +15,12 @@ repos:
         args: [ "--fix=lf" ]
       - id: trailing-whitespace
 
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v2.30.1
+    hooks:
+      - id: pyupgrade
+        args: [ "--py36-plus", "--keep-mock" ]
+
   - repo: https://github.com/pre-commit/mirrors-autopep8
     rev: v1.6.0
     hooks:
