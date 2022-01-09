@@ -53,7 +53,7 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object,
 
     try:
         backend_options = backend_options or {}
-        return asynclib.run(func, *args, **backend_options)  # type: ignore
+        return asynclib.run(func, *args, **backend_options)
     finally:
         if token:
             sniffio.current_async_library_cvar.reset(token)

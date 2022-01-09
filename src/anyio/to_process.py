@@ -5,7 +5,6 @@ import pickle
 import subprocess
 import sys
 from collections import deque
-from importlib.abc import Loader
 from importlib.util import module_from_spec, spec_from_file_location
 from typing import Callable, Deque, TypeVar, cast
 
@@ -203,7 +202,7 @@ def process_worker() -> None:
                         spec = spec_from_file_location('__mp_main__', main_module_path)
                         if spec and spec.loader:
                             main = module_from_spec(spec)
-                            cast(Loader, spec.loader).exec_module(main)
+                            spec.loader.exec_module(main)
                             sys.modules['__main__'] = main
                     except BaseException as exc:
                         exception = exc

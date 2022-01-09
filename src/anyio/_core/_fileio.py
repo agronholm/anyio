@@ -128,7 +128,7 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
 
 
 @overload
-async def open_file(file: str | PathLike | int, mode: OpenBinaryMode,
+async def open_file(file: str | PathLike[str] | int, mode: OpenBinaryMode,
                     buffering: int = ..., encoding: str | None = ...,
                     errors: str | None = ..., newline: str | None = ..., closefd: bool = ...,
                     opener: Callable[[str, int], int] | None = ...) -> AsyncFile[bytes]:
@@ -136,14 +136,14 @@ async def open_file(file: str | PathLike | int, mode: OpenBinaryMode,
 
 
 @overload
-async def open_file(file: str | PathLike | int, mode: OpenTextMode = ...,
+async def open_file(file: str | PathLike[str] | int, mode: OpenTextMode = ...,
                     buffering: int = ..., encoding: str | None = ...,
                     errors: str | None = ..., newline: str | None = ..., closefd: bool = ...,
                     opener: Callable[[str, int], int] | None = ...) -> AsyncFile[str]:
     ...
 
 
-async def open_file(file: str | PathLike | int, mode: str = 'r', buffering: int = -1,
+async def open_file(file: str | PathLike[str] | int, mode: str = 'r', buffering: int = -1,
                     encoding: str | None = None, errors: str | None = None,
                     newline: str | None = None, closefd: bool = True,
                     opener: Callable[[str, int], int] | None = None) -> AsyncFile:
@@ -173,14 +173,14 @@ def wrap_file(file: IO[AnyStr]) -> AsyncFile[AnyStr]:
 
 @dataclass(eq=False)
 class _PathIterator(AsyncIterator['Path']):
-    iterator: Iterator[PathLike]
+    iterator: Iterator[PathLike[str]]
 
     async def __anext__(self) -> 'Path':
         nextval = await to_thread.run_sync(next, self.iterator, None, cancellable=True)
         if nextval is None:
             raise StopAsyncIteration from None
 
-        return Path(cast(PathLike, nextval))
+        return Path(cast('PathLike[str]', nextval))
 
 
 class Path:
@@ -236,7 +236,9 @@ class Path:
 
     __slots__ = '_path', '__weakref__'
 
-    def __init__(self, *args: str | PathLike) -> None:
+    __weakref__: Any
+
+    def __init__(self, *args: str | PathLike[str]) -> None:
         self._path: Final[pathlib.Path] = pathlib.Path(*args)
 
     def __fspath__(self) -> str:
@@ -333,7 +335,7 @@ class Path:
     def match(self, path_pattern: str) -> bool:
         return self._path.match(path_pattern)
 
-    def is_relative_to(self, *other: str | PathLike) -> bool:
+    def is_relative_to(self, *other: str | PathLike[str]) -> bool:
         try:
             self.relative_to(*other)
             return True
@@ -407,7 +409,7 @@ class Path:
         gen = self._path.iterdir()
         return _PathIterator(gen)
 
-    def joinpath(self, *args: Union[str, PathLike[str]]) -> Path:
+    def joinpath(self, *args: str | PathLike[str]) -> Path:
         return Path(self._path.joinpath(*args))
 
     async def lchmod(self, mode: int) -> None:
@@ -432,7 +434,7 @@ class Path:
         ...
 
     async def open(self, mode: str = 'r', buffering: int = -1, encoding: str | None = None,
-                   errors: str | None = None, newline: str | None = None) -> AsyncFile:
+                   errors: str | None = None, newline: str | None = None) -> AsyncFile[Any]:
         fp = await to_thread.run_sync(self._path.open, mode, buffering, encoding, errors, newline)
         return AsyncFile(fp)
 
@@ -445,7 +447,7 @@ class Path:
     async def read_text(self, encoding: str | None = None, errors: str | None = None) -> str:
         return await to_thread.run_sync(self._path.read_text, encoding, errors)
 
-    def relative_to(self, *other: str | PathLike) -> Path:
+    def relative_to(self, *other: str | PathLike[str]) -> Path:
         return Path(self._path.relative_to(*other))
 
     async def readlink(self) -> 'Path':

@@ -1,4 +1,4 @@
-name: Python codeqa/test
+name: Run the test suite
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  lint:
+  pyright:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -17,18 +17,13 @@ jobs:
     - uses: actions/cache@v2
       with:
         path: ~/.cache/pip
-        key: pip-lint
+        key: pip-pyright
     - name: Install dependencies
-      run: pip install pyproject-flake8 isort mypy
-    - name: Run flake8
-      run: pflake8 src tests
-    - name: Check types with Mypy
-      run: mypy src tests
-    - name: Run isort
-      run: isort -c --diff src tests
+      run: pip install -e . pyright pytest
+    - name: Run pyright
+      run: pyright --verifytypes anyio
 
   test:
-    needs: [lint]
     strategy:
       fail-fast: false
       matrix:
@@ -62,6 +57,8 @@ jobs:
       run: pip install .[test,trio] coveralls
     - name: Test with pytest
       run: coverage run -m pytest
+      env:
+        PYTEST_DISABLE_PLUGIN_AUTOLOAD: 1
     - name: Upload Coverage
       run: coveralls --service=github
       env:

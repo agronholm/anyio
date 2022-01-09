@@ -3,7 +3,7 @@ from __future__ import annotations
 import typing
 from abc import ABCMeta, abstractmethod
 from types import TracebackType
-from typing import Callable, Coroutine, TypeVar
+from typing import Any, Callable, Coroutine, TypeVar
 
 if typing.TYPE_CHECKING:
     from anyio._core._tasks import CancelScope
@@ -32,7 +32,7 @@ class TaskGroup(metaclass=ABCMeta):
     cancel_scope: CancelScope
 
     @abstractmethod
-    def start_soon(self, func: Callable[..., Coroutine],
+    def start_soon(self, func: Callable[..., Coroutine[Any, Any, Any]],
                    *args: object, name: object = None) -> None:
         """
         Start a new task in this task group.
@@ -45,7 +45,7 @@ class TaskGroup(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    async def start(self, func: Callable[..., Coroutine],
+    async def start(self, func: Callable[..., Coroutine[Any, Any, Any]],
                     *args: object, name: object = None) -> object:
         """
         Start a new task and wait until it signals for readiness.

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from traceback import format_exception
-from typing import Sequence
 
 
 class BrokenResourceError(Exception):
     """
-    Raised when trying to use a resource that has been rendered unusuable due to external causes
+    Raised when trying to use a resource that has been rendered unusable due to external causes
     (e.g. a send stream whose peer has disconnected).
     """
 
@@ -52,7 +51,7 @@ class ExceptionGroup(BaseException):
 
     SEPARATOR = '----------------------------\n'
 
-    exceptions: Sequence[BaseException]
+    exceptions: list[BaseException]
 
     def __str__(self) -> str:
         tracebacks = [''.join(format_exception(type(exc), exc, exc.__traceback__))

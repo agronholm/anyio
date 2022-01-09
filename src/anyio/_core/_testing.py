@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Coroutine
+from typing import Any, Awaitable, Generator
 
 from ._eventloop import get_asynclib
 
@@ -18,13 +18,14 @@ class TaskInfo:
 
     __slots__ = '_name', 'id', 'parent_id', 'name', 'coro'
 
-    def __init__(self, id: int, parent_id: int | None, name: str | None, coro: Coroutine):
+    def __init__(self, id: int, parent_id: int | None, name: str | None,
+                 coro: Generator | Awaitable[Any]):
         func = get_current_task
         self._name = f'{func.__module__}.{func.__qualname__}'
-        self.id = id
-        self.parent_id = parent_id
-        self.name = name
-        self.coro = coro
+        self.id: int = id
+        self.parent_id: int | None = parent_id
+        self.name: str | None = name
+        self.coro: Generator | Awaitable[Any] = coro
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, TaskInfo):

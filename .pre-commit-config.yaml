@@ -1,0 +1,53 @@
+# This is the configuration file for pre-commit (https://pre-commit.com/).
+# To use:
+# * Install pre-commit (https://pre-commit.com/#installation)
+# * Copy this file as ".pre-commit-config.yaml"
+# * Run "pre-commit install".
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.1.0
+    hooks:
+      - id: check-toml
+      - id: check-yaml
+      - id: debug-statements
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [ "--fix=lf" ]
+      - id: trailing-whitespace
+
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v2.30.1
+    hooks:
+      - id: pyupgrade
+        args: [ "--py36-plus", "--keep-mock" ]
+
+  - repo: https://github.com/pre-commit/mirrors-autopep8
+    rev: v1.6.0
+    hooks:
+      - id: autopep8
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.10.1
+    hooks:
+      - id: isort
+
+  - repo: https://github.com/csachs/pyproject-flake8
+    rev: v0.0.1a2.post1
+    hooks:
+      - id: pyproject-flake8
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v0.931
+    hooks:
+      - id: mypy
+        additional_dependencies: [ "pytest", "trio-typing", "packaging" ]
+
+  - repo: https://github.com/pre-commit/pygrep-hooks
+    rev: v1.9.0
+    hooks:
+      - id: python-check-blanket-noqa
+      - id: python-check-blanket-type-ignore
+      - id: python-no-eval
+      - id: rst-backticks
+      - id: rst-directive-colons
+      - id: rst-inline-touching-normal

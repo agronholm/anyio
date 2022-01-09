@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Deque, Generic, List, NamedTuple, TypeVar
+from typing import Deque, Generic, NamedTuple, TypeVar
 
 from .. import (
     BrokenResourceError, ClosedResourceError, EndOfStream, WouldBlock, get_cancelled_exc_class)
@@ -30,7 +30,7 @@ class MemoryObjectStreamState(Generic[T_Item]):
     buffer: Deque[T_Item] = field(init=False, default_factory=deque)
     open_send_channels: int = field(init=False, default=0)
     open_receive_channels: int = field(init=False, default=0)
-    waiting_receivers: OrderedDict[Event, List[T_Item]] = field(init=False,
+    waiting_receivers: OrderedDict[Event, list[T_Item]] = field(init=False,
                                                                 default_factory=OrderedDict)
     waiting_senders: OrderedDict[Event, T_Item] = field(init=False, default_factory=OrderedDict)
 
@@ -101,7 +101,7 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
             else:
                 raise EndOfStream
 
-    def clone(self) -> MemoryObjectReceiveStream:
+    def clone(self) -> MemoryObjectReceiveStream[T_Item]:
         """
         Create a clone of this receive stream.
 
@@ -203,7 +203,7 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
             if self._state.waiting_senders.pop(send_event, None):  # type: ignore[arg-type]
                 raise BrokenResourceError
 
-    def clone(self) -> MemoryObjectSendStream:
+    def clone(self) -> MemoryObjectSendStream[T_Item]:
         """
         Create a clone of this send stream.
 

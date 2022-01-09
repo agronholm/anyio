@@ -5,13 +5,15 @@ import re
 import ssl
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Callable, Mapping, TypeVar
+from typing import Any, Callable, Mapping, Tuple, TypeVar
 
 from .. import BrokenResourceError, EndOfStream, aclose_forcefully, get_cancelled_exc_class
 from .._core._typedattr import TypedAttributeSet, typed_attribute
 from ..abc import AnyByteStream, ByteStream, Listener, TaskGroup
 
 T_Retval = TypeVar('T_Retval')
+_PCTRTT = Tuple[Tuple[str, str], ...]
+_PCTRTTT = Tuple[_PCTRTT, ...]
 
 
 class TLSAttribute(TypedAttributeSet):
@@ -24,7 +26,7 @@ class TLSAttribute(TypedAttributeSet):
     cipher: tuple[str, str, int] = typed_attribute()
     #: the peer certificate in dictionary form (see :meth:`ssl.SSLSocket.getpeercert` for more
     #: information)
-    peer_certificate: dict[str, str | tuple] | None = typed_attribute()
+    peer_certificate: dict[str, str | _PCTRTTT | _PCTRTT] | None = typed_attribute()
     #: the peer certificate in binary form
     peer_certificate_binary: bytes | None = typed_attribute()
     #: ``True`` if this is the server side of the connection
@@ -86,6 +88,10 @@ class TLSStream(ByteStream):
             purpose = ssl.Purpose.CLIENT_AUTH if server_side else ssl.Purpose.SERVER_AUTH
             ssl_context = ssl.create_default_context(purpose)
 
+            # Re-enable detection of unexpected EOFs if it was disabled by Python
+            if hasattr(ssl, 'OP_IGNORE_UNEXPECTED_EOF'):
+                ssl_context.options ^= ssl.OP_IGNORE_UNEXPECTED_EOF  # type: ignore[attr-defined]
+
         bio_in = ssl.MemoryBIO()
         bio_out = ssl.MemoryBIO()
         ssl_object = ssl_context.wrap_bio(bio_in, bio_out, server_side=server_side,
@@ -119,17 +125,21 @@ class TLSStream(ByteStream):
                     self._read_bio.write(data)
             except ssl.SSLWantWriteError:
                 await self.transport_stream.send(self._write_bio.read())
-            except ssl.SSLEOFError as exc:
-                self._read_bio.write_eof()
-                self._write_bio.write_eof()
-                if self.standard_compatible:
-                    raise BrokenResourceError from exc
-                else:
-                    raise EndOfStream from None
             except ssl.SSLSyscallError as exc:
                 self._read_bio.write_eof()
                 self._write_bio.write_eof()
                 raise BrokenResourceError from exc
+            except ssl.SSLError as exc:
+                self._read_bio.write_eof()
+                self._write_bio.write_eof()
+                if (isinstance(exc, ssl.SSLEOFError)
+                        or 'UNEXPECTED_EOF_WHILE_READING' in exc.strerror):
+                    if self.standard_compatible:
+                        raise BrokenResourceError from exc
+                    else:
+                        raise EndOfStream from None
+
+                raise
             else:
                 # Flush any pending writes first
                 if self._write_bio.pending:
@@ -215,7 +225,7 @@ class TLSListener(Listener[TLSStream]):
         (passed to :func:`~anyio.fail_after`)
     """
 
-    listener: Listener
+    listener: Listener[Any]
     ssl_context: ssl.SSLContext
     standard_compatible: bool = True
     handshake_timeout: float = 30

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+from signal import Signals
 
 from ._resources import AsyncResource
 from ._streams import ByteReceiveStream, ByteSendStream
@@ -40,7 +41,7 @@ class Process(AsyncResource):
         """
 
     @abstractmethod
-    def send_signal(self, signal: int) -> None:
+    def send_signal(self, signal: Signals) -> None:
         """
         Send a signal to the subprocess.
 

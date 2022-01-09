@@ -38,6 +38,21 @@ AnyIPAddressFamily = Literal[AddressFamily.AF_UNSPEC, AddressFamily.AF_INET,
 
 pytestmark = pytest.mark.anyio
 
+# If a socket can bind to ::1, the current environment has IPv6 properly configured
+has_ipv6 = False
+if socket.has_ipv6:
+    try:
+        s = socket.socket(AddressFamily.AF_INET6)
+        try:
+            s.bind(('::1', 0))
+        finally:
+            s.close()
+            del s
+    except OSError:
+        pass
+    else:
+        has_ipv6 = True
+
 
 @pytest.fixture
 def fake_localhost_dns(monkeypatch: MonkeyPatch) -> None:
@@ -53,7 +68,7 @@ def fake_localhost_dns(monkeypatch: MonkeyPatch) -> None:
 @pytest.fixture(params=[
     pytest.param(AddressFamily.AF_INET, id='ipv4'),
     pytest.param(AddressFamily.AF_INET6, id='ipv6',
-                 marks=[pytest.mark.skipif(not socket.has_ipv6, reason='no IPv6 support')])
+                 marks=[pytest.mark.skipif(not has_ipv6, reason='no IPv6 support')])
 ])
 def family(request: SubRequest) -> AnyIPAddressFamily:
     return request.param
@@ -87,7 +102,7 @@ _ignore_win32_resource_warnings = pytest.mark.filterwarnings(
 ) if sys.platform == "win32" else _identity
 
 
-@_ignore_win32_resource_warnings
+@_ignore_win32_resource_warnings  # type: ignore[operator]
 class TestTCPStream:
     @pytest.fixture
     def server_sock(self, family: AnyIPAddressFamily) -> Iterator[socket.socket]:
@@ -194,7 +209,7 @@ class TestTCPStream:
             raw_socket = stream.extra(SocketAttribute.raw_socket)
             assert raw_socket.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
 
-    @pytest.mark.skipif(not socket.has_ipv6, reason='IPv6 is not available')
+    @pytest.mark.skipif(not has_ipv6, reason='IPv6 is not available')
     @pytest.mark.parametrize('local_addr, expected_client_addr', [
         pytest.param('', '::1', id='dualstack'),
         pytest.param('127.0.0.1', '127.0.0.1', id='ipv4'),
@@ -227,7 +242,7 @@ class TestTCPStream:
     @pytest.mark.parametrize('target, exception_class', [
         pytest.param(
             'localhost', ExceptionGroup, id='multi',
-            marks=[pytest.mark.skipif(not socket.has_ipv6, reason='IPv6 is not available')]
+            marks=[pytest.mark.skipif(not has_ipv6, reason='IPv6 is not available')]
         ),
         pytest.param('127.0.0.1', ConnectionRefusedError, id='single')
     ])
@@ -247,9 +262,9 @@ class TestTCPStream:
 
         assert exc.match('All connection attempts failed')
         assert isinstance(exc.value.__cause__, exception_class)
-        if exception_class is ExceptionGroup:
-            for exc in exc.value.__cause__.exceptions:
-                assert isinstance(exc, ConnectionRefusedError)
+        if isinstance(exc.value.__cause__, ExceptionGroup):
+            for exception in exc.value.__cause__.exceptions:
+                assert isinstance(exception, ConnectionRefusedError)
 
     async def test_receive_timeout(self, server_sock: socket.socket,
                                    server_addr: Tuple[str, int]) -> None:
@@ -441,9 +456,9 @@ class TestTCPListener:
     @pytest.mark.parametrize('family', [
         pytest.param(AddressFamily.AF_INET, id='ipv4'),
         pytest.param(AddressFamily.AF_INET6, id='ipv6',
-                     marks=[pytest.mark.skipif(not socket.has_ipv6, reason='no IPv6 support')]),
+                     marks=[pytest.mark.skipif(not has_ipv6, reason='no IPv6 support')]),
         pytest.param(socket.AF_UNSPEC, id='both',
-                     marks=[pytest.mark.skipif(not socket.has_ipv6, reason='no IPv6 support')])
+                     marks=[pytest.mark.skipif(not has_ipv6, reason='no IPv6 support')])
     ])
     async def test_accept(self, family: AnyIPAddressFamily) -> None:
         async with await create_tcp_listener(local_host='localhost', family=family) as multi:
@@ -621,7 +636,7 @@ class TestUNIXStream:
                 client, _ = server_sock.accept()
                 cmsg = (socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)
                 with client:
-                    client.sendmsg([b'test'], [cmsg])  # type: ignore[list-item]
+                    client.sendmsg([b'test'], [cmsg])
 
         async with await connect_unix(socket_path) as stream:
             thread = Thread(target=serve, daemon=True)

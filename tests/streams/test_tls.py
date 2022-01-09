@@ -2,7 +2,7 @@ import socket
 import ssl
 from contextlib import ExitStack
 from threading import Thread
-from typing import NoReturn
+from typing import ContextManager, NoReturn
 
 import pytest
 from trustme import CA
@@ -172,7 +172,7 @@ class TestTLSStream:
             finally:
                 conn.close()
 
-        client_cm = ExitStack()
+        client_cm: ContextManager = ExitStack()
         if client_compatible and not server_compatible:
             client_cm = pytest.raises(BrokenResourceError)
 
@@ -184,12 +184,13 @@ class TestTLSStream:
         server_thread = Thread(target=serve_sync, daemon=True)
         server_thread.start()
 
-        stream = await connect_tcp(*server_sock.getsockname())
-        wrapper = await TLSStream.wrap(stream, hostname='localhost', ssl_context=client_context,
-                                       standard_compatible=client_compatible)
-        with client_cm:
-            assert await wrapper.receive() == b'hello'
-            await wrapper.aclose()
+        async with await connect_tcp(*server_sock.getsockname()) as stream:
+            wrapper = await TLSStream.wrap(stream, hostname='localhost',
+                                           ssl_context=client_context,
+                                           standard_compatible=client_compatible)
+            with client_cm:
+                assert await wrapper.receive() == b'hello'
+                await wrapper.aclose()
 
         server_thread.join()
         server_sock.close()
@@ -308,7 +309,7 @@ class TestTLSStream:
 
 class TestTLSListener:
     async def test_handshake_fail(self, server_context: ssl.SSLContext) -> None:
-        def handler(stream: object) -> NoReturn:  # type: ignore[misc]
+        def handler(stream: object) -> NoReturn:
             pytest.fail('This function should never be called in this scenario')
 
         exception = None

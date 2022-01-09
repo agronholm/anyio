@@ -1,6 +1,6 @@
 import asyncio
 import sys
-from typing import Any, AsyncGenerator, Dict, Generator, List, Optional, Union
+from typing import Any, AsyncGenerator, Coroutine, Dict, Generator, List, Optional, Union, cast
 
 import pytest
 
@@ -87,9 +87,11 @@ async def test_get_running_tasks() -> None:
 def test_wait_generator_based_task_blocked(asyncio_event_loop: asyncio.AbstractEventLoop) -> None:
     async def native_coro_part() -> None:
         await wait_all_tasks_blocked()
-        coro = get_coro(gen_task)
-        assert not coro.gi_running
-        assert coro.gi_yieldfrom.cr_code.co_name == 'wait'
+        gen = cast(Generator, get_coro(gen_task))
+        assert not gen.gi_running
+        coro = cast(Coroutine, gen.gi_yieldfrom)
+        assert coro.cr_code.co_name == 'wait'
+
         event.set()
 
     @asyncio.coroutine

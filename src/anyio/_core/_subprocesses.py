@@ -12,8 +12,9 @@ from ._tasks import create_task_group
 
 async def run_process(command: str | Sequence[str], *, input: bytes | None = None,
                       stdout: int = PIPE, stderr: int = PIPE, check: bool = True,
-                      cwd: str | bytes | PathLike | None = None,
-                      env: Mapping[str, str] | None = None) -> CompletedProcess:
+                      cwd: str | bytes | PathLike[str] | None = None,
+                      env: Mapping[str, str] | None = None, start_new_session: bool = False,
+                      ) -> CompletedProcess[bytes]:
     """
     Run an external command in a subprocess and wait until it completes.
 
@@ -30,6 +31,8 @@ async def run_process(command: str | Sequence[str], *, input: bytes | None = Non
     :param cwd: If not ``None``, change the working directory to this before running the command
     :param env: if not ``None``, this mapping replaces the inherited environment variables from the
         parent process
+    :param start_new_session: if ``true`` the setsid() system call will be made in the child
+        process prior to the execution of the subprocess. (POSIX only)
     :return: an object representing the completed process
     :raises ~subprocess.CalledProcessError: if ``check`` is ``True`` and the process exits with a
         nonzero return code
@@ -43,7 +46,8 @@ async def run_process(command: str | Sequence[str], *, input: bytes | None = Non
         stream_contents[index] = buffer.getvalue()
 
     async with await open_process(command, stdin=PIPE if input else DEVNULL, stdout=stdout,
-                                  stderr=stderr, cwd=cwd, env=env) as process:
+                                  stderr=stderr, cwd=cwd, env=env,
+                                  start_new_session=start_new_session) as process:
         stream_contents: list[bytes | None] = [None, None]
         try:
             async with create_task_group() as tg:
@@ -69,8 +73,9 @@ async def run_process(command: str | Sequence[str], *, input: bytes | None = Non
 
 async def open_process(command: str | Sequence[str], *, stdin: int = PIPE,
                        stdout: int = PIPE, stderr: int = PIPE,
-                       cwd: str | bytes | PathLike | None = None,
-                       env: Mapping[str, str] | None = None) -> Process:
+                       cwd: str | bytes | PathLike[str] | None = None,
+                       env: Mapping[str, str] | None = None,
+                       start_new_session: bool = False) -> Process:
     """
     Start an external command in a subprocess.
 
@@ -85,9 +90,12 @@ async def open_process(command: str | Sequence[str], *, stdin: int = PIPE,
     :param cwd: If not ``None``, the working directory is changed before executing
     :param env: If env is not ``None``, it must be a mapping that defines the environment
         variables for the new process
+    :param start_new_session: if ``true`` the setsid() system call will be made in the child
+        process prior to the execution of the subprocess. (POSIX only)
     :return: an asynchronous process object
 
     """
     shell = isinstance(command, str)
     return await get_asynclib().open_process(command, shell=shell, stdin=stdin, stdout=stdout,
-                                             stderr=stderr, cwd=cwd, env=env)
+                                             stderr=stderr, cwd=cwd, env=env,
+                                             start_new_session=start_new_session)

@@ -8,7 +8,7 @@ opening a process handle for you that gives you more control over the subprocess
 
 You can either give the command as a string, in which case it is passed to your default shell
 (equivalent to ``shell=True`` in :func:`subprocess.run`), or as a sequence of strings
-(``shell=False``) in which the executable is the first item in the sequence and the rest are
+(``shell=False``) in which case the executable is the first item in the sequence and the rest are
 arguments passed to it.
 
 .. note:: On Windows and Python 3.7 and earlier, asyncio uses :class:`~asyncio.SelectorEventLoop`
@@ -29,7 +29,7 @@ To run an external command with one call, use :func:`~run_process`::
 
     run(main)
 
-The snippet above runs the ``ps`` command within a shell (. To run it directly::
+The snippet above runs the ``ps`` command within a shell. To run it directly::
 
     from anyio import run_process, run
 
@@ -104,11 +104,11 @@ There are some limitations regarding the arguments and return values passed:
 
 Other considerations:
 
-* Even "cancellable=False" runs can be cancelled before the request has been sent to the worker process
+* Even ``cancellable=False`` runs can be cancelled before the request has been sent to the worker process
 * If a cancellable call is cancelled during execution on the worker process, the worker process
   will be killed
 * The worker process imports the parent's ``__main__`` module, so guarding for any import time side
-  effects using ``if __name__ == '__main__':`` is required to avoid inifinite recursion
+  effects using ``if __name__ == '__main__':`` is required to avoid infinite recursion
 * ``sys.stdin`` and ``sys.stdout``, ``sys.stderr`` are redirected to ``/dev/null`` so :func:`print`
   and :func:`input` won't work
 * Worker processes terminate after 5 minutes of inactivity, or when the event loop is finished

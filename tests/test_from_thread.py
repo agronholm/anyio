@@ -3,6 +3,7 @@ import threading
 import time
 from concurrent.futures import CancelledError
 from contextlib import asynccontextmanager, suppress
+from contextvars import ContextVar
 from typing import Any, AsyncGenerator, Dict, List, NoReturn, Optional
 
 import pytest
@@ -13,6 +14,7 @@ from anyio import (
     to_thread, wait_all_tasks_blocked)
 from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
+from anyio.lowlevel import checkpoint
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -116,6 +118,22 @@ class TestRunAsyncFromThread:
         exc = pytest.raises(RuntimeError, from_thread.run, foo)
         exc.match('This function can only be run from an AnyIO worker thread')
 
+    async def test_contextvar_propagation(self, anyio_backend_name: str) -> None:
+        if anyio_backend_name == 'asyncio' and sys.version_info < (3, 7):
+            pytest.skip('Asyncio does not propagate context before Python 3.7')
+
+        var = ContextVar('var', default=1)
+
+        async def async_func() -> int:
+            await checkpoint()
+            return var.get()
+
+        def worker() -> int:
+            var.set(6)
+            return from_thread.run(async_func)
+
+        assert await to_thread.run_sync(worker) == 6
+
 
 class TestRunSyncFromThread:
     def test_run_sync_from_unclaimed_thread(self) -> None:
@@ -124,6 +142,15 @@ class TestRunSyncFromThread:
 
         exc = pytest.raises(RuntimeError, from_thread.run_sync, foo)
         exc.match('This function can only be run from an AnyIO worker thread')
+
+    async def test_contextvar_propagation(self) -> None:
+        var = ContextVar('var', default=1)
+
+        def worker() -> int:
+            var.set(6)
+            return from_thread.run_sync(var.get)
+
+        assert await to_thread.run_sync(worker) == 6
 
 
 class TestBlockingPortal:
@@ -393,6 +420,35 @@ class TestBlockingPortal:
             future, start_value = portal.start_task(
                 taskfunc, name='testname')  # type: ignore[arg-type]
             assert start_value == 'testname'
+
+    def test_contextvar_propagation_sync(self, anyio_backend_name: str,
+                                         anyio_backend_options: Dict[str, Any]) -> None:
+        if anyio_backend_name == 'asyncio' and sys.version_info < (3, 7):
+            pytest.skip('Asyncio does not propagate context before Python 3.7')
+
+        var = ContextVar('var', default=1)
+        var.set(6)
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            propagated_value = portal.call(var.get)
+
+        assert propagated_value == 6
+
+    def test_contextvar_propagation_async(self, anyio_backend_name: str,
+                                          anyio_backend_options: Dict[str, Any]) -> None:
+        if anyio_backend_name == 'asyncio' and sys.version_info < (3, 7):
+            pytest.skip('Asyncio does not propagate context before Python 3.7')
+
+        var = ContextVar('var', default=1)
+        var.set(6)
+
+        async def get_var() -> int:
+            await checkpoint()
+            return var.get()
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            propagated_value = portal.call(get_var)
+
+        assert propagated_value == 6
 
     @pytest.mark.parametrize('anyio_backend', ['asyncio'])
     async def test_asyncio_run_sync_called(self, caplog: LogCaptureFixture) -> None:

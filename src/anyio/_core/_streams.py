@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import TypeVar, overload
+from typing import Any, TypeVar, overload
 
 from ..streams.memory import (
     MemoryObjectReceiveStream, MemoryObjectSendStream, MemoryObjectStreamState)
@@ -19,13 +19,13 @@ def create_memory_object_stream(
 @overload
 def create_memory_object_stream(
     max_buffer_size: float = 0
-) -> tuple[MemoryObjectSendStream, MemoryObjectReceiveStream]:
+) -> tuple[MemoryObjectSendStream[Any], MemoryObjectReceiveStream[Any]]:
     ...
 
 
 def create_memory_object_stream(
     max_buffer_size: float = 0, item_type: type[T_Item] | None = None
-) -> tuple[MemoryObjectSendStream, MemoryObjectReceiveStream]:
+) -> tuple[MemoryObjectSendStream[Any], MemoryObjectReceiveStream[Any]]:
     """
     Create a memory object stream.
 
