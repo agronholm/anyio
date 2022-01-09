@@ -86,6 +86,10 @@ class TLSStream(ByteStream):
             purpose = ssl.Purpose.CLIENT_AUTH if server_side else ssl.Purpose.SERVER_AUTH
             ssl_context = ssl.create_default_context(purpose)
 
+            # Re-enable detection of unexpected EOFs if it was disabled by Python
+            if hasattr(ssl, 'OP_IGNORE_UNEXPECTED_EOF'):
+                ssl_context.options ^= ssl.OP_IGNORE_UNEXPECTED_EOF  # type: ignore[attr-defined]
+
         bio_in = ssl.MemoryBIO()
         bio_out = ssl.MemoryBIO()
         ssl_object = ssl_context.wrap_bio(bio_in, bio_out, server_side=server_side,
@@ -119,17 +123,21 @@ class TLSStream(ByteStream):
                     self._read_bio.write(data)
             except ssl.SSLWantWriteError:
                 await self.transport_stream.send(self._write_bio.read())
-            except ssl.SSLEOFError as exc:
-                self._read_bio.write_eof()
-                self._write_bio.write_eof()
-                if self.standard_compatible:
-                    raise BrokenResourceError from exc
-                else:
-                    raise EndOfStream from None
             except ssl.SSLSyscallError as exc:
                 self._read_bio.write_eof()
                 self._write_bio.write_eof()
                 raise BrokenResourceError from exc
+            except ssl.SSLError as exc:
+                self._read_bio.write_eof()
+                self._write_bio.write_eof()
+                if (isinstance(exc, ssl.SSLEOFError)
+                        or 'UNEXPECTED_EOF_WHILE_READING' in exc.strerror):
+                    if self.standard_compatible:
+                        raise BrokenResourceError from exc
+                    else:
+                        raise EndOfStream from None
+
+                raise
             else:
                 # Flush any pending writes first
                 if self._write_bio.pending:

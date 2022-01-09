@@ -184,12 +184,13 @@ class TestTLSStream:
         server_thread = Thread(target=serve_sync, daemon=True)
         server_thread.start()
 
-        stream = await connect_tcp(*server_sock.getsockname())
-        wrapper = await TLSStream.wrap(stream, hostname='localhost', ssl_context=client_context,
-                                       standard_compatible=client_compatible)
-        with client_cm:
-            assert await wrapper.receive() == b'hello'
-            await wrapper.aclose()
+        async with await connect_tcp(*server_sock.getsockname()) as stream:
+            wrapper = await TLSStream.wrap(stream, hostname='localhost',
+                                           ssl_context=client_context,
+                                           standard_compatible=client_compatible)
+            with client_cm:
+                assert await wrapper.receive() == b'hello'
+                await wrapper.aclose()
 
         server_thread.join()
         server_sock.close()
