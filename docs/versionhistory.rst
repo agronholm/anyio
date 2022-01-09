@@ -8,7 +8,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed deadlock in synchronization primitives on asyncio which can happen if a task acquiring a
   primitive is hit with a native (not AnyIO) cancellation with just the right timing, leaving the
   next acquiring task waiting forever (`#398 <https://github.com/agronholm/anyio/issues/398>`_)
-- Fixed compatibility with OpenSSL 3.0
+- Added workaround for bpo-46313_ to enable compatibility with OpenSSL 3.0
+
+.. _bpo-46313: https://bugs.python.org/issue46313
 
 **3.4.0**
 
