@@ -802,6 +802,8 @@ async def test_escaping_cancelled_error_from_cancelled_task() -> None:
         scope.cancel()
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 11),
+                    reason='Generator based coroutines have been removed in Python 3.11')
 @pytest.mark.filterwarnings('ignore:"@coroutine" decorator is deprecated:DeprecationWarning')
 def test_cancel_generator_based_task() -> None:
     from asyncio import coroutine
