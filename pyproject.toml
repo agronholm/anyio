@@ -53,3 +53,30 @@ relative_files = true
 
 [tool.coverage.report]
 show_missing = true
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+minversion = 3.7.0
+envlist = lint, py37, py38, py39, py310, py311, pypy3
+skip_missing_interpreters = true
+isolated_build = true
+
+[testenv]
+depends = lint
+commands = coverage run -m pytest {posargs}
+extras = test
+    trio
+
+[testenv:lint]
+depends =
+basepython = python3
+deps = pre-commit
+commands = pre-commit run --all-files --show-diff-on-failure
+skip_install = true
+
+[testenv:docs]
+depends =
+extras = doc
+commands = sphinx-build docs build/sphinx
+"""
