@@ -21,12 +21,15 @@ from _pytest.monkeypatch import MonkeyPatch
 from _pytest.tmpdir import TempPathFactory
 
 from anyio import (
-    BrokenResourceError, BusyResourceError, ClosedResourceError, Event, ExceptionGroup,
-    TypedAttributeLookupError, connect_tcp, connect_unix, create_connected_udp_socket,
-    create_task_group, create_tcp_listener, create_udp_socket, create_unix_listener, fail_after,
-    getaddrinfo, getnameinfo, move_on_after, sleep, wait_all_tasks_blocked)
+    BrokenResourceError, BusyResourceError, ClosedResourceError, Event, TypedAttributeLookupError,
+    connect_tcp, connect_unix, create_connected_udp_socket, create_task_group, create_tcp_listener,
+    create_udp_socket, create_unix_listener, fail_after, getaddrinfo, getnameinfo, move_on_after,
+    sleep, wait_all_tasks_blocked)
 from anyio.abc import IPSockAddrType, Listener, SocketAttribute, SocketListener, SocketStream
 from anyio.streams.stapled import MultiListener
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 if sys.version_info >= (3, 8):
     from typing import Literal

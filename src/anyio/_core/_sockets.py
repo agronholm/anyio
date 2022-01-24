@@ -20,6 +20,9 @@ from ._resources import aclose_forcefully
 from ._synchronization import Event
 from ._tasks import create_task_group, move_on_after
 
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
+
 if sys.version_info >= (3, 8):
     from typing import Literal
 else:
@@ -182,7 +185,8 @@ async def connect_tcp(
                 await event.wait()
 
     if connected_stream is None:
-        cause = oserrors[0] if len(oserrors) == 1 else asynclib.ExceptionGroup(oserrors)
+        cause = oserrors[0] if len(oserrors) == 1 else ExceptionGroup(
+            "multiple connection attempts failed", oserrors)
         raise OSError('All connection attempts failed') from cause
 
     if tls or tls_hostname or ssl_context:

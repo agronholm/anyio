@@ -25,7 +25,6 @@ from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
 from .._core._eventloop import claim_worker_thread
 from .._core._exceptions import (
     BrokenResourceError, BusyResourceError, ClosedResourceError, EndOfStream)
-from .._core._exceptions import ExceptionGroup as BaseExceptionGroup
 from .._core._sockets import convert_ipv6_sockaddr
 from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
 from .._core._synchronization import Event as BaseEvent
@@ -124,9 +123,6 @@ current_time = trio.current_time
 # Task groups
 #
 
-class ExceptionGroup(BaseExceptionGroup, trio.MultiError):
-    pass
-
 
 class TaskGroup(abc.TaskGroup):
     def __init__(self) -> None:
@@ -145,8 +141,6 @@ class TaskGroup(abc.TaskGroup):
                         exc_tb: TracebackType | None) -> bool | None:
         try:
             return await self._nursery_manager.__aexit__(exc_type, exc_val, exc_tb)
-        except trio.MultiError as exc:
-            raise ExceptionGroup(exc.exceptions) from None
         finally:
             self._active = False
 

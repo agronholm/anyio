@@ -23,8 +23,8 @@ from socket import AddressFamily, SocketKind
 from threading import Thread
 from types import TracebackType
 from typing import (
-    Any, Awaitable, Callable, Collection, Coroutine, Deque, Generator, Mapping, Optional, Sequence,
-    Tuple, TypeVar, cast)
+    Any, Awaitable, Callable, Collection, Coroutine, Deque, Generator, Iterator, Mapping, Optional,
+    Sequence, Tuple, TypeVar, cast)
 from weakref import WeakKeyDictionary
 
 import sniffio
@@ -32,9 +32,7 @@ import sniffio
 from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
 from .._core._eventloop import claim_worker_thread, threadlocals
 from .._core._exceptions import (
-    BrokenResourceError, BusyResourceError, ClosedResourceError, EndOfStream)
-from .._core._exceptions import ExceptionGroup as BaseExceptionGroup
-from .._core._exceptions import WouldBlock
+    BrokenResourceError, BusyResourceError, ClosedResourceError, EndOfStream, WouldBlock)
 from .._core._sockets import GetAddrInfoReturnType, convert_ipv6_sockaddr
 from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
 from .._core._synchronization import Event as BaseEvent
@@ -42,6 +40,9 @@ from .._core._synchronization import ResourceGuard
 from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import IPSockAddrType, UDPPacketType
 from ..lowlevel import RunVar
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import BaseExceptionGroup
 
 if sys.version_info >= (3, 8):
     get_coro = asyncio.Task.get_coro
@@ -451,6 +452,32 @@ class _AsyncioTaskStatus(abc.TaskStatus):
         _task_states[task].parent_id = self._parent_id
 
 
+def collapse_exception_group(excgroup: BaseExceptionGroup) -> BaseException:
+    exceptions = list(excgroup.exceptions)
+    modified = False
+    for i, exc in enumerate(exceptions):
+        if isinstance(exc, BaseExceptionGroup):
+            new_exc = collapse_exception_group(exc)
+            if new_exc is not exc:
+                modified = True
+                exceptions[i] = new_exc
+
+    if len(exceptions) == 1:
+        return exceptions[0]
+    elif modified:
+        return excgroup.derive(exceptions)
+    else:
+        return excgroup
+
+
+def walk_exception_group(excgroup: BaseExceptionGroup) -> Iterator[BaseException]:
+    for exc in excgroup.exceptions:
+        if isinstance(exc, BaseExceptionGroup):
+            yield from walk_exception_group(exc)
+        else:
+            yield exc
+
+
 class TaskGroup(abc.TaskGroup):
     def __init__(self) -> None:
         self.cancel_scope: CancelScope = CancelScope()
@@ -477,25 +504,24 @@ class TaskGroup(abc.TaskGroup):
                 self.cancel_scope.cancel()
 
         self._active = False
-        if not self.cancel_scope._parent_cancelled():
-            exceptions = self._filter_cancellation_errors(self._exceptions)
-        else:
-            exceptions = self._exceptions
+        if self._exceptions:
+            exc: BaseException | None
+            group = BaseExceptionGroup('multiple tasks failed', self._exceptions)
+            if not self.cancel_scope._parent_cancelled():
+                # If any non-cancellation exceptions have been received, raise those
+                _, exc = group.split(CancelledError)
+            elif all(isinstance(e, CancelledError) and not e.args
+                     for e in walk_exception_group(group)):
+                # Tasks were cancelled natively, without a cancellation message
+                exc = CancelledError()
+            else:
+                exc = group
 
-        try:
-            if len(exceptions) > 1:
-                if all(isinstance(e, CancelledError) and not e.args for e in exceptions):
-                    # Tasks were cancelled natively, without a cancellation message
-                    raise CancelledError
-                else:
-                    raise ExceptionGroup(exceptions)
-            elif exceptions and exceptions[0] is not exc_val:
-                raise exceptions[0]
-        except BaseException as exc:
-            # Clear the context here, as it can only be done in-flight.
-            # If the context is not cleared, it can result in recursive tracebacks (see #145).
-            exc.__context__ = None
-            raise
+            if isinstance(exc, BaseExceptionGroup):
+                exc = collapse_exception_group(exc)
+
+            if exc is not None and exc is not exc_val:
+                raise exc
 
         return ignore_exception
 

@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+* **BACKWARDS INCOMPATIBLE** Replaced AnyIO's own ``ExceptionGroup`` class with the PEP 654
+  ``BaseExceptionGroup`` and ``ExceptionGroup``
 - Bumped minimum version of trio to v0.19
 
 **3.5.0**

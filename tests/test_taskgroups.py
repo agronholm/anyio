@@ -1,5 +1,4 @@
 import asyncio
-import re
 import sys
 import time
 from typing import Any, AsyncGenerator, Coroutine, Dict, Generator, NoReturn, Optional, Set
@@ -8,11 +7,13 @@ import pytest
 
 import anyio
 from anyio import (
-    CancelScope, ExceptionGroup, create_task_group, current_effective_deadline, current_time,
-    fail_after, get_cancelled_exc_class, get_current_task, move_on_after, sleep,
-    wait_all_tasks_blocked)
+    CancelScope, create_task_group, current_effective_deadline, current_time, fail_after,
+    get_cancelled_exc_class, get_current_task, move_on_after, sleep, wait_all_tasks_blocked)
 from anyio.abc import TaskGroup, TaskStatus
 from anyio.lowlevel import checkpoint
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 pytestmark = pytest.mark.anyio
 
@@ -376,11 +377,7 @@ async def test_exception_group_children() -> None:
 
     assert len(exc.value.exceptions) == 2
     assert sorted(str(e) for e in exc.value.exceptions) == ['task1', 'task2']
-    assert exc.match('^2 exceptions were raised in the task group:\n')
-    assert exc.match(r'Exception: task\d\n----')
-    assert re.fullmatch(
-        r"<ExceptionGroup: Exception\('task[12]',?\), Exception\('task[12]',?\)>",
-        repr(exc.value))
+    assert exc.match('^multiple tasks failed$')
 
 
 async def test_exception_group_host() -> None:
@@ -392,8 +389,7 @@ async def test_exception_group_host() -> None:
 
     assert len(exc.value.exceptions) == 2
     assert sorted(str(e) for e in exc.value.exceptions) == ['child', 'host']
-    assert exc.match('^2 exceptions were raised in the task group:\n')
-    assert exc.match(r'Exception: host\n----')
+    assert exc.match('^multiple tasks failed$')
 
 
 async def test_escaping_cancelled_exception() -> None:
@@ -762,7 +758,7 @@ async def test_exception_group_filtering() -> None:
         try:
             await anyio.sleep(.1)
         finally:
-            raise Exception('%s task failed' % name)
+            raise Exception(f'{name} task failed')
 
     async def fn() -> None:
         async with anyio.create_task_group() as tg:
@@ -817,22 +813,6 @@ def test_cancel_generator_based_task() -> None:
         yield from native_coro_part()
 
     anyio.run(generator_part, backend='asyncio')  # type: ignore[arg-type]
-
-
-async def test_suppress_exception_context() -> None:
-    """
-    Test that the __context__ attribute has been cleared when the exception is re-raised in the
-    exception group. This prevents recursive tracebacks.
-
-    """
-    with pytest.raises(ValueError) as exc:
-        async with create_task_group() as tg:
-            tg.cancel_scope.cancel()
-            async with create_task_group() as tg2:
-                tg2.start_soon(sleep, 1)
-                raise ValueError
-
-    assert exc.value.__context__ is None
 
 
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
