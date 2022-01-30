@@ -1,3 +1,4 @@
+import sys
 import threading
 from asyncio import iscoroutine
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
@@ -6,8 +7,13 @@ from inspect import isawaitable
 from types import TracebackType
 from typing import (
     Any, AsyncContextManager, Callable, ContextManager, Coroutine, Dict, Generator, Iterable,
-    Optional, Tuple, Type, TypeVar, Union, cast, overload)
+    Iterator, Optional, Tuple, Type, TypeVar, Union, cast, overload)
 from warnings import warn
+
+if sys.version_info < (3, 8):
+    from typing_extensions import Protocol
+else:
+    from typing import Protocol
 
 from ._core import _eventloop
 from ._core._compat import DeprecatedAwaitable
@@ -18,6 +24,12 @@ from .abc._tasks import TaskStatus
 
 T_Retval = TypeVar('T_Retval')
 T_co = TypeVar('T_co')
+T_cov = TypeVar("T_cov", covariant=True)
+
+
+class Awaitable(Protocol[T_cov]):
+    def __await__(self) -> Iterator[T_cov]:
+        ...
 
 
 def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object) -> T_Retval:
@@ -123,6 +135,10 @@ class _BlockingPortalTaskStatus(TaskStatus):
         self._future.set_result(value)
 
 
+_FuncOrAwaitable = Callable[..., Union[Awaitable[T_Retval],
+                                       Coroutine[Any, Any, T_Retval], T_Retval]]
+
+
 class BlockingPortal:
     """An object that lets external threads run code in an asynchronous event loop."""
 
@@ -222,6 +238,10 @@ class BlockingPortal:
         raise NotImplementedError
 
     @overload
+    def call(self, func: Callable[..., Awaitable[T_Retval]], *args: object) -> T_Retval:
+        ...
+
+    @overload
     def call(self, func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object) -> T_Retval:
         ...
 
@@ -229,8 +249,7 @@ class BlockingPortal:
     def call(self, func: Callable[..., T_Retval], *args: object) -> T_Retval:
         ...
 
-    def call(self, func: Callable[..., Union[Coroutine[Any, Any, T_Retval], T_Retval]],
-             *args: object) -> T_Retval:
+    def call(self, func: _FuncOrAwaitable[T_Retval], *args: object) -> T_Retval:
         """
         Call the given function in the event loop thread.
 
@@ -252,12 +271,12 @@ class BlockingPortal:
     def spawn_task(self, func: Callable[..., T_Retval],
                    *args: object, name: object = None) -> "Future[T_Retval]": ...
 
-    def spawn_task(self, func: Callable[..., Union[Coroutine[Any, Any, T_Retval], T_Retval]],
+    def spawn_task(self, func: _FuncOrAwaitable[T_Retval],
                    *args: object, name: object = None) -> "Future[T_Retval]":
         """
         Start a task in the portal's task group.
 
-        :param func: the target coroutine function
+        :param func: the target coroutine function or callable returning an awaitable
         :param args: positional arguments passed to ``func``
         :param name: name of the task (will be coerced to a string if not ``None``)
         :return: a future that resolves with the return value of the callable if the task completes
@@ -275,6 +294,10 @@ class BlockingPortal:
         return self.start_task_soon(func, *args, name=name)  # type: ignore[arg-type]
 
     @overload
+    def start_task_soon(self, func: Callable[..., Awaitable[T_Retval]],
+                        *args: object, name: object = None) -> "Future[T_Retval]": ...
+
+    @overload
     def start_task_soon(self, func: Callable[..., Coroutine[Any, Any, T_Retval]],
                         *args: object, name: object = None) -> "Future[T_Retval]":
         ...
@@ -283,7 +306,7 @@ class BlockingPortal:
     def start_task_soon(self, func: Callable[..., T_Retval],
                         *args: object, name: object = None) -> "Future[T_Retval]": ...
 
-    def start_task_soon(self, func: Callable[..., Union[Coroutine[Any, Any, T_Retval], T_Retval]],
+    def start_task_soon(self, func: _FuncOrAwaitable[T_Retval],
                         *args: object, name: object = None) -> "Future[T_Retval]":
         """
         Start a task in the portal's task group.
@@ -291,7 +314,7 @@ class BlockingPortal:
         The task will be run inside a cancel scope which can be cancelled by cancelling the
         returned future.
 
-        :param func: the target coroutine function
+        :param func: the target coroutine function or callable returning an awaitable
         :param args: positional arguments passed to ``func``
         :param name: name of the task (will be coerced to a string if not ``None``)
         :return: a future that resolves with the return value of the callable if the task completes
@@ -314,7 +337,7 @@ class BlockingPortal:
 
         This method works the same way as :meth:`TaskGroup.start`.
 
-        :param func: the target coroutine function
+        :param func: the target coroutine function or callable returning an awaitable
         :param args: positional arguments passed to ``func``
         :param name: name of the task (will be coerced to a string if not ``None``)
         :return: a tuple of (future, task_status_value) where the ``task_status_value`` is the

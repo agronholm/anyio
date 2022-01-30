@@ -4,7 +4,7 @@ import time
 from concurrent.futures import CancelledError
 from contextlib import suppress
 from contextvars import ContextVar
-from typing import Any, AsyncGenerator, Dict, List, NoReturn, Optional
+from typing import Any, AsyncGenerator, Dict, Iterator, List, NoReturn, Optional
 
 import pytest
 from _pytest.logging import LogCaptureFixture
@@ -177,6 +177,31 @@ class TestBlockingPortal:
         def external_thread() -> None:
             thread_ids.append(portal.call(threading.get_ident))
             thread_ids.append(portal.call(async_get_thread_id))
+
+        thread_ids: List[int] = []
+        async with BlockingPortal() as portal:
+            thread = threading.Thread(target=external_thread)
+            thread.start()
+            await to_thread.run_sync(thread.join)
+
+        for thread_id in thread_ids:
+            assert thread_id == threading.get_ident()
+
+    async def test_successful_call_non_coro(self) -> None:
+        class AsyncGetThreadId:
+            def __init__(self) -> None:
+                self.thread_id = threading.get_ident()
+
+            def __await__(self) -> Iterator[int]:
+                assert self.thread_id == threading.get_ident()
+
+                async def coro() -> int:
+                    return self.thread_id
+                return coro().__await__()
+
+        def external_thread() -> None:
+            thread_ids.append(portal.call(threading.get_ident))
+            thread_ids.append(portal.call(AsyncGetThreadId))
 
         thread_ids: List[int] = []
         async with BlockingPortal() as portal:
