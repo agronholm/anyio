@@ -58,21 +58,26 @@ show_missing = true
 legacy_tox_ini = """
 [tox]
 minversion = 3.7.0
-envlist = lint, py37, py38, py39, py310, py311, pypy3
+envlist = pre-commit, py37, py38, py39, py310, py311, pypy3
 skip_missing_interpreters = true
 isolated_build = true
 
 [testenv]
-depends = lint
+depends = pre-commit
 commands = coverage run -m pytest {posargs}
 extras = test
 
-[testenv:lint]
+[testenv:pre-commit]
 depends =
 basepython = python3
 deps = pre-commit
 commands = pre-commit run --all-files --show-diff-on-failure
 skip_install = true
+
+[testenv:pyright]
+deps = pyright
+commands = pyright --verifytypes anyio
+usedevelop = true
 
 [testenv:docs]
 depends =

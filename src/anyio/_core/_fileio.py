@@ -146,7 +146,7 @@ async def open_file(file: str | PathLike[str] | int, mode: OpenTextMode = ...,
 async def open_file(file: str | PathLike[str] | int, mode: str = 'r', buffering: int = -1,
                     encoding: str | None = None, errors: str | None = None,
                     newline: str | None = None, closefd: bool = True,
-                    opener: Callable[[str, int], int] | None = None) -> AsyncFile:
+                    opener: Callable[[str, int], int] | None = None) -> AsyncFile[Any]:
     """
     Open a file asynchronously.
 
