@@ -1,6 +1,5 @@
 import sys
 import threading
-from asyncio import iscoroutine
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import AbstractContextManager, contextmanager
 from inspect import isawaitable
@@ -195,9 +194,7 @@ class BlockingPortal:
 
         try:
             retval = func(*args, **kwargs)
-            if iscoroutine(retval) or (
-                isawaitable(retval) and not isinstance(retval, DeprecatedAwaitable)
-            ):
+            if isawaitable(retval) and not isinstance(retval, DeprecatedAwaitable):
                 with CancelScope() as scope:
                     if future.cancelled():
                         scope.cancel()
