@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Added support for non-coroutine awaitables in BlockingPortal
+  (`#416 <https://github.com/agronholm/anyio/issues/416>`_)
+
 **3.5.0**
 
 - Added ``start_new_session`` keyword argument to ``run_process()`` and ``open_process()``
