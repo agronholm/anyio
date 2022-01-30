@@ -66,7 +66,6 @@ isolated_build = true
 depends = lint
 commands = coverage run -m pytest {posargs}
 extras = test
-    trio
 
 [testenv:lint]
 depends =
