@@ -478,6 +478,10 @@ def walk_exception_group(excgroup: BaseExceptionGroup) -> Iterator[BaseException
             yield exc
 
 
+def is_anyio_cancelled_exc(exc: BaseException) -> bool:
+    return isinstance(exc, CancelledError) and not exc.args
+
+
 class TaskGroup(abc.TaskGroup):
     def __init__(self) -> None:
         self.cancel_scope: CancelScope = CancelScope()
@@ -508,11 +512,11 @@ class TaskGroup(abc.TaskGroup):
             exc: BaseException | None
             group = BaseExceptionGroup('multiple tasks failed', self._exceptions)
             if not self.cancel_scope._parent_cancelled():
-                # If any non-cancellation exceptions have been received, raise those
-                _, exc = group.split(CancelledError)
-            elif all(isinstance(e, CancelledError) and not e.args
-                     for e in walk_exception_group(group)):
-                # Tasks were cancelled natively, without a cancellation message
+                # If any exceptions other than AnyIO cancellation exceptions have been received,
+                # raise those
+                _, exc = group.split(is_anyio_cancelled_exc)
+            elif all(is_anyio_cancelled_exc(e) for e in walk_exception_group(group)):
+                # All tasks were cancelled by AnyIO
                 exc = CancelledError()
             else:
                 exc = group
