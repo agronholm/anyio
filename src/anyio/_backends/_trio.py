@@ -4,7 +4,6 @@ import array
 import math
 import socket
 from concurrent.futures import Future
-from contextvars import copy_context
 from dataclasses import dataclass
 from functools import partial
 from io import IOBase
@@ -13,9 +12,8 @@ from signal import Signals
 from types import TracebackType
 from typing import (
     Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque, Generic, Mapping,
-    NoReturn, Sequence, TypeVar, cast)
+    NoReturn, Sequence, TypeVar)
 
-import sniffio
 import trio.from_thread
 from outcome import Error, Outcome, Value
 from trio.socket import SocketType as TrioSocketType
@@ -169,37 +167,15 @@ async def run_sync_in_worker_thread(
         with claim_worker_thread('trio'):
             return func(*args)
 
-    # TODO: remove explicit context copying when trio 0.20 is the minimum requirement
-    context = copy_context()
-    context.run(sniffio.current_async_library_cvar.set, None)
-    return await run_sync(context.run, wrapper, cancellable=cancellable, limiter=limiter)
+    return await run_sync(wrapper, cancellable=cancellable, limiter=limiter)
 
 
-# TODO: remove this workaround when trio 0.20 is the minimum requirement
 def run_async_from_thread(fn: Callable[..., Awaitable[T_Retval]], *args: Any) -> T_Retval:
-    async def wrapper() -> T_Retval:
-        retval: T_Retval
-
-        async def inner() -> None:
-            nonlocal retval
-            __tracebackhide__ = True
-            retval = await fn(*args)
-
-        async with trio.open_nursery() as n:
-            context.run(n.start_soon, inner)
-
-        __tracebackhide__ = True
-        return retval
-
-    context = copy_context()
-    context.run(sniffio.current_async_library_cvar.set, 'trio')
-    return trio.from_thread.run(wrapper)
+    return trio.from_thread.run(fn, *args)
 
 
 def run_sync_from_thread(fn: Callable[..., T_Retval], *args: Any) -> T_Retval:
-    # TODO: remove explicit context copying when trio 0.20 is the minimum requirement
-    retval = trio.from_thread.run_sync(copy_context().run, fn, *args)
-    return cast(T_Retval, retval)
+    return trio.from_thread.run_sync(fn, *args)
 
 
 class BlockingPortal(abc.BlockingPortal):
@@ -212,10 +188,8 @@ class BlockingPortal(abc.BlockingPortal):
 
     def _spawn_task_from_thread(self, func: Callable, args: tuple, kwargs: dict[str, Any],
                                 name: object, future: Future) -> None:
-        context = copy_context()
-        context.run(sniffio.current_async_library_cvar.set, 'trio')
         trio.from_thread.run_sync(
-            context.run, partial(self._task_group.start_soon, name=name), self._call_func, func,
+            partial(self._task_group.start_soon, name=name), self._call_func, func,
             args, kwargs, future, trio_token=self._token)
 
 
