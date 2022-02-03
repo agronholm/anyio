@@ -38,6 +38,20 @@ AnyIPAddressFamily = Literal[AddressFamily.AF_UNSPEC, AddressFamily.AF_INET,
 
 pytestmark = pytest.mark.anyio
 
+# If a socket can bind to 127.0.0.1, the current environment has IPv4 properly configured
+has_ipv4 = False
+try:
+    s = socket.socket(AddressFamily.AF_INET)
+    try:
+        s.bind(('127.0.0.1', 0))
+    finally:
+        s.close()
+        del s
+except OSError:
+    pass
+else:
+    has_ipv4 = True
+
 # If a socket can bind to ::1, the current environment has IPv6 properly configured
 has_ipv6 = False
 if socket.has_ipv6:
@@ -53,6 +67,10 @@ if socket.has_ipv6:
     else:
         has_ipv6 = True
 
+skip_ipv4 = pytest.mark.skipif(not has_ipv4, reason='no IPv4 support')
+skip_ipv6 = pytest.mark.skipif(not has_ipv6, reason='no IPv6 support')
+skip_noip = pytest.mark.skipif(not has_ipv4 or not has_ipv6, reason='IP networking not available')
+
 
 @pytest.fixture
 def fake_localhost_dns(monkeypatch: MonkeyPatch) -> None:
@@ -66,9 +84,8 @@ def fake_localhost_dns(monkeypatch: MonkeyPatch) -> None:
 
 
 @pytest.fixture(params=[
-    pytest.param(AddressFamily.AF_INET, id='ipv4'),
-    pytest.param(AddressFamily.AF_INET6, id='ipv6',
-                 marks=[pytest.mark.skipif(not has_ipv6, reason='no IPv6 support')])
+    pytest.param(AddressFamily.AF_INET, id='ipv4', marks=[skip_ipv4]),
+    pytest.param(AddressFamily.AF_INET6, id='ipv6', marks=[skip_ipv6])
 ])
 def family(request: SubRequest) -> AnyIPAddressFamily:
     return request.param
@@ -209,11 +226,10 @@ class TestTCPStream:
             raw_socket = stream.extra(SocketAttribute.raw_socket)
             assert raw_socket.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
 
-    @pytest.mark.skipif(not has_ipv6, reason='IPv6 is not available')
     @pytest.mark.parametrize('local_addr, expected_client_addr', [
-        pytest.param('', '::1', id='dualstack'),
-        pytest.param('127.0.0.1', '127.0.0.1', id='ipv4'),
-        pytest.param('::1', '::1', id='ipv6')
+        pytest.param('', '::1', id='dualstack', marks=[skip_ipv4, skip_ipv6]),
+        pytest.param('127.0.0.1', '127.0.0.1', id='ipv4', marks=[skip_ipv4]),
+        pytest.param('::1', '::1', id='ipv6', marks=[skip_ipv6])
     ])
     async def test_happy_eyeballs(self, local_addr: str, expected_client_addr: str,
                                   fake_localhost_dns: None) -> None:
@@ -240,11 +256,8 @@ class TestTCPStream:
         assert client_addr[0] == expected_client_addr
 
     @pytest.mark.parametrize('target, exception_class', [
-        pytest.param(
-            'localhost', ExceptionGroup, id='multi',
-            marks=[pytest.mark.skipif(not has_ipv6, reason='IPv6 is not available')]
-        ),
-        pytest.param('127.0.0.1', ConnectionRefusedError, id='single')
+        pytest.param('localhost', ExceptionGroup, id='multi', marks=[skip_noip]),
+        pytest.param('127.0.0.1', ConnectionRefusedError, id='single', marks=[skip_ipv4])
     ])
     async def test_connection_refused(
         self,
@@ -438,6 +451,7 @@ class TestTCPStream:
         assert not caplog.text
 
 
+@skip_noip
 class TestTCPListener:
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_tcp_listener(local_host='localhost', family=family) as multi:
@@ -454,11 +468,9 @@ class TestTCPListener:
                               SocketAttribute.remote_port)
 
     @pytest.mark.parametrize('family', [
-        pytest.param(AddressFamily.AF_INET, id='ipv4'),
-        pytest.param(AddressFamily.AF_INET6, id='ipv6',
-                     marks=[pytest.mark.skipif(not has_ipv6, reason='no IPv6 support')]),
-        pytest.param(socket.AF_UNSPEC, id='both',
-                     marks=[pytest.mark.skipif(not has_ipv6, reason='no IPv6 support')])
+        pytest.param(AddressFamily.AF_INET, id='ipv4', marks=[skip_ipv4]),
+        pytest.param(AddressFamily.AF_INET6, id='ipv6', marks=[skip_ipv6]),
+        pytest.param(socket.AF_UNSPEC, id='both', marks=[skip_noip])
     ])
     async def test_accept(self, family: AnyIPAddressFamily) -> None:
         async with await create_tcp_listener(local_host='localhost', family=family) as multi:
@@ -893,6 +905,7 @@ class TestUNIXListener:
                 pass
 
 
+@skip_noip
 async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
     async def handle(stream: SocketStream) -> None:
         client_addresses.append(stream.extra(SocketAttribute.remote_address))
@@ -930,6 +943,7 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
 
 
 @pytest.mark.usefixtures('check_asyncio_bug')
+@skip_noip
 class TestUDPSocket:
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_udp_socket(family=family, local_host='localhost') as udp:
@@ -1028,6 +1042,7 @@ class TestUDPSocket:
 
 
 @pytest.mark.usefixtures('check_asyncio_bug')
+@skip_noip
 class TestConnectedUDPSocket:
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_connected_udp_socket('localhost', 5000, family=family) as udp:
@@ -1123,6 +1138,7 @@ class TestConnectedUDPSocket:
 
 
 @pytest.mark.network
+@skip_noip
 async def test_getaddrinfo() -> None:
     # IDNA 2003 gets this wrong
     correct = await getaddrinfo('faß.de', 0)
@@ -1131,6 +1147,7 @@ async def test_getaddrinfo() -> None:
 
 
 @pytest.mark.parametrize('sock_type', [socket.SOCK_STREAM, socket.SocketKind.SOCK_STREAM])
+@skip_ipv6
 async def test_getaddrinfo_ipv6addr(sock_type: Literal[socket.SocketKind.SOCK_STREAM]) -> None:
     # IDNA trips up over raw IPv6 addresses
     proto = 0 if platform.system() == 'Windows' else 6
@@ -1139,6 +1156,7 @@ async def test_getaddrinfo_ipv6addr(sock_type: Literal[socket.SocketKind.SOCK_ST
     ]
 
 
+@skip_ipv4
 async def test_getnameinfo() -> None:
     expected_result = socket.getnameinfo(('127.0.0.1', 6666), 0)
     result = await getnameinfo(('127.0.0.1', 6666))
