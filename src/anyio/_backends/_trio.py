@@ -11,7 +11,7 @@ from os import PathLike
 from signal import Signals
 from types import TracebackType
 from typing import (
-    Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque, Generic, Mapping,
+    IO, Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque, Generic, Mapping,
     NoReturn, Sequence, TypeVar)
 
 import trio.from_thread
@@ -285,7 +285,9 @@ class Process(abc.Process):
 
 
 async def open_process(command: str | Sequence[str], *, shell: bool,
-                       stdin: int, stdout: int, stderr: int,
+                       stdin: int | IO[Any] | None,
+                       stdout: int | IO[Any] | None,
+                       stderr: int | IO[Any] | None,
                        cwd: str | bytes | PathLike | None = None,
                        env: Mapping[str, str] | None = None,
                        start_new_session: bool = False) -> Process:

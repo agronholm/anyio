@@ -3,7 +3,7 @@ from __future__ import annotations
 from io import BytesIO
 from os import PathLike
 from subprocess import DEVNULL, PIPE, CalledProcessError, CompletedProcess
-from typing import AsyncIterable, Mapping, Sequence, cast
+from typing import IO, Any, AsyncIterable, Mapping, Sequence, cast
 
 from ..abc import Process
 from ._eventloop import get_asynclib
@@ -11,7 +11,9 @@ from ._tasks import create_task_group
 
 
 async def run_process(command: str | Sequence[str], *, input: bytes | None = None,
-                      stdout: int = PIPE, stderr: int = PIPE, check: bool = True,
+                      stdout: int | IO[Any] | None = PIPE,
+                      stderr: int | IO[Any] | None = PIPE,
+                      check: bool = True,
                       cwd: str | bytes | PathLike[str] | None = None,
                       env: Mapping[str, str] | None = None, start_new_session: bool = False,
                       ) -> CompletedProcess[bytes]:
@@ -23,9 +25,10 @@ async def run_process(command: str | Sequence[str], *, input: bytes | None = Non
     :param command: either a string to pass to the shell, or an iterable of strings containing the
         executable name or path and its arguments
     :param input: bytes passed to the standard input of the subprocess
-    :param stdout: either :data:`subprocess.PIPE` or :data:`subprocess.DEVNULL`
-    :param stderr: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL` or
-        :data:`subprocess.STDOUT`
+    :param stdout: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
+        a file-like object, or `None`
+    :param stderr: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
+        :data:`subprocess.STDOUT`, a file-like object, or `None`
     :param check: if ``True``, raise :exc:`~subprocess.CalledProcessError` if the process
         terminates with a return code other than 0
     :param cwd: If not ``None``, change the working directory to this before running the command
@@ -71,8 +74,10 @@ async def run_process(command: str | Sequence[str], *, input: bytes | None = Non
     return CompletedProcess(command, cast(int, process.returncode), output, errors)
 
 
-async def open_process(command: str | Sequence[str], *, stdin: int = PIPE,
-                       stdout: int = PIPE, stderr: int = PIPE,
+async def open_process(command: str | Sequence[str], *,
+                       stdin: int | IO[Any] | None = PIPE,
+                       stdout: int | IO[Any] | None = PIPE,
+                       stderr: int | IO[Any] | None = PIPE,
                        cwd: str | bytes | PathLike[str] | None = None,
                        env: Mapping[str, str] | None = None,
                        start_new_session: bool = False) -> Process:
@@ -83,10 +88,12 @@ async def open_process(command: str | Sequence[str], *, stdin: int = PIPE,
 
     :param command: either a string to pass to the shell, or an iterable of strings containing the
         executable name or path and its arguments
-    :param stdin: either :data:`subprocess.PIPE` or :data:`subprocess.DEVNULL`
-    :param stdout: either :data:`subprocess.PIPE` or :data:`subprocess.DEVNULL`
-    :param stderr: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL` or
-        :data:`subprocess.STDOUT`
+    :param stdin: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`, a
+        file-like object, or `None`
+    :param stdout: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
+        a file-like object, or `None`
+    :param stderr: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
+        :data:`subprocess.STDOUT`, a file-like object, or `None`
     :param cwd: If not ``None``, the working directory is changed before executing
     :param env: If env is not ``None``, it must be a mapping that defines the environment
         variables for the new process
