@@ -71,7 +71,7 @@ class TaskGroup(metaclass=ABCMeta):
             async def do_work(arg1, arg2, kwarg1="", kwarg2=""):
                 # Do work
 
-            task_group.soonify(some_async_func)("spam", "ham", kwarg1="a", kwarg2="b")
+            task_group.soonify(do_work)("spam", "ham", kwarg1="a", kwarg2="b")
 
         :param func: a coroutine function
         :param name: name of the task, for the purposes of introspection and debugging
