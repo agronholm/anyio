@@ -1,10 +1,10 @@
 import functools
+import sys
 import typing
 from abc import ABCMeta, abstractmethod
 from types import TracebackType
 from typing import Any, Callable, Coroutine, Optional, Type, TypeVar
 from warnings import warn
-import sys
 
 if sys.version_info >= (3, 10):
     from typing import ParamSpec
@@ -16,6 +16,7 @@ if typing.TYPE_CHECKING:
 
 T_Retval = TypeVar('T_Retval')
 T_ParamSpec = ParamSpec("T_ParamSpec")
+
 
 class TaskStatus(metaclass=ABCMeta):
     @abstractmethod
@@ -61,7 +62,7 @@ class TaskGroup(metaclass=ABCMeta):
         Create and return a function that when called will start a new task in this
         task group.
 
-        Internally it uses the same ``task_group.start_soon()`` method. But 
+        Internally it uses the same ``task_group.start_soon()`` method. But
         ``task_group.soonify()`` supports keyword arguments additional to positional
         arguments and it adds better support for autocompletion and inline errors
         for the arguments of the function called.
