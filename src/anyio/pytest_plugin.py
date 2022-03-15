@@ -25,7 +25,9 @@ def extract_backend_and_options(backend: object) -> Tuple[str, Dict[str, Any]]:
 
 
 @contextmanager
-def get_runner(backend_name: str, backend_options: Dict[str, Any]) -> Generator[TestRunner, object, None]:
+def get_runner(
+    backend_name: str, backend_options: Dict[str, Any]
+) -> Generator[TestRunner, object, None]:
     global _current_runner
     if _current_runner:
         yield _current_runner
