@@ -6,7 +6,7 @@ from types import TracebackType
 from typing import Deque
 
 from ..lowlevel import cancel_shielded_checkpoint, checkpoint, checkpoint_if_cancelled
-from ._eventloop import get_asynclib
+from ._eventloop import get_async_backend
 from ._exceptions import BusyResourceError, WouldBlock
 from ._tasks import CancelScope
 from ._testing import TaskInfo, get_current_task
@@ -74,7 +74,7 @@ class SemaphoreStatistics:
 
 class Event:
     def __new__(cls) -> Event:
-        return get_asynclib().Event()
+        return get_async_backend().create_event()
 
     def set(self) -> None:
         """Set the flag, notifying all listeners."""
@@ -359,7 +359,7 @@ class Semaphore:
 
 class CapacityLimiter:
     def __new__(cls, total_tokens: float) -> CapacityLimiter:
-        return get_asynclib().CapacityLimiter(total_tokens)
+        return get_async_backend().create_capacity_limiter(total_tokens)
 
     async def __aenter__(self) -> None:
         raise NotImplementedError

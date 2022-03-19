@@ -6,7 +6,7 @@ from subprocess import DEVNULL, PIPE, CalledProcessError, CompletedProcess
 from typing import AsyncIterable, Mapping, Sequence, cast
 
 from ..abc import Process
-from ._eventloop import get_asynclib
+from ._eventloop import get_async_backend
 from ._tasks import create_task_group
 
 
@@ -96,6 +96,6 @@ async def open_process(command: str | Sequence[str], *, stdin: int = PIPE,
 
     """
     shell = isinstance(command, str)
-    return await get_asynclib().open_process(command, shell=shell, stdin=stdin, stdout=stdout,
-                                             stderr=stderr, cwd=cwd, env=env,
-                                             start_new_session=start_new_session)
+    return await get_async_backend().open_process(command, shell=shell, stdin=stdin, stdout=stdout,
+                                                  stderr=stderr, cwd=cwd, env=env,
+                                                  start_new_session=start_new_session)
