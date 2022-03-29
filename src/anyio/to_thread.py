@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Callable, TypeVar
 
-from ._core._eventloop import get_asynclib
+from ._core._eventloop import get_async_backend
 from .abc import CapacityLimiter
 
 T_Retval = TypeVar('T_Retval')
@@ -26,8 +26,8 @@ async def run_sync(
     :return: an awaitable that yields the return value of the function.
 
     """
-    return await get_asynclib().run_sync_in_worker_thread(func, *args, cancellable=cancellable,
-                                                          limiter=limiter)
+    return await get_async_backend().run_sync_in_worker_thread(
+        func, args, cancellable=cancellable, limiter=limiter)
 
 
 def current_default_thread_limiter() -> CapacityLimiter:
@@ -37,4 +37,4 @@ def current_default_thread_limiter() -> CapacityLimiter:
     :return: a capacity limiter object
 
     """
-    return get_asynclib().current_default_thread_limiter()
+    return get_async_backend().current_default_thread_limiter()

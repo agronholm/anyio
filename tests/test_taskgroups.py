@@ -800,13 +800,13 @@ async def test_escaping_cancelled_error_from_cancelled_task() -> None:
                     reason='Generator based coroutines have been removed in Python 3.11')
 @pytest.mark.filterwarnings('ignore:"@coroutine" decorator is deprecated:DeprecationWarning')
 def test_cancel_generator_based_task() -> None:
-    from asyncio import coroutine
-
     async def native_coro_part() -> None:
         with CancelScope() as scope:
-            scope.cancel()
+            asyncio.get_running_loop().call_soon(scope.cancel)
+            await asyncio.sleep(1)
+            pytest.fail('Execution should not have reached this line')
 
-    @coroutine
+    @asyncio.coroutine
     def generator_part() -> Generator[object, BaseException, None]:
         yield from native_coro_part()
 

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Dict, Iterator, Tuple, cast
 import pytest
 import sniffio
 
-from ._core._eventloop import get_all_backends, get_asynclib
+from ._core._eventloop import get_all_backends, get_async_backend
 from .abc import TestRunner
 
 if TYPE_CHECKING:
@@ -33,7 +33,7 @@ def get_runner(backend_name: str, backend_options: dict[str, Any]) -> Iterator[T
         yield _current_runner
         return
 
-    asynclib = get_asynclib(backend_name)
+    asynclib = get_async_backend(backend_name)
     token = None
     if sniffio.current_async_library_cvar.get(None) is None:
         # Since we're in control of the event loop, we can cache the name of the async library
@@ -41,7 +41,7 @@ def get_runner(backend_name: str, backend_options: dict[str, Any]) -> Iterator[T
 
     try:
         backend_options = backend_options or {}
-        with asynclib.TestRunner(**backend_options) as runner:
+        with asynclib.create_test_runner(backend_options) as runner:
             _current_runner = runner
             yield runner
     finally:

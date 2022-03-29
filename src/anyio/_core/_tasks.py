@@ -4,7 +4,7 @@ import math
 from types import TracebackType
 
 from ..abc._tasks import TaskGroup, TaskStatus
-from ._eventloop import get_asynclib
+from ._eventloop import get_async_backend
 
 
 class _IgnoredTaskStatus(TaskStatus):
@@ -24,7 +24,7 @@ class CancelScope:
     """
 
     def __new__(cls, *, deadline: float = math.inf, shield: bool = False) -> CancelScope:
-        return get_asynclib().CancelScope(shield=shield, deadline=deadline)
+        return get_async_backend().create_cancel_scope(shield=shield, deadline=deadline)
 
     def cancel(self) -> None:
         """Cancel this scope immediately."""
@@ -100,8 +100,8 @@ def fail_after(delay: float | None, shield: bool = False) -> FailAfterContextMan
     :rtype: :class:`~typing.ContextManager`\\[:class:`~anyio.abc.CancelScope`\\]
 
     """
-    deadline = (get_asynclib().current_time() + delay) if delay is not None else math.inf
-    cancel_scope = get_asynclib().CancelScope(deadline=deadline, shield=shield)
+    deadline = (get_async_backend().current_time() + delay) if delay is not None else math.inf
+    cancel_scope = get_async_backend().create_cancel_scope(deadline=deadline, shield=shield)
     return FailAfterContextManager(cancel_scope)
 
 
@@ -115,8 +115,8 @@ def move_on_after(delay: float | None, shield: bool = False) -> CancelScope:
     :return: a cancel scope
 
     """
-    deadline = (get_asynclib().current_time() + delay) if delay is not None else math.inf
-    return get_asynclib().CancelScope(deadline=deadline, shield=shield)
+    deadline = (get_async_backend().current_time() + delay) if delay is not None else math.inf
+    return get_async_backend().create_cancel_scope(deadline=deadline, shield=shield)
 
 
 def current_effective_deadline() -> float:
@@ -128,7 +128,7 @@ def current_effective_deadline() -> float:
     :rtype: float
 
     """
-    return get_asynclib().current_effective_deadline()
+    return get_async_backend().current_effective_deadline()
 
 
 def create_task_group() -> TaskGroup:
@@ -138,4 +138,4 @@ def create_task_group() -> TaskGroup:
     :return: a task group
 
     """
-    return get_asynclib().TaskGroup()
+    return get_async_backend().create_task_group()
