@@ -138,6 +138,18 @@ For async fixtures with scopes other than ``function``, you will need to define 
         yield
         await server.shutdown()
 
+.. warning:: Higher scoped async fixtures have some gotchas. First, if you start a network server
+  which binds to one or more ports, those ports will stay bound until the fixture is torn down.
+  When you combine such fixtures with multiple backends, you may encounter a situation where the
+  server won't start because of the previous incarnation of the fixture. Even though that previous
+  incarnation of the fixture is not actively running, its port stays bound. The solution to this is
+  to use ephemeral ports (bind to port 0 and then use something like
+  ``listener.extra(SocketAttribute.local_port)`` to retrieve the automatically assigned port
+  number.
+
+  The other is signal handling. Combining multiple backends with higher scoped signal handlers will
+  almost certainly result in very confusing errors, and is thus strongly discouraged.
+
 Technical details
 -----------------
 
@@ -150,3 +162,7 @@ shut down when that same fixture is being torn down or the test has finished run
 if no async fixtures are used, a separate test runner is created for each test. Conversely, if
 even one async fixture (scoped higher than ``function``) is shared across all tests, only one test
 runner will be created during the test session.
+
+For async generator based fixtures, the test runner spawns a task that handles both the setup and
+teardown phases to enable context-sensitive code to work properly. A common example of this is
+providing a task group as a fixture.

@@ -3,6 +3,7 @@ from __future__ import annotations
 import array
 import math
 import socket
+from collections.abc import Iterable
 from concurrent.futures import Future
 from dataclasses import dataclass
 from functools import partial
@@ -12,8 +13,8 @@ from signal import Signals
 from socket import AddressFamily, SocketKind
 from types import TracebackType
 from typing import (
-    Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque, Generic, Mapping,
-    NoReturn, Sequence, TypeVar, cast)
+    TYPE_CHECKING, Any, AsyncGenerator, Awaitable, Callable, Collection, ContextManager, Coroutine,
+    Deque, Generic, Mapping, NoReturn, Sequence, TypeVar, cast)
 
 import trio.from_thread
 from outcome import Error, Outcome, Value
@@ -45,6 +46,9 @@ try:
     from trio.lowlevel import open_process as trio_open_process  # type: ignore[attr-defined]
 except ImportError:
     from trio import open_process as trio_open_process
+
+if TYPE_CHECKING:
+    from trio_typing import TaskStatus
 
 T = TypeVar('T')
 T_Retval = TypeVar('T_Retval')
@@ -609,14 +613,7 @@ class TestRunner(abc.TestRunner):
     def _main_task_finished(self, outcome: object) -> None:
         self._nursery = None
 
-    def close(self) -> None:
-        if self._stop_event:
-            self._stop_event.set()
-            while self._nursery is not None:
-                self._call_queue.get()()
-
-    def call(self, func: Callable[..., Awaitable[T_Retval]],
-             *args: object, **kwargs: object) -> T_Retval:
+    def _get_nursery(self) -> trio.Nursery:
         if self._nursery is None:
             trio.lowlevel.start_guest_run(
                 self._trio_main, run_sync_soon_threadsafe=self._call_queue.put,
@@ -624,12 +621,50 @@ class TestRunner(abc.TestRunner):
             while self._nursery is None:
                 self._call_queue.get()()
 
-        self._nursery.start_soon(self._call_func, func, args, kwargs)
+        return self._nursery
+
+    def _call(self, func: Callable[..., Awaitable[T_Retval]],
+              *args: object, **kwargs: object) -> T_Retval:
+        self._get_nursery().start_soon(self._call_func, func, args, kwargs)
         while not self._result_queue:
             self._call_queue.get()()
 
         outcome = self._result_queue.pop()
         return outcome.unwrap()
+
+    def close(self) -> None:
+        if self._stop_event:
+            self._stop_event.set()
+            while self._nursery is not None:
+                self._call_queue.get()()
+
+    def run_asyncgen_fixture(self, fixture_func: Callable[..., AsyncGenerator[T_Retval, Any]],
+                             args: tuple[Any, ...], kwargs: dict[str, Any]) -> Iterable[T_Retval]:
+        async def fixture_runner(*, task_status: TaskStatus) -> None:
+            agen = fixture_func(*args, **kwargs)
+            retval = await agen.asend(None)
+            task_status.started(retval)
+            await teardown_event.wait()
+            try:
+                await agen.asend(None)
+            except StopAsyncIteration:
+                pass
+            else:
+                await agen.aclose()
+                raise RuntimeError('Async generator fixture did not stop')
+
+        teardown_event = trio.Event()
+        fixture_value = self._call(lambda: self._get_nursery().start(fixture_runner))
+        yield fixture_value
+        teardown_event.set()
+
+    def run_fixture(self, fixture_func: Callable[..., Coroutine[Any, Any, T_Retval]],
+                    args: tuple[Any, ...], kwargs: dict[str, Any]) -> T_Retval:
+        return self._call(fixture_func, *args, **kwargs)
+
+    def run_test(self, test_func: Callable[..., Coroutine[Any, Any, Any]],
+                 kwargs: dict[str, Any]) -> None:
+        self._call(test_func, **kwargs)
 
 
 class TrioBackend(AsyncBackend):
