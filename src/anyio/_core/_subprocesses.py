@@ -89,11 +89,11 @@ async def open_process(command: str | Sequence[str], *,
     :param command: either a string to pass to the shell, or an iterable of strings containing the
         executable name or path and its arguments
     :param stdin: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`, a
-        file-like object, or `None`
+        file-like object, or ``None``
     :param stdout: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
-        a file-like object, or `None`
+        a file-like object, or ``None``
     :param stderr: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
-        :data:`subprocess.STDOUT`, a file-like object, or `None`
+        :data:`subprocess.STDOUT`, a file-like object, or ``None``
     :param cwd: If not ``None``, the working directory is changed before executing
     :param env: If env is not ``None``, it must be a mapping that defines the environment
         variables for the new process
