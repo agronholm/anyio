@@ -183,7 +183,7 @@ current_token = get_running_loop
 
 def _task_started(task: asyncio.Task) -> bool:
     """Return ``True`` if the task has been started and has not finished."""
-    coro = get_coro(task)
+    coro = cast(Coroutine[Any, Any, Any], get_coro(task))
     try:
         return getcoroutinestate(coro) in (CORO_RUNNING, CORO_SUSPENDED)
     except AttributeError:
@@ -1362,7 +1362,7 @@ class TCPSocketListener(abc.SocketListener):
 
         client_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         transport, protocol = await self._loop.connect_accepted_socket(StreamProtocol, client_sock)
-        return SocketStream(cast(asyncio.Transport, transport), cast(StreamProtocol, protocol))
+        return SocketStream(cast(asyncio.Transport, transport), protocol)
 
     async def aclose(self) -> None:
         if self._closed:
@@ -1552,7 +1552,7 @@ async def create_udp_socket(
         DatagramProtocol, local_addr=local_address, remote_addr=remote_address, family=family,
         reuse_port=reuse_port)
     transport = cast(asyncio.DatagramTransport, result[0])
-    protocol = cast(DatagramProtocol, result[1])
+    protocol = result[1]
     if protocol.exception:
         transport.close()
         raise protocol.exception
@@ -1568,7 +1568,7 @@ async def getaddrinfo(host: Union[bytes, str], port: Union[str, int, None], *,
                       proto: int = 0, flags: int = 0) -> GetAddrInfoReturnType:
     # https://github.com/python/typeshed/pull/4304
     result = await get_running_loop().getaddrinfo(
-        host, port, family=family, type=type, proto=proto, flags=flags)  # type: ignore[arg-type]
+        host, port, family=family, type=type, proto=proto, flags=flags)
     return cast(GetAddrInfoReturnType, result)
 
 

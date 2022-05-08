@@ -102,7 +102,9 @@ def test_wait_generator_based_task_blocked(asyncio_event_loop: asyncio.AbstractE
         yield from event.wait()
 
     event = asyncio.Event()
-    gen_task = asyncio_event_loop.create_task(generator_part())
+    gen_task: asyncio.Task[None] = asyncio_event_loop.create_task(
+        generator_part()  # type: ignore[arg-type]
+    )
     asyncio_event_loop.run_until_complete(native_coro_part())
 
 
@@ -116,7 +118,7 @@ async def test_wait_all_tasks_blocked_asend(anyio_backend: str) -> None:
     agen = agen_func()
     coro = agen.asend(None)
     loop = asyncio.get_event_loop()
-    task = loop.create_task(coro)
+    task: asyncio.Task[None] = loop.create_task(coro)  # type: ignore[arg-type]
     await wait_all_tasks_blocked()
     await task
     await agen.aclose()

@@ -546,7 +546,7 @@ async def test_cancel_host_asyncgen() -> None:
 
     host_agen = host_agen_fn()
     try:
-        await asyncio.get_event_loop().create_task(host_agen.__anext__())
+        await asyncio.get_event_loop().create_task(host_agen.__anext__())  # type: ignore[arg-type]
     finally:
         await host_agen.aclose()
 
