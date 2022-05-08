@@ -83,6 +83,8 @@ async def test_get_running_tasks() -> None:
         assert repr(task) == f'TaskInfo(id={task.id}, name={expected_name!r})'
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 11),
+                    reason='Generator based coroutines have been removed in Python 3.11')
 @pytest.mark.filterwarnings('ignore:"@coroutine" decorator is deprecated:DeprecationWarning')
 def test_wait_generator_based_task_blocked(asyncio_event_loop: asyncio.AbstractEventLoop) -> None:
     async def native_coro_part() -> None:
