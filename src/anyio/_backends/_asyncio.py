@@ -1717,7 +1717,7 @@ class AsyncIOBackend(AsyncBackend):
                            cwd: str | bytes | PathLike | None = None,
                            env: Mapping[str, str] | None = None,
                            start_new_session: bool = False) -> Process:
-        await checkpoint()
+        await cls.checkpoint()
         if shell:
             process = await asyncio.create_subprocess_shell(
                 command, stdin=stdin, stdout=stdout,  # type: ignore[arg-type]

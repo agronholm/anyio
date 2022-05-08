@@ -714,7 +714,7 @@ class TrioBackend(AsyncBackend):
         return BlockingPortal()
 
     @classmethod
-    async def open_process(command: str | Sequence[str], *, shell: bool,
+    async def open_process(cls, command: str | Sequence[str], *, shell: bool,
                            stdin: int | IO[Any] | None,
                            stdout: int | IO[Any] | None,
                            stderr: int | IO[Any] | None,
