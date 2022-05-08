@@ -121,6 +121,7 @@ async def test_run_process_connect_to_file(tmp_path: Path) -> None:
             stderr=ferr,
         ) as p:
             assert await p.wait() == 0
+
     assert stdoutfile.read_text() == "stdin says 'Hello, process!' and stdout says YES!\n"
     assert stderrfile.read_text() == "stdin says 'Hello, process!' but stderr says NO!\n"
 
