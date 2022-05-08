@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Awaitable, Generator
 
-from ._eventloop import get_asynclib
+from ._eventloop import get_async_backend
 
 
 class TaskInfo:
@@ -50,7 +50,7 @@ def get_current_task() -> TaskInfo:
     :return: a representation of the current task
 
     """
-    return get_asynclib().get_current_task()
+    return get_async_backend().get_current_task()
 
 
 def get_running_tasks() -> list[TaskInfo]:
@@ -60,9 +60,9 @@ def get_running_tasks() -> list[TaskInfo]:
     :return: a list of task info objects
 
     """
-    return get_asynclib().get_running_tasks()
+    return get_async_backend().get_running_tasks()
 
 
 async def wait_all_tasks_blocked() -> None:
     """Wait until all other tasks are waiting for something."""
-    await get_asynclib().wait_all_tasks_blocked()
+    await get_async_backend().wait_all_tasks_blocked()

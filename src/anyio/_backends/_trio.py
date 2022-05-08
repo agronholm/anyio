@@ -9,13 +9,15 @@ from functools import partial
 from io import IOBase
 from os import PathLike
 from signal import Signals
+from socket import AddressFamily, SocketKind
 from types import TracebackType
 from typing import (
-    IO, Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque, Generic, Mapping,
-    NoReturn, Sequence, TypeVar)
+    Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque, Generic, IO, Mapping,
+    NoReturn, Sequence, TypeVar, cast)
 
 import trio.from_thread
 from outcome import Error, Outcome, Value
+from trio.lowlevel import TrioToken
 from trio.socket import SocketType as TrioSocketType
 from trio.to_thread import run_sync
 
@@ -23,12 +25,13 @@ from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
 from .._core._eventloop import claim_worker_thread
 from .._core._exceptions import (
     BrokenResourceError, BusyResourceError, ClosedResourceError, EndOfStream)
-from .._core._sockets import convert_ipv6_sockaddr
+from .._core._sockets import GetAddrInfoReturnType, convert_ipv6_sockaddr
 from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
 from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import ResourceGuard
 from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import IPSockAddrType, UDPPacketType
+from ..abc._eventloop import AsyncBackend
 
 try:
     from trio import lowlevel as trio_lowlevel
@@ -52,16 +55,7 @@ T_SockAddr = TypeVar('T_SockAddr', str, IPSockAddrType)
 # Event loop
 #
 
-run = trio.run
-current_token = trio.lowlevel.current_trio_token
 RunVar = trio.lowlevel.RunVar
-
-
-#
-# Miscellaneous
-#
-
-sleep = trio.sleep
 
 
 #
@@ -109,14 +103,6 @@ class CancelScope(BaseCancelScope):
         self.__original.shield = value
 
 
-CancelledError = trio.Cancelled
-checkpoint = trio.lowlevel.checkpoint
-checkpoint_if_cancelled = trio.lowlevel.checkpoint_if_cancelled
-cancel_shielded_checkpoint = trio.lowlevel.cancel_shielded_checkpoint
-current_effective_deadline = trio.current_effective_deadline
-current_time = trio.current_time
-
-
 #
 # Task groups
 #
@@ -158,24 +144,6 @@ class TaskGroup(abc.TaskGroup):
 #
 # Threads
 #
-
-
-async def run_sync_in_worker_thread(
-        func: Callable[..., T_Retval], *args: object, cancellable: bool = False,
-        limiter: trio.CapacityLimiter | None = None) -> T_Retval:
-    def wrapper() -> T_Retval:
-        with claim_worker_thread('trio'):
-            return func(*args)
-
-    return await run_sync(wrapper, cancellable=cancellable, limiter=limiter)
-
-
-def run_async_from_thread(fn: Callable[..., Awaitable[T_Retval]], *args: Any) -> T_Retval:
-    return trio.from_thread.run(fn, *args)
-
-
-def run_sync_from_thread(fn: Callable[..., T_Retval], *args: Any) -> T_Retval:
-    return trio.from_thread.run_sync(fn, *args)
 
 
 class BlockingPortal(abc.BlockingPortal):
@@ -284,22 +252,6 @@ class Process(abc.Process):
         return self._stderr
 
 
-async def open_process(command: str | Sequence[str], *, shell: bool,
-                       stdin: int | IO[Any] | None,
-                       stdout: int | IO[Any] | None,
-                       stderr: int | IO[Any] | None,
-                       cwd: str | bytes | PathLike | None = None,
-                       env: Mapping[str, str] | None = None,
-                       start_new_session: bool = False) -> Process:
-    process = await trio_open_process(command, stdin=stdin, stdout=stdout, stderr=stderr,
-                                      shell=shell, cwd=cwd, env=env,
-                                      start_new_session=start_new_session)
-    stdin_stream = SendStreamWrapper(process.stdin) if process.stdin else None
-    stdout_stream = ReceiveStreamWrapper(process.stdout) if process.stdout else None
-    stderr_stream = ReceiveStreamWrapper(process.stderr) if process.stderr else None
-    return Process(process, stdin_stream, stdout_stream, stderr_stream)
-
-
 class _ProcessPoolShutdownInstrument(trio.abc.Instrument):
     def after_run(self) -> None:
         super().after_run()
@@ -312,7 +264,7 @@ current_default_worker_process_limiter: RunVar = RunVar(
 async def _shutdown_process_pool(workers: set[Process]) -> None:
     process: Process
     try:
-        await sleep(math.inf)
+        await trio.sleep(math.inf)
     except trio.Cancelled:
         for process in workers:
             if process.returncode is None:
@@ -321,10 +273,6 @@ async def _shutdown_process_pool(workers: set[Process]) -> None:
         with CancelScope(shield=True):
             for process in workers:
                 await process.aclose()
-
-
-def setup_process_pool_exit_at_shutdown(workers: set[Process]) -> None:
-    trio.lowlevel.spawn_system_task(_shutdown_process_pool, workers)
 
 
 #
@@ -403,7 +351,7 @@ class UNIXSocketStream(SocketStream, abc.UNIXSocketStream):
             raise ValueError('maxfds must be a positive integer')
 
         fds = array.array("i")
-        await checkpoint()
+        await trio.lowlevel.checkpoint()
         with self._receive_guard:
             while True:
                 try:
@@ -440,7 +388,7 @@ class UNIXSocketStream(SocketStream, abc.UNIXSocketStream):
                 filenos.append(fd.fileno())
 
         fdarray = array.array("i", filenos)
-        await checkpoint()
+        await trio.lowlevel.checkpoint()
         with self._send_guard:
             while True:
                 try:
@@ -527,81 +475,10 @@ class ConnectedUDPSocket(_TrioSocketMixin[IPSockAddrType], abc.ConnectedUDPSocke
             except BaseException as exc:
                 self._convert_socket_error(exc)
 
-
-async def connect_tcp(host: str, port: int,
-                      local_address: IPSockAddrType | None = None) -> SocketStream:
-    family = socket.AF_INET6 if ':' in host else socket.AF_INET
-    trio_socket = trio.socket.socket(family)
-    trio_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-    if local_address:
-        await trio_socket.bind(local_address)
-
-    try:
-        await trio_socket.connect((host, port))
-    except BaseException:
-        trio_socket.close()
-        raise
-
-    return SocketStream(trio_socket)
-
-
-async def connect_unix(path: str) -> UNIXSocketStream:
-    trio_socket = trio.socket.socket(socket.AF_UNIX)
-    try:
-        await trio_socket.connect(path)
-    except BaseException:
-        trio_socket.close()
-        raise
-
-    return UNIXSocketStream(trio_socket)
-
-
-async def create_udp_socket(
-    family: socket.AddressFamily,
-    local_address: IPSockAddrType | None,
-    remote_address: IPSockAddrType | None,
-    reuse_port: bool
-) -> UDPSocket | ConnectedUDPSocket:
-    trio_socket = trio.socket.socket(family=family, type=socket.SOCK_DGRAM)
-
-    if reuse_port:
-        trio_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-
-    if local_address:
-        await trio_socket.bind(local_address)
-
-    if remote_address:
-        await trio_socket.connect(remote_address)
-        return ConnectedUDPSocket(trio_socket)
-    else:
-        return UDPSocket(trio_socket)
-
-
-getaddrinfo = trio.socket.getaddrinfo
-getnameinfo = trio.socket.getnameinfo
-
-
-async def wait_socket_readable(sock: socket.socket) -> None:
-    try:
-        await wait_readable(sock)
-    except trio.ClosedResourceError as exc:
-        raise ClosedResourceError().with_traceback(exc.__traceback__) from None
-    except trio.BusyResourceError:
-        raise BusyResourceError('reading from') from None
-
-
-async def wait_socket_writable(sock: socket.socket) -> None:
-    try:
-        await wait_writable(sock)
-    except trio.ClosedResourceError as exc:
-        raise ClosedResourceError().with_traceback(exc.__traceback__) from None
-    except trio.BusyResourceError:
-        raise BusyResourceError('writing to') from None
-
-
 #
 # Synchronization
 #
+
 
 class Event(BaseEvent):
     def __new__(cls) -> Event:
@@ -683,15 +560,6 @@ class CapacityLimiter(BaseCapacityLimiter):
 _capacity_limiter_wrapper: RunVar = RunVar('_capacity_limiter_wrapper')
 
 
-def current_default_thread_limiter() -> CapacityLimiter:
-    try:
-        return _capacity_limiter_wrapper.get()
-    except LookupError:
-        limiter = CapacityLimiter(original=trio.to_thread.current_default_thread_limiter())
-        _capacity_limiter_wrapper.set(limiter)
-        return limiter
-
-
 #
 # Signal handling
 #
@@ -708,46 +576,9 @@ class _SignalReceiver(Generic[T]):
                  exc_tb: TracebackType | None) -> bool | None:
         return self._cm.__exit__(exc_type, exc_val, exc_tb)
 
-
-def open_signal_receiver(*signals: Signals) -> _SignalReceiver:
-    cm = trio.open_signal_receiver(*signals)
-    return _SignalReceiver(cm)
-
 #
 # Testing and debugging
 #
-
-
-def get_current_task() -> TaskInfo:
-    task = trio_lowlevel.current_task()
-
-    parent_id = None
-    if task.parent_nursery and task.parent_nursery.parent_task:
-        parent_id = id(task.parent_nursery.parent_task)
-
-    return TaskInfo(id(task), parent_id, task.name, task.coro)
-
-
-def get_running_tasks() -> list[TaskInfo]:
-    root_task = trio_lowlevel.current_root_task()
-    task_infos = [TaskInfo(id(root_task), None, root_task.name, root_task.coro)]
-    nurseries = root_task.child_nurseries
-    while nurseries:
-        new_nurseries: list[trio.Nursery] = []
-        for nursery in nurseries:
-            for task in nursery.child_tasks:
-                task_infos.append(
-                    TaskInfo(id(task), id(nursery.parent_task), task.name, task.coro))
-                new_nurseries.extend(task.child_nurseries)
-
-        nurseries = new_nurseries
-
-    return task_infos
-
-
-def wait_all_tasks_blocked() -> Awaitable[None]:
-    import trio.testing
-    return trio.testing.wait_all_tasks_blocked()
 
 
 class TestRunner(abc.TestRunner):
@@ -799,3 +630,247 @@ class TestRunner(abc.TestRunner):
 
         outcome = self._result_queue.pop()
         return outcome.unwrap()
+
+
+class TrioBackend(AsyncBackend):
+    @classmethod
+    def run(cls, func: Callable[..., Coroutine[Any, Any, T_Retval]], args: tuple,
+            kwargs: dict[str, Any], options: dict[str, Any]) -> T_Retval:
+        return trio.run(func, *args)
+
+    @classmethod
+    def current_token(cls) -> object:
+        return trio.lowlevel.current_trio_token()
+
+    @classmethod
+    def current_time(cls) -> float:
+        return trio.current_time()
+
+    @classmethod
+    def cancelled_exception_class(cls) -> type[BaseException]:
+        return trio.Cancelled
+
+    @classmethod
+    async def checkpoint(cls) -> None:
+        await trio.lowlevel.checkpoint()
+
+    @classmethod
+    async def checkpoint_if_cancelled(cls) -> None:
+        await trio.lowlevel.checkpoint_if_cancelled()
+
+    @classmethod
+    async def cancel_shielded_checkpoint(cls) -> None:
+        await trio.lowlevel.cancel_shielded_checkpoint()
+
+    @classmethod
+    async def sleep(cls, delay: float) -> None:
+        await trio.sleep(delay)
+
+    @classmethod
+    def create_cancel_scope(cls, *, deadline: float = math.inf,
+                            shield: bool = False) -> abc.CancelScope:
+        return CancelScope(deadline=deadline, shield=shield)
+
+    @classmethod
+    def current_effective_deadline(cls) -> float:
+        return trio.current_effective_deadline()
+
+    @classmethod
+    def create_task_group(cls) -> abc.TaskGroup:
+        return TaskGroup()
+
+    @classmethod
+    def create_event(cls) -> abc.Event:
+        return Event()
+
+    @classmethod
+    def create_capacity_limiter(cls, total_tokens: float) -> CapacityLimiter:
+        return CapacityLimiter(total_tokens)
+
+    @classmethod
+    async def run_sync_in_worker_thread(cls, func: Callable[..., T_Retval], args: tuple[Any, ...],
+                                        cancellable: bool = False,
+                                        limiter: abc.CapacityLimiter | None = None) -> T_Retval:
+        def wrapper() -> T_Retval:
+            with claim_worker_thread(TrioBackend, token):
+                return func(*args)
+
+        token = TrioBackend.current_token()
+        return await run_sync(wrapper, cancellable=cancellable,
+                              limiter=cast(trio.CapacityLimiter, limiter))
+
+    @classmethod
+    def run_async_from_thread(cls, func: Callable[..., Coroutine[Any, Any, T_Retval]],
+                              args: tuple[Any, ...], token: object) -> T_Retval:
+        return trio.from_thread.run(func, *args, trio_token=cast(TrioToken, token))
+
+    @classmethod
+    def run_sync_from_thread(cls, func: Callable[..., T_Retval], args: tuple[Any, ...],
+                             token: object) -> T_Retval:
+        return trio.from_thread.run_sync(func, *args, trio_token=cast(TrioToken, token))
+
+    @classmethod
+    def create_blocking_portal(cls) -> abc.BlockingPortal:
+        return BlockingPortal()
+
+    @classmethod
+    async def open_process(command: str | Sequence[str], *, shell: bool,
+                           stdin: int | IO[Any] | None,
+                           stdout: int | IO[Any] | None,
+                           stderr: int | IO[Any] | None,
+                           cwd: str | bytes | PathLike | None = None,
+                           env: Mapping[str, str] | None = None,
+                           start_new_session: bool = False) -> Process:
+        process = await trio_open_process(command, stdin=stdin, stdout=stdout, stderr=stderr,
+                                          shell=shell, cwd=cwd, env=env,
+                                          start_new_session=start_new_session)
+        stdin_stream = SendStreamWrapper(process.stdin) if process.stdin else None
+        stdout_stream = ReceiveStreamWrapper(process.stdout) if process.stdout else None
+        stderr_stream = ReceiveStreamWrapper(process.stderr) if process.stderr else None
+        return Process(process, stdin_stream, stdout_stream, stderr_stream)
+
+    @classmethod
+    def setup_process_pool_exit_at_shutdown(cls, workers: set[abc.Process]) -> None:
+        trio.lowlevel.spawn_system_task(_shutdown_process_pool, workers)
+
+    @classmethod
+    async def connect_tcp(cls, host: str, port: int,
+                          local_address: IPSockAddrType | None = None) -> SocketStream:
+        family = socket.AF_INET6 if ':' in host else socket.AF_INET
+        trio_socket = trio.socket.socket(family)
+        trio_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        if local_address:
+            await trio_socket.bind(local_address)
+
+        try:
+            await trio_socket.connect((host, port))
+        except BaseException:
+            trio_socket.close()
+            raise
+
+        return SocketStream(trio_socket)
+
+    @classmethod
+    async def connect_unix(cls, path: str) -> abc.UNIXSocketStream:
+        trio_socket = trio.socket.socket(socket.AF_UNIX)
+        try:
+            await trio_socket.connect(path)
+        except BaseException:
+            trio_socket.close()
+            raise
+
+        return UNIXSocketStream(trio_socket)
+
+    @classmethod
+    def create_tcp_listener(cls, sock: socket.socket) -> abc.SocketListener:
+        return TCPSocketListener(sock)
+
+    @classmethod
+    def create_unix_listener(cls, sock: socket.socket) -> abc.SocketListener:
+        return UNIXSocketListener(sock)
+
+    @classmethod
+    async def create_udp_socket(
+        cls,
+        family: socket.AddressFamily,
+        local_address: IPSockAddrType | None,
+        remote_address: IPSockAddrType | None,
+        reuse_port: bool
+    ) -> UDPSocket | ConnectedUDPSocket:
+        trio_socket = trio.socket.socket(family=family, type=socket.SOCK_DGRAM)
+
+        if reuse_port:
+            trio_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+
+        if local_address:
+            await trio_socket.bind(local_address)
+
+        if remote_address:
+            await trio_socket.connect(remote_address)
+            return ConnectedUDPSocket(trio_socket)
+        else:
+            return UDPSocket(trio_socket)
+
+    @classmethod
+    async def getaddrinfo(cls, host: str | bytes, port: str | int | None, *,
+                          family: int | AddressFamily = 0, type: int | SocketKind = 0,
+                          proto: int = 0, flags: int = 0) -> GetAddrInfoReturnType:
+        # https: // github.com / python - trio / trio - typing / pull / 57
+        return await trio.socket.getaddrinfo(  # type: ignore[return-value]
+            host, port, family, type, proto, flags)
+
+    @classmethod
+    async def getnameinfo(cls, sockaddr: IPSockAddrType, flags: int = 0) -> tuple[str, str]:
+        # https://github.com/python-trio/trio-typing/pull/56
+        return await trio.socket.getnameinfo(sockaddr, flags)  # type: ignore[return-value]
+
+    @classmethod
+    async def wait_socket_readable(cls, sock: socket.socket) -> None:
+        try:
+            await wait_readable(sock)
+        except trio.ClosedResourceError as exc:
+            raise ClosedResourceError().with_traceback(exc.__traceback__) from None
+        except trio.BusyResourceError:
+            raise BusyResourceError('reading from') from None
+
+    @classmethod
+    async def wait_socket_writable(cls, sock: socket.socket) -> None:
+        try:
+            await wait_writable(sock)
+        except trio.ClosedResourceError as exc:
+            raise ClosedResourceError().with_traceback(exc.__traceback__) from None
+        except trio.BusyResourceError:
+            raise BusyResourceError('writing to') from None
+
+    @classmethod
+    def current_default_thread_limiter(cls) -> CapacityLimiter:
+        try:
+            return _capacity_limiter_wrapper.get()
+        except LookupError:
+            limiter = CapacityLimiter(original=trio.to_thread.current_default_thread_limiter())
+            _capacity_limiter_wrapper.set(limiter)
+            return limiter
+
+    @classmethod
+    def open_signal_receiver(cls, *signals: Signals) -> ContextManager:
+        cm = trio.open_signal_receiver(*signals)
+        return _SignalReceiver(cm)
+
+    @classmethod
+    def get_current_task(cls) -> TaskInfo:
+        task = trio_lowlevel.current_task()
+
+        parent_id = None
+        if task.parent_nursery and task.parent_nursery.parent_task:
+            parent_id = id(task.parent_nursery.parent_task)
+
+        return TaskInfo(id(task), parent_id, task.name, task.coro)
+
+    @classmethod
+    def get_running_tasks(cls) -> list[TaskInfo]:
+        root_task = trio_lowlevel.current_root_task()
+        task_infos = [TaskInfo(id(root_task), None, root_task.name, root_task.coro)]
+        nurseries = root_task.child_nurseries
+        while nurseries:
+            new_nurseries: list[trio.Nursery] = []
+            for nursery in nurseries:
+                for task in nursery.child_tasks:
+                    task_infos.append(
+                        TaskInfo(id(task), id(nursery.parent_task), task.name, task.coro))
+                    new_nurseries.extend(task.child_nurseries)
+
+            nurseries = new_nurseries
+
+        return task_infos
+
+    @classmethod
+    async def wait_all_tasks_blocked(cls) -> None:
+        from trio.testing import wait_all_tasks_blocked
+        await wait_all_tasks_blocked()
+
+    @classmethod
+    def create_test_runner(cls, options: dict[str, Any]) -> TestRunner:
+        return TestRunner(**options)
+
+
+backend_class = TrioBackend

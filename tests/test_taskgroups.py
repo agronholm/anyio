@@ -13,7 +13,7 @@ from anyio.abc import TaskGroup, TaskStatus
 from anyio.lowlevel import checkpoint
 
 if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
+    from exceptiongroup import BaseExceptionGroup
 
 pytestmark = pytest.mark.anyio
 
@@ -370,18 +370,17 @@ async def test_cancel_exiting_task_group() -> None:
 
 
 async def test_exception_group_children() -> None:
-    with pytest.raises(ExceptionGroup) as exc:
+    with pytest.raises(BaseExceptionGroup) as exc:
         async with create_task_group() as tg:
             tg.start_soon(async_error, 'task1')
             tg.start_soon(async_error, 'task2', 0.15)
 
     assert len(exc.value.exceptions) == 2
     assert sorted(str(e) for e in exc.value.exceptions) == ['task1', 'task2']
-    assert exc.match('^multiple tasks failed$')
 
 
 async def test_exception_group_host() -> None:
-    with pytest.raises(ExceptionGroup) as exc:
+    with pytest.raises(BaseExceptionGroup) as exc:
         async with create_task_group() as tg:
             tg.start_soon(async_error, 'child', 2)
             await wait_all_tasks_blocked()
@@ -389,7 +388,6 @@ async def test_exception_group_host() -> None:
 
     assert len(exc.value.exceptions) == 2
     assert sorted(str(e) for e in exc.value.exceptions) == ['child', 'host']
-    assert exc.match('^multiple tasks failed$')
 
 
 async def test_escaping_cancelled_exception() -> None:
@@ -537,7 +535,7 @@ async def test_cancel_host_asyncgen() -> None:
 
     host_agen = host_agen_fn()
     try:
-        await asyncio.get_event_loop().create_task(host_agen.__anext__())
+        await asyncio.get_event_loop().create_task(host_agen.__anext__())  # type: ignore[arg-type]
     finally:
         await host_agen.aclose()
 
@@ -767,7 +765,7 @@ async def test_exception_group_filtering() -> None:
                 tg2.start_soon(fail, 'child')
                 await anyio.sleep(1)
 
-    with pytest.raises(ExceptionGroup) as exc:
+    with pytest.raises(BaseExceptionGroup) as exc:
         await fn()
 
     assert len(exc.value.exceptions) == 2
@@ -802,13 +800,13 @@ async def test_escaping_cancelled_error_from_cancelled_task() -> None:
                     reason='Generator based coroutines have been removed in Python 3.11')
 @pytest.mark.filterwarnings('ignore:"@coroutine" decorator is deprecated:DeprecationWarning')
 def test_cancel_generator_based_task() -> None:
-    from asyncio import coroutine
-
     async def native_coro_part() -> None:
         with CancelScope() as scope:
-            scope.cancel()
+            asyncio.get_running_loop().call_soon(scope.cancel)
+            await asyncio.sleep(1)
+            pytest.fail('Execution should not have reached this line')
 
-    @coroutine
+    @asyncio.coroutine
     def generator_part() -> Generator[object, BaseException, None]:
         yield from native_coro_part()
 

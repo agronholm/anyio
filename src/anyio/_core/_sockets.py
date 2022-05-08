@@ -15,7 +15,7 @@ from ..abc import (
     UNIXSocketStream)
 from ..streams.stapled import MultiListener
 from ..streams.tls import TLSStream
-from ._eventloop import get_asynclib
+from ._eventloop import get_async_backend
 from ._resources import aclose_forcefully
 from ._synchronization import Event
 from ._tasks import create_task_group, move_on_after
@@ -142,7 +142,7 @@ async def connect_tcp(
         finally:
             event.set()
 
-    asynclib = get_asynclib()
+    asynclib = get_async_backend()
     local_address: IPSockAddrType | None = None
     family = socket.AF_UNSPEC
     if local_host:
@@ -213,7 +213,7 @@ async def connect_unix(path: str | PathLike[str]) -> UNIXSocketStream:
 
     """
     path = str(Path(path))
-    return await get_asynclib().connect_unix(path)
+    return await get_async_backend().connect_unix(path)
 
 
 async def create_tcp_listener(
@@ -236,7 +236,7 @@ async def create_tcp_listener(
     :return: a list of listener objects
 
     """
-    asynclib = get_asynclib()
+    asynclib = get_async_backend()
     backlog = min(backlog, 65536)
     local_host = str(local_host) if local_host is not None else None
     gai_res = await getaddrinfo(local_host, local_port, family=family,  # type: ignore[arg-type]
@@ -265,7 +265,7 @@ async def create_tcp_listener(
 
             raw_socket.bind(sockaddr)
             raw_socket.listen(backlog)
-            listener = asynclib.TCPSocketListener(raw_socket)
+            listener = asynclib.create_tcp_listener(raw_socket)
             listeners.append(listener)
     except BaseException:
         for listener in listeners:
@@ -308,7 +308,7 @@ async def create_unix_listener(
             await to_thread.run_sync(chmod, path_str, mode, cancellable=True)
 
         raw_socket.listen(backlog)
-        return get_asynclib().UNIXSocketListener(raw_socket)
+        return get_async_backend().create_unix_listener(raw_socket)
     except BaseException:
         raw_socket.close()
         raise
@@ -347,7 +347,8 @@ async def create_udp_socket(
     else:
         local_address = ('0.0.0.0', 0)
 
-    return await get_asynclib().create_udp_socket(family, local_address, None, reuse_port)
+    sock = await get_async_backend().create_udp_socket(family, local_address, None, reuse_port)
+    return cast(UDPSocket, sock)
 
 
 async def create_connected_udp_socket(
@@ -385,11 +386,12 @@ async def create_connected_udp_socket(
     family = cast(AnyIPAddressFamily, gai_res[0][0])
     remote_address = gai_res[0][-1]
 
-    return await get_asynclib().create_udp_socket(family, local_address, remote_address,
-                                                  reuse_port)
+    sock = await get_async_backend().create_udp_socket(family, local_address, remote_address,
+                                                       reuse_port)
+    return cast(ConnectedUDPSocket, sock)
 
 
-async def getaddrinfo(host: bytearray | bytes | str, port: str | int | None, *,
+async def getaddrinfo(host: str, port: str | int | None, *,
                       family: int | AddressFamily = 0, type: int | SocketKind = 0,
                       proto: int = 0, flags: int = 0) -> GetAddrInfoReturnType:
     """
@@ -422,8 +424,8 @@ async def getaddrinfo(host: bytearray | bytes | str, port: str | int | None, *,
     else:
         encoded_host = host
 
-    gai_res = await get_asynclib().getaddrinfo(encoded_host, port, family=family, type=type,
-                                               proto=proto, flags=flags)
+    gai_res = await get_async_backend().getaddrinfo(encoded_host, port, family=family, type=type,
+                                                    proto=proto, flags=flags)
     return [(family, type, proto, canonname, convert_ipv6_sockaddr(sockaddr))
             for family, type, proto, canonname, sockaddr in gai_res]
 
@@ -439,7 +441,7 @@ def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Awaitable[tuple[str
     .. seealso:: :func:`socket.getnameinfo`
 
     """
-    return get_asynclib().getnameinfo(sockaddr, flags)
+    return get_async_backend().getnameinfo(sockaddr, flags)
 
 
 def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
@@ -459,7 +461,7 @@ def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
         to become readable
 
     """
-    return get_asynclib().wait_socket_readable(sock)
+    return get_async_backend().wait_socket_readable(sock)
 
 
 def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
@@ -479,7 +481,7 @@ def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
         to become writable
 
     """
-    return get_asynclib().wait_socket_writable(sock)
+    return get_async_backend().wait_socket_writable(sock)
 
 
 #

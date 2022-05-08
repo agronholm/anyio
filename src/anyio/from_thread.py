@@ -10,7 +10,7 @@ from typing import (
     cast, overload)
 
 from ._core import _eventloop
-from ._core._eventloop import get_asynclib, get_cancelled_exc_class, threadlocals
+from ._core._eventloop import get_async_backend, get_cancelled_exc_class, threadlocals
 from ._core._synchronization import Event
 from ._core._tasks import CancelScope, create_task_group
 from .abc._tasks import TaskStatus
@@ -29,11 +29,12 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object) -> T_
 
     """
     try:
-        asynclib = threadlocals.current_async_module
+        async_backend = threadlocals.current_async_backend
+        token = threadlocals.current_token
     except AttributeError:
         raise RuntimeError('This function can only be run from an AnyIO worker thread')
 
-    return asynclib.run_async_from_thread(func, *args)
+    return async_backend.run_async_from_thread(func, args, token=token)
 
 
 def run_sync(func: Callable[..., T_Retval], *args: object) -> T_Retval:
@@ -46,11 +47,12 @@ def run_sync(func: Callable[..., T_Retval], *args: object) -> T_Retval:
 
     """
     try:
-        asynclib = threadlocals.current_async_module
+        async_backend = threadlocals.current_async_backend
+        token = threadlocals.current_token
     except AttributeError:
         raise RuntimeError('This function can only be run from an AnyIO worker thread')
 
-    return asynclib.run_sync_from_thread(func, *args)
+    return async_backend.run_sync_from_thread(func, args, token=token)
 
 
 class _BlockingAsyncContextManager(AbstractContextManager):
@@ -113,7 +115,7 @@ class BlockingPortal:
     """An object that lets external threads run code in an asynchronous event loop."""
 
     def __new__(cls) -> BlockingPortal:
-        return get_asynclib().BlockingPortal()
+        return get_async_backend().create_blocking_portal()
 
     def __init__(self) -> None:
         self._event_loop_thread_id: int | None = threading.get_ident()
@@ -188,8 +190,8 @@ class BlockingPortal:
         finally:
             scope = None  # type: ignore[assignment]
 
-    def _spawn_task_from_thread(self, func: Callable, args: tuple, kwargs: dict[str, Any],
-                                name: object, future: Future) -> None:
+    def _spawn_task_from_thread(self, func: Callable, args: tuple[Any, ...],
+                                kwargs: dict[str, Any], name: object, future: Future) -> None:
         """
         Spawn a new task using the given callable.
 
@@ -335,8 +337,12 @@ def start_blocking_portal(
 
     future: Future[BlockingPortal] = Future()
     with ThreadPoolExecutor(1) as executor:
-        run_future = executor.submit(_eventloop.run, run_portal, backend=backend,
-                                     backend_options=backend_options)
+        run_future = executor.submit(
+            _eventloop.run,
+            run_portal,  # type: ignore[arg-type]
+            backend=backend,
+            backend_options=backend_options
+        )
         try:
             wait(cast(Iterable[Future], [run_future, future]), return_when=FIRST_COMPLETED)
         except BaseException:

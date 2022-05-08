@@ -1,15 +1,47 @@
-__all__ = ('AsyncResource', 'IPAddressType', 'IPSockAddrType', 'SocketAttribute', 'SocketStream',
-           'SocketListener', 'UDPSocket', 'UNIXSocketStream', 'UDPPacketType',
-           'ConnectedUDPSocket', 'UnreliableObjectReceiveStream', 'UnreliableObjectSendStream',
-           'UnreliableObjectStream', 'ObjectReceiveStream', 'ObjectSendStream', 'ObjectStream',
-           'ByteReceiveStream', 'ByteSendStream', 'ByteStream', 'AnyUnreliableByteReceiveStream',
-           'AnyUnreliableByteSendStream', 'AnyUnreliableByteStream', 'AnyByteReceiveStream',
-           'AnyByteSendStream', 'AnyByteStream', 'Listener', 'Process', 'Event',
-           'Condition', 'Lock', 'Semaphore', 'CapacityLimiter', 'CancelScope', 'TaskGroup',
-           'TaskStatus', 'TestRunner', 'BlockingPortal')
+__all__ = (
+    'AsyncBackend',
+    'AsyncResource',
+    'IPAddressType',
+    'IPSockAddrType',
+    'SocketAttribute',
+    'SocketStream',
+    'SocketListener',
+    'UDPSocket',
+    'UNIXSocketStream',
+    'UDPPacketType',
+    'ConnectedUDPSocket',
+    'UnreliableObjectReceiveStream',
+    'UnreliableObjectSendStream',
+    'UnreliableObjectStream',
+    'ObjectReceiveStream',
+    'ObjectSendStream',
+    'ObjectStream',
+    'ByteReceiveStream',
+    'ByteSendStream',
+    'ByteStream',
+    'AnyUnreliableByteReceiveStream',
+    'AnyUnreliableByteSendStream',
+    'AnyUnreliableByteStream',
+    'AnyByteReceiveStream',
+    'AnyByteSendStream',
+    'AnyByteStream',
+    'Listener',
+    'Process',
+    'Event',
+    'Condition',
+    'Lock',
+    'Semaphore',
+    'CapacityLimiter',
+    'CancelScope',
+    'TaskGroup',
+    'TaskStatus',
+    'TestRunner',
+    'BlockingPortal'
+)
 
 from typing import Any
 
+from ._eventloop import AsyncBackend
 from ._resources import AsyncResource
 from ._sockets import (
     ConnectedUDPSocket, IPAddressType, IPSockAddrType, SocketAttribute, SocketListener,
