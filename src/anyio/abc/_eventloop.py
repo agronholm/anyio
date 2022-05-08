@@ -6,7 +6,7 @@ from collections.abc import Coroutine, Mapping
 from os import PathLike
 from signal import Signals
 from socket import AddressFamily, SocketKind, socket
-from typing import TYPE_CHECKING, Any, Callable, ContextManager, Sequence, TypeVar
+from typing import IO, TYPE_CHECKING, Any, Callable, ContextManager, Sequence, TypeVar
 
 if TYPE_CHECKING:
     from .._core._sockets import GetAddrInfoReturnType
@@ -182,7 +182,9 @@ class AsyncBackend(metaclass=ABCMeta):
     @classmethod
     @abstractmethod
     async def open_process(cls, command: str | Sequence[str], *, shell: bool,
-                           stdin: int, stdout: int, stderr: int,
+                           stdin: int | IO[Any] | None,
+                           stdout: int | IO[Any] | None,
+                           stderr: int | IO[Any] | None,
                            cwd: str | bytes | PathLike[str] | None = None,
                            env: Mapping[str, str] | None = None,
                            start_new_session: bool = False) -> Process:

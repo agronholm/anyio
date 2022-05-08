@@ -25,8 +25,8 @@ from socket import AddressFamily, SocketKind
 from threading import Thread
 from types import TracebackType
 from typing import (
-    Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque, Generator, Iterator,
-    Mapping, Optional, Sequence, Tuple, TypeVar, cast)
+    IO, Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque, Generator,
+    Iterator, Mapping, Optional, Sequence, Tuple, TypeVar, cast)
 from weakref import WeakKeyDictionary
 
 import sniffio
@@ -1710,9 +1710,11 @@ class AsyncIOBackend(AsyncBackend):
         return BlockingPortal()
 
     @classmethod
-    async def open_process(cls, command: str | Sequence[str], *, shell: bool, stdin: int,
-                           stdout: int, stderr: int,
-                           cwd: str | bytes | PathLike[str] | None = None,
+    async def open_process(cls, command: str | Sequence[str], *, shell: bool,
+                           stdin: int | IO[Any] | None,
+                           stdout: int | IO[Any] | None,
+                           stderr: int | IO[Any] | None,
+                           cwd: str | bytes | PathLike | None = None,
                            env: Mapping[str, str] | None = None,
                            start_new_session: bool = False) -> Process:
         await cls.checkpoint()
