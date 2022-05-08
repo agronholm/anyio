@@ -131,5 +131,5 @@ async def test_run_process_inherit_stdout(capfd: pytest.CaptureFixture[str]) -> 
                        'import sys; print("stderr-text", file=sys.stderr); '
                        'print("stdout-text")'], check=True, stdout=None, stderr=None)
     out, err = capfd.readouterr()
-    assert out == "stdout-text\n"
-    assert err == "stderr-text\n"
+    assert out == "stdout-text" + os.linesep
+    assert err == "stderr-text" + os.linesep
