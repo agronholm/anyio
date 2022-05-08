@@ -41,7 +41,8 @@ filterwarnings = [
     "ignore:unclosed <socket.socket.*:ResourceWarning",
     "ignore:unclosed transport <_ProactorSocketTransport.*:ResourceWarning",
     # Workaround for Python 3.9.7 (see https://bugs.python.org/issue45097)
-    "ignore:The loop argument is deprecated since Python 3\\.8, and scheduled for removal in Python 3\\.10\\.:DeprecationWarning:asyncio"
+    "ignore:The loop argument is deprecated since Python 3\\.8, and scheduled for removal in Python 3\\.10\\.:DeprecationWarning:asyncio",
+    "ignore:Python 3.6 is no longer supported*"
 ]
 markers = [
     "network: marks tests as requiring Internet access",
