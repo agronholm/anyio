@@ -1132,7 +1132,7 @@ class TCPSocketListener(abc.SocketListener):
 
         client_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         transport, protocol = await self._loop.connect_accepted_socket(StreamProtocol, client_sock)
-        return SocketStream(cast(asyncio.Transport, transport), cast(StreamProtocol, protocol))
+        return SocketStream(cast(asyncio.Transport, transport), protocol)
 
     async def aclose(self) -> None:
         if self._closed:
@@ -1825,7 +1825,7 @@ class AsyncIOBackend(AsyncBackend):
             DatagramProtocol, local_addr=local_address, remote_addr=remote_address, family=family,
             reuse_port=reuse_port)
         transport = cast(asyncio.DatagramTransport, result[0])
-        protocol = cast(DatagramProtocol, result[1])
+        protocol = result[1]
         if protocol.exception:
             transport.close()
             raise protocol.exception
@@ -1839,10 +1839,8 @@ class AsyncIOBackend(AsyncBackend):
     async def getaddrinfo(cls, host: str | bytes, port: str | int | None, *,
                           family: int | AddressFamily = 0, type: int | SocketKind = 0,
                           proto: int = 0, flags: int = 0) -> GetAddrInfoReturnType:
-        # https://github.com/python/typeshed/pull/7517
         result = await get_running_loop().getaddrinfo(
-            host, port, family=family, type=type, proto=proto,  # type: ignore[arg-type]
-            flags=flags)
+            host, port, family=family, type=type, proto=proto, flags=flags)
         return cast(GetAddrInfoReturnType, result)
 
     @classmethod
