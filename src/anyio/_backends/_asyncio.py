@@ -25,7 +25,7 @@ from socket import AddressFamily, SocketKind
 from threading import Thread
 from types import TracebackType
 from typing import (
-    Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque, Generator, IO,
+    IO, Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque, Generator,
     Iterator, Mapping, Optional, Sequence, Tuple, TypeVar, cast)
 from weakref import WeakKeyDictionary
 

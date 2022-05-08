@@ -12,7 +12,7 @@ from signal import Signals
 from socket import AddressFamily, SocketKind
 from types import TracebackType
 from typing import (
-    Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque, Generic, IO, Mapping,
+    IO, Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque, Generic, Mapping,
     NoReturn, Sequence, TypeVar, cast)
 
 import trio.from_thread
