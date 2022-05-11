@@ -29,28 +29,28 @@ class TestRunner(metaclass=ABCMeta):
 
     @abstractmethod
     def run_asyncgen_fixture(
-        self, fixture_func: Callable[..., AsyncGenerator[_T, Any]],
-        args: tuple[Any, ...], kwargs: dict[str, Any]
+        self,
+        fixture_func: Callable[..., AsyncGenerator[_T, Any]],
+        kwargs: dict[str, Any]
     ) -> Iterable[_T]:
         """
         Run an async generator fixture.
 
         :param fixture_func: the fixture function
-        :param args:
-        :param kwargs:
-        :param args: positional arguments to call the fixture function with
         :param kwargs: keyword arguments to call the fixture function with
         :return: an iterator yielding the value yielded from the async generator
         """
 
     @abstractmethod
-    def run_fixture(self, fixture_func: Callable[..., Coroutine[Any, Any, _T]],
-                    args: tuple[Any, ...], kwargs: dict[str, Any]) -> _T:
+    def run_fixture(
+        self,
+        fixture_func: Callable[..., Coroutine[Any, Any, _T]],
+        kwargs: dict[str, Any]
+    ) -> _T:
         """
         Run an async fixture.
 
         :param fixture_func: the fixture function
-        :param args: positional arguments to call the fixture function with
         :param kwargs: keyword arguments to call the fixture function with
         :return: the return value of the fixture function
         """

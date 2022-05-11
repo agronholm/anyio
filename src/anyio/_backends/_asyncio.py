@@ -1530,9 +1530,9 @@ class TestRunner(abc.TestRunner):
             self._loop.close()
 
     def run_asyncgen_fixture(self, fixture_func: Callable[..., AsyncGenerator[T_Retval, Any]],
-                             args: tuple[Any, ...], kwargs: dict[str, Any]) -> Iterable[T_Retval]:
+                             kwargs: dict[str, Any]) -> Iterable[T_Retval]:
         async def fixture_runner() -> None:
-            agen = fixture_func(*args, **kwargs)
+            agen = fixture_func(**kwargs)
             try:
                 retval = await agen.asend(None)
                 self._raise_async_exceptions()
@@ -1561,8 +1561,8 @@ class TestRunner(abc.TestRunner):
         self._raise_async_exceptions()
 
     def run_fixture(self, fixture_func: Callable[..., Coroutine[Any, Any, T_Retval]],
-                    args: tuple[Any, ...], kwargs: dict[str, Any]) -> T_Retval:
-        retval = self._loop.run_until_complete(fixture_func(*args, **kwargs))
+                    kwargs: dict[str, Any]) -> T_Retval:
+        retval = self._loop.run_until_complete(fixture_func(**kwargs))
         self._raise_async_exceptions()
         return retval
 

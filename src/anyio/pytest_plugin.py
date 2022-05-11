@@ -64,9 +64,9 @@ def pytest_fixture_setup(fixturedef: Any, request: FixtureRequest) -> None:
 
         with get_runner(backend_name, backend_options) as runner:
             if isasyncgenfunction(func):
-                yield from runner.run_asyncgen_fixture(func, args, kwargs)
+                yield from runner.run_asyncgen_fixture(func, kwargs)
             else:
-                yield runner.run_fixture(func, args, kwargs)
+                yield runner.run_fixture(func, kwargs)
 
     # Only apply this to coroutine functions and async generator functions in requests that involve
     # the anyio_backend fixture

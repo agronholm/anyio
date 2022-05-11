@@ -639,9 +639,9 @@ class TestRunner(abc.TestRunner):
                 self._call_queue.get()()
 
     def run_asyncgen_fixture(self, fixture_func: Callable[..., AsyncGenerator[T_Retval, Any]],
-                             args: tuple[Any, ...], kwargs: dict[str, Any]) -> Iterable[T_Retval]:
+                             kwargs: dict[str, Any]) -> Iterable[T_Retval]:
         async def fixture_runner(*, task_status: TaskStatus) -> None:
-            agen = fixture_func(*args, **kwargs)
+            agen = fixture_func(**kwargs)
             retval = await agen.asend(None)
             task_status.started(retval)
             await teardown_event.wait()
@@ -659,8 +659,8 @@ class TestRunner(abc.TestRunner):
         teardown_event.set()
 
     def run_fixture(self, fixture_func: Callable[..., Coroutine[Any, Any, T_Retval]],
-                    args: tuple[Any, ...], kwargs: dict[str, Any]) -> T_Retval:
-        return self._call(fixture_func, *args, **kwargs)
+                    kwargs: dict[str, Any]) -> T_Retval:
+        return self._call(fixture_func, **kwargs)
 
     def run_test(self, test_func: Callable[..., Coroutine[Any, Any, Any]],
                  kwargs: dict[str, Any]) -> None:
