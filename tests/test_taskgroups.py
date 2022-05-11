@@ -1032,7 +1032,9 @@ def test_unhandled_exception_group(caplog: pytest.LogCaptureFixture) -> None:
 
 
 @pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="Cancel messages are only supported on py3.9+"
+    sys.version_info < (3, 9),
+    sys.version_info >= (3, 11),
+    reason="Cancel messages are only supported on Python 3.9 and 3.10",
 )
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_cancellederror_combination_with_message() -> None:
