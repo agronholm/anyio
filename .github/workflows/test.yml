@@ -1,4 +1,4 @@
-name: Run the test suite
+name: test suite
 
 on:
   push:
@@ -63,6 +63,12 @@ jobs:
       run: coverage run -m pytest
       env:
         PYTEST_DISABLE_PLUGIN_AUTOLOAD: 1
+      if: ${{ matrix.python-version != '3.11-dev' }}
+    - name: Test with pytest
+      run: pytest
+      env:
+        PYTEST_DISABLE_PLUGIN_AUTOLOAD: 1
+      if: ${{ matrix.python-version == '3.11-dev' }}
     - name: Upload Coverage
       run: coveralls --service=github
       env:
