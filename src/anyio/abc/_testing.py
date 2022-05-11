@@ -1,6 +1,7 @@
 import types
 from abc import ABCMeta, abstractmethod
-from typing import Any, Awaitable, Callable, Dict, Optional, Type, TypeVar
+from collections.abc import AsyncGenerator, Iterable
+from typing import Any, Callable, Coroutine, Optional, Type, TypeVar
 
 _T = TypeVar("_T")
 
@@ -28,17 +29,40 @@ class TestRunner(metaclass=ABCMeta):
         """Close the event loop."""
 
     @abstractmethod
-    def call(
+    def run_asyncgen_fixture(
         self,
-        func: Callable[..., Awaitable[_T]],
-        *args: object,
-        **kwargs: Dict[str, Any]
+        fixture_func: Callable[..., AsyncGenerator[_T, Any]],
+        kwargs: dict[str, Any],
+    ) -> Iterable[_T]:
+        """
+        Run an async generator fixture.
+
+        :param fixture_func: the fixture function
+        :param kwargs: keyword arguments to call the fixture function with
+        :return: an iterator yielding the value yielded from the async generator
+        """
+
+    @abstractmethod
+    def run_fixture(
+        self,
+        fixture_func: Callable[..., Coroutine[Any, Any, _T]],
+        kwargs: dict[str, Any],
     ) -> _T:
         """
-        Call the given function within the backend's event loop.
+        Run an async fixture.
 
-        :param func: a callable returning an awaitable
-        :param args: positional arguments to call ``func`` with
-        :param kwargs: keyword arguments to call ``func`` with
-        :return: the return value of ``func``
+        :param fixture_func: the fixture function
+        :param kwargs: keyword arguments to call the fixture function with
+        :return: the return value of the fixture function
+        """
+
+    @abstractmethod
+    def run_test(
+        self, test_func: Callable[..., Coroutine[Any, Any, Any]], kwargs: dict[str, Any]
+    ) -> None:
+        """
+        Run an async test function.
+
+        :param test_func: the test function
+        :param kwargs: keyword arguments to call the test function with
         """
