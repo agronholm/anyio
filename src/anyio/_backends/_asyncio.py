@@ -26,7 +26,7 @@ from socket import AddressFamily, SocketKind
 from threading import Thread
 from types import TracebackType
 from typing import (
-    Any, AsyncGenerator, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque,
+    IO, Any, AsyncGenerator, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque,
     Generator, Iterator, Mapping, Optional, Sequence, Tuple, TypeVar, cast)
 from weakref import WeakKeyDictionary
 
@@ -48,7 +48,8 @@ if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup
 
 if sys.version_info >= (3, 8):
-    get_coro = asyncio.Task.get_coro
+    def get_coro(task: asyncio.Task) -> Generator | Awaitable[Any]:
+        return task.get_coro()
 else:
     def get_coro(task: asyncio.Task) -> Generator | Awaitable[Any]:
         return task._coro
@@ -1750,9 +1751,11 @@ class AsyncIOBackend(AsyncBackend):
         return BlockingPortal()
 
     @classmethod
-    async def open_process(cls, command: str | Sequence[str], *, shell: bool, stdin: int,
-                           stdout: int, stderr: int,
-                           cwd: str | bytes | PathLike[str] | None = None,
+    async def open_process(cls, command: str | Sequence[str], *, shell: bool,
+                           stdin: int | IO[Any] | None,
+                           stdout: int | IO[Any] | None,
+                           stderr: int | IO[Any] | None,
+                           cwd: str | bytes | PathLike | None = None,
                            env: Mapping[str, str] | None = None,
                            start_new_session: bool = False) -> Process:
         await cls.checkpoint()

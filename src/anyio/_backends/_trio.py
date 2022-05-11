@@ -13,8 +13,8 @@ from signal import Signals
 from socket import AddressFamily, SocketKind
 from types import TracebackType
 from typing import (
-    TYPE_CHECKING, Any, AsyncGenerator, Awaitable, Callable, Collection, ContextManager, Coroutine,
-    Deque, Generic, Mapping, NoReturn, Sequence, TypeVar, cast)
+    IO, TYPE_CHECKING, Any, AsyncGenerator, Awaitable, Callable, Collection, ContextManager,
+    Coroutine, Deque, Generic, Mapping, NoReturn, Sequence, TypeVar, cast)
 
 import trio.from_thread
 from outcome import Error, Outcome, Value
@@ -750,7 +750,9 @@ class TrioBackend(AsyncBackend):
 
     @classmethod
     async def open_process(cls, command: str | Sequence[str], *, shell: bool,
-                           stdin: int, stdout: int, stderr: int,
+                           stdin: int | IO[Any] | None,
+                           stdout: int | IO[Any] | None,
+                           stderr: int | IO[Any] | None,
                            cwd: str | bytes | PathLike | None = None,
                            env: Mapping[str, str] | None = None,
                            start_new_session: bool = False) -> Process:
