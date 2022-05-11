@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Dict, Iterator, Tuple, cast
 
 import pytest
 import sniffio
+from _pytest.fixtures import FixtureRequest
 
 from ._core._eventloop import get_all_backends, get_async_backend
 from .abc import TestRunner
@@ -55,7 +56,7 @@ def pytest_configure(config: Config) -> None:
                                        'asynchronously via anyio.')
 
 
-def pytest_fixture_setup(fixturedef: Any, request: Any) -> None:
+def pytest_fixture_setup(fixturedef: Any, request: FixtureRequest) -> None:
     def wrapper(*args, anyio_backend, **kwargs):  # type: ignore[no-untyped-def]
         backend_name, backend_options = extract_backend_and_options(anyio_backend)
         if has_backend_arg:
@@ -63,23 +64,9 @@ def pytest_fixture_setup(fixturedef: Any, request: Any) -> None:
 
         with get_runner(backend_name, backend_options) as runner:
             if isasyncgenfunction(func):
-                gen = func(*args, **kwargs)
-                try:
-                    value = runner.call(gen.asend, None)
-                except StopAsyncIteration:
-                    raise RuntimeError('Async generator did not yield')
-
-                yield value
-
-                try:
-                    runner.call(gen.asend, None)
-                except StopAsyncIteration:
-                    pass
-                else:
-                    runner.call(gen.aclose)
-                    raise RuntimeError('Async generator fixture did not stop')
+                yield from runner.run_asyncgen_fixture(func, kwargs)
             else:
-                yield runner.call(func, *args, **kwargs)
+                yield runner.run_fixture(func, kwargs)
 
     # Only apply this to coroutine functions and async generator functions in requests that involve
     # the anyio_backend fixture
@@ -107,7 +94,7 @@ def pytest_pycollect_makeitem(collector: Any, name: Any, obj: Any) -> None:
 def pytest_pyfunc_call(pyfuncitem: Any) -> bool | None:
     def run_with_hypothesis(**kwargs: Any) -> None:
         with get_runner(backend_name, backend_options) as runner:
-            runner.call(original_func, **kwargs)
+            runner.run_test(original_func, kwargs)
 
     backend = pyfuncitem.funcargs.get('anyio_backend')
     if backend:
@@ -126,14 +113,14 @@ def pytest_pyfunc_call(pyfuncitem: Any) -> bool | None:
             funcargs = pyfuncitem.funcargs
             testargs = {arg: funcargs[arg] for arg in pyfuncitem._fixtureinfo.argnames}
             with get_runner(backend_name, backend_options) as runner:
-                runner.call(pyfuncitem.obj, **testargs)
+                runner.run_test(pyfuncitem.obj, testargs)
 
             return True
 
     return None
 
 
-@pytest.fixture(params=get_all_backends())
+@pytest.fixture(scope="module", params=get_all_backends())
 def anyio_backend(request: Any) -> Any:
     return request.param
 

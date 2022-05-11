@@ -12,6 +12,7 @@ from asyncio import run as native_run
 from asyncio import sleep
 from asyncio.base_events import _run_until_complete_cb  # type: ignore[attr-defined]
 from collections import OrderedDict, deque
+from collections.abc import Iterable
 from concurrent.futures import Future
 from contextvars import Context, copy_context
 from dataclasses import dataclass
@@ -25,8 +26,8 @@ from socket import AddressFamily, SocketKind
 from threading import Thread
 from types import TracebackType
 from typing import (
-    IO, Any, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque, Generator,
-    Iterator, Mapping, Optional, Sequence, Tuple, TypeVar, cast)
+    IO, Any, AsyncGenerator, Awaitable, Callable, Collection, ContextManager, Coroutine, Deque,
+    Generator, Iterator, Mapping, Optional, Sequence, Tuple, TypeVar, cast)
 from weakref import WeakKeyDictionary
 
 import sniffio
@@ -47,7 +48,7 @@ if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup
 
 if sys.version_info >= (3, 8):
-    def get_coro(task: asyncio.Task) -> Union[Generator, Awaitable[Any]]:
+    def get_coro(task: asyncio.Task) -> Generator | Awaitable[Any]:
         return task.get_coro()
 else:
     def get_coro(task: asyncio.Task) -> Generator | Awaitable[Any]:
@@ -1484,9 +1485,11 @@ def _create_task_info(task: asyncio.Task) -> TaskInfo:
 class TestRunner(abc.TestRunner):
     def __init__(self, debug: bool = False, use_uvloop: bool = False,
                  policy: asyncio.AbstractEventLoopPolicy | None = None):
+        self._exceptions: list[BaseException] = []
         _maybe_set_event_loop_policy(policy, use_uvloop)
         self._loop = asyncio.new_event_loop()
         self._loop.set_debug(debug)
+        self._loop.set_exception_handler(self._exception_handler)
         asyncio.set_event_loop(self._loop)
 
     def _cancel_all_tasks(self) -> None:
@@ -1505,6 +1508,19 @@ class TestRunner(abc.TestRunner):
             if task.exception() is not None:
                 raise cast(BaseException, task.exception())
 
+    def _exception_handler(self, loop: asyncio.AbstractEventLoop, context: dict[str, Any]) -> None:
+        if isinstance(context['exception'], Exception):
+            self._exceptions.append(context['exception'])
+
+    def _raise_async_exceptions(self) -> None:
+        # Re-raise any exceptions raised in asynchronous callbacks
+        if self._exceptions:
+            exceptions, self._exceptions = self._exceptions, []
+            if len(exceptions) == 1:
+                raise exceptions[0]
+            elif exceptions:
+                raise ExceptionGroup(exceptions)
+
     def close(self) -> None:
         try:
             self._cancel_all_tasks()
@@ -1513,27 +1529,51 @@ class TestRunner(abc.TestRunner):
             asyncio.set_event_loop(None)
             self._loop.close()
 
-    def call(self, func: Callable[..., Awaitable[T_Retval]],
-             *args: object, **kwargs: object) -> T_Retval:
-        def exception_handler(loop: asyncio.AbstractEventLoop, context: dict[str, Any]) -> None:
-            exceptions.append(context['exception'])
+    def run_asyncgen_fixture(self, fixture_func: Callable[..., AsyncGenerator[T_Retval, Any]],
+                             kwargs: dict[str, Any]) -> Iterable[T_Retval]:
+        async def fixture_runner() -> None:
+            agen = fixture_func(**kwargs)
+            try:
+                retval = await agen.asend(None)
+                self._raise_async_exceptions()
+            except BaseException as exc:
+                f.set_exception(exc)
+                return
+            else:
+                f.set_result(retval)
 
-        exceptions: list[BaseException] = []
-        self._loop.set_exception_handler(exception_handler)
-        try:
-            retval: T_Retval = self._loop.run_until_complete(func(*args, **kwargs))
-        except Exception as exc:
-            retval = None  # type: ignore[assignment]
-            exceptions.append(exc)
-        finally:
-            self._loop.set_exception_handler(None)
+            await event.wait()
+            try:
+                await agen.asend(None)
+            except StopAsyncIteration:
+                pass
+            else:
+                await agen.aclose()
+                raise RuntimeError('Async generator fixture did not stop')
 
-        if len(exceptions) == 1:
-            raise exceptions[0]
-        elif exceptions:
-            raise ExceptionGroup(exceptions)
+        f = self._loop.create_future()
+        event = asyncio.Event()
+        fixture_task = self._loop.create_task(fixture_runner())
+        self._loop.run_until_complete(f)
+        yield f.result()
+        event.set()
+        self._loop.run_until_complete(fixture_task)
+        self._raise_async_exceptions()
 
+    def run_fixture(self, fixture_func: Callable[..., Coroutine[Any, Any, T_Retval]],
+                    kwargs: dict[str, Any]) -> T_Retval:
+        retval = self._loop.run_until_complete(fixture_func(**kwargs))
+        self._raise_async_exceptions()
         return retval
+
+    def run_test(self, test_func: Callable[..., Coroutine[Any, Any, Any]],
+                 kwargs: dict[str, Any]) -> None:
+        try:
+            self._loop.run_until_complete(test_func(**kwargs))
+        except Exception as exc:
+            self._exceptions.append(exc)
+
+        self._raise_async_exceptions()
 
 
 class AsyncIOBackend(AsyncBackend):

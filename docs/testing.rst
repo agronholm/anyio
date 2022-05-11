@@ -150,3 +150,7 @@ shut down when that same fixture is being torn down or the test has finished run
 if no async fixtures are used, a separate test runner is created for each test. Conversely, if
 even one async fixture (scoped higher than ``function``) is shared across all tests, only one test
 runner will be created during the test session.
+
+For async generator based fixtures, the test runner spawns a task that handles both the setup and
+teardown phases to enable context-sensitive code to work properly. A common example of this is
+providing a task group as a fixture.

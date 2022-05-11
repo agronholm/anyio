@@ -5,9 +5,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
-* **BACKWARDS INCOMPATIBLE** Replaced AnyIO's own ``ExceptionGroup`` class with the PEP 654
+- **BACKWARDS INCOMPATIBLE** Replaced AnyIO's own ``ExceptionGroup`` class with the PEP 654
   ``BaseExceptionGroup`` and ``ExceptionGroup``
 - Bumped minimum version of trio to v0.19
+- Changed the pytest plugin to run both the setup and teardown phases of asynchronous generator
+  fixtures within a single task to enable use cases where a context manager straddles the ``yield``
 
 **3.5.0**
 
