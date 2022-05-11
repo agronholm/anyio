@@ -50,8 +50,8 @@ If you need to call a coroutine function from a worker thread, you can do this::
 
     run(main)
 
-.. note:: The worker thread must have been spawned using :func:`~run_sync`
-   for this to work.
+.. note:: The worker thread must have been spawned using :func:`~to_thread.run_sync` for this to
+   work.
 
 Calling synchronous code from a worker thread
 ---------------------------------------------
