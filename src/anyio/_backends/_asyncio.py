@@ -47,7 +47,8 @@ if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup
 
 if sys.version_info >= (3, 8):
-    get_coro = asyncio.Task.get_coro
+    def get_coro(task: asyncio.Task) -> Union[Generator, Awaitable[Any]]:
+        return task.get_coro()
 else:
     def get_coro(task: asyncio.Task) -> Generator | Awaitable[Any]:
         return task._coro
