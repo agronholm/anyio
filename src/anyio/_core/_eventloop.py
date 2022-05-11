@@ -13,14 +13,18 @@ if TYPE_CHECKING:
     from ..abc import AsyncBackend
 
 # This must be updated when new backends are introduced
-BACKENDS = 'asyncio', 'trio'
+BACKENDS = "asyncio", "trio"
 
-T_Retval = TypeVar('T_Retval')
+T_Retval = TypeVar("T_Retval")
 threadlocals = threading.local()
 
 
-def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object,
-        backend: str = 'asyncio', backend_options: dict[str, Any] | None = None) -> T_Retval:
+def run(
+    func: Callable[..., Coroutine[Any, Any, T_Retval]],
+    *args: object,
+    backend: str = "asyncio",
+    backend_options: dict[str, Any] | None = None,
+) -> T_Retval:
     """
     Run the given coroutine function in an asynchronous event loop.
 
@@ -42,12 +46,12 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object,
     except sniffio.AsyncLibraryNotFoundError:
         pass
     else:
-        raise RuntimeError(f'Already running {asynclib_name} in this thread')
+        raise RuntimeError(f"Already running {asynclib_name} in this thread")
 
     try:
         async_backend = get_async_backend(backend)
     except ImportError as exc:
-        raise LookupError(f'No such backend: {backend}') from exc
+        raise LookupError(f"No such backend: {backend}") from exc
 
     token = None
     if sniffio.current_async_library_cvar.get(None) is None:
@@ -122,9 +126,11 @@ def get_cancelled_exc_class() -> type[BaseException]:
 # Private API
 #
 
+
 @contextmanager
-def claim_worker_thread(backend_class: type[AsyncBackend],
-                        token: object) -> Generator[Any, None, None]:
+def claim_worker_thread(
+    backend_class: type[AsyncBackend], token: object
+) -> Generator[Any, None, None]:
     threadlocals.current_async_backend = backend_class
     threadlocals.current_token = token
     try:
@@ -138,10 +144,10 @@ def get_async_backend(asynclib_name: str | None = None) -> AsyncBackend:
     if asynclib_name is None:
         asynclib_name = sniffio.current_async_library()
 
-    modulename = 'anyio._backends._' + asynclib_name
+    modulename = "anyio._backends._" + asynclib_name
     try:
         module = sys.modules[modulename]
     except KeyError:
         module = import_module(modulename)
 
-    return getattr(module, 'backend_class')
+    return getattr(module, "backend_class")

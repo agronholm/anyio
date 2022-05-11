@@ -6,11 +6,16 @@ from types import TracebackType
 from typing import Deque, Generic, NamedTuple, TypeVar
 
 from .. import (
-    BrokenResourceError, ClosedResourceError, EndOfStream, WouldBlock, get_cancelled_exc_class)
+    BrokenResourceError,
+    ClosedResourceError,
+    EndOfStream,
+    WouldBlock,
+    get_cancelled_exc_class,
+)
 from ..abc import Event, ObjectReceiveStream, ObjectSendStream
 from ..lowlevel import checkpoint
 
-T_Item = TypeVar('T_Item')
+T_Item = TypeVar("T_Item")
 
 
 class MemoryObjectStreamStatistics(NamedTuple):
@@ -30,14 +35,22 @@ class MemoryObjectStreamState(Generic[T_Item]):
     buffer: Deque[T_Item] = field(init=False, default_factory=deque)
     open_send_channels: int = field(init=False, default=0)
     open_receive_channels: int = field(init=False, default=0)
-    waiting_receivers: OrderedDict[Event, list[T_Item]] = field(init=False,
-                                                                default_factory=OrderedDict)
-    waiting_senders: OrderedDict[Event, T_Item] = field(init=False, default_factory=OrderedDict)
+    waiting_receivers: OrderedDict[Event, list[T_Item]] = field(
+        init=False, default_factory=OrderedDict
+    )
+    waiting_senders: OrderedDict[Event, T_Item] = field(
+        init=False, default_factory=OrderedDict
+    )
 
     def statistics(self) -> MemoryObjectStreamStatistics:
         return MemoryObjectStreamStatistics(
-            len(self.buffer), self.max_buffer_size, self.open_send_channels,
-            self.open_receive_channels, len(self.waiting_senders), len(self.waiting_receivers))
+            len(self.buffer),
+            self.max_buffer_size,
+            self.open_send_channels,
+            self.open_receive_channels,
+            len(self.waiting_senders),
+            len(self.waiting_receivers),
+        )
 
 
 @dataclass(eq=False)
@@ -146,9 +159,12 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
     def __enter__(self) -> MemoryObjectReceiveStream[T_Item]:
         return self
 
-    def __exit__(self, exc_type: type[BaseException] | None,
-                 exc_val: BaseException | None,
-                 exc_tb: TracebackType | None) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         self.close()
 
 
@@ -249,7 +265,10 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
     def __enter__(self) -> MemoryObjectSendStream[T_Item]:
         return self
 
-    def __exit__(self, exc_type: type[BaseException] | None,
-                 exc_val: BaseException | None,
-                 exc_tb: TracebackType | None) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         self.close()

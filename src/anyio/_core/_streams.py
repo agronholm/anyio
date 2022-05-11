@@ -4,9 +4,12 @@ import math
 from typing import Any, TypeVar, overload
 
 from ..streams.memory import (
-    MemoryObjectReceiveStream, MemoryObjectSendStream, MemoryObjectStreamState)
+    MemoryObjectReceiveStream,
+    MemoryObjectSendStream,
+    MemoryObjectStreamState,
+)
 
-T_Item = TypeVar('T_Item')
+T_Item = TypeVar("T_Item")
 
 
 @overload
@@ -18,7 +21,7 @@ def create_memory_object_stream(
 
 @overload
 def create_memory_object_stream(
-    max_buffer_size: float = 0
+    max_buffer_size: float = 0,
 ) -> tuple[MemoryObjectSendStream[Any], MemoryObjectReceiveStream[Any]]:
     ...
 
@@ -36,9 +39,9 @@ def create_memory_object_stream(
 
     """
     if max_buffer_size != math.inf and not isinstance(max_buffer_size, int):
-        raise ValueError('max_buffer_size must be either an integer or math.inf')
+        raise ValueError("max_buffer_size must be either an integer or math.inf")
     if max_buffer_size < 0:
-        raise ValueError('max_buffer_size cannot be negative')
+        raise ValueError("max_buffer_size cannot be negative")
 
     state: MemoryObjectStreamState = MemoryObjectStreamState(max_buffer_size)
     return MemoryObjectSendStream(state), MemoryObjectReceiveStream(state)

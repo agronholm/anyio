@@ -64,16 +64,12 @@ version_scheme = "post-release"
 local_scheme = "dirty-tag"
 
 [tool.isort]
-src_paths = ["src"]
 skip_gitignore = true
-line_length = 99
-multi_line_output = 4
-
-[tool.autopep8]
-max_line_length = 99
+profile = "black"
 
 [tool.flake8]
 max-line-length = 99
+ignore = ["E203", "W503"]
 
 [tool.mypy]
 python_version = "3.10"

@@ -15,20 +15,30 @@ if TYPE_CHECKING:
     from .._core._testing import TaskInfo
     from ..from_thread import BlockingPortal
     from ._sockets import (
-        ConnectedUDPSocket, IPSockAddrType, SocketListener, SocketStream, UDPSocket,
-        UNIXSocketStream)
+        ConnectedUDPSocket,
+        IPSockAddrType,
+        SocketListener,
+        SocketStream,
+        UDPSocket,
+        UNIXSocketStream,
+    )
     from ._subprocesses import Process
     from ._tasks import TaskGroup
     from ._testing import TestRunner
 
-T_Retval = TypeVar('T_Retval')
+T_Retval = TypeVar("T_Retval")
 
 
 class AsyncBackend(metaclass=ABCMeta):
     @classmethod
     @abstractmethod
-    def run(cls, func: Callable[..., Coroutine[Any, Any, T_Retval]], args: tuple,
-            kwargs: dict[str, Any], options: dict[str, Any]) -> T_Retval:
+    def run(
+        cls,
+        func: Callable[..., Coroutine[Any, Any, T_Retval]],
+        args: tuple,
+        kwargs: dict[str, Any],
+        options: dict[str, Any],
+    ) -> T_Retval:
         """
         Run the given coroutine function in an asynchronous event loop.
 
@@ -108,8 +118,9 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    def create_cancel_scope(cls, *, deadline: float = math.inf,
-                            shield: bool = False) -> CancelScope:
+    def create_cancel_scope(
+        cls, *, deadline: float = math.inf, shield: bool = False
+    ) -> CancelScope:
         pass
 
     # @asynccontextmanager
@@ -158,20 +169,29 @@ class AsyncBackend(metaclass=ABCMeta):
     @classmethod
     @abstractmethod
     async def run_sync_in_worker_thread(
-            cls, func: Callable[..., T_Retval], args: tuple[Any, ...], cancellable: bool = False,
-            limiter: CapacityLimiter | None = None) -> T_Retval:
+        cls,
+        func: Callable[..., T_Retval],
+        args: tuple[Any, ...],
+        cancellable: bool = False,
+        limiter: CapacityLimiter | None = None,
+    ) -> T_Retval:
         pass
 
     @classmethod
     @abstractmethod
-    def run_async_from_thread(cls, func: Callable[..., Coroutine[Any, Any, T_Retval]],
-                              args: tuple[Any], token: object) -> T_Retval:
+    def run_async_from_thread(
+        cls,
+        func: Callable[..., Coroutine[Any, Any, T_Retval]],
+        args: tuple[Any],
+        token: object,
+    ) -> T_Retval:
         pass
 
     @classmethod
     @abstractmethod
-    def run_sync_from_thread(cls, func: Callable[..., T_Retval], args: tuple[Any, ...],
-                             token: object) -> T_Retval:
+    def run_sync_from_thread(
+        cls, func: Callable[..., T_Retval], args: tuple[Any, ...], token: object
+    ) -> T_Retval:
         pass
 
     @classmethod
@@ -181,13 +201,18 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    async def open_process(cls, command: str | Sequence[str], *, shell: bool,
-                           stdin: int | IO[Any] | None,
-                           stdout: int | IO[Any] | None,
-                           stderr: int | IO[Any] | None,
-                           cwd: str | bytes | PathLike[str] | None = None,
-                           env: Mapping[str, str] | None = None,
-                           start_new_session: bool = False) -> Process:
+    async def open_process(
+        cls,
+        command: str | Sequence[str],
+        *,
+        shell: bool,
+        stdin: int | IO[Any] | None,
+        stdout: int | IO[Any] | None,
+        stderr: int | IO[Any] | None,
+        cwd: str | bytes | PathLike[str] | None = None,
+        env: Mapping[str, str] | None = None,
+        start_new_session: bool = False,
+    ) -> Process:
         pass
 
     @classmethod
@@ -197,8 +222,9 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    async def connect_tcp(cls, host: str, port: int,
-                          local_address: IPSockAddrType | None = None) -> SocketStream:
+    async def connect_tcp(
+        cls, host: str, port: int, local_address: IPSockAddrType | None = None
+    ) -> SocketStream:
         pass
 
     @classmethod
@@ -223,20 +249,29 @@ class AsyncBackend(metaclass=ABCMeta):
         family: AddressFamily,
         local_address: IPSockAddrType | None,
         remote_address: IPSockAddrType | None,
-        reuse_port: bool
+        reuse_port: bool,
     ) -> UDPSocket | ConnectedUDPSocket:
         pass
 
     @classmethod
     @abstractmethod
-    async def getaddrinfo(cls, host: str | bytes, port: str | int | None, *,
-                          family: int | AddressFamily = 0, type: int | SocketKind = 0,
-                          proto: int = 0, flags: int = 0) -> GetAddrInfoReturnType:
+    async def getaddrinfo(
+        cls,
+        host: str | bytes,
+        port: str | int | None,
+        *,
+        family: int | AddressFamily = 0,
+        type: int | SocketKind = 0,
+        proto: int = 0,
+        flags: int = 0,
+    ) -> GetAddrInfoReturnType:
         pass
 
     @classmethod
     @abstractmethod
-    async def getnameinfo(cls, sockaddr: IPSockAddrType, flags: int = 0) -> tuple[str, str]:
+    async def getnameinfo(
+        cls, sockaddr: IPSockAddrType, flags: int = 0
+    ) -> tuple[str, str]:
         pass
 
     @classmethod

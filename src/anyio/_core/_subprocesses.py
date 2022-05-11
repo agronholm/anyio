@@ -10,13 +10,17 @@ from ._eventloop import get_async_backend
 from ._tasks import create_task_group
 
 
-async def run_process(command: str | Sequence[str], *, input: bytes | None = None,
-                      stdout: int | IO[Any] | None = PIPE,
-                      stderr: int | IO[Any] | None = PIPE,
-                      check: bool = True,
-                      cwd: str | bytes | PathLike[str] | None = None,
-                      env: Mapping[str, str] | None = None, start_new_session: bool = False,
-                      ) -> CompletedProcess[bytes]:
+async def run_process(
+    command: str | Sequence[str],
+    *,
+    input: bytes | None = None,
+    stdout: int | IO[Any] | None = PIPE,
+    stderr: int | IO[Any] | None = PIPE,
+    check: bool = True,
+    cwd: str | bytes | PathLike[str] | None = None,
+    env: Mapping[str, str] | None = None,
+    start_new_session: bool = False,
+) -> CompletedProcess[bytes]:
     """
     Run an external command in a subprocess and wait until it completes.
 
@@ -41,6 +45,7 @@ async def run_process(command: str | Sequence[str], *, input: bytes | None = Non
         nonzero return code
 
     """
+
     async def drain_stream(stream: AsyncIterable[bytes], index: int) -> None:
         buffer = BytesIO()
         async for chunk in stream:
@@ -48,9 +53,15 @@ async def run_process(command: str | Sequence[str], *, input: bytes | None = Non
 
         stream_contents[index] = buffer.getvalue()
 
-    async with await open_process(command, stdin=PIPE if input else DEVNULL, stdout=stdout,
-                                  stderr=stderr, cwd=cwd, env=env,
-                                  start_new_session=start_new_session) as process:
+    async with await open_process(
+        command,
+        stdin=PIPE if input else DEVNULL,
+        stdout=stdout,
+        stderr=stderr,
+        cwd=cwd,
+        env=env,
+        start_new_session=start_new_session,
+    ) as process:
         stream_contents: list[bytes | None] = [None, None]
         try:
             async with create_task_group() as tg:
@@ -74,13 +85,16 @@ async def run_process(command: str | Sequence[str], *, input: bytes | None = Non
     return CompletedProcess(command, cast(int, process.returncode), output, errors)
 
 
-async def open_process(command: str | Sequence[str], *,
-                       stdin: int | IO[Any] | None = PIPE,
-                       stdout: int | IO[Any] | None = PIPE,
-                       stderr: int | IO[Any] | None = PIPE,
-                       cwd: str | bytes | PathLike[str] | None = None,
-                       env: Mapping[str, str] | None = None,
-                       start_new_session: bool = False) -> Process:
+async def open_process(
+    command: str | Sequence[str],
+    *,
+    stdin: int | IO[Any] | None = PIPE,
+    stdout: int | IO[Any] | None = PIPE,
+    stderr: int | IO[Any] | None = PIPE,
+    cwd: str | bytes | PathLike[str] | None = None,
+    env: Mapping[str, str] | None = None,
+    start_new_session: bool = False,
+) -> Process:
     """
     Start an external command in a subprocess.
 
@@ -103,6 +117,13 @@ async def open_process(command: str | Sequence[str], *,
 
     """
     shell = isinstance(command, str)
-    return await get_async_backend().open_process(command, shell=shell, stdin=stdin, stdout=stdout,
-                                                  stderr=stderr, cwd=cwd, env=env,
-                                                  start_new_session=start_new_session)
+    return await get_async_backend().open_process(
+        command,
+        shell=shell,
+        stdin=stdin,
+        stdout=stdout,
+        stderr=stderr,
+        cwd=cwd,
+        env=env,
+        start_new_session=start_new_session,
+    )

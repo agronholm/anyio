@@ -11,8 +11,14 @@ import sniffio
 
 import anyio.to_thread
 from anyio import (
-    CapacityLimiter, Event, create_task_group, from_thread, sleep, to_thread,
-    wait_all_tasks_blocked)
+    CapacityLimiter,
+    Event,
+    create_task_group,
+    from_thread,
+    sleep,
+    to_thread,
+    wait_all_tasks_blocked,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -39,12 +45,12 @@ async def test_run_in_thread_cancelled() -> None:
 
 async def test_run_in_thread_exception() -> None:
     def thread_worker() -> NoReturn:
-        raise ValueError('foo')
+        raise ValueError("foo")
 
     with pytest.raises(ValueError) as exc:
         await to_thread.run_sync(thread_worker)
 
-    exc.match('^foo$')
+    exc.match("^foo$")
 
 
 async def test_run_in_custom_limiter() -> None:
@@ -75,11 +81,14 @@ async def test_run_in_custom_limiter() -> None:
     assert max_active_threads == 3
 
 
-@pytest.mark.parametrize('cancellable, expected_last_active', [
-    (False, 'task'),
-    (True, 'thread')
-], ids=['uncancellable', 'cancellable'])
-async def test_cancel_worker_thread(cancellable: bool, expected_last_active: str) -> None:
+@pytest.mark.parametrize(
+    "cancellable, expected_last_active",
+    [(False, "task"), (True, "thread")],
+    ids=["uncancellable", "cancellable"],
+)
+async def test_cancel_worker_thread(
+    cancellable: bool, expected_last_active: str
+) -> None:
     """
     Test that when a task running a worker thread is cancelled, the cancellation is not acted on
     until the thread finishes.
@@ -91,7 +100,7 @@ async def test_cancel_worker_thread(cancellable: bool, expected_last_active: str
         nonlocal last_active
         from_thread.run_sync(sleep_event.set)
         time.sleep(0.2)
-        last_active = 'thread'
+        last_active = "thread"
         from_thread.run_sync(finish_event.set)
 
     async def task_worker() -> None:
@@ -99,7 +108,7 @@ async def test_cancel_worker_thread(cancellable: bool, expected_last_active: str
         try:
             await to_thread.run_sync(thread_worker, cancellable=cancellable)
         finally:
-            last_active = 'task'
+            last_active = "task"
 
     sleep_event = Event()
     finish_event = Event()
@@ -129,7 +138,7 @@ async def test_cancel_wait_on_thread() -> None:
 
 
 async def test_contextvar_propagation() -> None:
-    var = ContextVar('var', default=1)
+    var = ContextVar("var", default=1)
     var.set(6)
     assert await to_thread.run_sync(var.get) == 6
 
@@ -139,7 +148,7 @@ async def test_asynclib_detection() -> None:
         await to_thread.run_sync(sniffio.current_async_library)
 
 
-@pytest.mark.parametrize('anyio_backend', ['asyncio'])
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_asyncio_cancel_native_task() -> None:
     task: "Optional[asyncio.Task[None]]" = None
 
@@ -164,6 +173,7 @@ def test_asyncio_no_root_task(asyncio_event_loop: asyncio.AbstractEventLoop) -> 
     that, uses the current task to set up a shutdown callback.
 
     """
+
     async def run_in_thread() -> None:
         try:
             await to_thread.run_sync(time.sleep, 0)
@@ -176,18 +186,21 @@ def test_asyncio_no_root_task(asyncio_event_loop: asyncio.AbstractEventLoop) -> 
 
     # Wait for worker threads to exit
     for t in threading.enumerate():
-        if t.name == 'AnyIO worker thread':
+        if t.name == "AnyIO worker thread":
             t.join(2)
             assert not t.is_alive()
 
 
-def test_asyncio_future_callback_partial(asyncio_event_loop: asyncio.AbstractEventLoop) -> None:
+def test_asyncio_future_callback_partial(
+    asyncio_event_loop: asyncio.AbstractEventLoop,
+) -> None:
     """
     Regression test for #272.
 
     Ensures that futures with partial callbacks are handled correctly when the root task
     cannot be determined.
     """
+
     def func(future: object) -> None:
         pass
 
@@ -199,10 +212,13 @@ def test_asyncio_future_callback_partial(asyncio_event_loop: asyncio.AbstractEve
     asyncio_event_loop.run_until_complete(task)
 
 
-def test_asyncio_run_sync_no_asyncio_run(asyncio_event_loop: asyncio.AbstractEventLoop) -> None:
+def test_asyncio_run_sync_no_asyncio_run(
+    asyncio_event_loop: asyncio.AbstractEventLoop,
+) -> None:
     """Test that the thread pool shutdown callback does not raise an exception."""
+
     def exception_handler(loop: object, context: Any = None) -> None:
-        exceptions.append(context['exception'])
+        exceptions.append(context["exception"])
 
     exceptions: List[BaseException] = []
     asyncio_event_loop.set_exception_handler(exception_handler)
@@ -210,20 +226,25 @@ def test_asyncio_run_sync_no_asyncio_run(asyncio_event_loop: asyncio.AbstractEve
     assert not exceptions
 
 
-def test_asyncio_run_sync_multiple(asyncio_event_loop: asyncio.AbstractEventLoop) -> None:
+def test_asyncio_run_sync_multiple(
+    asyncio_event_loop: asyncio.AbstractEventLoop,
+) -> None:
     """Regression test for #304."""
     asyncio_event_loop.call_later(0.5, asyncio_event_loop.stop)
     for _ in range(3):
         asyncio_event_loop.run_until_complete(to_thread.run_sync(time.sleep, 0))
 
     for t in threading.enumerate():
-        if t.name == 'AnyIO worker thread':
+        if t.name == "AnyIO worker thread":
             t.join(2)
             assert not t.is_alive()
 
 
-def test_asyncio_no_recycle_stopping_worker(asyncio_event_loop: asyncio.AbstractEventLoop) -> None:
+def test_asyncio_no_recycle_stopping_worker(
+    asyncio_event_loop: asyncio.AbstractEventLoop,
+) -> None:
     """Regression test for #323."""
+
     async def taskfunc1() -> None:
         await anyio.to_thread.run_sync(time.sleep, 0)
         event1.set()

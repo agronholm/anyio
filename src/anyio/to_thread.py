@@ -5,12 +5,15 @@ from typing import Callable, TypeVar
 from ._core._eventloop import get_async_backend
 from .abc import CapacityLimiter
 
-T_Retval = TypeVar('T_Retval')
+T_Retval = TypeVar("T_Retval")
 
 
 async def run_sync(
-        func: Callable[..., T_Retval], *args: object, cancellable: bool = False,
-        limiter: CapacityLimiter | None = None) -> T_Retval:
+    func: Callable[..., T_Retval],
+    *args: object,
+    cancellable: bool = False,
+    limiter: CapacityLimiter | None = None,
+) -> T_Retval:
     """
     Call the given function with the given arguments in a worker thread.
 
@@ -27,7 +30,8 @@ async def run_sync(
 
     """
     return await get_async_backend().run_sync_in_worker_thread(
-        func, args, cancellable=cancellable, limiter=limiter)
+        func, args, cancellable=cancellable, limiter=limiter
+    )
 
 
 def current_default_thread_limiter() -> CapacityLimiter:

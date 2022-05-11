@@ -9,17 +9,17 @@ pytestmark = pytest.mark.anyio
 async def test_receive_exactly() -> None:
     send_stream, receive_stream = create_memory_object_stream(2)
     buffered_stream = BufferedByteReceiveStream(receive_stream)
-    await send_stream.send(b'abcd')
-    await send_stream.send(b'efgh')
+    await send_stream.send(b"abcd")
+    await send_stream.send(b"efgh")
     result = await buffered_stream.receive_exactly(8)
-    assert result == b'abcdefgh'
+    assert result == b"abcdefgh"
     assert isinstance(result, bytes)
 
 
 async def test_receive_exactly_incomplete() -> None:
     send_stream, receive_stream = create_memory_object_stream(1)
     buffered_stream = BufferedByteReceiveStream(receive_stream)
-    await send_stream.send(b'abcd')
+    await send_stream.send(b"abcd")
     await send_stream.aclose()
     with pytest.raises(IncompleteRead):
         await buffered_stream.receive_exactly(8)
@@ -28,24 +28,24 @@ async def test_receive_exactly_incomplete() -> None:
 async def test_receive_until() -> None:
     send_stream, receive_stream = create_memory_object_stream(2)
     buffered_stream = BufferedByteReceiveStream(receive_stream)
-    await send_stream.send(b'abcd')
-    await send_stream.send(b'efgh')
+    await send_stream.send(b"abcd")
+    await send_stream.send(b"efgh")
 
-    result = await buffered_stream.receive_until(b'de', 10)
-    assert result == b'abc'
+    result = await buffered_stream.receive_until(b"de", 10)
+    assert result == b"abc"
     assert isinstance(result, bytes)
 
-    result = await buffered_stream.receive_until(b'h', 10)
-    assert result == b'fg'
+    result = await buffered_stream.receive_until(b"h", 10)
+    assert result == b"fg"
     assert isinstance(result, bytes)
 
 
 async def test_receive_until_incomplete() -> None:
     send_stream, receive_stream = create_memory_object_stream(1)
     buffered_stream = BufferedByteReceiveStream(receive_stream)
-    await send_stream.send(b'abcd')
+    await send_stream.send(b"abcd")
     await send_stream.aclose()
     with pytest.raises(IncompleteRead):
-        assert await buffered_stream.receive_until(b'de', 10)
+        assert await buffered_stream.receive_until(b"de", 10)
 
-    assert buffered_stream.buffer == b'abcd'
+    assert buffered_stream.buffer == b"abcd"

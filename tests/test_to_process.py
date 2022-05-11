@@ -6,17 +6,25 @@ from functools import partial
 
 import pytest
 
-from anyio import CancelScope, create_task_group, fail_after, to_process, wait_all_tasks_blocked
+from anyio import (
+    CancelScope,
+    create_task_group,
+    fail_after,
+    to_process,
+    wait_all_tasks_blocked,
+)
 
 pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture(autouse=True)
 def check_compatibility(anyio_backend_name: str) -> None:
-    if anyio_backend_name == 'asyncio':
-        if platform.system() == 'Windows' and sys.version_info < (3, 8):
-            pytest.skip('Python < 3.8 uses SelectorEventLoop by default and it does not support '
-                        'subprocesses')
+    if anyio_backend_name == "asyncio":
+        if platform.system() == "Windows" and sys.version_info < (3, 8):
+            pytest.skip(
+                "Python < 3.8 uses SelectorEventLoop by default and it does not support "
+                "subprocesses"
+            )
 
 
 async def test_run_sync_in_process_pool() -> None:
@@ -31,25 +39,28 @@ async def test_run_sync_in_process_pool() -> None:
 
 async def test_identical_sys_path() -> None:
     """Test that partial() can be used to pass keyword arguments."""
-    assert await to_process.run_sync(eval, 'sys.path') == sys.path
+    assert await to_process.run_sync(eval, "sys.path") == sys.path
 
 
 async def test_partial() -> None:
     """Test that partial() can be used to pass keyword arguments."""
-    assert await to_process.run_sync(partial(sorted, reverse=True), ['a', 'b']) == ['b', 'a']
+    assert await to_process.run_sync(partial(sorted, reverse=True), ["a", "b"]) == [
+        "b",
+        "a",
+    ]
 
 
 async def test_exception() -> None:
     """Test that exceptions are delivered properly."""
-    with pytest.raises(ValueError, match='invalid literal for int'):
-        assert await to_process.run_sync(int, 'a')
+    with pytest.raises(ValueError, match="invalid literal for int"):
+        assert await to_process.run_sync(int, "a")
 
 
 async def test_print() -> None:
     """Test that print() won't interfere with parent-worker communication."""
     worker_pid = await to_process.run_sync(os.getpid)
-    await to_process.run_sync(print, 'hello')
-    await to_process.run_sync(print, 'world')
+    await to_process.run_sync(print, "hello")
+    await to_process.run_sync(print, "world")
     assert await to_process.run_sync(os.getpid) == worker_pid
 
 

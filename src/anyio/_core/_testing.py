@@ -16,12 +16,17 @@ class TaskInfo:
     :ivar ~collections.abc.Coroutine coro: the coroutine object of the task
     """
 
-    __slots__ = '_name', 'id', 'parent_id', 'name', 'coro'
+    __slots__ = "_name", "id", "parent_id", "name", "coro"
 
-    def __init__(self, id: int, parent_id: int | None, name: str | None,
-                 coro: Generator[Any, Any, Any] | Awaitable[Any]):
+    def __init__(
+        self,
+        id: int,
+        parent_id: int | None,
+        name: str | None,
+        coro: Generator[Any, Any, Any] | Awaitable[Any],
+    ):
         func = get_current_task
-        self._name = f'{func.__module__}.{func.__qualname__}'
+        self._name = f"{func.__module__}.{func.__qualname__}"
         self.id: int = id
         self.parent_id: int | None = parent_id
         self.name: str | None = name
@@ -37,7 +42,7 @@ class TaskInfo:
         return hash(self.id)
 
     def __repr__(self) -> str:
-        return f'{self.__class__.__name__}(id={self.id!r}, name={self.name!r})'
+        return f"{self.__class__.__name__}(id={self.id!r}, name={self.name!r})"
 
     def _unwrap(self) -> TaskInfo:
         return self

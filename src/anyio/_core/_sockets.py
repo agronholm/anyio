@@ -11,8 +11,14 @@ from typing import Awaitable, List, Tuple, cast, overload
 
 from .. import to_thread
 from ..abc import (
-    ConnectedUDPSocket, IPAddressType, IPSockAddrType, SocketListener, SocketStream, UDPSocket,
-    UNIXSocketStream)
+    ConnectedUDPSocket,
+    IPAddressType,
+    IPSockAddrType,
+    SocketListener,
+    SocketStream,
+    UDPSocket,
+    UNIXSocketStream,
+)
 from ..streams.stapled import MultiListener
 from ..streams.tls import TLSStream
 from ._eventloop import get_async_backend
@@ -28,20 +34,28 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal
 
-IPPROTO_IPV6 = getattr(socket, 'IPPROTO_IPV6', 41)  # https://bugs.python.org/issue29515
+IPPROTO_IPV6 = getattr(socket, "IPPROTO_IPV6", 41)  # https://bugs.python.org/issue29515
 
-GetAddrInfoReturnType = List[Tuple[AddressFamily, SocketKind, int, str, Tuple[str, int]]]
-AnyIPAddressFamily = Literal[AddressFamily.AF_UNSPEC, AddressFamily.AF_INET,
-                             AddressFamily.AF_INET6]
+GetAddrInfoReturnType = List[
+    Tuple[AddressFamily, SocketKind, int, str, Tuple[str, int]]
+]
+AnyIPAddressFamily = Literal[
+    AddressFamily.AF_UNSPEC, AddressFamily.AF_INET, AddressFamily.AF_INET6
+]
 IPAddressFamily = Literal[AddressFamily.AF_INET, AddressFamily.AF_INET6]
 
 
 # tls_hostname given
 @overload
 async def connect_tcp(
-    remote_host: IPAddressType, remote_port: int, *, local_host: IPAddressType | None = ...,
-    ssl_context: ssl.SSLContext | None = ..., tls_standard_compatible: bool = ...,
-    tls_hostname: str, happy_eyeballs_delay: float = ...
+    remote_host: IPAddressType,
+    remote_port: int,
+    *,
+    local_host: IPAddressType | None = ...,
+    ssl_context: ssl.SSLContext | None = ...,
+    tls_standard_compatible: bool = ...,
+    tls_hostname: str,
+    happy_eyeballs_delay: float = ...,
 ) -> TLSStream:
     ...
 
@@ -49,9 +63,14 @@ async def connect_tcp(
 # ssl_context given
 @overload
 async def connect_tcp(
-    remote_host: IPAddressType, remote_port: int, *, local_host: IPAddressType | None = ...,
-    ssl_context: ssl.SSLContext, tls_standard_compatible: bool = ...,
-    tls_hostname: str | None = ..., happy_eyeballs_delay: float = ...
+    remote_host: IPAddressType,
+    remote_port: int,
+    *,
+    local_host: IPAddressType | None = ...,
+    ssl_context: ssl.SSLContext,
+    tls_standard_compatible: bool = ...,
+    tls_hostname: str | None = ...,
+    happy_eyeballs_delay: float = ...,
 ) -> TLSStream:
     ...
 
@@ -59,10 +78,15 @@ async def connect_tcp(
 # tls=True
 @overload
 async def connect_tcp(
-    remote_host: IPAddressType, remote_port: int, *, local_host: IPAddressType | None = ...,
-    tls: Literal[True], ssl_context: ssl.SSLContext | None = ...,
-    tls_standard_compatible: bool = ..., tls_hostname: str | None = ...,
-    happy_eyeballs_delay: float = ...
+    remote_host: IPAddressType,
+    remote_port: int,
+    *,
+    local_host: IPAddressType | None = ...,
+    tls: Literal[True],
+    ssl_context: ssl.SSLContext | None = ...,
+    tls_standard_compatible: bool = ...,
+    tls_hostname: str | None = ...,
+    happy_eyeballs_delay: float = ...,
 ) -> TLSStream:
     ...
 
@@ -70,10 +94,15 @@ async def connect_tcp(
 # tls=False
 @overload
 async def connect_tcp(
-    remote_host: IPAddressType, remote_port: int, *, local_host: IPAddressType | None = ...,
-    tls: Literal[False], ssl_context: ssl.SSLContext | None = ...,
-    tls_standard_compatible: bool = ..., tls_hostname: str | None = ...,
-    happy_eyeballs_delay: float = ...
+    remote_host: IPAddressType,
+    remote_port: int,
+    *,
+    local_host: IPAddressType | None = ...,
+    tls: Literal[False],
+    ssl_context: ssl.SSLContext | None = ...,
+    tls_standard_compatible: bool = ...,
+    tls_hostname: str | None = ...,
+    happy_eyeballs_delay: float = ...,
 ) -> SocketStream:
     ...
 
@@ -81,17 +110,25 @@ async def connect_tcp(
 # No TLS arguments
 @overload
 async def connect_tcp(
-    remote_host: IPAddressType, remote_port: int, *, local_host: IPAddressType | None = ...,
-    happy_eyeballs_delay: float = ...
+    remote_host: IPAddressType,
+    remote_port: int,
+    *,
+    local_host: IPAddressType | None = ...,
+    happy_eyeballs_delay: float = ...,
 ) -> SocketStream:
     ...
 
 
 async def connect_tcp(
-    remote_host: IPAddressType, remote_port: int, *, local_host: IPAddressType | None = None,
-    tls: bool = False, ssl_context: ssl.SSLContext | None = None,
-    tls_standard_compatible: bool = True, tls_hostname: str | None = None,
-    happy_eyeballs_delay: float = 0.25
+    remote_host: IPAddressType,
+    remote_port: int,
+    *,
+    local_host: IPAddressType | None = None,
+    tls: bool = False,
+    ssl_context: ssl.SSLContext | None = None,
+    tls_standard_compatible: bool = True,
+    tls_hostname: str | None = None,
+    happy_eyeballs_delay: float = 0.25,
 ) -> SocketStream | TLSStream:
     """
     Connect to a host using the TCP protocol.
@@ -154,8 +191,9 @@ async def connect_tcp(
         addr_obj = ip_address(remote_host)
     except ValueError:
         # getaddrinfo() will raise an exception if name resolution fails
-        gai_res = await getaddrinfo(target_host, remote_port, family=family,
-                                    type=socket.SOCK_STREAM)
+        gai_res = await getaddrinfo(
+            target_host, remote_port, family=family, type=socket.SOCK_STREAM
+        )
 
         # Organize the list so that the first address is an IPv6 address (if available) and the
         # second one is an IPv4 addresses. The rest can be in whatever order.
@@ -185,16 +223,22 @@ async def connect_tcp(
                 await event.wait()
 
     if connected_stream is None:
-        cause = oserrors[0] if len(oserrors) == 1 else ExceptionGroup(
-            "multiple connection attempts failed", oserrors)
-        raise OSError('All connection attempts failed') from cause
+        cause = (
+            oserrors[0]
+            if len(oserrors) == 1
+            else ExceptionGroup("multiple connection attempts failed", oserrors)
+        )
+        raise OSError("All connection attempts failed") from cause
 
     if tls or tls_hostname or ssl_context:
         try:
-            return await TLSStream.wrap(connected_stream, server_side=False,
-                                        hostname=tls_hostname or str(remote_host),
-                                        ssl_context=ssl_context,
-                                        standard_compatible=tls_standard_compatible)
+            return await TLSStream.wrap(
+                connected_stream,
+                server_side=False,
+                hostname=tls_hostname or str(remote_host),
+                ssl_context=ssl_context,
+                standard_compatible=tls_standard_compatible,
+            )
         except BaseException:
             await aclose_forcefully(connected_stream)
             raise
@@ -217,9 +261,12 @@ async def connect_unix(path: str | PathLike[str]) -> UNIXSocketStream:
 
 
 async def create_tcp_listener(
-    *, local_host: IPAddressType | None = None, local_port: int = 0,
-    family: AnyIPAddressFamily = socket.AddressFamily.AF_UNSPEC, backlog: int = 65536,
-    reuse_port: bool = False
+    *,
+    local_host: IPAddressType | None = None,
+    local_port: int = 0,
+    family: AnyIPAddressFamily = socket.AddressFamily.AF_UNSPEC,
+    backlog: int = 65536,
+    reuse_port: bool = False,
 ) -> MultiListener[SocketStream]:
     """
     Create a TCP socket listener.
@@ -239,9 +286,13 @@ async def create_tcp_listener(
     asynclib = get_async_backend()
     backlog = min(backlog, 65536)
     local_host = str(local_host) if local_host is not None else None
-    gai_res = await getaddrinfo(local_host, local_port, family=family,  # type: ignore[arg-type]
-                                type=socket.SOCK_STREAM,
-                                flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG)
+    gai_res = await getaddrinfo(
+        local_host,
+        local_port,
+        family=family,  # type: ignore[arg-type]
+        type=socket.SOCK_STREAM,
+        flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
+    )
     listeners: list[SocketListener] = []
     try:
         # The set() is here to work around a glibc bug:
@@ -251,7 +302,7 @@ async def create_tcp_listener(
             raw_socket.setblocking(False)
 
             # For Windows, enable exclusive address use. For others, enable address reuse.
-            if sys.platform == 'win32':
+            if sys.platform == "win32":
                 raw_socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
             else:
                 raw_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -277,8 +328,8 @@ async def create_tcp_listener(
 
 
 async def create_unix_listener(
-        path: str | PathLike[str], *, mode: int | None = None,
-        backlog: int = 65536) -> SocketListener:
+    path: str | PathLike[str], *, mode: int | None = None, backlog: int = 65536
+) -> SocketListener:
     """
     Create a UNIX socket listener.
 
@@ -315,8 +366,11 @@ async def create_unix_listener(
 
 
 async def create_udp_socket(
-    family: AnyIPAddressFamily = AddressFamily.AF_UNSPEC, *,
-    local_host: IPAddressType | None = None, local_port: int = 0, reuse_port: bool = False
+    family: AnyIPAddressFamily = AddressFamily.AF_UNSPEC,
+    *,
+    local_host: IPAddressType | None = None,
+    local_port: int = 0,
+    reuse_port: bool = False,
 ) -> UDPSocket:
     """
     Create a UDP socket.
@@ -337,24 +391,34 @@ async def create_udp_socket(
         raise ValueError('Either "family" or "local_host" must be given')
 
     if local_host:
-        gai_res = await getaddrinfo(str(local_host), local_port, family=family,
-                                    type=socket.SOCK_DGRAM,
-                                    flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG)
+        gai_res = await getaddrinfo(
+            str(local_host),
+            local_port,
+            family=family,
+            type=socket.SOCK_DGRAM,
+            flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
+        )
         family = cast(AnyIPAddressFamily, gai_res[0][0])
         local_address = gai_res[0][-1]
     elif family is AddressFamily.AF_INET6:
-        local_address = ('::', 0)
+        local_address = ("::", 0)
     else:
-        local_address = ('0.0.0.0', 0)
+        local_address = ("0.0.0.0", 0)
 
-    sock = await get_async_backend().create_udp_socket(family, local_address, None, reuse_port)
+    sock = await get_async_backend().create_udp_socket(
+        family, local_address, None, reuse_port
+    )
     return cast(UDPSocket, sock)
 
 
 async def create_connected_udp_socket(
-    remote_host: IPAddressType, remote_port: int, *,
+    remote_host: IPAddressType,
+    remote_port: int,
+    *,
     family: AnyIPAddressFamily = AddressFamily.AF_UNSPEC,
-    local_host: IPAddressType | None = None, local_port: int = 0, reuse_port: bool = False
+    local_host: IPAddressType | None = None,
+    local_port: int = 0,
+    reuse_port: bool = False,
 ) -> ConnectedUDPSocket:
     """
     Create a connected UDP socket.
@@ -375,25 +439,37 @@ async def create_connected_udp_socket(
     """
     local_address = None
     if local_host:
-        gai_res = await getaddrinfo(str(local_host), local_port, family=family,
-                                    type=socket.SOCK_DGRAM,
-                                    flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG)
+        gai_res = await getaddrinfo(
+            str(local_host),
+            local_port,
+            family=family,
+            type=socket.SOCK_DGRAM,
+            flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
+        )
         family = cast(AnyIPAddressFamily, gai_res[0][0])
         local_address = gai_res[0][-1]
 
-    gai_res = await getaddrinfo(str(remote_host), remote_port, family=family,
-                                type=socket.SOCK_DGRAM)
+    gai_res = await getaddrinfo(
+        str(remote_host), remote_port, family=family, type=socket.SOCK_DGRAM
+    )
     family = cast(AnyIPAddressFamily, gai_res[0][0])
     remote_address = gai_res[0][-1]
 
-    sock = await get_async_backend().create_udp_socket(family, local_address, remote_address,
-                                                       reuse_port)
+    sock = await get_async_backend().create_udp_socket(
+        family, local_address, remote_address, reuse_port
+    )
     return cast(ConnectedUDPSocket, sock)
 
 
-async def getaddrinfo(host: str, port: str | int | None, *,
-                      family: int | AddressFamily = 0, type: int | SocketKind = 0,
-                      proto: int = 0, flags: int = 0) -> GetAddrInfoReturnType:
+async def getaddrinfo(
+    host: str,
+    port: str | int | None,
+    *,
+    family: int | AddressFamily = 0,
+    type: int | SocketKind = 0,
+    proto: int = 0,
+    flags: int = 0,
+) -> GetAddrInfoReturnType:
     """
     Look up a numeric IP address given a host name.
 
@@ -417,17 +493,21 @@ async def getaddrinfo(host: str, port: str | int | None, *,
     # Handle unicode hostnames
     if isinstance(host, str):
         try:
-            encoded_host = host.encode('ascii')
+            encoded_host = host.encode("ascii")
         except UnicodeEncodeError:
             import idna
+
             encoded_host = idna.encode(host, uts46=True)
     else:
         encoded_host = host
 
-    gai_res = await get_async_backend().getaddrinfo(encoded_host, port, family=family, type=type,
-                                                    proto=proto, flags=flags)
-    return [(family, type, proto, canonname, convert_ipv6_sockaddr(sockaddr))
-            for family, type, proto, canonname, sockaddr in gai_res]
+    gai_res = await get_async_backend().getaddrinfo(
+        encoded_host, port, family=family, type=type, proto=proto, flags=flags
+    )
+    return [
+        (family, type, proto, canonname, convert_ipv6_sockaddr(sockaddr))
+        for family, type, proto, canonname, sockaddr in gai_res
+    ]
 
 
 def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Awaitable[tuple[str, str]]:
@@ -487,6 +567,7 @@ def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
 #
 # Private API
 #
+
 
 def convert_ipv6_sockaddr(
     sockaddr: tuple[str, int, int, int] | tuple[str, int]

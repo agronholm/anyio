@@ -69,6 +69,7 @@ class SemaphoreStatistics:
     :ivar int tasks_waiting: number of tasks waiting on :meth:`~.Semaphore.acquire`
 
     """
+
     tasks_waiting: int
 
 
@@ -107,9 +108,12 @@ class Lock:
     async def __aenter__(self) -> None:
         await self.acquire()
 
-    async def __aexit__(self, exc_type: type[BaseException] | None,
-                        exc_val: BaseException | None,
-                        exc_tb: TracebackType | None) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         self.release()
 
     async def acquire(self) -> None:
@@ -149,7 +153,7 @@ class Lock:
         """
         task = get_current_task()
         if self._owner_task == task:
-            raise RuntimeError('Attempted to acquire an already held Lock')
+            raise RuntimeError("Attempted to acquire an already held Lock")
 
         if self._owner_task is not None:
             raise WouldBlock
@@ -159,7 +163,7 @@ class Lock:
     def release(self) -> None:
         """Release the lock."""
         if self._owner_task != get_current_task():
-            raise RuntimeError('The current task is not holding this lock')
+            raise RuntimeError("The current task is not holding this lock")
 
         if self._waiters:
             self._owner_task, event = self._waiters.popleft()
@@ -190,14 +194,17 @@ class Condition:
     async def __aenter__(self) -> None:
         await self.acquire()
 
-    async def __aexit__(self, exc_type: type[BaseException] | None,
-                        exc_val: BaseException | None,
-                        exc_tb: TracebackType | None) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         self.release()
 
     def _check_acquired(self) -> None:
         if self._owner_task != get_current_task():
-            raise RuntimeError('The current task is not holding the underlying lock')
+            raise RuntimeError("The current task is not holding the underlying lock")
 
     async def acquire(self) -> None:
         """Acquire the underlying lock."""
@@ -270,26 +277,31 @@ class Condition:
 class Semaphore:
     def __init__(self, initial_value: int, *, max_value: int | None = None):
         if not isinstance(initial_value, int):
-            raise TypeError('initial_value must be an integer')
+            raise TypeError("initial_value must be an integer")
         if initial_value < 0:
-            raise ValueError('initial_value must be >= 0')
+            raise ValueError("initial_value must be >= 0")
         if max_value is not None:
             if not isinstance(max_value, int):
-                raise TypeError('max_value must be an integer or None')
+                raise TypeError("max_value must be an integer or None")
             if max_value < initial_value:
-                raise ValueError('max_value must be equal to or higher than initial_value')
+                raise ValueError(
+                    "max_value must be equal to or higher than initial_value"
+                )
 
         self._value = initial_value
         self._max_value = max_value
         self._waiters: Deque[Event] = deque()
 
-    async def __aenter__(self) -> 'Semaphore':
+    async def __aenter__(self) -> "Semaphore":
         await self.acquire()
         return self
 
-    async def __aexit__(self, exc_type: type[BaseException] | None,
-                        exc_val: BaseException | None,
-                        exc_tb: TracebackType | None) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         self.release()
 
     async def acquire(self) -> None:
@@ -331,7 +343,7 @@ class Semaphore:
     def release(self) -> None:
         """Increment the semaphore value."""
         if self._max_value is not None and self._value == self._max_value:
-            raise ValueError('semaphore released too many times')
+            raise ValueError("semaphore released too many times")
 
         if self._waiters:
             self._waiters.popleft().set()
@@ -364,9 +376,12 @@ class CapacityLimiter:
     async def __aenter__(self) -> None:
         raise NotImplementedError
 
-    async def __aexit__(self, exc_type: type[BaseException] | None,
-                        exc_val: BaseException | None,
-                        exc_tb: TracebackType | None) -> bool | None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         raise NotImplementedError
 
     @property
@@ -460,7 +475,7 @@ class CapacityLimiter:
 
 
 class ResourceGuard:
-    __slots__ = 'action', '_guarded'
+    __slots__ = "action", "_guarded"
 
     def __init__(self, action: str):
         self.action = action
@@ -472,8 +487,11 @@ class ResourceGuard:
 
         self._guarded = True
 
-    def __exit__(self, exc_type: type[BaseException] | None,
-                 exc_val: BaseException | None,
-                 exc_tb: TracebackType | None) -> bool | None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         self._guarded = False
         return None

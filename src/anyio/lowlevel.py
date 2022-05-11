@@ -13,8 +13,8 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal
 
-T = TypeVar('T')
-D = TypeVar('D')
+T = TypeVar("T")
+D = TypeVar("D")
 
 
 async def checkpoint() -> None:
@@ -70,7 +70,7 @@ _token_wrappers: dict[Any, _TokenWrapper] = {}
 
 @dataclass(frozen=True)
 class _TokenWrapper:
-    __slots__ = '_token', '__weakref__'
+    __slots__ = "_token", "__weakref__"
     _token: object
 
 
@@ -79,7 +79,7 @@ class _NoValueSet(enum.Enum):
 
 
 class RunvarToken(Generic[T]):
-    __slots__ = '_var', '_value', '_redeemed'
+    __slots__ = "_var", "_value", "_redeemed"
 
     def __init__(self, var: RunVar[T], value: T | Literal[_NoValueSet.NO_VALUE_SET]):
         self._var = var
@@ -89,14 +89,16 @@ class RunvarToken(Generic[T]):
 
 class RunVar(Generic[T]):
     """Like a :class:`~contextvars.ContextVar`, expect scoped to the running event loop."""
-    __slots__ = '_name', '_default'
+
+    __slots__ = "_name", "_default"
 
     NO_VALUE_SET: Literal[_NoValueSet.NO_VALUE_SET] = _NoValueSet.NO_VALUE_SET
 
     _token_wrappers: set[_TokenWrapper] = set()
 
-    def __init__(self, name: str,
-                 default: T | Literal[_NoValueSet.NO_VALUE_SET] = NO_VALUE_SET):
+    def __init__(
+        self, name: str, default: T | Literal[_NoValueSet.NO_VALUE_SET] = NO_VALUE_SET
+    ):
         self._name = name
         self._default = default
 
@@ -117,10 +119,12 @@ class RunVar(Generic[T]):
                 return run_vars
 
     @overload
-    def get(self, default: D) -> T | D: ...
+    def get(self, default: D) -> T | D:
+        ...
 
     @overload
-    def get(self) -> T: ...
+    def get(self) -> T:
+        ...
 
     def get(
         self, default: D | Literal[_NoValueSet.NO_VALUE_SET] = NO_VALUE_SET
@@ -133,7 +137,9 @@ class RunVar(Generic[T]):
             elif self._default is not RunVar.NO_VALUE_SET:
                 return self._default
 
-        raise LookupError(f'Run variable "{self._name}" has no value and no default set')
+        raise LookupError(
+            f'Run variable "{self._name}" has no value and no default set'
+        )
 
     def set(self, value: T) -> RunvarToken[T]:
         current_vars = self._current_vars
@@ -143,10 +149,10 @@ class RunVar(Generic[T]):
 
     def reset(self, token: RunvarToken[T]) -> None:
         if token._var is not self:
-            raise ValueError('This token does not belong to this RunVar')
+            raise ValueError("This token does not belong to this RunVar")
 
         if token._redeemed:
-            raise ValueError('This token has already been used')
+            raise ValueError("This token has already been used")
 
         if token._value is _NoValueSet.NO_VALUE_SET:
             try:
@@ -159,4 +165,4 @@ class RunVar(Generic[T]):
         token._redeemed = True
 
     def __repr__(self) -> str:
-        return f'<RunVar name={self._name!r}>'
+        return f"<RunVar name={self._name!r}>"

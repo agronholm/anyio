@@ -6,9 +6,22 @@ from io import IOBase
 from ipaddress import IPv4Address, IPv6Address
 from socket import AddressFamily
 from types import TracebackType
-from typing import Any, AsyncContextManager, Callable, Collection, Mapping, Tuple, TypeVar, Union
+from typing import (
+    Any,
+    AsyncContextManager,
+    Callable,
+    Collection,
+    Mapping,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
-from .._core._typedattr import TypedAttributeProvider, TypedAttributeSet, typed_attribute
+from .._core._typedattr import (
+    TypedAttributeProvider,
+    TypedAttributeSet,
+    typed_attribute,
+)
 from ._streams import ByteStream, Listener, T_Stream, UnreliableObjectStream
 from ._tasks import TaskGroup
 
@@ -16,16 +29,19 @@ IPAddressType = Union[str, IPv4Address, IPv6Address]
 IPSockAddrType = Tuple[str, int]
 SockAddrType = Union[IPSockAddrType, str]
 UDPPacketType = Tuple[bytes, IPSockAddrType]
-T_Retval = TypeVar('T_Retval')
+T_Retval = TypeVar("T_Retval")
 
 
 class _NullAsyncContextManager:
     async def __aenter__(self) -> None:
         pass
 
-    async def __aexit__(self, exc_type: type[BaseException] | None,
-                        exc_val: BaseException | None,
-                        exc_tb: TracebackType | None) -> bool | None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         return None
 
 
@@ -51,8 +67,10 @@ class _SocketProvider(TypedAttributeProvider):
 
         attributes: dict[Any, Callable[[], Any]] = {
             SocketAttribute.family: lambda: self._raw_socket.family,
-            SocketAttribute.local_address: lambda: convert(self._raw_socket.getsockname()),
-            SocketAttribute.raw_socket: lambda: self._raw_socket
+            SocketAttribute.local_address: lambda: convert(
+                self._raw_socket.getsockname()
+            ),
+            SocketAttribute.raw_socket: lambda: self._raw_socket,
         }
         try:
             peername: tuple[str, int] | None = convert(self._raw_socket.getpeername())
@@ -65,7 +83,9 @@ class _SocketProvider(TypedAttributeProvider):
 
         # Provide local and remote ports for IP based sockets
         if self._raw_socket.family in (AddressFamily.AF_INET, AddressFamily.AF_INET6):
-            attributes[SocketAttribute.local_port] = lambda: self._raw_socket.getsockname()[1]
+            attributes[
+                SocketAttribute.local_port
+            ] = lambda: self._raw_socket.getsockname()[1]
             if peername is not None:
                 remote_port = peername[1]
                 attributes[SocketAttribute.remote_port] = lambda: remote_port
@@ -119,8 +139,9 @@ class SocketListener(Listener[SocketStream], _SocketProvider):
     async def accept(self) -> SocketStream:
         """Accept an incoming connection."""
 
-    async def serve(self, handler: Callable[[T_Stream], Any],
-                    task_group: TaskGroup | None = None) -> None:
+    async def serve(
+        self, handler: Callable[[T_Stream], Any], task_group: TaskGroup | None = None
+    ) -> None:
         from .. import create_task_group
 
         context_manager: AsyncContextManager

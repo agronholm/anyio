@@ -17,9 +17,12 @@ class TestRunner(metaclass=ABCMeta):
     def __enter__(self) -> TestRunner:
         return self
 
-    def __exit__(self, exc_type: type[BaseException] | None,
-                 exc_val: BaseException | None,
-                 exc_tb: types.TracebackType | None) -> bool | None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
+    ) -> bool | None:
         self.close()
         return None
 
@@ -31,7 +34,7 @@ class TestRunner(metaclass=ABCMeta):
     def run_asyncgen_fixture(
         self,
         fixture_func: Callable[..., AsyncGenerator[_T, Any]],
-        kwargs: dict[str, Any]
+        kwargs: dict[str, Any],
     ) -> Iterable[_T]:
         """
         Run an async generator fixture.
@@ -45,7 +48,7 @@ class TestRunner(metaclass=ABCMeta):
     def run_fixture(
         self,
         fixture_func: Callable[..., Coroutine[Any, Any, _T]],
-        kwargs: dict[str, Any]
+        kwargs: dict[str, Any],
     ) -> _T:
         """
         Run an async fixture.
@@ -56,8 +59,9 @@ class TestRunner(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def run_test(self, test_func: Callable[..., Coroutine[Any, Any, Any]],
-                 kwargs: dict[str, Any]) -> None:
+    def run_test(
+        self, test_func: Callable[..., Coroutine[Any, Any, Any]], kwargs: dict[str, Any]
+    ) -> None:
         """
         Run an async test function.
 

@@ -23,7 +23,9 @@ class CancelScope:
     :param shield: ``True`` to shield the cancel scope from external cancellation
     """
 
-    def __new__(cls, *, deadline: float = math.inf, shield: bool = False) -> CancelScope:
+    def __new__(
+        cls, *, deadline: float = math.inf, shield: bool = False
+    ) -> CancelScope:
         return get_async_backend().create_cancel_scope(shield=shield, deadline=deadline)
 
     def cancel(self) -> None:
@@ -66,9 +68,12 @@ class CancelScope:
     def __enter__(self) -> CancelScope:
         raise NotImplementedError
 
-    def __exit__(self, exc_type: type[BaseException] | None,
-                 exc_val: BaseException | None,
-                 exc_tb: TracebackType | None) -> bool | None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         raise NotImplementedError
 
 
@@ -79,9 +84,12 @@ class FailAfterContextManager:
     def __enter__(self) -> CancelScope:
         return self._cancel_scope.__enter__()
 
-    def __exit__(self, exc_type: type[BaseException] | None,
-                 exc_val: BaseException | None,
-                 exc_tb: TracebackType | None) -> bool | None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         retval = self._cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         if self._cancel_scope.cancel_called:
             raise TimeoutError
@@ -100,8 +108,12 @@ def fail_after(delay: float | None, shield: bool = False) -> FailAfterContextMan
     :rtype: :class:`~typing.ContextManager`\\[:class:`~anyio.abc.CancelScope`\\]
 
     """
-    deadline = (get_async_backend().current_time() + delay) if delay is not None else math.inf
-    cancel_scope = get_async_backend().create_cancel_scope(deadline=deadline, shield=shield)
+    deadline = (
+        (get_async_backend().current_time() + delay) if delay is not None else math.inf
+    )
+    cancel_scope = get_async_backend().create_cancel_scope(
+        deadline=deadline, shield=shield
+    )
     return FailAfterContextManager(cancel_scope)
 
 
@@ -115,7 +127,9 @@ def move_on_after(delay: float | None, shield: bool = False) -> CancelScope:
     :return: a cancel scope
 
     """
-    deadline = (get_async_backend().current_time() + delay) if delay is not None else math.inf
+    deadline = (
+        (get_async_backend().current_time() + delay) if delay is not None else math.inf
+    )
     return get_async_backend().create_cancel_scope(deadline=deadline, shield=shield)
 
 

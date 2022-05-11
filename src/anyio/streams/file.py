@@ -6,8 +6,13 @@ from pathlib import Path
 from typing import Any, BinaryIO, Callable, Mapping, cast
 
 from .. import (
-    BrokenResourceError, ClosedResourceError, EndOfStream, TypedAttributeSet, to_thread,
-    typed_attribute)
+    BrokenResourceError,
+    ClosedResourceError,
+    EndOfStream,
+    TypedAttributeSet,
+    to_thread,
+    typed_attribute,
+)
 from ..abc import ByteReceiveStream, ByteSendStream
 
 
@@ -33,7 +38,7 @@ class _BaseFileStream:
             FileStreamAttribute.file: lambda: self._file,
         }
 
-        if hasattr(self._file, 'name'):
+        if hasattr(self._file, "name"):
             attributes[FileStreamAttribute.path] = lambda: Path(self._file.name)
 
         try:
@@ -56,14 +61,14 @@ class FileReadStream(_BaseFileStream, ByteReceiveStream):
     """
 
     @classmethod
-    async def from_path(cls, path: str | PathLike[str]) -> 'FileReadStream':
+    async def from_path(cls, path: str | PathLike[str]) -> "FileReadStream":
         """
         Create a file read stream by opening the given file.
 
         :param path: path of the file to read from
 
         """
-        file = await to_thread.run_sync(Path(path).open, 'rb')
+        file = await to_thread.run_sync(Path(path).open, "rb")
         return cls(cast(BinaryIO, file))
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
@@ -118,8 +123,9 @@ class FileWriteStream(_BaseFileStream, ByteSendStream):
     """
 
     @classmethod
-    async def from_path(cls, path: str | PathLike[str],
-                        append: bool = False) -> FileWriteStream:
+    async def from_path(
+        cls, path: str | PathLike[str], append: bool = False
+    ) -> FileWriteStream:
         """
         Create a file write stream by opening the given file for writing.
 
@@ -128,7 +134,7 @@ class FileWriteStream(_BaseFileStream, ByteSendStream):
             at the given path will be truncated
 
         """
-        mode = 'ab' if append else 'wb'
+        mode = "ab" if append else "wb"
         file = await to_thread.run_sync(Path(path).open, mode)
         return cls(cast(BinaryIO, file))
 

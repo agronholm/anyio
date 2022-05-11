@@ -17,8 +17,8 @@ fake_current_time = 1620581544.0
 
 @pytest.fixture
 def fake_sleep(mocker: MockerFixture) -> AsyncMock:
-    mocker.patch('anyio._core._eventloop.current_time', return_value=fake_current_time)
-    return mocker.patch('anyio._core._eventloop.sleep', AsyncMock())
+    mocker.patch("anyio._core._eventloop.current_time", return_value=fake_current_time)
+    return mocker.patch("anyio._core._eventloop.sleep", AsyncMock())
 
 
 async def test_sleep_until(fake_sleep: AsyncMock) -> None:
