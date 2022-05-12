@@ -6,9 +6,20 @@ from collections.abc import Coroutine, Mapping
 from os import PathLike
 from signal import Signals
 from socket import AddressFamily, SocketKind, socket
-from typing import IO, TYPE_CHECKING, Any, Callable, ContextManager, Sequence, TypeVar
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    ContextManager,
+    Sequence,
+    TypeVar,
+    overload,
+)
 
 if TYPE_CHECKING:
+    from typing import Literal
+
     from .._core._sockets import GetAddrInfoReturnType
     from .._core._synchronization import CapacityLimiter, Event
     from .._core._tasks import CancelScope
@@ -200,10 +211,42 @@ class AsyncBackend(metaclass=ABCMeta):
         pass
 
     @classmethod
+    @overload
+    async def open_process(
+        cls,
+        command: str | bytes,
+        *,
+        shell: Literal[True],
+        stdin: int | IO[Any] | None,
+        stdout: int | IO[Any] | None,
+        stderr: int | IO[Any] | None,
+        cwd: str | bytes | PathLike[str] | None = None,
+        env: Mapping[str, str] | None = None,
+        start_new_session: bool = False,
+    ) -> Process:
+        pass
+
+    @classmethod
+    @overload
+    async def open_process(
+        cls,
+        command: Sequence[str | bytes],
+        *,
+        shell: Literal[False],
+        stdin: int | IO[Any] | None,
+        stdout: int | IO[Any] | None,
+        stderr: int | IO[Any] | None,
+        cwd: str | bytes | PathLike[str] | None = None,
+        env: Mapping[str, str] | None = None,
+        start_new_session: bool = False,
+    ) -> Process:
+        pass
+
+    @classmethod
     @abstractmethod
     async def open_process(
         cls,
-        command: str | Sequence[str],
+        command: str | bytes | Sequence[str | bytes],
         *,
         shell: bool,
         stdin: int | IO[Any] | None,
@@ -257,7 +300,7 @@ class AsyncBackend(metaclass=ABCMeta):
     @abstractmethod
     async def getaddrinfo(
         cls,
-        host: str | bytes,
+        host: bytes | str | None,
         port: str | int | None,
         *,
         family: int | AddressFamily = 0,

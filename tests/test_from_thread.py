@@ -454,8 +454,8 @@ class TestBlockingPortal:
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
             future, start_value = portal.start_task(
-                taskfunc, name="testname"
-            )  # type: ignore[arg-type]
+                taskfunc, name="testname"  # type: ignore[arg-type]
+            )
             assert start_value == "testname"
 
     def test_contextvar_propagation_sync(

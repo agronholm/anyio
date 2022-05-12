@@ -769,8 +769,8 @@ def test_task_group_in_generator(
 
     gen = task_group_generator()
     anyio.run(
-        gen.__anext__,
-        backend=anyio_backend_name,  # type: ignore[arg-type]
+        gen.__anext__,  # type: ignore[arg-type]
+        backend=anyio_backend_name,
         backend_options=anyio_backend_options,
     )
     pytest.raises(

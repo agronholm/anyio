@@ -289,7 +289,7 @@ async def create_tcp_listener(
     gai_res = await getaddrinfo(
         local_host,
         local_port,
-        family=family,  # type: ignore[arg-type]
+        family=family,
         type=socket.SOCK_STREAM,
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
@@ -462,7 +462,7 @@ async def create_connected_udp_socket(
 
 
 async def getaddrinfo(
-    host: str,
+    host: bytes | str | None,
     port: str | int | None,
     *,
     family: int | AddressFamily = 0,
@@ -493,7 +493,7 @@ async def getaddrinfo(
     # Handle unicode hostnames
     if isinstance(host, str):
         try:
-            encoded_host = host.encode("ascii")
+            encoded_host: bytes | None = host.encode("ascii")
         except UnicodeEncodeError:
             import idna
 

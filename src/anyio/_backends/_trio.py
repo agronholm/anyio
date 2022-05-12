@@ -32,8 +32,15 @@ from typing import (
 )
 
 import trio.from_thread
+import trio.lowlevel
 from outcome import Error, Outcome, Value
-from trio.lowlevel import TrioToken
+from trio.lowlevel import (
+    TrioToken,
+    current_root_task,
+    current_task,
+    wait_readable,
+    wait_writable,
+)
 from trio.socket import SocketType as TrioSocketType
 from trio.to_thread import run_sync
 
@@ -52,21 +59,6 @@ from .._core._synchronization import ResourceGuard
 from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import IPSockAddrType, UDPPacketType
 from ..abc._eventloop import AsyncBackend
-
-try:
-    from trio import lowlevel as trio_lowlevel
-except ImportError:
-    from trio import hazmat as trio_lowlevel  # type: ignore[no-redef]
-    from trio.hazmat import wait_readable, wait_writable
-else:
-    from trio.lowlevel import wait_readable, wait_writable
-
-try:
-    from trio.lowlevel import (
-        open_process as trio_open_process,  # type: ignore[attr-defined]
-    )
-except ImportError:
-    from trio import open_process as trio_open_process
 
 if TYPE_CHECKING:
     from trio_typing import TaskStatus
@@ -853,7 +845,7 @@ class TrioBackend(AsyncBackend):
     @classmethod
     async def open_process(
         cls,
-        command: str | Sequence[str],
+        command: str | bytes | Sequence[str | bytes],
         *,
         shell: bool,
         stdin: int | IO[Any] | None,
@@ -863,7 +855,7 @@ class TrioBackend(AsyncBackend):
         env: Mapping[str, str] | None = None,
         start_new_session: bool = False,
     ) -> Process:
-        process = await trio_open_process(
+        process = await trio.lowlevel.open_process(  # type: ignore[attr-defined]
             command,
             stdin=stdin,
             stdout=stdout,
@@ -944,7 +936,7 @@ class TrioBackend(AsyncBackend):
     @classmethod
     async def getaddrinfo(
         cls,
-        host: str | bytes,
+        host: bytes | str | None,
         port: str | int | None,
         *,
         family: int | AddressFamily = 0,
@@ -952,9 +944,9 @@ class TrioBackend(AsyncBackend):
         proto: int = 0,
         flags: int = 0,
     ) -> GetAddrInfoReturnType:
-        # https: // github.com / python - trio / trio - typing / pull / 57
+        # https://github.com/python-trio/trio-typing/pull/57
         return await trio.socket.getaddrinfo(  # type: ignore[return-value]
-            host, port, family, type, proto, flags
+            host, port, family, type, proto, flags  # type: ignore[arg-type]
         )
 
     @classmethod
@@ -967,7 +959,7 @@ class TrioBackend(AsyncBackend):
     @classmethod
     async def wait_socket_readable(cls, sock: socket.socket) -> None:
         try:
-            await wait_readable(sock)
+            await wait_readable(sock)  # type: ignore[arg-type]
         except trio.ClosedResourceError as exc:
             raise ClosedResourceError().with_traceback(exc.__traceback__) from None
         except trio.BusyResourceError:
@@ -976,7 +968,7 @@ class TrioBackend(AsyncBackend):
     @classmethod
     async def wait_socket_writable(cls, sock: socket.socket) -> None:
         try:
-            await wait_writable(sock)
+            await wait_writable(sock)  # type: ignore[arg-type]
         except trio.ClosedResourceError as exc:
             raise ClosedResourceError().with_traceback(exc.__traceback__) from None
         except trio.BusyResourceError:
@@ -1000,7 +992,7 @@ class TrioBackend(AsyncBackend):
 
     @classmethod
     def get_current_task(cls) -> TaskInfo:
-        task = trio_lowlevel.current_task()
+        task = current_task()
 
         parent_id = None
         if task.parent_nursery and task.parent_nursery.parent_task:
@@ -1010,7 +1002,7 @@ class TrioBackend(AsyncBackend):
 
     @classmethod
     def get_running_tasks(cls) -> list[TaskInfo]:
-        root_task = trio_lowlevel.current_root_task()
+        root_task = current_root_task()
         task_infos = [TaskInfo(id(root_task), None, root_task.name, root_task.coro)]
         nurseries = root_task.child_nurseries
         while nurseries:

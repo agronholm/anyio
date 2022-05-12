@@ -86,7 +86,7 @@ async def run_process(
 
 
 async def open_process(
-    command: str | Sequence[str],
+    command: str | bytes | Sequence[str | bytes],
     *,
     stdin: int | IO[Any] | None = PIPE,
     stdout: int | IO[Any] | None = PIPE,
@@ -116,14 +116,25 @@ async def open_process(
     :return: an asynchronous process object
 
     """
-    shell = isinstance(command, str)
-    return await get_async_backend().open_process(
-        command,
-        shell=shell,
-        stdin=stdin,
-        stdout=stdout,
-        stderr=stderr,
-        cwd=cwd,
-        env=env,
-        start_new_session=start_new_session,
-    )
+    if isinstance(command, (str, bytes)):
+        return await get_async_backend().open_process(
+            command,
+            shell=True,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            cwd=cwd,
+            env=env,
+            start_new_session=start_new_session,
+        )
+    else:
+        return await get_async_backend().open_process(
+            command,
+            shell=False,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            cwd=cwd,
+            env=env,
+            start_new_session=start_new_session,
+        )

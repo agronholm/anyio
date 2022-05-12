@@ -1916,7 +1916,7 @@ class AsyncIOBackend(AsyncBackend):
     @classmethod
     async def open_process(
         cls,
-        command: str | Sequence[str],
+        command: str | bytes | Sequence[str | bytes],
         *,
         shell: bool,
         stdin: int | IO[Any] | None,
@@ -1929,9 +1929,9 @@ class AsyncIOBackend(AsyncBackend):
         await cls.checkpoint()
         if shell:
             process = await asyncio.create_subprocess_shell(
-                command,
+                cast("str | bytes", command),
                 stdin=stdin,
-                stdout=stdout,  # type: ignore[arg-type]
+                stdout=stdout,
                 stderr=stderr,
                 cwd=cwd,
                 env=env,
@@ -2033,7 +2033,7 @@ class AsyncIOBackend(AsyncBackend):
     @classmethod
     async def getaddrinfo(
         cls,
-        host: str | bytes,
+        host: bytes | str | None,
         port: str | int | None,
         *,
         family: int | AddressFamily = 0,
