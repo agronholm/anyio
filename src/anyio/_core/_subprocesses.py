@@ -1,7 +1,17 @@
 from io import BytesIO
 from os import PathLike
 from subprocess import DEVNULL, PIPE, CalledProcessError, CompletedProcess
-from typing import AsyncIterable, List, Mapping, Optional, Sequence, Union, cast
+from typing import (
+    IO,
+    Any,
+    AsyncIterable,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Union,
+    cast,
+)
 
 from ..abc import Process
 from ._eventloop import get_asynclib
@@ -9,11 +19,11 @@ from ._tasks import create_task_group
 
 
 async def run_process(
-    command: Union[str, Sequence[str]],
+    command: Union[str, bytes, Sequence[Union[str, bytes]]],
     *,
     input: Optional[bytes] = None,
-    stdout: int = PIPE,
-    stderr: int = PIPE,
+    stdout: Union[int, IO[Any], None] = PIPE,
+    stderr: Union[int, IO[Any], None] = PIPE,
     check: bool = True,
     cwd: Union[str, bytes, "PathLike[str]", None] = None,
     env: Optional[Mapping[str, str]] = None,
@@ -85,9 +95,9 @@ async def run_process(
 async def open_process(
     command: Union[str, bytes, Sequence[Union[str, bytes]]],
     *,
-    stdin: int = PIPE,
-    stdout: int = PIPE,
-    stderr: int = PIPE,
+    stdin: Union[int, IO[Any], None] = PIPE,
+    stdout: Union[int, IO[Any], None] = PIPE,
+    stderr: Union[int, IO[Any], None] = PIPE,
     cwd: Union[str, bytes, "PathLike[str]", None] = None,
     env: Optional[Mapping[str, str]] = None,
     start_new_session: bool = False,
@@ -99,10 +109,12 @@ async def open_process(
 
     :param command: either a string to pass to the shell, or an iterable of strings containing the
         executable name or path and its arguments
-    :param stdin: either :data:`subprocess.PIPE` or :data:`subprocess.DEVNULL`
-    :param stdout: either :data:`subprocess.PIPE` or :data:`subprocess.DEVNULL`
-    :param stderr: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL` or
-        :data:`subprocess.STDOUT`
+    :param stdin: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`, a
+        file-like object, or ``None``
+    :param stdout: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
+        a file-like object, or ``None``
+    :param stderr: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
+        :data:`subprocess.STDOUT`, a file-like object, or ``None``
     :param cwd: If not ``None``, the working directory is changed before executing
     :param env: If env is not ``None``, it must be a mapping that defines the environment
         variables for the new process

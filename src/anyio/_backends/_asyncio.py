@@ -25,6 +25,7 @@ from socket import AddressFamily, SocketKind
 from threading import Thread
 from types import TracebackType
 from typing import (
+    IO,
     Any,
     Awaitable,
     Callable,
@@ -1081,9 +1082,9 @@ async def open_process(
     command: Union[str, bytes, Sequence[Union[str, bytes]]],
     *,
     shell: bool,
-    stdin: int,
-    stdout: int,
-    stderr: int,
+    stdin: Union[int, IO[Any], None],
+    stdout: Union[int, IO[Any], None],
+    stderr: Union[int, IO[Any], None],
     cwd: Union[str, bytes, PathLike, None] = None,
     env: Optional[Mapping[str, str]] = None,
     start_new_session: bool = False,
