@@ -11,8 +11,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``command`` now accepts accepts bytes and sequences of bytes
   * ``stdin``, ``stdout`` and ``stderr`` now accept file-like objects
     (PR by John T. Wodder II)
-- Changed the pytest plugin to run both the setup and teardown phases of asynchronous generator
-  fixtures within a single task to enable use cases where a context manager straddles the ``yield``
+- Changed the pytest plugin to run both the setup and teardown phases of asynchronous
+  generator fixtures within a single task to enable use cases such as cancel scopes and
+  task groups where a context manager straddles the ``yield``
 
 **3.5.0**
 
