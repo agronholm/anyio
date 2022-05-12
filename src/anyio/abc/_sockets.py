@@ -5,10 +5,25 @@ from ipaddress import IPv4Address, IPv6Address
 from socket import AddressFamily
 from types import TracebackType
 from typing import (
-    Any, AsyncContextManager, Callable, Collection, Dict, List, Mapping, Optional, Tuple, Type,
-    TypeVar, Union)
+    Any,
+    AsyncContextManager,
+    Callable,
+    Collection,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
 
-from .._core._typedattr import TypedAttributeProvider, TypedAttributeSet, typed_attribute
+from .._core._typedattr import (
+    TypedAttributeProvider,
+    TypedAttributeSet,
+    typed_attribute,
+)
 from ._streams import ByteStream, Listener, T_Stream, UnreliableObjectStream
 from ._tasks import TaskGroup
 
@@ -16,16 +31,19 @@ IPAddressType = Union[str, IPv4Address, IPv6Address]
 IPSockAddrType = Tuple[str, int]
 SockAddrType = Union[IPSockAddrType, str]
 UDPPacketType = Tuple[bytes, IPSockAddrType]
-T_Retval = TypeVar('T_Retval')
+T_Retval = TypeVar("T_Retval")
 
 
 class _NullAsyncContextManager:
     async def __aenter__(self) -> None:
         pass
 
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> Optional[bool]:
         return None
 
 
@@ -51,11 +69,15 @@ class _SocketProvider(TypedAttributeProvider):
 
         attributes: Dict[Any, Callable[[], Any]] = {
             SocketAttribute.family: lambda: self._raw_socket.family,
-            SocketAttribute.local_address: lambda: convert(self._raw_socket.getsockname()),
-            SocketAttribute.raw_socket: lambda: self._raw_socket
+            SocketAttribute.local_address: lambda: convert(
+                self._raw_socket.getsockname()
+            ),
+            SocketAttribute.raw_socket: lambda: self._raw_socket,
         }
         try:
-            peername: Optional[Tuple[str, int]] = convert(self._raw_socket.getpeername())
+            peername: Optional[Tuple[str, int]] = convert(
+                self._raw_socket.getpeername()
+            )
         except OSError:
             peername = None
 
@@ -65,7 +87,9 @@ class _SocketProvider(TypedAttributeProvider):
 
         # Provide local and remote ports for IP based sockets
         if self._raw_socket.family in (AddressFamily.AF_INET, AddressFamily.AF_INET6):
-            attributes[SocketAttribute.local_port] = lambda: self._raw_socket.getsockname()[1]
+            attributes[
+                SocketAttribute.local_port
+            ] = lambda: self._raw_socket.getsockname()[1]
             if peername is not None:
                 remote_port = peername[1]
                 attributes[SocketAttribute.remote_port] = lambda: remote_port
@@ -88,7 +112,9 @@ class SocketStream(ByteStream, _SocketProvider):
 
 class UNIXSocketStream(SocketStream):
     @abstractmethod
-    async def send_fds(self, message: bytes, fds: Collection[Union[int, IOBase]]) -> None:
+    async def send_fds(
+        self, message: bytes, fds: Collection[Union[int, IOBase]]
+    ) -> None:
         """
         Send file descriptors along with a message to the peer.
 
@@ -119,8 +145,9 @@ class SocketListener(Listener[SocketStream], _SocketProvider):
     async def accept(self) -> SocketStream:
         """Accept an incoming connection."""
 
-    async def serve(self, handler: Callable[[T_Stream], Any],
-                    task_group: Optional[TaskGroup] = None) -> None:
+    async def serve(
+        self, handler: Callable[[T_Stream], Any], task_group: Optional[TaskGroup] = None
+    ) -> None:
         from .. import create_task_group
 
         context_manager: AsyncContextManager

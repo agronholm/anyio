@@ -69,11 +69,12 @@ class SemaphoreStatistics:
     :ivar int tasks_waiting: number of tasks waiting on :meth:`~.Semaphore.acquire`
 
     """
+
     tasks_waiting: int
 
 
 class Event:
-    def __new__(cls) -> 'Event':
+    def __new__(cls) -> "Event":
         return get_asynclib().Event()
 
     def set(self) -> DeprecatedAwaitable:
@@ -107,9 +108,12 @@ class Lock:
     async def __aenter__(self) -> None:
         await self.acquire()
 
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         self.release()
 
     async def acquire(self) -> None:
@@ -149,7 +153,7 @@ class Lock:
         """
         task = get_current_task()
         if self._owner_task == task:
-            raise RuntimeError('Attempted to acquire an already held Lock')
+            raise RuntimeError("Attempted to acquire an already held Lock")
 
         if self._owner_task is not None:
             raise WouldBlock
@@ -159,7 +163,7 @@ class Lock:
     def release(self) -> DeprecatedAwaitable:
         """Release the lock."""
         if self._owner_task != get_current_task():
-            raise RuntimeError('The current task is not holding this lock')
+            raise RuntimeError("The current task is not holding this lock")
 
         if self._waiters:
             self._owner_task, event = self._waiters.popleft()
@@ -192,14 +196,17 @@ class Condition:
     async def __aenter__(self) -> None:
         await self.acquire()
 
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         self.release()
 
     def _check_acquired(self) -> None:
         if self._owner_task != get_current_task():
-            raise RuntimeError('The current task is not holding the underlying lock')
+            raise RuntimeError("The current task is not holding the underlying lock")
 
     async def acquire(self) -> None:
         """Acquire the underlying lock."""
@@ -273,26 +280,31 @@ class Condition:
 class Semaphore:
     def __init__(self, initial_value: int, *, max_value: Optional[int] = None):
         if not isinstance(initial_value, int):
-            raise TypeError('initial_value must be an integer')
+            raise TypeError("initial_value must be an integer")
         if initial_value < 0:
-            raise ValueError('initial_value must be >= 0')
+            raise ValueError("initial_value must be >= 0")
         if max_value is not None:
             if not isinstance(max_value, int):
-                raise TypeError('max_value must be an integer or None')
+                raise TypeError("max_value must be an integer or None")
             if max_value < initial_value:
-                raise ValueError('max_value must be equal to or higher than initial_value')
+                raise ValueError(
+                    "max_value must be equal to or higher than initial_value"
+                )
 
         self._value = initial_value
         self._max_value = max_value
         self._waiters: Deque[Event] = deque()
 
-    async def __aenter__(self) -> 'Semaphore':
+    async def __aenter__(self) -> "Semaphore":
         await self.acquire()
         return self
 
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         self.release()
 
     async def acquire(self) -> None:
@@ -334,7 +346,7 @@ class Semaphore:
     def release(self) -> DeprecatedAwaitable:
         """Increment the semaphore value."""
         if self._max_value is not None and self._value == self._max_value:
-            raise ValueError('semaphore released too many times')
+            raise ValueError("semaphore released too many times")
 
         if self._waiters:
             self._waiters.popleft().set()
@@ -363,15 +375,18 @@ class Semaphore:
 
 
 class CapacityLimiter:
-    def __new__(cls, total_tokens: float) -> 'CapacityLimiter':
+    def __new__(cls, total_tokens: float) -> "CapacityLimiter":
         return get_asynclib().CapacityLimiter(total_tokens)
 
     async def __aenter__(self) -> None:
         raise NotImplementedError
 
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> Optional[bool]:
         raise NotImplementedError
 
     @property
@@ -393,8 +408,11 @@ class CapacityLimiter:
         raise NotImplementedError
 
     async def set_total_tokens(self, value: float) -> None:
-        warn('CapacityLimiter.set_total_tokens has been deprecated. Set the value of the'
-             '"total_tokens" attribute directly.', DeprecationWarning)
+        warn(
+            "CapacityLimiter.set_total_tokens has been deprecated. Set the value of the"
+            '"total_tokens" attribute directly.',
+            DeprecationWarning,
+        )
         self.total_tokens = value
 
     @property
@@ -479,7 +497,7 @@ def create_lock() -> Lock:
        Use :class:`~Lock` directly.
 
     """
-    warn('create_lock() is deprecated -- use Lock() directly', DeprecationWarning)
+    warn("create_lock() is deprecated -- use Lock() directly", DeprecationWarning)
     return Lock()
 
 
@@ -494,7 +512,10 @@ def create_condition(lock: Optional[Lock] = None) -> Condition:
        Use :class:`~Condition` directly.
 
     """
-    warn('create_condition() is deprecated -- use Condition() directly', DeprecationWarning)
+    warn(
+        "create_condition() is deprecated -- use Condition() directly",
+        DeprecationWarning,
+    )
     return Condition(lock=lock)
 
 
@@ -508,7 +529,7 @@ def create_event() -> Event:
        Use :class:`~Event` directly.
 
     """
-    warn('create_event() is deprecated -- use Event() directly', DeprecationWarning)
+    warn("create_event() is deprecated -- use Event() directly", DeprecationWarning)
     return get_asynclib().Event()
 
 
@@ -525,7 +546,10 @@ def create_semaphore(value: int, *, max_value: Optional[int] = None) -> Semaphor
        Use :class:`~Semaphore` directly.
 
     """
-    warn('create_semaphore() is deprecated -- use Semaphore() directly', DeprecationWarning)
+    warn(
+        "create_semaphore() is deprecated -- use Semaphore() directly",
+        DeprecationWarning,
+    )
     return Semaphore(value, max_value=max_value)
 
 
@@ -541,13 +565,15 @@ def create_capacity_limiter(total_tokens: float) -> CapacityLimiter:
        Use :class:`~CapacityLimiter` directly.
 
     """
-    warn('create_capacity_limiter() is deprecated -- use CapacityLimiter() directly',
-         DeprecationWarning)
+    warn(
+        "create_capacity_limiter() is deprecated -- use CapacityLimiter() directly",
+        DeprecationWarning,
+    )
     return get_asynclib().CapacityLimiter(total_tokens)
 
 
 class ResourceGuard:
-    __slots__ = 'action', '_guarded'
+    __slots__ = "action", "_guarded"
 
     def __init__(self, action: str):
         self.action = action
@@ -559,8 +585,11 @@ class ResourceGuard:
 
         self._guarded = True
 
-    def __exit__(self, exc_type: Optional[Type[BaseException]],
-                 exc_val: Optional[BaseException],
-                 exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> Optional[bool]:
         self._guarded = False
         return None

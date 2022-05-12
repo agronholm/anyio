@@ -4,7 +4,11 @@ from typing import Optional, Type
 from warnings import warn
 
 from ..abc._tasks import TaskGroup, TaskStatus
-from ._compat import DeprecatedAsyncContextManager, DeprecatedAwaitable, DeprecatedAwaitableFloat
+from ._compat import (
+    DeprecatedAsyncContextManager,
+    DeprecatedAwaitable,
+    DeprecatedAwaitableFloat,
+)
 from ._eventloop import get_asynclib
 
 
@@ -16,7 +20,7 @@ class _IgnoredTaskStatus(TaskStatus):
 TASK_STATUS_IGNORED = _IgnoredTaskStatus()
 
 
-class CancelScope(DeprecatedAsyncContextManager['CancelScope']):
+class CancelScope(DeprecatedAsyncContextManager["CancelScope"]):
     """
     Wraps a unit of work that can be made separately cancellable.
 
@@ -24,7 +28,9 @@ class CancelScope(DeprecatedAsyncContextManager['CancelScope']):
     :param shield: ``True`` to shield the cancel scope from external cancellation
     """
 
-    def __new__(cls, *, deadline: float = math.inf, shield: bool = False) -> 'CancelScope':
+    def __new__(
+        cls, *, deadline: float = math.inf, shield: bool = False
+    ) -> "CancelScope":
         return get_asynclib().CancelScope(shield=shield, deadline=deadline)
 
     def cancel(self) -> DeprecatedAwaitable:
@@ -64,12 +70,15 @@ class CancelScope(DeprecatedAsyncContextManager['CancelScope']):
     def shield(self, value: bool) -> None:
         raise NotImplementedError
 
-    def __enter__(self) -> 'CancelScope':
+    def __enter__(self) -> "CancelScope":
         raise NotImplementedError
 
-    def __exit__(self, exc_type: Optional[Type[BaseException]],
-                 exc_val: Optional[BaseException],
-                 exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> Optional[bool]:
         raise NotImplementedError
 
 
@@ -84,7 +93,10 @@ def open_cancel_scope(*, shield: bool = False) -> CancelScope:
        Use :class:`~CancelScope` directly.
 
     """
-    warn('open_cancel_scope() is deprecated -- use CancelScope() directly', DeprecationWarning)
+    warn(
+        "open_cancel_scope() is deprecated -- use CancelScope() directly",
+        DeprecationWarning,
+    )
     return get_asynclib().CancelScope(shield=shield)
 
 
@@ -95,9 +107,12 @@ class FailAfterContextManager(DeprecatedAsyncContextManager[CancelScope]):
     def __enter__(self) -> CancelScope:
         return self._cancel_scope.__enter__()
 
-    def __exit__(self, exc_type: Optional[Type[BaseException]],
-                 exc_val: Optional[BaseException],
-                 exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> Optional[bool]:
         retval = self._cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         if self._cancel_scope.cancel_called:
             raise TimeoutError
@@ -116,7 +131,9 @@ def fail_after(delay: Optional[float], shield: bool = False) -> FailAfterContext
     :rtype: :class:`~typing.ContextManager`\\[:class:`~anyio.abc.CancelScope`\\]
 
     """
-    deadline = (get_asynclib().current_time() + delay) if delay is not None else math.inf
+    deadline = (
+        (get_asynclib().current_time() + delay) if delay is not None else math.inf
+    )
     cancel_scope = get_asynclib().CancelScope(deadline=deadline, shield=shield)
     return FailAfterContextManager(cancel_scope)
 
@@ -131,7 +148,9 @@ def move_on_after(delay: Optional[float], shield: bool = False) -> CancelScope:
     :return: a cancel scope
 
     """
-    deadline = (get_asynclib().current_time() + delay) if delay is not None else math.inf
+    deadline = (
+        (get_asynclib().current_time() + delay) if delay is not None else math.inf
+    )
     return get_asynclib().CancelScope(deadline=deadline, shield=shield)
 
 
@@ -144,11 +163,12 @@ def current_effective_deadline() -> DeprecatedAwaitableFloat:
     :rtype: float
 
     """
-    return DeprecatedAwaitableFloat(get_asynclib().current_effective_deadline(),
-                                    current_effective_deadline)
+    return DeprecatedAwaitableFloat(
+        get_asynclib().current_effective_deadline(), current_effective_deadline
+    )
 
 
-def create_task_group() -> 'TaskGroup':
+def create_task_group() -> "TaskGroup":
     """
     Create a task group.
 

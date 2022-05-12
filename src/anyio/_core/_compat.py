@@ -2,8 +2,22 @@ from abc import ABCMeta, abstractmethod
 from contextlib import AbstractContextManager
 from types import TracebackType
 from typing import (
-    TYPE_CHECKING, Any, AsyncContextManager, Callable, ContextManager, Generator, Generic,
-    Iterable, List, Optional, Tuple, Type, TypeVar, Union, overload)
+    TYPE_CHECKING,
+    Any,
+    AsyncContextManager,
+    Callable,
+    ContextManager,
+    Generator,
+    Generic,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    overload,
+)
 from warnings import warn
 
 if TYPE_CHECKING:
@@ -11,9 +25,13 @@ if TYPE_CHECKING:
 else:
     TaskInfo = object
 
-T = TypeVar('T')
-AnyDeprecatedAwaitable = Union['DeprecatedAwaitable', 'DeprecatedAwaitableFloat',
-                               'DeprecatedAwaitableList[T]', TaskInfo]
+T = TypeVar("T")
+AnyDeprecatedAwaitable = Union[
+    "DeprecatedAwaitable",
+    "DeprecatedAwaitableFloat",
+    "DeprecatedAwaitableList[T]",
+    TaskInfo,
+]
 
 
 @overload
@@ -22,21 +40,23 @@ async def maybe_async(__obj: TaskInfo) -> TaskInfo:
 
 
 @overload
-async def maybe_async(__obj: 'DeprecatedAwaitableFloat') -> float:
+async def maybe_async(__obj: "DeprecatedAwaitableFloat") -> float:
     ...
 
 
 @overload
-async def maybe_async(__obj: 'DeprecatedAwaitableList[T]') -> List[T]:
+async def maybe_async(__obj: "DeprecatedAwaitableList[T]") -> List[T]:
     ...
 
 
 @overload
-async def maybe_async(__obj: 'DeprecatedAwaitable') -> None:
+async def maybe_async(__obj: "DeprecatedAwaitable") -> None:
     ...
 
 
-async def maybe_async(__obj: 'AnyDeprecatedAwaitable[T]') -> Union[TaskInfo, float, List[T], None]:
+async def maybe_async(
+    __obj: "AnyDeprecatedAwaitable[T]",
+) -> Union[TaskInfo, float, List[T], None]:
     """
     Await on the given object if necessary.
 
@@ -60,13 +80,18 @@ class _ContextManagerWrapper:
     async def __aenter__(self) -> T:
         return self._cm.__enter__()
 
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> Optional[bool]:
         return self._cm.__exit__(exc_type, exc_val, exc_tb)
 
 
-def maybe_async_cm(cm: Union[ContextManager[T], AsyncContextManager[T]]) -> AsyncContextManager[T]:
+def maybe_async_cm(
+    cm: Union[ContextManager[T], AsyncContextManager[T]]
+) -> AsyncContextManager[T]:
     """
     Wrap a regular context manager as an async one if necessary.
 
@@ -80,21 +105,26 @@ def maybe_async_cm(cm: Union[ContextManager[T], AsyncContextManager[T]]) -> Asyn
 
     """
     if not isinstance(cm, AbstractContextManager):
-        raise TypeError('Given object is not an context manager')
+        raise TypeError("Given object is not an context manager")
 
     return _ContextManagerWrapper(cm)
 
 
-def _warn_deprecation(awaitable: 'AnyDeprecatedAwaitable[Any]', stacklevel: int = 1) -> None:
-    warn(f'Awaiting on {awaitable._name}() is deprecated. Use "await '
-         f'anyio.maybe_async({awaitable._name}(...)) if you have to support both AnyIO 2.x '
-         f'and 3.x, or just remove the "await" if you are completely migrating to AnyIO 3+.',
-         DeprecationWarning, stacklevel=stacklevel + 1)
+def _warn_deprecation(
+    awaitable: "AnyDeprecatedAwaitable[Any]", stacklevel: int = 1
+) -> None:
+    warn(
+        f'Awaiting on {awaitable._name}() is deprecated. Use "await '
+        f"anyio.maybe_async({awaitable._name}(...)) if you have to support both AnyIO 2.x "
+        f'and 3.x, or just remove the "await" if you are completely migrating to AnyIO 3+.',
+        DeprecationWarning,
+        stacklevel=stacklevel + 1,
+    )
 
 
 class DeprecatedAwaitable:
-    def __init__(self, func: Callable[..., 'DeprecatedAwaitable']):
-        self._name = f'{func.__module__}.{func.__qualname__}'
+    def __init__(self, func: Callable[..., "DeprecatedAwaitable"]):
+        self._name = f"{func.__module__}.{func.__qualname__}"
 
     def __await__(self) -> Generator[None, None, None]:
         _warn_deprecation(self)
@@ -110,12 +140,12 @@ class DeprecatedAwaitable:
 
 class DeprecatedAwaitableFloat(float):
     def __new__(
-        cls, x: float, func: Callable[..., 'DeprecatedAwaitableFloat']
-    ) -> 'DeprecatedAwaitableFloat':
+        cls, x: float, func: Callable[..., "DeprecatedAwaitableFloat"]
+    ) -> "DeprecatedAwaitableFloat":
         return super().__new__(cls, x)
 
-    def __init__(self, x: float, func: Callable[..., 'DeprecatedAwaitableFloat']):
-        self._name = f'{func.__module__}.{func.__qualname__}'
+    def __init__(self, x: float, func: Callable[..., "DeprecatedAwaitableFloat"]):
+        self._name = f"{func.__module__}.{func.__qualname__}"
 
     def __await__(self) -> Generator[None, None, float]:
         _warn_deprecation(self)
@@ -132,10 +162,14 @@ class DeprecatedAwaitableFloat(float):
 
 
 class DeprecatedAwaitableList(List[T]):
-    def __init__(self, iterable: Iterable[T] = (), *,
-                 func: Callable[..., 'DeprecatedAwaitableList[T]']):
+    def __init__(
+        self,
+        iterable: Iterable[T] = (),
+        *,
+        func: Callable[..., "DeprecatedAwaitableList[T]"],
+    ):
         super().__init__(iterable)
-        self._name = f'{func.__module__}.{func.__qualname__}'
+        self._name = f"{func.__module__}.{func.__qualname__}"
 
     def __await__(self) -> Generator[None, None, List[T]]:
         _warn_deprecation(self)
@@ -157,19 +191,28 @@ class DeprecatedAsyncContextManager(Generic[T], metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def __exit__(self, exc_type: Optional[Type[BaseException]],
-                 exc_val: Optional[BaseException],
-                 exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> Optional[bool]:
         pass
 
     async def __aenter__(self) -> T:
-        warn(f'Using {self.__class__.__name__} as an async context manager has been deprecated. '
-             f'Use "async with anyio.maybe_async_cm(yourcontextmanager) as foo:" if you have to '
-             f'support both AnyIO 2.x and 3.x, or just remove the "async" from "async with" if '
-             f'you are completely migrating to AnyIO 3+.', DeprecationWarning)
+        warn(
+            f"Using {self.__class__.__name__} as an async context manager has been deprecated. "
+            f'Use "async with anyio.maybe_async_cm(yourcontextmanager) as foo:" if you have to '
+            f'support both AnyIO 2.x and 3.x, or just remove the "async" from "async with" if '
+            f"you are completely migrating to AnyIO 3+.",
+            DeprecationWarning,
+        )
         return self.__enter__()
 
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> Optional[bool]:
         return self.__exit__(exc_type, exc_val, exc_tb)

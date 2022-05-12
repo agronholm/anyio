@@ -17,16 +17,20 @@ from .streams.buffered import BufferedByteReceiveStream
 
 WORKER_MAX_IDLE_TIME = 300  # 5 minutes
 
-T_Retval = TypeVar('T_Retval')
-_process_pool_workers: RunVar[Set[Process]] = RunVar('_process_pool_workers')
+T_Retval = TypeVar("T_Retval")
+_process_pool_workers: RunVar[Set[Process]] = RunVar("_process_pool_workers")
 _process_pool_idle_workers: RunVar[Deque[Tuple[Process, float]]] = RunVar(
-    '_process_pool_idle_workers')
-_default_process_limiter: RunVar[CapacityLimiter] = RunVar('_default_process_limiter')
+    "_process_pool_idle_workers"
+)
+_default_process_limiter: RunVar[CapacityLimiter] = RunVar("_default_process_limiter")
 
 
 async def run_sync(
-        func: Callable[..., T_Retval], *args: object, cancellable: bool = False,
-        limiter: Optional[CapacityLimiter] = None) -> T_Retval:
+    func: Callable[..., T_Retval],
+    *args: object,
+    cancellable: bool = False,
+    limiter: Optional[CapacityLimiter] = None,
+) -> T_Retval:
     """
     Call the given function with the given arguments in a worker process.
 
@@ -42,13 +46,16 @@ async def run_sync(
     :return: an awaitable that yields the return value of the function.
 
     """
+
     async def send_raw_command(pickled_cmd: bytes) -> object:
         try:
             await stdin.send(pickled_cmd)
-            response = await buffered.receive_until(b'\n', 50)
-            status, length = response.split(b' ')
-            if status not in (b'RETURN', b'EXCEPTION'):
-                raise RuntimeError(f'Worker process returned unexpected response: {response!r}')
+            response = await buffered.receive_until(b"\n", 50)
+            status, length = response.split(b" ")
+            if status not in (b"RETURN", b"EXCEPTION"):
+                raise RuntimeError(
+                    f"Worker process returned unexpected response: {response!r}"
+                )
 
             pickled_response = await buffered.receive_exactly(int(length))
         except BaseException as exc:
@@ -66,7 +73,7 @@ async def run_sync(
                 raise BrokenWorkerProcess from exc
 
         retval = pickle.loads(pickled_response)
-        if status == b'EXCEPTION':
+        if status == b"EXCEPTION":
             assert isinstance(retval, BaseException)
             raise retval
         else:
@@ -74,7 +81,7 @@ async def run_sync(
 
     # First pickle the request before trying to reserve a worker process
     await checkpoint_if_cancelled()
-    request = pickle.dumps(('run', func, args), protocol=pickle.HIGHEST_PROTOCOL)
+    request = pickle.dumps(("run", func, args), protocol=pickle.HIGHEST_PROTOCOL)
 
     # If this is the first run in this event loop thread, set up the necessary variables
     try:
@@ -95,7 +102,9 @@ async def run_sync(
             process, idle_since = idle_workers.pop()
             if process.returncode is None:
                 stdin = cast(ByteSendStream, process.stdin)
-                buffered = BufferedByteReceiveStream(cast(ByteReceiveStream, process.stdout))
+                buffered = BufferedByteReceiveStream(
+                    cast(ByteReceiveStream, process.stdout)
+                )
 
                 # Prune any other workers that have been idle for WORKER_MAX_IDLE_TIME seconds or
                 # longer
@@ -118,27 +127,36 @@ async def run_sync(
 
             workers.remove(process)
         else:
-            command = [sys.executable, '-u', '-m', __name__]
-            process = await open_process(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+            command = [sys.executable, "-u", "-m", __name__]
+            process = await open_process(
+                command, stdin=subprocess.PIPE, stdout=subprocess.PIPE
+            )
             try:
                 stdin = cast(ByteSendStream, process.stdin)
-                buffered = BufferedByteReceiveStream(cast(ByteReceiveStream, process.stdout))
+                buffered = BufferedByteReceiveStream(
+                    cast(ByteReceiveStream, process.stdout)
+                )
                 with fail_after(20):
                     message = await buffered.receive(6)
 
-                if message != b'READY\n':
+                if message != b"READY\n":
                     raise BrokenWorkerProcess(
-                        f'Worker process returned unexpected response: {message!r}')
+                        f"Worker process returned unexpected response: {message!r}"
+                    )
 
-                main_module_path = getattr(sys.modules['__main__'], '__file__', None)
-                pickled = pickle.dumps(('init', sys.path, main_module_path),
-                                       protocol=pickle.HIGHEST_PROTOCOL)
+                main_module_path = getattr(sys.modules["__main__"], "__file__", None)
+                pickled = pickle.dumps(
+                    ("init", sys.path, main_module_path),
+                    protocol=pickle.HIGHEST_PROTOCOL,
+                )
                 await send_raw_command(pickled)
             except (BrokenWorkerProcess, get_cancelled_exc_class()):
                 raise
             except BaseException as exc:
                 process.kill()
-                raise BrokenWorkerProcess('Error during worker process initialization') from exc
+                raise BrokenWorkerProcess(
+                    "Error during worker process initialization"
+                ) from exc
 
             workers.add(process)
 
@@ -171,9 +189,9 @@ def process_worker() -> None:
     stdin = sys.stdin
     stdout = sys.stdout
     sys.stdin = open(os.devnull)
-    sys.stdout = open(os.devnull, 'w')
+    sys.stdout = open(os.devnull, "w")
 
-    stdout.buffer.write(b'READY\n')
+    stdout.buffer.write(b"READY\n")
     while True:
         retval = exception = None
         try:
@@ -183,41 +201,41 @@ def process_worker() -> None:
         except BaseException as exc:
             exception = exc
         else:
-            if command == 'run':
+            if command == "run":
                 func, args = args
                 try:
                     retval = func(*args)
                 except BaseException as exc:
                     exception = exc
-            elif command == 'init':
+            elif command == "init":
                 main_module_path: Optional[str]
                 sys.path, main_module_path = args
-                del sys.modules['__main__']
+                del sys.modules["__main__"]
                 if main_module_path:
                     # Load the parent's main module but as __mp_main__ instead of __main__
                     # (like multiprocessing does) to avoid infinite recursion
                     try:
-                        spec = spec_from_file_location('__mp_main__', main_module_path)
+                        spec = spec_from_file_location("__mp_main__", main_module_path)
                         if spec and spec.loader:
                             main = module_from_spec(spec)
                             spec.loader.exec_module(main)
-                            sys.modules['__main__'] = main
+                            sys.modules["__main__"] = main
                     except BaseException as exc:
                         exception = exc
 
         try:
             if exception is not None:
-                status = b'EXCEPTION'
+                status = b"EXCEPTION"
                 pickled = pickle.dumps(exception, pickle.HIGHEST_PROTOCOL)
             else:
-                status = b'RETURN'
+                status = b"RETURN"
                 pickled = pickle.dumps(retval, pickle.HIGHEST_PROTOCOL)
         except BaseException as exc:
             exception = exc
-            status = b'EXCEPTION'
+            status = b"EXCEPTION"
             pickled = pickle.dumps(exc, pickle.HIGHEST_PROTOCOL)
 
-        stdout.buffer.write(b'%s %d\n' % (status, len(pickled)))
+        stdout.buffer.write(b"%s %d\n" % (status, len(pickled)))
         stdout.buffer.write(pickled)
 
         # Respect SIGTERM
@@ -225,5 +243,5 @@ def process_worker() -> None:
             raise exception
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     process_worker()

@@ -7,14 +7,36 @@ from typing import Union
 import pytest
 
 from anyio import (
-    CancelScope, CapacityLimiter, Condition, Event, Lock, Semaphore, TaskInfo,
-    create_blocking_portal, create_memory_object_stream, create_task_group,
-    current_default_worker_thread_limiter, current_effective_deadline, current_time, fail_after,
-    get_current_task, get_running_tasks, maybe_async, maybe_async_cm, move_on_after,
-    open_signal_receiver, run_async_from_thread, run_sync_from_thread, run_sync_in_worker_thread,
-    to_thread)
+    CancelScope,
+    CapacityLimiter,
+    Condition,
+    Event,
+    Lock,
+    Semaphore,
+    TaskInfo,
+    create_blocking_portal,
+    create_memory_object_stream,
+    create_task_group,
+    current_default_worker_thread_limiter,
+    current_effective_deadline,
+    current_time,
+    fail_after,
+    get_current_task,
+    get_running_tasks,
+    maybe_async,
+    maybe_async_cm,
+    move_on_after,
+    open_signal_receiver,
+    run_async_from_thread,
+    run_sync_from_thread,
+    run_sync_in_worker_thread,
+    to_thread,
+)
 from anyio._core._compat import (
-    DeprecatedAwaitable, DeprecatedAwaitableFloat, DeprecatedAwaitableList)
+    DeprecatedAwaitable,
+    DeprecatedAwaitableFloat,
+    DeprecatedAwaitableList,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -72,8 +94,9 @@ class TestDeprecations:
         assert tasks
         assert all(isinstance(task, TaskInfo) for task in tasks)
 
-    @pytest.mark.skipif(sys.platform == 'win32',
-                        reason='Signal delivery cannot be tested on Windows')
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="Signal delivery cannot be tested on Windows"
+    )
     async def test_open_signal_receiver(self) -> None:
         with pytest.deprecated_call():
             async with open_signal_receiver(signal.SIGINT):
@@ -197,9 +220,9 @@ class TestPickle:
 
     def test_deprecated_awaitable_list(self) -> None:
         def fn() -> DeprecatedAwaitableList[Union[str, int]]:
-            return DeprecatedAwaitableList([1, 'a'], func=fn)
+            return DeprecatedAwaitableList([1, "a"], func=fn)
 
         obj = fn()
         result = pickle.loads(pickle.dumps(obj))
         assert type(result) is list
-        assert result == [1, 'a']
+        assert result == [1, "a"]

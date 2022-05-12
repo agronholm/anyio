@@ -8,11 +8,17 @@ from ._eventloop import get_asynclib
 from ._tasks import create_task_group
 
 
-async def run_process(command: Union[str, Sequence[str]], *, input: Optional[bytes] = None,
-                      stdout: int = PIPE, stderr: int = PIPE, check: bool = True,
-                      cwd: Union[str, bytes, 'PathLike[str]', None] = None,
-                      env: Optional[Mapping[str, str]] = None, start_new_session: bool = False,
-                      ) -> 'CompletedProcess[bytes]':
+async def run_process(
+    command: Union[str, Sequence[str]],
+    *,
+    input: Optional[bytes] = None,
+    stdout: int = PIPE,
+    stderr: int = PIPE,
+    check: bool = True,
+    cwd: Union[str, bytes, "PathLike[str]", None] = None,
+    env: Optional[Mapping[str, str]] = None,
+    start_new_session: bool = False,
+) -> "CompletedProcess[bytes]":
     """
     Run an external command in a subprocess and wait until it completes.
 
@@ -36,6 +42,7 @@ async def run_process(command: Union[str, Sequence[str]], *, input: Optional[byt
         nonzero return code
 
     """
+
     async def drain_stream(stream: AsyncIterable[bytes], index: int) -> None:
         buffer = BytesIO()
         async for chunk in stream:
@@ -43,9 +50,15 @@ async def run_process(command: Union[str, Sequence[str]], *, input: Optional[byt
 
         stream_contents[index] = buffer.getvalue()
 
-    async with await open_process(command, stdin=PIPE if input else DEVNULL, stdout=stdout,
-                                  stderr=stderr, cwd=cwd, env=env,
-                                  start_new_session=start_new_session) as process:
+    async with await open_process(
+        command,
+        stdin=PIPE if input else DEVNULL,
+        stdout=stdout,
+        stderr=stderr,
+        cwd=cwd,
+        env=env,
+        start_new_session=start_new_session,
+    ) as process:
         stream_contents: List[Optional[bytes]] = [None, None]
         try:
             async with create_task_group() as tg:
@@ -69,11 +82,16 @@ async def run_process(command: Union[str, Sequence[str]], *, input: Optional[byt
     return CompletedProcess(command, cast(int, process.returncode), output, errors)
 
 
-async def open_process(command: Union[str, Sequence[str]], *, stdin: int = PIPE,
-                       stdout: int = PIPE, stderr: int = PIPE,
-                       cwd: Union[str, bytes, 'PathLike[str]', None] = None,
-                       env: Optional[Mapping[str, str]] = None,
-                       start_new_session: bool = False) -> Process:
+async def open_process(
+    command: Union[str, bytes, Sequence[Union[str, bytes]]],
+    *,
+    stdin: int = PIPE,
+    stdout: int = PIPE,
+    stderr: int = PIPE,
+    cwd: Union[str, bytes, "PathLike[str]", None] = None,
+    env: Optional[Mapping[str, str]] = None,
+    start_new_session: bool = False,
+) -> Process:
     """
     Start an external command in a subprocess.
 
@@ -94,6 +112,13 @@ async def open_process(command: Union[str, Sequence[str]], *, stdin: int = PIPE,
 
     """
     shell = isinstance(command, str)
-    return await get_asynclib().open_process(command, shell=shell, stdin=stdin, stdout=stdout,
-                                             stderr=stderr, cwd=cwd, env=env,
-                                             start_new_session=start_new_session)
+    return await get_asynclib().open_process(
+        command,
+        shell=shell,
+        stdin=stdin,
+        stdout=stdout,
+        stderr=stderr,
+        cwd=cwd,
+        env=env,
+        start_new_session=start_new_session,
+    )

@@ -4,8 +4,16 @@ from typing import Optional
 import pytest
 
 from anyio import (
-    CancelScope, Condition, Event, Lock, Semaphore, WouldBlock, create_task_group, to_thread,
-    wait_all_tasks_blocked)
+    CancelScope,
+    Condition,
+    Event,
+    Lock,
+    Semaphore,
+    WouldBlock,
+    create_task_group,
+    to_thread,
+    wait_all_tasks_blocked,
+)
 from anyio.abc import CapacityLimiter, TaskStatus
 
 pytestmark = pytest.mark.anyio
@@ -16,7 +24,7 @@ class TestLock:
         async def task() -> None:
             assert lock.locked()
             async with lock:
-                results.append('2')
+                results.append("2")
 
         results = []
         lock = Lock()
@@ -24,17 +32,17 @@ class TestLock:
             async with lock:
                 tg.start_soon(task)
                 await wait_all_tasks_blocked()
-                results.append('1')
+                results.append("1")
 
         assert not lock.locked()
-        assert results == ['1', '2']
+        assert results == ["1", "2"]
 
     async def test_manual_acquire(self) -> None:
         async def task() -> None:
             assert lock.locked()
             await lock.acquire()
             try:
-                results.append('2')
+                results.append("2")
             finally:
                 lock.release()
 
@@ -45,12 +53,12 @@ class TestLock:
             try:
                 tg.start_soon(task)
                 await wait_all_tasks_blocked()
-                results.append('1')
+                results.append("1")
             finally:
                 lock.release()
 
         assert not lock.locked()
-        assert results == ['1', '2']
+        assert results == ["1", "2"]
 
     async def test_acquire_nowait(self) -> None:
         lock = Lock()
@@ -66,10 +74,10 @@ class TestLock:
             assert lock.locked()
             tg.start_soon(try_lock)
 
-    @pytest.mark.parametrize('release_first', [
-        pytest.param(False, id='releaselast'),
-        pytest.param(True, id='releasefirst')
-    ])
+    @pytest.mark.parametrize(
+        "release_first",
+        [pytest.param(False, id="releaselast"), pytest.param(True, id="releasefirst")],
+    )
     async def test_cancel_during_acquire(self, release_first: bool) -> None:
         acquired = False
 
@@ -115,7 +123,7 @@ class TestLock:
         assert not lock.statistics().locked
         assert lock.statistics().tasks_waiting == 0
 
-    @pytest.mark.parametrize('anyio_backend', ['asyncio'])
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
     async def test_asyncio_deadlock(self) -> None:
         """Regression test for #398."""
         lock = Lock()
@@ -284,8 +292,8 @@ class TestSemaphore:
 
         semaphore = Semaphore(2)
         async with create_task_group() as tg:
-            tg.start_soon(acquire, name='task 1')
-            tg.start_soon(acquire, name='task 2')
+            tg.start_soon(acquire, name="task 1")
+            tg.start_soon(acquire, name="task 2")
 
         assert semaphore.value == 2
 
@@ -299,8 +307,8 @@ class TestSemaphore:
 
         semaphore = Semaphore(2)
         async with create_task_group() as tg:
-            tg.start_soon(acquire, name='task 1')
-            tg.start_soon(acquire, name='task 2')
+            tg.start_soon(acquire, name="task 1")
+            tg.start_soon(acquire, name="task 2")
 
         assert semaphore.value == 2
 
@@ -310,10 +318,10 @@ class TestSemaphore:
         assert semaphore.value == 0
         pytest.raises(WouldBlock, semaphore.acquire_nowait)
 
-    @pytest.mark.parametrize('release_first', [
-        pytest.param(False, id='releaselast'),
-        pytest.param(True, id='releasefirst')
-    ])
+    @pytest.mark.parametrize(
+        "release_first",
+        [pytest.param(False, id="releaselast"), pytest.param(True, id="releasefirst")],
+    )
     async def test_cancel_during_acquire(self, release_first: bool) -> None:
         acquired = False
 
@@ -339,7 +347,7 @@ class TestSemaphore:
         assert not acquired
         assert semaphore.value == 1
 
-    @pytest.mark.parametrize('max_value', [2, None])
+    @pytest.mark.parametrize("max_value", [2, None])
     async def test_max_value(self, max_value: Optional[int]) -> None:
         semaphore = Semaphore(0, max_value=max_value)
         assert semaphore.max_value == max_value
@@ -380,7 +388,7 @@ class TestSemaphore:
             semaphore.release()
             pytest.raises(WouldBlock, semaphore.acquire_nowait)
 
-    @pytest.mark.parametrize('anyio_backend', ['asyncio'])
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
     async def test_asyncio_deadlock(self) -> None:
         """Regression test for #398."""
         semaphore = Semaphore(1)
@@ -399,12 +407,12 @@ class TestSemaphore:
 
 class TestCapacityLimiter:
     async def test_bad_init_type(self) -> None:
-        pytest.raises(TypeError, CapacityLimiter, 1.0).\
-            match('total_tokens must be an int or math.inf')
+        pytest.raises(TypeError, CapacityLimiter, 1.0).match(
+            "total_tokens must be an int or math.inf"
+        )
 
     async def test_bad_init_value(self) -> None:
-        pytest.raises(ValueError, CapacityLimiter, 0).\
-            match('total_tokens must be >= 1')
+        pytest.raises(ValueError, CapacityLimiter, 0).match("total_tokens must be >= 1")
 
     async def test_borrow(self) -> None:
         limiter = CapacityLimiter(2)
@@ -439,7 +447,9 @@ class TestCapacityLimiter:
         with pytest.raises(RuntimeError) as exc:
             await limiter.acquire()
 
-        exc.match("this borrower is already holding one of this CapacityLimiter's tokens")
+        exc.match(
+            "this borrower is already holding one of this CapacityLimiter's tokens"
+        )
 
     async def test_bad_release(self) -> None:
         limiter = CapacityLimiter(1)
@@ -499,7 +509,7 @@ class TestCapacityLimiter:
         assert limiter.statistics().tasks_waiting == 0
         assert limiter.statistics().borrowed_tokens == 0
 
-    @pytest.mark.parametrize('anyio_backend', ['asyncio'])
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
     async def test_asyncio_deadlock(self) -> None:
         """Regression test for #398."""
         limiter = CapacityLimiter(1)

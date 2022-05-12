@@ -16,41 +16,63 @@ pytestmark = pytest.mark.anyio
 
 @pytest.fixture(autouse=True)
 def check_compatibility(anyio_backend_name: str) -> None:
-    if anyio_backend_name == 'asyncio':
-        if platform.system() == 'Windows' and sys.version_info < (3, 8):
-            pytest.skip('Python < 3.8 uses SelectorEventLoop by default and it does not support '
-                        'subprocesses')
+    if anyio_backend_name == "asyncio":
+        if platform.system() == "Windows" and sys.version_info < (3, 8):
+            pytest.skip(
+                "Python < 3.8 uses SelectorEventLoop by default and it does not support "
+                "subprocesses"
+            )
 
 
-@pytest.mark.parametrize('shell, command', [
-    pytest.param(True, f'{sys.executable} -c "import sys; print(sys.stdin.read()[::-1])"',
-                 id='shell'),
-    pytest.param(False, [sys.executable, '-c', 'import sys; print(sys.stdin.read()[::-1])'],
-                 id='exec')
-])
-async def test_run_process(shell: bool, command: Union[str, List[str]],
-                           anyio_backend_name: str) -> None:
-    process = await run_process(command, input=b'abc')
+@pytest.mark.parametrize(
+    "shell, command",
+    [
+        pytest.param(
+            True,
+            f'{sys.executable} -c "import sys; print(sys.stdin.read()[::-1])"',
+            id="shell",
+        ),
+        pytest.param(
+            False,
+            [sys.executable, "-c", "import sys; print(sys.stdin.read()[::-1])"],
+            id="exec",
+        ),
+    ],
+)
+async def test_run_process(
+    shell: bool, command: Union[str, List[str]], anyio_backend_name: str
+) -> None:
+    process = await run_process(command, input=b"abc")
     assert process.returncode == 0
-    assert process.stdout.rstrip() == b'cba'
+    assert process.stdout.rstrip() == b"cba"
 
 
 async def test_run_process_checked() -> None:
     with pytest.raises(CalledProcessError) as exc:
-        await run_process([sys.executable, '-c',
-                           'import sys; print("stderr-text", file=sys.stderr); '
-                           'print("stdout-text"); sys.exit(1)'], check=True)
+        await run_process(
+            [
+                sys.executable,
+                "-c",
+                'import sys; print("stderr-text", file=sys.stderr); '
+                'print("stdout-text"); sys.exit(1)',
+            ],
+            check=True,
+        )
 
     assert exc.value.returncode == 1
-    assert exc.value.stdout.rstrip() == b'stdout-text'
-    assert exc.value.stderr.rstrip() == b'stderr-text'
+    assert exc.value.stdout.rstrip() == b"stdout-text"
+    assert exc.value.stderr.rstrip() == b"stderr-text"
 
 
-@pytest.mark.skipif(platform.system() == 'Windows',
-                    reason='process.terminate() kills the process instantly on Windows')
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="process.terminate() kills the process instantly on Windows",
+)
 async def test_terminate(tmp_path: Path) -> None:
-    script_path = tmp_path / 'script.py'
-    script_path.write_text(dedent("""\
+    script_path = tmp_path / "script.py"
+    script_path.write_text(
+        dedent(
+            """\
         import signal, sys, time
 
         def terminate(signum, frame):
@@ -59,13 +81,15 @@ async def test_terminate(tmp_path: Path) -> None:
         signal.signal(signal.SIGTERM, terminate)
         print('ready', flush=True)
         time.sleep(5)
-    """))
+    """
+        )
+    )
     async with await open_process([sys.executable, str(script_path)]) as process:
         stdout = process.stdout
         assert stdout is not None
         buffered_stdout = BufferedByteReceiveStream(stdout)
-        line = await buffered_stdout.receive_until(b'\n', 100)
-        assert line.rstrip() == b'ready'
+        line = await buffered_stdout.receive_until(b"\n", 100)
+        assert line.rstrip() == b"ready"
 
         process.terminate()
         assert await process.wait() == 2
@@ -87,8 +111,9 @@ async def test_process_env() -> None:
     assert result.stdout.decode().strip() == env["foo"]
 
 
-@pytest.mark.skipif(platform.system() == 'Windows',
-                    reason='Windows does not have os.getsid()')
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="Windows does not have os.getsid()"
+)
 async def test_process_new_session_sid() -> None:
     """Test that start_new_session is successfully passed to the subprocess implementation"""
     sid = os.getsid(os.getpid())

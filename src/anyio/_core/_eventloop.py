@@ -3,21 +3,35 @@ import sys
 import threading
 from contextlib import contextmanager
 from importlib import import_module
-from typing import Any, Callable, Coroutine, Dict, Generator, Optional, Tuple, Type, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Coroutine,
+    Dict,
+    Generator,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+)
 
 import sniffio
 
 # This must be updated when new backends are introduced
 from ._compat import DeprecatedAwaitableFloat
 
-BACKENDS = 'asyncio', 'trio'
+BACKENDS = "asyncio", "trio"
 
-T_Retval = TypeVar('T_Retval')
+T_Retval = TypeVar("T_Retval")
 threadlocals = threading.local()
 
 
-def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object,
-        backend: str = 'asyncio', backend_options: Optional[Dict[str, Any]] = None) -> T_Retval:
+def run(
+    func: Callable[..., Coroutine[Any, Any, T_Retval]],
+    *args: object,
+    backend: str = "asyncio",
+    backend_options: Optional[Dict[str, Any]] = None,
+) -> T_Retval:
     """
     Run the given coroutine function in an asynchronous event loop.
 
@@ -39,12 +53,12 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object,
     except sniffio.AsyncLibraryNotFoundError:
         pass
     else:
-        raise RuntimeError(f'Already running {asynclib_name} in this thread')
+        raise RuntimeError(f"Already running {asynclib_name} in this thread")
 
     try:
-        asynclib = import_module(f'..._backends._{backend}', package=__name__)
+        asynclib = import_module(f"..._backends._{backend}", package=__name__)
     except ImportError as exc:
-        raise LookupError(f'No such backend: {backend}') from exc
+        raise LookupError(f"No such backend: {backend}") from exc
 
     token = None
     if sniffio.current_async_library_cvar.get(None) is None:
@@ -119,9 +133,10 @@ def get_cancelled_exc_class() -> Type[BaseException]:
 # Private API
 #
 
+
 @contextmanager
 def claim_worker_thread(backend: str) -> Generator[Any, None, None]:
-    module = sys.modules['anyio._backends._' + backend]
+    module = sys.modules["anyio._backends._" + backend]
     threadlocals.current_async_module = module
     try:
         yield
@@ -133,7 +148,7 @@ def get_asynclib(asynclib_name: Optional[str] = None) -> Any:
     if asynclib_name is None:
         asynclib_name = sniffio.current_async_library()
 
-    modulename = 'anyio._backends._' + asynclib_name
+    modulename = "anyio._backends._" + asynclib_name
     try:
         return sys.modules[modulename]
     except KeyError:

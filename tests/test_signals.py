@@ -10,8 +10,8 @@ from anyio import create_task_group, fail_after, open_signal_receiver, to_thread
 pytestmark = [
     pytest.mark.anyio,
     pytest.mark.skipif(
-        sys.platform == 'win32',
-        reason='Signal delivery cannot be tested on Windows',
+        sys.platform == "win32",
+        reason="Signal delivery cannot be tested on Windows",
     ),
 ]
 

@@ -3,21 +3,31 @@ from typing import List, Union
 import pytest
 
 from anyio import (
-    BrokenResourceError, CancelScope, ClosedResourceError, EndOfStream, WouldBlock,
-    create_memory_object_stream, create_task_group, fail_after, wait_all_tasks_blocked)
+    BrokenResourceError,
+    CancelScope,
+    ClosedResourceError,
+    EndOfStream,
+    WouldBlock,
+    create_memory_object_stream,
+    create_task_group,
+    fail_after,
+    wait_all_tasks_blocked,
+)
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 pytestmark = pytest.mark.anyio
 
 
 def test_invalid_max_buffer() -> None:
-    pytest.raises(ValueError, create_memory_object_stream, 1.0).\
-        match('max_buffer_size must be either an integer or math.inf')
+    pytest.raises(ValueError, create_memory_object_stream, 1.0).match(
+        "max_buffer_size must be either an integer or math.inf"
+    )
 
 
 def test_negative_max_buffer() -> None:
-    pytest.raises(ValueError, create_memory_object_stream, -1).\
-        match('max_buffer_size cannot be negative')
+    pytest.raises(ValueError, create_memory_object_stream, -1).match(
+        "max_buffer_size cannot be negative"
+    )
 
 
 async def test_receive_then_send() -> None:
@@ -30,10 +40,10 @@ async def test_receive_then_send() -> None:
     async with create_task_group() as tg:
         tg.start_soon(receiver)
         await wait_all_tasks_blocked()
-        await send.send('hello')
-        await send.send('anyio')
+        await send.send("hello")
+        await send.send("anyio")
 
-    assert received_objects == ['hello', 'anyio']
+    assert received_objects == ["hello", "anyio"]
 
 
 async def test_receive_then_send_nowait() -> None:
@@ -46,39 +56,39 @@ async def test_receive_then_send_nowait() -> None:
         tg.start_soon(receiver)
         tg.start_soon(receiver)
         await wait_all_tasks_blocked()
-        send.send_nowait('hello')
-        send.send_nowait('anyio')
+        send.send_nowait("hello")
+        send.send_nowait("anyio")
 
-    assert sorted(received_objects, reverse=True) == ['hello', 'anyio']
+    assert sorted(received_objects, reverse=True) == ["hello", "anyio"]
 
 
 async def test_send_then_receive_nowait() -> None:
     send, receive = create_memory_object_stream(0)
     async with create_task_group() as tg:
-        tg.start_soon(send.send, 'hello')
+        tg.start_soon(send.send, "hello")
         await wait_all_tasks_blocked()
-        assert receive.receive_nowait() == 'hello'
+        assert receive.receive_nowait() == "hello"
 
 
 async def test_send_is_unblocked_after_receive_nowait() -> None:
     send, receive = create_memory_object_stream(1)
-    send.send_nowait('hello')
+    send.send_nowait("hello")
 
     with fail_after(1):
         async with create_task_group() as tg:
-            tg.start_soon(send.send, 'anyio')
+            tg.start_soon(send.send, "anyio")
             await wait_all_tasks_blocked()
-            assert receive.receive_nowait() == 'hello'
+            assert receive.receive_nowait() == "hello"
 
-    assert receive.receive_nowait() == 'anyio'
+    assert receive.receive_nowait() == "anyio"
 
 
 async def test_send_nowait_then_receive_nowait() -> None:
     send, receive = create_memory_object_stream(2)
-    send.send_nowait('hello')
-    send.send_nowait('anyio')
-    assert receive.receive_nowait() == 'hello'
-    assert receive.receive_nowait() == 'anyio'
+    send.send_nowait("hello")
+    send.send_nowait("anyio")
+    assert receive.receive_nowait() == "hello"
+    assert receive.receive_nowait() == "anyio"
 
 
 async def test_iterate() -> None:
@@ -90,11 +100,11 @@ async def test_iterate() -> None:
     received_objects: List[str] = []
     async with create_task_group() as tg:
         tg.start_soon(receiver)
-        await send.send('hello')
-        await send.send('anyio')
+        await send.send("hello")
+        await send.send("anyio")
         await send.aclose()
 
-    assert received_objects == ['hello', 'anyio']
+    assert received_objects == ["hello", "anyio"]
 
 
 async def test_receive_send_closed_send_stream() -> None:
@@ -125,13 +135,13 @@ async def test_cancel_receive() -> None:
         tg.cancel_scope.cancel()
 
     with pytest.raises(WouldBlock):
-        send.send_nowait('hello')
+        send.send_nowait("hello")
 
 
 async def test_cancel_send() -> None:
     send, receive = create_memory_object_stream()
     async with create_task_group() as tg:
-        tg.start_soon(send.send, 'hello')
+        tg.start_soon(send.send, "hello")
         await wait_all_tasks_blocked()
         tg.cancel_scope.cancel()
 
@@ -145,8 +155,8 @@ async def test_clone() -> None:
     receive2 = receive1.clone()
     await send1.aclose()
     await receive1.aclose()
-    send2.send_nowait('hello')
-    assert receive2.receive_nowait() == 'hello'
+    send2.send_nowait("hello")
+    assert receive2.receive_nowait() == "hello"
 
 
 async def test_clone_closed() -> None:
@@ -170,16 +180,16 @@ async def test_close_receive_while_sending() -> None:
     send, receive = create_memory_object_stream(0)
     with pytest.raises(BrokenResourceError):
         async with create_task_group() as tg:
-            tg.start_soon(send.send, 'hello')
+            tg.start_soon(send.send, "hello")
             await wait_all_tasks_blocked()
             await receive.aclose()
 
 
 async def test_receive_after_send_closed() -> None:
     send, receive = create_memory_object_stream(1)
-    await send.send('hello')
+    await send.send("hello")
     await send.aclose()
-    assert await receive.receive() == 'hello'
+    assert await receive.receive() == "hello"
 
 
 async def test_receive_when_cancelled() -> None:
@@ -190,17 +200,17 @@ async def test_receive_when_cancelled() -> None:
     """
     send, receive = create_memory_object_stream()
     async with create_task_group() as tg:
-        tg.start_soon(send.send, 'hello')
+        tg.start_soon(send.send, "hello")
         await wait_all_tasks_blocked()
-        tg.start_soon(send.send, 'world')
+        tg.start_soon(send.send, "world")
         await wait_all_tasks_blocked()
 
         with CancelScope() as scope:
             scope.cancel()
             await receive.receive()
 
-        assert await receive.receive() == 'hello'
-        assert await receive.receive() == 'world'
+        assert await receive.receive() == "hello"
+        assert await receive.receive() == "world"
 
 
 async def test_send_when_cancelled() -> None:
@@ -209,6 +219,7 @@ async def test_send_when_cancelled() -> None:
     operation.
 
     """
+
     async def receiver() -> None:
         received.append(await receive.receive())
 
@@ -218,11 +229,11 @@ async def test_send_when_cancelled() -> None:
         tg.start_soon(receiver)
         with CancelScope() as scope:
             scope.cancel()
-            await send.send('hello')
+            await send.send("hello")
 
-        await send.send('world')
+        await send.send("world")
 
-    assert received == ['world']
+    assert received == ["world"]
 
 
 async def test_cancel_during_receive() -> None:
@@ -245,21 +256,21 @@ async def test_cancel_during_receive() -> None:
     async with create_task_group() as tg:
         tg.start_soon(scoped_receiver)
         await wait_all_tasks_blocked()
-        send.send_nowait('hello')
+        send.send_nowait("hello")
         assert receiver_scope is not None
         receiver_scope.cancel()
 
-    assert received == ['hello']
+    assert received == ["hello"]
 
 
 async def test_close_receive_after_send() -> None:
     async def send() -> None:
         async with send_stream:
-            await send_stream.send('test')
+            await send_stream.send("test")
 
     async def receive() -> None:
         async with receive_stream:
-            assert await receive_stream.receive() == 'test'
+            assert await receive_stream.receive() == "test"
 
     send_stream, receive_stream = create_memory_object_stream()
     async with create_task_group() as tg:
@@ -269,8 +280,9 @@ async def test_close_receive_after_send() -> None:
 
 async def test_statistics() -> None:
     send_stream, receive_stream = create_memory_object_stream(1)
-    streams: List[Union[MemoryObjectReceiveStream[int], MemoryObjectSendStream[int]]] = [
-        send_stream, receive_stream]
+    streams: List[
+        Union[MemoryObjectReceiveStream[int], MemoryObjectSendStream[int]]
+    ] = [send_stream, receive_stream]
     for stream in streams:
         statistics = stream.statistics()
         assert statistics.max_buffer_size == 1

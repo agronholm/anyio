@@ -20,7 +20,7 @@ class BusyResourceError(Exception):
     """Raised when two tasks are trying to read from or write to the same resource concurrently."""
 
     def __init__(self, action: str):
-        super().__init__(f'Another task is already {action} this resource')
+        super().__init__(f"Another task is already {action} this resource")
 
 
 class ClosedResourceError(Exception):
@@ -34,7 +34,9 @@ class DelimiterNotFound(Exception):
     """
 
     def __init__(self, max_bytes: int) -> None:
-        super().__init__(f'The delimiter was not found among the first {max_bytes} bytes')
+        super().__init__(
+            f"The delimiter was not found among the first {max_bytes} bytes"
+        )
 
 
 class EndOfStream(Exception):
@@ -48,19 +50,23 @@ class ExceptionGroup(BaseException):
     :var ~typing.Sequence[BaseException] exceptions: the sequence of exceptions raised together
     """
 
-    SEPARATOR = '----------------------------\n'
+    SEPARATOR = "----------------------------\n"
 
     exceptions: List[BaseException]
 
     def __str__(self) -> str:
-        tracebacks = [''.join(format_exception(type(exc), exc, exc.__traceback__))
-                      for exc in self.exceptions]
-        return f'{len(self.exceptions)} exceptions were raised in the task group:\n' \
-               f'{self.SEPARATOR}{self.SEPARATOR.join(tracebacks)}'
+        tracebacks = [
+            "".join(format_exception(type(exc), exc, exc.__traceback__))
+            for exc in self.exceptions
+        ]
+        return (
+            f"{len(self.exceptions)} exceptions were raised in the task group:\n"
+            f"{self.SEPARATOR}{self.SEPARATOR.join(tracebacks)}"
+        )
 
     def __repr__(self) -> str:
-        exception_reprs = ', '.join(repr(exc) for exc in self.exceptions)
-        return f'<{self.__class__.__name__}: {exception_reprs}>'
+        exception_reprs = ", ".join(repr(exc) for exc in self.exceptions)
+        return f"<{self.__class__.__name__}: {exception_reprs}>"
 
 
 class IncompleteRead(Exception):
@@ -71,7 +77,9 @@ class IncompleteRead(Exception):
     """
 
     def __init__(self) -> None:
-        super().__init__('The stream was closed before the read operation could be completed')
+        super().__init__(
+            "The stream was closed before the read operation could be completed"
+        )
 
 
 class TypedAttributeLookupError(LookupError):

@@ -21,7 +21,7 @@ def extract_backend_and_options(backend: object) -> Tuple[str, Dict[str, Any]]:
         if isinstance(backend[0], str) and isinstance(backend[1], dict):
             return cast(Tuple[str, Dict[str, Any]], backend)
 
-    raise TypeError('anyio_backend must be either a string or tuple of (string, dict)')
+    raise TypeError("anyio_backend must be either a string or tuple of (string, dict)")
 
 
 @contextmanager
@@ -51,15 +51,18 @@ def get_runner(
 
 
 def pytest_configure(config: "Config") -> None:
-    config.addinivalue_line('markers', 'anyio: mark the (coroutine function) test to be run '
-                                       'asynchronously via anyio.')
+    config.addinivalue_line(
+        "markers",
+        "anyio: mark the (coroutine function) test to be run "
+        "asynchronously via anyio.",
+    )
 
 
 def pytest_fixture_setup(fixturedef: Any, request: Any) -> None:
     def wrapper(*args, anyio_backend, **kwargs):  # type: ignore[no-untyped-def]
         backend_name, backend_options = extract_backend_and_options(anyio_backend)
         if has_backend_arg:
-            kwargs['anyio_backend'] = anyio_backend
+            kwargs["anyio_backend"] = anyio_backend
 
         with get_runner(backend_name, backend_options) as runner:
             if isasyncgenfunction(func):
@@ -67,7 +70,7 @@ def pytest_fixture_setup(fixturedef: Any, request: Any) -> None:
                 try:
                     value = runner.call(gen.asend, None)
                 except StopAsyncIteration:
-                    raise RuntimeError('Async generator did not yield')
+                    raise RuntimeError("Async generator did not yield")
 
                 yield value
 
@@ -77,7 +80,7 @@ def pytest_fixture_setup(fixturedef: Any, request: Any) -> None:
                     pass
                 else:
                     runner.call(gen.aclose)
-                    raise RuntimeError('Async generator fixture did not stop')
+                    raise RuntimeError("Async generator fixture did not stop")
             else:
                 yield runner.call(func, *args, **kwargs)
 
@@ -85,22 +88,22 @@ def pytest_fixture_setup(fixturedef: Any, request: Any) -> None:
     # the anyio_backend fixture
     func = fixturedef.func
     if isasyncgenfunction(func) or iscoroutinefunction(func):
-        if 'anyio_backend' in request.fixturenames:
-            has_backend_arg = 'anyio_backend' in fixturedef.argnames
+        if "anyio_backend" in request.fixturenames:
+            has_backend_arg = "anyio_backend" in fixturedef.argnames
             fixturedef.func = wrapper
             if not has_backend_arg:
-                fixturedef.argnames += ('anyio_backend',)
+                fixturedef.argnames += ("anyio_backend",)
 
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_pycollect_makeitem(collector: Any, name: Any, obj: Any) -> None:
     if collector.istestfunction(obj, name):
-        inner_func = obj.hypothesis.inner_test if hasattr(obj, 'hypothesis') else obj
+        inner_func = obj.hypothesis.inner_test if hasattr(obj, "hypothesis") else obj
         if iscoroutinefunction(inner_func):
-            marker = collector.get_closest_marker('anyio')
-            own_markers = getattr(obj, 'pytestmark', ())
-            if marker or any(marker.name == 'anyio' for marker in own_markers):
-                pytest.mark.usefixtures('anyio_backend')(obj)
+            marker = collector.get_closest_marker("anyio")
+            own_markers = getattr(obj, "pytestmark", ())
+            if marker or any(marker.name == "anyio" for marker in own_markers):
+                pytest.mark.usefixtures("anyio_backend")(obj)
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -109,11 +112,11 @@ def pytest_pyfunc_call(pyfuncitem: Any) -> Optional[bool]:
         with get_runner(backend_name, backend_options) as runner:
             runner.call(original_func, **kwargs)
 
-    backend = pyfuncitem.funcargs.get('anyio_backend')
+    backend = pyfuncitem.funcargs.get("anyio_backend")
     if backend:
         backend_name, backend_options = extract_backend_and_options(backend)
 
-        if hasattr(pyfuncitem.obj, 'hypothesis'):
+        if hasattr(pyfuncitem.obj, "hypothesis"):
             # Wrap the inner test function unless it's already wrapped
             original_func = pyfuncitem.obj.hypothesis.inner_test
             if original_func.__qualname__ != run_with_hypothesis.__qualname__:

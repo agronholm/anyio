@@ -8,8 +8,8 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import final
 
-T_Attr = TypeVar('T_Attr')
-T_Default = TypeVar('T_Default')
+T_Attr = TypeVar("T_Attr")
+T_Default = TypeVar("T_Default")
 undefined = object()
 
 
@@ -26,10 +26,12 @@ class TypedAttributeSet:
     """
 
     def __init_subclass__(cls) -> None:
-        annotations: Dict[str, Any] = getattr(cls, '__annotations__', {})
+        annotations: Dict[str, Any] = getattr(cls, "__annotations__", {})
         for attrname in dir(cls):
-            if not attrname.startswith('_') and attrname not in annotations:
-                raise TypeError(f'Attribute {attrname!r} is missing its type annotation')
+            if not attrname.startswith("_") and attrname not in annotations:
+                raise TypeError(
+                    f"Attribute {attrname!r} is missing its type annotation"
+                )
 
         super().__init_subclass__()
 
@@ -74,6 +76,6 @@ class TypedAttributeProvider:
             return self.extra_attributes[attribute]()
         except KeyError:
             if default is undefined:
-                raise TypedAttributeLookupError('Attribute not found') from None
+                raise TypedAttributeLookupError("Attribute not found") from None
             else:
                 return default

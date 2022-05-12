@@ -2,11 +2,18 @@ from dataclasses import dataclass
 from typing import Any, Callable, Generic, List, Mapping, Optional, Sequence, TypeVar
 
 from ..abc import (
-    ByteReceiveStream, ByteSendStream, ByteStream, Listener, ObjectReceiveStream, ObjectSendStream,
-    ObjectStream, TaskGroup)
+    ByteReceiveStream,
+    ByteSendStream,
+    ByteStream,
+    Listener,
+    ObjectReceiveStream,
+    ObjectSendStream,
+    ObjectStream,
+    TaskGroup,
+)
 
-T_Item = TypeVar('T_Item')
-T_Stream = TypeVar('T_Stream')
+T_Item = TypeVar("T_Item")
+T_Stream = TypeVar("T_Stream")
 
 
 @dataclass(eq=False)
@@ -39,7 +46,10 @@ class StapledByteStream(ByteStream):
 
     @property
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
-        return {**self.send_stream.extra_attributes, **self.receive_stream.extra_attributes}
+        return {
+            **self.send_stream.extra_attributes,
+            **self.receive_stream.extra_attributes,
+        }
 
 
 @dataclass(eq=False)
@@ -72,7 +82,10 @@ class StapledObjectStream(Generic[T_Item], ObjectStream[T_Item]):
 
     @property
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
-        return {**self.send_stream.extra_attributes, **self.receive_stream.extra_attributes}
+        return {
+            **self.send_stream.extra_attributes,
+            **self.receive_stream.extra_attributes,
+        }
 
 
 @dataclass(eq=False)
@@ -103,8 +116,9 @@ class MultiListener(Generic[T_Stream], Listener[T_Stream]):
 
         self.listeners = listeners
 
-    async def serve(self, handler: Callable[[T_Stream], Any],
-                    task_group: Optional[TaskGroup] = None) -> None:
+    async def serve(
+        self, handler: Callable[[T_Stream], Any], task_group: Optional[TaskGroup] = None
+    ) -> None:
         from .. import create_task_group
 
         async with create_task_group() as tg:

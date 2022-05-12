@@ -5,7 +5,12 @@ from typing import Deque, Iterable, List, TypeVar
 import pytest
 
 from anyio import ClosedResourceError, EndOfStream
-from anyio.abc import ByteReceiveStream, ByteSendStream, ObjectReceiveStream, ObjectSendStream
+from anyio.abc import (
+    ByteReceiveStream,
+    ByteSendStream,
+    ObjectReceiveStream,
+    ObjectSendStream,
+)
 from anyio.streams.stapled import StapledByteStream, StapledObjectStream
 
 pytestmark = pytest.mark.anyio
@@ -54,41 +59,43 @@ class TestStapledByteStream:
 
     @pytest.fixture
     def receive_stream(self) -> DummyByteReceiveStream:
-        return DummyByteReceiveStream(b'hello, world')
+        return DummyByteReceiveStream(b"hello, world")
 
     @pytest.fixture
-    def stapled(self, send_stream: DummyByteSendStream,
-                receive_stream: DummyByteReceiveStream) -> StapledByteStream:
+    def stapled(
+        self, send_stream: DummyByteSendStream, receive_stream: DummyByteReceiveStream
+    ) -> StapledByteStream:
         return StapledByteStream(send_stream, receive_stream)
 
-    async def test_receive_send(self, stapled: StapledByteStream,
-                                send_stream: DummyByteSendStream) -> None:
-        assert await stapled.receive(3) == b'hel'
-        assert await stapled.receive() == b'lo, world'
-        assert await stapled.receive() == b''
+    async def test_receive_send(
+        self, stapled: StapledByteStream, send_stream: DummyByteSendStream
+    ) -> None:
+        assert await stapled.receive(3) == b"hel"
+        assert await stapled.receive() == b"lo, world"
+        assert await stapled.receive() == b""
 
-        await stapled.send(b'how are you ')
-        await stapled.send(b'today?')
+        await stapled.send(b"how are you ")
+        await stapled.send(b"today?")
         assert stapled.send_stream is send_stream
-        assert bytes(send_stream.buffer) == b'how are you today?'
+        assert bytes(send_stream.buffer) == b"how are you today?"
 
     async def test_send_eof(self, stapled: StapledByteStream) -> None:
         await stapled.send_eof()
         await stapled.send_eof()
         with pytest.raises(ClosedResourceError):
-            await stapled.send(b'world')
+            await stapled.send(b"world")
 
-        assert await stapled.receive() == b'hello, world'
+        assert await stapled.receive() == b"hello, world"
 
     async def test_aclose(self, stapled: StapledByteStream) -> None:
         await stapled.aclose()
         with pytest.raises(ClosedResourceError):
             await stapled.receive()
         with pytest.raises(ClosedResourceError):
-            await stapled.send(b'')
+            await stapled.send(b"")
 
 
-T_Item = TypeVar('T_Item')
+T_Item = TypeVar("T_Item")
 
 
 @dataclass
@@ -130,41 +137,45 @@ class DummyObjectSendStream(ObjectSendStream[T_Item]):
 class TestStapledObjectStream:
     @pytest.fixture
     def receive_stream(self) -> DummyObjectReceiveStream[str]:
-        return DummyObjectReceiveStream(['hello', 'world'])
+        return DummyObjectReceiveStream(["hello", "world"])
 
     @pytest.fixture
     def send_stream(self) -> DummyObjectSendStream[str]:
         return DummyObjectSendStream[str]()
 
     @pytest.fixture
-    def stapled(self, receive_stream: DummyObjectReceiveStream[str],
-                send_stream: DummyObjectSendStream[str]) -> StapledObjectStream[str]:
+    def stapled(
+        self,
+        receive_stream: DummyObjectReceiveStream[str],
+        send_stream: DummyObjectSendStream[str],
+    ) -> StapledObjectStream[str]:
         return StapledObjectStream(send_stream, receive_stream)
 
-    async def test_receive_send(self, stapled: StapledObjectStream[str],
-                                send_stream: DummyObjectSendStream[str]) -> None:
-        assert await stapled.receive() == 'hello'
-        assert await stapled.receive() == 'world'
+    async def test_receive_send(
+        self, stapled: StapledObjectStream[str], send_stream: DummyObjectSendStream[str]
+    ) -> None:
+        assert await stapled.receive() == "hello"
+        assert await stapled.receive() == "world"
         with pytest.raises(EndOfStream):
             await stapled.receive()
 
-        await stapled.send('how are you ')
-        await stapled.send('today?')
+        await stapled.send("how are you ")
+        await stapled.send("today?")
         assert stapled.send_stream is send_stream
-        assert send_stream.buffer == ['how are you ', 'today?']
+        assert send_stream.buffer == ["how are you ", "today?"]
 
     async def test_send_eof(self, stapled: StapledObjectStream[str]) -> None:
         await stapled.send_eof()
         await stapled.send_eof()
         with pytest.raises(ClosedResourceError):
-            await stapled.send('world')
+            await stapled.send("world")
 
-        assert await stapled.receive() == 'hello'
-        assert await stapled.receive() == 'world'
+        assert await stapled.receive() == "hello"
+        assert await stapled.receive() == "world"
 
     async def test_aclose(self, stapled: StapledObjectStream[str]) -> None:
         await stapled.aclose()
         with pytest.raises(ClosedResourceError):
             await stapled.receive()
         with pytest.raises(ClosedResourceError):
-            await stapled.send(b'')  # type: ignore[arg-type]
+            await stapled.send(b"")  # type: ignore[arg-type]

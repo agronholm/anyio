@@ -98,7 +98,7 @@ class BufferedByteReceiveStream(ByteReceiveStream):
             index = self._buffer.find(delimiter, offset)
             if index >= 0:
                 found = self._buffer[:index]
-                del self._buffer[:index + len(delimiter):]
+                del self._buffer[: index + len(delimiter) :]
                 return bytes(found)
 
             # Check if the buffer is already at or over the limit

@@ -6,6 +6,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **UNRELEASED**
 
 - Fixed ``TypeError`` in ``get_current_task()`` on asyncio when using a custom ``Task`` factory
+- Updated type annotations on ``open_process()`` to accept bytes and sequences of bytes
 
 **3.5.0**
 

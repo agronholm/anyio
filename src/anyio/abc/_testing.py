@@ -11,12 +11,15 @@ class TestRunner(metaclass=ABCMeta):
     loop.
     """
 
-    def __enter__(self) -> 'TestRunner':
+    def __enter__(self) -> "TestRunner":
         return self
 
-    def __exit__(self, exc_type: Optional[Type[BaseException]],
-                 exc_val: Optional[BaseException],
-                 exc_tb: Optional[types.TracebackType]) -> Optional[bool]:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[types.TracebackType],
+    ) -> Optional[bool]:
         self.close()
         return None
 
@@ -25,8 +28,12 @@ class TestRunner(metaclass=ABCMeta):
         """Close the event loop."""
 
     @abstractmethod
-    def call(self, func: Callable[..., Awaitable[_T]],
-             *args: object, **kwargs: Dict[str, Any]) -> _T:
+    def call(
+        self,
+        func: Callable[..., Awaitable[_T]],
+        *args: object,
+        **kwargs: Dict[str, Any]
+    ) -> _T:
         """
         Call the given function within the backend's event loop.
 

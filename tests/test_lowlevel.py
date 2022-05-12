@@ -3,12 +3,17 @@ from typing import Any, Dict
 import pytest
 
 from anyio import create_task_group, run
-from anyio.lowlevel import RunVar, cancel_shielded_checkpoint, checkpoint, checkpoint_if_cancelled
+from anyio.lowlevel import (
+    RunVar,
+    cancel_shielded_checkpoint,
+    checkpoint,
+    checkpoint_if_cancelled,
+)
 
 pytestmark = pytest.mark.anyio
 
 
-@pytest.mark.parametrize('cancel', [False, True])
+@pytest.mark.parametrize("cancel", [False, True])
 async def test_checkpoint_if_cancelled(cancel: bool) -> None:
     finished = second_finished = False
 
@@ -33,7 +38,7 @@ async def test_checkpoint_if_cancelled(cancel: bool) -> None:
     assert second_finished
 
 
-@pytest.mark.parametrize('cancel', [False, True])
+@pytest.mark.parametrize("cancel", [False, True])
 async def test_cancel_shielded_checkpoint(cancel: bool) -> None:
     finished = second_finished = False
 
@@ -57,7 +62,7 @@ async def test_cancel_shielded_checkpoint(cancel: bool) -> None:
     assert second_finished
 
 
-@pytest.mark.parametrize('cancel', [False, True])
+@pytest.mark.parametrize("cancel", [False, True])
 async def test_checkpoint(cancel: bool) -> None:
     finished = second_finished = False
 
@@ -100,20 +105,22 @@ class TestRunVar:
 
                 assert var.get() == i + 1
 
-        var = RunVar[int]('var')
+        var = RunVar[int]("var")
         for _ in range(2):
             run(main, backend=anyio_backend_name, backend_options=anyio_backend_options)
 
     async def test_reset_token_used_on_wrong_runvar(self) -> None:
-        var1 = RunVar[str]('var1')
-        var2 = RunVar[str]('var2')
-        token = var1.set('blah')
-        with pytest.raises(ValueError, match='This token does not belong to this RunVar'):
+        var1 = RunVar[str]("var1")
+        var2 = RunVar[str]("var2")
+        token = var1.set("blah")
+        with pytest.raises(
+            ValueError, match="This token does not belong to this RunVar"
+        ):
             var2.reset(token)
 
     async def test_reset_token_used_twice(self) -> None:
-        var = RunVar[str]('var')
-        token = var.set('blah')
+        var = RunVar[str]("var")
+        token = var.set("blah")
         var.reset(token)
-        with pytest.raises(ValueError, match='This token has already been used'):
+        with pytest.raises(ValueError, match="This token has already been used"):
             var.reset(token)
