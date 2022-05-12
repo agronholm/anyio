@@ -34,8 +34,6 @@ def test_plugin(testdir: Pytester) -> None:
 
     testdir.makepyfile(
         """
-        import asyncio
-
         import pytest
         import sniffio
         from hypothesis import strategies, given
@@ -86,7 +84,7 @@ def test_asyncio(testdir: Pytester) -> None:
             def callback():
                 raise RuntimeError('failing fixture setup')
 
-            asyncio.get_event_loop().call_soon(callback)
+            asyncio.get_running_loop().call_soon(callback)
             await asyncio.sleep(0)
             yield None
 
@@ -96,7 +94,7 @@ def test_asyncio(testdir: Pytester) -> None:
                 raise RuntimeError('failing fixture teardown')
 
             yield None
-            asyncio.get_event_loop().call_soon(callback)
+            asyncio.get_running_loop().call_soon(callback)
             await asyncio.sleep(0)
         """
     )
@@ -127,7 +125,7 @@ def test_asyncio(testdir: Pytester) -> None:
                 raise Exception('foo')
 
             started = False
-            asyncio.get_event_loop().call_soon(callback)
+            asyncio.get_running_loop().call_soon(callback)
             await asyncio.sleep(0)
             assert started
 
@@ -200,6 +198,63 @@ def test_cancel_scope_in_asyncgen_fixture(testdir: Pytester) -> None:
         @pytest.mark.anyio
         async def test_cancel_in_asyncgen_fixture(asyncgen_fixture):
             assert asyncgen_fixture == 1
+        """
+    )
+
+    result = testdir.runpytest_subprocess(*pytest_args)
+    result.assert_outcomes(passed=len(get_all_backends()))
+
+
+def test_module_scoped_task_group_fixture(testdir: Pytester) -> None:
+    testdir.makeconftest(
+        """
+        import pytest
+
+        from anyio import (
+            CancelScope,
+            create_memory_object_stream,
+            create_task_group,
+            get_all_backends,
+        )
+
+
+        @pytest.fixture(scope="module", params=get_all_backends())
+        def anyio_backend():
+            return 'asyncio'
+
+
+        @pytest.fixture(scope="module")
+        async def task_group():
+            async with create_task_group() as tg:
+                yield tg
+
+
+        @pytest.fixture
+        async def streams(task_group):
+            async def echo_messages(*, task_status):
+                with CancelScope() as cancel_scope:
+                    task_status.started(cancel_scope)
+                    async for obj in receive1:
+                        await send2.send(obj)
+
+            send1, receive1 = create_memory_object_stream()
+            send2, receive2 = create_memory_object_stream()
+            cancel_scope = await task_group.start(echo_messages)
+            yield send1, receive2
+            cancel_scope.cancel()
+        """
+    )
+
+    testdir.makepyfile(
+        """
+        import pytest
+
+
+        @pytest.mark.anyio
+        async def test_task_group(streams):
+            send1, receive2 = streams
+            await send1.send("hello")
+            assert await receive2.receive() == "hello"
         """
     )
 
