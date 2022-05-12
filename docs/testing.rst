@@ -154,3 +154,10 @@ runner will be created during the test session.
 For async generator based fixtures, the test runner spawns a task that handles both the setup and
 teardown phases to enable context-sensitive code to work properly. A common example of this is
 providing a task group as a fixture.
+
+Since each test and fixture run in their own separate tasks, no changes to any context
+variables will propagate out of them to tests or other fixtures. This is in line with
+``pytest-asyncio``, but in contrast to ``pytest-trio`` where all fixtures and tests
+`share the same context`_.
+
+.. _share the same context: https://pytest-trio.readthedocs.io/en/stable/reference.html#handling-of-contextvars
