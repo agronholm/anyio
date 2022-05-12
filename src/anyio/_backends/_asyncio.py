@@ -2103,7 +2103,7 @@ class TestRunner(abc.TestRunner):
                 raise cast(BaseException, task.exception())
 
     def _exception_handler(
-        self, loop: asyncio.AbstractEventLoop, context: dict[str, Any]
+        self, loop: asyncio.AbstractEventLoop, context: Dict[str, Any]
     ) -> None:
         if isinstance(context["exception"], Exception):
             self._exceptions.append(context["exception"])
