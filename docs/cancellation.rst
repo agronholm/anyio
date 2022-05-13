@@ -168,16 +168,10 @@ entire enclosed code block::
             tg.start_soon(foo)
             yield
 
-However, in pytest fixtures, even this pattern can be problematic because the AnyIO pytest plugin
-executes the setup and teardown phases of an async fixture in **separate tasks**, so if you try to
-host a task group there, it will wreak havoc with your test suite, at least in the teardown phase::
-
-    # Not okay, will raise an exception!
-    @pytest.fixture
-    async def some_background_service():
-        async with create_task_group() as tg:
-            tg.start_soon(foo)
-            yield
+Prior to AnyIO 3.6, this usage pattern was also invalid in pytest's asynchronous
+generator fixtures. Starting from 3.6, however, each async generator fixture is run from
+start to end in the same task, making it possible to have task groups or cancel scopes
+safely straddle the ``yield``.
 
 When you're implementing the async context manager protocol manually and your async context manager
 needs to use other context managers, you may find it necessary to call their ``__aenter__()`` and
