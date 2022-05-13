@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed exception handler in the asyncio test runner not properly handling a context
+  that does not contain the ``exception`` key
+
 **3.6.0**
 
 - Fixed ``TypeError`` in ``get_current_task()`` on asyncio when using a custom ``Task`` factory

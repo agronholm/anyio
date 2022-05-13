@@ -2105,8 +2105,10 @@ class TestRunner(abc.TestRunner):
     def _exception_handler(
         self, loop: asyncio.AbstractEventLoop, context: Dict[str, Any]
     ) -> None:
-        if isinstance(context["exception"], Exception):
+        if isinstance(context.get("exception"), Exception):
             self._exceptions.append(context["exception"])
+        else:
+            loop.default_exception_handler(context)
 
     def _raise_async_exceptions(self) -> None:
         # Re-raise any exceptions raised in asynchronous callbacks

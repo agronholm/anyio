@@ -1,4 +1,5 @@
 import pytest
+from _pytest.logging import LogCaptureFixture
 from _pytest.pytester import Pytester
 
 from anyio import get_all_backends
@@ -68,7 +69,7 @@ def test_plugin(testdir: Pytester) -> None:
     )
 
 
-def test_asyncio(testdir: Pytester) -> None:
+def test_asyncio(testdir: Pytester, caplog: LogCaptureFixture) -> None:
     testdir.makeconftest(
         """
         import asyncio
@@ -134,11 +135,19 @@ def test_asyncio(testdir: Pytester) -> None:
 
         async def test_callback_exception_during_teardown(teardown_fail_fixture):
             pass
+
+        async def test_exception_handler_no_exception():
+            asyncio.get_event_loop().call_exception_handler(
+                {"message": "bogus error"}
+            )
+            await asyncio.sleep(0.1)
         """
     )
 
     result = testdir.runpytest(*pytest_args)
-    result.assert_outcomes(passed=2, failed=1, errors=2)
+    result.assert_outcomes(passed=3, failed=1, errors=2)
+    assert len(caplog.messages) == 1
+    assert caplog.messages[0] == "bogus error"
 
 
 def test_autouse_async_fixture(testdir: Pytester) -> None:
