@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**3.6.1**
 
 - Fixed exception handler in the asyncio test runner not properly handling a context
   that does not contain the ``exception`` key
