@@ -17,7 +17,7 @@ with the native SC of trio itself.
 
 Applications and libraries written against AnyIO's API will run unmodified on either asyncio_ or
 trio_. AnyIO can also be adopted into a library or application incrementally – bit by bit, no full
-refactoring is necessary. It will blend in with the native libraries of your chosen backend.
+refactoring necessary. It will blend in with the native libraries of your chosen backend.
 
 Documentation
 -------------
