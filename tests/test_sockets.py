@@ -41,9 +41,11 @@ from anyio import (
     connect_tcp,
     connect_unix,
     create_connected_udp_socket,
+    create_connected_unix_datagram_socket,
     create_task_group,
     create_tcp_listener,
     create_udp_socket,
+    create_unix_datagram_socket,
     create_unix_listener,
     fail_after,
     getaddrinfo,
@@ -1346,6 +1348,267 @@ class TestConnectedUDPSocket:
         udp = await create_connected_udp_socket(
             "localhost", 5000, local_host="localhost", family=family
         )
+        await udp.aclose()
+        with pytest.raises(ClosedResourceError):
+            await udp.send(b"foo")
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="UNIX sockets are not available on Windows"
+)
+class TestUNIXDatagramSocket:
+    @pytest.fixture
+    def socket_path(self, tmp_path_factory: TempPathFactory) -> Path:
+        return tmp_path_factory.mktemp("unix").joinpath("socket")
+
+    @pytest.fixture(params=[False, True], ids=["str", "path"])
+    def socket_path_or_str(
+        self, request: SubRequest, socket_path: Path
+    ) -> Union[Path, str]:
+        return socket_path if request.param else str(socket_path)
+
+    @pytest.fixture
+    def peer_socket_path(self, tmp_path_factory: TempPathFactory) -> Path:
+        return tmp_path_factory.mktemp("unix").joinpath("peer_socket")
+
+    async def test_extra_attributes(self, socket_path: Path) -> None:
+        async with await create_unix_datagram_socket(local_path=socket_path) as unix_dg:
+            raw_socket = unix_dg.extra(SocketAttribute.raw_socket)
+            assert raw_socket.gettimeout() == 0
+            assert unix_dg.extra(SocketAttribute.family) == socket.AF_UNIX
+            assert (
+                unix_dg.extra(SocketAttribute.local_address) == raw_socket.getsockname()
+            )
+            pytest.raises(
+                TypedAttributeLookupError, unix_dg.extra, SocketAttribute.local_port
+            )
+            pytest.raises(
+                TypedAttributeLookupError, unix_dg.extra, SocketAttribute.remote_address
+            )
+            pytest.raises(
+                TypedAttributeLookupError, unix_dg.extra, SocketAttribute.remote_port
+            )
+
+    async def test_send_receive(self, socket_path_or_str: Union[Path, str]) -> None:
+        async with await create_unix_datagram_socket(
+            local_path=socket_path_or_str,
+        ) as sock:
+            path = str(socket_path_or_str)
+
+            await sock.sendto(b"blah", path)
+            request, addr = await sock.receive()
+            assert request == b"blah"
+            assert addr == path
+
+            await sock.sendto(b"halb", path)
+            response, addr = await sock.receive()
+            assert response == b"halb"
+            assert addr == path
+
+    async def test_iterate(self, peer_socket_path: Path, socket_path: Path) -> None:
+        async def serve() -> None:
+            async for packet, addr in server:
+                await server.send((packet[::-1], addr))
+
+        async with await create_unix_datagram_socket(
+            local_path=peer_socket_path,
+        ) as server:
+            peer_path = str(peer_socket_path)
+            async with await create_unix_datagram_socket(
+                local_path=socket_path
+            ) as client:
+                async with create_task_group() as tg:
+                    tg.start_soon(serve)
+                    await client.sendto(b"FOOBAR", peer_path)
+                    assert await client.receive() == (b"RABOOF", peer_path)
+                    await client.sendto(b"123456", peer_path)
+                    assert await client.receive() == (b"654321", peer_path)
+                    tg.cancel_scope.cancel()
+
+    async def test_concurrent_receive(self) -> None:
+        async with await create_unix_datagram_socket() as unix_dg:
+            async with create_task_group() as tg:
+                tg.start_soon(unix_dg.receive)
+                await wait_all_tasks_blocked()
+                try:
+                    with pytest.raises(BusyResourceError) as exc:
+                        await unix_dg.receive()
+
+                    exc.match("already reading from")
+                finally:
+                    tg.cancel_scope.cancel()
+
+    async def test_close_during_receive(self) -> None:
+        async def close_when_blocked() -> None:
+            await wait_all_tasks_blocked()
+            await unix_dg.aclose()
+
+        async with await create_unix_datagram_socket() as unix_dg:
+            async with create_task_group() as tg:
+                tg.start_soon(close_when_blocked)
+                with pytest.raises(ClosedResourceError):
+                    await unix_dg.receive()
+
+    async def test_receive_after_close(self) -> None:
+        unix_dg = await create_unix_datagram_socket()
+        await unix_dg.aclose()
+        with pytest.raises(ClosedResourceError):
+            await unix_dg.receive()
+
+    async def test_send_after_close(self, socket_path: Path) -> None:
+        unix_dg = await create_unix_datagram_socket(local_path=socket_path)
+        path = str(socket_path)
+        await unix_dg.aclose()
+        with pytest.raises(ClosedResourceError):
+            await unix_dg.sendto(b"foo", path)
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="UNIX sockets are not available on Windows"
+)
+class TestConnectedUNIXDatagramSocket:
+    @pytest.fixture
+    def socket_path(self, tmp_path_factory: TempPathFactory) -> Path:
+        return tmp_path_factory.mktemp("unix").joinpath("socket")
+
+    @pytest.fixture(params=[False, True], ids=["str", "path"])
+    def socket_path_or_str(
+        self, request: SubRequest, socket_path: Path
+    ) -> Union[Path, str]:
+        return socket_path if request.param else str(socket_path)
+
+    @pytest.fixture
+    def peer_socket_path(self, tmp_path_factory: TempPathFactory) -> Path:
+        return tmp_path_factory.mktemp("unix").joinpath("peer_socket")
+
+    @pytest.fixture(params=[False, True], ids=["peer_str", "peer_path"])
+    def peer_socket_path_or_str(
+        self, request: SubRequest, peer_socket_path: Path
+    ) -> Union[Path, str]:
+        return peer_socket_path if request.param else str(peer_socket_path)
+
+    @pytest.fixture
+    def peer_sock(self, peer_socket_path: Path) -> Iterable[socket.socket]:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        sock.settimeout(1)
+        sock.bind(str(peer_socket_path))
+        yield sock
+        sock.close()
+
+    async def test_extra_attributes(
+        self,
+        socket_path: Path,
+        peer_socket_path: Path,
+        peer_sock: socket.socket,
+    ) -> None:
+        async with await create_connected_unix_datagram_socket(
+            remote_path=peer_socket_path,
+            local_path=socket_path,
+        ) as unix_dg:
+            raw_socket = unix_dg.extra(SocketAttribute.raw_socket)
+            assert raw_socket is not None
+            assert unix_dg.extra(SocketAttribute.family) == AddressFamily.AF_UNIX
+            assert unix_dg.extra(SocketAttribute.local_address) == str(socket_path)
+            assert unix_dg.extra(SocketAttribute.remote_address) == str(
+                peer_socket_path
+            )
+            pytest.raises(
+                TypedAttributeLookupError, unix_dg.extra, SocketAttribute.local_port
+            )
+            pytest.raises(
+                TypedAttributeLookupError, unix_dg.extra, SocketAttribute.remote_port
+            )
+
+    async def test_send_receive(
+        self,
+        socket_path_or_str: Union[Path, str],
+        peer_socket_path_or_str: Union[Path, str],
+    ) -> None:
+        async with await create_unix_datagram_socket(
+            local_path=peer_socket_path_or_str,
+        ) as unix_dg1:
+            async with await create_connected_unix_datagram_socket(
+                peer_socket_path_or_str,
+                local_path=socket_path_or_str,
+            ) as unix_dg2:
+                socket_path = str(socket_path_or_str)
+
+                await unix_dg2.send(b"blah")
+                request = await unix_dg1.receive()
+                assert request == (b"blah", socket_path)
+
+                await unix_dg1.sendto(b"halb", socket_path)
+                response = await unix_dg2.receive()
+                assert response == b"halb"
+
+    async def test_iterate(
+        self,
+        socket_path: Path,
+        peer_socket_path: Path,
+    ) -> None:
+        async def serve() -> None:
+            async for packet in unix_dg2:
+                await unix_dg2.send(packet[::-1])
+
+        async with await create_unix_datagram_socket(
+            local_path=peer_socket_path,
+        ) as unix_dg1:
+            async with await create_connected_unix_datagram_socket(
+                peer_socket_path, local_path=socket_path
+            ) as unix_dg2:
+                path = str(socket_path)
+                async with create_task_group() as tg:
+                    tg.start_soon(serve)
+                    await unix_dg1.sendto(b"FOOBAR", path)
+                    assert await unix_dg1.receive() == (b"RABOOF", path)
+                    await unix_dg1.sendto(b"123456", path)
+                    assert await unix_dg1.receive() == (b"654321", path)
+                    tg.cancel_scope.cancel()
+
+    async def test_concurrent_receive(
+        self, peer_socket_path: Path, peer_sock: socket.socket
+    ) -> None:
+        async with await create_connected_unix_datagram_socket(
+            peer_socket_path
+        ) as unix_dg:
+            async with create_task_group() as tg:
+                tg.start_soon(unix_dg.receive)
+                await wait_all_tasks_blocked()
+                try:
+                    with pytest.raises(BusyResourceError) as exc:
+                        await unix_dg.receive()
+
+                    exc.match("already reading from")
+                finally:
+                    tg.cancel_scope.cancel()
+
+    async def test_close_during_receive(
+        self, peer_socket_path_or_str: Union[Path, str], peer_sock: socket.socket
+    ) -> None:
+        async def close_when_blocked() -> None:
+            await wait_all_tasks_blocked()
+            await udp.aclose()
+
+        async with await create_connected_unix_datagram_socket(
+            peer_socket_path_or_str
+        ) as udp:
+            async with create_task_group() as tg:
+                tg.start_soon(close_when_blocked)
+                with pytest.raises(ClosedResourceError):
+                    await udp.receive()
+
+    async def test_receive_after_close(
+        self, peer_socket_path_or_str: Union[Path, str], peer_sock: socket.socket
+    ) -> None:
+        udp = await create_connected_unix_datagram_socket(peer_socket_path_or_str)
+        await udp.aclose()
+        with pytest.raises(ClosedResourceError):
+            await udp.receive()
+
+    async def test_send_after_close(
+        self, peer_socket_path_or_str: Union[Path, str], peer_sock: socket.socket
+    ) -> None:
+        udp = await create_connected_unix_datagram_socket(peer_socket_path_or_str)
         await udp.aclose()
         with pytest.raises(ClosedResourceError):
             await udp.send(b"foo")
