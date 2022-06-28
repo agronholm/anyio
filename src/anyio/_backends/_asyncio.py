@@ -1835,7 +1835,6 @@ async def create_unix_datagram_socket(
                 raise
             else:
                 return ConnectedUNIXDatagramSocket(raw_socket)
-
     else:
         return UNIXDatagramSocket(raw_socket)
 
