@@ -12,11 +12,13 @@ from typing import Awaitable, List, Tuple, cast, overload
 from .. import to_thread
 from ..abc import (
     ConnectedUDPSocket,
+    ConnectedUNIXDatagramSocket,
     IPAddressType,
     IPSockAddrType,
     SocketListener,
     SocketStream,
     UDPSocket,
+    UNIXDatagramSocket,
     UNIXSocketStream,
 )
 from ..streams.stapled import MultiListener
@@ -345,19 +347,9 @@ async def create_unix_listener(
         If a socket already exists on the file system in the given path, it will be removed first.
 
     """
-    path_str = str(path)
-    path = Path(path)
-    if path.is_socket():
-        path.unlink()
-
     backlog = min(backlog, 65536)
-    raw_socket = socket.socket(socket.AF_UNIX)
-    raw_socket.setblocking(False)
+    raw_socket = await setup_unix_local_socket(path, mode, socket.SOCK_STREAM)
     try:
-        await to_thread.run_sync(raw_socket.bind, path_str, cancellable=True)
-        if mode is not None:
-            await to_thread.run_sync(chmod, path_str, mode, cancellable=True)
-
         raw_socket.listen(backlog)
         return get_async_backend().create_unix_listener(raw_socket)
     except BaseException:
@@ -459,6 +451,65 @@ async def create_connected_udp_socket(
         family, local_address, remote_address, reuse_port
     )
     return cast(ConnectedUDPSocket, sock)
+
+
+async def create_unix_datagram_socket(
+    *,
+    local_path: None | str | PathLike[str] = None,
+    local_mode: int | None = None,
+) -> UNIXDatagramSocket:
+    """
+    Create a UNIX datagram socket.
+
+    Not available on Windows.
+
+    If ``local_path`` has been given, the socket will be bound to this path, making this
+    socket suitable for receiving datagrams from other processes. Other processes can send
+    datagrams to this socket only if ``local_path`` is set.
+
+    If a socket already exists on the file system in the ``local_path``, it will be removed first.
+
+    :param local_path: the path on which to bind to
+    :param local_mode: permissions to set on the local socket
+    :return: a UNIX datagram socket
+
+    """
+    raw_socket = await setup_unix_local_socket(
+        local_path, local_mode, socket.SOCK_DGRAM
+    )
+    return await get_async_backend().create_unix_datagram_socket(raw_socket, None)
+
+
+async def create_connected_unix_datagram_socket(
+    remote_path: str | PathLike[str],
+    *,
+    local_path: None | str | PathLike[str] = None,
+    local_mode: int | None = None,
+) -> ConnectedUNIXDatagramSocket:
+    """
+    Create a connected UNIX datagram socket.
+
+    Connected datagram sockets can only communicate with the specified remote path.
+
+    If ``local_path`` has been given, the socket will be bound to this path, making this
+    socket suitable for receiving datagrams from other processes. Other processes can send
+    datagrams to this socket only if ``local_path`` is set.
+
+    If a socket already exists on the file system in the ``local_path``, it will be removed first.
+
+    :param remote_path: the path to set as the default target
+    :param local_path: the path on which to bind to
+    :param local_mode: permissions to set on the local socket
+    :return: a connected UNIX datagram socket
+
+    """
+    remote_path = str(Path(remote_path))
+    raw_socket = await setup_unix_local_socket(
+        local_path, local_mode, socket.SOCK_DGRAM
+    )
+    return await get_async_backend().create_unix_datagram_socket(
+        raw_socket, remote_path
+    )
 
 
 async def getaddrinfo(
@@ -593,3 +644,42 @@ def convert_ipv6_sockaddr(
             return host, port
     else:
         return cast(Tuple[str, int], sockaddr)
+
+
+async def setup_unix_local_socket(
+    path: None | str | PathLike[str],
+    mode: int | None,
+    socktype: int,
+) -> socket.socket:
+    """
+    Create a UNIX local socket object, deleting the socket at the given path if it
+    exists.
+
+    Not available on Windows.
+
+    :param path: path of the socket
+    :param mode: permissions to set on the socket
+    :param socktype: socket.SOCK_STREAM or socket.SOCK_DGRAM
+
+    """
+    if path is not None:
+        path_str = str(path)
+        path = Path(path)
+        if path.is_socket():
+            path.unlink()
+    else:
+        path_str = None
+
+    raw_socket = socket.socket(socket.AF_UNIX, socktype)
+    raw_socket.setblocking(False)
+
+    if path_str is not None:
+        try:
+            await to_thread.run_sync(raw_socket.bind, path_str, cancellable=True)
+            if mode is not None:
+                await to_thread.run_sync(chmod, path_str, mode, cancellable=True)
+        except BaseException:
+            raw_socket.close()
+            raise
+
+    return raw_socket

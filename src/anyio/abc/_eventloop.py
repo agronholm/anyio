@@ -27,10 +27,12 @@ if TYPE_CHECKING:
     from ..from_thread import BlockingPortal
     from ._sockets import (
         ConnectedUDPSocket,
+        ConnectedUNIXDatagramSocket,
         IPSockAddrType,
         SocketListener,
         SocketStream,
         UDPSocket,
+        UNIXDatagramSocket,
         UNIXSocketStream,
     )
     from ._subprocesses import Process
@@ -294,6 +296,27 @@ class AsyncBackend(metaclass=ABCMeta):
         remote_address: IPSockAddrType | None,
         reuse_port: bool,
     ) -> UDPSocket | ConnectedUDPSocket:
+        pass
+
+    @classmethod
+    @overload
+    async def create_unix_datagram_socket(
+        cls, raw_socket: socket, remote_path: None
+    ) -> UNIXDatagramSocket:
+        ...
+
+    @classmethod
+    @overload
+    async def create_unix_datagram_socket(
+        cls, raw_socket: socket, remote_path: str
+    ) -> ConnectedUNIXDatagramSocket:
+        ...
+
+    @classmethod
+    @abstractmethod
+    async def create_unix_datagram_socket(
+        cls, raw_socket: socket, remote_path: str | None
+    ) -> UNIXDatagramSocket | ConnectedUNIXDatagramSocket:
         pass
 
     @classmethod

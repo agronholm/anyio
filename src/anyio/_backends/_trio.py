@@ -29,6 +29,7 @@ from typing import (
     Sequence,
     TypeVar,
     cast,
+    overload,
 )
 
 import trio.from_thread
@@ -57,7 +58,7 @@ from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
 from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import ResourceGuard
 from .._core._tasks import CancelScope as BaseCancelScope
-from ..abc import IPSockAddrType, UDPPacketType
+from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend
 
 if TYPE_CHECKING:
@@ -530,6 +531,51 @@ class ConnectedUDPSocket(_TrioSocketMixin[IPSockAddrType], abc.ConnectedUDPSocke
                 self._convert_socket_error(exc)
 
 
+class UNIXDatagramSocket(_TrioSocketMixin[str], abc.UNIXDatagramSocket):
+    def __init__(self, trio_socket: TrioSocketType) -> None:
+        super().__init__(trio_socket)
+        self._receive_guard = ResourceGuard("reading from")
+        self._send_guard = ResourceGuard("writing to")
+
+    async def receive(self) -> UNIXDatagramPacketType:
+        with self._receive_guard:
+            try:
+                data, addr = await self._trio_socket.recvfrom(65536)
+                return data, addr
+            except BaseException as exc:
+                self._convert_socket_error(exc)
+
+    async def send(self, item: UNIXDatagramPacketType) -> None:
+        with self._send_guard:
+            try:
+                await self._trio_socket.sendto(*item)
+            except BaseException as exc:
+                self._convert_socket_error(exc)
+
+
+class ConnectedUNIXDatagramSocket(
+    _TrioSocketMixin[str], abc.ConnectedUNIXDatagramSocket
+):
+    def __init__(self, trio_socket: TrioSocketType) -> None:
+        super().__init__(trio_socket)
+        self._receive_guard = ResourceGuard("reading from")
+        self._send_guard = ResourceGuard("writing to")
+
+    async def receive(self) -> bytes:
+        with self._receive_guard:
+            try:
+                return await self._trio_socket.recv(65536)
+            except BaseException as exc:
+                self._convert_socket_error(exc)
+
+    async def send(self, item: bytes) -> None:
+        with self._send_guard:
+            try:
+                await self._trio_socket.send(item)
+            except BaseException as exc:
+                self._convert_socket_error(exc)
+
+
 #
 # Synchronization
 #
@@ -932,6 +978,32 @@ class TrioBackend(AsyncBackend):
             return ConnectedUDPSocket(trio_socket)
         else:
             return UDPSocket(trio_socket)
+
+    @classmethod
+    @overload
+    async def create_unix_datagram_socket(
+        cls, raw_socket: socket.socket, remote_path: None
+    ) -> abc.UNIXDatagramSocket:
+        ...
+
+    @classmethod
+    @overload
+    async def create_unix_datagram_socket(
+        cls, raw_socket: socket.socket, remote_path: str
+    ) -> abc.ConnectedUNIXDatagramSocket:
+        ...
+
+    @classmethod
+    async def create_unix_datagram_socket(  # type: ignore[override]
+        cls, raw_socket: socket.socket, remote_path: str | None
+    ) -> abc.UNIXDatagramSocket | abc.ConnectedUNIXDatagramSocket:
+        trio_socket = trio.socket.from_stdlib_socket(raw_socket)
+
+        if remote_path:
+            await trio_socket.connect(remote_path)
+            return ConnectedUNIXDatagramSocket(trio_socket)
+        else:
+            return UNIXDatagramSocket(trio_socket)
 
     @classmethod
     async def getaddrinfo(
