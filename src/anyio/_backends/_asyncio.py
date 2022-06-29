@@ -67,7 +67,7 @@ from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
 from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import ResourceGuard
 from .._core._tasks import CancelScope as BaseCancelScope
-from ..abc import IPSockAddrType, UDPPacketType
+from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..lowlevel import RunVar
 
 if sys.version_info >= (3, 8):
@@ -1325,14 +1325,13 @@ class SocketStream(abc.SocketStream):
             self._transport.abort()
 
 
-class UNIXSocketStream(abc.SocketStream):
+class _RawSocketMixin:
     _receive_future: Optional[asyncio.Future] = None
     _send_future: Optional[asyncio.Future] = None
     _closing = False
 
     def __init__(self, raw_socket: socket.socket):
         self.__raw_socket = raw_socket
-        self._loop = get_running_loop()
         self._receive_guard = ResourceGuard("reading from")
         self._send_guard = ResourceGuard("writing to")
 
@@ -1346,7 +1345,7 @@ class UNIXSocketStream(abc.SocketStream):
             loop.remove_reader(self.__raw_socket)
 
         f = self._receive_future = asyncio.Future()
-        self._loop.add_reader(self.__raw_socket, f.set_result, None)
+        loop.add_reader(self.__raw_socket, f.set_result, None)
         f.add_done_callback(callback)
         return f
 
@@ -1356,10 +1355,23 @@ class UNIXSocketStream(abc.SocketStream):
             loop.remove_writer(self.__raw_socket)
 
         f = self._send_future = asyncio.Future()
-        self._loop.add_writer(self.__raw_socket, f.set_result, None)
+        loop.add_writer(self.__raw_socket, f.set_result, None)
         f.add_done_callback(callback)
         return f
 
+    async def aclose(self) -> None:
+        if not self._closing:
+            self._closing = True
+            if self.__raw_socket.fileno() != -1:
+                self.__raw_socket.close()
+
+            if self._receive_future:
+                self._receive_future.set_result(None)
+            if self._send_future:
+                self._send_future.set_result(None)
+
+
+class UNIXSocketStream(_RawSocketMixin, abc.SocketStream):
     async def send_eof(self) -> None:
         with self._send_guard:
             self._raw_socket.shutdown(socket.SHUT_WR)
@@ -1370,7 +1382,7 @@ class UNIXSocketStream(abc.SocketStream):
         with self._receive_guard:
             while True:
                 try:
-                    data = self.__raw_socket.recv(max_bytes)
+                    data = self._raw_socket.recv(max_bytes)
                 except BlockingIOError:
                     await self._wait_until_readable(loop)
                 except OSError as exc:
@@ -1391,7 +1403,7 @@ class UNIXSocketStream(abc.SocketStream):
             view = memoryview(item)
             while view:
                 try:
-                    bytes_sent = self.__raw_socket.send(item)
+                    bytes_sent = self._raw_socket.send(item)
                 except BlockingIOError:
                     await self._wait_until_writable(loop)
                 except OSError as exc:
@@ -1414,7 +1426,7 @@ class UNIXSocketStream(abc.SocketStream):
         with self._receive_guard:
             while True:
                 try:
-                    message, ancdata, flags, addr = self.__raw_socket.recvmsg(
+                    message, ancdata, flags, addr = self._raw_socket.recvmsg(
                         msglen, socket.CMSG_LEN(maxfds * fds.itemsize)
                     )
                 except BlockingIOError:
@@ -1464,7 +1476,7 @@ class UNIXSocketStream(abc.SocketStream):
                 try:
                     # The ignore can be removed after mypy picks up
                     # https://github.com/python/typeshed/pull/5545
-                    self.__raw_socket.sendmsg(
+                    self._raw_socket.sendmsg(
                         [message], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)]
                     )
                     break
@@ -1475,17 +1487,6 @@ class UNIXSocketStream(abc.SocketStream):
                         raise ClosedResourceError from None
                     else:
                         raise BrokenResourceError from exc
-
-    async def aclose(self) -> None:
-        if not self._closing:
-            self._closing = True
-            if self.__raw_socket.fileno() != -1:
-                self.__raw_socket.close()
-
-            if self._receive_future:
-                self._receive_future.set_result(None)
-            if self._send_future:
-                self._send_future.set_result(None)
 
 
 class TCPSocketListener(abc.SocketListener):
@@ -1683,6 +1684,78 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
                 self._transport.sendto(item)
 
 
+class UNIXDatagramSocket(_RawSocketMixin, abc.UNIXDatagramSocket):
+    async def receive(self) -> UNIXDatagramPacketType:
+        loop = get_running_loop()
+        await checkpoint()
+        with self._receive_guard:
+            while True:
+                try:
+                    data = self._raw_socket.recvfrom(65536)
+                except BlockingIOError:
+                    await self._wait_until_readable(loop)
+                except OSError as exc:
+                    if self._closing:
+                        raise ClosedResourceError from None
+                    else:
+                        raise BrokenResourceError from exc
+                else:
+                    return data
+
+    async def send(self, item: UNIXDatagramPacketType) -> None:
+        loop = get_running_loop()
+        await checkpoint()
+        with self._send_guard:
+            while True:
+                try:
+                    self._raw_socket.sendto(*item)
+                except BlockingIOError:
+                    await self._wait_until_writable(loop)
+                except OSError as exc:
+                    if self._closing:
+                        raise ClosedResourceError from None
+                    else:
+                        raise BrokenResourceError from exc
+                else:
+                    return
+
+
+class ConnectedUNIXDatagramSocket(_RawSocketMixin, abc.ConnectedUNIXDatagramSocket):
+    async def receive(self) -> bytes:
+        loop = get_running_loop()
+        await checkpoint()
+        with self._receive_guard:
+            while True:
+                try:
+                    data = self._raw_socket.recv(65536)
+                except BlockingIOError:
+                    await self._wait_until_readable(loop)
+                except OSError as exc:
+                    if self._closing:
+                        raise ClosedResourceError from None
+                    else:
+                        raise BrokenResourceError from exc
+                else:
+                    return data
+
+    async def send(self, item: bytes) -> None:
+        loop = get_running_loop()
+        await checkpoint()
+        with self._send_guard:
+            while True:
+                try:
+                    self._raw_socket.send(item)
+                except BlockingIOError:
+                    await self._wait_until_writable(loop)
+                except OSError as exc:
+                    if self._closing:
+                        raise ClosedResourceError from None
+                    else:
+                        raise BrokenResourceError from exc
+                else:
+                    return
+
+
 async def connect_tcp(
     host: str, port: int, local_addr: Optional[Tuple[str, int]] = None
 ) -> SocketStream:
@@ -1739,6 +1812,31 @@ async def create_udp_socket(
         return UDPSocket(transport, protocol)
     else:
         return ConnectedUDPSocket(transport, protocol)
+
+
+async def create_unix_datagram_socket(
+    raw_socket: socket.socket,
+    remote_path: Optional[str],
+) -> Union[UNIXDatagramSocket, ConnectedUNIXDatagramSocket]:
+    await checkpoint()
+    loop = get_running_loop()
+
+    if remote_path:
+        while True:
+            try:
+                raw_socket.connect(remote_path)
+            except BlockingIOError:
+                f: asyncio.Future = asyncio.Future()
+                loop.add_writer(raw_socket, f.set_result, None)
+                f.add_done_callback(lambda _: loop.remove_writer(raw_socket))
+                await f
+            except BaseException:
+                raw_socket.close()
+                raise
+            else:
+                return ConnectedUNIXDatagramSocket(raw_socket)
+    else:
+        return UNIXDatagramSocket(raw_socket)
 
 
 async def getaddrinfo(

@@ -9,6 +9,9 @@ __all__ = (
     "UNIXSocketStream",
     "UDPPacketType",
     "ConnectedUDPSocket",
+    "UNIXDatagramPacketType",
+    "UNIXDatagramSocket",
+    "ConnectedUNIXDatagramSocket",
     "UnreliableObjectReceiveStream",
     "UnreliableObjectSendStream",
     "UnreliableObjectStream",
@@ -43,6 +46,7 @@ from typing import Any
 from ._resources import AsyncResource
 from ._sockets import (
     ConnectedUDPSocket,
+    ConnectedUNIXDatagramSocket,
     IPAddressType,
     IPSockAddrType,
     SocketAttribute,
@@ -50,6 +54,8 @@ from ._sockets import (
     SocketStream,
     UDPPacketType,
     UDPSocket,
+    UNIXDatagramPacketType,
+    UNIXDatagramSocket,
     UNIXSocketStream,
 )
 from ._streams import (

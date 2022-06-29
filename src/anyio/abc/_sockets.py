@@ -31,6 +31,7 @@ IPAddressType = Union[str, IPv4Address, IPv6Address]
 IPSockAddrType = Tuple[str, int]
 SockAddrType = Union[IPSockAddrType, str]
 UDPPacketType = Tuple[bytes, IPSockAddrType]
+UNIXDatagramPacketType = Tuple[bytes, str]
 T_Retval = TypeVar("T_Retval")
 
 
@@ -178,6 +179,28 @@ class UDPSocket(UnreliableObjectStream[UDPPacketType], _SocketProvider):
 class ConnectedUDPSocket(UnreliableObjectStream[bytes], _SocketProvider):
     """
     Represents an connected UDP socket.
+
+    Supports all relevant extra attributes from :class:`~SocketAttribute`.
+    """
+
+
+class UNIXDatagramSocket(
+    UnreliableObjectStream[UNIXDatagramPacketType], _SocketProvider
+):
+    """
+    Represents an unconnected Unix datagram socket.
+
+    Supports all relevant extra attributes from :class:`~SocketAttribute`.
+    """
+
+    async def sendto(self, data: bytes, path: str) -> None:
+        """Alias for :meth:`~.UnreliableObjectSendStream.send` ((data, path))."""
+        return await self.send((data, path))
+
+
+class ConnectedUNIXDatagramSocket(UnreliableObjectStream[bytes], _SocketProvider):
+    """
+    Represents a connected Unix datagram socket.
 
     Supports all relevant extra attributes from :class:`~SocketAttribute`.
     """
