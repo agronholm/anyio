@@ -374,7 +374,6 @@ class CancelScope(BaseCancelScope):
             self._timeout_handle = None
 
         self._tasks.remove(self._host_task)
-        self._host_task = None
 
         host_task_state.cancel_scope = self._parent_scope
 
@@ -382,25 +381,23 @@ class CancelScope(BaseCancelScope):
         # one was shielded
         if self._shield:
             self._deliver_cancellation_to_parent()
+        self._host_task = None
 
-        try:
-            if exc_val is not None:
-                exceptions = (
-                    exc_val.exceptions
-                    if isinstance(exc_val, ExceptionGroup)
-                    else [exc_val]
-                )
-                if all(isinstance(exc, CancelledError) for exc in exceptions):
-                    if self._timeout_expired:
-                        return True
-                    elif not self._cancel_called:
-                        # Task was cancelled natively
-                        return None
-                    elif not self._parent_cancelled():
-                        # This scope was directly cancelled
-                        return True
-        finally:
-            self._parent_scope = None
+        if exc_val is not None:
+            exceptions = (
+                exc_val.exceptions
+                if isinstance(exc_val, ExceptionGroup)
+                else [exc_val]
+            )
+            if all(isinstance(exc, CancelledError) for exc in exceptions):
+                if self._timeout_expired:
+                    return True
+                elif not self._cancel_called:
+                    # Task was cancelled natively
+                    return None
+                elif not self._parent_cancelled():
+                    # This scope was directly cancelled
+                    return True
 
         return None
 
@@ -468,12 +465,13 @@ class CancelScope(BaseCancelScope):
     def _parent_cancelled(self) -> bool:
         # Check whether any parent has been cancelled
         cancel_scope = self._parent_scope
+        self._parent_scope = None
         while cancel_scope is not None and not cancel_scope._shield:
             if cancel_scope._cancel_called:
                 return True
             else:
                 cancel_scope = cancel_scope._parent_scope
-
+                cancel_scope._parent_scope = None
         return False
 
     def cancel(self) -> DeprecatedAwaitable:
@@ -626,9 +624,11 @@ class TaskGroup(abc.TaskGroup):
         self.cancel_scope: CancelScope = CancelScope()
         self._active = False
         self._exceptions: List[BaseException] = []
+        self._root_id = None
 
     async def __aenter__(self) -> "TaskGroup":
         self.cancel_scope.__enter__()
+        self._root_id = id(self.cancel_scope._host_task)
         self._active = True
         return self
 
@@ -650,6 +650,7 @@ class TaskGroup(abc.TaskGroup):
                 self.cancel_scope.cancel()
 
         self._active = False
+        self._root_id = None
         if not self.cancel_scope._parent_cancelled():
             exceptions = self._filter_cancellation_errors(self._exceptions)
         else:
@@ -740,8 +741,9 @@ class TaskGroup(abc.TaskGroup):
             except CancelledError as e:
                 while isinstance(e.__context__, CancelledError):
                     e = e.__context__
-
                 exc = e
+            finally:
+                _task = None
 
             if exc is not None:
                 if task_status_future is None or task_status_future.done():
@@ -768,10 +770,10 @@ class TaskGroup(abc.TaskGroup):
         if task_status_future:
             parent_id = id(current_task())
             kwargs["task_status"] = _AsyncioTaskStatus(
-                task_status_future, id(self.cancel_scope._host_task)
+                task_status_future, self._root_id
             )
         else:
-            parent_id = id(self.cancel_scope._host_task)
+            parent_id = self._root_id
 
         coro = func(*args, **kwargs)
         if not asyncio.iscoroutine(coro):
