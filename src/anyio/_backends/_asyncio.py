@@ -374,6 +374,7 @@ class CancelScope(BaseCancelScope):
             self._timeout_handle = None
 
         self._tasks.remove(self._host_task)
+        self._host_task = None
 
         host_task_state.cancel_scope = self._parent_scope
 
@@ -382,19 +383,22 @@ class CancelScope(BaseCancelScope):
         if self._shield:
             self._deliver_cancellation_to_parent()
 
-        if exc_val is not None:
-            exceptions = (
-                exc_val.exceptions if isinstance(exc_val, ExceptionGroup) else [exc_val]
-            )
-            if all(isinstance(exc, CancelledError) for exc in exceptions):
-                if self._timeout_expired:
-                    return True
-                elif not self._cancel_called:
-                    # Task was cancelled natively
-                    return None
-                elif not self._parent_cancelled():
-                    # This scope was directly cancelled
-                    return True
+        try:
+            if exc_val is not None:
+                exceptions = (
+                    exc_val.exceptions if isinstance(exc_val, ExceptionGroup) else [exc_val]
+                )
+                if all(isinstance(exc, CancelledError) for exc in exceptions):
+                    if self._timeout_expired:
+                        return True
+                    elif not self._cancel_called:
+                        # Task was cancelled natively
+                        return None
+                    elif not self._parent_cancelled():
+                        # This scope was directly cancelled
+                        return True
+        finally:
+            self._parent_scope = None
 
         return None
 

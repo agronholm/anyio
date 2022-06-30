@@ -1,7 +1,9 @@
 import asyncio
+import gc
 import re
 import sys
 import time
+import weakref
 from typing import (
     Any,
     AsyncGenerator,
@@ -923,6 +925,33 @@ async def test_cancel_completed_task() -> None:
         assert exceptions == []
     finally:
         loop.set_exception_handler(old_exception_handler)
+
+
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_cancel_task_leak() -> None:
+    task = None
+    scope_ref = None
+    parent_scope_ref = None
+
+    async def run():
+        nonlocal task, scope_ref, parent_scope_ref
+        with CancelScope() as parent_scope:
+            with CancelScope(shield=True) as scope:
+                task = scope._host_task
+                scope_ref = weakref.ref(scope)
+                parent_scope_ref = weakref.ref(parent_scope)
+
+    gc.disable()
+    try:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(run)
+
+        assert scope_ref() is None
+        assert parent_scope_ref() is None
+        assert sys.getrefcount(task) == 2
+        assert tg.cancel_scope._host_task is None
+    finally:
+        gc.enable()
 
 
 async def test_task_in_sync_spawn_callback() -> None:
