@@ -1,7 +1,18 @@
+import math
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Deque, Generic, List, NamedTuple, Optional, Type, TypeVar
+from typing import (
+    Deque,
+    Generic,
+    List,
+    Literal,
+    NamedTuple,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+)
 
 from .. import (
     BrokenResourceError,
@@ -20,7 +31,7 @@ T_Item = TypeVar("T_Item")
 class MemoryObjectStreamStatistics(NamedTuple):
     current_buffer_used: int  #: number of items stored in the buffer
     #: maximum number of items that can be stored on this stream (or :data:`math.inf`)
-    max_buffer_size: float
+    max_buffer_size: Union[int, Literal[math.inf]]
     open_send_streams: int  #: number of unclosed clones of the send stream
     open_receive_streams: int  #: number of unclosed clones of the receive stream
     tasks_waiting_send: int  #: number of tasks blocked on :meth:`MemoryObjectSendStream.send`

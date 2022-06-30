@@ -1,5 +1,5 @@
 import math
-from typing import Any, Optional, Tuple, Type, TypeVar, overload
+from typing import Any, Literal, Optional, Tuple, Type, TypeVar, Union, overload
 
 from ..streams.memory import (
     MemoryObjectReceiveStream,
@@ -12,20 +12,21 @@ T_Item = TypeVar("T_Item")
 
 @overload
 def create_memory_object_stream(
-    max_buffer_size: float, item_type: Type[T_Item]
+    max_buffer_size: Union[int, Literal[math.inf]], item_type: Type[T_Item]
 ) -> Tuple[MemoryObjectSendStream[T_Item], MemoryObjectReceiveStream[T_Item]]:
     ...
 
 
 @overload
 def create_memory_object_stream(
-    max_buffer_size: float = 0,
+    max_buffer_size: Union[int, Literal[math.inf]] = 0,
 ) -> Tuple[MemoryObjectSendStream[Any], MemoryObjectReceiveStream[Any]]:
     ...
 
 
 def create_memory_object_stream(
-    max_buffer_size: float = 0, item_type: Optional[Type[T_Item]] = None
+    max_buffer_size: Union[int, Literal[math.inf]] = 0,
+    item_type: Optional[Type[T_Item]] = None,
 ) -> Tuple[MemoryObjectSendStream[Any], MemoryObjectReceiveStream[Any]]:
     """
     Create a memory object stream.
