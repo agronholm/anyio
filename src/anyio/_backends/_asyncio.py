@@ -386,7 +386,9 @@ class CancelScope(BaseCancelScope):
         try:
             if exc_val is not None:
                 exceptions = (
-                    exc_val.exceptions if isinstance(exc_val, ExceptionGroup) else [exc_val]
+                    exc_val.exceptions
+                    if isinstance(exc_val, ExceptionGroup)
+                    else [exc_val]
                 )
                 if all(isinstance(exc, CancelledError) for exc in exceptions):
                     if self._timeout_expired:
