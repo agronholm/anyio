@@ -41,7 +41,7 @@ class MemoryObjectStreamStatistics(NamedTuple):
 
 @dataclass(eq=False)
 class MemoryObjectStreamState(Generic[T_Item]):
-    max_buffer_size: float = field()
+    max_buffer_size: Union[int, Literal[math.inf]]
     buffer: Deque[T_Item] = field(init=False, default_factory=deque)
     open_send_channels: int = field(init=False, default=0)
     open_receive_channels: int = field(init=False, default=0)
