@@ -930,10 +930,10 @@ async def test_cancel_completed_task() -> None:
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_cancel_task_leak() -> None:
     task = None
-    scope_ref = None
-    parent_scope_ref = None
+    scope_ref: weakref.ref = None
+    parent_scope_ref: weakref.ref = None
 
-    async def run():
+    async def run() -> None:
         nonlocal task, scope_ref, parent_scope_ref
         with CancelScope() as parent_scope:
             with CancelScope(shield=True) as scope:

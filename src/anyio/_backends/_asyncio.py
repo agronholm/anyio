@@ -622,7 +622,7 @@ class TaskGroup(abc.TaskGroup):
         self.cancel_scope: CancelScope = CancelScope()
         self._active = False
         self._exceptions: List[BaseException] = []
-        self._root_id = None
+        self._root_id: Optional[int] = None
 
     async def __aenter__(self) -> "TaskGroup":
         self.cancel_scope.__enter__()
