@@ -465,13 +465,13 @@ class CancelScope(BaseCancelScope):
     def _parent_cancelled(self) -> bool:
         # Check whether any parent has been cancelled
         cancel_scope = self._parent_scope
-        self._parent_scope = None
         while cancel_scope is not None and not cancel_scope._shield:
+            parent_scope = cancel_scope._parent_scope
+            cancel_scope._parent_scope = None
             if cancel_scope._cancel_called:
                 return True
             else:
-                cancel_scope = cancel_scope._parent_scope
-                cancel_scope._parent_scope = None
+                cancel_scope = parent_scope
         return False
 
     def cancel(self) -> DeprecatedAwaitable:
