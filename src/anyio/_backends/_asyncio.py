@@ -78,7 +78,7 @@ from ..abc import (
 from ..lowlevel import RunVar
 
 if sys.version_info < (3, 11):
-    from exceptiongroup import BaseExceptionGroup
+    from exceptiongroup import BaseExceptionGroup, ExceptionGroup
 
 if sys.version_info >= (3, 8):
 
@@ -412,12 +412,6 @@ _task_states = WeakKeyDictionary()  # type: WeakKeyDictionary[asyncio.Task, Task
 #
 # Task groups
 #
-
-
-class ExceptionGroup(BaseExceptionGroup):
-    def __init__(self, exceptions: list[BaseException]):
-        super().__init__()
-        self.exceptions = exceptions
 
 
 class _AsyncioTaskStatus(abc.TaskStatus):
