@@ -132,7 +132,7 @@ class TestLock:
             async with lock:
                 await asyncio.sleep(0)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         task1 = loop.create_task(acquire())
         task2 = loop.create_task(acquire())
         await asyncio.sleep(0)
@@ -397,7 +397,7 @@ class TestSemaphore:
             async with semaphore:
                 await asyncio.sleep(0)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         task1 = loop.create_task(acquire())
         task2 = loop.create_task(acquire())
         await asyncio.sleep(0)
@@ -518,7 +518,7 @@ class TestCapacityLimiter:
             async with limiter:
                 await asyncio.sleep(0)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         task1 = loop.create_task(acquire())
         task2 = loop.create_task(acquire())
         await asyncio.sleep(0)

@@ -79,7 +79,7 @@ def test_run_natively(module: Any) -> None:
             tg.start_soon(sleep, 0)
 
     if module is asyncio:
-        from anyio._backends._asyncio import native_run  # type: ignore[attr-defined]
+        from anyio._backends._asyncio import native_run
 
         try:
             native_run(testfunc())
@@ -206,7 +206,7 @@ async def test_start_native_host_cancelled() -> None:
         async with create_task_group() as tg:
             await tg.start(taskfunc)
 
-    task = asyncio.get_event_loop().create_task(start_another())
+    task = asyncio.get_running_loop().create_task(start_another())
     await wait_all_tasks_blocked()
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
@@ -246,7 +246,7 @@ async def test_start_exception_delivery() -> None:
 
     async with anyio.create_task_group() as tg:
         with pytest.raises(TypeError, match="to be synchronous$"):
-            await tg.start(task_fn)  # type: ignore[arg-type]
+            await tg.start(task_fn)
 
 
 async def test_host_exception() -> None:
@@ -559,7 +559,8 @@ async def test_cancel_host_asyncgen() -> None:
 
     host_agen = host_agen_fn()
     try:
-        await asyncio.get_event_loop().create_task(host_agen.__anext__())  # type: ignore[arg-type]
+        loop = asyncio.get_running_loop()
+        await loop.create_task(host_agen.__anext__())  # type: ignore[arg-type]
     finally:
         await host_agen.aclose()
 
@@ -769,7 +770,7 @@ def test_task_group_in_generator(
 
     gen = task_group_generator()
     anyio.run(
-        gen.__anext__,  # type: ignore[arg-type]
+        gen.__anext__,
         backend=anyio_backend_name,
         backend_options=anyio_backend_options,
     )
@@ -847,13 +848,13 @@ def test_cancel_generator_based_task() -> None:
     def generator_part() -> Generator[object, BaseException, None]:
         yield from native_coro_part()
 
-    anyio.run(generator_part, backend="asyncio")  # type: ignore[arg-type]
+    anyio.run(generator_part, backend="asyncio")
 
 
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_cancel_native_future_tasks() -> None:
     async def wait_native_future() -> None:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.create_future()
 
     async with anyio.create_task_group() as tg:
@@ -865,7 +866,7 @@ async def test_cancel_native_future_tasks() -> None:
 async def test_cancel_native_future_tasks_cancel_scope() -> None:
     async def wait_native_future() -> None:
         with anyio.CancelScope():
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.create_future()
 
     async with anyio.create_task_group() as tg:
@@ -875,7 +876,7 @@ async def test_cancel_native_future_tasks_cancel_scope() -> None:
 
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_cancel_completed_task() -> None:
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     old_exception_handler = loop.get_exception_handler()
     exceptions = []
 
@@ -992,7 +993,7 @@ def test_unhandled_exception_group(caplog: pytest.LogCaptureFixture) -> None:
         async with anyio.create_task_group() as tg:
             tg.start_soon(nested)
             await wait_all_tasks_blocked()
-            asyncio.get_event_loop().call_soon(crash)
+            asyncio.get_running_loop().call_soon(crash)
             await anyio.sleep(5)
 
         pytest.fail("Execution should never reach this point")
