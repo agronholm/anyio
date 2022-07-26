@@ -1952,7 +1952,7 @@ class CapacityLimiter(BaseCapacityLimiter):
 
     def __init__(self, total_tokens: float):
         self._borrowers: Set[Any] = set()
-        self._wait_queue: Dict[Any, asyncio.Event] = OrderedDict()
+        self._wait_queue: OrderedDict[Any, asyncio.Event] = OrderedDict()
         self.total_tokens = total_tokens
 
     async def __aenter__(self) -> None:
@@ -2053,7 +2053,7 @@ class CapacityLimiter(BaseCapacityLimiter):
 
         # Notify the next task in line if this limiter has free capacity now
         if self._wait_queue and len(self._borrowers) < self._total_tokens:
-            event = self._wait_queue.popitem()[1]
+            event = self._wait_queue.popitem(last=False)[1]
             event.set()
 
     def statistics(self) -> CapacityLimiterStatistics:
