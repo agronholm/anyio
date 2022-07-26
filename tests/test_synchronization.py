@@ -524,3 +524,22 @@ class TestCapacityLimiter:
         await asyncio.sleep(0)
         task1.cancel()
         await asyncio.wait_for(task2, 1)
+
+    async def test_ordered_queue(self) -> None:
+        limiter = CapacityLimiter(1)
+        results = []
+        event = Event()
+
+        async def append(x: int, task_status: TaskStatus) -> None:
+            task_status.started()
+            async with limiter:
+                await event.wait()
+                results.append(x)
+
+        async with create_task_group() as tg:
+            for i in [0, 1, 2]:
+                await tg.start(append, i)
+
+            event.set()
+
+        assert results == [0, 1, 2]

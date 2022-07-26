@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed ``ConcurrencyLimiter`` on the asyncio backend to order waiting tasks in the FIFO
+  order (instead of LIFO) (PR by Conor Stevenson)
+
 **3.6.1**
 
 - Fixed exception handler in the asyncio test runner not properly handling a context
