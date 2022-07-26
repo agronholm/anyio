@@ -539,6 +539,7 @@ class TestCapacityLimiter:
         async with create_task_group() as tg:
             for i in [0, 1, 2]:
                 await tg.start(append, i)
+
             event.set()
 
         assert results == [0, 1, 2]
