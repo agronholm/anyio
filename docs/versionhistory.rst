@@ -3,6 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**3.6.2**
+
+- Fixed ``asyncio`` ``ConcurrencyLimiter`` to correctly order waiting tasks.
+
 **3.6.1**
 
 - Fixed exception handler in the asyncio test runner not properly handling a context
