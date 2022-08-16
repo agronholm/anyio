@@ -103,7 +103,7 @@ create a :class:`~.BlockingPortal` directly::
             # ...hand off the portal to external threads...
             await portal.sleep_until_stopped()
 
-    anyio.run(main)
+    run(main)
 
 Spawning tasks from worker threads
 ----------------------------------
