@@ -824,8 +824,8 @@ class CapacityLimiter(BaseCapacityLimiter):
         exc_type: Optional[Type[BaseException]],
         exc_val: Optional[BaseException],
         exc_tb: Optional[TracebackType],
-    ) -> Optional[bool]:
-        return await self.__original.__aexit__(exc_type, exc_val, exc_tb)
+    ) -> None:
+        await self.__original.__aexit__(exc_type, exc_val, exc_tb)
 
     @property
     def total_tokens(self) -> float:
