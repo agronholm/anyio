@@ -86,7 +86,7 @@ if sys.version_info >= (3, 7):
     from asyncio import run as native_run
 
     def _get_task_callbacks(task: asyncio.Task) -> Iterable[Callable]:
-        return [cb for cb, context in task._callbacks]  # type: ignore[attr-defined]
+        return [cb for cb, context in task._callbacks]
 
 else:
     _T = TypeVar("_T")
