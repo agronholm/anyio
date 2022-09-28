@@ -1,4 +1,6 @@
-from typing import AsyncIterator
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
 
 from ._compat import DeprecatedAsyncContextManager
 from ._eventloop import get_asynclib

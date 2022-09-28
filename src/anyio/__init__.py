@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 __all__ = (
     "maybe_async",
     "maybe_async_cm",

@@ -1,6 +1,9 @@
+from __future__ import annotations
+
+from collections.abc import Generator
 from contextlib import contextmanager
 from inspect import isasyncgenfunction, iscoroutinefunction
-from typing import TYPE_CHECKING, Any, Dict, Generator, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, Tuple, cast
 
 import pytest
 import sniffio
@@ -12,10 +15,10 @@ from .abc import TestRunner
 if TYPE_CHECKING:
     from _pytest.config import Config
 
-_current_runner: Optional[TestRunner] = None
+_current_runner: TestRunner | None = None
 
 
-def extract_backend_and_options(backend: object) -> Tuple[str, Dict[str, Any]]:
+def extract_backend_and_options(backend: object) -> tuple[str, dict[str, Any]]:
     if isinstance(backend, str):
         return backend, {}
     elif isinstance(backend, tuple) and len(backend) == 2:
@@ -27,7 +30,7 @@ def extract_backend_and_options(backend: object) -> Tuple[str, Dict[str, Any]]:
 
 @contextmanager
 def get_runner(
-    backend_name: str, backend_options: Dict[str, Any]
+    backend_name: str, backend_options: dict[str, Any]
 ) -> Generator[TestRunner, object, None]:
     global _current_runner
     if _current_runner:
@@ -51,7 +54,7 @@ def get_runner(
             sniffio.current_async_library_cvar.reset(token)
 
 
-def pytest_configure(config: "Config") -> None:
+def pytest_configure(config: Config) -> None:
     config.addinivalue_line(
         "markers",
         "anyio: mark the (coroutine function) test to be run "
@@ -94,7 +97,7 @@ def pytest_pycollect_makeitem(collector: Any, name: Any, obj: Any) -> None:
 
 
 @pytest.hookimpl(tryfirst=True)
-def pytest_pyfunc_call(pyfuncitem: Any) -> Optional[bool]:
+def pytest_pyfunc_call(pyfuncitem: Any) -> bool | None:
     def run_with_hypothesis(**kwargs: Any) -> None:
         with get_runner(backend_name, backend_options) as runner:
             runner.run_test(original_func, kwargs)
@@ -137,7 +140,7 @@ def anyio_backend_name(anyio_backend: Any) -> str:
 
 
 @pytest.fixture
-def anyio_backend_options(anyio_backend: Any) -> Dict[str, Any]:
+def anyio_backend_options(anyio_backend: Any) -> dict[str, Any]:
     if isinstance(anyio_backend, str):
         return {}
     else:

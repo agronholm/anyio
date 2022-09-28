@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import sys
-from typing import Any, Callable, Dict, Mapping, TypeVar, Union, overload
+from collections.abc import Callable, Mapping
+from typing import Any, TypeVar, overload
 
 from ._exceptions import TypedAttributeLookupError
 
@@ -26,7 +29,7 @@ class TypedAttributeSet:
     """
 
     def __init_subclass__(cls) -> None:
-        annotations: Dict[str, Any] = getattr(cls, "__annotations__", {})
+        annotations: dict[str, Any] = getattr(cls, "__annotations__", {})
         for attrname in dir(cls):
             if not attrname.startswith("_") and attrname not in annotations:
                 raise TypeError(
@@ -56,7 +59,7 @@ class TypedAttributeProvider:
         ...
 
     @overload
-    def extra(self, attribute: T_Attr, default: T_Default) -> Union[T_Attr, T_Default]:
+    def extra(self, attribute: T_Attr, default: T_Default) -> T_Attr | T_Default:
         ...
 
     @final

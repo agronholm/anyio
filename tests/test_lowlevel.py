@@ -1,4 +1,6 @@
-from typing import Any, Dict
+from __future__ import annotations
+
+from typing import Any
 
 import pytest
 
@@ -90,7 +92,7 @@ class TestRunVar:
     def test_get_set(
         self,
         anyio_backend_name: str,
-        anyio_backend_options: Dict[str, Any],
+        anyio_backend_options: dict[str, Any],
     ) -> None:
         async def taskfunc(index: int) -> None:
             assert var.get() == index

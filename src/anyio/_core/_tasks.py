@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import math
 from types import TracebackType
-from typing import Optional, Type
 from warnings import warn
 
 from ..abc._tasks import TaskGroup, TaskStatus
@@ -30,7 +31,7 @@ class CancelScope(DeprecatedAsyncContextManager["CancelScope"]):
 
     def __new__(
         cls, *, deadline: float = math.inf, shield: bool = False
-    ) -> "CancelScope":
+    ) -> CancelScope:
         return get_asynclib().CancelScope(shield=shield, deadline=deadline)
 
     def cancel(self) -> DeprecatedAwaitable:
@@ -70,15 +71,15 @@ class CancelScope(DeprecatedAsyncContextManager["CancelScope"]):
     def shield(self, value: bool) -> None:
         raise NotImplementedError
 
-    def __enter__(self) -> "CancelScope":
+    def __enter__(self) -> CancelScope:
         raise NotImplementedError
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         raise NotImplementedError
 
 
@@ -109,10 +110,10 @@ class FailAfterContextManager(DeprecatedAsyncContextManager[CancelScope]):
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         retval = self._cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         if self._cancel_scope.cancel_called:
             raise TimeoutError
@@ -120,7 +121,7 @@ class FailAfterContextManager(DeprecatedAsyncContextManager[CancelScope]):
         return retval
 
 
-def fail_after(delay: Optional[float], shield: bool = False) -> FailAfterContextManager:
+def fail_after(delay: float | None, shield: bool = False) -> FailAfterContextManager:
     """
     Create a context manager which raises a :class:`TimeoutError` if does not finish in time.
 
@@ -138,7 +139,7 @@ def fail_after(delay: Optional[float], shield: bool = False) -> FailAfterContext
     return FailAfterContextManager(cancel_scope)
 
 
-def move_on_after(delay: Optional[float], shield: bool = False) -> CancelScope:
+def move_on_after(delay: float | None, shield: bool = False) -> CancelScope:
     """
     Create a cancel scope with a deadline that expires after the given delay.
 
@@ -168,7 +169,7 @@ def current_effective_deadline() -> DeprecatedAwaitableFloat:
     )
 
 
-def create_task_group() -> "TaskGroup":
+def create_task_group() -> TaskGroup:
     """
     Create a task group.
 

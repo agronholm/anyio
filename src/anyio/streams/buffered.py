@@ -1,5 +1,8 @@
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping
+from typing import Any
 
 from .. import ClosedResourceError, DelimiterNotFound, EndOfStream, IncompleteRead
 from ..abc import AnyByteReceiveStream, ByteReceiveStream

@@ -1,4 +1,7 @@
-from typing import Any, Awaitable, Generator, Optional, Union
+from __future__ import annotations
+
+from collections.abc import Awaitable, Generator
+from typing import Any
 
 from ._compat import DeprecatedAwaitableList, _warn_deprecation
 from ._eventloop import get_asynclib
@@ -20,16 +23,16 @@ class TaskInfo:
     def __init__(
         self,
         id: int,
-        parent_id: Optional[int],
-        name: Optional[str],
-        coro: Union[Generator, Awaitable[Any]],
+        parent_id: int | None,
+        name: str | None,
+        coro: Generator | Awaitable[Any],
     ):
         func = get_current_task
         self._name = f"{func.__module__}.{func.__qualname__}"
         self.id: int = id
-        self.parent_id: Optional[int] = parent_id
-        self.name: Optional[str] = name
-        self.coro: Union[Generator, Awaitable[Any]] = coro
+        self.parent_id: int | None = parent_id
+        self.name: str | None = name
+        self.coro: Generator | Awaitable[Any] = coro
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, TaskInfo):
@@ -43,14 +46,14 @@ class TaskInfo:
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(id={self.id!r}, name={self.name!r})"
 
-    def __await__(self) -> Generator[None, None, "TaskInfo"]:
+    def __await__(self) -> Generator[None, None, TaskInfo]:
         _warn_deprecation(self)
         if False:
             yield
 
         return self
 
-    def _unwrap(self) -> "TaskInfo":
+    def _unwrap(self) -> TaskInfo:
         return self
 
 

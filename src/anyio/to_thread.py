@@ -1,4 +1,7 @@
-from typing import Callable, Optional, TypeVar
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import TypeVar
 from warnings import warn
 
 from ._core._eventloop import get_asynclib
@@ -11,7 +14,7 @@ async def run_sync(
     func: Callable[..., T_Retval],
     *args: object,
     cancellable: bool = False,
-    limiter: Optional[CapacityLimiter] = None
+    limiter: CapacityLimiter | None = None,
 ) -> T_Retval:
     """
     Call the given function with the given arguments in a worker thread.
@@ -37,7 +40,7 @@ async def run_sync_in_worker_thread(
     func: Callable[..., T_Retval],
     *args: object,
     cancellable: bool = False,
-    limiter: Optional[CapacityLimiter] = None
+    limiter: CapacityLimiter | None = None,
 ) -> T_Retval:
     warn(
         "run_sync_in_worker_thread() has been deprecated, use anyio.to_thread.run_sync() instead",

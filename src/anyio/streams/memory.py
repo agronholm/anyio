@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Deque, Generic, List, NamedTuple, Optional, Type, TypeVar
+from typing import Generic, NamedTuple, TypeVar
 
 from .. import (
     BrokenResourceError,
@@ -31,13 +33,13 @@ class MemoryObjectStreamStatistics(NamedTuple):
 @dataclass(eq=False)
 class MemoryObjectStreamState(Generic[T_Item]):
     max_buffer_size: float = field()
-    buffer: Deque[T_Item] = field(init=False, default_factory=deque)
+    buffer: deque[T_Item] = field(init=False, default_factory=deque)
     open_send_channels: int = field(init=False, default=0)
     open_receive_channels: int = field(init=False, default=0)
-    waiting_receivers: "OrderedDict[Event, List[T_Item]]" = field(
+    waiting_receivers: OrderedDict[Event, list[T_Item]] = field(
         init=False, default_factory=OrderedDict
     )
-    waiting_senders: "OrderedDict[Event, T_Item]" = field(
+    waiting_senders: OrderedDict[Event, T_Item] = field(
         init=False, default_factory=OrderedDict
     )
 
@@ -95,7 +97,7 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
         except WouldBlock:
             # Add ourselves in the queue
             receive_event = Event()
-            container: List[T_Item] = []
+            container: list[T_Item] = []
             self._state.waiting_receivers[receive_event] = container
 
             try:
@@ -113,7 +115,7 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
             else:
                 raise EndOfStream
 
-    def clone(self) -> "MemoryObjectReceiveStream[T_Item]":
+    def clone(self) -> MemoryObjectReceiveStream[T_Item]:
         """
         Create a clone of this receive stream.
 
@@ -155,14 +157,14 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
         """
         return self._state.statistics()
 
-    def __enter__(self) -> "MemoryObjectReceiveStream[T_Item]":
+    def __enter__(self) -> MemoryObjectReceiveStream[T_Item]:
         return self
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         self.close()
 
@@ -220,7 +222,7 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
             if self._state.waiting_senders.pop(send_event, None):  # type: ignore[arg-type]
                 raise BrokenResourceError
 
-    def clone(self) -> "MemoryObjectSendStream[T_Item]":
+    def clone(self) -> MemoryObjectSendStream[T_Item]:
         """
         Create a clone of this send stream.
 
@@ -263,13 +265,13 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
         """
         return self._state.statistics()
 
-    def __enter__(self) -> "MemoryObjectSendStream[T_Item]":
+    def __enter__(self) -> MemoryObjectSendStream[T_Item]:
         return self
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         self.close()

@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from collections import deque
 from dataclasses import InitVar, dataclass, field
-from typing import Deque, Iterable, List, TypeVar
+from typing import Deque, Iterable, TypeVar
 
 import pytest
 
@@ -121,7 +123,7 @@ class DummyObjectReceiveStream(ObjectReceiveStream[T_Item]):
 
 @dataclass
 class DummyObjectSendStream(ObjectSendStream[T_Item]):
-    buffer: List[T_Item] = field(init=False, default_factory=list)
+    buffer: list[T_Item] = field(init=False, default_factory=list)
     _closed: bool = field(init=False, default=False)
 
     async def send(self, item: T_Item) -> None:

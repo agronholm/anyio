@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pytest
 
 from anyio import IncompleteRead, create_memory_object_stream

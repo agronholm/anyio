@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 import socket
 import ssl
 import sys
+from collections.abc import Awaitable
 from ipaddress import IPv6Address, ip_address
 from os import PathLike, chmod
 from pathlib import Path
 from socket import AddressFamily, SocketKind
-from typing import Awaitable, List, Optional, Tuple, Union, cast, overload
+from typing import List, Tuple, cast, overload
 
 from .. import to_thread
 from ..abc import (
@@ -48,8 +51,8 @@ async def connect_tcp(
     remote_host: IPAddressType,
     remote_port: int,
     *,
-    local_host: Optional[IPAddressType] = ...,
-    ssl_context: Optional[ssl.SSLContext] = ...,
+    local_host: IPAddressType | None = ...,
+    ssl_context: ssl.SSLContext | None = ...,
     tls_standard_compatible: bool = ...,
     tls_hostname: str,
     happy_eyeballs_delay: float = ...,
@@ -63,10 +66,10 @@ async def connect_tcp(
     remote_host: IPAddressType,
     remote_port: int,
     *,
-    local_host: Optional[IPAddressType] = ...,
+    local_host: IPAddressType | None = ...,
     ssl_context: ssl.SSLContext,
     tls_standard_compatible: bool = ...,
-    tls_hostname: Optional[str] = ...,
+    tls_hostname: str | None = ...,
     happy_eyeballs_delay: float = ...,
 ) -> TLSStream:
     ...
@@ -78,11 +81,11 @@ async def connect_tcp(
     remote_host: IPAddressType,
     remote_port: int,
     *,
-    local_host: Optional[IPAddressType] = ...,
+    local_host: IPAddressType | None = ...,
     tls: Literal[True],
-    ssl_context: Optional[ssl.SSLContext] = ...,
+    ssl_context: ssl.SSLContext | None = ...,
     tls_standard_compatible: bool = ...,
-    tls_hostname: Optional[str] = ...,
+    tls_hostname: str | None = ...,
     happy_eyeballs_delay: float = ...,
 ) -> TLSStream:
     ...
@@ -94,11 +97,11 @@ async def connect_tcp(
     remote_host: IPAddressType,
     remote_port: int,
     *,
-    local_host: Optional[IPAddressType] = ...,
+    local_host: IPAddressType | None = ...,
     tls: Literal[False],
-    ssl_context: Optional[ssl.SSLContext] = ...,
+    ssl_context: ssl.SSLContext | None = ...,
     tls_standard_compatible: bool = ...,
-    tls_hostname: Optional[str] = ...,
+    tls_hostname: str | None = ...,
     happy_eyeballs_delay: float = ...,
 ) -> SocketStream:
     ...
@@ -110,7 +113,7 @@ async def connect_tcp(
     remote_host: IPAddressType,
     remote_port: int,
     *,
-    local_host: Optional[IPAddressType] = ...,
+    local_host: IPAddressType | None = ...,
     happy_eyeballs_delay: float = ...,
 ) -> SocketStream:
     ...
@@ -120,13 +123,13 @@ async def connect_tcp(
     remote_host: IPAddressType,
     remote_port: int,
     *,
-    local_host: Optional[IPAddressType] = None,
+    local_host: IPAddressType | None = None,
     tls: bool = False,
-    ssl_context: Optional[ssl.SSLContext] = None,
+    ssl_context: ssl.SSLContext | None = None,
     tls_standard_compatible: bool = True,
-    tls_hostname: Optional[str] = None,
+    tls_hostname: str | None = None,
     happy_eyeballs_delay: float = 0.25,
-) -> Union[SocketStream, TLSStream]:
+) -> SocketStream | TLSStream:
     """
     Connect to a host using the TCP protocol.
 
@@ -158,7 +161,7 @@ async def connect_tcp(
 
     """
     # Placed here due to https://github.com/python/mypy/issues/7057
-    connected_stream: Optional[SocketStream] = None
+    connected_stream: SocketStream | None = None
 
     async def try_connect(remote_host: str, event: Event) -> None:
         nonlocal connected_stream
@@ -177,7 +180,7 @@ async def connect_tcp(
             event.set()
 
     asynclib = get_asynclib()
-    local_address: Optional[IPSockAddrType] = None
+    local_address: IPSockAddrType | None = None
     family = socket.AF_UNSPEC
     if local_host:
         gai_res = await getaddrinfo(str(local_host), None)
@@ -195,7 +198,7 @@ async def connect_tcp(
         # Organize the list so that the first address is an IPv6 address (if available) and the
         # second one is an IPv4 addresses. The rest can be in whatever order.
         v6_found = v4_found = False
-        target_addrs: List[Tuple[socket.AddressFamily, str]] = []
+        target_addrs: list[tuple[socket.AddressFamily, str]] = []
         for af, *rest, sa in gai_res:
             if af == socket.AF_INET6 and not v6_found:
                 v6_found = True
@@ -211,7 +214,7 @@ async def connect_tcp(
         else:
             target_addrs = [(socket.AF_INET, addr_obj.compressed)]
 
-    oserrors: List[OSError] = []
+    oserrors: list[OSError] = []
     async with create_task_group() as tg:
         for i, (af, addr) in enumerate(target_addrs):
             event = Event()
@@ -239,7 +242,7 @@ async def connect_tcp(
     return connected_stream
 
 
-async def connect_unix(path: Union[str, "PathLike[str]"]) -> UNIXSocketStream:
+async def connect_unix(path: str | PathLike[str]) -> UNIXSocketStream:
     """
     Connect to the given UNIX socket.
 
@@ -255,7 +258,7 @@ async def connect_unix(path: Union[str, "PathLike[str]"]) -> UNIXSocketStream:
 
 async def create_tcp_listener(
     *,
-    local_host: Optional[IPAddressType] = None,
+    local_host: IPAddressType | None = None,
     local_port: int = 0,
     family: AnyIPAddressFamily = socket.AddressFamily.AF_UNSPEC,
     backlog: int = 65536,
@@ -286,7 +289,7 @@ async def create_tcp_listener(
         type=socket.SOCK_STREAM,
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
-    listeners: List[SocketListener] = []
+    listeners: list[SocketListener] = []
     try:
         # The set() is here to work around a glibc bug:
         # https://sourceware.org/bugzilla/show_bug.cgi?id=14969
@@ -321,9 +324,9 @@ async def create_tcp_listener(
 
 
 async def create_unix_listener(
-    path: Union[str, "PathLike[str]"],
+    path: str | PathLike[str],
     *,
-    mode: Optional[int] = None,
+    mode: int | None = None,
     backlog: int = 65536,
 ) -> SocketListener:
     """
@@ -354,7 +357,7 @@ async def create_unix_listener(
 async def create_udp_socket(
     family: AnyIPAddressFamily = AddressFamily.AF_UNSPEC,
     *,
-    local_host: Optional[IPAddressType] = None,
+    local_host: IPAddressType | None = None,
     local_port: int = 0,
     reuse_port: bool = False,
 ) -> UDPSocket:
@@ -401,7 +404,7 @@ async def create_connected_udp_socket(
     remote_port: int,
     *,
     family: AnyIPAddressFamily = AddressFamily.AF_UNSPEC,
-    local_host: Optional[IPAddressType] = None,
+    local_host: IPAddressType | None = None,
     local_port: int = 0,
     reuse_port: bool = False,
 ) -> ConnectedUDPSocket:
@@ -447,8 +450,8 @@ async def create_connected_udp_socket(
 
 async def create_unix_datagram_socket(
     *,
-    local_path: Union[None, str, "PathLike[str]"] = None,
-    local_mode: Optional[int] = None,
+    local_path: None | str | PathLike[str] = None,
+    local_mode: int | None = None,
 ) -> UNIXDatagramSocket:
     """
     Create a UNIX datagram socket.
@@ -473,10 +476,10 @@ async def create_unix_datagram_socket(
 
 
 async def create_connected_unix_datagram_socket(
-    remote_path: Union[str, "PathLike[str]"],
+    remote_path: str | PathLike[str],
     *,
-    local_path: Union[None, str, "PathLike[str]"] = None,
-    local_mode: Optional[int] = None,
+    local_path: None | str | PathLike[str] = None,
+    local_mode: int | None = None,
 ) -> ConnectedUNIXDatagramSocket:
     """
     Create a connected UNIX datagram socket.
@@ -503,11 +506,11 @@ async def create_connected_unix_datagram_socket(
 
 
 async def getaddrinfo(
-    host: Union[bytearray, bytes, str],
-    port: Union[str, int, None],
+    host: bytearray | bytes | str,
+    port: str | int | None,
     *,
-    family: Union[int, AddressFamily] = 0,
-    type: Union[int, SocketKind] = 0,
+    family: int | AddressFamily = 0,
+    type: int | SocketKind = 0,
     proto: int = 0,
     flags: int = 0,
 ) -> GetAddrInfoReturnType:
@@ -551,7 +554,7 @@ async def getaddrinfo(
     ]
 
 
-def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Awaitable[Tuple[str, str]]:
+def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Awaitable[tuple[str, str]]:
     """
     Look up the host name of an IP address.
 
@@ -611,8 +614,8 @@ def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
 
 
 def convert_ipv6_sockaddr(
-    sockaddr: Union[Tuple[str, int, int, int], Tuple[str, int]]
-) -> Tuple[str, int]:
+    sockaddr: tuple[str, int, int, int] | tuple[str, int]
+) -> tuple[str, int]:
     """
     Convert a 4-tuple IPv6 socket address to a 2-tuple (address, port) format.
 
@@ -637,8 +640,8 @@ def convert_ipv6_sockaddr(
 
 
 async def setup_unix_local_socket(
-    path: Union[None, str, "PathLike[str]"],
-    mode: Optional[int],
+    path: None | str | PathLike[str],
+    mode: int | None,
     socktype: int,
 ) -> socket.socket:
     """

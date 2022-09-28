@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from abc import abstractmethod
-from typing import Any, Callable, Generic, Optional, TypeVar, Union
+from collections.abc import Callable
+from typing import Any, Generic, TypeVar, Union
 
 from .._core._exceptions import EndOfStream
 from .._core._typedattr import TypedAttributeProvider
@@ -23,7 +26,7 @@ class UnreliableObjectReceiveStream(
     parameter.
     """
 
-    def __aiter__(self) -> "UnreliableObjectReceiveStream[T_Item]":
+    def __aiter__(self) -> UnreliableObjectReceiveStream[T_Item]:
         return self
 
     async def __anext__(self) -> T_Item:
@@ -118,7 +121,7 @@ class ByteReceiveStream(AsyncResource, TypedAttributeProvider):
     65536 bytes.
     """
 
-    def __aiter__(self) -> "ByteReceiveStream":
+    def __aiter__(self) -> ByteReceiveStream:
         return self
 
     async def __anext__(self) -> bytes:
@@ -187,7 +190,7 @@ class Listener(Generic[T_Stream], AsyncResource, TypedAttributeProvider):
 
     @abstractmethod
     async def serve(
-        self, handler: Callable[[T_Stream], Any], task_group: Optional[TaskGroup] = None
+        self, handler: Callable[[T_Stream], Any], task_group: TaskGroup | None = None
     ) -> None:
         """
         Accept incoming connections as they come in and start tasks to handle them.

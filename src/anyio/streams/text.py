@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import codecs
+from collections.abc import Callable, Mapping
 from dataclasses import InitVar, dataclass, field
-from typing import Any, Callable, Mapping, Tuple
+from typing import Any
 
 from ..abc import (
     AnyByteReceiveStream,
@@ -71,7 +74,7 @@ class TextSendStream(ObjectSendStream[str]):
     transport_stream: AnyByteSendStream
     encoding: InitVar[str] = "utf-8"
     errors: str = "strict"
-    _encoder: Callable[..., Tuple[bytes, int]] = field(init=False)
+    _encoder: Callable[..., tuple[bytes, int]] = field(init=False)
 
     def __post_init__(self, encoding: str) -> None:
         self._encoder = codecs.getencoder(encoding)

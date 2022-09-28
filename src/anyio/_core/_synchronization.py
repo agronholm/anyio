@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 from collections import deque
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Deque, Optional, Tuple, Type
 from warnings import warn
 
 from ..lowlevel import cancel_shielded_checkpoint, checkpoint, checkpoint_if_cancelled
@@ -34,7 +35,7 @@ class CapacityLimiterStatistics:
 
     borrowed_tokens: int
     total_tokens: float
-    borrowers: Tuple[object, ...]
+    borrowers: tuple[object, ...]
     tasks_waiting: int
 
 
@@ -48,7 +49,7 @@ class LockStatistics:
     """
 
     locked: bool
-    owner: Optional[TaskInfo]
+    owner: TaskInfo | None
     tasks_waiting: int
 
 
@@ -74,7 +75,7 @@ class SemaphoreStatistics:
 
 
 class Event:
-    def __new__(cls) -> "Event":
+    def __new__(cls) -> Event:
         return get_asynclib().Event()
 
     def set(self) -> DeprecatedAwaitable:
@@ -100,19 +101,19 @@ class Event:
 
 
 class Lock:
-    _owner_task: Optional[TaskInfo] = None
+    _owner_task: TaskInfo | None = None
 
     def __init__(self) -> None:
-        self._waiters: Deque[Tuple[TaskInfo, Event]] = deque()
+        self._waiters: deque[tuple[TaskInfo, Event]] = deque()
 
     async def __aenter__(self) -> None:
         await self.acquire()
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         self.release()
 
@@ -187,20 +188,20 @@ class Lock:
 
 
 class Condition:
-    _owner_task: Optional[TaskInfo] = None
+    _owner_task: TaskInfo | None = None
 
-    def __init__(self, lock: Optional[Lock] = None):
+    def __init__(self, lock: Lock | None = None):
         self._lock = lock or Lock()
-        self._waiters: Deque[Event] = deque()
+        self._waiters: deque[Event] = deque()
 
     async def __aenter__(self) -> None:
         await self.acquire()
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         self.release()
 
@@ -278,7 +279,7 @@ class Condition:
 
 
 class Semaphore:
-    def __init__(self, initial_value: int, *, max_value: Optional[int] = None):
+    def __init__(self, initial_value: int, *, max_value: int | None = None):
         if not isinstance(initial_value, int):
             raise TypeError("initial_value must be an integer")
         if initial_value < 0:
@@ -293,7 +294,7 @@ class Semaphore:
 
         self._value = initial_value
         self._max_value = max_value
-        self._waiters: Deque[Event] = deque()
+        self._waiters: deque[Event] = deque()
 
     async def __aenter__(self) -> "Semaphore":
         await self.acquire()
@@ -301,9 +302,9 @@ class Semaphore:
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         self.release()
 
@@ -361,7 +362,7 @@ class Semaphore:
         return self._value
 
     @property
-    def max_value(self) -> Optional[int]:
+    def max_value(self) -> int | None:
         """The maximum value of the semaphore."""
         return self._max_value
 
@@ -375,7 +376,7 @@ class Semaphore:
 
 
 class CapacityLimiter:
-    def __new__(cls, total_tokens: float) -> "CapacityLimiter":
+    def __new__(cls, total_tokens: float) -> CapacityLimiter:
         return get_asynclib().CapacityLimiter(total_tokens)
 
     async def __aenter__(self) -> None:
@@ -383,10 +384,10 @@ class CapacityLimiter:
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         raise NotImplementedError
 
     @property
@@ -501,7 +502,7 @@ def create_lock() -> Lock:
     return Lock()
 
 
-def create_condition(lock: Optional[Lock] = None) -> Condition:
+def create_condition(lock: Lock | None = None) -> Condition:
     """
     Create an asynchronous condition.
 
@@ -533,7 +534,7 @@ def create_event() -> Event:
     return get_asynclib().Event()
 
 
-def create_semaphore(value: int, *, max_value: Optional[int] = None) -> Semaphore:
+def create_semaphore(value: int, *, max_value: int | None = None) -> Semaphore:
     """
     Create an asynchronous semaphore.
 
@@ -587,9 +588,9 @@ class ResourceGuard:
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         self._guarded = False
         return None

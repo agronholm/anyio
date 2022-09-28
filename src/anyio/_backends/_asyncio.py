@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import array
 import asyncio
 import concurrent.futures
@@ -6,6 +8,17 @@ import socket
 import sys
 from asyncio.base_events import _run_until_complete_cb  # type: ignore[attr-defined]
 from collections import OrderedDict, deque
+from collections.abc import (
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Collection,
+    Coroutine,
+    Generator,
+    Iterable,
+    Mapping,
+    Sequence,
+)
 from concurrent.futures import Future
 from contextvars import Context, copy_context
 from dataclasses import dataclass
@@ -24,29 +37,7 @@ from queue import Queue
 from socket import AddressFamily, SocketKind
 from threading import Thread
 from types import TracebackType
-from typing import (
-    IO,
-    Any,
-    AsyncGenerator,
-    Awaitable,
-    Callable,
-    Collection,
-    Coroutine,
-    Deque,
-    Dict,
-    Generator,
-    Iterable,
-    List,
-    Mapping,
-    Optional,
-    Sequence,
-    Set,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-    cast,
-)
+from typing import IO, Any, Optional, Tuple, TypeVar, Union, cast
 from weakref import WeakKeyDictionary
 
 import sniffio
@@ -72,107 +63,21 @@ from ..lowlevel import RunVar
 
 if sys.version_info >= (3, 8):
 
-    def get_coro(task: asyncio.Task) -> Union[Generator, Awaitable[Any]]:
+    def get_coro(task: asyncio.Task) -> Generator | Awaitable[Any]:
         return task.get_coro()
 
 else:
 
-    def get_coro(task: asyncio.Task) -> Union[Generator, Awaitable[Any]]:
+    def get_coro(task: asyncio.Task) -> Generator | Awaitable[Any]:
         return task._coro
 
 
-if sys.version_info >= (3, 7):
-    from asyncio import all_tasks, create_task, current_task, get_running_loop
-    from asyncio import run as native_run
+from asyncio import all_tasks, create_task, current_task, get_running_loop
+from asyncio import run as native_run
 
-    def _get_task_callbacks(task: asyncio.Task) -> Iterable[Callable]:
-        return [cb for cb, context in task._callbacks]
 
-else:
-    _T = TypeVar("_T")
-
-    def _get_task_callbacks(task: asyncio.Task) -> Iterable[Callable]:
-        return task._callbacks
-
-    def native_run(main, *, debug=False):
-        # Snatched from Python 3.7
-        from asyncio import coroutines, events, tasks
-
-        def _cancel_all_tasks(loop):
-            to_cancel = all_tasks(loop)
-            if not to_cancel:
-                return
-
-            for task in to_cancel:
-                task.cancel()
-
-            loop.run_until_complete(
-                tasks.gather(*to_cancel, loop=loop, return_exceptions=True)
-            )
-
-            for task in to_cancel:
-                if task.cancelled():
-                    continue
-                if task.exception() is not None:
-                    loop.call_exception_handler(
-                        {
-                            "message": "unhandled exception during asyncio.run() shutdown",
-                            "exception": task.exception(),
-                            "task": task,
-                        }
-                    )
-
-        if events._get_running_loop() is not None:
-            raise RuntimeError(
-                "asyncio.run() cannot be called from a running event loop"
-            )
-
-        if not coroutines.iscoroutine(main):
-            raise ValueError(f"a coroutine was expected, got {main!r}")
-
-        loop = events.new_event_loop()
-        try:
-            events.set_event_loop(loop)
-            loop.set_debug(debug)
-            return loop.run_until_complete(main)
-        finally:
-            try:
-                _cancel_all_tasks(loop)
-                loop.run_until_complete(loop.shutdown_asyncgens())
-            finally:
-                events.set_event_loop(None)
-                loop.close()
-
-    def create_task(
-        coro: Union[Generator[Any, None, _T], Awaitable[_T]], *, name: object = None
-    ) -> asyncio.Task:
-        return get_running_loop().create_task(coro)
-
-    def get_running_loop() -> asyncio.AbstractEventLoop:
-        loop = asyncio._get_running_loop()
-        if loop is not None:
-            return loop
-        else:
-            raise RuntimeError("no running event loop")
-
-    def all_tasks(
-        loop: Optional[asyncio.AbstractEventLoop] = None,
-    ) -> Set[asyncio.Task]:
-        """Return a set of all tasks for the loop."""
-        from asyncio import Task
-
-        if loop is None:
-            loop = get_running_loop()
-
-        return {t for t in Task.all_tasks(loop) if not t.done()}
-
-    def current_task(
-        loop: Optional[asyncio.AbstractEventLoop] = None,
-    ) -> Optional[asyncio.Task]:
-        if loop is None:
-            loop = get_running_loop()
-
-        return asyncio.Task.current_task(loop)
+def _get_task_callbacks(task: asyncio.Task) -> Iterable[Callable]:
+    return [cb for cb, context in task._callbacks]
 
 
 T_Retval = TypeVar("T_Retval")
@@ -181,7 +86,7 @@ T_Retval = TypeVar("T_Retval")
 _native_task_names = hasattr(asyncio.Task, "get_name")
 
 
-_root_task: RunVar[Optional[asyncio.Task]] = RunVar("_root_task")
+_root_task: RunVar[asyncio.Task | None] = RunVar("_root_task")
 
 
 def find_root_task() -> asyncio.Task:
@@ -233,7 +138,7 @@ current_token = get_running_loop
 
 def _task_started(task: asyncio.Task) -> bool:
     """Return ``True`` if the task has been started and has not finished."""
-    coro = cast(Coroutine[Any, Any, Any], get_coro(task))
+    coro = cast("Coroutine[Any, Any, Any]", get_coro(task))
     try:
         return getcoroutinestate(coro) in (CORO_RUNNING, CORO_SUSPENDED)
     except AttributeError:
@@ -248,7 +153,7 @@ def _task_started(task: asyncio.Task) -> bool:
 
 
 def _maybe_set_event_loop_policy(
-    policy: Optional[asyncio.AbstractEventLoopPolicy], use_uvloop: bool
+    policy: asyncio.AbstractEventLoopPolicy | None, use_uvloop: bool
 ) -> None:
     # On CPython, use uvloop when possible if no other policy has been given and if not
     # explicitly disabled
@@ -273,7 +178,7 @@ def run(
     *args: object,
     debug: bool = False,
     use_uvloop: bool = False,
-    policy: Optional[asyncio.AbstractEventLoopPolicy] = None,
+    policy: asyncio.AbstractEventLoopPolicy | None = None,
 ) -> T_Retval:
     @wraps(func)
     async def wrapper() -> T_Retval:
@@ -309,22 +214,22 @@ CancelledError = asyncio.CancelledError
 class CancelScope(BaseCancelScope):
     def __new__(
         cls, *, deadline: float = math.inf, shield: bool = False
-    ) -> "CancelScope":
+    ) -> CancelScope:
         return object.__new__(cls)
 
     def __init__(self, deadline: float = math.inf, shield: bool = False):
         self._deadline = deadline
         self._shield = shield
-        self._parent_scope: Optional[CancelScope] = None
+        self._parent_scope: CancelScope | None = None
         self._cancel_called = False
         self._active = False
-        self._timeout_handle: Optional[asyncio.TimerHandle] = None
-        self._cancel_handle: Optional[asyncio.Handle] = None
-        self._tasks: Set[asyncio.Task] = set()
-        self._host_task: Optional[asyncio.Task] = None
+        self._timeout_handle: asyncio.TimerHandle | None = None
+        self._cancel_handle: asyncio.Handle | None = None
+        self._tasks: set[asyncio.Task] = set()
+        self._host_task: asyncio.Task | None = None
         self._timeout_expired = False
 
-    def __enter__(self) -> "CancelScope":
+    def __enter__(self) -> CancelScope:
         if self._active:
             raise RuntimeError(
                 "Each CancelScope may only be used for a single 'with' block"
@@ -348,10 +253,10 @@ class CancelScope(BaseCancelScope):
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         if not self._active:
             raise RuntimeError("This cancel scope is not active")
         if current_task() is not self._host_task:
@@ -445,7 +350,7 @@ class CancelScope(BaseCancelScope):
     def _deliver_cancellation_to_parent(self) -> None:
         """Start cancellation effort in the farthest directly cancelled parent scope"""
         scope = self._parent_scope
-        scope_to_cancel: Optional[CancelScope] = None
+        scope_to_cancel: CancelScope | None = None
         while scope is not None:
             if scope._cancel_called and scope._cancel_handle is None:
                 scope_to_cancel = scope
@@ -575,9 +480,9 @@ class TaskState:
 
     def __init__(
         self,
-        parent_id: Optional[int],
-        name: Optional[str],
-        cancel_scope: Optional[CancelScope],
+        parent_id: int | None,
+        name: str | None,
+        cancel_scope: CancelScope | None,
     ):
         self.parent_id = parent_id
         self.name = name
@@ -593,7 +498,7 @@ _task_states = WeakKeyDictionary()  # type: WeakKeyDictionary[asyncio.Task, Task
 
 
 class ExceptionGroup(BaseExceptionGroup):
-    def __init__(self, exceptions: List[BaseException]):
+    def __init__(self, exceptions: list[BaseException]):
         super().__init__()
         self.exceptions = exceptions
 
@@ -619,7 +524,7 @@ class TaskGroup(abc.TaskGroup):
     def __init__(self) -> None:
         self.cancel_scope: CancelScope = CancelScope()
         self._active = False
-        self._exceptions: List[BaseException] = []
+        self._exceptions: list[BaseException] = []
 
     async def __aenter__(self) -> "TaskGroup":
         self.cancel_scope.__enter__()
@@ -628,10 +533,10 @@ class TaskGroup(abc.TaskGroup):
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         ignore_exception = self.cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         if exc_val is not None:
             self.cancel_scope.cancel()
@@ -671,8 +576,8 @@ class TaskGroup(abc.TaskGroup):
     @staticmethod
     def _filter_cancellation_errors(
         exceptions: Sequence[BaseException],
-    ) -> List[BaseException]:
-        filtered_exceptions: List[BaseException] = []
+    ) -> list[BaseException]:
+        filtered_exceptions: list[BaseException] = []
         for exc in exceptions:
             if isinstance(exc, ExceptionGroup):
                 new_exceptions = TaskGroup._filter_cancellation_errors(exc.exceptions)
@@ -692,7 +597,7 @@ class TaskGroup(abc.TaskGroup):
         return filtered_exceptions
 
     async def _run_wrapped_task(
-        self, coro: Coroutine, task_status_future: Optional[asyncio.Future]
+        self, coro: Coroutine, task_status_future: asyncio.Future | None
     ) -> None:
         # This is the code path for Python 3.6 and 3.7 on which asyncio freaks out if a task raises
         # a BaseException.
@@ -721,7 +626,7 @@ class TaskGroup(abc.TaskGroup):
         func: Callable[..., Coroutine],
         args: tuple,
         name: object,
-        task_status_future: Optional[asyncio.Future] = None,
+        task_status_future: asyncio.Future | None = None,
     ) -> asyncio.Task:
         def task_done(_task: asyncio.Task) -> None:
             # This is the code path for Python 3.8+
@@ -823,8 +728,8 @@ class WorkerThread(Thread):
     def __init__(
         self,
         root_task: asyncio.Task,
-        workers: Set["WorkerThread"],
-        idle_workers: Deque["WorkerThread"],
+        workers: set[WorkerThread],
+        idle_workers: deque[WorkerThread],
     ):
         super().__init__(name="AnyIO worker thread")
         self.root_task = root_task
@@ -832,13 +737,13 @@ class WorkerThread(Thread):
         self.idle_workers = idle_workers
         self.loop = root_task._loop
         self.queue: Queue[
-            Union[Tuple[Context, Callable, tuple, asyncio.Future], None]
+            tuple[Context, Callable, tuple, asyncio.Future] | None
         ] = Queue(2)
         self.idle_since = current_time()
         self.stopping = False
 
     def _report_result(
-        self, future: asyncio.Future, result: Any, exc: Optional[BaseException]
+        self, future: asyncio.Future, result: Any, exc: BaseException | None
     ) -> None:
         self.idle_since = current_time()
         if not self.stopping:
@@ -862,7 +767,7 @@ class WorkerThread(Thread):
                 context, func, args, future = item
                 if not future.cancelled():
                     result = None
-                    exception: Optional[BaseException] = None
+                    exception: BaseException | None = None
                     try:
                         result = context.run(func, *args)
                     except BaseException as exc:
@@ -875,7 +780,7 @@ class WorkerThread(Thread):
 
                 self.queue.task_done()
 
-    def stop(self, f: Optional[asyncio.Task] = None) -> None:
+    def stop(self, f: asyncio.Task | None = None) -> None:
         self.stopping = True
         self.queue.put_nowait(None)
         self.workers.discard(self)
@@ -885,10 +790,10 @@ class WorkerThread(Thread):
             pass
 
 
-_threadpool_idle_workers: RunVar[Deque[WorkerThread]] = RunVar(
+_threadpool_idle_workers: RunVar[deque[WorkerThread]] = RunVar(
     "_threadpool_idle_workers"
 )
-_threadpool_workers: RunVar[Set[WorkerThread]] = RunVar("_threadpool_workers")
+_threadpool_workers: RunVar[set[WorkerThread]] = RunVar("_threadpool_workers")
 
 
 async def run_sync_in_worker_thread(
@@ -940,7 +845,7 @@ async def run_sync_in_worker_thread(
 def run_sync_from_thread(
     func: Callable[..., T_Retval],
     *args: object,
-    loop: Optional[asyncio.AbstractEventLoop] = None,
+    loop: asyncio.AbstractEventLoop | None = None,
 ) -> T_Retval:
     @wraps(func)
     def wrapper() -> None:
@@ -953,10 +858,7 @@ def run_sync_from_thread(
 
     f: concurrent.futures.Future[T_Retval] = Future()
     loop = loop or threadlocals.loop
-    if sys.version_info < (3, 7):
-        loop.call_soon_threadsafe(copy_context().run, wrapper)
-    else:
-        loop.call_soon_threadsafe(wrapper)
+    loop.call_soon_threadsafe(wrapper)
 
     return f.result()
 
@@ -971,7 +873,7 @@ def run_async_from_thread(
 
 
 class BlockingPortal(abc.BlockingPortal):
-    def __new__(cls) -> "BlockingPortal":
+    def __new__(cls) -> BlockingPortal:
         return object.__new__(cls)
 
     def __init__(self) -> None:
@@ -982,7 +884,7 @@ class BlockingPortal(abc.BlockingPortal):
         self,
         func: Callable,
         args: tuple,
-        kwargs: Dict[str, Any],
+        kwargs: dict[str, Any],
         name: object,
         future: Future,
     ) -> None:
@@ -1032,9 +934,9 @@ class StreamWriterWrapper(abc.ByteSendStream):
 @dataclass(eq=False)
 class Process(abc.Process):
     _process: asyncio.subprocess.Process
-    _stdin: Optional[StreamWriterWrapper]
-    _stdout: Optional[StreamReaderWrapper]
-    _stderr: Optional[StreamReaderWrapper]
+    _stdin: StreamWriterWrapper | None
+    _stdout: StreamReaderWrapper | None
+    _stderr: StreamReaderWrapper | None
 
     async def aclose(self) -> None:
         if self._stdin:
@@ -1063,31 +965,31 @@ class Process(abc.Process):
         return self._process.pid
 
     @property
-    def returncode(self) -> Optional[int]:
+    def returncode(self) -> int | None:
         return self._process.returncode
 
     @property
-    def stdin(self) -> Optional[abc.ByteSendStream]:
+    def stdin(self) -> abc.ByteSendStream | None:
         return self._stdin
 
     @property
-    def stdout(self) -> Optional[abc.ByteReceiveStream]:
+    def stdout(self) -> abc.ByteReceiveStream | None:
         return self._stdout
 
     @property
-    def stderr(self) -> Optional[abc.ByteReceiveStream]:
+    def stderr(self) -> abc.ByteReceiveStream | None:
         return self._stderr
 
 
 async def open_process(
-    command: Union[str, bytes, Sequence[Union[str, bytes]]],
+    command: str | bytes | Sequence[str | bytes],
     *,
     shell: bool,
-    stdin: Union[int, IO[Any], None],
-    stdout: Union[int, IO[Any], None],
-    stderr: Union[int, IO[Any], None],
-    cwd: Union[str, bytes, PathLike, None] = None,
-    env: Optional[Mapping[str, str]] = None,
+    stdin: int | IO[Any] | None,
+    stdout: int | IO[Any] | None,
+    stderr: int | IO[Any] | None,
+    cwd: str | bytes | PathLike | None = None,
+    env: Mapping[str, str] | None = None,
     start_new_session: bool = False,
 ) -> Process:
     await checkpoint()
@@ -1119,11 +1021,11 @@ async def open_process(
 
 
 def _forcibly_shutdown_process_pool_on_exit(
-    workers: Set[Process], _task: object
+    workers: set[Process], _task: object
 ) -> None:
     """
     Forcibly shuts down worker processes belonging to this event loop."""
-    child_watcher: Optional[asyncio.AbstractChildWatcher]
+    child_watcher: asyncio.AbstractChildWatcher | None
     try:
         child_watcher = asyncio.get_event_loop_policy().get_child_watcher()
     except NotImplementedError:
@@ -1142,7 +1044,7 @@ def _forcibly_shutdown_process_pool_on_exit(
             child_watcher.remove_child_handler(process.pid)
 
 
-async def _shutdown_process_pool_on_exit(workers: Set[Process]) -> None:
+async def _shutdown_process_pool_on_exit(workers: set[Process]) -> None:
     """
     Shuts down worker processes belonging to this event loop.
 
@@ -1161,7 +1063,7 @@ async def _shutdown_process_pool_on_exit(workers: Set[Process]) -> None:
             await process.aclose()
 
 
-def setup_process_pool_exit_at_shutdown(workers: Set[Process]) -> None:
+def setup_process_pool_exit_at_shutdown(workers: set[Process]) -> None:
     kwargs = {"name": "AnyIO process pool shutdown task"} if _native_task_names else {}
     create_task(_shutdown_process_pool_on_exit(workers), **kwargs)
     find_root_task().add_done_callback(
@@ -1175,10 +1077,10 @@ def setup_process_pool_exit_at_shutdown(workers: Set[Process]) -> None:
 
 
 class StreamProtocol(asyncio.Protocol):
-    read_queue: Deque[bytes]
+    read_queue: deque[bytes]
     read_event: asyncio.Event
     write_event: asyncio.Event
-    exception: Optional[Exception] = None
+    exception: Exception | None = None
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.read_queue = deque()
@@ -1187,7 +1089,7 @@ class StreamProtocol(asyncio.Protocol):
         self.write_event.set()
         cast(asyncio.Transport, transport).set_write_buffer_limits(0)
 
-    def connection_lost(self, exc: Optional[Exception]) -> None:
+    def connection_lost(self, exc: Exception | None) -> None:
         if exc:
             self.exception = BrokenResourceError()
             self.exception.__cause__ = exc
@@ -1199,7 +1101,7 @@ class StreamProtocol(asyncio.Protocol):
         self.read_queue.append(data)
         self.read_event.set()
 
-    def eof_received(self) -> Optional[bool]:
+    def eof_received(self) -> bool | None:
         self.read_event.set()
         return True
 
@@ -1211,10 +1113,10 @@ class StreamProtocol(asyncio.Protocol):
 
 
 class DatagramProtocol(asyncio.DatagramProtocol):
-    read_queue: Deque[Tuple[bytes, IPSockAddrType]]
+    read_queue: deque[tuple[bytes, IPSockAddrType]]
     read_event: asyncio.Event
     write_event: asyncio.Event
-    exception: Optional[Exception] = None
+    exception: Exception | None = None
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.read_queue = deque(maxlen=100)  # arbitrary value
@@ -1222,7 +1124,7 @@ class DatagramProtocol(asyncio.DatagramProtocol):
         self.write_event = asyncio.Event()
         self.write_event.set()
 
-    def connection_lost(self, exc: Optional[Exception]) -> None:
+    def connection_lost(self, exc: Exception | None) -> None:
         self.read_event.set()
         self.write_event.set()
 
@@ -1326,8 +1228,8 @@ class SocketStream(abc.SocketStream):
 
 
 class _RawSocketMixin:
-    _receive_future: Optional[asyncio.Future] = None
-    _send_future: Optional[asyncio.Future] = None
+    _receive_future: asyncio.Future | None = None
+    _send_future: asyncio.Future | None = None
     _closing = False
 
     def __init__(self, raw_socket: socket.socket):
@@ -1414,7 +1316,7 @@ class UNIXSocketStream(_RawSocketMixin, abc.SocketStream):
                 else:
                     view = view[bytes_sent:]
 
-    async def receive_fds(self, msglen: int, maxfds: int) -> Tuple[bytes, List[int]]:
+    async def receive_fds(self, msglen: int, maxfds: int) -> tuple[bytes, list[int]]:
         if not isinstance(msglen, int) or msglen < 0:
             raise ValueError("msglen must be a non-negative integer")
         if not isinstance(maxfds, int) or maxfds < 1:
@@ -1453,16 +1355,14 @@ class UNIXSocketStream(_RawSocketMixin, abc.SocketStream):
 
         return message, list(fds)
 
-    async def send_fds(
-        self, message: bytes, fds: Collection[Union[int, IOBase]]
-    ) -> None:
+    async def send_fds(self, message: bytes, fds: Collection[int | IOBase]) -> None:
         if not message:
             raise ValueError("message must not be empty")
         if not fds:
             raise ValueError("fds must not be empty")
 
         loop = get_running_loop()
-        filenos: List[int] = []
+        filenos: list[int] = []
         for fd in fds:
             if isinstance(fd, int):
                 filenos.append(fd)
@@ -1490,7 +1390,7 @@ class UNIXSocketStream(_RawSocketMixin, abc.SocketStream):
 
 
 class TCPSocketListener(abc.SocketListener):
-    _accept_scope: Optional[CancelScope] = None
+    _accept_scope: CancelScope | None = None
     _closed = False
 
     def __init__(self, raw_socket: socket.socket):
@@ -1605,7 +1505,7 @@ class UDPSocket(abc.UDPSocket):
             self._closed = True
             self._transport.close()
 
-    async def receive(self) -> Tuple[bytes, IPSockAddrType]:
+    async def receive(self) -> tuple[bytes, IPSockAddrType]:
         with self._receive_guard:
             await checkpoint()
 
@@ -1757,7 +1657,7 @@ class ConnectedUNIXDatagramSocket(_RawSocketMixin, abc.ConnectedUNIXDatagramSock
 
 
 async def connect_tcp(
-    host: str, port: int, local_addr: Optional[Tuple[str, int]] = None
+    host: str, port: int, local_addr: tuple[str, int] | None = None
 ) -> SocketStream:
     transport, protocol = cast(
         Tuple[asyncio.Transport, StreamProtocol],
@@ -1791,10 +1691,10 @@ async def connect_unix(path: str) -> UNIXSocketStream:
 
 async def create_udp_socket(
     family: socket.AddressFamily,
-    local_address: Optional[IPSockAddrType],
-    remote_address: Optional[IPSockAddrType],
+    local_address: IPSockAddrType | None,
+    remote_address: IPSockAddrType | None,
     reuse_port: bool,
-) -> Union[UDPSocket, ConnectedUDPSocket]:
+) -> UDPSocket | ConnectedUDPSocket:
     result = await get_running_loop().create_datagram_endpoint(
         DatagramProtocol,
         local_addr=local_address,
@@ -1816,8 +1716,8 @@ async def create_udp_socket(
 
 async def create_unix_datagram_socket(
     raw_socket: socket.socket,
-    remote_path: Optional[str],
-) -> Union[UNIXDatagramSocket, ConnectedUNIXDatagramSocket]:
+    remote_path: str | None,
+) -> UNIXDatagramSocket | ConnectedUNIXDatagramSocket:
     await checkpoint()
     loop = get_running_loop()
 
@@ -1840,11 +1740,11 @@ async def create_unix_datagram_socket(
 
 
 async def getaddrinfo(
-    host: Union[bytes, str],
-    port: Union[str, int, None],
+    host: bytes | str,
+    port: str | int | None,
     *,
-    family: Union[int, AddressFamily] = 0,
-    type: Union[int, SocketKind] = 0,
+    family: int | AddressFamily = 0,
+    type: int | SocketKind = 0,
     proto: int = 0,
     flags: int = 0,
 ) -> GetAddrInfoReturnType:
@@ -1855,12 +1755,12 @@ async def getaddrinfo(
     return cast(GetAddrInfoReturnType, result)
 
 
-async def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Tuple[str, str]:
+async def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> tuple[str, str]:
     return await get_running_loop().getnameinfo(sockaddr, flags)
 
 
-_read_events: RunVar[Dict[Any, asyncio.Event]] = RunVar("read_events")
-_write_events: RunVar[Dict[Any, asyncio.Event]] = RunVar("write_events")
+_read_events: RunVar[dict[Any, asyncio.Event]] = RunVar("read_events")
+_write_events: RunVar[dict[Any, asyncio.Event]] = RunVar("write_events")
 
 
 async def wait_socket_readable(sock: socket.socket) -> None:
@@ -1923,7 +1823,7 @@ async def wait_socket_writable(sock: socket.socket) -> None:
 
 
 class Event(BaseEvent):
-    def __new__(cls) -> "Event":
+    def __new__(cls) -> Event:
         return object.__new__(cls)
 
     def __init__(self) -> None:
@@ -1947,11 +1847,11 @@ class Event(BaseEvent):
 class CapacityLimiter(BaseCapacityLimiter):
     _total_tokens: float = 0
 
-    def __new__(cls, total_tokens: float) -> "CapacityLimiter":
+    def __new__(cls, total_tokens: float) -> CapacityLimiter:
         return object.__new__(cls)
 
     def __init__(self, total_tokens: float):
-        self._borrowers: Set[Any] = set()
+        self._borrowers: set[Any] = set()
         self._wait_queue: OrderedDict[Any, asyncio.Event] = OrderedDict()
         self.total_tokens = total_tokens
 
@@ -1960,9 +1860,9 @@ class CapacityLimiter(BaseCapacityLimiter):
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         self.release()
 
@@ -2083,19 +1983,19 @@ def current_default_thread_limiter() -> CapacityLimiter:
 
 
 class _SignalReceiver(DeprecatedAsyncContextManager["_SignalReceiver"]):
-    def __init__(self, signals: Tuple[int, ...]):
+    def __init__(self, signals: tuple[int, ...]):
         self._signals = signals
         self._loop = get_running_loop()
-        self._signal_queue: Deque[int] = deque()
+        self._signal_queue: deque[int] = deque()
         self._future: asyncio.Future = asyncio.Future()
-        self._handled_signals: Set[int] = set()
+        self._handled_signals: set[int] = set()
 
     def _deliver(self, signum: int) -> None:
         self._signal_queue.append(signum)
         if not self._future.done():
             self._future.set_result(None)
 
-    def __enter__(self) -> "_SignalReceiver":
+    def __enter__(self) -> _SignalReceiver:
         for sig in set(self._signals):
             self._loop.add_signal_handler(sig, self._deliver, sig)
             self._handled_signals.add(sig)
@@ -2104,15 +2004,15 @@ class _SignalReceiver(DeprecatedAsyncContextManager["_SignalReceiver"]):
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         for sig in self._handled_signals:
             self._loop.remove_signal_handler(sig)
         return None
 
-    def __aiter__(self) -> "_SignalReceiver":
+    def __aiter__(self) -> _SignalReceiver:
         return self
 
     async def __anext__(self) -> int:
@@ -2149,7 +2049,7 @@ def get_current_task() -> TaskInfo:
     return _create_task_info(current_task())  # type: ignore[arg-type]
 
 
-def get_running_tasks() -> List[TaskInfo]:
+def get_running_tasks() -> list[TaskInfo]:
     return [_create_task_info(task) for task in all_tasks() if not task.done()]
 
 
@@ -2173,9 +2073,9 @@ class TestRunner(abc.TestRunner):
         self,
         debug: bool = False,
         use_uvloop: bool = False,
-        policy: Optional[asyncio.AbstractEventLoopPolicy] = None,
+        policy: asyncio.AbstractEventLoopPolicy | None = None,
     ):
-        self._exceptions: List[BaseException] = []
+        self._exceptions: list[BaseException] = []
         _maybe_set_event_loop_policy(policy, use_uvloop)
         self._loop = asyncio.new_event_loop()
         self._loop.set_debug(debug)
@@ -2201,7 +2101,7 @@ class TestRunner(abc.TestRunner):
                 raise cast(BaseException, task.exception())
 
     def _exception_handler(
-        self, loop: asyncio.AbstractEventLoop, context: Dict[str, Any]
+        self, loop: asyncio.AbstractEventLoop, context: dict[str, Any]
     ) -> None:
         if isinstance(context.get("exception"), Exception):
             self._exceptions.append(context["exception"])
@@ -2228,7 +2128,7 @@ class TestRunner(abc.TestRunner):
     def run_asyncgen_fixture(
         self,
         fixture_func: Callable[..., AsyncGenerator[T_Retval, Any]],
-        kwargs: Dict[str, Any],
+        kwargs: dict[str, Any],
     ) -> Iterable[T_Retval]:
         async def fixture_runner() -> None:
             agen = fixture_func(**kwargs)
@@ -2262,14 +2162,14 @@ class TestRunner(abc.TestRunner):
     def run_fixture(
         self,
         fixture_func: Callable[..., Coroutine[Any, Any, T_Retval]],
-        kwargs: Dict[str, Any],
+        kwargs: dict[str, Any],
     ) -> T_Retval:
         retval = self._loop.run_until_complete(fixture_func(**kwargs))
         self._raise_async_exceptions()
         return retval
 
     def run_test(
-        self, test_func: Callable[..., Coroutine[Any, Any, Any]], kwargs: Dict[str, Any]
+        self, test_func: Callable[..., Coroutine[Any, Any, Any]], kwargs: dict[str, Any]
     ) -> None:
         try:
             self._loop.run_until_complete(test_func(**kwargs))

@@ -1,17 +1,10 @@
+from __future__ import annotations
+
 import asyncio
 import re
 import sys
 import time
-from typing import (
-    Any,
-    AsyncGenerator,
-    Coroutine,
-    Dict,
-    Generator,
-    NoReturn,
-    Optional,
-    Set,
-)
+from typing import Any, AsyncGenerator, Coroutine, Generator, NoReturn
 
 import pytest
 
@@ -32,10 +25,7 @@ from anyio import (
 from anyio.abc import TaskGroup, TaskStatus
 from anyio.lowlevel import checkpoint
 
-if sys.version_info < (3, 7):
-    current_task = asyncio.Task.current_task
-else:
-    current_task = asyncio.current_task
+current_task = asyncio.current_task
 
 pytestmark = pytest.mark.anyio
 
@@ -62,7 +52,7 @@ async def test_success() -> None:
     async def async_add(value: str) -> None:
         results.add(value)
 
-    results: Set[str] = set()
+    results: set[str] = set()
     async with create_task_group() as tg:
         tg.start_soon(async_add, "a")
         tg.start_soon(async_add, "b")
@@ -773,7 +763,7 @@ async def test_triple_nested_shield() -> None:
 
 
 def test_task_group_in_generator(
-    anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+    anyio_backend_name: str, anyio_backend_options: dict[str, Any]
 ) -> None:
     async def task_group_generator() -> AsyncGenerator[None, None]:
         async with create_task_group():
@@ -1054,7 +1044,7 @@ async def test_cancellederror_combination_with_message() -> None:
 
 async def test_start_soon_parent_id() -> None:
     root_task_id = get_current_task().id
-    parent_id: Optional[int] = None
+    parent_id: int | None = None
 
     async def subtask() -> None:
         nonlocal parent_id
@@ -1071,9 +1061,9 @@ async def test_start_soon_parent_id() -> None:
 
 async def test_start_parent_id() -> None:
     root_task_id = get_current_task().id
-    starter_task_id: Optional[int] = None
-    initial_parent_id: Optional[int] = None
-    permanent_parent_id: Optional[int] = None
+    starter_task_id: int | None = None
+    initial_parent_id: int | None = None
+    permanent_parent_id: int | None = None
 
     async def subtask(*, task_status: TaskStatus) -> None:
         nonlocal initial_parent_id, permanent_parent_id

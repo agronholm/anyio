@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import typing
 from abc import ABCMeta, abstractmethod
+from collections.abc import Callable, Coroutine
 from types import TracebackType
-from typing import Any, Callable, Coroutine, Optional, Type, TypeVar
+from typing import Any, TypeVar
 from warnings import warn
 
 if typing.TYPE_CHECKING:
@@ -28,13 +31,13 @@ class TaskGroup(metaclass=ABCMeta):
     :vartype cancel_scope: CancelScope
     """
 
-    cancel_scope: "CancelScope"
+    cancel_scope: CancelScope
 
     async def spawn(
         self,
         func: Callable[..., Coroutine[Any, Any, Any]],
         *args: object,
-        name: object = None
+        name: object = None,
     ) -> None:
         """
         Start a new task in this task group.
@@ -59,7 +62,7 @@ class TaskGroup(metaclass=ABCMeta):
         self,
         func: Callable[..., Coroutine[Any, Any, Any]],
         *args: object,
-        name: object = None
+        name: object = None,
     ) -> None:
         """
         Start a new task in this task group.
@@ -76,7 +79,7 @@ class TaskGroup(metaclass=ABCMeta):
         self,
         func: Callable[..., Coroutine[Any, Any, Any]],
         *args: object,
-        name: object = None
+        name: object = None,
     ) -> object:
         """
         Start a new task and wait until it signals for readiness.
@@ -97,8 +100,8 @@ class TaskGroup(metaclass=ABCMeta):
     @abstractmethod
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         """Exit the task group context waiting for all tasks to finish."""
