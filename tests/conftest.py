@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import ssl
+from collections.abc import Generator
 from ssl import SSLContext
-from typing import Any, Generator
+from typing import Any
 
 import pytest
 import trustme

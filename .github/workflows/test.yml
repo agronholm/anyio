@@ -2,7 +2,7 @@ name: test suite
 
 on:
   push:
-    branches: [master]
+    branches: [master, 4.0-dev]
   pull_request:
 
 jobs:
@@ -28,24 +28,24 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.6", "3.7", "3.8", "3.9", "3.10", pypy-3.7]
+        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11-dev", pypy-3.8]
         exclude:
         - os: macos-latest
-          python-version: "3.7"
-        - os: macos-latest
           python-version: "3.8"
         - os: macos-latest
           python-version: "3.9"
         - os: macos-latest
-          python-version: pypy-3.7
-        - os: windows-latest
-          python-version: "3.7"
+          python-version: "3.11-dev"
+        - os: macos-latest
+          python-version: pypy-3.8
         - os: windows-latest
           python-version: "3.8"
         - os: windows-latest
           python-version: "3.9"
         - os: windows-latest
-          python-version: pypy-3.7  # https://github.com/python-trio/trio/issues/1361
+          python-version: "3.11-dev"
+        - os: windows-latest
+          python-version: pypy-3.8  # https://github.com/python-trio/trio/issues/1361
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2
@@ -58,11 +58,17 @@ jobs:
         path: ~/.cache/pip
         key: pip-test-${{ matrix.python-version }}-${{ matrix.os }}
     - name: Install dependencies
-      run: pip install .[test,trio] coveralls
+      run: pip install .[test] coveralls
     - name: Test with pytest
       run: coverage run -m pytest
       env:
         PYTEST_DISABLE_PLUGIN_AUTOLOAD: 1
+      if: ${{ matrix.python-version != '3.11-dev' }}
+    - name: Test with pytest
+      run: pytest
+      env:
+        PYTEST_DISABLE_PLUGIN_AUTOLOAD: 1
+      if: ${{ matrix.python-version == '3.11-dev' }}
     - name: Upload Coverage
       run: coveralls --service=github
       env:

@@ -24,10 +24,13 @@ from ..abc import (
 )
 from ..streams.stapled import MultiListener
 from ..streams.tls import TLSStream
-from ._eventloop import get_asynclib
+from ._eventloop import get_async_backend
 from ._resources import aclose_forcefully
 from ._synchronization import Event
 from ._tasks import create_task_group, move_on_after
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -179,7 +182,7 @@ async def connect_tcp(
         finally:
             event.set()
 
-    asynclib = get_asynclib()
+    asynclib = get_async_backend()
     local_address: IPSockAddrType | None = None
     family = socket.AF_UNSPEC
     if local_host:
@@ -223,7 +226,11 @@ async def connect_tcp(
                 await event.wait()
 
     if connected_stream is None:
-        cause = oserrors[0] if len(oserrors) == 1 else asynclib.ExceptionGroup(oserrors)
+        cause = (
+            oserrors[0]
+            if len(oserrors) == 1
+            else ExceptionGroup("multiple connection attempts failed", oserrors)
+        )
         raise OSError("All connection attempts failed") from cause
 
     if tls or tls_hostname or ssl_context:
@@ -253,7 +260,7 @@ async def connect_unix(path: str | PathLike[str]) -> UNIXSocketStream:
 
     """
     path = str(Path(path))
-    return await get_asynclib().connect_unix(path)
+    return await get_async_backend().connect_unix(path)
 
 
 async def create_tcp_listener(
@@ -279,11 +286,11 @@ async def create_tcp_listener(
     :return: a list of listener objects
 
     """
-    asynclib = get_asynclib()
+    asynclib = get_async_backend()
     backlog = min(backlog, 65536)
     local_host = str(local_host) if local_host is not None else None
     gai_res = await getaddrinfo(
-        local_host,  # type: ignore[arg-type]
+        local_host,
         local_port,
         family=family,
         type=socket.SOCK_STREAM,
@@ -312,7 +319,7 @@ async def create_tcp_listener(
 
             raw_socket.bind(sockaddr)
             raw_socket.listen(backlog)
-            listener = asynclib.TCPSocketListener(raw_socket)
+            listener = asynclib.create_tcp_listener(raw_socket)
             listeners.append(listener)
     except BaseException:
         for listener in listeners:
@@ -324,10 +331,7 @@ async def create_tcp_listener(
 
 
 async def create_unix_listener(
-    path: str | PathLike[str],
-    *,
-    mode: int | None = None,
-    backlog: int = 65536,
+    path: str | PathLike[str], *, mode: int | None = None, backlog: int = 65536
 ) -> SocketListener:
     """
     Create a UNIX socket listener.
@@ -348,7 +352,7 @@ async def create_unix_listener(
     raw_socket = await setup_unix_local_socket(path, mode, socket.SOCK_STREAM)
     try:
         raw_socket.listen(backlog)
-        return get_asynclib().UNIXSocketListener(raw_socket)
+        return get_async_backend().create_unix_listener(raw_socket)
     except BaseException:
         raw_socket.close()
         raise
@@ -394,9 +398,10 @@ async def create_udp_socket(
     else:
         local_address = ("0.0.0.0", 0)
 
-    return await get_asynclib().create_udp_socket(
+    sock = await get_async_backend().create_udp_socket(
         family, local_address, None, reuse_port
     )
+    return cast(UDPSocket, sock)
 
 
 async def create_connected_udp_socket(
@@ -443,9 +448,10 @@ async def create_connected_udp_socket(
     family = cast(AnyIPAddressFamily, gai_res[0][0])
     remote_address = gai_res[0][-1]
 
-    return await get_asynclib().create_udp_socket(
+    sock = await get_async_backend().create_udp_socket(
         family, local_address, remote_address, reuse_port
     )
+    return cast(ConnectedUDPSocket, sock)
 
 
 async def create_unix_datagram_socket(
@@ -472,7 +478,7 @@ async def create_unix_datagram_socket(
     raw_socket = await setup_unix_local_socket(
         local_path, local_mode, socket.SOCK_DGRAM
     )
-    return await get_asynclib().create_unix_datagram_socket(raw_socket, None)
+    return await get_async_backend().create_unix_datagram_socket(raw_socket, None)
 
 
 async def create_connected_unix_datagram_socket(
@@ -502,11 +508,13 @@ async def create_connected_unix_datagram_socket(
     raw_socket = await setup_unix_local_socket(
         local_path, local_mode, socket.SOCK_DGRAM
     )
-    return await get_asynclib().create_unix_datagram_socket(raw_socket, remote_path)
+    return await get_async_backend().create_unix_datagram_socket(
+        raw_socket, remote_path
+    )
 
 
 async def getaddrinfo(
-    host: bytearray | bytes | str,
+    host: bytes | str | None,
     port: str | int | None,
     *,
     family: int | AddressFamily = 0,
@@ -537,7 +545,7 @@ async def getaddrinfo(
     # Handle unicode hostnames
     if isinstance(host, str):
         try:
-            encoded_host = host.encode("ascii")
+            encoded_host: bytes | None = host.encode("ascii")
         except UnicodeEncodeError:
             import idna
 
@@ -545,7 +553,7 @@ async def getaddrinfo(
     else:
         encoded_host = host
 
-    gai_res = await get_asynclib().getaddrinfo(
+    gai_res = await get_async_backend().getaddrinfo(
         encoded_host, port, family=family, type=type, proto=proto, flags=flags
     )
     return [
@@ -565,7 +573,7 @@ def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Awaitable[tuple[str
     .. seealso:: :func:`socket.getnameinfo`
 
     """
-    return get_asynclib().getnameinfo(sockaddr, flags)
+    return get_async_backend().getnameinfo(sockaddr, flags)
 
 
 def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
@@ -585,7 +593,7 @@ def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
         to become readable
 
     """
-    return get_asynclib().wait_socket_readable(sock)
+    return get_async_backend().wait_socket_readable(sock)
 
 
 def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
@@ -605,7 +613,7 @@ def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
         to become writable
 
     """
-    return get_asynclib().wait_socket_writable(sock)
+    return get_async_backend().wait_socket_writable(sock)
 
 
 #
@@ -645,13 +653,15 @@ async def setup_unix_local_socket(
     socktype: int,
 ) -> socket.socket:
     """
-    Create a UNIX local socket object, deleting the socket at the given path if it exists.
+    Create a UNIX local socket object, deleting the socket at the given path if it
+    exists.
 
     Not available on Windows.
 
     :param path: path of the socket
     :param mode: permissions to set on the socket
     :param socktype: socket.SOCK_STREAM or socket.SOCK_DGRAM
+
     """
     if path is not None:
         path_str = str(path)
@@ -669,7 +679,6 @@ async def setup_unix_local_socket(
             await to_thread.run_sync(raw_socket.bind, path_str, cancellable=True)
             if mode is not None:
                 await to_thread.run_sync(chmod, path_str, mode, cancellable=True)
-
         except BaseException:
             raw_socket.close()
             raise

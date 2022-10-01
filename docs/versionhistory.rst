@@ -5,9 +5,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- **BACKWARDS INCOMPATIBLE** Replaced AnyIO's own ``ExceptionGroup`` class with the PEP
+  654 ``BaseExceptionGroup`` and ``ExceptionGroup``
+- Bumped minimum version of trio to v0.22
 - Added ``create_unix_datagram_socket`` and ``create_connected_unix_datagram_socket`` to
   create UNIX datagram sockets (PR by Jean Hominal)
-- Fixed ``ConcurrencyLimiter`` on the asyncio backend to order waiting tasks in the FIFO
+- Fixed ``CapacityLimiter`` on the asyncio backend to order waiting tasks in the FIFO
   order (instead of LIFO) (PR by Conor Stevenson)
 
 **3.6.1**

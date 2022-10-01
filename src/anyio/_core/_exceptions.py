@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from traceback import format_exception
-
 
 class BrokenResourceError(Exception):
     """
@@ -42,32 +40,6 @@ class DelimiterNotFound(Exception):
 
 class EndOfStream(Exception):
     """Raised when trying to read from a stream that has been closed from the other end."""
-
-
-class ExceptionGroup(BaseException):
-    """
-    Raised when multiple exceptions have been raised in a task group.
-
-    :var ~typing.Sequence[BaseException] exceptions: the sequence of exceptions raised together
-    """
-
-    SEPARATOR = "----------------------------\n"
-
-    exceptions: list[BaseException]
-
-    def __str__(self) -> str:
-        tracebacks = [
-            "".join(format_exception(type(exc), exc, exc.__traceback__))
-            for exc in self.exceptions
-        ]
-        return (
-            f"{len(self.exceptions)} exceptions were raised in the task group:\n"
-            f"{self.SEPARATOR}{self.SEPARATOR.join(tracebacks)}"
-        )
-
-    def __repr__(self) -> str:
-        exception_reprs = ", ".join(repr(exc) for exc in self.exceptions)
-        return f"<{self.__class__.__name__}: {exception_reprs}>"
 
 
 class IncompleteRead(Exception):

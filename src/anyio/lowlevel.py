@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Generic, TypeVar, overload
 from weakref import WeakKeyDictionary
 
-from ._core._eventloop import get_asynclib
+from ._core._eventloop import get_async_backend
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -29,7 +29,7 @@ async def checkpoint() -> None:
     .. versionadded:: 3.0
 
     """
-    await get_asynclib().checkpoint()
+    await get_async_backend().checkpoint()
 
 
 async def checkpoint_if_cancelled() -> None:
@@ -41,7 +41,7 @@ async def checkpoint_if_cancelled() -> None:
     .. versionadded:: 3.0
 
     """
-    await get_asynclib().checkpoint_if_cancelled()
+    await get_async_backend().checkpoint_if_cancelled()
 
 
 async def cancel_shielded_checkpoint() -> None:
@@ -56,12 +56,12 @@ async def cancel_shielded_checkpoint() -> None:
     .. versionadded:: 3.0
 
     """
-    await get_asynclib().cancel_shielded_checkpoint()
+    await get_async_backend().cancel_shielded_checkpoint()
 
 
 def current_token() -> object:
     """Return a backend specific token object that can be used to get back to the event loop."""
-    return get_asynclib().current_token()
+    return get_async_backend().current_token()
 
 
 _run_vars: WeakKeyDictionary[Any, dict[str, Any]] = WeakKeyDictionary()
@@ -97,9 +97,7 @@ class RunVar(Generic[T]):
     _token_wrappers: set[_TokenWrapper] = set()
 
     def __init__(
-        self,
-        name: str,
-        default: T | Literal[_NoValueSet.NO_VALUE_SET] = NO_VALUE_SET,
+        self, name: str, default: T | Literal[_NoValueSet.NO_VALUE_SET] = NO_VALUE_SET
     ):
         self._name = name
         self._default = default

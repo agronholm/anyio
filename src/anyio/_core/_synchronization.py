@@ -3,11 +3,9 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 from types import TracebackType
-from warnings import warn
 
 from ..lowlevel import cancel_shielded_checkpoint, checkpoint, checkpoint_if_cancelled
-from ._compat import DeprecatedAwaitable
-from ._eventloop import get_asynclib
+from ._eventloop import get_async_backend
 from ._exceptions import BusyResourceError, WouldBlock
 from ._tasks import CancelScope
 from ._testing import TaskInfo, get_current_task
@@ -76,9 +74,9 @@ class SemaphoreStatistics:
 
 class Event:
     def __new__(cls) -> Event:
-        return get_asynclib().Event()
+        return get_async_backend().create_event()
 
-    def set(self) -> DeprecatedAwaitable:
+    def set(self) -> None:
         """Set the flag, notifying all listeners."""
         raise NotImplementedError
 
@@ -161,7 +159,7 @@ class Lock:
 
         self._owner_task = task
 
-    def release(self) -> DeprecatedAwaitable:
+    def release(self) -> None:
         """Release the lock."""
         if self._owner_task != get_current_task():
             raise RuntimeError("The current task is not holding this lock")
@@ -171,8 +169,6 @@ class Lock:
             event.set()
         else:
             del self._owner_task
-
-        return DeprecatedAwaitable(self.release)
 
     def locked(self) -> bool:
         """Return True if the lock is currently held."""
@@ -224,10 +220,9 @@ class Condition:
         self._lock.acquire_nowait()
         self._owner_task = get_current_task()
 
-    def release(self) -> DeprecatedAwaitable:
+    def release(self) -> None:
         """Release the underlying lock."""
         self._lock.release()
-        return DeprecatedAwaitable(self.release)
 
     def locked(self) -> bool:
         """Return True if the lock is set."""
@@ -344,7 +339,7 @@ class Semaphore:
 
         self._value -= 1
 
-    def release(self) -> DeprecatedAwaitable:
+    def release(self) -> None:
         """Increment the semaphore value."""
         if self._max_value is not None and self._value == self._max_value:
             raise ValueError("semaphore released too many times")
@@ -353,8 +348,6 @@ class Semaphore:
             self._waiters.popleft().set()
         else:
             self._value += 1
-
-        return DeprecatedAwaitable(self.release)
 
     @property
     def value(self) -> int:
@@ -377,7 +370,7 @@ class Semaphore:
 
 class CapacityLimiter:
     def __new__(cls, total_tokens: float) -> CapacityLimiter:
-        return get_asynclib().CapacityLimiter(total_tokens)
+        return get_async_backend().create_capacity_limiter(total_tokens)
 
     async def __aenter__(self) -> None:
         raise NotImplementedError
@@ -408,14 +401,6 @@ class CapacityLimiter:
     def total_tokens(self, value: float) -> None:
         raise NotImplementedError
 
-    async def set_total_tokens(self, value: float) -> None:
-        warn(
-            "CapacityLimiter.set_total_tokens has been deprecated. Set the value of the"
-            '"total_tokens" attribute directly.',
-            DeprecationWarning,
-        )
-        self.total_tokens = value
-
     @property
     def borrowed_tokens(self) -> int:
         """The number of tokens that have currently been borrowed."""
@@ -426,7 +411,7 @@ class CapacityLimiter:
         """The number of tokens currently available to be borrowed"""
         raise NotImplementedError
 
-    def acquire_nowait(self) -> DeprecatedAwaitable:
+    def acquire_nowait(self) -> None:
         """
         Acquire a token for the current task without waiting for one to become available.
 
@@ -435,7 +420,7 @@ class CapacityLimiter:
         """
         raise NotImplementedError
 
-    def acquire_on_behalf_of_nowait(self, borrower: object) -> DeprecatedAwaitable:
+    def acquire_on_behalf_of_nowait(self, borrower: object) -> None:
         """
         Acquire a token without waiting for one to become available.
 
@@ -486,91 +471,6 @@ class CapacityLimiter:
 
         """
         raise NotImplementedError
-
-
-def create_lock() -> Lock:
-    """
-    Create an asynchronous lock.
-
-    :return: a lock object
-
-    .. deprecated:: 3.0
-       Use :class:`~Lock` directly.
-
-    """
-    warn("create_lock() is deprecated -- use Lock() directly", DeprecationWarning)
-    return Lock()
-
-
-def create_condition(lock: Lock | None = None) -> Condition:
-    """
-    Create an asynchronous condition.
-
-    :param lock: the lock to base the condition object on
-    :return: a condition object
-
-    .. deprecated:: 3.0
-       Use :class:`~Condition` directly.
-
-    """
-    warn(
-        "create_condition() is deprecated -- use Condition() directly",
-        DeprecationWarning,
-    )
-    return Condition(lock=lock)
-
-
-def create_event() -> Event:
-    """
-    Create an asynchronous event object.
-
-    :return: an event object
-
-    .. deprecated:: 3.0
-       Use :class:`~Event` directly.
-
-    """
-    warn("create_event() is deprecated -- use Event() directly", DeprecationWarning)
-    return get_asynclib().Event()
-
-
-def create_semaphore(value: int, *, max_value: int | None = None) -> Semaphore:
-    """
-    Create an asynchronous semaphore.
-
-    :param value: the semaphore's initial value
-    :param max_value: if set, makes this a "bounded" semaphore that raises :exc:`ValueError` if the
-        semaphore's value would exceed this number
-    :return: a semaphore object
-
-    .. deprecated:: 3.0
-       Use :class:`~Semaphore` directly.
-
-    """
-    warn(
-        "create_semaphore() is deprecated -- use Semaphore() directly",
-        DeprecationWarning,
-    )
-    return Semaphore(value, max_value=max_value)
-
-
-def create_capacity_limiter(total_tokens: float) -> CapacityLimiter:
-    """
-    Create a capacity limiter.
-
-    :param total_tokens: the total number of tokens available for borrowing (can be an integer or
-        :data:`math.inf`)
-    :return: a capacity limiter object
-
-    .. deprecated:: 3.0
-       Use :class:`~CapacityLimiter` directly.
-
-    """
-    warn(
-        "create_capacity_limiter() is deprecated -- use CapacityLimiter() directly",
-        DeprecationWarning,
-    )
-    return get_asynclib().CapacityLimiter(total_tokens)
 
 
 class ResourceGuard:

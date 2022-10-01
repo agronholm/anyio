@@ -22,8 +22,6 @@ from anyio import (
     wait_all_tasks_blocked,
 )
 
-current_task = asyncio.current_task
-
 pytestmark = pytest.mark.anyio
 
 
@@ -158,7 +156,7 @@ async def test_asyncio_cancel_native_task() -> None:
 
     async def run_in_thread() -> None:
         nonlocal task
-        task = current_task()
+        task = asyncio.current_task()
         await to_thread.run_sync(time.sleep, 0.2, cancellable=True)
 
     async with create_task_group() as tg:

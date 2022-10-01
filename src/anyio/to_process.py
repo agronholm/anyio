@@ -9,7 +9,7 @@ from collections.abc import Callable
 from importlib.util import module_from_spec, spec_from_file_location
 from typing import TypeVar, cast
 
-from ._core._eventloop import current_time, get_asynclib, get_cancelled_exc_class
+from ._core._eventloop import current_time, get_async_backend, get_cancelled_exc_class
 from ._core._exceptions import BrokenWorkerProcess
 from ._core._subprocesses import open_process
 from ._core._synchronization import CapacityLimiter
@@ -95,7 +95,7 @@ async def run_sync(
         idle_workers = deque()
         _process_pool_workers.set(workers)
         _process_pool_idle_workers.set(idle_workers)
-        get_asynclib().setup_process_pool_exit_at_shutdown(workers)
+        get_async_backend().setup_process_pool_exit_at_shutdown(workers)
 
     async with (limiter or current_default_process_limiter()):
         # Pop processes from the pool (starting from the most recently used) until we find one that

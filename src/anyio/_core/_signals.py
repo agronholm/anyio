@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from signal import Signals
+from typing import ContextManager
 
-from ._compat import DeprecatedAsyncContextManager
-from ._eventloop import get_asynclib
+from ._eventloop import get_async_backend
 
 
-def open_signal_receiver(
-    *signals: int,
-) -> DeprecatedAsyncContextManager[AsyncIterator[int]]:
+def open_signal_receiver(*signals: Signals) -> ContextManager[AsyncIterator[Signals]]:
     """
     Start receiving operating system signals.
 
@@ -23,4 +22,4 @@ def open_signal_receiver(
         signals, as set via :meth:`~asyncio.loop.add_signal_handler`.
 
     """
-    return get_asynclib().open_signal_receiver(*signals)
+    return get_async_backend().open_signal_receiver(*signals)

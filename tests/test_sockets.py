@@ -27,7 +27,6 @@ from anyio import (
     BusyResourceError,
     ClosedResourceError,
     Event,
-    ExceptionGroup,
     TypedAttributeLookupError,
     connect_tcp,
     connect_unix,
@@ -53,6 +52,9 @@ from anyio.abc import (
     SocketStream,
 )
 from anyio.streams.stapled import MultiListener
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 if sys.version_info >= (3, 8):
     from typing import Literal

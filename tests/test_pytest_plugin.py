@@ -10,7 +10,7 @@ pytestmark = pytest.mark.filterwarnings(
     "ignore:The TerminalReporter.writer attribute is deprecated:pytest.PytestDeprecationWarning:"
 )
 
-pytest_args = "-v", "-p", "anyio", "-p", "no:asyncio"
+pytest_args = "-v", "-p", "anyio", "-p", "no:asyncio", "-p", "no:trio"
 
 
 def test_plugin(testdir: Pytester) -> None:

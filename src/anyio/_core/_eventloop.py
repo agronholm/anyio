@@ -3,16 +3,17 @@ from __future__ import annotations
 import math
 import sys
 import threading
-from collections.abc import Callable, Coroutine, Generator
+from collections.abc import Awaitable, Callable, Generator
 from contextlib import contextmanager
 from importlib import import_module
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import sniffio
 
-# This must be updated when new backends are introduced
-from ._compat import DeprecatedAwaitableFloat
+if TYPE_CHECKING:
+    from ..abc import AsyncBackend
 
+# This must be updated when new backends are introduced
 BACKENDS = "asyncio", "trio"
 
 T_Retval = TypeVar("T_Retval")
@@ -20,7 +21,7 @@ threadlocals = threading.local()
 
 
 def run(
-    func: Callable[..., Coroutine[Any, Any, T_Retval]],
+    func: Callable[..., Awaitable[T_Retval]],
     *args: object,
     backend: str = "asyncio",
     backend_options: dict[str, Any] | None = None,
@@ -49,7 +50,7 @@ def run(
         raise RuntimeError(f"Already running {asynclib_name} in this thread")
 
     try:
-        asynclib = import_module(f"..._backends._{backend}", package=__name__)
+        async_backend = get_async_backend(backend)
     except ImportError as exc:
         raise LookupError(f"No such backend: {backend}") from exc
 
@@ -60,7 +61,7 @@ def run(
 
     try:
         backend_options = backend_options or {}
-        return asynclib.run(func, *args, **backend_options)
+        return async_backend.run(func, args, {}, backend_options)
     finally:
         if token:
             sniffio.current_async_library_cvar.reset(token)
@@ -73,7 +74,7 @@ async def sleep(delay: float) -> None:
     :param delay: the duration, in seconds
 
     """
-    return await get_asynclib().sleep(delay)
+    return await get_async_backend().sleep(delay)
 
 
 async def sleep_forever() -> None:
@@ -102,14 +103,14 @@ async def sleep_until(deadline: float) -> None:
     await sleep(max(deadline - now, 0))
 
 
-def current_time() -> DeprecatedAwaitableFloat:
+def current_time() -> float:
     """
     Return the current value of the event loop's internal clock.
 
     :return: the clock value (seconds)
 
     """
-    return DeprecatedAwaitableFloat(get_asynclib().current_time(), current_time)
+    return get_async_backend().current_time()
 
 
 def get_all_backends() -> tuple[str, ...]:
@@ -119,7 +120,7 @@ def get_all_backends() -> tuple[str, ...]:
 
 def get_cancelled_exc_class() -> type[BaseException]:
     """Return the current async library's cancellation exception class."""
-    return get_asynclib().CancelledError
+    return get_async_backend().cancelled_exception_class()
 
 
 #
@@ -128,21 +129,26 @@ def get_cancelled_exc_class() -> type[BaseException]:
 
 
 @contextmanager
-def claim_worker_thread(backend: str) -> Generator[Any, None, None]:
-    module = sys.modules["anyio._backends._" + backend]
-    threadlocals.current_async_module = module
+def claim_worker_thread(
+    backend_class: type[AsyncBackend], token: object
+) -> Generator[Any, None, None]:
+    threadlocals.current_async_backend = backend_class
+    threadlocals.current_token = token
     try:
         yield
     finally:
-        del threadlocals.current_async_module
+        del threadlocals.current_async_backend
+        del threadlocals.current_token
 
 
-def get_asynclib(asynclib_name: str | None = None) -> Any:
+def get_async_backend(asynclib_name: str | None = None) -> AsyncBackend:
     if asynclib_name is None:
         asynclib_name = sniffio.current_async_library()
 
     modulename = "anyio._backends._" + asynclib_name
     try:
-        return sys.modules[modulename]
+        module = sys.modules[modulename]
     except KeyError:
-        return import_module(modulename)
+        module = import_module(modulename)
+
+    return getattr(module, "backend_class")

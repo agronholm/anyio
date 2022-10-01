@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from typing import Any, AsyncGenerator, Coroutine, Generator, cast
+from collections.abc import AsyncGenerator, Coroutine, Generator
+from typing import Any, cast
 
 import pytest
 
@@ -142,8 +143,8 @@ async def test_wait_all_tasks_blocked_asend(anyio_backend: str) -> None:
 
     agen = agen_func()
     coro = agen.asend(None)
-    loop = asyncio.get_event_loop()
-    task: asyncio.Task[None] = loop.create_task(coro)  # type: ignore[arg-type]
+    loop = asyncio.get_running_loop()
+    task = loop.create_task(cast("Coroutine[Any, Any, Any]", coro))
     await wait_all_tasks_blocked()
     await task
     await agen.aclose()

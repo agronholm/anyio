@@ -4,10 +4,10 @@ from collections.abc import AsyncIterable, Mapping, Sequence
 from io import BytesIO
 from os import PathLike
 from subprocess import DEVNULL, PIPE, CalledProcessError, CompletedProcess
-from typing import IO, Any, Union, cast
+from typing import IO, Any, cast
 
 from ..abc import Process
-from ._eventloop import get_asynclib
+from ._eventloop import get_async_backend
 from ._tasks import create_task_group
 
 
@@ -30,9 +30,10 @@ async def run_process(
     :param command: either a string to pass to the shell, or an iterable of strings containing the
         executable name or path and its arguments
     :param input: bytes passed to the standard input of the subprocess
-    :param stdout: either :data:`subprocess.PIPE` or :data:`subprocess.DEVNULL`
-    :param stderr: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL` or
-        :data:`subprocess.STDOUT`
+    :param stdout: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
+        a file-like object, or `None`
+    :param stderr: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
+        :data:`subprocess.STDOUT`, a file-like object, or `None`
     :param check: if ``True``, raise :exc:`~subprocess.CalledProcessError` if the process
         terminates with a return code other than 0
     :param cwd: If not ``None``, change the working directory to this before running the command
@@ -91,7 +92,7 @@ async def open_process(
     stdin: int | IO[Any] | None = PIPE,
     stdout: int | IO[Any] | None = PIPE,
     stderr: int | IO[Any] | None = PIPE,
-    cwd: Union[str, bytes, "PathLike[str]", None] = None,
+    cwd: str | bytes | PathLike[str] | None = None,
     env: Mapping[str, str] | None = None,
     start_new_session: bool = False,
 ) -> Process:
@@ -116,14 +117,25 @@ async def open_process(
     :return: an asynchronous process object
 
     """
-    shell = isinstance(command, str)
-    return await get_asynclib().open_process(
-        command,
-        shell=shell,
-        stdin=stdin,
-        stdout=stdout,
-        stderr=stderr,
-        cwd=cwd,
-        env=env,
-        start_new_session=start_new_session,
-    )
+    if isinstance(command, (str, bytes)):
+        return await get_async_backend().open_process(
+            command,
+            shell=True,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            cwd=cwd,
+            env=env,
+            start_new_session=start_new_session,
+        )
+    else:
+        return await get_async_backend().open_process(
+            command,
+            shell=False,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            cwd=cwd,
+            env=env,
+            start_new_session=start_new_session,
+        )

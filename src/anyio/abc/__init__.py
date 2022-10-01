@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 __all__ = (
+    "AsyncBackend",
     "AsyncResource",
     "IPAddressType",
     "IPSockAddrType",
@@ -45,6 +46,7 @@ __all__ = (
 
 from typing import Any
 
+from ._eventloop import AsyncBackend
 from ._resources import AsyncResource
 from ._sockets import (
     ConnectedUDPSocket,

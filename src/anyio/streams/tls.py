@@ -76,7 +76,7 @@ class TLSStream(ByteStream):
         hostname: str | None = None,
         ssl_context: ssl.SSLContext | None = None,
         standard_compatible: bool = True,
-    ) -> "TLSStream":
+    ) -> TLSStream:
         """
         Wrap an existing stream with Transport Layer Security.
 
