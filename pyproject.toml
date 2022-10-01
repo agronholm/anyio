@@ -42,14 +42,14 @@ Changelog = "https://anyio.readthedocs.io/en/stable/versionhistory.html"
 [project.optional-dependencies]
 trio = ["trio >= 0.22"]
 test = [
-    "trio >= 0.22",
+    "anyio[trio]",
     "mock >= 4; python_version < '3.8'",
     "coverage[toml] >= 4.5",
     "hypothesis >= 4.0",
     "pytest >= 7.0",
     "pytest-mock >= 3.6.1",
     "trustme",
-    "uvloop >= 0.15; platform_python_implementation == 'CPython' and platform_system != 'Windows' and python_version < '3.11'",
+    "uvloop >= 0.17; platform_python_implementation == 'CPython' and platform_system != 'Windows'",
 ]
 doc = [
     "packaging",
