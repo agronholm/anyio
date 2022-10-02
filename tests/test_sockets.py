@@ -488,7 +488,8 @@ class TestTCPStream:
         self, family: AnyIPAddressFamily, caplog: LogCaptureFixture
     ) -> None:
         """
-        Tests that there won't be any leftover Futures that don't get their exceptions retrieved.
+        Test that there won't be any leftover Futures that don't get their exceptions
+        retrieved.
 
         See https://github.com/encode/httpcore/issues/382 for details.
 
@@ -1144,7 +1145,9 @@ class TestUDPSocket:
         async with await create_udp_socket(
             family=family, local_host="localhost"
         ) as server:
-            host, port = server.extra(SocketAttribute.local_address)  # type: ignore[misc]
+            host, port = server.extra(  # type: ignore[misc]
+                SocketAttribute.local_address
+            )
             async with await create_udp_socket(
                 family=family, local_host="localhost"
             ) as client:
@@ -1250,7 +1253,9 @@ class TestConnectedUDPSocket:
             async with await create_connected_udp_socket(
                 host, port, local_host="localhost", family=family
             ) as udp2:
-                host, port = udp2.extra(SocketAttribute.local_address)  # type: ignore[misc]
+                host, port = udp2.extra(
+                    SocketAttribute.local_address  # type: ignore[misc]
+                )
                 await udp2.send(b"blah")
                 request = await udp1.receive()
                 assert request == (b"blah", (host, port))
@@ -1269,7 +1274,9 @@ class TestConnectedUDPSocket:
         ) as udp1:
             host, port = udp1.extra(SocketAttribute.local_address)  # type: ignore[misc]
             async with await create_connected_udp_socket(host, port) as udp2:
-                host, port = udp2.extra(SocketAttribute.local_address)  # type: ignore[misc]
+                host, port = udp2.extra(  # type: ignore[misc]
+                    SocketAttribute.local_address
+                )
                 async with create_task_group() as tg:
                     tg.start_soon(serve)
                     await udp1.sendto(b"FOOBAR", host, port)

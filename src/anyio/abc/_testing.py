@@ -10,8 +10,8 @@ _T = TypeVar("_T")
 
 class TestRunner(metaclass=ABCMeta):
     """
-    Encapsulates a running event loop. Every call made through this object will use the same event
-    loop.
+    Encapsulates a running event loop. Every call made through this object will use the
+    same event loop.
     """
 
     def __enter__(self) -> TestRunner:

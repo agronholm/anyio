@@ -24,7 +24,8 @@ class MemoryObjectStreamStatistics(NamedTuple):
     max_buffer_size: float
     open_send_streams: int  #: number of unclosed clones of the send stream
     open_receive_streams: int  #: number of unclosed clones of the receive stream
-    tasks_waiting_send: int  #: number of tasks blocked on :meth:`MemoryObjectSendStream.send`
+    #: number of tasks blocked on :meth:`MemoryObjectSendStream.send`
+    tasks_waiting_send: int
     #: number of tasks blocked on :meth:`MemoryObjectReceiveStream.receive`
     tasks_waiting_receive: int
 
@@ -102,8 +103,8 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
             try:
                 await receive_event.wait()
             except get_cancelled_exc_class():
-                # Ignore the immediate cancellation if we already received an item, so as not to
-                # lose it
+                # Ignore the immediate cancellation if we already received an item, so
+                # as not to lose it
                 if not container:
                     raise
             finally:
@@ -118,8 +119,8 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
         """
         Create a clone of this receive stream.
 
-        Each clone can be closed separately. Only when all clones have been closed will the
-        receiving end of the memory stream be considered closed by the sending ends.
+        Each clone can be closed separately. Only when all clones have been closed will
+        the receiving end of the memory stream be considered closed by the sending ends.
 
         :return: the cloned stream
 
@@ -133,8 +134,8 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
         """
         Close the stream.
 
-        This works the exact same way as :meth:`aclose`, but is provided as a special case for the
-        benefit of synchronous callbacks.
+        This works the exact same way as :meth:`aclose`, but is provided as a special
+        case for the benefit of synchronous callbacks.
 
         """
         if not self._closed:
@@ -213,18 +214,22 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
             try:
                 await send_event.wait()
             except BaseException:
-                self._state.waiting_senders.pop(send_event, None)  # type: ignore[arg-type]
+                self._state.waiting_senders.pop(
+                    send_event, None  # type: ignore[arg-type]
+                )
                 raise
 
-            if self._state.waiting_senders.pop(send_event, None):  # type: ignore[arg-type]
+            if self._state.waiting_senders.pop(
+                send_event, None  # type: ignore[arg-type]
+            ):
                 raise BrokenResourceError
 
     def clone(self) -> MemoryObjectSendStream[T_Item]:
         """
         Create a clone of this send stream.
 
-        Each clone can be closed separately. Only when all clones have been closed will the
-        sending end of the memory stream be considered closed by the receiving ends.
+        Each clone can be closed separately. Only when all clones have been closed will
+        the sending end of the memory stream be considered closed by the receiving ends.
 
         :return: the cloned stream
 
@@ -238,8 +243,8 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
         """
         Close the stream.
 
-        This works the exact same way as :meth:`aclose`, but is provided as a special case for the
-        benefit of synchronous callbacks.
+        This works the exact same way as :meth:`aclose`, but is provided as a special
+        case for the benefit of synchronous callbacks.
 
         """
         if not self._closed:

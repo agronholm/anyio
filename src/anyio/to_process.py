@@ -37,15 +37,16 @@ async def run_sync(
     """
     Call the given function with the given arguments in a worker process.
 
-    If the ``cancellable`` option is enabled and the task waiting for its completion is cancelled,
-    the worker process running it will be abruptly terminated using SIGKILL (or
-    ``terminateProcess()`` on Windows).
+    If the ``cancellable`` option is enabled and the task waiting for its completion is
+    cancelled, the worker process running it will be abruptly terminated using SIGKILL
+    (or ``terminateProcess()`` on Windows).
 
     :param func: a callable
     :param args: positional arguments for the callable
-    :param cancellable: ``True`` to allow cancellation of the operation while it's running
-    :param limiter: capacity limiter to use to limit the total amount of processes running
-        (if omitted, the default limiter is used)
+    :param cancellable: ``True`` to allow cancellation of the operation while it's
+        running
+    :param limiter: capacity limiter to use to limit the total amount of processes
+        running (if omitted, the default limiter is used)
     :return: an awaitable that yields the return value of the function.
 
     """
@@ -98,8 +99,8 @@ async def run_sync(
         get_async_backend().setup_process_pool_exit_at_shutdown(workers)
 
     async with (limiter or current_default_process_limiter()):
-        # Pop processes from the pool (starting from the most recently used) until we find one that
-        # hasn't exited yet
+        # Pop processes from the pool (starting from the most recently used) until we
+        # find one that hasn't exited yet
         process: Process
         while idle_workers:
             process, idle_since = idle_workers.pop()
@@ -109,8 +110,8 @@ async def run_sync(
                     cast(ByteReceiveStream, process.stdout)
                 )
 
-                # Prune any other workers that have been idle for WORKER_MAX_IDLE_TIME seconds or
-                # longer
+                # Prune any other workers that have been idle for WORKER_MAX_IDLE_TIME
+                # seconds or longer
                 now = current_time()
                 killed_processes: list[Process] = []
                 while idle_workers:
@@ -173,7 +174,8 @@ async def run_sync(
 
 def current_default_process_limiter() -> CapacityLimiter:
     """
-    Return the capacity limiter that is used by default to limit the number of worker processes.
+    Return the capacity limiter that is used by default to limit the number of worker
+    processes.
 
     :return: a capacity limiter object
 
@@ -215,8 +217,8 @@ def process_worker() -> None:
                 sys.path, main_module_path = args
                 del sys.modules["__main__"]
                 if main_module_path:
-                    # Load the parent's main module but as __mp_main__ instead of __main__
-                    # (like multiprocessing does) to avoid infinite recursion
+                    # Load the parent's main module but as __mp_main__ instead of
+                    # __main__ (like multiprocessing does) to avoid infinite recursion
                     try:
                         spec = spec_from_file_location("__mp_main__", main_module_path)
                         if spec and spec.loader:

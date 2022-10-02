@@ -194,8 +194,8 @@ async def test_receive_after_send_closed() -> None:
 
 async def test_receive_when_cancelled() -> None:
     """
-    Test that calling receive() in a cancelled scope prevents it from going through with the
-    operation.
+    Test that calling receive() in a cancelled scope prevents it from going through with
+    the operation.
 
     """
     send, receive = create_memory_object_stream()
@@ -215,8 +215,8 @@ async def test_receive_when_cancelled() -> None:
 
 async def test_send_when_cancelled() -> None:
     """
-    Test that calling send() in a cancelled scope prevents it from going through with the
-    operation.
+    Test that calling send() in a cancelled scope prevents it from going through with
+    the operation.
 
     """
 
@@ -238,8 +238,8 @@ async def test_send_when_cancelled() -> None:
 
 async def test_cancel_during_receive() -> None:
     """
-    Test that cancelling a pending receive() operation does not cause an item in the stream to be
-    lost.
+    Test that cancelling a pending receive() operation does not cause an item in the
+    stream to be lost.
 
     """
     receiver_scope = None

@@ -60,7 +60,11 @@ async def cancel_shielded_checkpoint() -> None:
 
 
 def current_token() -> object:
-    """Return a backend specific token object that can be used to get back to the event loop."""
+    """
+    Return a backend specific token object that can be used to get back to the event
+    loop.
+
+    """
     return get_async_backend().current_token()
 
 
@@ -88,7 +92,9 @@ class RunvarToken(Generic[T]):
 
 
 class RunVar(Generic[T]):
-    """Like a :class:`~contextvars.ContextVar`, expect scoped to the running event loop."""
+    """
+    Like a :class:`~contextvars.ContextVar`, expect scoped to the running event loop.
+    """
 
     __slots__ = "_name", "_default"
 

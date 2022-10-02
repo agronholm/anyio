@@ -27,23 +27,24 @@ async def run_process(
 
     .. seealso:: :func:`subprocess.run`
 
-    :param command: either a string to pass to the shell, or an iterable of strings containing the
-        executable name or path and its arguments
+    :param command: either a string to pass to the shell, or an iterable of strings
+        containing the executable name or path and its arguments
     :param input: bytes passed to the standard input of the subprocess
     :param stdout: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
         a file-like object, or `None`
     :param stderr: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
         :data:`subprocess.STDOUT`, a file-like object, or `None`
-    :param check: if ``True``, raise :exc:`~subprocess.CalledProcessError` if the process
-        terminates with a return code other than 0
-    :param cwd: If not ``None``, change the working directory to this before running the command
-    :param env: if not ``None``, this mapping replaces the inherited environment variables from the
-        parent process
-    :param start_new_session: if ``true`` the setsid() system call will be made in the child
-        process prior to the execution of the subprocess. (POSIX only)
+    :param check: if ``True``, raise :exc:`~subprocess.CalledProcessError` if the
+        process terminates with a return code other than 0
+    :param cwd: If not ``None``, change the working directory to this before running the
+        command
+    :param env: if not ``None``, this mapping replaces the inherited environment
+        variables from the parent process
+    :param start_new_session: if ``true`` the setsid() system call will be made in the
+        child process prior to the execution of the subprocess. (POSIX only)
     :return: an object representing the completed process
-    :raises ~subprocess.CalledProcessError: if ``check`` is ``True`` and the process exits with a
-        nonzero return code
+    :raises ~subprocess.CalledProcessError: if ``check`` is ``True`` and the process
+        exits with a nonzero return code
 
     """
 
@@ -101,8 +102,8 @@ async def open_process(
 
     .. seealso:: :class:`subprocess.Popen`
 
-    :param command: either a string to pass to the shell, or an iterable of strings containing the
-        executable name or path and its arguments
+    :param command: either a string to pass to the shell, or an iterable of strings
+        containing the executable name or path and its arguments
     :param stdin: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`, a
         file-like object, or ``None``
     :param stdout: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
@@ -110,10 +111,10 @@ async def open_process(
     :param stderr: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
         :data:`subprocess.STDOUT`, a file-like object, or ``None``
     :param cwd: If not ``None``, the working directory is changed before executing
-    :param env: If env is not ``None``, it must be a mapping that defines the environment
-        variables for the new process
-    :param start_new_session: if ``true`` the setsid() system call will be made in the child
-        process prior to the execution of the subprocess. (POSIX only)
+    :param env: If env is not ``None``, it must be a mapping that defines the
+        environment variables for the new process
+    :param start_new_session: if ``true`` the setsid() system call will be made in the
+        child process prior to the execution of the subprocess. (POSIX only)
     :return: an asynchronous process object
 
     """

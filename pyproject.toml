@@ -69,7 +69,7 @@ skip_gitignore = true
 profile = "black"
 
 [tool.flake8]
-max-line-length = 99
+max-line-length = 88
 ignore = ["E203", "W503"]
 
 [tool.mypy]

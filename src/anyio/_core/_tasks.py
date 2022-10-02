@@ -99,10 +99,11 @@ class FailAfterContextManager:
 
 def fail_after(delay: float | None, shield: bool = False) -> FailAfterContextManager:
     """
-    Create a context manager which raises a :class:`TimeoutError` if does not finish in time.
+    Create a context manager which raises a :class:`TimeoutError` if does not finish in
+    time.
 
-    :param delay: maximum allowed time (in seconds) before raising the exception, or ``None`` to
-        disable the timeout
+    :param delay: maximum allowed time (in seconds) before raising the exception, or
+        ``None`` to disable the timeout
     :param shield: ``True`` to shield the cancel scope from external cancellation
     :return: a context manager that yields a cancel scope
     :rtype: :class:`~typing.ContextManager`\\[:class:`~anyio.abc.CancelScope`\\]
@@ -121,8 +122,8 @@ def move_on_after(delay: float | None, shield: bool = False) -> CancelScope:
     """
     Create a cancel scope with a deadline that expires after the given delay.
 
-    :param delay: maximum allowed time (in seconds) before exiting the context block, or ``None``
-        to disable the timeout
+    :param delay: maximum allowed time (in seconds) before exiting the context block, or
+        ``None`` to disable the timeout
     :param shield: ``True`` to shield the cancel scope from external cancellation
     :return: a cancel scope
 
@@ -135,10 +136,11 @@ def move_on_after(delay: float | None, shield: bool = False) -> CancelScope:
 
 def current_effective_deadline() -> float:
     """
-    Return the nearest deadline among all the cancel scopes effective for the current task.
+    Return the nearest deadline among all the cancel scopes effective for the current
+    task.
 
-    :return: a clock value from the event loop's internal clock (``float('inf')`` if there is no
-        deadline in effect)
+    :return: a clock value from the event loop's internal clock (``float('inf')`` if
+        there is no deadline in effect)
     :rtype: float
 
     """

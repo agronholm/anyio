@@ -63,7 +63,8 @@ class TaskGroup(metaclass=ABCMeta):
         :param args: positional arguments to call the function with
         :param name: name of the task, for the purposes of introspection and debugging
         :return: the value passed to ``task_status.started()``
-        :raises RuntimeError: if the task finishes without calling ``task_status.started()``
+        :raises RuntimeError: if the task finishes without calling
+            ``task_status.started()``
 
         .. versionadded:: 3.0
         """

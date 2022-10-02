@@ -253,8 +253,8 @@ class CancelScope(BaseCancelScope):
 
         host_task_state.cancel_scope = self._parent_scope
 
-        # Restart the cancellation effort in the farthest directly cancelled parent scope if this
-        # one was shielded
+        # Restart the cancellation effort in the farthest directly cancelled parent
+        # scope if this one was shielded
         if self._shield:
             self._deliver_cancellation_to_parent()
 
@@ -287,7 +287,8 @@ class CancelScope(BaseCancelScope):
         """
         Deliver cancellation to directly contained tasks and nested cancel scopes.
 
-        Schedule another run at the end if we still have tasks eligible for cancellation.
+        Schedule another run at the end if we still have tasks eligible for
+        cancellation.
         """
         should_retry = False
         current = current_task()
@@ -295,8 +296,8 @@ class CancelScope(BaseCancelScope):
             if task._must_cancel:  # type: ignore[attr-defined]
                 continue
 
-            # The task is eligible for cancellation if it has started and is not in a cancel
-            # scope shielded from this one
+            # The task is eligible for cancellation if it has started and is not in a
+            # cancel scope shielded from this one
             cancel_scope = _task_states[task].cancel_scope
             while cancel_scope is not self:
                 if cancel_scope is None or cancel_scope._shield:
@@ -392,8 +393,8 @@ class CancelScope(BaseCancelScope):
 
 class TaskState:
     """
-    Encapsulates auxiliary task information that cannot be added to the Task instance itself
-    because there are no guarantees about its implementation.
+    Encapsulates auxiliary task information that cannot be added to the Task instance
+    itself because there are no guarantees about its implementation.
     """
 
     __slots__ = "parent_id", "name", "cancel_scope"
@@ -494,8 +495,8 @@ class TaskGroup(abc.TaskGroup):
             exc: BaseException | None
             group = BaseExceptionGroup("multiple tasks failed", self._exceptions)
             if not self.cancel_scope._parent_cancelled():
-                # If any exceptions other than AnyIO cancellation exceptions have been received,
-                # raise those
+                # If any exceptions other than AnyIO cancellation exceptions have been
+                # received, raise those
                 _, exc = group.split(is_anyio_cancelled_exc)
             elif all(is_anyio_cancelled_exc(e) for e in walk_exception_group(group)):
                 # All tasks were cancelled by AnyIO
@@ -514,8 +515,8 @@ class TaskGroup(abc.TaskGroup):
     async def _run_wrapped_task(
         self, coro: Coroutine, task_status_future: asyncio.Future | None
     ) -> None:
-        # This is the code path for Python 3.6 and 3.7 on which asyncio freaks out if a task raises
-        # a BaseException.
+        # This is the code path for Python 3.6 and 3.7 on which asyncio freaks out if a
+        # task raises a BaseException.
         __traceback_hide__ = __tracebackhide__ = True  # noqa: F841
         task = cast(asyncio.Task, current_task())
         try:
@@ -619,9 +620,10 @@ class TaskGroup(abc.TaskGroup):
         future: asyncio.Future = asyncio.Future()
         task = self._spawn(func, args, name, future)
 
-        # If the task raises an exception after sending a start value without a switch point
-        # between, the task group is cancelled and this method never proceeds to process the
-        # completed future. That's why we have to have a shielded cancel scope here.
+        # If the task raises an exception after sending a start value without a switch
+        # point between, the task group is cancelled and this method never proceeds to
+        # process the completed future. That's why we have to have a shielded cancel
+        # scope here.
         with CancelScope(shield=True):
             try:
                 return await future
@@ -843,7 +845,8 @@ async def _shutdown_process_pool_on_exit(workers: set[abc.Process]) -> None:
     """
     Shuts down worker processes belonging to this event loop.
 
-    NOTE: this only works when the event loop was started using asyncio.run() or anyio.run().
+    NOTE: this only works when the event loop was started using asyncio.run() or
+    anyio.run().
 
     """
     process: abc.Process
@@ -969,8 +972,8 @@ class SocketStream(abc.SocketStream):
                 chunk, leftover = chunk[:max_bytes], chunk[max_bytes:]
                 self._protocol.read_queue.appendleft(leftover)
 
-            # If the read queue is empty, clear the flag so that the next call will block until
-            # data is available
+            # If the read queue is empty, clear the flag so that the next call will
+            # block until data is available
             if not self._protocol.read_queue:
                 self._protocol.read_event.clear()
 
@@ -1853,7 +1856,9 @@ class AsyncIOBackend(AsyncBackend):
     @classmethod
     def current_effective_deadline(cls) -> float:
         try:
-            cancel_scope = _task_states[current_task()].cancel_scope  # type: ignore[index]
+            cancel_scope = _task_states[
+                current_task()  # type: ignore[index]
+            ].cancel_scope
         except KeyError:
             return math.inf
 
@@ -1889,7 +1894,8 @@ class AsyncIOBackend(AsyncBackend):
     ) -> T_Retval:
         await cls.checkpoint()
 
-        # If this is the first run in this event loop thread, set up the necessary variables
+        # If this is the first run in this event loop thread, set up the necessary
+        # variables
         try:
             idle_workers = _threadpool_idle_workers.get()
             workers = _threadpool_workers.get()
@@ -1911,8 +1917,8 @@ class AsyncIOBackend(AsyncBackend):
                 else:
                     worker = idle_workers.pop()
 
-                    # Prune any other workers that have been idle for MAX_IDLE_TIME seconds or
-                    # longer
+                    # Prune any other workers that have been idle for MAX_IDLE_TIME
+                    # seconds or longer
                     now = cls.current_time()
                     while idle_workers:
                         if (

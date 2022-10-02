@@ -377,8 +377,9 @@ class TestSemaphore:
 
     async def test_acquire_race(self) -> None:
         """
-        Test against a race condition: when a task waiting on acquire() is rescheduled but another
-        task snatches the last available slot, the task should not raise WouldBlock.
+        Test against a race condition: when a task waiting on acquire() is rescheduled
+        but another task snatches the last available slot, the task should not raise
+        WouldBlock.
 
         """
         semaphore = Semaphore(1)

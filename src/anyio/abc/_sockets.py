@@ -106,8 +106,8 @@ class UNIXSocketStream(SocketStream):
         Send file descriptors along with a message to the peer.
 
         :param message: a non-empty bytestring
-        :param fds: a collection of files (either numeric file descriptors or open file or socket
-            objects)
+        :param fds: a collection of files (either numeric file descriptors or open file
+            or socket objects)
         """
 
     @abstractmethod
@@ -158,7 +158,10 @@ class UDPSocket(UnreliableObjectStream[UDPPacketType], _SocketProvider):
     """
 
     async def sendto(self, data: bytes, host: str, port: int) -> None:
-        """Alias for :meth:`~.UnreliableObjectSendStream.send` ((data, (host, port)))."""
+        """
+        Alias for :meth:`~.UnreliableObjectSendStream.send` ((data, (host, port))).
+
+        """
         return await self.send((data, (host, port)))
 
 

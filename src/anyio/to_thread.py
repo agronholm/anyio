@@ -18,9 +18,9 @@ async def run_sync(
     """
     Call the given function with the given arguments in a worker thread.
 
-    If the ``cancellable`` option is enabled and the task waiting for its completion is cancelled,
-    the thread will still run its course but its return value (or any raised exception) will be
-    ignored.
+    If the ``cancellable`` option is enabled and the task waiting for its completion is
+    cancelled, the thread will still run its course but its return value (or any raised
+    exception) will be ignored.
 
     :param func: a callable
     :param args: positional arguments for the callable
@@ -37,7 +37,8 @@ async def run_sync(
 
 def current_default_thread_limiter() -> CapacityLimiter:
     """
-    Return the capacity limiter that is used by default to limit the number of concurrent threads.
+    Return the capacity limiter that is used by default to limit the number of
+    concurrent threads.
 
     :return: a capacity limiter object
 

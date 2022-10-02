@@ -32,9 +32,10 @@ def create_memory_object_stream(
     """
     Create a memory object stream.
 
-    :param max_buffer_size: number of items held in the buffer until ``send()`` starts blocking
-    :param item_type: type of item, for marking the streams with the right generic type for
-        static typing (not used at run time)
+    :param max_buffer_size: number of items held in the buffer until ``send()`` starts
+        blocking
+    :param item_type: type of item, for marking the streams with the right generic type
+        for static typing (not used at run time)
     :return: a tuple of (send stream, receive stream)
 
     """

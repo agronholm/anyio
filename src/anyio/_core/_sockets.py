@@ -136,29 +136,33 @@ async def connect_tcp(
     """
     Connect to a host using the TCP protocol.
 
-    This function implements the stateless version of the Happy Eyeballs algorithm (RFC 6555).
-    If ``address`` is a host name that resolves to multiple IP addresses, each one is tried until
-    one connection attempt succeeds. If the first attempt does not connected within 250
-    milliseconds, a second attempt is started using the next address in the list, and so on.
-    On IPv6 enabled systems, an IPv6 address (if available) is tried first.
+    This function implements the stateless version of the Happy Eyeballs algorithm
+    (RFC 6555). If ``address`` is a host name that resolves to multiple IP addresses,
+    each one is tried until one connection attempt succeeds. If the first attempt does
+    not connected within 250 milliseconds, a second attempt is started using the next
+    address in the list, and so on. On IPv6 enabled systems, an IPv6 address (if
+    available) is tried first.
 
     When the connection has been established, a TLS handshake will be done if either
     ``ssl_context`` or ``tls_hostname`` is not ``None``, or if ``tls`` is ``True``.
 
     :param remote_host: the IP address or host name to connect to
     :param remote_port: port on the target host to connect to
-    :param local_host: the interface address or name to bind the socket to before connecting
+    :param local_host: the interface address or name to bind the socket to before
+        connecting
     :param tls: ``True`` to do a TLS handshake with the connected stream and return a
         :class:`~anyio.streams.tls.TLSStream` instead
-    :param ssl_context: the SSL context object to use (if omitted, a default context is created)
-    :param tls_standard_compatible: If ``True``, performs the TLS shutdown handshake before closing
-        the stream and requires that the server does this as well. Otherwise,
-        :exc:`~ssl.SSLEOFError` may be raised during reads from the stream.
+    :param ssl_context: the SSL context object to use (if omitted, a default context is
+        created)
+    :param tls_standard_compatible: If ``True``, performs the TLS shutdown handshake
+        before closing the stream and requires that the server does this as well.
+        Otherwise, :exc:`~ssl.SSLEOFError` may be raised during reads from the stream.
         Some protocols, such as HTTP, require this option to be ``False``.
         See :meth:`~ssl.SSLContext.wrap_socket` for details.
-    :param tls_hostname: host name to check the server certificate against (defaults to the value
-        of ``remote_host``)
-    :param happy_eyeballs_delay: delay (in seconds) before starting the next connection attempt
+    :param tls_hostname: host name to check the server certificate against (defaults to
+        the value of ``remote_host``)
+    :param happy_eyeballs_delay: delay (in seconds) before starting the next connection
+        attempt
     :return: a socket stream object if no TLS handshake was done, otherwise a TLS stream
     :raises OSError: if the connection attempt fails
 
@@ -198,8 +202,8 @@ async def connect_tcp(
             target_host, remote_port, family=family, type=socket.SOCK_STREAM
         )
 
-        # Organize the list so that the first address is an IPv6 address (if available) and the
-        # second one is an IPv4 addresses. The rest can be in whatever order.
+        # Organize the list so that the first address is an IPv6 address (if available)
+        # and the second one is an IPv4 addresses. The rest can be in whatever order.
         v6_found = v4_found = False
         target_addrs: list[tuple[socket.AddressFamily, str]] = []
         for af, *rest, sa in gai_res:
@@ -275,14 +279,14 @@ async def create_tcp_listener(
     Create a TCP socket listener.
 
     :param local_port: port number to listen on
-    :param local_host: IP address of the interface to listen on. If omitted, listen on all IPv4
-        and IPv6 interfaces. To listen on all interfaces on a specific address family, use
-        ``0.0.0.0`` for IPv4 or ``::`` for IPv6.
+    :param local_host: IP address of the interface to listen on. If omitted, listen on
+        all IPv4 and IPv6 interfaces. To listen on all interfaces on a specific address
+        family, use ``0.0.0.0`` for IPv4 or ``::`` for IPv6.
     :param family: address family (used if ``interface`` was omitted)
-    :param backlog: maximum number of queued incoming connections (up to a maximum of 2**16, or
-        65536)
-    :param reuse_port: ``True`` to allow multiple sockets to bind to the same address/port
-        (not supported on Windows)
+    :param backlog: maximum number of queued incoming connections (up to a maximum of
+        2**16, or 65536)
+    :param reuse_port: ``True`` to allow multiple sockets to bind to the same
+        address/port (not supported on Windows)
     :return: a list of listener objects
 
     """
@@ -304,7 +308,8 @@ async def create_tcp_listener(
             raw_socket = socket.socket(fam)
             raw_socket.setblocking(False)
 
-            # For Windows, enable exclusive address use. For others, enable address reuse.
+            # For Windows, enable exclusive address use. For others, enable address
+            # reuse.
             if sys.platform == "win32":
                 raw_socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
             else:
@@ -340,12 +345,13 @@ async def create_unix_listener(
 
     :param path: path of the socket
     :param mode: permissions to set on the socket
-    :param backlog: maximum number of queued incoming connections (up to a maximum of 2**16, or
-        65536)
+    :param backlog: maximum number of queued incoming connections (up to a maximum of
+        2**16, or 65536)
     :return: a listener object
 
     .. versionchanged:: 3.0
-        If a socket already exists on the file system in the given path, it will be removed first.
+        If a socket already exists on the file system in the given path, it will be
+        removed first.
 
     """
     backlog = min(backlog, 65536)
@@ -368,15 +374,15 @@ async def create_udp_socket(
     """
     Create a UDP socket.
 
-    If ``port`` has been given, the socket will be bound to this port on the local machine,
-    making this socket suitable for providing UDP based services.
+    If ``port`` has been given, the socket will be bound to this port on the local
+    machine,making this socket suitable for providing UDP based services.
 
-    :param family: address family (``AF_INET`` or ``AF_INET6``) – automatically determined from
-        ``local_host`` if omitted
+    :param family: address family (``AF_INET`` or ``AF_INET6``) – automatically
+        determined from ``local_host`` if omitted
     :param local_host: IP address or host name of the local interface to bind to
     :param local_port: local port to bind to
-    :param reuse_port: ``True`` to allow multiple sockets to bind to the same address/port
-        (not supported on Windows)
+    :param reuse_port: ``True`` to allow multiple sockets to bind to the same
+        address/port (not supported on Windows)
     :return: a UDP socket
 
     """
@@ -416,17 +422,17 @@ async def create_connected_udp_socket(
     """
     Create a connected UDP socket.
 
-    Connected UDP sockets can only communicate with the specified remote host/port, and any packets
-    sent from other sources are dropped.
+    Connected UDP sockets can only communicate with the specified remote host/port, an
+    any packets sent from other sources are dropped.
 
     :param remote_host: remote host to set as the default target
     :param remote_port: port on the remote host to set as the default target
-    :param family: address family (``AF_INET`` or ``AF_INET6``) – automatically determined from
-        ``local_host`` or ``remote_host`` if omitted
+    :param family: address family (``AF_INET`` or ``AF_INET6``) – automatically
+        determined from ``local_host`` or ``remote_host`` if omitted
     :param local_host: IP address or host name of the local interface to bind to
     :param local_port: local port to bind to
-    :param reuse_port: ``True`` to allow multiple sockets to bind to the same address/port
-        (not supported on Windows)
+    :param reuse_port: ``True`` to allow multiple sockets to bind to the same
+        address/port (not supported on Windows)
     :return: a connected UDP socket
 
     """
@@ -465,10 +471,11 @@ async def create_unix_datagram_socket(
     Not available on Windows.
 
     If ``local_path`` has been given, the socket will be bound to this path, making this
-    socket suitable for receiving datagrams from other processes. Other processes can send
-    datagrams to this socket only if ``local_path`` is set.
+    socket suitable for receiving datagrams from other processes. Other processes can
+    send datagrams to this socket only if ``local_path`` is set.
 
-    If a socket already exists on the file system in the ``local_path``, it will be removed first.
+    If a socket already exists on the file system in the ``local_path``, it will be
+    removed first.
 
     :param local_path: the path on which to bind to
     :param local_mode: permissions to set on the local socket
@@ -492,11 +499,12 @@ async def create_connected_unix_datagram_socket(
 
     Connected datagram sockets can only communicate with the specified remote path.
 
-    If ``local_path`` has been given, the socket will be bound to this path, making this
-    socket suitable for receiving datagrams from other processes. Other processes can send
-    datagrams to this socket only if ``local_path`` is set.
+    If ``local_path`` has been given, the socket will be bound to this path, making
+    this socket suitable for receiving datagrams from other processes. Other processes
+    can send datagrams to this socket only if ``local_path`` is set.
 
-    If a socket already exists on the file system in the ``local_path``, it will be removed first.
+    If a socket already exists on the file system in the ``local_path``, it will be
+    removed first.
 
     :param remote_path: the path to set as the default target
     :param local_path: the path on which to bind to
@@ -525,8 +533,8 @@ async def getaddrinfo(
     """
     Look up a numeric IP address given a host name.
 
-    Internationalized domain names are translated according to the (non-transitional) IDNA 2008
-    standard.
+    Internationalized domain names are translated according to the (non-transitional)
+    IDNA 2008 standard.
 
     .. note:: 4-tuple IPv6 socket addresses are automatically converted to 2-tuples of
         (host, port), unlike what :func:`socket.getaddrinfo` does.
@@ -580,11 +588,11 @@ def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
     """
     Wait until the given socket has data to be read.
 
-    This does **NOT** work on Windows when using the asyncio backend with a proactor event loop
-    (default on py3.8+).
+    This does **NOT** work on Windows when using the asyncio backend with a proactor
+    event loop (default on py3.8+).
 
-    .. warning:: Only use this on raw sockets that have not been wrapped by any higher level
-        constructs like socket streams!
+    .. warning:: Only use this on raw sockets that have not been wrapped by any higher
+        level constructs like socket streams!
 
     :param sock: a socket object
     :raises ~anyio.ClosedResourceError: if the socket was closed while waiting for the
@@ -600,11 +608,11 @@ def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
     """
     Wait until the given socket can be written to.
 
-    This does **NOT** work on Windows when using the asyncio backend with a proactor event loop
-    (default on py3.8+).
+    This does **NOT** work on Windows when using the asyncio backend with a proactor
+    event loop (default on py3.8+).
 
-    .. warning:: Only use this on raw sockets that have not been wrapped by any higher level
-        constructs like socket streams!
+    .. warning:: Only use this on raw sockets that have not been wrapped by any higher
+        level constructs like socket streams!
 
     :param sock: a socket object
     :raises ~anyio.ClosedResourceError: if the socket was closed while waiting for the

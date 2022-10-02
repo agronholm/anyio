@@ -31,8 +31,8 @@ class TLSAttribute(TypedAttributeSet):
     channel_binding_tls_unique: bytes = typed_attribute()
     #: the selected cipher
     cipher: tuple[str, str, int] = typed_attribute()
-    #: the peer certificate in dictionary form (see :meth:`ssl.SSLSocket.getpeercert` for more
-    #: information)
+    #: the peer certificate in dictionary form (see :meth:`ssl.SSLSocket.getpeercert`
+    # for more information)
     peer_certificate: None | (dict[str, str | _PCTRTTT | _PCTRTT]) = typed_attribute()
     #: the peer certificate in binary form
     peer_certificate_binary: bytes | None = typed_attribute()
@@ -42,8 +42,8 @@ class TLSAttribute(TypedAttributeSet):
     shared_ciphers: list[tuple[str, str, int]] = typed_attribute()
     #: the :class:`~ssl.SSLObject` used for encryption
     ssl_object: ssl.SSLObject = typed_attribute()
-    #: ``True`` if this stream does (and expects) a closing TLS handshake when the stream is being
-    #: closed
+    #: ``True`` if this stream does (and expects) a closing TLS handshake when the
+    # stream is being closed
     standard_compatible: bool = typed_attribute()
     #: the TLS protocol version (e.g. ``TLSv1.2``)
     tls_version: str = typed_attribute()
@@ -83,15 +83,16 @@ class TLSStream(ByteStream):
         This performs a TLS handshake with the peer.
 
         :param transport_stream: a bytes-transporting stream to wrap
-        :param server_side: ``True`` if this is the server side of the connection, ``False`` if
-            this is the client side (if omitted, will be set to ``False`` if ``hostname`` has been
-            provided, ``False`` otherwise). Used only to create a default context when an explicit
-            context has not been provided.
+        :param server_side: ``True`` if this is the server side of the connection,
+            ``False`` if this is the client side (if omitted, will be set to ``False``
+            if ``hostname`` has been provided, ``False`` otherwise). Used only to create
+            a default context when an explicit context has not been provided.
         :param hostname: host name of the peer (if host name checking is desired)
-        :param ssl_context: the SSLContext object to use (if not provided, a secure default will be
-            created)
-        :param standard_compatible: if ``False``, skip the closing handshake when closing the
-            connection, and don't raise an exception if the peer does the same
+        :param ssl_context: the SSLContext object to use (if not provided, a secure
+            default will be created)
+        :param standard_compatible: if ``False``, skip the closing handshake when
+            closing the connection, and don't raise an exception if the peer does the
+            same
         :raises ~ssl.SSLError: if the TLS handshake fails
 
         """
@@ -106,7 +107,9 @@ class TLSStream(ByteStream):
 
             # Re-enable detection of unexpected EOFs if it was disabled by Python
             if hasattr(ssl, "OP_IGNORE_UNEXPECTED_EOF"):
-                ssl_context.options ^= ssl.OP_IGNORE_UNEXPECTED_EOF  # type: ignore[attr-defined]
+                ssl_context.options ^= (
+                    ssl.OP_IGNORE_UNEXPECTED_EOF  # type: ignore[attr-defined]
+                )
 
         bio_in = ssl.MemoryBIO()
         bio_out = ssl.MemoryBIO()
@@ -222,7 +225,9 @@ class TLSStream(ByteStream):
         return {
             **self.transport_stream.extra_attributes,
             TLSAttribute.alpn_protocol: self._ssl_object.selected_alpn_protocol,
-            TLSAttribute.channel_binding_tls_unique: self._ssl_object.get_channel_binding,
+            TLSAttribute.channel_binding_tls_unique: (
+                self._ssl_object.get_channel_binding
+            ),
             TLSAttribute.cipher: self._ssl_object.cipher,
             TLSAttribute.peer_certificate: lambda: self._ssl_object.getpeercert(False),
             TLSAttribute.peer_certificate_binary: lambda: self._ssl_object.getpeercert(
@@ -239,11 +244,12 @@ class TLSStream(ByteStream):
 @dataclass(eq=False)
 class TLSListener(Listener[TLSStream]):
     """
-    A convenience listener that wraps another listener and auto-negotiates a TLS session on every
-    accepted connection.
+    A convenience listener that wraps another listener and auto-negotiates a TLS session
+    on every accepted connection.
 
-    If the TLS handshake times out or raises an exception, :meth:`handle_handshake_error` is
-    called to do whatever post-mortem processing is deemed necessary.
+    If the TLS handshake times out or raises an exception,
+    :meth:`handle_handshake_error` is called to do whatever post-mortem processing is
+    deemed necessary.
 
     Supports only the :attr:`~TLSAttribute.standard_compatible` extra attribute.
 
@@ -267,8 +273,8 @@ class TLSListener(Listener[TLSStream]):
         This method does 3 things:
 
         #. Forcefully closes the original stream
-        #. Logs the exception (unless it was a cancellation exception) using the ``{__name__}``
-           logger
+        #. Logs the exception (unless it was a cancellation exception) using the
+          ``{__name__}`` logger
         #. Reraises the exception if it was a base exception or a cancellation exception
 
         :param exc: the exception

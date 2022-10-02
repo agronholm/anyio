@@ -131,8 +131,8 @@ class FileWriteStream(_BaseFileStream, ByteSendStream):
         Create a file write stream by opening the given file for writing.
 
         :param path: path of the file to write to
-        :param append: if ``True``, open the file for appending; if ``False``, any existing file
-            at the given path will be truncated
+        :param append: if ``True``, open the file for appending; if ``False``, any
+            existing file at the given path will be truncated
 
         """
         mode = "ab" if append else "wb"

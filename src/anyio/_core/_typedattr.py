@@ -45,11 +45,12 @@ class TypedAttributeProvider:
     @property
     def extra_attributes(self) -> Mapping[T_Attr, Callable[[], T_Attr]]:
         """
-        A mapping of the extra attributes to callables that return the corresponding values.
+        A mapping of the extra attributes to callables that return the corresponding
+        values.
 
-        If the provider wraps another provider, the attributes from that wrapper should also be
-        included in the returned mapping (but the wrapper may override the callables from the
-        wrapped instance).
+        If the provider wraps another provider, the attributes from that wrapper should
+        also be included in the returned mapping (but the wrapper may override the
+        callables from the wrapped instance).
 
         """
         return {}
@@ -69,10 +70,12 @@ class TypedAttributeProvider:
 
         Return the value of the given typed extra attribute.
 
-        :param attribute: the attribute (member of a :class:`~TypedAttributeSet`) to look for
-        :param default: the value that should be returned if no value is found for the attribute
-        :raises ~anyio.TypedAttributeLookupError: if the search failed and no default value was
-            given
+        :param attribute: the attribute (member of a :class:`~TypedAttributeSet`) to
+            look for
+        :param default: the value that should be returned if no value is found for the
+            attribute
+        :raises ~anyio.TypedAttributeLookupError: if the search failed and no default
+            value was given
 
         """
         try:

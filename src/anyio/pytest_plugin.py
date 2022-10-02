@@ -40,7 +40,8 @@ def get_runner(
     asynclib = get_async_backend(backend_name)
     token = None
     if sniffio.current_async_library_cvar.get(None) is None:
-        # Since we're in control of the event loop, we can cache the name of the async library
+        # Since we're in control of the event loop, we can cache the name of the async
+        # library
         token = sniffio.current_async_library_cvar.set(backend_name)
 
     try:
@@ -74,8 +75,8 @@ def pytest_fixture_setup(fixturedef: Any, request: FixtureRequest) -> None:
             else:
                 yield runner.run_fixture(func, kwargs)
 
-    # Only apply this to coroutine functions and async generator functions in requests that involve
-    # the anyio_backend fixture
+    # Only apply this to coroutine functions and async generator functions in requests
+    # that involve the anyio_backend fixture
     func = fixturedef.func
     if isasyncgenfunction(func) or iscoroutinefunction(func):
         if "anyio_backend" in request.fixturenames:

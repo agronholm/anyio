@@ -36,8 +36,8 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
     """
     An asynchronous file object.
 
-    This class wraps a standard file object and provides async friendly versions of the following
-    blocking methods (where available on the original file object):
+    This class wraps a standard file object and provides async friendly versions of the
+    following blocking methods (where available on the original file object):
 
     * read
     * read1
@@ -54,8 +54,8 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
 
     All other methods are directly passed through.
 
-    This class supports the asynchronous context manager protocol which closes the underlying file
-    at the end of the context block.
+    This class supports the asynchronous context manager protocol which closes the
+    underlying file at the end of the context block.
 
     This class also supports asynchronous iteration::
 
@@ -220,11 +220,12 @@ class Path:
     """
     An asynchronous version of :class:`pathlib.Path`.
 
-    This class cannot be substituted for :class:`pathlib.Path` or :class:`pathlib.PurePath`, but
-    it is compatible with the :class:`os.PathLike` interface.
+    This class cannot be substituted for :class:`pathlib.Path` or
+    :class:`pathlib.PurePath`, but it is compatible with the :class:`os.PathLike`
+    interface.
 
-    It implements the Python 3.10 version of :class:`pathlib.Path` interface, except for the
-    deprecated :meth:`~pathlib.Path.link_to` method.
+    It implements the Python 3.10 version of :class:`pathlib.Path` interface, except for
+    the deprecated :meth:`~pathlib.Path.link_to` method.
 
     Any methods that do disk I/O need to be awaited on. These methods are:
 
@@ -260,7 +261,8 @@ class Path:
     * :meth:`~pathlib.Path.write_bytes`
     * :meth:`~pathlib.Path.write_text`
 
-    Additionally, the following methods return an async iterator yielding :class:`~.Path` objects:
+    Additionally, the following methods return an async iterator yielding
+    :class:`~.Path` objects:
 
     * :meth:`~pathlib.Path.glob`
     * :meth:`~pathlib.Path.iterdir`

@@ -33,12 +33,13 @@ def run(
 
     :param func: a coroutine function
     :param args: positional arguments to ``func``
-    :param backend: name of the asynchronous event loop implementation – currently either
-        ``asyncio`` or ``trio``
-    :param backend_options: keyword arguments to call the backend ``run()`` implementation with
-        (documented :ref:`here <backend options>`)
+    :param backend: name of the asynchronous event loop implementation – currently
+        either ``asyncio`` or ``trio``
+    :param backend_options: keyword arguments to call the backend ``run()``
+        implementation with (documented :ref:`here <backend options>`)
     :return: the return value of the coroutine function
-    :raises RuntimeError: if an asynchronous event loop is already running in this thread
+    :raises RuntimeError: if an asynchronous event loop is already running in this
+        thread
     :raises LookupError: if the named backend is not found
 
     """
@@ -56,7 +57,8 @@ def run(
 
     token = None
     if sniffio.current_async_library_cvar.get(None) is None:
-        # Since we're in control of the event loop, we can cache the name of the async library
+        # Since we're in control of the event loop, we can cache the name of the async
+        # library
         token = sniffio.current_async_library_cvar.set(backend)
 
     try:
@@ -93,8 +95,8 @@ async def sleep_until(deadline: float) -> None:
     """
     Pause the current task until the given time.
 
-    :param deadline: the absolute time to wake up at (according to the internal monotonic clock of
-        the event loop)
+    :param deadline: the absolute time to wake up at (according to the internal
+        monotonic clock of the event loop)
 
     .. versionadded:: 3.1
 

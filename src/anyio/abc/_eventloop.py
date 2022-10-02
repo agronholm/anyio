@@ -60,7 +60,8 @@ class AsyncBackend(metaclass=ABCMeta):
         :param func: a coroutine function
         :param args: positional arguments to ``func``
         :param kwargs: positional arguments to ``func``
-        :param options: keyword arguments to call the backend ``run()`` implementation with
+        :param options: keyword arguments to call the backend ``run()`` implementation
+            with
         :return: the return value of the coroutine function
         """
 
@@ -101,8 +102,8 @@ class AsyncBackend(metaclass=ABCMeta):
         """
         Check if the current task group has been cancelled.
 
-        This will check if the task has been cancelled, but will not allow other tasks to be
-        scheduled if not.
+        This will check if the task has been cancelled, but will not allow other tasks
+        to be scheduled if not.
 
         """
         if cls.current_effective_deadline() == -math.inf:
@@ -113,8 +114,8 @@ class AsyncBackend(metaclass=ABCMeta):
         """
         Allow the rescheduling of other tasks.
 
-        This will give other tasks the opportunity to run, but without checking if the current task
-        group has been cancelled, unlike with :meth:`checkpoint`.
+        This will give other tasks the opportunity to run, but without checking if the
+        current task group has been cancelled, unlike with :meth:`checkpoint`.
 
         """
         with cls.create_cancel_scope(shield=True):
@@ -140,7 +141,8 @@ class AsyncBackend(metaclass=ABCMeta):
     @abstractmethod
     def current_effective_deadline(cls) -> float:
         """
-        Return the nearest deadline among all the cancel scopes effective for the current task.
+        Return the nearest deadline among all the cancel scopes effective for the
+        current task.
 
         :return:
             - a clock value from the event loop's internal clock

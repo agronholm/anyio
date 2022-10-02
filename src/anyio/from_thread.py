@@ -167,8 +167,8 @@ class BlockingPortal:
         This marks the portal as no longer accepting new calls and exits from
         :meth:`sleep_until_stopped`.
 
-        :param cancel_remaining: ``True`` to cancel all the remaining tasks, ``False`` to let them
-            finish before returning
+        :param cancel_remaining: ``True`` to cancel all the remaining tasks, ``False``
+            to let them finish before returning
 
         """
         self._event_loop_thread_id = None
@@ -228,8 +228,8 @@ class BlockingPortal:
         :param args: positional arguments to be passed to the callable
         :param kwargs: keyword arguments to be passed to the callable
         :param name: name of the task (will be coerced to a string if not ``None``)
-        :param future: a future that will resolve to the return value of the callable, or the
-            exception raised during its execution
+        :param future: a future that will resolve to the return value of the callable,
+            or the exception raised during its execution
 
         """
         raise NotImplementedError
@@ -253,8 +253,8 @@ class BlockingPortal:
         If the callable returns a coroutine object, it is awaited on.
 
         :param func: any callable
-        :raises RuntimeError: if the portal is not running or if this method is called from within
-            the event loop thread
+        :raises RuntimeError: if the portal is not running or if this method is called
+            from within the event loop thread
 
         """
         return cast(T_Retval, self.start_task_soon(func, *args).result())
@@ -283,16 +283,16 @@ class BlockingPortal:
         """
         Start a task in the portal's task group.
 
-        The task will be run inside a cancel scope which can be cancelled by cancelling the
-        returned future.
+        The task will be run inside a cancel scope which can be cancelled by cancelling
+        the returned future.
 
         :param func: the target function
         :param args: positional arguments passed to ``func``
         :param name: name of the task (will be coerced to a string if not ``None``)
-        :return: a future that resolves with the return value of the callable if the task completes
-            successfully, or with the exception raised in the task
-        :raises RuntimeError: if the portal is not running or if this method is called from within
-            the event loop thread
+        :return: a future that resolves with the return value of the callable if the
+            task completes successfully, or with the exception raised in the task
+        :raises RuntimeError: if the portal is not running or if this method is called
+            from within the event loop thread
 
         .. versionadded:: 3.0
 
@@ -316,8 +316,9 @@ class BlockingPortal:
         :param func: the target function
         :param args: positional arguments passed to ``func``
         :param name: name of the task (will be coerced to a string if not ``None``)
-        :return: a tuple of (future, task_status_value) where the ``task_status_value`` is the
-            value passed to ``task_status.started()`` from within the target function
+        :return: a tuple of (future, task_status_value) where the ``task_status_value``
+            is the value passed to ``task_status.started()`` from within the target
+            function
 
         .. versionadded:: 3.0
 
@@ -349,8 +350,8 @@ class BlockingPortal:
         """
         Wrap an async context manager as a synchronous context manager via this portal.
 
-        Spawns a task that will call both ``__aenter__()`` and ``__aexit__()``, stopping in the
-        middle until the synchronous context manager exits.
+        Spawns a task that will call both ``__aenter__()`` and ``__aexit__()``, stopping
+        in the middle until the synchronous context manager exits.
 
         :param cm: an asynchronous context manager
         :return: a synchronous context manager

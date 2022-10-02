@@ -358,8 +358,8 @@ async def test_cancel_twice() -> None:
 
 async def test_cancel_exiting_task_group() -> None:
     """
-    Test that if a task group is waiting for subtasks to finish and it receives a cancellation, the
-    subtasks are also cancelled and the waiting continues.
+    Test that if a task group is waiting for subtasks to finish and it receives a
+    cancellation, the subtasks are also cancelled and the waiting continues.
 
     """
     cancel_received = False
@@ -812,7 +812,10 @@ async def test_cancel_propagation_with_inner_spawn() -> None:
 
 
 async def test_escaping_cancelled_error_from_cancelled_task() -> None:
-    """Regression test for issue #88. No CancelledError should escape the outer scope."""
+    """
+    Regression test for issue #88. No CancelledError should escape the outer scope.
+
+    """
     with CancelScope() as scope:
         with move_on_after(0.1):
             await sleep(1)
@@ -909,7 +912,10 @@ async def test_task_in_sync_spawn_callback() -> None:
 
 
 async def test_shielded_cancel_sleep_time() -> None:
-    """Test that cancelling a shielded tasks spends more time sleeping than cancelling."""
+    """
+    Test that cancelling a shielded tasks spends more time sleeping than cancelling.
+
+    """
     event = anyio.Event()
     hang_time = 0.2
 
@@ -935,7 +941,8 @@ async def test_shielded_cancel_sleep_time() -> None:
 
 async def test_cancelscope_wrong_exit_order() -> None:
     """
-    Test that a RuntimeError is raised if the task tries to exit cancel scopes in the wrong order.
+    Test that a RuntimeError is raised if the task tries to exit cancel scopes in the
+    wrong order.
 
     """
     scope1 = CancelScope()
@@ -946,7 +953,11 @@ async def test_cancelscope_wrong_exit_order() -> None:
 
 
 async def test_cancelscope_exit_before_enter() -> None:
-    """Test that a RuntimeError is raised if one tries to exit a cancel scope before entering."""
+    """
+    Test that a RuntimeError is raised if one tries to exit a cancel scope before
+    entering.
+
+    """
     scope = CancelScope()
     pytest.raises(RuntimeError, scope.__exit__, None, None, None)
 

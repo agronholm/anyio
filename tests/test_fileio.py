@@ -74,7 +74,11 @@ class TestPath:
         return tmp_path
 
     async def test_properties(self) -> None:
-        """Ensure that all public properties and methods are available on the async Path class."""
+        """
+        Ensure that all public properties and methods are available on the async Path
+        class.
+
+        """
         path = pathlib.Path("/test/path/another/part")
         stdlib_properties = {
             p for p in dir(path) if p.startswith("__") or not p.startswith("_")

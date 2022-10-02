@@ -1026,7 +1026,9 @@ class TrioBackend(AsyncBackend):
         cls, sockaddr: IPSockAddrType, flags: int = 0
     ) -> tuple[str, str]:
         # https://github.com/python-trio/trio-typing/pull/56
-        return await trio.socket.getnameinfo(sockaddr, flags)  # type: ignore[return-value]
+        return await trio.socket.getnameinfo(  # type: ignore[return-value]
+            sockaddr, flags
+        )
 
     @classmethod
     async def wait_socket_readable(cls, sock: socket.socket) -> None:

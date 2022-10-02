@@ -92,8 +92,8 @@ async def test_cancel_worker_thread(
     cancellable: bool, expected_last_active: str
 ) -> None:
     """
-    Test that when a task running a worker thread is cancelled, the cancellation is not acted on
-    until the thread finishes.
+    Test that when a task running a worker thread is cancelled, the cancellation is not
+    acted on until the thread finishes.
 
     """
     last_active: str | None = None
@@ -170,9 +170,9 @@ def test_asyncio_no_root_task(asyncio_event_loop: asyncio.AbstractEventLoop) -> 
     """
     Regression test for #264.
 
-    Ensures that to_thread.run_sync() does not raise an error when there is no root task, but
-    instead tries to find the top most parent task by traversing the cancel scope tree, or failing
-    that, uses the current task to set up a shutdown callback.
+    Ensures that to_thread.run_sync() does not raise an error when there is no root
+    task, but instead tries to find the top most parent task by traversing the cancel
+    scope tree, or failing that, uses the current task to set up a shutdown callback.
 
     """
 
@@ -256,8 +256,8 @@ def test_asyncio_no_recycle_stopping_worker(
         await event1.wait()
         asyncio_event_loop.call_soon(event2.set)
         await anyio.to_thread.run_sync(time.sleep, 0)
-        # At this point, the worker would be stopped but still in the idle workers pool, so the
-        # following would hang prior to the fix
+        # At this point, the worker would be stopped but still in the idle workers pool,
+        # so the following would hang prior to the fix
         await anyio.to_thread.run_sync(time.sleep, 0)
 
     event1 = asyncio.Event()

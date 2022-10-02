@@ -25,9 +25,10 @@ class CapacityLimiterStatistics:
     """
     :ivar int borrowed_tokens: number of tokens currently borrowed by tasks
     :ivar float total_tokens: total number of available tokens
-    :ivar tuple borrowers: tasks or other objects currently holding tokens borrowed from this
-        limiter
-    :ivar int tasks_waiting: number of tasks waiting on :meth:`~.CapacityLimiter.acquire` or
+    :ivar tuple borrowers: tasks or other objects currently holding tokens borrowed from
+        this limiter
+    :ivar int tasks_waiting: number of tasks waiting on
+        :meth:`~.CapacityLimiter.acquire` or
         :meth:`~.CapacityLimiter.acquire_on_behalf_of`
     """
 
@@ -41,8 +42,8 @@ class CapacityLimiterStatistics:
 class LockStatistics:
     """
     :ivar bool locked: flag indicating if this lock is locked or not
-    :ivar ~anyio.TaskInfo owner: task currently holding the lock (or ``None`` if the lock is not
-        held by any task)
+    :ivar ~anyio.TaskInfo owner: task currently holding the lock (or ``None`` if the
+        lock is not held by any task)
     :ivar int tasks_waiting: number of tasks waiting on :meth:`~.Lock.acquire`
     """
 
@@ -55,7 +56,8 @@ class LockStatistics:
 class ConditionStatistics:
     """
     :ivar int tasks_waiting: number of tasks blocked on :meth:`~.Condition.wait`
-    :ivar ~anyio.LockStatistics lock_statistics: statistics of the underlying :class:`~.Lock`
+    :ivar ~anyio.LockStatistics lock_statistics: statistics of the underlying
+        :class:`~.Lock`
     """
 
     tasks_waiting: int
@@ -88,7 +90,8 @@ class Event:
         """
         Wait until the flag has been set.
 
-        If the flag has already been set when this method is called, it returns immediately.
+        If the flag has already been set when this method is called, it returns
+        immediately.
 
         """
         raise NotImplementedError
@@ -389,7 +392,8 @@ class CapacityLimiter:
         The total number of tokens available for borrowing.
 
         This is a read-write property. If the total number of tokens is increased, the
-        proportionate number of tasks waiting on this limiter will be granted their tokens.
+        proportionate number of tasks waiting on this limiter will be granted their
+        tokens.
 
         .. versionchanged:: 3.0
             The property is now writable.
@@ -413,7 +417,8 @@ class CapacityLimiter:
 
     def acquire_nowait(self) -> None:
         """
-        Acquire a token for the current task without waiting for one to become available.
+        Acquire a token for the current task without waiting for one to become
+        available.
 
         :raises ~anyio.WouldBlock: if there are no tokens available for borrowing
 
@@ -432,7 +437,8 @@ class CapacityLimiter:
 
     async def acquire(self) -> None:
         """
-        Acquire a token for the current task, waiting if necessary for one to become available.
+        Acquire a token for the current task, waiting if necessary for one to become
+        available.
 
         """
         raise NotImplementedError
@@ -449,7 +455,8 @@ class CapacityLimiter:
     def release(self) -> None:
         """
         Release the token held by the current task.
-        :raises RuntimeError: if the current task has not borrowed a token from this limiter.
+        :raises RuntimeError: if the current task has not borrowed a token from this
+            limiter.
 
         """
         raise NotImplementedError
@@ -458,7 +465,8 @@ class CapacityLimiter:
         """
         Release the token held by the given borrower.
 
-        :raises RuntimeError: if the borrower has not borrowed a token from this limiter.
+        :raises RuntimeError: if the borrower has not borrowed a token from this
+            limiter.
 
         """
         raise NotImplementedError

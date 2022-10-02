@@ -24,14 +24,15 @@ def check_compatibility(anyio_backend_name: str) -> None:
     if anyio_backend_name == "asyncio":
         if platform.system() == "Windows" and sys.version_info < (3, 8):
             pytest.skip(
-                "Python < 3.8 uses SelectorEventLoop by default and it does not support "
-                "subprocesses"
+                "Python < 3.8 uses SelectorEventLoop by default and it does not "
+                "support subprocesses"
             )
 
 
 async def test_run_sync_in_process_pool() -> None:
     """
-    Test that the function runs in a different process, and the same process in both calls.
+    Test that the function runs in a different process, and the same process in both
+    calls.
 
     """
     worker_pid = await to_process.run_sync(os.getpid)
@@ -68,8 +69,8 @@ async def test_print() -> None:
 
 async def test_cancel_before() -> None:
     """
-    Test that starting to_process.run_sync() in a cancelled scope does not cause a worker
-    process to be reserved.
+    Test that starting to_process.run_sync() in a cancelled scope does not cause a
+    worker process to be reserved.
 
     """
     with CancelScope() as scope:
@@ -81,7 +82,8 @@ async def test_cancel_before() -> None:
 
 async def test_cancel_during() -> None:
     """
-    Test that cancelling an operation on the worker process causes the process to be killed.
+    Test that cancelling an operation on the worker process causes the process to be
+    killed.
 
     """
     worker_pid = await to_process.run_sync(os.getpid)

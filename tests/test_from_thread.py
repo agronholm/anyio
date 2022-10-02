@@ -192,7 +192,10 @@ class TestBlockingPortal:
             await gen.aclose()
 
     async def test_aexit_with_exception(self) -> None:
-        """Test that when the portal exits with an exception, all tasks are cancelled."""
+        """
+        Test that when the portal exits with an exception, all tasks are cancelled.
+
+        """
 
         def external_thread() -> None:
             try:
