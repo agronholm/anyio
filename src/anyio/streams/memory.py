@@ -204,6 +204,18 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
             raise WouldBlock
 
     async def send(self, item: T_Item) -> None:
+        """
+        Send an item to the stream.
+
+        If the buffer is full, this method blocks until there is again room in the
+        buffer or the item can be sent directly to a receiver.
+
+        :param item: the item to send
+        :raises ~anyio.ClosedResourceError: if this send stream has been closed
+        :raises ~anyio.BrokenResourceError: if the stream has been closed from the
+            receiving end
+
+        """
         await checkpoint()
         try:
             self.send_nowait(item)
