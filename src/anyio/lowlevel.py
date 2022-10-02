@@ -105,18 +105,11 @@ class RunVar(Generic[T]):
     @property
     def _current_vars(self) -> dict[str, T]:
         token = current_token()
-        while True:
-            try:
-                return _run_vars[token]
-            except TypeError:
-                # Happens when token isn't weak referable (TrioToken).
-                # This workaround does mean that some memory will leak on Trio until the problem
-                # is fixed on their end.
-                token = _TokenWrapper(token)
-                self._token_wrappers.add(token)
-            except KeyError:
-                run_vars = _run_vars[token] = {}
-                return run_vars
+        try:
+            return _run_vars[token]
+        except KeyError:
+            run_vars = _run_vars[token] = {}
+            return run_vars
 
     @overload
     def get(self, default: D) -> T | D:
