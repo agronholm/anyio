@@ -137,7 +137,7 @@ class TaskGroup(abc.TaskGroup):
         self._nursery_manager = trio.open_nursery()
         self.cancel_scope = None  # type: ignore[assignment]
 
-    async def __aenter__(self) -> "TaskGroup":
+    async def __aenter__(self) -> TaskGroup:
         self._active = True
         self._nursery = await self._nursery_manager.__aenter__()
         self.cancel_scope = CancelScope(self._nursery.cancel_scope)

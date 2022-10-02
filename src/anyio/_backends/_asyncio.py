@@ -474,7 +474,7 @@ class TaskGroup(abc.TaskGroup):
         self._active = False
         self._exceptions: list[BaseException] = []
 
-    async def __aenter__(self) -> "TaskGroup":
+    async def __aenter__(self) -> TaskGroup:
         self.cancel_scope.__enter__()
         self._active = True
         return self

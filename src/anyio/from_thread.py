@@ -135,7 +135,7 @@ class BlockingPortal:
         self._task_group = create_task_group()
         self._cancelled_exc_class = get_cancelled_exc_class()
 
-    async def __aenter__(self) -> "BlockingPortal":
+    async def __aenter__(self) -> BlockingPortal:
         await self._task_group.__aenter__()
         return self
 

@@ -208,7 +208,7 @@ def wrap_file(file: IO[AnyStr]) -> AsyncFile[AnyStr]:
 class _PathIterator(AsyncIterator["Path"]):
     iterator: Iterator[PathLike[str]]
 
-    async def __anext__(self) -> "Path":
+    async def __anext__(self) -> Path:
         nextval = await to_thread.run_sync(next, self.iterator, None, cancellable=True)
         if nextval is None:
             raise StopAsyncIteration from None

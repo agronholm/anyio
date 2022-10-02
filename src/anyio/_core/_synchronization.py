@@ -294,7 +294,7 @@ class Semaphore:
         self._max_value = max_value
         self._waiters: deque[Event] = deque()
 
-    async def __aenter__(self) -> "Semaphore":
+    async def __aenter__(self) -> Semaphore:
         await self.acquire()
         return self
 
