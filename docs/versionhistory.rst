@@ -27,6 +27,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     type of the value passed to ``task_status.started()``
 - Fixed ``CapacityLimiter`` on the asyncio backend to order waiting tasks in the FIFO
   order (instead of LIFO) (PR by Conor Stevenson)
+- Fixed ``CancelScope.cancel()`` not working on asyncio if called before entering the
+  scope
 
 **3.6.1**
 
