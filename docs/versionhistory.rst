@@ -22,6 +22,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     - ``BlockingPortal.call()``
     - ``BlockingPortal.start_task_soon()``
     - ``BlockingPortal.start_task()``
+
+  - The ``TaskStatus`` class is now generic, and should be parametrized to indicate the
+    type of the value passed to ``task_status.started()``
 - Fixed ``CapacityLimiter`` on the asyncio backend to order waiting tasks in the FIFO
   order (instead of LIFO) (PR by Conor Stevenson)
 

@@ -1,20 +1,19 @@
 from __future__ import annotations
 
-import typing
 from abc import ABCMeta, abstractmethod
 from collections.abc import Awaitable, Callable, Coroutine
 from types import TracebackType
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from .._core._tasks import CancelScope
 
 T_Retval = TypeVar("T_Retval")
 
 
-class TaskStatus(metaclass=ABCMeta):
+class TaskStatus(Generic[T_Retval]):
     @abstractmethod
-    def started(self, value: object = None) -> None:
+    def started(self, value: T_Retval | None = None) -> None:
         """
         Signal that the task has started.
 
