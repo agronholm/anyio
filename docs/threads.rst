@@ -183,8 +183,7 @@ on the thread. As always with context variables, any changes made to them will n
 to the calling asynchronous task.
 
 When calling asynchronous code from worker threads, context is again copied to the task that calls
-the target function in the event loop thread. Note, however, that this **does not work** on asyncio
-when running on Python 3.6.
+the target function in the event loop thread.
 
 Adjusting the default maximum worker thread count
 -------------------------------------------------
