@@ -68,7 +68,6 @@ from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import ResourceGuard
 from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import IPSockAddrType, UDPPacketType
-from ..abc._tasks import T_contra
 from ..lowlevel import RunVar
 
 if sys.version_info >= (3, 8):
@@ -177,6 +176,7 @@ else:
 
 
 T_Retval = TypeVar("T_Retval")
+T_contra = TypeVar("T_contra", contravariant=True)
 
 # Check whether there is native support for task names in asyncio (3.8+)
 _native_task_names = hasattr(asyncio.Task, "get_name")
