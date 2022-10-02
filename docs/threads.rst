@@ -8,10 +8,6 @@ expensive operations. Such operations would normally block the asynchronous even
 performance issues. The solution is to run such code in *worker threads*. Using worker threads lets
 the event loop continue running other tasks while the worker thread runs the blocking call.
 
- .. caution:: Do not spawn too many threads, as the context switching overhead may cause your
-    system to slow down to a crawl. A few dozen threads should be fine, but hundreds are probably
-    bad. Consider using AnyIO's semaphores to limit the maximum number of threads.
-
 Running a function in a worker thread
 -------------------------------------
 
@@ -189,3 +185,19 @@ to the calling asynchronous task.
 When calling asynchronous code from worker threads, context is again copied to the task that calls
 the target function in the event loop thread. Note, however, that this **does not work** on asyncio
 when running on Python 3.6.
+
+Adjusting the default maximum worker thread count
+-------------------------------------------------
+
+The default AnyIO worker thread limiter has a value of **40**, meaning that any calls
+to :func:`.to_thread.run` without an explicit ``limiter`` argument will cause a maximum
+of 40 threads to be spawned. You can adjust this limit like this::
+
+    from anyio import to_thread
+
+    async def foo():
+        # Set the maximum number of worker threads to 60
+        to_thread.current_default_thread_limiter().total_tokens = 60
+
+.. note:: AnyIO's default thread pool limiter does not affect the default thread pool
+    executor on :mod:`asyncio`.
