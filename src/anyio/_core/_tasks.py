@@ -12,8 +12,8 @@ from ._compat import (
 from ._eventloop import get_asynclib
 
 
-class _IgnoredTaskStatus(TaskStatus):
-    def started(self, value: object = None) -> None:
+class _IgnoredTaskStatus(TaskStatus[None]):
+    def started(self, value: None = None) -> None:
         pass
 
 
