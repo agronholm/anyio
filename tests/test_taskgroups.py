@@ -399,6 +399,18 @@ async def test_cancel_exiting_task_group() -> None:
     assert cancel_received
 
 
+async def test_cancel_before_entering_scope() -> None:
+    """
+    Test that CancelScope.cancel() is honored even if called before entering the scope.
+
+    """
+    cancel_scope = anyio.CancelScope()
+    cancel_scope.cancel()
+    with cancel_scope:
+        await anyio.sleep(1)  # Checkpoint to allow anyio to check for cancellation
+        pytest.fail("execution should not reach this point")
+
+
 async def test_exception_group_children() -> None:
     with pytest.raises(ExceptionGroup) as exc:
         async with create_task_group() as tg:

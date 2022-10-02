@@ -345,6 +345,11 @@ class CancelScope(BaseCancelScope):
 
         self._timeout()
         self._active = True
+
+        # Start cancelling the host task if the scope was cancelled before entering
+        if self._cancel_called:
+            self._deliver_cancellation()
+
         return self
 
     def __exit__(
@@ -491,7 +496,8 @@ class CancelScope(BaseCancelScope):
                 self._timeout_handle = None
 
             self._cancel_called = True
-            self._deliver_cancellation()
+            if self._host_task is not None:
+                self._deliver_cancellation()
 
         return DeprecatedAwaitable(self.cancel)
 

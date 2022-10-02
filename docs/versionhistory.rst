@@ -10,6 +10,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``SSLSocket.shared_ciphers`` of always returning ``None`` for client-side streams
 - Fixed ``CapacityLimiter`` on the asyncio backend to order waiting tasks in the FIFO
   order (instead of LIFO) (PR by Conor Stevenson)
+- Fixed ``CancelScope.cancel()`` not working on asyncio if called before entering the
+  scope
 - Fixed ``open_signal_receiver()`` inconsistently yielding integers instead of
   ``signal.Signals`` instances on the ``trio`` backend
 - Fixed ``current_effective_deadline()`` not returning ``-inf`` on asyncio when the
