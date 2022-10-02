@@ -136,21 +136,6 @@ class AsyncBackend(metaclass=ABCMeta):
     ) -> CancelScope:
         pass
 
-    # @asynccontextmanager
-    # async def fail_after(cls, delay: float, shield: bool) -> None:
-    #     deadline = (await cls.current_time()) + delay
-    #     async with cls.create_cancel_scope(deadline=deadline, shield=shield) as scope:
-    #         yield scope
-    #
-    #     if scope._timeout_expired:
-    #         raise TimeoutError
-    #
-    # @asynccontextmanager
-    # async def move_on_after(cls, delay: float, shield: bool) -> None:
-    #     deadline = (await cls.current_time()) + delay
-    #     async with cls.create_cancel_scope(deadline=deadline, shield=shield) as scope:
-    #         yield scope
-
     @classmethod
     @abstractmethod
     def current_effective_deadline(cls) -> float:
