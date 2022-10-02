@@ -10,6 +10,18 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Bumped minimum version of trio to v0.22
 - Added ``create_unix_datagram_socket`` and ``create_connected_unix_datagram_socket`` to
   create UNIX datagram sockets (PR by Jean Hominal)
+- Improved type annotations:
+
+  - Several functions and methods that previously only accepted coroutines as the return
+    type of the callable have been amended to accept any awaitables:
+
+    - ``anyio.run()``
+    - ``anyio.from_thread.run()``
+    - ``TaskGroup.start_soon()``
+    - ``TaskGroup.start()``
+    - ``BlockingPortal.call()``
+    - ``BlockingPortal.start_task_soon()``
+    - ``BlockingPortal.start_task()``
 - Fixed ``CapacityLimiter`` on the asyncio backend to order waiting tasks in the FIFO
   order (instead of LIFO) (PR by Conor Stevenson)
 

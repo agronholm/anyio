@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import threading
-from asyncio import iscoroutine
-from collections.abc import Callable, Coroutine, Generator
+from collections.abc import Awaitable, Callable, Generator
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import AbstractContextManager, contextmanager
+from inspect import isawaitable
 from types import TracebackType
 from typing import (
     Any,
@@ -27,7 +27,7 @@ T_Retval = TypeVar("T_Retval")
 T_co = TypeVar("T_co")
 
 
-def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object) -> T_Retval:
+def run(func: Callable[..., Awaitable[T_Retval]], *args: object) -> T_Retval:
     """
     Call a coroutine function from a worker thread.
 
@@ -188,7 +188,7 @@ class BlockingPortal:
 
         try:
             retval = func(*args, **kwargs)
-            if iscoroutine(retval):
+            if isawaitable(retval):
                 with CancelScope() as scope:
                     if future.cancelled():
                         scope.cancel()
@@ -235,9 +235,7 @@ class BlockingPortal:
         raise NotImplementedError
 
     @overload
-    def call(
-        self, func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object
-    ) -> T_Retval:
+    def call(self, func: Callable[..., Awaitable[T_Retval]], *args: object) -> T_Retval:
         ...
 
     @overload
@@ -246,7 +244,7 @@ class BlockingPortal:
 
     def call(
         self,
-        func: Callable[..., Coroutine[Any, Any, T_Retval] | T_Retval],
+        func: Callable[..., Awaitable[T_Retval] | T_Retval],
         *args: object,
     ) -> T_Retval:
         """
@@ -264,7 +262,7 @@ class BlockingPortal:
     @overload
     def start_task_soon(
         self,
-        func: Callable[..., Coroutine[Any, Any, T_Retval]],
+        func: Callable[..., Awaitable[T_Retval]],
         *args: object,
         name: object = None,
     ) -> Future[T_Retval]:
@@ -278,7 +276,7 @@ class BlockingPortal:
 
     def start_task_soon(
         self,
-        func: Callable[..., Coroutine[Any, Any, T_Retval] | T_Retval],
+        func: Callable[..., Awaitable[T_Retval] | T_Retval],
         *args: object,
         name: object = None,
     ) -> Future[T_Retval]:
@@ -288,7 +286,7 @@ class BlockingPortal:
         The task will be run inside a cancel scope which can be cancelled by cancelling the
         returned future.
 
-        :param func: the target coroutine function
+        :param func: the target function
         :param args: positional arguments passed to ``func``
         :param name: name of the task (will be coerced to a string if not ``None``)
         :return: a future that resolves with the return value of the callable if the task completes
@@ -306,7 +304,7 @@ class BlockingPortal:
 
     def start_task(
         self,
-        func: Callable[..., Coroutine[Any, Any, Any]],
+        func: Callable[..., Awaitable[Any]],
         *args: object,
         name: object = None,
     ) -> tuple[Future[Any], Any]:
@@ -315,7 +313,7 @@ class BlockingPortal:
 
         This method works the same way as :meth:`TaskGroup.start`.
 
-        :param func: the target coroutine function
+        :param func: the target function
         :param args: positional arguments passed to ``func``
         :param name: name of the task (will be coerced to a string if not ``None``)
         :return: a tuple of (future, task_status_value) where the ``task_status_value`` is the

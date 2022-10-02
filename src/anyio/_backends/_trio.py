@@ -872,7 +872,7 @@ class TrioBackend(AsyncBackend):
     @classmethod
     def run_async_from_thread(
         cls,
-        func: Callable[..., Coroutine[Any, Any, T_Retval]],
+        func: Callable[..., Awaitable[T_Retval]],
         args: tuple[Any, ...],
         token: object,
     ) -> T_Retval:
