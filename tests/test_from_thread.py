@@ -520,5 +520,7 @@ class TestBlockingPortal:
             with start_blocking_portal(
                 anyio_backend_name, anyio_backend_options
             ) as portal:
-                with pytest.raises(BaseException, match="fatal error"):
+                with pytest.raises(BaseException, match="fatal error") as exc:
                     portal.call(raise_baseexception)
+
+                assert exc.value.__context__ is None
