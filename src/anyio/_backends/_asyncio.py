@@ -521,8 +521,8 @@ class TaskGroup(abc.TaskGroup):
     async def _run_wrapped_task(
         self, coro: Coroutine, task_status_future: asyncio.Future | None
     ) -> None:
-        # This is the code path for Python 3.6 and 3.7 on which asyncio freaks out if a
-        # task raises a BaseException.
+        # This is the code path for Python 3.7 on which asyncio freaks out if a task
+        # raises a BaseException.
         __traceback_hide__ = __tracebackhide__ = True  # noqa: F841
         task = cast(asyncio.Task, current_task())
         try:
