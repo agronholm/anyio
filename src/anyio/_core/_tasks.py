@@ -7,7 +7,7 @@ from ..abc._tasks import TaskGroup, TaskStatus
 from ._eventloop import get_async_backend
 
 
-class _IgnoredTaskStatus(TaskStatus):
+class _IgnoredTaskStatus(TaskStatus[object]):
     def started(self, value: object = None) -> None:
         pass
 
