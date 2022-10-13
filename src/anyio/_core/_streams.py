@@ -14,15 +14,15 @@ T_Item = TypeVar("T_Item")
 
 @overload
 def create_memory_object_stream(
-    max_buffer_size: float, item_type: type[T_Item]
-) -> tuple[MemoryObjectSendStream[T_Item], MemoryObjectReceiveStream[T_Item]]:
+    max_buffer_size: float = 0,
+) -> tuple[MemoryObjectSendStream[Any], MemoryObjectReceiveStream[Any]]:
     ...
 
 
 @overload
 def create_memory_object_stream(
-    max_buffer_size: float = 0,
-) -> tuple[MemoryObjectSendStream[Any], MemoryObjectReceiveStream[Any]]:
+    max_buffer_size: float = 0, item_type: type[T_Item] = ...
+) -> tuple[MemoryObjectSendStream[T_Item], MemoryObjectReceiveStream[T_Item]]:
     ...
 
 

@@ -26,6 +26,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   - The ``TaskStatus`` class is now generic, and should be parametrized to indicate the
     type of the value passed to ``task_status.started()``
   - The ``Listener`` class is now covariant in its stream type
+  - ``create_memory_object_stream()`` now allows passing only ``item_type``
 - Fixed ``CapacityLimiter`` on the asyncio backend to order waiting tasks in the FIFO
   order (instead of LIFO) (PR by Conor Stevenson)
 - Fixed ``CancelScope.cancel()`` not working on asyncio if called before entering the
