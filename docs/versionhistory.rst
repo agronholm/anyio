@@ -30,6 +30,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   order (instead of LIFO) (PR by Conor Stevenson)
 - Fixed ``CancelScope.cancel()`` not working on asyncio if called before entering the
   scope
+- Fixed ``open_signal_receiver()`` inconsistently yielding integers instead of
+  ``signal.Signals`` instances on the ``trio`` backend
 - Fixed ``start_blocking_portal()`` raising an unwarranted
   ``RuntimeError: This portal is not running`` if a task raises an exception that causes
   the event loop to be closed

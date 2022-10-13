@@ -18,7 +18,7 @@ from asyncio import run as native_run
 from asyncio import sleep
 from asyncio.base_events import _run_until_complete_cb  # type: ignore[attr-defined]
 from collections import OrderedDict, deque
-from collections.abc import Iterable
+from collections.abc import AsyncIterator, Iterable
 from concurrent.futures import Future
 from contextvars import Context, copy_context
 from dataclasses import dataclass
@@ -1613,11 +1613,11 @@ class _SignalReceiver:
     def __init__(self, signals: tuple[Signals, ...]):
         self._signals = signals
         self._loop = get_running_loop()
-        self._signal_queue: Deque[int] = deque()
+        self._signal_queue: Deque[Signals] = deque()
         self._future: asyncio.Future = asyncio.Future()
-        self._handled_signals: set[int] = set()
+        self._handled_signals: set[Signals] = set()
 
-    def _deliver(self, signum: int) -> None:
+    def _deliver(self, signum: Signals) -> None:
         self._signal_queue.append(signum)
         if not self._future.done():
             self._future.set_result(None)
@@ -1642,7 +1642,7 @@ class _SignalReceiver:
     def __aiter__(self) -> _SignalReceiver:
         return self
 
-    async def __anext__(self) -> int:
+    async def __anext__(self) -> Signals:
         await AsyncIOBackend.checkpoint()
         if not self._signal_queue:
             self._future = asyncio.Future()
@@ -2206,7 +2206,9 @@ class AsyncIOBackend(AsyncBackend):
             return limiter
 
     @classmethod
-    def open_signal_receiver(cls, *signals: Signals) -> ContextManager:
+    def open_signal_receiver(
+        cls, *signals: Signals
+    ) -> ContextManager[AsyncIterator[Signals]]:
         return _SignalReceiver(signals)
 
     @classmethod

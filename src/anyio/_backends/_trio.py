@@ -3,7 +3,7 @@ from __future__ import annotations
 import array
 import math
 import socket
-from collections.abc import Iterable
+from collections.abc import AsyncIterator, Iterable
 from concurrent.futures import Future
 from dataclasses import dataclass
 from functools import partial
@@ -674,12 +674,16 @@ _capacity_limiter_wrapper: RunVar = RunVar("_capacity_limiter_wrapper")
 #
 
 
-class _SignalReceiver(Generic[T]):
-    def __init__(self, cm: ContextManager[T]):
-        self._cm = cm
+class _SignalReceiver:
+    _iterator: AsyncIterator[int]
 
-    def __enter__(self) -> T:
-        return self._cm.__enter__()
+    def __init__(self, signals: tuple[Signals, ...]):
+        self._signals = signals
+
+    def __enter__(self) -> _SignalReceiver:
+        self._cm = trio.open_signal_receiver(*self._signals)
+        self._iterator = self._cm.__enter__()
+        return self
 
     def __exit__(
         self,
@@ -688,6 +692,13 @@ class _SignalReceiver(Generic[T]):
         exc_tb: TracebackType | None,
     ) -> bool | None:
         return self._cm.__exit__(exc_type, exc_val, exc_tb)
+
+    def __aiter__(self) -> _SignalReceiver:
+        return self
+
+    async def __anext__(self) -> Signals:
+        signum = await self._iterator.__anext__()
+        return Signals(signum)
 
 
 #
@@ -1060,9 +1071,10 @@ class TrioBackend(AsyncBackend):
             return limiter
 
     @classmethod
-    def open_signal_receiver(cls, *signals: Signals) -> ContextManager:
-        cm = trio.open_signal_receiver(*signals)
-        return _SignalReceiver(cm)
+    def open_signal_receiver(
+        cls, *signals: Signals
+    ) -> ContextManager[AsyncIterator[Signals]]:
+        return _SignalReceiver(signals)
 
     @classmethod
     def get_current_task(cls) -> TaskInfo:

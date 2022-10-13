@@ -23,8 +23,13 @@ async def test_receive_signals() -> None:
         await to_thread.run_sync(os.kill, os.getpid(), signal.SIGUSR1)
         await to_thread.run_sync(os.kill, os.getpid(), signal.SIGUSR2)
         with fail_after(1):
-            assert await sigiter.__anext__() == signal.SIGUSR1
-            assert await sigiter.__anext__() == signal.SIGUSR2
+            sigusr1 = await sigiter.__anext__()
+            assert isinstance(sigusr1, signal.Signals)
+            assert sigusr1 == signal.Signals.SIGUSR1
+
+            sigusr2 = await sigiter.__anext__()
+            assert isinstance(sigusr2, signal.Signals)
+            assert sigusr2 == signal.Signals.SIGUSR2
 
 
 async def test_task_group_cancellation_open() -> None:

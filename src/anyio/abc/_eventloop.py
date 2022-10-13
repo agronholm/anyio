@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from abc import ABCMeta, abstractmethod
-from collections.abc import Awaitable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Mapping
 from os import PathLike
 from signal import Signals
 from socket import AddressFamily, SocketKind, socket
@@ -48,7 +48,7 @@ class AsyncBackend(metaclass=ABCMeta):
     def run(
         cls,
         func: Callable[..., Awaitable[T_Retval]],
-        args: tuple,
+        args: tuple[Any, ...],
         kwargs: dict[str, Any],
         options: dict[str, Any],
     ) -> T_Retval:
@@ -344,7 +344,9 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    def open_signal_receiver(cls, *signals: Signals) -> ContextManager:
+    def open_signal_receiver(
+        cls, *signals: Signals
+    ) -> ContextManager[AsyncIterator[Signals]]:
         pass
 
     @classmethod
