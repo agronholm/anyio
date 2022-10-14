@@ -9,6 +9,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Improved type annotations:
 
   - The ``Listener`` class is now covariant in its stream type
+  - ``create_memory_object_stream()`` now allows passing only ``item_type``
 - Changed ``TLSAttribute.shared_ciphers`` to match the documented semantics of
   ``SSLSocket.shared_ciphers`` of always returning ``None`` for client-side streams
 - Fixed ``CapacityLimiter`` on the asyncio backend to order waiting tasks in the FIFO
