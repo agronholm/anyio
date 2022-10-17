@@ -44,8 +44,6 @@ jobs:
           python-version: "3.9"
         - os: windows-latest
           python-version: "3.11-dev"
-        - os: windows-latest
-          python-version: pypy-3.8  # https://github.com/python-trio/trio/issues/1361
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v3
