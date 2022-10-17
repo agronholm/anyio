@@ -33,6 +33,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   scope
 - Fixed ``open_signal_receiver()`` inconsistently yielding integers instead of
   ``signal.Signals`` instances on the ``trio`` backend
+- Fixed ``to_thread.run_sync()`` hanging on asyncio if the target callable raises
+  ``StopIteration``
 
 **3.6.1**
 

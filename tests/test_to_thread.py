@@ -265,3 +265,17 @@ def test_asyncio_no_recycle_stopping_worker(
     task1 = asyncio_event_loop.create_task(taskfunc1())
     task2 = asyncio_event_loop.create_task(taskfunc2())
     asyncio_event_loop.run_until_complete(asyncio.gather(task1, task2))
+
+
+async def test_stopiteration() -> None:
+    """
+    Test that raising StopIteration in a worker thread raises a RuntimeError on the
+    caller.
+
+    """
+
+    def raise_stopiteration() -> NoReturn:
+        raise StopIteration
+
+    with pytest.raises(RuntimeError, match="coroutine raised StopIteration"):
+        await to_thread.run_sync(raise_stopiteration)
