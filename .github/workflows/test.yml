@@ -2,7 +2,7 @@ name: test suite
 
 on:
   push:
-    branches: [master, 4.0-dev]
+    branches: [master]
   pull_request:
 
 jobs:
