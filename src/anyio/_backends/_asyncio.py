@@ -869,6 +869,11 @@ class WorkerThread(Thread):
 
         if not future.cancelled():
             if exc is not None:
+                if isinstance(exc, StopIteration):
+                    new_exc = RuntimeError("coroutine raised StopIteration")
+                    new_exc.__cause__ = exc
+                    exc = new_exc
+
                 future.set_exception(exc)
             else:
                 future.set_result(result)
