@@ -93,7 +93,7 @@ class RunvarToken(Generic[T]):
 
 class RunVar(Generic[T]):
     """
-    Like a :class:`~contextvars.ContextVar`, expect scoped to the running event loop.
+    Like a :class:`~contextvars.ContextVar`, except scoped to the running event loop.
     """
 
     __slots__ = "_name", "_default"
