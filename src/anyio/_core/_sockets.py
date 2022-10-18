@@ -282,7 +282,7 @@ async def create_tcp_listener(
     :param local_host: IP address of the interface to listen on. If omitted, listen on
         all IPv4 and IPv6 interfaces. To listen on all interfaces on a specific address
         family, use ``0.0.0.0`` for IPv4 or ``::`` for IPv6.
-    :param family: address family (used if ``interface`` was omitted)
+    :param family: address family (used if ``local_host`` was omitted)
     :param backlog: maximum number of queued incoming connections (up to a maximum of
         2**16, or 65536)
     :param reuse_port: ``True`` to allow multiple sockets to bind to the same
