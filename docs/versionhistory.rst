@@ -35,6 +35,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``signal.Signals`` instances on the ``trio`` backend
 - Fixed ``to_thread.run_sync()`` hanging on asyncio if the target callable raises
   ``StopIteration``
+- Fixed ``start_blocking_portal()`` raising an unwarranted
+  ``RuntimeError: This portal is not running`` if a task raises an exception that causes
+  the event loop to be closed
 
 **3.6.1**
 

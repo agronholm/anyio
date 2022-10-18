@@ -406,12 +406,16 @@ def start_blocking_portal(
 
         if future.done():
             portal = future.result()
+            cancel_remaining_tasks = False
             try:
                 yield portal
             except BaseException:
-                portal.call(portal.stop, True)
+                cancel_remaining_tasks = True
                 raise
-
-            portal.call(portal.stop, False)
+            finally:
+                try:
+                    portal.call(portal.stop, cancel_remaining_tasks)
+                except RuntimeError:
+                    pass
 
         run_future.result()

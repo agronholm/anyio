@@ -503,3 +503,24 @@ class TestBlockingPortal:
             await to_thread.run_sync(portal.start_task_soon, in_loop)
 
         assert not caplog.text
+
+    def test_raise_baseexception_from_task(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        """
+        Test that when a task raises a BaseException, it does not trigger additional
+        exceptions when trying to close the portal.
+
+        """
+
+        async def raise_baseexception() -> None:
+            raise BaseException("fatal error")
+
+        with pytest.raises(BaseException, match="fatal error"):
+            with start_blocking_portal(
+                anyio_backend_name, anyio_backend_options
+            ) as portal:
+                with pytest.raises(BaseException, match="fatal error") as exc:
+                    portal.call(raise_baseexception)
+
+                assert exc.value.__context__ is None
