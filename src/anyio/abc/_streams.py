@@ -10,11 +10,12 @@ from ._resources import AsyncResource
 from ._tasks import TaskGroup
 
 T_Item = TypeVar("T_Item")
-T_Stream_co = TypeVar("T_Stream_co", covariant=True)
+T_co = TypeVar("T_co", covariant=True)
+T_contra = TypeVar("T_contra", contravariant=True)
 
 
 class UnreliableObjectReceiveStream(
-    Generic[T_Item], AsyncResource, TypedAttributeProvider
+    Generic[T_co], AsyncResource, TypedAttributeProvider
 ):
     """
     An interface for receiving objects.
@@ -26,17 +27,17 @@ class UnreliableObjectReceiveStream(
     given type parameter.
     """
 
-    def __aiter__(self) -> UnreliableObjectReceiveStream[T_Item]:
+    def __aiter__(self) -> UnreliableObjectReceiveStream[T_co]:
         return self
 
-    async def __anext__(self) -> T_Item:
+    async def __anext__(self) -> T_co:
         try:
             return await self.receive()
         except EndOfStream:
             raise StopAsyncIteration
 
     @abstractmethod
-    async def receive(self) -> T_Item:
+    async def receive(self) -> T_co:
         """
         Receive the next item.
 
@@ -49,7 +50,7 @@ class UnreliableObjectReceiveStream(
 
 
 class UnreliableObjectSendStream(
-    Generic[T_Item], AsyncResource, TypedAttributeProvider
+    Generic[T_contra], AsyncResource, TypedAttributeProvider
 ):
     """
     An interface for sending objects.
@@ -59,7 +60,7 @@ class UnreliableObjectSendStream(
     """
 
     @abstractmethod
-    async def send(self, item: T_Item) -> None:
+    async def send(self, item: T_contra) -> None:
         """
         Send an item to the peer(s).
 
@@ -80,14 +81,14 @@ class UnreliableObjectStream(
     """
 
 
-class ObjectReceiveStream(UnreliableObjectReceiveStream[T_Item]):
+class ObjectReceiveStream(UnreliableObjectReceiveStream[T_co]):
     """
     A receive message stream which guarantees that messages are received in the same
     order in which they were sent, and that no messages are missed.
     """
 
 
-class ObjectSendStream(UnreliableObjectSendStream[T_Item]):
+class ObjectSendStream(UnreliableObjectSendStream[T_contra]):
     """
     A send message stream which guarantees that messages are delivered in the same order
     in which they were sent, without missing any messages in the middle.
@@ -186,12 +187,12 @@ AnyByteSendStream = Union[ObjectSendStream[bytes], ByteSendStream]
 AnyByteStream = Union[ObjectStream[bytes], ByteStream]
 
 
-class Listener(Generic[T_Stream_co], AsyncResource, TypedAttributeProvider):
+class Listener(Generic[T_co], AsyncResource, TypedAttributeProvider):
     """An interface for objects that let you accept incoming connections."""
 
     @abstractmethod
     async def serve(
-        self, handler: Callable[[T_Stream_co], Any], task_group: TaskGroup | None = None
+        self, handler: Callable[[T_co], Any], task_group: TaskGroup | None = None
     ) -> None:
         """
         Accept incoming connections as they come in and start tasks to handle them.
