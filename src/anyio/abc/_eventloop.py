@@ -146,7 +146,7 @@ class AsyncBackend(metaclass=ABCMeta):
 
         :return:
             - a clock value from the event loop's internal clock
-            - ``'inf`` if there is no deadline in effect
+            - ``inf`` if there is no deadline in effect
             - ``-inf`` if the current scope has been cancelled
         :rtype: float
         """
