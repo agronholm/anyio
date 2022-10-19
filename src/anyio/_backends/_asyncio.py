@@ -1876,7 +1876,10 @@ class AsyncIOBackend(AsyncBackend):
         deadline = math.inf
         while cancel_scope:
             deadline = min(deadline, cancel_scope.deadline)
-            if cancel_scope.shield:
+            if cancel_scope._cancel_called:
+                deadline = -math.inf
+                break
+            elif cancel_scope.shield:
                 break
             else:
                 cancel_scope = cancel_scope._parent_scope
