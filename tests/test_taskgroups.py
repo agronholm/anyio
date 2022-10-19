@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import sys
 import time
 from collections.abc import AsyncGenerator, Coroutine, Generator
@@ -527,12 +528,25 @@ async def test_cancel_from_shielded_scope() -> None:
         with CancelScope(shield=True) as inner_scope:
             assert inner_scope.shield
             tg.cancel_scope.cancel()
+            assert current_effective_deadline() == math.inf
+
+        assert current_effective_deadline() == -math.inf
 
         with pytest.raises(get_cancelled_exc_class()):
             await sleep(0.01)
 
         with pytest.raises(get_cancelled_exc_class()):
             await sleep(0.01)
+
+
+async def test_cancel_shielded_scope() -> None:
+    with CancelScope(shield=True) as cancel_scope:
+        assert cancel_scope.shield
+        cancel_scope.cancel()
+        assert current_effective_deadline() == -math.inf
+
+        with pytest.raises(get_cancelled_exc_class()):
+            await sleep(0)
 
 
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
