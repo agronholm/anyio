@@ -38,7 +38,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``start_blocking_portal()`` raising an unwarranted
   ``RuntimeError: This portal is not running`` if a task raises an exception that causes
   the event loop to be closed
-- Fixed ``current_effective_deadline()`` not returning ``-inf`` on asyncio (PR by Ganden Schaffner)
+- Fixed ``current_effective_deadline()`` not returning ``-inf`` on asyncio when the
+  currently active cancel scope has been cancelled (PR by Ganden Schaffner)
 
 **3.6.1**
 
