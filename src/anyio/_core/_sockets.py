@@ -128,11 +128,12 @@ async def connect_tcp(
     """
     Connect to a host using the TCP protocol.
 
-    This function implements the stateless version of the Happy Eyeballs algorithm (RFC 6555).
-    If ``address`` is a host name that resolves to multiple IP addresses, each one is tried until
-    one connection attempt succeeds. If the first attempt does not connected within 250
-    milliseconds, a second attempt is started using the next address in the list, and so on.
-    On IPv6 enabled systems, an IPv6 address (if available) is tried first.
+    This function implements the stateless version of the Happy Eyeballs algorithm (RFC
+    6555). If ``remote_host`` is a host name that resolves to multiple IP addresses,
+    each one is tried until one connection attempt succeeds. If the first attempt does
+    not connected within 250 milliseconds, a second attempt is started using the next
+    address in the list, and so on. On IPv6 enabled systems, an IPv6 address (if
+    available) is tried first.
 
     When the connection has been established, a TLS handshake will be done if either
     ``ssl_context`` or ``tls_hostname`` is not ``None``, or if ``tls`` is ``True``.
