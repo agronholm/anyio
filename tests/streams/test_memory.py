@@ -13,6 +13,7 @@ from anyio import (
     fail_after,
     wait_all_tasks_blocked,
 )
+from anyio.abc import ObjectReceiveStream, ObjectSendStream
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 pytestmark = pytest.mark.anyio
@@ -345,3 +346,18 @@ async def test_sync_close() -> None:
 
     with pytest.raises(ClosedResourceError):
         receive_stream.receive_nowait()
+
+
+async def test_type_variance() -> None:
+    """
+    This test does not do anything at run time, but since the test suite is also checked
+    with a static type checker, it ensures that the memory object stream
+    co/contravariance works as intended. If it doesn't, one or both of the following
+    reassignments will trip the type checker.
+
+    """
+    send, receive = create_memory_object_stream(item_type=float)
+    receive1: MemoryObjectReceiveStream[complex] = receive  # noqa: F841
+    receive2: ObjectReceiveStream[complex] = receive  # noqa: F841
+    send1: MemoryObjectSendStream[int] = send  # noqa: F841
+    send2: ObjectSendStream[int] = send  # noqa: F841

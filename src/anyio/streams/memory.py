@@ -16,6 +16,8 @@ from ..abc import Event, ObjectReceiveStream, ObjectSendStream
 from ..lowlevel import checkpoint
 
 T_Item = TypeVar("T_Item")
+T_co = TypeVar("T_co", covariant=True)
+T_contra = TypeVar("T_contra", contravariant=True)
 
 
 class MemoryObjectStreamStatistics(NamedTuple):
@@ -55,14 +57,14 @@ class MemoryObjectStreamState(Generic[T_Item]):
 
 
 @dataclass(eq=False)
-class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
-    _state: MemoryObjectStreamState[T_Item]
+class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
+    _state: MemoryObjectStreamState[T_co]
     _closed: bool = field(init=False, default=False)
 
     def __post_init__(self) -> None:
         self._state.open_receive_channels += 1
 
-    def receive_nowait(self) -> T_Item:
+    def receive_nowait(self) -> T_co:
         """
         Receive the next item if it can be done without waiting.
 
@@ -90,14 +92,14 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
 
         raise WouldBlock
 
-    async def receive(self) -> T_Item:
+    async def receive(self) -> T_co:
         await checkpoint()
         try:
             return self.receive_nowait()
         except WouldBlock:
             # Add ourselves in the queue
             receive_event = Event()
-            container: list[T_Item] = []
+            container: list[T_co] = []
             self._state.waiting_receivers[receive_event] = container
 
             try:
@@ -115,7 +117,7 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
             else:
                 raise EndOfStream
 
-    def clone(self) -> MemoryObjectReceiveStream[T_Item]:
+    def clone(self) -> MemoryObjectReceiveStream[T_co]:
         """
         Create a clone of this receive stream.
 
@@ -157,7 +159,7 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
         """
         return self._state.statistics()
 
-    def __enter__(self) -> MemoryObjectReceiveStream[T_Item]:
+    def __enter__(self) -> MemoryObjectReceiveStream[T_co]:
         return self
 
     def __exit__(
@@ -170,14 +172,14 @@ class MemoryObjectReceiveStream(Generic[T_Item], ObjectReceiveStream[T_Item]):
 
 
 @dataclass(eq=False)
-class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
-    _state: MemoryObjectStreamState[T_Item]
+class MemoryObjectSendStream(Generic[T_contra], ObjectSendStream[T_contra]):
+    _state: MemoryObjectStreamState[T_contra]
     _closed: bool = field(init=False, default=False)
 
     def __post_init__(self) -> None:
         self._state.open_send_channels += 1
 
-    def send_nowait(self, item: T_Item) -> None:
+    def send_nowait(self, item: T_contra) -> None:
         """
         Send an item immediately if it can be done without waiting.
 
@@ -203,7 +205,7 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
         else:
             raise WouldBlock
 
-    async def send(self, item: T_Item) -> None:
+    async def send(self, item: T_contra) -> None:
         """
         Send an item to the stream.
 
@@ -236,7 +238,7 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
             ):
                 raise BrokenResourceError
 
-    def clone(self) -> MemoryObjectSendStream[T_Item]:
+    def clone(self) -> MemoryObjectSendStream[T_contra]:
         """
         Create a clone of this send stream.
 
@@ -279,7 +281,7 @@ class MemoryObjectSendStream(Generic[T_Item], ObjectSendStream[T_Item]):
         """
         return self._state.statistics()
 
-    def __enter__(self) -> MemoryObjectSendStream[T_Item]:
+    def __enter__(self) -> MemoryObjectSendStream[T_contra]:
         return self
 
     def __exit__(
