@@ -65,17 +65,6 @@ class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
         self._state.open_receive_channels += 1
 
     def receive_nowait(self) -> T_co:
-        """
-        Receive the next item if it can be done without waiting.
-
-        :return: the received item
-        :raises ~anyio.ClosedResourceError: if this send stream has been closed
-        :raises ~anyio.EndOfStream: if the buffer is empty and this stream has been
-            closed from the sending end
-        :raises ~anyio.WouldBlock: if there are no items in the buffer and no tasks
-            waiting to send
-
-        """
         if self._closed:
             raise ClosedResourceError
 

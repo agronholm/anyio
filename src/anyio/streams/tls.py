@@ -11,6 +11,7 @@ from typing import Any, Tuple, TypeVar
 from .. import (
     BrokenResourceError,
     EndOfStream,
+    WouldBlock,
     aclose_forcefully,
     get_cancelled_exc_class,
 )
@@ -194,6 +195,17 @@ class TLSStream(ByteStream):
                 raise
 
         await self.transport_stream.aclose()
+
+    def receive_nowait(self, max_bytes: int = 65536) -> bytes:
+        try:
+            data = self._ssl_object.read(max_bytes)
+        except ssl.SSLError:
+            raise WouldBlock
+
+        if not data:
+            raise EndOfStream
+
+        return data
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
         data = await self._call_sslobject_method(self._ssl_object.read, max_bytes)

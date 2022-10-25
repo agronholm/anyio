@@ -4,7 +4,7 @@ from abc import abstractmethod
 from collections.abc import Callable
 from typing import Any, Generic, TypeVar, Union
 
-from .._core._exceptions import EndOfStream
+from .._core._exceptions import EndOfStream, WouldBlock
 from .._core._typedattr import TypedAttributeProvider
 from ._resources import AsyncResource
 from ._tasks import TaskGroup
@@ -35,6 +35,20 @@ class UnreliableObjectReceiveStream(
             return await self.receive()
         except EndOfStream:
             raise StopAsyncIteration
+
+    def receive_nowait(self) -> T_co:
+        """
+        Receive the next item if it can be done without waiting.
+
+        :raises ~anyio.ClosedResourceError: if the receive stream has been explicitly
+            closed
+        :raises ~anyio.EndOfStream: if this stream has been closed from the other end
+        :raises ~anyio.BrokenResourceError: if this stream has been rendered unusable
+            due to external causes
+        :raises ~anyio.WouldBlock: if there is no item immeditately available
+
+        """
+        raise WouldBlock
 
     @abstractmethod
     async def receive(self) -> T_co:
@@ -131,6 +145,21 @@ class ByteReceiveStream(AsyncResource, TypedAttributeProvider):
             return await self.receive()
         except EndOfStream:
             raise StopAsyncIteration
+
+    def receive_nowait(self, max_bytes: int = 65536) -> bytes:
+        """
+        Receive at most ``max_bytes`` bytes from the peer, if it can be done without
+        blocking.
+
+        .. note:: Implementors of this interface should not return an empty
+            :class:`bytes` object, and users should ignore them.
+
+        :param max_bytes: maximum number of bytes to receive
+        :return: the received bytes
+        :raises ~anyio.EndOfStream: if this stream has been closed from the other end
+        :raises ~anyio.WouldBlock: if there is no data waiting to be received
+        """
+        raise WouldBlock
 
     @abstractmethod
     async def receive(self, max_bytes: int = 65536) -> bytes:

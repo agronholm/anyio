@@ -755,6 +755,16 @@ class BlockingPortal(abc.BlockingPortal):
 class StreamReaderWrapper(abc.ByteReceiveStream):
     _stream: asyncio.StreamReader
 
+    def receive_nowait(self, max_bytes: int = 65536) -> bytes:
+        if self._stream.exception():
+            raise self._stream.exception()
+        elif not self._stream._buffer:  # type: ignore[attr-defined]
+            raise WouldBlock
+
+        data = self._stream._buffer[:max_bytes]  # type: ignore[attr-defined]
+        del self._stream._buffer[:max_bytes]  # type: ignore[attr-defined]
+        return data
+
     async def receive(self, max_bytes: int = 65536) -> bytes:
         data = await self._stream.read(max_bytes)
         if data:

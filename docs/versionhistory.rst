@@ -10,6 +10,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Bumped minimum version of trio to v0.22
 - Added ``create_unix_datagram_socket`` and ``create_connected_unix_datagram_socket`` to
   create UNIX datagram sockets (PR by Jean Hominal)
+- Added the ``receive_nowait()`` method to the entire stream class hierarchy
 - Improved type annotations:
 
   - Several functions and methods that previously only accepted coroutines as the return

@@ -363,6 +363,18 @@ class SocketStream(_TrioSocketMixin, abc.SocketStream):
         self._receive_guard = ResourceGuard("reading from")
         self._send_guard = ResourceGuard("writing to")
 
+    def receive_nowait(self, max_bytes: int = 65536) -> bytes:
+        with self._receive_guard:
+            try:
+                data = self._raw_socket.recv(max_bytes)
+            except BaseException as exc:
+                self._convert_socket_error(exc)
+
+            if data:
+                return data
+            else:
+                raise EndOfStream
+
     async def receive(self, max_bytes: int = 65536) -> bytes:
         with self._receive_guard:
             try:
