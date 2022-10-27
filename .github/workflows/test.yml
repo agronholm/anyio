@@ -39,7 +39,6 @@ jobs:
         - os: windows-latest
           python-version: "3.11"
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
@@ -54,6 +53,7 @@ jobs:
       run: pip install .[test] coveralls
     - name: Test with pytest
       run: coverage run -m pytest
+      timeout-minutes: 5
       env:
         PYTEST_DISABLE_PLUGIN_AUTOLOAD: 1
     - name: Upload Coverage
