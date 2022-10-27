@@ -52,7 +52,7 @@ jobs:
     - name: Install dependencies
       run: pip install .[test] coveralls
     - name: Test with pytest
-      run: coverage run -m pytest
+      run: coverage run -m pytest -v
       timeout-minutes: 5
       env:
         PYTEST_DISABLE_PLUGIN_AUTOLOAD: 1
