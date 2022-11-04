@@ -375,7 +375,7 @@ async def create_udp_socket(
     Create a UDP socket.
 
     If ``port`` has been given, the socket will be bound to this port on the local
-    machine,making this socket suitable for providing UDP based services.
+    machine, making this socket suitable for providing UDP based services.
 
     :param family: address family (``AF_INET`` or ``AF_INET6``) – automatically
         determined from ``local_host`` if omitted
