@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import NoReturn
+
 import pytest
 
 from anyio import (
@@ -36,7 +38,7 @@ async def test_receive_then_send() -> None:
         received_objects.append(await receive.receive())
         received_objects.append(await receive.receive())
 
-    send, receive = create_memory_object_stream(0)
+    send, receive = create_memory_object_stream[str](0)
     received_objects: list[str] = []
     async with create_task_group() as tg:
         tg.start_soon(receiver)
@@ -51,7 +53,7 @@ async def test_receive_then_send_nowait() -> None:
     async def receiver() -> None:
         received_objects.append(await receive.receive())
 
-    send, receive = create_memory_object_stream(0)
+    send, receive = create_memory_object_stream[str](0)
     received_objects: list[str] = []
     async with create_task_group() as tg:
         tg.start_soon(receiver)
@@ -64,7 +66,7 @@ async def test_receive_then_send_nowait() -> None:
 
 
 async def test_send_then_receive_nowait() -> None:
-    send, receive = create_memory_object_stream(0)
+    send, receive = create_memory_object_stream[str](0)
     async with create_task_group() as tg:
         tg.start_soon(send.send, "hello")
         await wait_all_tasks_blocked()
@@ -72,7 +74,7 @@ async def test_send_then_receive_nowait() -> None:
 
 
 async def test_send_is_unblocked_after_receive_nowait() -> None:
-    send, receive = create_memory_object_stream(1)
+    send, receive = create_memory_object_stream[str](1)
     send.send_nowait("hello")
 
     with fail_after(1):
@@ -85,7 +87,7 @@ async def test_send_is_unblocked_after_receive_nowait() -> None:
 
 
 async def test_send_nowait_then_receive_nowait() -> None:
-    send, receive = create_memory_object_stream(2)
+    send, receive = create_memory_object_stream[str](2)
     send.send_nowait("hello")
     send.send_nowait("anyio")
     assert receive.receive_nowait() == "hello"
@@ -97,7 +99,7 @@ async def test_iterate() -> None:
         async for item in receive:
             received_objects.append(item)
 
-    send, receive = create_memory_object_stream()
+    send, receive = create_memory_object_stream[str]()
     received_objects: list[str] = []
     async with create_task_group() as tg:
         tg.start_soon(receiver)
@@ -109,7 +111,7 @@ async def test_iterate() -> None:
 
 
 async def test_receive_send_closed_send_stream() -> None:
-    send, receive = create_memory_object_stream()
+    send, receive = create_memory_object_stream[None]()
     await send.aclose()
     with pytest.raises(EndOfStream):
         receive.receive_nowait()
@@ -119,7 +121,7 @@ async def test_receive_send_closed_send_stream() -> None:
 
 
 async def test_receive_send_closed_receive_stream() -> None:
-    send, receive = create_memory_object_stream()
+    send, receive = create_memory_object_stream[None]()
     await receive.aclose()
     with pytest.raises(ClosedResourceError):
         receive.receive_nowait()
@@ -129,7 +131,7 @@ async def test_receive_send_closed_receive_stream() -> None:
 
 
 async def test_cancel_receive() -> None:
-    send, receive = create_memory_object_stream()
+    send, receive = create_memory_object_stream[str]()
     async with create_task_group() as tg:
         tg.start_soon(receive.receive)
         await wait_all_tasks_blocked()
@@ -140,7 +142,7 @@ async def test_cancel_receive() -> None:
 
 
 async def test_cancel_send() -> None:
-    send, receive = create_memory_object_stream()
+    send, receive = create_memory_object_stream[str]()
     async with create_task_group() as tg:
         tg.start_soon(send.send, "hello")
         await wait_all_tasks_blocked()
@@ -151,7 +153,7 @@ async def test_cancel_send() -> None:
 
 
 async def test_clone() -> None:
-    send1, receive1 = create_memory_object_stream(1)
+    send1, receive1 = create_memory_object_stream[str](1)
     send2 = send1.clone()
     receive2 = receive1.clone()
     await send1.aclose()
@@ -161,7 +163,7 @@ async def test_clone() -> None:
 
 
 async def test_clone_closed() -> None:
-    send, receive = create_memory_object_stream(1)
+    send, receive = create_memory_object_stream[NoReturn](1)
     await send.aclose()
     await receive.aclose()
     pytest.raises(ClosedResourceError, send.clone)
@@ -169,7 +171,7 @@ async def test_clone_closed() -> None:
 
 
 async def test_close_send_while_receiving() -> None:
-    send, receive = create_memory_object_stream(1)
+    send, receive = create_memory_object_stream[NoReturn](1)
     with pytest.raises(EndOfStream):
         async with create_task_group() as tg:
             tg.start_soon(receive.receive)
@@ -178,7 +180,7 @@ async def test_close_send_while_receiving() -> None:
 
 
 async def test_close_receive_while_sending() -> None:
-    send, receive = create_memory_object_stream(0)
+    send, receive = create_memory_object_stream[str](0)
     with pytest.raises(BrokenResourceError):
         async with create_task_group() as tg:
             tg.start_soon(send.send, "hello")
@@ -187,7 +189,7 @@ async def test_close_receive_while_sending() -> None:
 
 
 async def test_receive_after_send_closed() -> None:
-    send, receive = create_memory_object_stream(1)
+    send, receive = create_memory_object_stream[str](1)
     await send.send("hello")
     await send.aclose()
     assert await receive.receive() == "hello"
@@ -199,7 +201,7 @@ async def test_receive_when_cancelled() -> None:
     the operation.
 
     """
-    send, receive = create_memory_object_stream()
+    send, receive = create_memory_object_stream[str]()
     async with create_task_group() as tg:
         tg.start_soon(send.send, "hello")
         await wait_all_tasks_blocked()
@@ -225,7 +227,7 @@ async def test_send_when_cancelled() -> None:
         received.append(await receive.receive())
 
     received: list[str] = []
-    send, receive = create_memory_object_stream()
+    send, receive = create_memory_object_stream[str]()
     async with create_task_group() as tg:
         tg.start_soon(receiver)
         with CancelScope() as scope:
@@ -253,7 +255,7 @@ async def test_cancel_during_receive() -> None:
         assert receiver_scope.cancel_called
 
     received: list[str] = []
-    send, receive = create_memory_object_stream()
+    send, receive = create_memory_object_stream[str]()
     async with create_task_group() as tg:
         tg.start_soon(scoped_receiver)
         await wait_all_tasks_blocked()
@@ -273,15 +275,15 @@ async def test_close_receive_after_send() -> None:
         async with receive_stream:
             assert await receive_stream.receive() == "test"
 
-    send_stream, receive_stream = create_memory_object_stream()
+    send_stream, receive_stream = create_memory_object_stream[str]()
     async with create_task_group() as tg:
         tg.start_soon(send)
         tg.start_soon(receive)
 
 
 async def test_statistics() -> None:
-    send_stream, receive_stream = create_memory_object_stream(1)
-    streams: list[MemoryObjectReceiveStream[int] | MemoryObjectSendStream[int]] = [
+    send_stream, receive_stream = create_memory_object_stream[None](1)
+    streams: list[MemoryObjectReceiveStream[None] | MemoryObjectSendStream[None]] = [
         send_stream,
         receive_stream,
     ]
@@ -337,7 +339,7 @@ async def test_statistics() -> None:
 
 
 async def test_sync_close() -> None:
-    send_stream, receive_stream = create_memory_object_stream(1)
+    send_stream, receive_stream = create_memory_object_stream[None](1)
     with send_stream, receive_stream:
         pass
 
@@ -356,7 +358,7 @@ async def test_type_variance() -> None:
     reassignments will trip the type checker.
 
     """
-    send, receive = create_memory_object_stream(item_type=float)
+    send, receive = create_memory_object_stream[float]()
     receive1: MemoryObjectReceiveStream[complex] = receive  # noqa: F841
     receive2: ObjectReceiveStream[complex] = receive  # noqa: F841
     send1: MemoryObjectSendStream[int] = send  # noqa: F841

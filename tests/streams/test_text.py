@@ -13,7 +13,7 @@ pytestmark = pytest.mark.anyio
 
 
 async def test_receive() -> None:
-    send_stream, receive_stream = create_memory_object_stream(1)
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
     text_stream = TextReceiveStream(receive_stream)
     await send_stream.send(b"\xc3\xa5\xc3\xa4\xc3")  # ends with half of the "ö" letter
     assert await text_stream.receive() == "åä"
@@ -24,7 +24,7 @@ async def test_receive() -> None:
 
 
 async def test_send() -> None:
-    send_stream, receive_stream = create_memory_object_stream(1)
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
     text_stream = TextSendStream(send_stream)
     await text_stream.send("åäö")
     assert await receive_stream.receive() == b"\xc3\xa5\xc3\xa4\xc3\xb6"
@@ -36,21 +36,21 @@ async def test_send() -> None:
     reason="PyPy has a bug in its incremental UTF-8 decoder (#3274)",
 )
 async def test_receive_encoding_error() -> None:
-    send_stream, receive_stream = create_memory_object_stream(1)
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
     text_stream = TextReceiveStream(receive_stream, errors="replace")
     await send_stream.send(b"\xe5\xe4\xf6")  # "åäö" in latin-1
     assert await text_stream.receive() == "���"
 
 
 async def test_send_encoding_error() -> None:
-    send_stream, receive_stream = create_memory_object_stream(1)
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
     text_stream = TextSendStream(send_stream, encoding="iso-8859-1", errors="replace")
     await text_stream.send("€")
     assert await receive_stream.receive() == b"?"
 
 
 async def test_bidirectional_stream() -> None:
-    send_stream, receive_stream = create_memory_object_stream(1)
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
     stapled_stream = StapledObjectStream(send_stream, receive_stream)
     text_stream = TextStream(stapled_stream)
 
