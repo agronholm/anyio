@@ -42,6 +42,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   the event loop to be closed
 - Fixed ``current_effective_deadline()`` not returning ``-inf`` on asyncio when the
   currently active cancel scope has been cancelled (PR by Ganden Schaffner)
+- Fixed task group not raising a cancellation exception on asyncio at exit if no child
+  tasks were spawned and an outer cancellation scope had been cancelled before
 
 **3.6.1**
 

@@ -148,6 +148,10 @@ class BlockingPortal:
         await self.stop()
         return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
 
+    @property
+    def _running(self) -> bool:
+        return self._event_loop_thread_id is not None
+
     def _check_running(self) -> None:
         if self._event_loop_thread_id is None:
             raise RuntimeError("This portal is not running")
@@ -202,8 +206,11 @@ class BlockingPortal:
             if not future.cancelled():
                 future.set_exception(exc)
 
-            # Let base exceptions fall through
+            # Let base exceptions fall through, but mark the portal as not running, so
+            # start_blocking_portal() won't try to stop it since BaseException will
+            # cause that anyway
             if not isinstance(exc, Exception):
+                self._event_loop_thread_id = None
                 raise
         else:
             if not future.cancelled():
@@ -413,9 +420,7 @@ def start_blocking_portal(
                 cancel_remaining_tasks = True
                 raise
             finally:
-                try:
+                if not run_future.done() and portal._running:
                     portal.call(portal.stop, cancel_remaining_tasks)
-                except RuntimeError:
-                    pass
 
         run_future.result()

@@ -42,7 +42,6 @@ from typing import (
     Coroutine,
     Deque,
     Generator,
-    Iterator,
     Mapping,
     Optional,
     Sequence,
@@ -456,14 +455,6 @@ def collapse_exception_group(excgroup: BaseExceptionGroup) -> BaseException:
         return excgroup
 
 
-def walk_exception_group(excgroup: BaseExceptionGroup) -> Iterator[BaseException]:
-    for exc in excgroup.exceptions:
-        if isinstance(exc, BaseExceptionGroup):
-            yield from walk_exception_group(exc)
-        else:
-            yield exc
-
-
 def is_anyio_cancelled_exc(exc: BaseException) -> bool:
     return isinstance(exc, CancelledError) and not exc.args
 
@@ -490,11 +481,21 @@ class TaskGroup(abc.TaskGroup):
             self.cancel_scope.cancel()
             self._exceptions.append(exc_val)
 
-        while self.cancel_scope._tasks:
+        if self.cancel_scope._tasks:
+            while self.cancel_scope._tasks:
+                try:
+                    await asyncio.wait(self.cancel_scope._tasks)
+                except asyncio.CancelledError as e:
+                    if exc_val is None:
+                        self.cancel_scope.cancel()
+                        self._exceptions.append(e)
+                        exc_val = e
+        else:
+            # No tasks to wait on, but we still need to check for cancellation here
             try:
-                await asyncio.wait(self.cancel_scope._tasks)
-            except asyncio.CancelledError:
-                self.cancel_scope.cancel()
+                await AsyncIOBackend.checkpoint()
+            except CancelledError as e:
+                self._exceptions.append(e)
 
         self._active = False
         if self._exceptions:
@@ -504,9 +505,6 @@ class TaskGroup(abc.TaskGroup):
                 # If any exceptions other than AnyIO cancellation exceptions have been
                 # received, raise those
                 _, exc = group.split(is_anyio_cancelled_exc)
-            elif all(is_anyio_cancelled_exc(e) for e in walk_exception_group(group)):
-                # All tasks were cancelled by AnyIO
-                exc = CancelledError()
             else:
                 exc = group
 

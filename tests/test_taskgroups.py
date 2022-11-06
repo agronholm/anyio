@@ -396,6 +396,45 @@ async def test_cancel_before_entering_scope() -> None:
         pytest.fail("execution should not reach this point")
 
 
+async def test_cancel_outer_scope_no_tasks() -> None:
+    """
+    Test that a task group raises an exception group containing one cancellation error
+    from __aexit__() if the outer cancel scope was cancelled.
+
+    """
+    with CancelScope() as outer_scope:
+        try:
+            async with anyio.create_task_group():
+                outer_scope.cancel()
+        except BaseException as exc:
+            if not isinstance(exc, get_cancelled_exc_class()):
+                pytest.fail("should have raised a cancellation exception")
+
+            raise
+        else:
+            pytest.fail("should have raised an exception")
+
+
+async def test_cancel_outer_scope_one_task() -> None:
+    """
+    Test that a task group propagates a cancellation error (wrapped in an exception
+    group) from __aexit__() that was not intended for the task group's cancel scope.
+
+    """
+    with CancelScope() as outer_scope:
+        try:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(sleep, 3)
+                outer_scope.cancel()
+        except BaseExceptionGroup as excgrp:
+            assert len(excgrp.exceptions) == 2
+            raise
+        except get_cancelled_exc_class():
+            pytest.fail("task group raised a plain cancellation error")
+        else:
+            pytest.fail("should have raised an exception group")
+
+
 async def test_exception_group_children() -> None:
     with pytest.raises(BaseExceptionGroup) as exc:
         async with create_task_group() as tg:
