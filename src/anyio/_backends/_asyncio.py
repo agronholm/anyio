@@ -77,7 +77,7 @@ from ..abc import (
 from ..lowlevel import RunVar
 
 if sys.version_info < (3, 11):
-    from exceptiongroup import BaseExceptionGroup, ExceptionGroup
+    from exceptiongroup import BaseExceptionGroup
 
 if sys.version_info >= (3, 8):
 
@@ -263,10 +263,15 @@ class CancelScope(BaseCancelScope):
             self._deliver_cancellation_to_parent()
 
         if exc_val is not None:
-            exceptions = (
-                exc_val.exceptions if isinstance(exc_val, ExceptionGroup) else [exc_val]
-            )
-            if all(isinstance(exc, CancelledError) for exc in exceptions):
+            cancelled = False
+            if isinstance(exc_val, CancelledError):
+                cancelled = True
+            elif isinstance(exc_val, BaseExceptionGroup):
+                matched, unmatched = exc_val.split(CancelledError)
+                if matched and not unmatched:
+                    cancelled = True
+
+            if cancelled:
                 if self._timeout_expired:
                     return True
                 elif not self._cancel_called:

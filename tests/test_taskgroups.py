@@ -421,18 +421,21 @@ async def test_cancel_outer_scope_one_task() -> None:
     group) from __aexit__() that was not intended for the task group's cancel scope.
 
     """
-    with CancelScope() as outer_scope:
-        try:
-            async with anyio.create_task_group() as tg:
-                tg.start_soon(sleep, 3)
-                outer_scope.cancel()
-        except BaseExceptionGroup as excgrp:
-            assert len(excgrp.exceptions) == 2
-            raise
-        except get_cancelled_exc_class():
-            pytest.fail("task group raised a plain cancellation error")
-        else:
-            pytest.fail("should have raised an exception group")
+    try:
+        with CancelScope() as outer_scope:
+            try:
+                async with anyio.create_task_group() as tg:
+                    tg.start_soon(sleep, 3)
+                    outer_scope.cancel()
+            except BaseExceptionGroup as excgrp:
+                assert len(excgrp.exceptions) == 2
+                raise
+            except get_cancelled_exc_class():
+                pytest.fail("task group raised a plain cancellation error")
+            else:
+                pytest.fail("should have raised an exception group")
+    except BaseException:
+        pytest.fail("the cancel scope should have swallowed the exceptions")
 
 
 async def test_exception_group_children() -> None:
