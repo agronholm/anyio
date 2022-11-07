@@ -262,24 +262,14 @@ class CancelScope(BaseCancelScope):
         if self._shield:
             self._deliver_cancellation_to_parent()
 
-        if exc_val is not None:
-            cancelled = False
-            if isinstance(exc_val, CancelledError):
-                cancelled = True
-            elif isinstance(exc_val, BaseExceptionGroup):
-                matched, unmatched = exc_val.split(CancelledError)
-                if matched and not unmatched:
-                    cancelled = True
-
-            if cancelled:
+        if exc_val is not None and isinstance(exc_val, CancelledError):
+            breakpoint()
+            if not self._parent_cancelled():
                 if self._timeout_expired:
                     return True
                 elif not self._cancel_called:
                     # Task was cancelled natively
                     return None
-                elif not self._parent_cancelled():
-                    # This scope was directly cancelled
-                    return True
 
         return None
 
@@ -442,24 +432,6 @@ class _AsyncioTaskStatus(abc.TaskStatus):
         _task_states[task].parent_id = self._parent_id
 
 
-def collapse_exception_group(excgroup: BaseExceptionGroup) -> BaseException:
-    exceptions = list(excgroup.exceptions)
-    modified = False
-    for i, exc in enumerate(exceptions):
-        if isinstance(exc, BaseExceptionGroup):
-            new_exc = collapse_exception_group(exc)
-            if new_exc is not exc:
-                modified = True
-                exceptions[i] = new_exc
-
-    if len(exceptions) == 1:
-        return exceptions[0]
-    elif modified:
-        return excgroup.derive(exceptions)
-    else:
-        return excgroup
-
-
 def is_anyio_cancelled_exc(exc: BaseException) -> bool:
     return isinstance(exc, CancelledError) and not exc.args
 
@@ -491,10 +463,8 @@ class TaskGroup(abc.TaskGroup):
                 try:
                     await asyncio.wait(self.cancel_scope._tasks)
                 except asyncio.CancelledError as e:
-                    if exc_val is None:
-                        self.cancel_scope.cancel()
-                        self._exceptions.append(e)
-                        exc_val = e
+                    self.cancel_scope.cancel()
+                    self._exceptions.append(e)
         else:
             # No tasks to wait on, but we still need to check for cancellation here
             try:
@@ -504,20 +474,14 @@ class TaskGroup(abc.TaskGroup):
 
         self._active = False
         if self._exceptions:
+            # if self._exceptions and (len(self._exceptions) != 1 or self._exceptions[0] is exc_val):
             exc: BaseException | None
             group = BaseExceptionGroup("multiple tasks failed", self._exceptions)
-            if not self.cancel_scope._parent_cancelled():
-                # If any exceptions other than AnyIO cancellation exceptions have been
-                # received, raise those
-                _, exc = group.split(is_anyio_cancelled_exc)
-            else:
-                exc = group
-
-            if isinstance(exc, BaseExceptionGroup):
-                exc = collapse_exception_group(exc)
-
-            if exc is not None and exc is not exc_val:
-                raise exc
+            matched, unmatched = group.split(CancelledError)
+            if unmatched:
+                raise unmatched
+            elif self._exceptions[0] is not exc_val or not ignore_exception:
+                raise CancelledError from None
 
         return ignore_exception
 

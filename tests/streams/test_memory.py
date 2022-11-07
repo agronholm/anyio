@@ -170,20 +170,26 @@ async def test_clone_closed() -> None:
 
 async def test_close_send_while_receiving() -> None:
     send, receive = create_memory_object_stream(1)
-    with pytest.raises(EndOfStream):
+    with pytest.raises(ExceptionGroup) as exc:
         async with create_task_group() as tg:
             tg.start_soon(receive.receive)
             await wait_all_tasks_blocked()
             await send.aclose()
 
+    matched, unmatched = exc.value.split(EndOfStream)
+    assert not unmatched
+
 
 async def test_close_receive_while_sending() -> None:
     send, receive = create_memory_object_stream(0)
-    with pytest.raises(BrokenResourceError):
+    with pytest.raises(ExceptionGroup) as exc:
         async with create_task_group() as tg:
             tg.start_soon(send.send, "hello")
             await wait_all_tasks_blocked()
             await receive.aclose()
+
+    matched, unmatched = exc.value.split(BrokenResourceError)
+    assert not unmatched
 
 
 async def test_receive_after_send_closed() -> None:

@@ -27,7 +27,7 @@ from anyio.abc import TaskGroup, TaskStatus
 from anyio.lowlevel import checkpoint
 
 if sys.version_info < (3, 11):
-    from exceptiongroup import BaseExceptionGroup
+    from exceptiongroup import BaseExceptionGroup, ExceptionGroup
 
 pytestmark = pytest.mark.anyio
 
@@ -89,7 +89,7 @@ async def test_start_soon_while_running() -> None:
 
 
 async def test_start_soon_after_error() -> None:
-    with pytest.raises(ZeroDivisionError):
+    with pytest.raises(ExceptionGroup):
         async with create_task_group() as tg:
             a = 1 / 0  # noqa: F841
 
@@ -147,11 +147,11 @@ async def test_start_crash_after_started_call() -> None:
         task_status.started(2)
         raise Exception("foo")
 
-    with pytest.raises(Exception) as exc:
+    with pytest.raises(ExceptionGroup) as exc:
         async with create_task_group() as tg:
             value = await tg.start(taskfunc)
 
-    exc.match("foo")
+    assert str(exc.value.exceptions[0]) == "foo"
     assert value == 2
 
 
@@ -427,12 +427,9 @@ async def test_cancel_outer_scope_one_task() -> None:
                 async with anyio.create_task_group() as tg:
                     tg.start_soon(sleep, 3)
                     outer_scope.cancel()
-            except BaseExceptionGroup as excgrp:
-                assert len(excgrp.exceptions) == 2
-                raise
             except get_cancelled_exc_class():
-                pytest.fail("task group raised a plain cancellation error")
-            else:
+                pass
+            except BaseException:
                 pytest.fail("should have raised an exception group")
     except BaseException:
         pytest.fail("the cancel scope should have swallowed the exceptions")
@@ -787,13 +784,16 @@ async def test_nested_shield() -> None:
         await wait_all_tasks_blocked()
         scope.cancel()
 
-    with pytest.raises(TimeoutError):
+    with pytest.raises(ExceptionGroup) as exc:
         async with create_task_group() as tg:
             with CancelScope() as scope:
                 with CancelScope(shield=True):
                     tg.start_soon(killer, scope)
                     with fail_after(0.2):
                         await sleep(2)
+
+    _, unmatched = exc.value.split(TimeoutError)
+    assert not unmatched
 
 
 async def test_triple_nested_shield() -> None:
@@ -862,7 +862,7 @@ async def test_exception_group_filtering() -> None:
 
     assert len(exc.value.exceptions) == 2
     assert str(exc.value.exceptions[0]) == "parent task failed"
-    assert str(exc.value.exceptions[1]) == "child task failed"
+    assert str(exc.value.exceptions[1].exceptions[0]) == "child task failed"
 
 
 async def test_cancel_propagation_with_inner_spawn() -> None:

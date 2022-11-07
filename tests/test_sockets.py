@@ -657,12 +657,15 @@ class TestTCPListener:
 
     async def test_close_from_other_task(self, family: AnyIPAddressFamily) -> None:
         listener = await create_tcp_listener(local_host="localhost", family=family)
-        with pytest.raises(ClosedResourceError):
+        with pytest.raises(ExceptionGroup) as exc:
             async with create_task_group() as tg:
                 tg.start_soon(listener.serve, lambda stream: None)
                 await wait_all_tasks_blocked()
                 await listener.aclose()
                 tg.cancel_scope.cancel()
+
+        _, unmatched = exc.value.split(ClosedResourceError)
+        assert not unmatched
 
     async def test_send_after_eof(self, family: AnyIPAddressFamily) -> None:
         async def handle(stream: SocketStream) -> None:

@@ -134,7 +134,7 @@ class CancelScope(BaseCancelScope):
 class TaskGroup(abc.TaskGroup):
     def __init__(self) -> None:
         self._active = False
-        self._nursery_manager = trio.open_nursery()
+        self._nursery_manager = trio.open_nursery(strict_exception_groups=True)
         self.cancel_scope = None  # type: ignore[assignment]
 
     async def __aenter__(self) -> TaskGroup:
@@ -151,6 +151,14 @@ class TaskGroup(abc.TaskGroup):
     ) -> bool | None:
         try:
             return await self._nursery_manager.__aexit__(exc_type, exc_val, exc_tb)
+        except BaseExceptionGroup as excgrp:
+            matched, unmatched = excgrp.split(trio.Cancelled)
+            if not unmatched:
+                raise trio.Cancelled._create() from None
+            elif unmatched:
+                raise unmatched from None
+            else:
+                raise
         finally:
             self._active = False
 
@@ -719,7 +727,7 @@ class TestRunner(abc.TestRunner):
 
     async def _trio_main(self) -> None:
         self._stop_event = trio.Event()
-        async with trio.open_nursery() as self._nursery:
+        async with trio.open_nursery(strict_exception_groups=True) as self._nursery:
             await self._stop_event.wait()
 
     async def _call_func(

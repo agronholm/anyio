@@ -390,9 +390,12 @@ class TestBlockingPortal:
                 yield
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
-            with pytest.raises(ZeroDivisionError):
+            with pytest.raises(ExceptionGroup) as exc:
                 with portal.wrap_async_context_manager(run_in_context()):
                     pass
+
+            _, unmatched = exc.value.split(ZeroDivisionError)
+            assert not unmatched
 
     def test_start_no_value(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]

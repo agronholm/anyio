@@ -7,6 +7,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - **BACKWARDS INCOMPATIBLE** Replaced AnyIO's own ``ExceptionGroup`` class with the PEP
   654 ``BaseExceptionGroup`` and ``ExceptionGroup``
+- **BACKWARDS INCOMPATIBLE** Changes to cancellation semantics:
+
+  - Any exceptions raising out of a task groups are now nested inside an
+    ``ExceptionGroup`` (or ``BaseExceptionGroup`` if one or more ``BaseException`` were
+    included), except when all the exceptions are cancellation exceptions. In that case,
+    a single cancellation exception is raised instead.
 - Bumped minimum version of trio to v0.22
 - Added ``create_unix_datagram_socket`` and ``create_connected_unix_datagram_socket`` to
   create UNIX datagram sockets (PR by Jean Hominal)
