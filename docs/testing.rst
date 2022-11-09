@@ -145,19 +145,15 @@ The fixtures and tests are run by a "test runner", implemented separately for ea
 The test runner keeps an event loop open during the request, making it possible for code in
 fixtures to communicate with the code in the tests (and each other).
 
-The test runner is created when the first matching async test or fixture is about to be run, and
-shut down when that same fixture is being torn down or the test has finished running. As such,
-if no async fixtures are used, a separate test runner is created for each test. Conversely, if
-even one async fixture (scoped higher than ``function``) is shared across all tests, only one test
-runner will be created during the test session.
+The test runner is created when the first matching async test or fixture is about to be
+run, and shut down when that same fixture is being torn down or the test has finished
+running. As such, if no higher-order (scoped ``class`` or higher) async fixtures are
+used, a separate test runner is created for each matching test. Conversely, if even one
+async fixture, scoped higher than ``function``, is shared across all tests, only one
+test runner will be created during the test session.
 
-For async generator based fixtures, the test runner spawns a task that handles both the setup and
-teardown phases to enable context-sensitive code to work properly. A common example of this is
-providing a task group as a fixture.
-
-Since each test and fixture run in their own separate tasks, no changes to any context
-variables will propagate out of them to tests or other fixtures. This is in line with
-``pytest-asyncio``, but in contrast to ``pytest-trio`` where all fixtures and tests
-`share the same context`_.
-
-.. _share the same context: https://pytest-trio.readthedocs.io/en/stable/reference.html#handling-of-contextvars
+The test runner runs all async fixtures and tests in the same task, so context variables
+set in fixtures will affect other fixtures and tests. This is in line with
+``pytest-trio`` but in contrast to ``pytest-asyncio`` where all fixtures and tests are
+run in separate tasks (and for async fixtures, setup and teardown are run in separate
+tasks).
