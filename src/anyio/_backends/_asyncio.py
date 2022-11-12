@@ -1762,12 +1762,16 @@ class TestRunner(abc.TestRunner):
 
     def close(self) -> None:
         try:
+            if self._runner_task is not None:
+                self._runner_task = None
+                self._loop.run_until_complete(self._send_stream.aclose())
+                del self._send_stream
+
             self._cancel_all_tasks()
             self._loop.run_until_complete(self._loop.shutdown_asyncgens())
         finally:
             asyncio.set_event_loop(None)
             self._loop.close()
-            self._runner_task = None
 
     def run_asyncgen_fixture(
         self,
