@@ -107,9 +107,7 @@ class TLSStream(ByteStream):
 
             # Re-enable detection of unexpected EOFs if it was disabled by Python
             if hasattr(ssl, "OP_IGNORE_UNEXPECTED_EOF"):
-                ssl_context.options ^= (
-                    ssl.OP_IGNORE_UNEXPECTED_EOF  # type: ignore[attr-defined]
-                )
+                ssl_context.options ^= ssl.OP_IGNORE_UNEXPECTED_EOF
 
         bio_in = ssl.MemoryBIO()
         bio_out = ssl.MemoryBIO()

@@ -302,7 +302,7 @@ class _ProcessPoolShutdownInstrument(trio.abc.Instrument):
         super().after_run()
 
 
-current_default_worker_process_limiter: RunVar = RunVar(
+current_default_worker_process_limiter: trio.lowlevel.RunVar = RunVar(
     "current_default_worker_process_limiter"
 )
 
@@ -666,7 +666,7 @@ class CapacityLimiter(BaseCapacityLimiter):
         )
 
 
-_capacity_limiter_wrapper: RunVar = RunVar("_capacity_limiter_wrapper")
+_capacity_limiter_wrapper: trio.lowlevel.RunVar = RunVar("_capacity_limiter_wrapper")
 
 
 #
@@ -1005,7 +1005,7 @@ class TrioBackend(AsyncBackend):
         ...
 
     @classmethod
-    async def create_unix_datagram_socket(  # type: ignore[override]
+    async def create_unix_datagram_socket(
         cls, raw_socket: socket.socket, remote_path: str | None
     ) -> abc.UNIXDatagramSocket | abc.ConnectedUNIXDatagramSocket:
         trio_socket = trio.socket.from_stdlib_socket(raw_socket)
