@@ -3,6 +3,7 @@ from __future__ import annotations
 import array
 import math
 import socket
+import sys
 from collections.abc import AsyncIterator, Iterable
 from concurrent.futures import Future
 from dataclasses import dataclass
@@ -60,6 +61,9 @@ from .._core._synchronization import ResourceGuard
 from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import BaseExceptionGroup
 
 if TYPE_CHECKING:
     from trio_typing import TaskStatus
@@ -134,7 +138,9 @@ class CancelScope(BaseCancelScope):
 class TaskGroup(abc.TaskGroup):
     def __init__(self) -> None:
         self._active = False
-        self._nursery_manager = trio.open_nursery(strict_exception_groups=True)
+        self._nursery_manager = trio.open_nursery(
+            strict_exception_groups=True  # type: ignore[call-arg]
+        )
         self.cancel_scope = None  # type: ignore[assignment]
 
     async def __aenter__(self) -> TaskGroup:
@@ -154,7 +160,7 @@ class TaskGroup(abc.TaskGroup):
         except BaseExceptionGroup as excgrp:
             matched, unmatched = excgrp.split(trio.Cancelled)
             if not unmatched:
-                raise trio.Cancelled._create() from None
+                raise trio.Cancelled._create() from None  # type: ignore[attr-defined]
             elif unmatched:
                 raise unmatched from None
             else:
@@ -727,7 +733,9 @@ class TestRunner(abc.TestRunner):
 
     async def _trio_main(self) -> None:
         self._stop_event = trio.Event()
-        async with trio.open_nursery(strict_exception_groups=True) as self._nursery:
+        async with trio.open_nursery(
+            strict_exception_groups=True  # type: ignore[call-arg]
+        ) as self._nursery:
             await self._stop_event.wait()
 
     async def _call_func(
