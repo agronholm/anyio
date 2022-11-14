@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from anyio import (
@@ -15,6 +17,9 @@ from anyio import (
 )
 from anyio.abc import ObjectReceiveStream, ObjectSendStream
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 pytestmark = pytest.mark.anyio
 

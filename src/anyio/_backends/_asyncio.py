@@ -263,7 +263,6 @@ class CancelScope(BaseCancelScope):
             self._deliver_cancellation_to_parent()
 
         if exc_val is not None and isinstance(exc_val, CancelledError):
-            breakpoint()
             if not self._parent_cancelled():
                 if self._timeout_expired:
                     return True
@@ -474,7 +473,6 @@ class TaskGroup(abc.TaskGroup):
 
         self._active = False
         if self._exceptions:
-            # if self._exceptions and (len(self._exceptions) != 1 or self._exceptions[0] is exc_val):
             exc: BaseException | None
             group = BaseExceptionGroup("multiple tasks failed", self._exceptions)
             matched, unmatched = group.split(CancelledError)

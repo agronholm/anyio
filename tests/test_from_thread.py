@@ -27,6 +27,9 @@ from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
 from anyio.lowlevel import checkpoint
 
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
+
 if sys.version_info >= (3, 8):
     from typing import Literal
 else:
