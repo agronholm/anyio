@@ -237,7 +237,7 @@ async def test_start_exception_delivery() -> None:
 
     async with anyio.create_task_group() as tg:
         with pytest.raises(TypeError, match="to be synchronous$"):
-            await tg.start(task_fn)  # type: ignore[arg-type]
+            await tg.start(task_fn)
 
 
 async def test_host_exception() -> None:
@@ -862,6 +862,7 @@ async def test_exception_group_filtering() -> None:
 
     assert len(exc.value.exceptions) == 2
     assert str(exc.value.exceptions[0]) == "parent task failed"
+    assert isinstance(exc.value.exceptions[1], ExceptionGroup)
     assert str(exc.value.exceptions[1].exceptions[0]) == "child task failed"
 
 
