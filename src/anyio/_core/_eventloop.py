@@ -153,4 +153,4 @@ def get_async_backend(asynclib_name: str | None = None) -> AsyncBackend:
     except KeyError:
         module = import_module(modulename)
 
-    return getattr(module, "backend_class")
+    return module.backend_class

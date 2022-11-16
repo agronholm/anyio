@@ -96,7 +96,7 @@ class _BlockingAsyncContextManager(Generic[T_co], AbstractContextManager):
             # `_BlockingAsyncContextManager.__exit__` is called, and an
             # `_exit_exc_info` has been set.
             result = await self._async_cm.__aexit__(*self._exit_exc_info)
-            return result
+        return result
 
     def __enter__(self) -> T_co:
         self._enter_future = Future()

@@ -135,6 +135,6 @@ from ._core._typedattr import TypedAttributeProvider, TypedAttributeSet, typed_a
 # Re-export imports so they look like they live directly in this package
 key: str
 value: Any
-for key, value in list(locals().items()):
+for value in list(locals().values()):
     if getattr(value, "__module__", "").startswith("anyio."):
         value.__module__ = __name__

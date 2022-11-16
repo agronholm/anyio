@@ -265,14 +265,14 @@ class TLSListener(Listener[TLSStream]):
 
     @staticmethod
     async def handle_handshake_error(exc: BaseException, stream: AnyByteStream) -> None:
-        f"""
+        """
         Handle an exception raised during the TLS handshake.
 
         This method does 3 things:
 
         #. Forcefully closes the original stream
         #. Logs the exception (unless it was a cancellation exception) using the
-          ``{__name__}`` logger
+          ``anyio.streams.tls`` logger
         #. Reraises the exception if it was a base exception or a cancellation exception
 
         :param exc: the exception

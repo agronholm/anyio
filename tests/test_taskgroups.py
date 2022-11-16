@@ -335,7 +335,7 @@ async def test_cancel_propagation() -> None:
         async with create_task_group():
             await sleep(1)
 
-        assert False
+        raise AssertionError()
 
     async with create_task_group() as tg:
         tg.start_soon(g)
@@ -829,7 +829,7 @@ async def test_cancel_propagation_with_inner_spawn() -> None:
             tg2.start_soon(anyio.sleep, 10)
             await anyio.sleep(1)
 
-        assert False
+        raise AssertionError()
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(g)

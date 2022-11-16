@@ -16,7 +16,7 @@ pytestmark = pytest.mark.anyio
 
 class TestAsyncFile:
     @pytest.fixture(scope="class")
-    def testdata(cls) -> bytes:
+    def testdata(cls) -> bytes:  # noqa: N805
         return b"".join(bytes([i] * 1000) for i in range(10))
 
     @pytest.fixture

@@ -1,16 +1,13 @@
 [build-system]
-requires = [
-    "setuptools >= 64",
-    "setuptools_scm >= 6.4"
-]
+requires = ["setuptools >= 64", "setuptools_scm >= 6.4"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "anyio"
 description = "High level compatibility layer for multiple asynchronous event loop implementations"
 readme = "README.rst"
-authors = [{name = "Alex Grönholm", email = "alex.gronholm@nextday.fi"}]
-license = {text = "MIT"}
+authors = [{ name = "Alex Grönholm", email = "alex.gronholm@nextday.fi" }]
+license = { text = "MIT" }
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
@@ -51,14 +48,10 @@ test = [
     "trustme",
     "uvloop >= 0.17; platform_python_implementation == 'CPython' and platform_system != 'Windows'",
 ]
-doc = [
-    "packaging",
-    "sphinx_rtd_theme",
-    "sphinx-autodoc-typehints >= 1.2.0",
-]
+doc = ["packaging", "sphinx_rtd_theme", "sphinx-autodoc-typehints >= 1.2.0"]
 
 [project.entry-points]
-pytest11 = {anyio = "anyio.pytest_plugin"}
+pytest11 = { anyio = "anyio.pytest_plugin" }
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
@@ -68,9 +61,27 @@ local_scheme = "dirty-tag"
 skip_gitignore = true
 profile = "black"
 
-[tool.flake8]
-max-line-length = 88
-ignore = ["E203", "W503"]
+[tool.ruff]
+select = [
+    "B", # bugbear
+    "C", # comprehensions
+    "E", # style errors
+    "F", # flakes
+    # "I",   # import sorting
+    "M", # meta
+    "N", # naming
+    "Q", # quotes
+    "S", # bandit
+    # "U",   # upgrade
+    "W",   # style warnings
+    "YTT", # sys.version
+]
+ignore = [
+    "E731", # Do not assign a lambda expression, use a def
+    "N818", # Exception name should be named with an Error suffix
+    "S101", # Use of `assert` detected
+    "S104", # Possible binding to all interfaces
+]
 
 [tool.mypy]
 python_version = "3.10"
@@ -92,11 +103,9 @@ filterwarnings = [
     "ignore:unclosed transport <_ProactorSocketTransport.*:ResourceWarning",
     # Workaround for Python 3.9.7 (see https://bugs.python.org/issue45097)
     "ignore:The loop argument is deprecated since Python 3\\.8, and scheduled for removal in Python 3\\.10\\.:DeprecationWarning:asyncio",
-    "ignore:Python 3.6 is no longer supported*"
+    "ignore:Python 3.6 is no longer supported*",
 ]
-markers = [
-    "network: marks tests as requiring Internet access",
-]
+markers = ["network: marks tests as requiring Internet access"]
 
 [tool.coverage.run]
 source = ["anyio"]

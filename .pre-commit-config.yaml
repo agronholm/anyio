@@ -12,21 +12,28 @@ repos:
       - id: debug-statements
       - id: end-of-file-fixer
       - id: mixed-line-ending
-        args: [ "--fix=lf" ]
+        args: ["--fix=lf"]
       - id: trailing-whitespace
+
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.0.121
+    hooks:
+      - id: ruff
+        args:
+          - --fix
 
   - repo: https://github.com/pycqa/isort
     rev: 5.10.1
     hooks:
       - id: isort
-        args: [ "-a", "from __future__ import annotations" ]
+        args: ["-a", "from __future__ import annotations"]
         exclude: "docs/conf.py"
 
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.2.2
     hooks:
       - id: pyupgrade
-        args: [ "--py37-plus", "--keep-mock" ]
+        args: ["--py37-plus", "--keep-mock"]
         exclude: "docs/conf.py"
 
   - repo: https://github.com/psf/black
@@ -34,16 +41,11 @@ repos:
     hooks:
       - id: black
 
-  - repo: https://github.com/csachs/pyproject-flake8
-    rev: v5.0.4a1.post1
-    hooks:
-      - id: pyproject-flake8
-
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v0.991
     hooks:
       - id: mypy
-        additional_dependencies: [ "pytest", "trio-typing", "packaging" ]
+        additional_dependencies: ["pytest", "trio-typing", "packaging"]
 
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.9.0
