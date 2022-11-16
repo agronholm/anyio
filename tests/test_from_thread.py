@@ -28,7 +28,7 @@ from anyio.from_thread import BlockingPortal, start_blocking_portal
 from anyio.lowlevel import checkpoint
 
 if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
+    from exceptiongroup import BaseExceptionGroup, ExceptionGroup
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -522,7 +522,7 @@ class TestBlockingPortal:
         async def raise_baseexception() -> None:
             raise BaseException("fatal error")
 
-        with pytest.raises(BaseException, match="fatal error"):
+        with pytest.raises(BaseExceptionGroup) as outer_exc:
             with start_blocking_portal(
                 anyio_backend_name, anyio_backend_options
             ) as portal:
@@ -530,3 +530,6 @@ class TestBlockingPortal:
                     portal.call(raise_baseexception)
 
                 assert exc.value.__context__ is None
+
+        assert len(outer_exc.value.exceptions) == 1
+        assert str(outer_exc.value.exceptions[0]) == "fatal error"

@@ -30,13 +30,14 @@ from queue import Queue
 from signal import Signals
 from socket import AddressFamily, SocketKind
 from threading import Thread
-from types import TracebackType
+from types import MethodType, TracebackType
 from typing import (
     IO,
     Any,
     AsyncGenerator,
     Awaitable,
     Callable,
+    ClassVar,
     Collection,
     ContextManager,
     Coroutine,
@@ -118,7 +119,7 @@ def find_root_task() -> asyncio.Task:
 
     # Look up the topmost task in the AnyIO task tree, if possible
     task = cast(asyncio.Task, current_task())
-    state = _task_states.get(task)
+    state = TaskState.get(task)
     if state:
         cancel_scope = state.cancel_scope
         while cancel_scope and cancel_scope._parent_scope is not None:
@@ -206,17 +207,9 @@ class CancelScope(BaseCancelScope):
             )
 
         self._host_task = host_task = cast(asyncio.Task, current_task())
-        self._tasks.add(host_task)
-        try:
-            task_state = _task_states[host_task]
-        except KeyError:
-            task_name = host_task.get_name() if _native_task_names else None
-            task_state = TaskState(None, task_name, self)
-            _task_states[host_task] = task_state
-        else:
-            self._parent_scope = task_state.cancel_scope
-            task_state.cancel_scope = self
-
+        task_state = TaskState.get(self._host_task)
+        self._parent_scope = task_state.cancel_scope if task_state else None
+        self._add_task(host_task)
         self._timeout()
         self._active = True
 
@@ -240,37 +233,31 @@ class CancelScope(BaseCancelScope):
                 "entered in"
             )
 
-        assert self._host_task is not None
-        host_task_state = _task_states.get(self._host_task)
-        if host_task_state is None or host_task_state.cancel_scope is not self:
+        task_state = TaskState.get(self._host_task)
+        if task_state is None or task_state.cancel_scope is not self:
             raise RuntimeError(
                 "Attempted to exit a cancel scope that isn't the current tasks's "
                 "current cancel scope"
             )
+
+        ignore_exc = isinstance(exc_val, CancelledError) and task_state.uncancel(self)
+
+        # TaskGroup removes the host task from _tasks, so it wouldn't try to wait on
+        # itself
+        if self._host_task in self._tasks:
+            self._remove_task(self._host_task)
 
         self._active = False
         if self._timeout_handle:
             self._timeout_handle.cancel()
             self._timeout_handle = None
 
-        self._tasks.remove(self._host_task)
-
-        host_task_state.cancel_scope = self._parent_scope
-
         # Restart the cancellation effort in the farthest directly cancelled parent
         # scope if this one was shielded
         if self._shield:
             self._deliver_cancellation_to_parent()
 
-        if exc_val is not None and isinstance(exc_val, CancelledError):
-            if not self._parent_cancelled():
-                if self._timeout_expired:
-                    return True
-                elif not self._cancel_called:
-                    # Task was cancelled natively
-                    return None
-
-        return None
+        return ignore_exc
 
     def _timeout(self) -> None:
         if self._deadline != math.inf:
@@ -296,7 +283,8 @@ class CancelScope(BaseCancelScope):
 
             # The task is eligible for cancellation if it has started and is not in a
             # cancel scope shielded from this one
-            cancel_scope = _task_states[task].cancel_scope
+            task_state = TaskState.get(task)
+            cancel_scope = task_state.cancel_scope if task_state else None
             while cancel_scope is not self:
                 if cancel_scope is None or cancel_scope._shield:
                     break
@@ -307,7 +295,7 @@ class CancelScope(BaseCancelScope):
                 if task is not current and (
                     task is self._host_task or _task_started(task)
                 ):
-                    task.cancel()
+                    task.cancel(scope=self)  # type: ignore[call-arg]
 
         # Schedule another callback if there are still tasks left
         if should_retry:
@@ -344,6 +332,16 @@ class CancelScope(BaseCancelScope):
                 cancel_scope = cancel_scope._parent_scope
 
         return False
+
+    def _add_task(
+        self, task: asyncio.Task, parent_task: asyncio.Task | None = None
+    ) -> None:
+        self._tasks.add(task)
+        TaskState.add(task, scope=self, parent_task=parent_task)
+
+    def _remove_task(self, task: asyncio.Task) -> None:
+        self._tasks.remove(task)
+        TaskState.remove(task, self)
 
     def cancel(self) -> None:
         if not self._cancel_called:
@@ -396,17 +394,109 @@ class TaskState:
     itself because there are no guarantees about its implementation.
     """
 
-    __slots__ = "parent_id", "name", "cancel_scope"
+    __slots__ = (
+        "parent_id",
+        "name",
+        "cancel_scope",
+        "_cancelled_by_scopes",
+        "_native_cancellations",
+    )
+
+    _task_states: ClassVar[
+        WeakKeyDictionary[asyncio.Task, TaskState]
+    ] = WeakKeyDictionary()
 
     def __init__(
-        self, parent_id: int | None, name: str | None, cancel_scope: CancelScope | None
+        self,
+        parent_task: asyncio.Task | None,
+        name: str | None,
+        cancel_scope: CancelScope | None,
     ):
-        self.parent_id = parent_id
+        self.parent_id = id(parent_task) if parent_task else None
         self.name = name
         self.cancel_scope = cancel_scope
+        self._cancelled_by_scopes: set[CancelScope] = set()
+        self._native_cancellations = 0
 
+    @classmethod
+    def add(
+        cls,
+        task: asyncio.Task,
+        *,
+        scope: CancelScope | None = None,
+        parent_task: asyncio.Task | None = None,
+        name: object = None,
+    ) -> TaskState:
+        state = cls._task_states.get(task)
+        if state is None:
+            task_name: str | None = None
+            if name is not None:
+                task_name = str(name)
+            elif _native_task_names:
+                task_name = task.get_name()
 
-_task_states = WeakKeyDictionary()  # type: WeakKeyDictionary[asyncio.Task, TaskState]
+            state = cls(parent_task, task_name, scope)
+            cls._task_states[task] = state
+            task.cancel = MethodType(  # type: ignore[assignment]
+                partial(TaskState._patched_cancel, original=task.cancel), task
+            )
+            if sys.version_info >= (3, 11):
+                task.uncancel = MethodType(
+                    partial(TaskState._patched_uncancel, original=task.uncancel), task
+                )
+        else:
+            state.cancel_scope = scope
+
+        assert state.cancel_scope is scope
+        return state
+
+    @classmethod
+    def get(cls, task: asyncio.Task) -> TaskState | None:
+        return cls._task_states.get(task)
+
+    @classmethod
+    def remove(cls, task: asyncio.Task, scope: CancelScope | None) -> None:
+        state = cls._task_states[task]
+        if state.cancel_scope is None:
+            patched_method = cast(partial, task.cancel)
+            task.cancel = patched_method.keywords[  # type: ignore[assignment]
+                "original"
+            ]
+            del cls._task_states[task]
+        else:
+            state.cancel_scope = state.cancel_scope._parent_scope
+
+    @staticmethod
+    def _patched_cancel(
+        self: asyncio.Task,
+        *args: object,
+        original: Callable,
+        scope: CancelScope | None = None,
+    ) -> None:
+        state = TaskState._task_states.get(self)
+        if state is not None:
+            if scope is None:
+                state._native_cancellations += 1
+            else:
+                state._cancelled_by_scopes.add(scope)
+
+        original(*args)
+
+    @staticmethod
+    def _patched_uncancel(self: asyncio.Task, original: Callable) -> int:
+        state = TaskState._task_states.get(self)
+        if state is not None:
+            state._native_cancellations -= 1
+
+        return original()
+
+    def uncancel(self, scope: CancelScope) -> bool:
+        self._cancelled_by_scopes.discard(scope)
+        return not self.cancelled
+
+    @property
+    def cancelled(self) -> bool:
+        return bool(self._native_cancellations) or bool(self._cancelled_by_scopes)
 
 
 #
@@ -428,11 +518,7 @@ class _AsyncioTaskStatus(abc.TaskStatus):
             ) from None
 
         task = cast(asyncio.Task, current_task())
-        _task_states[task].parent_id = self._parent_id
-
-
-def is_anyio_cancelled_exc(exc: BaseException) -> bool:
-    return isinstance(exc, CancelledError) and not exc.args
+        TaskState.get(task).parent_id = self._parent_id
 
 
 class TaskGroup(abc.TaskGroup):
@@ -474,11 +560,18 @@ class TaskGroup(abc.TaskGroup):
         self._active = False
         if self._exceptions:
             exc: BaseException | None
-            group = BaseExceptionGroup("multiple tasks failed", self._exceptions)
+            group = BaseExceptionGroup(
+                "one or more errors occurred in a task group", self._exceptions
+            )
             matched, unmatched = group.split(CancelledError)
             if unmatched:
+                # If there are exceptions other than CancelledError, always raise those
                 raise unmatched
-            elif self._exceptions[0] is not exc_val or not ignore_exception:
+
+            # If the host task was natively cancelled, or a parent cancel scope was
+            # cancelled, raise a new CancelledError
+            task_state = TaskState.get(self.cancel_scope._host_task)
+            if task_state.cancelled:
                 raise CancelledError from None
 
         return ignore_exception
@@ -504,9 +597,7 @@ class TaskGroup(abc.TaskGroup):
                     RuntimeError("Child exited without calling task_status.started()")
                 )
         finally:
-            if task in self.cancel_scope._tasks:
-                self.cancel_scope._tasks.remove(task)
-                del _task_states[task]
+            self.cancel_scope._remove_task(task)
 
     def _spawn(
         self,
@@ -517,10 +608,7 @@ class TaskGroup(abc.TaskGroup):
     ) -> asyncio.Task:
         def task_done(_task: asyncio.Task) -> None:
             # This is the code path for Python 3.8+
-            assert _task in self.cancel_scope._tasks
-            self.cancel_scope._tasks.remove(_task)
-            del _task_states[_task]
-
+            self.cancel_scope._remove_task(task)
             try:
                 exc = _task.exception()
             except CancelledError as e:
@@ -552,12 +640,12 @@ class TaskGroup(abc.TaskGroup):
 
         kwargs = {}
         if task_status_future:
-            parent_id = id(current_task())
+            parent_task = cast(asyncio.Task, current_task())
             kwargs["task_status"] = _AsyncioTaskStatus(
                 task_status_future, id(self.cancel_scope._host_task)
             )
         else:
-            parent_id = id(self.cancel_scope._host_task)
+            parent_task = self.cancel_scope._host_task
 
         coro = func(*args, **kwargs)
         if not asyncio.iscoroutine(coro):
@@ -574,10 +662,8 @@ class TaskGroup(abc.TaskGroup):
             task.add_done_callback(task_done)
 
         # Make the spawned task inherit the task group's cancel scope
-        _task_states[task] = TaskState(
-            parent_id=parent_id, name=name, cancel_scope=self.cancel_scope
-        )
-        self.cancel_scope._tasks.add(task)
+        TaskState.add(task, parent_task=parent_task, name=name)
+        self.cancel_scope._add_task(task, parent_task)
         return task
 
     def start_soon(
@@ -1627,7 +1713,7 @@ class _SignalReceiver:
 
 
 def _create_task_info(task: asyncio.Task) -> TaskInfo:
-    task_state = _task_states.get(task)
+    task_state = TaskState.get(task)
     if task_state is None:
         name = task.get_name() if _native_task_names else None
         parent_id = None
@@ -1763,15 +1849,14 @@ class AsyncIOBackend(AsyncBackend):
         @wraps(func)
         async def wrapper() -> T_Retval:
             task = cast(asyncio.Task, current_task())
-            task_state = TaskState(None, get_callable_name(func), None)
-            _task_states[task] = task_state
+            task_state = TaskState.add(task, name=get_callable_name(func))
             if _native_task_names:
                 task.set_name(task_state.name)
 
             try:
                 return await func(*args)
             finally:
-                del _task_states[task]
+                TaskState.remove(task, None)
 
         debug = options.get("debug", False)
         policy = options.get("policy", None)
@@ -1801,11 +1886,8 @@ class AsyncIOBackend(AsyncBackend):
         if task is None:
             return
 
-        try:
-            cancel_scope = _task_states[task].cancel_scope
-        except KeyError:
-            return
-
+        task_state = TaskState.get(task)
+        cancel_scope = task_state.cancel_scope if task_state else None
         while cancel_scope:
             if cancel_scope.cancel_called:
                 await sleep(0)
@@ -1831,13 +1913,9 @@ class AsyncIOBackend(AsyncBackend):
 
     @classmethod
     def current_effective_deadline(cls) -> float:
-        try:
-            cancel_scope = _task_states[
-                current_task()  # type: ignore[index]
-            ].cancel_scope
-        except KeyError:
-            return math.inf
-
+        task = cast(asyncio.Task, current_task())
+        task_state = TaskState.get(task)
+        cancel_scope = task_state.cancel_scope if task_state else None
         deadline = math.inf
         while cancel_scope:
             deadline = min(deadline, cancel_scope.deadline)
