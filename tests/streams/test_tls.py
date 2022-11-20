@@ -230,7 +230,11 @@ class TestTLSStream:
             )
             with client_cm:
                 assert await wrapper.receive() == b"hello"
-                await wrapper.aclose()
+                try:
+                    await wrapper.aclose()
+                except ssl.SSLError:
+                    print("OpenSSL version:", ssl.OPENSSL_VERSION)
+                    raise
 
         server_thread.join()
         server_sock.close()
