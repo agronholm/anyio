@@ -21,6 +21,10 @@ from anyio.abc import AnyByteStream, SocketAttribute, SocketStream
 from anyio.streams.tls import TLSAttribute, TLSListener, TLSStream
 
 pytestmark = pytest.mark.anyio
+skip_on_broken_openssl = pytest.mark.skipif(
+    ssl.OPENSSL_VERSION_INFO[0] > 1,
+    reason="Python 3.7 does not work with OpenSSL versions higher than 1.X",
+)
 
 
 class TestTLSStream:
@@ -184,6 +188,7 @@ class TestTLSStream:
             pytest.param(False, False, id="neither_standard"),
         ],
     )
+    @skip_on_broken_openssl
     async def test_ragged_eofs(
         self,
         server_context: ssl.SSLContext,
@@ -240,6 +245,7 @@ class TestTLSStream:
         else:
             assert server_exc is None
 
+    @skip_on_broken_openssl
     async def test_ragged_eof_on_receive(
         self, server_context: ssl.SSLContext, client_context: ssl.SSLContext
     ) -> None:
@@ -372,6 +378,7 @@ class TestTLSStream:
 
 
 class TestTLSListener:
+    @skip_on_broken_openssl
     async def test_handshake_fail(self, server_context: ssl.SSLContext) -> None:
         def handler(stream: object) -> NoReturn:
             pytest.fail("This function should never be called in this scenario")
