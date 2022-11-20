@@ -189,7 +189,7 @@ async def test_start_exception_delivery() -> None:
 
     async with anyio.create_task_group() as tg:
         with pytest.raises(TypeError, match="to be synchronous$"):
-            await tg.start(task_fn)
+            await tg.start(task_fn)  # type: ignore[arg-type]
 
 
 async def test_host_exception() -> None:

@@ -1256,8 +1256,8 @@ class TestConnectedUDPSocket:
             async with await create_connected_udp_socket(
                 host, port, local_host="localhost", family=family
             ) as udp2:
-                host, port = udp2.extra(
-                    SocketAttribute.local_address  # type: ignore[misc]
+                host, port = udp2.extra(  # type: ignore[misc]
+                    SocketAttribute.local_address
                 )
                 await udp2.send(b"blah")
                 request = await udp1.receive()

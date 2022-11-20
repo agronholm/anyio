@@ -206,7 +206,11 @@ class CancelScope(BaseCancelScope):
                 "Each CancelScope may only be used for a single 'with' block"
             )
 
-        self._host_task = host_task = cast(asyncio.Task, current_task())
+        host_task = current_task()
+        if host_task is None:
+            raise RuntimeError("Must be in a task to enter a cancel scope")
+
+        self._host_task = host_task
         task_state = TaskState.get(self._host_task)
         self._parent_scope = task_state.cancel_scope if task_state else None
         self._add_task(host_task)
@@ -227,13 +231,17 @@ class CancelScope(BaseCancelScope):
     ) -> bool | None:
         if not self._active:
             raise RuntimeError("This cancel scope is not active")
-        if current_task() is not self._host_task:
+
+        host_task = current_task()
+        if host_task is None:
+            raise RuntimeError("Must be in a task to exit a cancel scope")
+        elif host_task is not self._host_task:
             raise RuntimeError(
                 "Attempted to exit cancel scope in a different task than it was "
                 "entered in"
             )
 
-        task_state = TaskState.get(self._host_task)
+        task_state = TaskState.get(host_task)
         if task_state is None or task_state.cancel_scope is not self:
             raise RuntimeError(
                 "Attempted to exit a cancel scope that isn't the current tasks's "
@@ -517,8 +525,13 @@ class _AsyncioTaskStatus(abc.TaskStatus):
                 "called 'started' twice on the same task status"
             ) from None
 
-        task = cast(asyncio.Task, current_task())
-        TaskState.get(task).parent_id = self._parent_id
+        task = current_task()
+        if not task:
+            raise RuntimeError("called 'started' outside of a task")
+
+        task_state = TaskState.get(task)
+        if task_state:
+            task_state.parent_id = self._parent_id
 
 
 class TaskGroup(abc.TaskGroup):
@@ -538,6 +551,7 @@ class TaskGroup(abc.TaskGroup):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> bool | None:
+        host_task = cast(asyncio.Task, self.cancel_scope._host_task)
         ignore_exception = self.cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         if exc_val is not None:
             self.cancel_scope.cancel()
@@ -570,8 +584,8 @@ class TaskGroup(abc.TaskGroup):
 
             # If the host task was natively cancelled, or a parent cancel scope was
             # cancelled, raise a new CancelledError
-            task_state = TaskState.get(self.cancel_scope._host_task)
-            if task_state.cancelled:
+            task_state = TaskState.get(host_task)
+            if task_state and task_state.cancelled:
                 raise CancelledError from None
 
         return ignore_exception
@@ -645,6 +659,7 @@ class TaskGroup(abc.TaskGroup):
                 task_status_future, id(self.cancel_scope._host_task)
             )
         else:
+            assert self.cancel_scope._host_task
             parent_task = self.cancel_scope._host_task
 
         coro = func(*args, **kwargs)
