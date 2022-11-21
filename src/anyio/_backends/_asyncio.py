@@ -491,15 +491,20 @@ class TaskState:
         original(*args)
 
     @staticmethod
-    def _patched_uncancel(self: asyncio.Task, original: Callable) -> int:
+    def _patched_uncancel(
+        self: asyncio.Task, *, scope: CancelScope | None = None, original: Callable
+    ) -> int:
         state = TaskState._task_states.get(self)
-        if state is not None:
+        if scope is None and state is not None and state._native_cancellations:
             state._native_cancellations -= 1
 
         return original()
 
     def uncancel(self, scope: CancelScope) -> bool:
         self._cancelled_by_scopes.discard(scope)
+        if sys.version_info >= (3, 11) and scope._host_task is not None:
+            scope._host_task.uncancel(scope=scope)
+
         return not self.cancelled
 
     @property

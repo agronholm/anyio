@@ -13,6 +13,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     ``ExceptionGroup`` (or ``BaseExceptionGroup`` if one or more ``BaseException`` were
     included), except when all the exceptions are cancellation exceptions. In that case,
     a single cancellation exception is raised instead.
+  - ``CancelScope`` now un-cancels its host task on Python 3.11 + asyncio when
+    appropriate, for compatibility with ``asyncio.timeout`` and other context managers
+    that swallow exceptions
 - Bumped minimum version of trio to v0.22
 - Added ``create_unix_datagram_socket`` and ``create_connected_unix_datagram_socket`` to
   create UNIX datagram sockets (PR by Jean Hominal)

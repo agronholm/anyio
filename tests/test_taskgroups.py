@@ -1120,3 +1120,15 @@ class TestAsyncio:
             assert exceptions == []
         finally:
             loop.set_exception_handler(old_exception_handler)
+
+    @pytest.mark.skipif(sys.version_info < (3, 11), reason="Requires Python >= 3.11")
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_asyncio_timeout(self) -> None:
+        """Test that CancelScope.__exit__ un-cancels the task."""
+        with CancelScope() as scope:
+            scope.cancel()
+            await sleep(2)
+            pytest.fail("Execution should not reach this point")
+
+        task = asyncio.current_task()
+        assert not task.cancelling()
