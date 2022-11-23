@@ -77,6 +77,7 @@ def test_asyncio(testdir: Pytester, caplog: LogCaptureFixture) -> None:
         """
         import asyncio
         import pytest
+        import threading
 
 
         @pytest.fixture(scope='class')
@@ -100,6 +101,16 @@ def test_asyncio(testdir: Pytester, caplog: LogCaptureFixture) -> None:
             yield None
             asyncio.get_running_loop().call_soon(callback)
             await asyncio.sleep(0)
+
+        @pytest.fixture
+        def no_thread_leaks_fixture():
+            # this has to be non-async fixture so that it wraps up
+            # after the event loop gets closed
+            threads_before = threading.enumerate()
+            yield
+            threads_after = threading.enumerate()
+            leaked_threads = set(threads_after) - set(threads_before)
+            assert not leaked_threads
         """
     )
 
@@ -148,11 +159,15 @@ def test_asyncio(testdir: Pytester, caplog: LogCaptureFixture) -> None:
                 {"message": "bogus error"}
             )
             await asyncio.sleep(0.1)
+
+        async def test_shutdown_default_executor(no_thread_leaks_fixture):
+            # Test for github #503
+            asyncio.get_event_loop().run_in_executor(None, lambda: 1)
         """
     )
 
     result = testdir.runpytest(*pytest_args)
-    result.assert_outcomes(passed=3, failed=1, errors=2)
+    result.assert_outcomes(passed=4, failed=1, errors=2)
     assert len(caplog.messages) == 1
     assert caplog.messages[0] == "bogus error"
 
