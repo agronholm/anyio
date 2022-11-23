@@ -17,16 +17,26 @@ pytest_args = "-v", "-p", "anyio", "-p", "no:asyncio", "-p", "no:trio"
 def test_plugin(testdir: Pytester) -> None:
     testdir.makeconftest(
         """
+        from contextvars import ContextVar
         import sniffio
         import pytest
 
         from anyio import sleep
+
+        var = ContextVar("var")
 
 
         @pytest.fixture
         async def async_fixture():
             await sleep(0)
             return sniffio.current_async_library()
+
+
+        @pytest.fixture
+        async def context_variable():
+            token = var.set("testvalue")
+            yield var
+            var.reset(token)
 
 
         @pytest.fixture
@@ -63,12 +73,17 @@ def test_plugin(testdir: Pytester) -> None:
         async def test_skip_inline(some_feature):
             # Test for github #214
             pytest.skip("Test that skipping works")
+
+        @pytest.mark.anyio
+        async def test_contextvar(context_variable):
+            # Test that a contextvar set in an async fixture is visible to the test
+            assert context_variable.get() == "testvalue"
         """
     )
 
     result = testdir.runpytest(*pytest_args)
     result.assert_outcomes(
-        passed=3 * len(get_all_backends()), skipped=len(get_all_backends())
+        passed=4 * len(get_all_backends()), skipped=len(get_all_backends())
     )
 
 

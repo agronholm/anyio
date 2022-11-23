@@ -145,19 +145,32 @@ The fixtures and tests are run by a "test runner", implemented separately for ea
 The test runner keeps an event loop open during the request, making it possible for code in
 fixtures to communicate with the code in the tests (and each other).
 
-The test runner is created when the first matching async test or fixture is about to be run, and
-shut down when that same fixture is being torn down or the test has finished running. As such,
-if no async fixtures are used, a separate test runner is created for each test. Conversely, if
-even one async fixture (scoped higher than ``function``) is shared across all tests, only one test
-runner will be created during the test session.
+The test runner is created when the first matching async test or fixture is about to be
+run, and shut down when that same fixture is being torn down or the test has finished
+running. As such, if no higher-order (scoped ``class`` or higher) async fixtures are
+used, a separate test runner is created for each matching test. Conversely, if even one
+async fixture, scoped higher than ``function``, is shared across all tests, only one
+test runner will be created during the test session.
 
-For async generator based fixtures, the test runner spawns a task that handles both the setup and
-teardown phases to enable context-sensitive code to work properly. A common example of this is
-providing a task group as a fixture.
+Context variable propagation
+++++++++++++++++++++++++++++
 
-Since each test and fixture run in their own separate tasks, no changes to any context
-variables will propagate out of them to tests or other fixtures. This is in line with
-``pytest-asyncio``, but in contrast to ``pytest-trio`` where all fixtures and tests
-`share the same context`_.
+The asynchronous test runner runs all async fixtures and tests in the same task, so
+context variables set in async fixtures or tests, within an async test runner, will
+affect other async fixtures and tests within the same runner. However, these context
+variables are **not** carried over to synchronous tests and fixtures, or to other async
+test runners.
 
-.. _share the same context: https://pytest-trio.readthedocs.io/en/stable/reference.html#handling-of-contextvars
+Comparison with other async test runners
+++++++++++++++++++++++++++++++++++++++++
+
+The ``pytest-asyncio`` library only works with asyncio code. Like the AnyIO pytest
+plugin, it can be made to support higher order fixtures (by specifying a higher order
+``event_loop`` fixture). However, it runs the setup and teardown phases of each async
+fixture in a new async task per operation, making context variable propagation
+impossible and preventing task groups and cancel scopes from functioning properly.
+
+The ``pytest-trio`` library, made for testing Trio projects, works only with Trio code.
+Additionally, it only supports function scoped async fixtures. Another significant
+difference with the AnyIO pytest plugin is that attempts to run the setup and teardown
+for async fixtures concurrently when their dependency graphs allow that.
