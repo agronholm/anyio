@@ -6,6 +6,7 @@ import concurrent.futures
 import math
 import socket
 import sys
+import threading
 from asyncio import (
     AbstractEventLoop,
     CancelledError,
@@ -97,7 +98,6 @@ T_Retval = TypeVar("T_Retval")
 
 # Check whether there is native support for task names in asyncio (3.8+)
 _native_task_names = hasattr(asyncio.Task, "get_name")
-
 
 _root_task: RunVar[asyncio.Task | None] = RunVar("_root_task")
 
@@ -1675,6 +1675,39 @@ def _create_task_info(task: asyncio.Task) -> TaskInfo:
     return TaskInfo(id(task), parent_id, name, get_coro(task))
 
 
+async def _shutdown_default_executor(loop: asyncio.BaseEventLoop) -> None:
+    """Schedule the shutdown of the default executor.
+    BaseEventLoop.shutdown_default_executor was introduced in Python 3.9.
+    This function is an adapted version of the method from Python 3.11.
+    It's used in TestRunner.close only if python < 3.9.
+    """
+
+    def _do_shutdown(
+        loop_: asyncio.BaseEventLoop, future: asyncio.futures.Future
+    ) -> None:
+        try:
+            loop_._default_executor.shutdown(wait=True)  # type: ignore[attr-defined]
+            loop_.call_soon_threadsafe(future.set_result, None)
+        except Exception as ex:
+            loop_.call_soon_threadsafe(future.set_exception, ex)
+
+    if loop._default_executor is None:  # type: ignore[attr-defined]
+        return
+    future = loop.create_future()
+    thread = threading.Thread(
+        target=_do_shutdown,
+        args=(
+            loop,
+            future,
+        ),
+    )
+    thread.start()
+    try:
+        await future
+    finally:
+        thread.join()
+
+
 class TestRunner(abc.TestRunner):
     _send_stream: MemoryObjectSendStream[tuple[Awaitable[Any], asyncio.Future[Any]]]
 
@@ -1769,6 +1802,14 @@ class TestRunner(abc.TestRunner):
 
             self._cancel_all_tasks()
             self._loop.run_until_complete(self._loop.shutdown_asyncgens())
+            if hasattr(self._loop, "shutdown_default_executor"):
+                # asyncio in Python >= 3.9 or uvloop >= 0.15.0
+                self._loop.run_until_complete(self._loop.shutdown_default_executor())
+            elif isinstance(self._loop, asyncio.BaseEventLoop) and hasattr(
+                self._loop, "_default_executor"
+            ):
+                # asyncio in Python < 3.9
+                self._loop.run_until_complete(_shutdown_default_executor(self._loop))
         finally:
             asyncio.set_event_loop(None)
             self._loop.close()
