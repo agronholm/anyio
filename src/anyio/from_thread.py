@@ -40,7 +40,9 @@ def run(func: Callable[..., Awaitable[T_Retval]], *args: object) -> T_Retval:
         async_backend = threadlocals.current_async_backend
         token = threadlocals.current_token
     except AttributeError:
-        raise RuntimeError("This function can only be run from an AnyIO worker thread")
+        raise RuntimeError(
+            "This function can only be run from an AnyIO worker thread"
+        ) from None
 
     return async_backend.run_async_from_thread(func, args, token=token)
 
@@ -58,7 +60,9 @@ def run_sync(func: Callable[..., T_Retval], *args: object) -> T_Retval:
         async_backend = threadlocals.current_async_backend
         token = threadlocals.current_token
     except AttributeError:
-        raise RuntimeError("This function can only be run from an AnyIO worker thread")
+        raise RuntimeError(
+            "This function can only be run from an AnyIO worker thread"
+        ) from None
 
     return async_backend.run_sync_from_thread(func, args, token=token)
 

@@ -63,10 +63,10 @@ profile = "black"
 
 [tool.ruff]
 select = [
-    "B", # bugbear
-    "C", # comprehensions
-    "E", # style errors
-    "F", # flakes
+    "B",  # bugbear
+    "C4", # comprehensions
+    "E",  # style errors
+    "F",  # flakes
     # "I",   # import sorting
     "M", # meta
     "N", # naming

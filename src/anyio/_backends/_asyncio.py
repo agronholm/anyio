@@ -155,7 +155,7 @@ def _task_started(task: asyncio.Task) -> bool:
         return getcoroutinestate(coro) in (CORO_RUNNING, CORO_SUSPENDED)
     except AttributeError:
         # task coro is async_genenerator_asend https://bugs.python.org/issue37771
-        raise Exception(f"Cannot determine if task {task} has started or not")
+        raise Exception(f"Cannot determine if task {task} has started or not") from None
 
 
 def _maybe_set_event_loop_policy(
