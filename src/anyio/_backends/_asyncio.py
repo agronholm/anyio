@@ -649,7 +649,7 @@ class TaskGroup(abc.TaskGroup):
         *args: Any,
         name: object = None,
     ) -> T_Retval:
-        future: asyncio.Future = asyncio.Future()
+        future: asyncio.Future[T_Retval] = asyncio.Future()
         task = self._spawn(func, args, name, future)
 
         # If the task raises an exception after sending a start value without a switch
@@ -2020,7 +2020,7 @@ class AsyncIOBackend(AsyncBackend):
 
         async with (limiter or cls.current_default_thread_limiter()):
             with CancelScope(shield=not cancellable):
-                future: asyncio.Future = asyncio.Future()
+                future: asyncio.Future[T_Retval] = asyncio.Future()
                 root_task = find_root_task()
                 if not idle_workers:
                     worker = WorkerThread(root_task, workers, idle_workers)
