@@ -14,6 +14,7 @@ from socket import AddressFamily, SocketKind
 from types import TracebackType
 from typing import (
     IO,
+    TYPE_CHECKING,
     Any,
     AsyncGenerator,
     Awaitable,
@@ -57,9 +58,18 @@ from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
 from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import ResourceGuard
 from .._core._tasks import CancelScope as BaseCancelScope
-from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
+from ..abc import IPSockAddrType, TaskStatus, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend
 from ..streams.memory import MemoryObjectSendStream
+
+if TYPE_CHECKING:
+    from mypy_extensions import NamedArg, VarArg
+    from trio_typing import takes_callable_and_args
+else:
+
+    def takes_callable_and_args(fn):
+        return fn
+
 
 T = TypeVar("T")
 T_Retval = TypeVar("T_Retval")
@@ -151,7 +161,14 @@ class TaskGroup(abc.TaskGroup):
         finally:
             self._active = False
 
-    def start_soon(self, func: Callable, *args: object, name: object = None) -> None:
+    @takes_callable_and_args
+    def start_soon(
+        self,
+        func: Callable[..., Coroutine[Any, Any, Any]]
+        | Callable[[VarArg()], Coroutine[Any, Any, Any]],
+        *args: Any,
+        name: object = None,
+    ) -> None:
         if not self._active:
             raise RuntimeError(
                 "This task group is not active; no new tasks can be started."
@@ -159,15 +176,25 @@ class TaskGroup(abc.TaskGroup):
 
         self._nursery.start_soon(func, *args, name=name)
 
+    @takes_callable_and_args
     async def start(
-        self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
-    ) -> object:
+        self,
+        func: Callable[..., Awaitable[Any]]
+        | Callable[
+            [VarArg(), NamedArg(TaskStatus[T_Retval], "task_status")],  # noqa: F821
+            Awaitable[Any],
+        ],
+        *args: Any,
+        name: object = None,
+    ) -> T_Retval:
         if not self._active:
             raise RuntimeError(
                 "This task group is not active; no new tasks can be started."
             )
 
-        return await self._nursery.start(func, *args, name=name)
+        return await self._nursery.start(
+            func, *args, name=name  # type: ignore[arg-type]
+        )
 
 
 #

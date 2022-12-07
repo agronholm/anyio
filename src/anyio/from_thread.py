@@ -7,6 +7,7 @@ from contextlib import AbstractContextManager, contextmanager
 from inspect import isawaitable
 from types import TracebackType
 from typing import (
+    TYPE_CHECKING,
     Any,
     AsyncContextManager,
     ContextManager,
@@ -23,11 +24,26 @@ from ._core._synchronization import Event
 from ._core._tasks import CancelScope, create_task_group
 from .abc._tasks import TaskStatus
 
+if TYPE_CHECKING:
+    from mypy_extensions import NamedArg, VarArg
+    from trio_typing import takes_callable_and_args
+else:
+
+    def takes_callable_and_args(fn):
+        return fn
+
+
 T_Retval = TypeVar("T_Retval")
+T_Retval2 = TypeVar("T_Retval2")
 T_co = TypeVar("T_co")
 
 
-def run(func: Callable[..., Awaitable[T_Retval]], *args: object) -> T_Retval:
+@takes_callable_and_args
+def run(
+    func: Callable[..., Awaitable[T_Retval]]
+    | Callable[[VarArg()], Awaitable[T_Retval]],
+    *args: Any,
+) -> T_Retval:
     """
     Call a coroutine function from a worker thread.
 
@@ -45,7 +61,10 @@ def run(func: Callable[..., Awaitable[T_Retval]], *args: object) -> T_Retval:
     return async_backend.run_async_from_thread(func, args, token=token)
 
 
-def run_sync(func: Callable[..., T_Retval], *args: object) -> T_Retval:
+@takes_callable_and_args
+def run_sync(
+    func: Callable[..., T_Retval] | Callable[[VarArg()], T_Retval], *args: Any
+) -> T_Retval:
     """
     Call a function in the event loop thread from a worker thread.
 
@@ -235,17 +254,28 @@ class BlockingPortal:
         raise NotImplementedError
 
     @overload
-    def call(self, func: Callable[..., Awaitable[T_Retval]], *args: object) -> T_Retval:
+    @takes_callable_and_args
+    def call(
+        self,
+        func: Callable[..., Awaitable[T_Retval]]
+        | Callable[[VarArg()], Awaitable[T_Retval]],
+        *args: Any,
+    ) -> T_Retval:
         ...
 
     @overload
-    def call(self, func: Callable[..., T_Retval], *args: object) -> T_Retval:
+    @takes_callable_and_args
+    def call(
+        self,
+        func: Callable[..., T_Retval] | Callable[[VarArg()], T_Retval],
+        *args: Any,
+    ) -> T_Retval:
         ...
 
     def call(
         self,
-        func: Callable[..., Awaitable[T_Retval] | T_Retval],
-        *args: object,
+        func: Callable[..., Awaitable[T_Retval]] | Callable[..., T_Retval],
+        *args: Any,
     ) -> T_Retval:
         """
         Call the given function in the event loop thread.
@@ -257,27 +287,34 @@ class BlockingPortal:
             from within the event loop thread
 
         """
-        return cast(T_Retval, self.start_task_soon(func, *args).result())
+
+        return self.start_task_soon(func, *args).result()  # type: ignore[return-value]
 
     @overload
+    @takes_callable_and_args
     def start_task_soon(
         self,
-        func: Callable[..., Awaitable[T_Retval]],
-        *args: object,
+        func: Callable[..., Awaitable[T_Retval]]
+        | Callable[[VarArg()], Awaitable[T_Retval]],
+        *args: Any,
         name: object = None,
     ) -> Future[T_Retval]:
         ...
 
     @overload
+    @takes_callable_and_args
     def start_task_soon(
-        self, func: Callable[..., T_Retval], *args: object, name: object = None
+        self,
+        func: Callable[..., T_Retval] | Callable[[VarArg()], T_Retval],
+        *args: Any,
+        name: object = None,
     ) -> Future[T_Retval]:
         ...
 
     def start_task_soon(
         self,
         func: Callable[..., Awaitable[T_Retval] | T_Retval],
-        *args: object,
+        *args: Any,
         name: object = None,
     ) -> Future[T_Retval]:
         """
@@ -298,16 +335,21 @@ class BlockingPortal:
 
         """
         self._check_running()
-        f: Future = Future()
+        f: Future[T_Retval] = Future()
         self._spawn_task_from_thread(func, args, {}, name, f)
         return f
 
+    @takes_callable_and_args
     def start_task(
         self,
-        func: Callable[..., Awaitable[Any]],
-        *args: object,
+        func: Callable[..., Awaitable[T_Retval2]]
+        | Callable[
+            [VarArg(), NamedArg(TaskStatus[T_Retval], "task_status")],  # noqa: F821
+            Awaitable[T_Retval2],
+        ],
+        *args: Any,
         name: object = None,
-    ) -> tuple[Future[Any], Any]:
+    ) -> tuple[Future[T_Retval2], T_Retval]:
         """
         Start a task in the portal's task group and wait until it signals for readiness.
 

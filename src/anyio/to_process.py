@@ -7,7 +7,7 @@ import sys
 from collections import deque
 from collections.abc import Callable
 from importlib.util import module_from_spec, spec_from_file_location
-from typing import TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from ._core._eventloop import current_time, get_async_backend, get_cancelled_exc_class
 from ._core._exceptions import BrokenWorkerProcess
@@ -17,6 +17,15 @@ from ._core._tasks import CancelScope, fail_after
 from .abc import ByteReceiveStream, ByteSendStream, Process
 from .lowlevel import RunVar, checkpoint_if_cancelled
 from .streams.buffered import BufferedByteReceiveStream
+
+if TYPE_CHECKING:
+    from mypy_extensions import VarArg
+    from trio_typing import takes_callable_and_args
+else:
+
+    def takes_callable_and_args(fn):
+        return fn
+
 
 WORKER_MAX_IDLE_TIME = 300  # 5 minutes
 
@@ -28,9 +37,10 @@ _process_pool_idle_workers: RunVar[deque[tuple[Process, float]]] = RunVar(
 _default_process_limiter: RunVar[CapacityLimiter] = RunVar("_default_process_limiter")
 
 
+@takes_callable_and_args
 async def run_sync(
-    func: Callable[..., T_Retval],
-    *args: object,
+    func: Callable[..., T_Retval] | Callable[[VarArg()], T_Retval],
+    *args: Any,
     cancellable: bool = False,
     limiter: CapacityLimiter | None = None,
 ) -> T_Retval:

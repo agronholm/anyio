@@ -81,6 +81,7 @@ warn_return_any = false
 disallow_untyped_decorators = false
 disallow_subclassing_any = false
 show_error_codes = true
+plugins = ["trio_typing.plugin"]
 
 [tool.pytest.ini_options]
 addopts = "-rsx --tb=short --strict-config --strict-markers -p anyio -p no:asyncio -p no:trio"

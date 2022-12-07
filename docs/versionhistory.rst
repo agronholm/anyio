@@ -31,6 +31,25 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   - ``create_memory_object_stream()`` now allows passing only ``item_type``
   - Object receive streams are now covariant and object send streams are correspondingly
     contravariant
+
+  - Several functions and methods that accept a function and positional arguments for it now have opt-in fuller typing for those using Mypy:
+
+    - ``anyio.run()``
+    - ``anyio.to_thread.run_sync()``
+    - ``anyio.from_thread.run()``
+    - ``anyio.from_thread.run_sync()``
+    - ``anyio.to_process.run_sync()``
+    - ``TaskGroup.start_soon()``
+    - ``TaskGroup.start()``
+    - ``BlockingPortal.call()``
+    - ``BlockingPortal.start_task_soon()``
+    - ``BlockingPortal.start_task()``
+
+    Opt-in by enabling the Mypy plugin ``trio_typing.plugin``. Note that the 5-argument
+    limitation of ``trio_typing.takes_callable_and_args`` applies. For those not using
+    ``trio_typing.plugin``, ``TaskGroup.start``'s return type has been changed from
+    ``object`` to ``Any`` (PR by Ganden Schaffner)
+
 - Fixed ``CapacityLimiter`` on the asyncio backend to order waiting tasks in the FIFO
   order (instead of LIFO) (PR by Conor Stevenson)
 - Fixed ``CancelScope.cancel()`` not working on asyncio if called before entering the

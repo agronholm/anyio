@@ -11,7 +11,15 @@ from typing import TYPE_CHECKING, Any, TypeVar
 import sniffio
 
 if TYPE_CHECKING:
+    from mypy_extensions import VarArg
+    from trio_typing import takes_callable_and_args
+
     from ..abc import AsyncBackend
+else:
+
+    def takes_callable_and_args(fn):
+        return fn
+
 
 # This must be updated when new backends are introduced
 BACKENDS = "asyncio", "trio"
@@ -20,9 +28,11 @@ T_Retval = TypeVar("T_Retval")
 threadlocals = threading.local()
 
 
+@takes_callable_and_args
 def run(
-    func: Callable[..., Awaitable[T_Retval]],
-    *args: object,
+    func: Callable[..., Awaitable[T_Retval]]
+    | Callable[[VarArg()], Awaitable[T_Retval]],
+    *args: Any,
     backend: str = "asyncio",
     backend_options: dict[str, Any] | None = None,
 ) -> T_Retval:

@@ -1,17 +1,27 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from ._core._eventloop import get_async_backend
 from .abc import CapacityLimiter
 
+if TYPE_CHECKING:
+    from mypy_extensions import VarArg
+    from trio_typing import takes_callable_and_args
+else:
+
+    def takes_callable_and_args(fn):
+        return fn
+
+
 T_Retval = TypeVar("T_Retval")
 
 
+@takes_callable_and_args
 async def run_sync(
-    func: Callable[..., T_Retval],
-    *args: object,
+    func: Callable[..., T_Retval] | Callable[[VarArg()], T_Retval],
+    *args: Any,
     cancellable: bool = False,
     limiter: CapacityLimiter | None = None,
 ) -> T_Retval:

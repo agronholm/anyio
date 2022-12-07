@@ -34,6 +34,7 @@ from threading import Thread
 from types import TracebackType
 from typing import (
     IO,
+    TYPE_CHECKING,
     Any,
     AsyncGenerator,
     Awaitable,
@@ -74,6 +75,7 @@ from ..abc import (
     AsyncBackend,
     IPSockAddrType,
     SocketListener,
+    TaskStatus,
     UDPPacketType,
     UNIXDatagramPacketType,
 )
@@ -92,6 +94,15 @@ else:
 
     def get_coro(task: asyncio.Task) -> Generator | Awaitable[Any]:
         return task._coro
+
+
+if TYPE_CHECKING:
+    from mypy_extensions import NamedArg, VarArg
+    from trio_typing import takes_callable_and_args
+else:
+
+    def takes_callable_and_args(fn):
+        return fn
 
 
 T_Retval = TypeVar("T_Retval")
@@ -617,14 +628,27 @@ class TaskGroup(abc.TaskGroup):
         self.cancel_scope._tasks.add(task)
         return task
 
+    @takes_callable_and_args
     def start_soon(
-        self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
+        self,
+        func: Callable[..., Coroutine[Any, Any, Any]]
+        | Callable[[VarArg()], Coroutine[Any, Any, Any]],
+        *args: Any,
+        name: object = None,
     ) -> None:
         self._spawn(func, args, name)
 
+    @takes_callable_and_args
     async def start(
-        self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
-    ) -> None:
+        self,
+        func: Callable[..., Awaitable[Any]]
+        | Callable[
+            [VarArg(), NamedArg(TaskStatus[T_Retval], "task_status")],  # noqa: F821
+            Awaitable[Any],
+        ],
+        *args: Any,
+        name: object = None,
+    ) -> T_Retval:
         future: asyncio.Future = asyncio.Future()
         task = self._spawn(func, args, name, future)
 

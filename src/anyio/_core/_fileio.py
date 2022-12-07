@@ -187,7 +187,7 @@ async def open_file(
     :return: an asynchronous file object
 
     """
-    fp = await to_thread.run_sync(
+    fp = await to_thread.run_sync(  # type: ignore[call-overload,misc]
         open, file, mode, buffering, encoding, errors, newline, closefd, opener
     )
     return AsyncFile(fp)
