@@ -304,8 +304,7 @@ current_default_worker_process_limiter: trio.lowlevel.RunVar = RunVar(
 )
 
 
-async def _shutdown_process_pool(workers: set[Process]) -> None:
-    process: Process
+async def _shutdown_process_pool(workers: set[abc.Process]) -> None:
     try:
         await trio.sleep(math.inf)
     except trio.Cancelled:
