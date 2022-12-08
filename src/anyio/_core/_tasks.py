@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import math
 from types import TracebackType
+from typing import Any
 
 from ..abc._tasks import TaskGroup, TaskStatus
 from ._eventloop import get_async_backend
 
 
-class _IgnoredTaskStatus(TaskStatus[object]):
+class _IgnoredTaskStatus(TaskStatus[Any]):
     def started(self, value: object = None) -> None:
         pass
 
