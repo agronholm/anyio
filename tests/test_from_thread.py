@@ -10,6 +10,7 @@ from contextvars import ContextVar
 from typing import Any, AsyncGenerator, NoReturn, TypeVar
 
 import pytest
+import sniffio
 from _pytest.logging import LogCaptureFixture
 
 from anyio import (
@@ -145,6 +146,16 @@ class TestRunAsyncFromThread:
 
         assert await to_thread.run_sync(worker) == 6
 
+    async def test_sniffio(self, anyio_backend_name: str) -> None:
+        async def async_func() -> str:
+            return sniffio.current_async_library()
+
+        def worker() -> str:
+            sniffio.current_async_library_cvar.set("something invalid for async_func")
+            return from_thread.run(async_func)
+
+        assert await to_thread.run_sync(worker) == anyio_backend_name
+
 
 class TestRunSyncFromThread:
     def test_run_sync_from_unclaimed_thread(self) -> None:
@@ -162,6 +173,13 @@ class TestRunSyncFromThread:
             return from_thread.run_sync(var.get)
 
         assert await to_thread.run_sync(worker) == 6
+
+    async def test_sniffio(self, anyio_backend_name: str) -> None:
+        def worker() -> str:
+            sniffio.current_async_library_cvar.set("something invalid for async_func")
+            return from_thread.run_sync(sniffio.current_async_library)
+
+        assert await to_thread.run_sync(worker) == anyio_backend_name
 
 
 class TestBlockingPortal:
