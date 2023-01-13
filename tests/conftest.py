@@ -27,7 +27,7 @@ else:
     else:
         uvloop_policy = uvloop.EventLoopPolicy()
 
-pytest_plugins = ["pytester", "pytest_mock"]
+pytest_plugins = ["pytester", "pytest_mock", "pytest_timeout"]
 
 
 @pytest.fixture(

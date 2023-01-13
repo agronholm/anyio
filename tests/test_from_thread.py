@@ -27,6 +27,9 @@ from anyio import (
 from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
 from anyio.lowlevel import checkpoint
+from anyio.pytest_plugin import anyio_backend_name, anyio_backend_options
+
+from .conftest import anyio_backend
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -62,6 +65,23 @@ def thread_worker_async(
 def thread_worker_sync(func: Callable[..., T_Retval], *args: Any) -> T_Retval:
     assert threading.current_thread() is not threading.main_thread()
     return from_thread.run_sync(func, *args)
+
+
+# Duplicate anyio_backend for BlockingPortal tests that need to be parametrized with
+# pairs of backends.
+portal_backend = anyio_backend
+
+
+@pytest.fixture
+def portal_backend_name(portal_backend: Any) -> str:
+    return anyio_backend_name.__wrapped__(portal_backend)  # type: ignore[attr-defined]
+
+
+@pytest.fixture
+def portal_backend_options(portal_backend: Any) -> dict[str, Any]:
+    return anyio_backend_options.__wrapped__(  # type: ignore[attr-defined]
+        portal_backend
+    )
 
 
 class TestRunAsyncFromThread:
@@ -542,3 +562,20 @@ class TestBlockingPortal:
                     portal.call(raise_baseexception)
 
                 assert exc.value.__context__ is None
+
+    @pytest.mark.timeout(1)
+    async def test_from_async(
+        self,
+        anyio_backend_name: str,
+        portal_backend_name: str,
+        portal_backend_options: dict[str, Any],
+    ) -> None:
+        """Test that portals don't deadlock when started/used from async code."""
+
+        if anyio_backend_name == "trio" and portal_backend_name == "trio":
+            pytest.xfail("known bug (#525)")
+
+        with start_blocking_portal(
+            portal_backend_name, portal_backend_options
+        ) as portal:
+            portal.call(checkpoint)
