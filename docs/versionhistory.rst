@@ -12,6 +12,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   message) on asyncio to determine if a cancellation exception should be swallowed on scope exit,
   to combat issues where third party libraries catch the ``CancelledError`` and raise another, thus
   erasing the original cancel message
+- Worked around a `CPython bug <https://github.com/python/cpython/issues/108668>`_ that caused ``TLSListener.handle_handshake_error()`` on asyncio to log ``"NoneType: None"`` instead of the error (PR by Ganden Schaffner)
 
 **4.0.0rc1**
 
