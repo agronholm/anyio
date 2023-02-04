@@ -11,7 +11,7 @@ Byte streams ("Streams" in Trio lingo) are objects that receive and/or send chun
 They are modelled after the limitations of the stream sockets, meaning the boundaries are not
 respected. In practice this means that if, for example, you call ``.send(b'hello ')`` and then
 ``.send(b'world')``, the other end will receive the data chunked in any arbitrary way, like
-(``b'hello'`` and ``b'world'``), ``b'hello world'`` or (``b'hel'``, ``b'lo wo'``, ``b'rld'``).
+(``b'hello'`` and ``b' world'``), ``b'hello world'`` or (``b'hel'``, ``b'lo wo'``, ``b'rld'``).
 
 Object streams ("Channels" in Trio lingo), on the other hand, deal with Python objects. The most
 commonly used implementation of these is the memory object stream. The exact semantics of object
