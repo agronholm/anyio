@@ -2161,14 +2161,13 @@ class AsyncIOBackend(AsyncBackend):
         remote_address: IPSockAddrType | None,
         reuse_port: bool,
     ) -> UDPSocket | ConnectedUDPSocket:
-        result = await get_running_loop().create_datagram_endpoint(
+        transport, protocol = await get_running_loop().create_datagram_endpoint(
             DatagramProtocol,
             local_addr=local_address,
             remote_addr=remote_address,
             family=family,
             reuse_port=reuse_port,
         )
-        transport, protocol = result
         if protocol.exception:
             transport.close()
             raise protocol.exception
