@@ -1232,7 +1232,7 @@ class TCPSocketListener(abc.SocketListener):
         transport, protocol = await self._loop.connect_accepted_socket(
             StreamProtocol, client_sock
         )
-        return SocketStream(cast(asyncio.Transport, transport), protocol)
+        return SocketStream(transport, protocol)
 
     async def aclose(self) -> None:
         if self._closed:
@@ -2168,8 +2168,7 @@ class AsyncIOBackend(AsyncBackend):
             family=family,
             reuse_port=reuse_port,
         )
-        transport = cast(asyncio.DatagramTransport, result[0])
-        protocol = result[1]
+        transport, protocol = result
         if protocol.exception:
             transport.close()
             raise protocol.exception
