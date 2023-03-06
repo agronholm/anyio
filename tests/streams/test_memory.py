@@ -264,6 +264,31 @@ async def test_cancel_during_receive() -> None:
     assert received == ["hello"]
 
 
+async def test_cancel_during_send() -> None:
+    """
+    Test that a pending send() operation whose item has already been received can't
+    still raise cancelled.
+
+    """
+
+    async def receiver() -> None:
+        with receive_stream:
+            received.append(await receive_stream.receive())
+            tg.cancel_scope.cancel()
+
+    received: list[str] = []
+    sender_woke = False
+    send_stream, receive_stream = create_memory_object_stream(0)
+    async with create_task_group() as tg:
+        tg.start_soon(receiver)
+        with send_stream:
+            await send_stream.send("hello")
+            sender_woke = True
+
+    assert received == ["hello"]
+    assert sender_woke
+
+
 async def test_close_receive_after_send() -> None:
     async def send() -> None:
         async with send_stream:
