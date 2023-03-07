@@ -44,6 +44,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   the event loop to be closed
 - Fixed ``current_effective_deadline()`` not returning ``-inf`` on asyncio when the
   currently active cancel scope has been cancelled (PR by Ganden Schaffner)
+- Fixed ``Event.set()`` failing to notify a waiter on asyncio if an ``Event.wait()``'s
+  scope was cancelled after ``Event.set()`` but before the scheduler resumed the waiting
+  task. This also fixed a race condition where ``MemoryObjectSendStream.send()`` could
+  raise a ``CancelledError`` on asyncio after successfully delivering an item to a
+  receiver (PR by Ganden Schaffner)
 
 **3.6.1**
 

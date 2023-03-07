@@ -80,7 +80,42 @@ from ..abc import (
 from ..lowlevel import RunVar
 from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
-if sys.version_info < (3, 11):
+if sys.version_info >= (3, 11):
+
+    def cancelling(task: asyncio.Task) -> bool:
+        """
+        Return ``True`` if the task is cancelling.
+
+        NOTE: If the task finished cancelling and is now done, this function can return
+        anything. This is because on Python >= 3.11, the task can be uncancelled after
+        it finishes. (One might think we could avoid this by instead returning
+        ``bool(task.cancelling()) or task.cancelled()``, but on Python < 3.8
+        ``task.cancelled()`` can be ``False`` when it should be ``True``. On Python <
+        3.8 it appears to be impossible to determine whether a done task was cancelled
+        or not (see https://github.com/python/cpython/pull/16330).)
+
+        """
+        return bool(task.cancelling())
+
+else:
+
+    def cancelling(task: asyncio.Task) -> bool:
+        if task.cancelled():
+            return True
+
+        if task._must_cancel:  # type: ignore[attr-defined]
+            return True
+
+        waiter = task._fut_waiter  # type: ignore[attr-defined]
+        if waiter is None:
+            return False
+        if waiter.cancelled():
+            return True
+        elif isinstance(waiter, asyncio.Task):
+            return cancelling(waiter)
+        else:
+            return False
+
     from exceptiongroup import BaseExceptionGroup, ExceptionGroup
 
 if sys.version_info >= (3, 8):
@@ -1474,16 +1509,43 @@ class Event(BaseEvent):
 
     def __init__(self) -> None:
         self._event = asyncio.Event()
+        self._waiter_cancelling_when_set: dict[asyncio.Task, bool | None] = {}
 
     def set(self) -> None:
-        self._event.set()
+        if not self._event.is_set():
+            self._event.set()
+            for waiter in tuple(self._waiter_cancelling_when_set):
+                self._waiter_cancelling_when_set[waiter] = cancelling(waiter)
 
     def is_set(self) -> bool:
         return self._event.is_set()
 
     async def wait(self) -> None:
-        if await self._event.wait():
+        if self._event.is_set():
             await AsyncIOBackend.checkpoint()
+        else:
+            waiter = cast(asyncio.Task, current_task())
+            self._waiter_cancelling_when_set[waiter] = None
+            try:
+                if await self._event.wait():
+                    await AsyncIOBackend.checkpoint()
+            except CancelledError:
+                if not self._event.is_set():
+                    raise
+                else:
+                    # If we are here, then the event was not set before `wait()`. Then,
+                    # in either order:
+                    #
+                    # * the event got set.
+                    # * the current cancel scope was cancelled.
+                    #
+                    # To match trio, `Event.wait()` must raise a cancellation exception
+                    # now if and only if the current scope was cancelled *before* the
+                    # event was set.
+                    if self._waiter_cancelling_when_set[waiter]:
+                        raise
+            finally:
+                del self._waiter_cancelling_when_set[waiter]
 
     def statistics(self) -> EventStatistics:
         return EventStatistics(len(self._event._waiters))  # type: ignore[attr-defined]
