@@ -2035,8 +2035,10 @@ class AsyncIOBackend(AsyncBackend):
         token: object,
     ) -> T_Retval:
         loop = cast(AbstractEventLoop, token)
-        f: concurrent.futures.Future[T_Retval] = asyncio.run_coroutine_threadsafe(
-            func(*args), loop
+        context = copy_context()
+        context.run(sniffio.current_async_library_cvar.set, "asyncio")
+        f: concurrent.futures.Future[T_Retval] = context.run(
+            asyncio.run_coroutine_threadsafe, func(*args), loop
         )
         return f.result()
 
@@ -2047,6 +2049,7 @@ class AsyncIOBackend(AsyncBackend):
         @wraps(func)
         def wrapper() -> None:
             try:
+                sniffio.current_async_library_cvar.set("asyncio")
                 f.set_result(func(*args))
             except BaseException as exc:
                 f.set_exception(exc)
