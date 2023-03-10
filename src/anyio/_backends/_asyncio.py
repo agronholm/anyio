@@ -1232,7 +1232,7 @@ class TCPSocketListener(abc.SocketListener):
         transport, protocol = await self._loop.connect_accepted_socket(
             StreamProtocol, client_sock
         )
-        return SocketStream(cast(asyncio.Transport, transport), protocol)
+        return SocketStream(transport, protocol)
 
     async def aclose(self) -> None:
         if self._closed:
@@ -2161,15 +2161,13 @@ class AsyncIOBackend(AsyncBackend):
         remote_address: IPSockAddrType | None,
         reuse_port: bool,
     ) -> UDPSocket | ConnectedUDPSocket:
-        result = await get_running_loop().create_datagram_endpoint(
+        transport, protocol = await get_running_loop().create_datagram_endpoint(
             DatagramProtocol,
             local_addr=local_address,
             remote_addr=remote_address,
             family=family,
             reuse_port=reuse_port,
         )
-        transport = cast(asyncio.DatagramTransport, result[0])
-        protocol = result[1]
         if protocol.exception:
             transport.close()
             raise protocol.exception

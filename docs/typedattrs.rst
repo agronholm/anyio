@@ -16,6 +16,7 @@ A common use case is finding the IP address of the remote side of a TCP connecti
 stream may be either :class:`~.abc.SocketStream` or :class:`~.streams.tls.TLSStream`::
 
     from anyio import connect_tcp
+    from anyio.abc import SocketAttribute
 
 
     async def connect(host, port, tls: bool):
