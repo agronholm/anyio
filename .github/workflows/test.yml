@@ -48,7 +48,7 @@ jobs:
         cache: pip
         cache-dependency-path: pyproject.toml
     - name: Install dependencies
-      run: pip install .[test] coveralls
+      run: pip install -e .[test] coveralls
     - name: Test with pytest
       run: coverage run -m pytest -v
       timeout-minutes: 5
