@@ -127,7 +127,7 @@ If you need to set local variables in the handlers, declare them as ``nonlocal``
         nonlocal somevariable
         somevariable = 'whatever'
 
-.. _exceptiongroup:: https://pypi.org/project/exceptiongroup/
+.. _exceptiongroup: https://pypi.org/project/exceptiongroup/
 
 Context propagation
 -------------------
