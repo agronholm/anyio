@@ -64,13 +64,19 @@ pytest11 = {anyio = "anyio.pytest_plugin"}
 version_scheme = "post-release"
 local_scheme = "dirty-tag"
 
-[tool.isort]
-skip_gitignore = true
-profile = "black"
-
-[tool.flake8]
-max-line-length = 88
-ignore = ["E203", "W503"]
+[tool.ruff]
+line-length = 88
+select = [
+    "E", "F", "W",  # default flake-8
+    "I",            # isort
+    "PGH",          # pygrep-hooks
+    "UP",           # pyupgrade
+]
+ignore = [
+    "UP026",  # deprecated-mock-import (needed on py3.7)
+]
+target-version = "py37"
+src = ["src"]
 
 [tool.mypy]
 python_version = "3.10"

@@ -14,9 +14,9 @@ from asyncio import (
     create_task,
     current_task,
     get_running_loop,
+    sleep,
 )
 from asyncio import run as native_run
-from asyncio import sleep
 from asyncio.base_events import _run_until_complete_cb  # type: ignore[attr-defined]
 from collections import OrderedDict, deque
 from collections.abc import AsyncIterator, Iterable
