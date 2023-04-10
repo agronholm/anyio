@@ -121,8 +121,11 @@ skip_missing_interpreters = true
 
 [testenv]
 depends = pre-commit
+use_develop = true
 commands = coverage run -m pytest {posargs}
-extras = test
+extras =
+    test
+    trio
 
 [testenv:pre-commit]
 depends =
