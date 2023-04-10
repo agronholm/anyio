@@ -51,7 +51,7 @@ from .._core._exceptions import (
     ClosedResourceError,
     EndOfStream,
 )
-from .._core._sockets import GetAddrInfoReturnType, convert_ipv6_sockaddr
+from .._core._sockets import convert_ipv6_sockaddr
 from .._core._streams import create_memory_object_stream
 from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
 from .._core._synchronization import Event as BaseEvent
@@ -96,8 +96,11 @@ class CancelScope(BaseCancelScope):
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> None:
-        return self.__original.__exit__(exc_type, exc_val, exc_tb)
+    ) -> bool | None:
+        # https://github.com/python-trio/trio-typing/pull/79
+        return self.__original.__exit__(  # type: ignore[func-returns-value]
+            exc_type, exc_val, exc_tb
+        )
 
     def cancel(self) -> None:
         self.__original.cancel()
@@ -1007,17 +1010,21 @@ class TrioBackend(AsyncBackend):
         type: int | SocketKind = 0,
         proto: int = 0,
         flags: int = 0,
-    ) -> GetAddrInfoReturnType:
-        # https://github.com/python-trio/trio-typing/pull/57
-        return await trio.socket.getaddrinfo(  # type: ignore[return-value]
-            host, port, family, type, proto, flags
-        )
+    ) -> list[
+        tuple[
+            AddressFamily,
+            SocketKind,
+            int,
+            str,
+            tuple[str, int] | tuple[str, int, int, int],
+        ]
+    ]:
+        return await trio.socket.getaddrinfo(host, port, family, type, proto, flags)
 
     @classmethod
     async def getnameinfo(
         cls, sockaddr: IPSockAddrType, flags: int = 0
     ) -> tuple[str, str]:
-        # https://github.com/python-trio/trio-typing/pull/56
         return await trio.socket.getnameinfo(sockaddr, flags)
 
     @classmethod

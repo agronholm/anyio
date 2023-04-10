@@ -64,7 +64,7 @@ from .._core._exceptions import (
     EndOfStream,
     WouldBlock,
 )
-from .._core._sockets import GetAddrInfoReturnType, convert_ipv6_sockaddr
+from .._core._sockets import convert_ipv6_sockaddr
 from .._core._streams import create_memory_object_stream
 from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
 from .._core._synchronization import Event as BaseEvent
@@ -2211,11 +2211,18 @@ class AsyncIOBackend(AsyncBackend):
         type: int | SocketKind = 0,
         proto: int = 0,
         flags: int = 0,
-    ) -> GetAddrInfoReturnType:
-        result = await get_running_loop().getaddrinfo(
+    ) -> list[
+        tuple[
+            AddressFamily,
+            SocketKind,
+            int,
+            str,
+            tuple[str, int] | tuple[str, int, int, int],
+        ]
+    ]:
+        return await get_running_loop().getaddrinfo(
             host, port, family=family, type=type, proto=proto, flags=flags
         )
-        return cast(GetAddrInfoReturnType, result)
 
     @classmethod
     async def getnameinfo(
