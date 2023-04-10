@@ -121,7 +121,7 @@ skip_missing_interpreters = true
 
 [testenv]
 depends = pre-commit
-use_develop = true
+package = editable
 commands = coverage run -m pytest {posargs}
 extras =
     test
@@ -130,14 +130,14 @@ extras =
 [testenv:pre-commit]
 depends =
 basepython = python3
+package = skip
 deps = pre-commit
 commands = pre-commit run --all-files --show-diff-on-failure
-skip_install = true
 
 [testenv:pyright]
 deps = pyright
 commands = pyright --verifytypes anyio
-usedevelop = true
+package = editable
 
 [testenv:docs]
 depends =
