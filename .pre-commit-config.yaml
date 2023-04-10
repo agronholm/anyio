@@ -30,7 +30,10 @@ repos:
     rev: v1.2.0
     hooks:
       - id: mypy
-        additional_dependencies: [ "pytest", "trio-typing", "packaging" ]
+        additional_dependencies:
+          - pytest
+          - trio-typing >= 0.8.0
+          - packaging
 
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0
