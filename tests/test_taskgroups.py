@@ -1092,3 +1092,24 @@ async def test_start_parent_id() -> None:
     assert initial_parent_id != permanent_parent_id
     assert initial_parent_id == starter_task_id
     assert permanent_parent_id == root_task_id
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 11),
+    reason="Task uncancelling is only supported on Python 3.11",
+)
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_uncancel_after_cancel() -> None:
+    scope = CancelScope()
+    with pytest.raises(asyncio.CancelledError):
+        with scope:
+            asyncio.current_task().cancel()
+            await anyio.sleep(0)
+    assert asyncio.current_task().cancelling() == 1  # type: ignore[union-attr]
+    asyncio.current_task().uncancel()
+    with scope:
+        scope.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await anyio.sleep(0)
+        await anyio.sleep(0)
+    assert asyncio.current_task().cancelling() == 0  # type: ignore[union-attr]

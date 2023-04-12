@@ -201,6 +201,7 @@ class CancelScope(BaseCancelScope):
         self._tasks: set[asyncio.Task] = set()
         self._host_task: asyncio.Task | None = None
         self._timeout_expired = False
+        self._cancel_calls: int = 0
 
     def __enter__(self) -> CancelScope:
         if self._active:
@@ -270,13 +271,23 @@ class CancelScope(BaseCancelScope):
                 exc_val.exceptions if isinstance(exc_val, ExceptionGroup) else [exc_val]
             )
             if all(isinstance(exc, CancelledError) for exc in exceptions):
+
+                def uncancel() -> None:
+                    if sys.version_info >= (3, 11):
+                        # Uncancel all anyio cancellations
+                        for i in range(self._cancel_calls):
+                            self._host_task.uncancel()
+                        self._cancel_calls = 0
+
                 if self._timeout_expired:
+                    uncancel()
                     return True
                 elif not self._cancel_called:
                     # Task was cancelled natively
                     return None
                 elif not self._parent_cancelled():
                     # This scope was directly cancelled
+                    uncancel()
                     return True
 
         return None
@@ -316,6 +327,7 @@ class CancelScope(BaseCancelScope):
                 if task is not current and (
                     task is self._host_task or _task_started(task)
                 ):
+                    self._cancel_calls += 1
                     task.cancel()
 
         # Schedule another callback if there are still tasks left
