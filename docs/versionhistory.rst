@@ -31,6 +31,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   - ``create_memory_object_stream()`` now allows passing only ``item_type``
   - Object receive streams are now covariant and object send streams are correspondingly
     contravariant
+- Changed ``TLSAttribute.shared_ciphers`` to match the documented semantics of
+  ``SSLSocket.shared_ciphers`` of always returning ``None`` for client-side streams
 - Fixed ``CapacityLimiter`` on the asyncio backend to order waiting tasks in the FIFO
   order (instead of LIFO) (PR by Conor Stevenson)
 - Fixed ``CancelScope.cancel()`` not working on asyncio if called before entering the

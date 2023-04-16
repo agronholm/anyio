@@ -17,6 +17,7 @@ from anyio import (
     connect_tcp,
     create_task_group,
     create_tcp_listener,
+    to_thread,
 )
 from anyio.abc import AnyByteStream, SocketAttribute, SocketStream
 from anyio.streams.tls import TLSAttribute, TLSListener, TLSStream
@@ -102,7 +103,7 @@ class TestTLSStream:
                     wrapper.extra(TLSAttribute.peer_certificate_binary), bytes
                 )
                 assert wrapper.extra(TLSAttribute.server_side) is False
-                assert isinstance(wrapper.extra(TLSAttribute.shared_ciphers), list)
+                assert wrapper.extra(TLSAttribute.shared_ciphers) is None
                 assert isinstance(wrapper.extra(TLSAttribute.ssl_object), ssl.SSLObject)
                 assert wrapper.extra(TLSAttribute.standard_compatible) is False
                 assert wrapper.extra(TLSAttribute.tls_version).startswith("TLSv")
@@ -409,3 +410,74 @@ class TestTLSListener:
             tg.cancel_scope.cancel()
 
         assert isinstance(exception, BrokenResourceError)
+
+    async def test_extra_attributes(
+        self, client_context: ssl.SSLContext, server_context: ssl.SSLContext, ca: CA
+    ) -> None:
+        def connect_sync(addr: tuple[str, int]) -> None:
+            with socket.create_connection(addr) as plain_sock:
+                plain_sock.settimeout(2)
+                with client_context.wrap_socket(
+                    plain_sock,
+                    server_side=False,
+                    server_hostname="localhost",
+                    suppress_ragged_eofs=False,
+                ) as conn:
+                    conn.recv(1)
+                    conn.unwrap()
+
+        class CustomTLSListener(TLSListener):
+            @staticmethod
+            async def handle_handshake_error(
+                exc: BaseException, stream: AnyByteStream
+            ) -> None:
+                await TLSListener.handle_handshake_error(exc, stream)
+                pytest.fail("TLS handshake failed")
+
+        async def handler(stream: TLSStream) -> None:
+            async with stream:
+                try:
+                    assert stream.extra(TLSAttribute.alpn_protocol) == "h2"
+                    assert isinstance(
+                        stream.extra(TLSAttribute.channel_binding_tls_unique), bytes
+                    )
+                    assert isinstance(stream.extra(TLSAttribute.cipher), tuple)
+                    assert isinstance(stream.extra(TLSAttribute.peer_certificate), dict)
+                    assert isinstance(
+                        stream.extra(TLSAttribute.peer_certificate_binary), bytes
+                    )
+                    assert stream.extra(TLSAttribute.server_side) is True
+                    shared_ciphers = stream.extra(TLSAttribute.shared_ciphers)
+                    assert isinstance(shared_ciphers, list)
+                    assert len(shared_ciphers) > 1
+                    assert isinstance(
+                        stream.extra(TLSAttribute.ssl_object), ssl.SSLObject
+                    )
+                    assert stream.extra(TLSAttribute.standard_compatible) is True
+                    assert stream.extra(TLSAttribute.tls_version).startswith("TLSv")
+                finally:
+                    event.set()
+                    await stream.send(b"\x00")
+
+        # Issue a client certificate and make the server trust it
+        client_cert = ca.issue_cert("dummy-client")
+        client_cert.configure_cert(client_context)
+        ca.configure_trust(server_context)
+        server_context.verify_mode = ssl.CERT_REQUIRED
+
+        event = Event()
+        server_context.set_alpn_protocols(["h2"])
+        client_context.set_alpn_protocols(["h2"])
+        listener = await create_tcp_listener(local_host="127.0.0.1")
+        tls_listener = CustomTLSListener(listener, server_context)
+        async with tls_listener, create_task_group() as tg:
+            assert tls_listener.extra(TLSAttribute.standard_compatible) is True
+            tg.start_soon(tls_listener.serve, handler)
+            client_thread = Thread(
+                target=connect_sync,
+                args=[listener.extra(SocketAttribute.local_address)],
+            )
+            client_thread.start()
+            await event.wait()
+            await to_thread.run_sync(client_thread.join)
+            tg.cancel_scope.cancel()
