@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import socket
 import ssl
+import sys
 from contextlib import ExitStack
 from threading import Thread
 from typing import ContextManager, NoReturn
@@ -22,7 +23,7 @@ from anyio.streams.tls import TLSAttribute, TLSListener, TLSStream
 
 pytestmark = pytest.mark.anyio
 skip_on_broken_openssl = pytest.mark.skipif(
-    ssl.OPENSSL_VERSION_INFO[0] > 1,
+    (ssl.OPENSSL_VERSION_INFO[0] > 1 and sys.version_info < (3, 8)),
     reason="Python 3.7 does not work with OpenSSL versions higher than 1.X",
 )
 
