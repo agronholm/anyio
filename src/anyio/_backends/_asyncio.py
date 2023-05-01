@@ -77,6 +77,7 @@ from ..abc import (
     UDPPacketType,
     UNIXDatagramPacketType,
 )
+from ..abc._tasks import T_contra
 from ..lowlevel import RunVar
 from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
@@ -428,7 +429,7 @@ class _AsyncioTaskStatus(abc.TaskStatus):
         self._future = future
         self._parent_id = parent_id
 
-    def started(self, value: object = None) -> None:
+    def started(self, value: T_contra | None = None) -> None:
         try:
             self._future.set_result(value)
         except asyncio.InvalidStateError:
