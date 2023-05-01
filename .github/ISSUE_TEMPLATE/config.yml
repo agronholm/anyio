@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: GitHub Discussions
+    url: https://github.com/agronholm/anyio/discussions/categories/q-a
+    about: Technical support forum
+  - name: Support chat on Gitter
+    url: https://gitter.im/python-trio/AnyIO
+    about: Technical support chat

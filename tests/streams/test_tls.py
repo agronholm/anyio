@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import socket
 import ssl
+import sys
 from contextlib import ExitStack
 from threading import Thread
 from typing import ContextManager, NoReturn
 
 import pytest
+from pytest_mock import MockerFixture
 from trustme import CA
 
 from anyio import (
@@ -14,13 +16,20 @@ from anyio import (
     EndOfStream,
     Event,
     connect_tcp,
+    create_memory_object_stream,
     create_task_group,
     create_tcp_listener,
+    to_thread,
 )
 from anyio.abc import AnyByteStream, SocketAttribute, SocketStream
+from anyio.streams.stapled import StapledObjectStream
 from anyio.streams.tls import TLSAttribute, TLSListener, TLSStream
 
 pytestmark = pytest.mark.anyio
+skip_on_broken_openssl = pytest.mark.skipif(
+    (ssl.OPENSSL_VERSION_INFO[0] > 1 and sys.version_info < (3, 8)),
+    reason="Python 3.7 does not work with OpenSSL versions higher than 1.X",
+)
 
 
 class TestTLSStream:
@@ -97,7 +106,7 @@ class TestTLSStream:
                     wrapper.extra(TLSAttribute.peer_certificate_binary), bytes
                 )
                 assert wrapper.extra(TLSAttribute.server_side) is False
-                assert isinstance(wrapper.extra(TLSAttribute.shared_ciphers), list)
+                assert wrapper.extra(TLSAttribute.shared_ciphers) is None
                 assert isinstance(wrapper.extra(TLSAttribute.ssl_object), ssl.SSLObject)
                 assert wrapper.extra(TLSAttribute.standard_compatible) is False
                 assert wrapper.extra(TLSAttribute.tls_version).startswith("TLSv")
@@ -184,6 +193,7 @@ class TestTLSStream:
             pytest.param(False, False, id="neither_standard"),
         ],
     )
+    @skip_on_broken_openssl
     async def test_ragged_eofs(
         self,
         server_context: ssl.SSLContext,
@@ -240,6 +250,7 @@ class TestTLSStream:
         else:
             assert server_exc is None
 
+    @skip_on_broken_openssl
     async def test_ragged_eof_on_receive(
         self, server_context: ssl.SSLContext, client_context: ssl.SSLContext
     ) -> None:
@@ -370,8 +381,23 @@ class TestTLSStream:
         server_thread.join()
         server_sock.close()
 
+    @pytest.mark.skipif(
+        not hasattr(ssl, "OP_IGNORE_UNEXPECTED_EOF"),
+        reason="The ssl module does not have the OP_IGNORE_UNEXPECTED_EOF attribute",
+    )
+    async def test_default_context_ignore_unexpected_eof_flag_off(
+        self, mocker: MockerFixture
+    ) -> None:
+        send1, receive1 = create_memory_object_stream()
+        client_stream = StapledObjectStream(send1, receive1)
+        mocker.patch.object(TLSStream, "_call_sslobject_method")
+        tls_stream = await TLSStream.wrap(client_stream)
+        ssl_context = tls_stream.extra(TLSAttribute.ssl_object).context
+        assert not ssl_context.options & ssl.OP_IGNORE_UNEXPECTED_EOF
+
 
 class TestTLSListener:
+    @skip_on_broken_openssl
     async def test_handshake_fail(self, server_context: ssl.SSLContext) -> None:
         def handler(stream: object) -> NoReturn:
             pytest.fail("This function should never be called in this scenario")
@@ -401,3 +427,74 @@ class TestTLSListener:
             tg.cancel_scope.cancel()
 
         assert isinstance(exception, BrokenResourceError)
+
+    async def test_extra_attributes(
+        self, client_context: ssl.SSLContext, server_context: ssl.SSLContext, ca: CA
+    ) -> None:
+        def connect_sync(addr: tuple[str, int]) -> None:
+            with socket.create_connection(addr) as plain_sock:
+                plain_sock.settimeout(2)
+                with client_context.wrap_socket(
+                    plain_sock,
+                    server_side=False,
+                    server_hostname="localhost",
+                    suppress_ragged_eofs=False,
+                ) as conn:
+                    conn.recv(1)
+                    conn.unwrap()
+
+        class CustomTLSListener(TLSListener):
+            @staticmethod
+            async def handle_handshake_error(
+                exc: BaseException, stream: AnyByteStream
+            ) -> None:
+                await TLSListener.handle_handshake_error(exc, stream)
+                pytest.fail("TLS handshake failed")
+
+        async def handler(stream: TLSStream) -> None:
+            async with stream:
+                try:
+                    assert stream.extra(TLSAttribute.alpn_protocol) == "h2"
+                    assert isinstance(
+                        stream.extra(TLSAttribute.channel_binding_tls_unique), bytes
+                    )
+                    assert isinstance(stream.extra(TLSAttribute.cipher), tuple)
+                    assert isinstance(stream.extra(TLSAttribute.peer_certificate), dict)
+                    assert isinstance(
+                        stream.extra(TLSAttribute.peer_certificate_binary), bytes
+                    )
+                    assert stream.extra(TLSAttribute.server_side) is True
+                    shared_ciphers = stream.extra(TLSAttribute.shared_ciphers)
+                    assert isinstance(shared_ciphers, list)
+                    assert len(shared_ciphers) > 1
+                    assert isinstance(
+                        stream.extra(TLSAttribute.ssl_object), ssl.SSLObject
+                    )
+                    assert stream.extra(TLSAttribute.standard_compatible) is True
+                    assert stream.extra(TLSAttribute.tls_version).startswith("TLSv")
+                finally:
+                    event.set()
+                    await stream.send(b"\x00")
+
+        # Issue a client certificate and make the server trust it
+        client_cert = ca.issue_cert("dummy-client")
+        client_cert.configure_cert(client_context)
+        ca.configure_trust(server_context)
+        server_context.verify_mode = ssl.CERT_REQUIRED
+
+        event = Event()
+        server_context.set_alpn_protocols(["h2"])
+        client_context.set_alpn_protocols(["h2"])
+        listener = await create_tcp_listener(local_host="127.0.0.1")
+        tls_listener = CustomTLSListener(listener, server_context)
+        async with tls_listener, create_task_group() as tg:
+            assert tls_listener.extra(TLSAttribute.standard_compatible) is True
+            tg.start_soon(tls_listener.serve, handler)
+            client_thread = Thread(
+                target=connect_sync,
+                args=[listener.extra(SocketAttribute.local_address)],
+            )
+            client_thread.start()
+            await event.wait()
+            await to_thread.run_sync(client_thread.join)
+            tg.cancel_scope.cancel()

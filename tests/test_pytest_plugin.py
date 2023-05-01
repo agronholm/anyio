@@ -17,16 +17,26 @@ pytest_args = "-v", "-p", "anyio", "-p", "no:asyncio", "-p", "no:trio"
 def test_plugin(testdir: Pytester) -> None:
     testdir.makeconftest(
         """
+        from contextvars import ContextVar
         import sniffio
         import pytest
 
         from anyio import sleep
+
+        var = ContextVar("var")
 
 
         @pytest.fixture
         async def async_fixture():
             await sleep(0)
             return sniffio.current_async_library()
+
+
+        @pytest.fixture
+        async def context_variable():
+            token = var.set("testvalue")
+            yield var
+            var.reset(token)
 
 
         @pytest.fixture
@@ -63,12 +73,17 @@ def test_plugin(testdir: Pytester) -> None:
         async def test_skip_inline(some_feature):
             # Test for github #214
             pytest.skip("Test that skipping works")
+
+        @pytest.mark.anyio
+        async def test_contextvar(context_variable):
+            # Test that a contextvar set in an async fixture is visible to the test
+            assert context_variable.get() == "testvalue"
         """
     )
 
     result = testdir.runpytest(*pytest_args)
     result.assert_outcomes(
-        passed=3 * len(get_all_backends()), skipped=len(get_all_backends())
+        passed=4 * len(get_all_backends()), skipped=len(get_all_backends())
     )
 
 
@@ -77,6 +92,7 @@ def test_asyncio(testdir: Pytester, caplog: LogCaptureFixture) -> None:
         """
         import asyncio
         import pytest
+        import threading
 
 
         @pytest.fixture(scope='class')
@@ -100,6 +116,16 @@ def test_asyncio(testdir: Pytester, caplog: LogCaptureFixture) -> None:
             yield None
             asyncio.get_running_loop().call_soon(callback)
             await asyncio.sleep(0)
+
+        @pytest.fixture
+        def no_thread_leaks_fixture():
+            # this has to be non-async fixture so that it wraps up
+            # after the event loop gets closed
+            threads_before = threading.enumerate()
+            yield
+            threads_after = threading.enumerate()
+            leaked_threads = set(threads_after) - set(threads_before)
+            assert not leaked_threads
         """
     )
 
@@ -148,11 +174,15 @@ def test_asyncio(testdir: Pytester, caplog: LogCaptureFixture) -> None:
                 {"message": "bogus error"}
             )
             await asyncio.sleep(0.1)
+
+        async def test_shutdown_default_executor(no_thread_leaks_fixture):
+            # Test for github #503
+            asyncio.get_event_loop().run_in_executor(None, lambda: 1)
         """
     )
 
     result = testdir.runpytest(*pytest_args)
-    result.assert_outcomes(passed=3, failed=1, errors=2)
+    result.assert_outcomes(passed=4, failed=1, errors=2)
     assert len(caplog.messages) == 1
     assert caplog.messages[0] == "bogus error"
 

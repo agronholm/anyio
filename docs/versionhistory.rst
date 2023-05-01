@@ -7,6 +7,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - **BACKWARDS INCOMPATIBLE** Replaced AnyIO's own ``ExceptionGroup`` class with the PEP
   654 ``BaseExceptionGroup`` and ``ExceptionGroup``
+- **BACKWARDS INCOMPATIBLE** Changes the pytest plugin to run all tests and fixtures in
+  the same task, allowing fixtures to set context variables for tests and other fixtures
 - Bumped minimum version of trio to v0.22
 - Added ``create_unix_datagram_socket`` and ``create_connected_unix_datagram_socket`` to
   create UNIX datagram sockets (PR by Jean Hominal)
@@ -33,6 +35,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   - The ``Listener`` class is now covariant in its stream type
   - Object receive streams are now covariant and object send streams are correspondingly
     contravariant
+- Changed ``TLSAttribute.shared_ciphers`` to match the documented semantics of
+  ``SSLSocket.shared_ciphers`` of always returning ``None`` for client-side streams
 - Fixed ``CapacityLimiter`` on the asyncio backend to order waiting tasks in the FIFO
   order (instead of LIFO) (PR by Conor Stevenson)
 - Fixed ``CancelScope.cancel()`` not working on asyncio if called before entering the
@@ -46,6 +50,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   the event loop to be closed
 - Fixed ``current_effective_deadline()`` not returning ``-inf`` on asyncio when the
   currently active cancel scope has been cancelled (PR by Ganden Schaffner)
+- Fixed the ``OP_IGNORE_UNEXPECTED_EOF`` flag in an SSL context created by default in
+  ``TLSStream.wrap()`` being inadvertently set on Python 3.11.3 and 3.10.11
 
 **3.6.1**
 

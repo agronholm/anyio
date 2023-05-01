@@ -455,6 +455,7 @@ class CapacityLimiter:
     def release(self) -> None:
         """
         Release the token held by the current task.
+
         :raises RuntimeError: if the current task has not borrowed a token from this
             limiter.
 

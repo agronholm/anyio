@@ -58,7 +58,6 @@ __all__ = (
     "get_current_task",
     "get_running_tasks",
     "wait_all_tasks_blocked",
-    "start_blocking_portal",
     "typed_attribute",
     "TypedAttributeSet",
     "TypedAttributeProvider",

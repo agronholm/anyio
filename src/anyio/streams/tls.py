@@ -38,8 +38,9 @@ class TLSAttribute(TypedAttributeSet):
     peer_certificate_binary: bytes | None = typed_attribute()
     #: ``True`` if this is the server side of the connection
     server_side: bool = typed_attribute()
-    #: ciphers shared between both ends of the TLS connection
-    shared_ciphers: list[tuple[str, str, int]] = typed_attribute()
+    #: ciphers shared by the client during the TLS handshake (``None`` if this is the
+    #: client side)
+    shared_ciphers: list[tuple[str, str, int]] | None = typed_attribute()
     #: the :class:`~ssl.SSLObject` used for encryption
     ssl_object: ssl.SSLObject = typed_attribute()
     #: ``True`` if this stream does (and expects) a closing TLS handshake when the
@@ -107,9 +108,7 @@ class TLSStream(ByteStream):
 
             # Re-enable detection of unexpected EOFs if it was disabled by Python
             if hasattr(ssl, "OP_IGNORE_UNEXPECTED_EOF"):
-                ssl_context.options ^= (
-                    ssl.OP_IGNORE_UNEXPECTED_EOF  # type: ignore[attr-defined]
-                )
+                ssl_context.options &= ~ssl.OP_IGNORE_UNEXPECTED_EOF
 
         bio_in = ssl.MemoryBIO()
         bio_out = ssl.MemoryBIO()
@@ -234,7 +233,9 @@ class TLSStream(ByteStream):
                 True
             ),
             TLSAttribute.server_side: lambda: self._ssl_object.server_side,
-            TLSAttribute.shared_ciphers: lambda: self._ssl_object.shared_ciphers(),
+            TLSAttribute.shared_ciphers: lambda: self._ssl_object.shared_ciphers()
+            if self._ssl_object.server_side
+            else None,
             TLSAttribute.standard_compatible: lambda: self.standard_compatible,
             TLSAttribute.ssl_object: lambda: self._ssl_object,
             TLSAttribute.tls_version: self._ssl_object.version,

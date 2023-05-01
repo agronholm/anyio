@@ -6,6 +6,7 @@ import concurrent.futures
 import math
 import socket
 import sys
+import threading
 from asyncio import (
     AbstractEventLoop,
     CancelledError,
@@ -13,9 +14,9 @@ from asyncio import (
     create_task,
     current_task,
     get_running_loop,
+    sleep,
 )
 from asyncio import run as native_run
-from asyncio import sleep
 from asyncio.base_events import _run_until_complete_cb  # type: ignore[attr-defined]
 from collections import OrderedDict, deque
 from collections.abc import AsyncIterator, Iterable
@@ -63,7 +64,8 @@ from .._core._exceptions import (
     EndOfStream,
     WouldBlock,
 )
-from .._core._sockets import GetAddrInfoReturnType, convert_ipv6_sockaddr
+from .._core._sockets import convert_ipv6_sockaddr
+from .._core._streams import create_memory_object_stream
 from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
 from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import ResourceGuard
@@ -76,6 +78,7 @@ from ..abc import (
     UNIXDatagramPacketType,
 )
 from ..lowlevel import RunVar
+from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup, ExceptionGroup
@@ -95,7 +98,6 @@ T_Retval = TypeVar("T_Retval")
 
 # Check whether there is native support for task names in asyncio (3.8+)
 _native_task_names = hasattr(asyncio.Task, "get_name")
-
 
 _root_task: RunVar[asyncio.Task | None] = RunVar("_root_task")
 
@@ -1230,7 +1232,7 @@ class TCPSocketListener(abc.SocketListener):
         transport, protocol = await self._loop.connect_accepted_socket(
             StreamProtocol, client_sock
         )
-        return SocketStream(cast(asyncio.Transport, transport), protocol)
+        return SocketStream(transport, protocol)
 
     async def aclose(self) -> None:
         if self._closed:
@@ -1673,7 +1675,42 @@ def _create_task_info(task: asyncio.Task) -> TaskInfo:
     return TaskInfo(id(task), parent_id, name, get_coro(task))
 
 
+async def _shutdown_default_executor(loop: asyncio.BaseEventLoop) -> None:
+    """Schedule the shutdown of the default executor.
+    BaseEventLoop.shutdown_default_executor was introduced in Python 3.9.
+    This function is an adapted version of the method from Python 3.11.
+    It's used in TestRunner.close only if python < 3.9.
+    """
+
+    def _do_shutdown(
+        loop_: asyncio.BaseEventLoop, future: asyncio.futures.Future
+    ) -> None:
+        try:
+            loop_._default_executor.shutdown(wait=True)  # type: ignore[attr-defined]
+            loop_.call_soon_threadsafe(future.set_result, None)
+        except Exception as ex:
+            loop_.call_soon_threadsafe(future.set_exception, ex)
+
+    if loop._default_executor is None:  # type: ignore[attr-defined]
+        return
+    future = loop.create_future()
+    thread = threading.Thread(
+        target=_do_shutdown,
+        args=(
+            loop,
+            future,
+        ),
+    )
+    thread.start()
+    try:
+        await future
+    finally:
+        thread.join()
+
+
 class TestRunner(abc.TestRunner):
+    _send_stream: MemoryObjectSendStream[tuple[Awaitable[Any], asyncio.Future[Any]]]
+
     def __init__(
         self,
         debug: bool = False,
@@ -1685,6 +1722,7 @@ class TestRunner(abc.TestRunner):
         self._loop = asyncio.new_event_loop()
         self._loop.set_debug(debug)
         self._loop.set_exception_handler(self._exception_handler)
+        self._runner_task: asyncio.Task | None = None
         asyncio.set_event_loop(self._loop)
 
     def _cancel_all_tasks(self) -> None:
@@ -1724,10 +1762,54 @@ class TestRunner(abc.TestRunner):
                     "Multiple exceptions occurred in asynchronous callbacks", exceptions
                 )
 
+    @staticmethod
+    async def _run_tests_and_fixtures(
+        receive_stream: MemoryObjectReceiveStream[
+            tuple[Coroutine[Any, Any, T_Retval], Future[T_Retval]]
+        ],
+    ) -> None:
+        with receive_stream:
+            async for coro, future in receive_stream:
+                try:
+                    retval = await coro
+                except BaseException as exc:
+                    if not future.cancelled():
+                        future.set_exception(exc)
+                else:
+                    if not future.cancelled():
+                        future.set_result(retval)
+
+    async def _call_in_runner_task(
+        self, func: Callable[..., Awaitable[T_Retval]], *args: object, **kwargs: object
+    ) -> T_Retval:
+        if not self._runner_task:
+            self._send_stream, receive_stream = create_memory_object_stream(1)
+            self._runner_task = self._loop.create_task(
+                self._run_tests_and_fixtures(receive_stream)
+            )
+
+        coro = func(*args, **kwargs)
+        future: asyncio.Future[T_Retval] = self._loop.create_future()
+        self._send_stream.send_nowait((coro, future))
+        return await future
+
     def close(self) -> None:
         try:
+            if self._runner_task is not None:
+                self._runner_task = None
+                self._loop.run_until_complete(self._send_stream.aclose())
+                del self._send_stream
+
             self._cancel_all_tasks()
             self._loop.run_until_complete(self._loop.shutdown_asyncgens())
+            if hasattr(self._loop, "shutdown_default_executor"):
+                # asyncio in Python >= 3.9 or uvloop >= 0.15.0
+                self._loop.run_until_complete(self._loop.shutdown_default_executor())
+            elif isinstance(self._loop, asyncio.BaseEventLoop) and hasattr(
+                self._loop, "_default_executor"
+            ):
+                # asyncio in Python < 3.9
+                self._loop.run_until_complete(_shutdown_default_executor(self._loop))
         finally:
             asyncio.set_event_loop(None)
             self._loop.close()
@@ -1737,41 +1819,32 @@ class TestRunner(abc.TestRunner):
         fixture_func: Callable[..., AsyncGenerator[T_Retval, Any]],
         kwargs: dict[str, Any],
     ) -> Iterable[T_Retval]:
-        async def fixture_runner() -> None:
-            agen = fixture_func(**kwargs)
-            try:
-                retval = await agen.asend(None)
-                self._raise_async_exceptions()
-            except BaseException as exc:
-                f.set_exception(exc)
-                return
-            else:
-                f.set_result(retval)
-
-            await event.wait()
-            try:
-                await agen.asend(None)
-            except StopAsyncIteration:
-                pass
-            else:
-                await agen.aclose()
-                raise RuntimeError("Async generator fixture did not stop")
-
-        f = self._loop.create_future()
-        event = asyncio.Event()
-        fixture_task = self._loop.create_task(fixture_runner())
-        self._loop.run_until_complete(f)
-        yield f.result()
-        event.set()
-        self._loop.run_until_complete(fixture_task)
+        asyncgen = fixture_func(**kwargs)
+        fixturevalue: T_Retval = self._loop.run_until_complete(
+            self._call_in_runner_task(asyncgen.asend, None)
+        )
         self._raise_async_exceptions()
+
+        yield fixturevalue
+
+        try:
+            self._loop.run_until_complete(
+                self._call_in_runner_task(asyncgen.asend, None)
+            )
+        except StopAsyncIteration:
+            self._raise_async_exceptions()
+        else:
+            self._loop.run_until_complete(asyncgen.aclose())
+            raise RuntimeError("Async generator fixture did not stop")
 
     def run_fixture(
         self,
         fixture_func: Callable[..., Coroutine[Any, Any, T_Retval]],
         kwargs: dict[str, Any],
     ) -> T_Retval:
-        retval = self._loop.run_until_complete(fixture_func(**kwargs))
+        retval = self._loop.run_until_complete(
+            self._call_in_runner_task(fixture_func, **kwargs)
+        )
         self._raise_async_exceptions()
         return retval
 
@@ -1779,7 +1852,9 @@ class TestRunner(abc.TestRunner):
         self, test_func: Callable[..., Coroutine[Any, Any, Any]], kwargs: dict[str, Any]
     ) -> None:
         try:
-            self._loop.run_until_complete(test_func(**kwargs))
+            self._loop.run_until_complete(
+                self._call_in_runner_task(test_func, **kwargs)
+            )
         except Exception as exc:
             self._exceptions.append(exc)
 
@@ -2086,15 +2161,13 @@ class AsyncIOBackend(AsyncBackend):
         remote_address: IPSockAddrType | None,
         reuse_port: bool,
     ) -> UDPSocket | ConnectedUDPSocket:
-        result = await get_running_loop().create_datagram_endpoint(
+        transport, protocol = await get_running_loop().create_datagram_endpoint(
             DatagramProtocol,
             local_addr=local_address,
             remote_addr=remote_address,
             family=family,
             reuse_port=reuse_port,
         )
-        transport = cast(asyncio.DatagramTransport, result[0])
-        protocol = result[1]
         if protocol.exception:
             transport.close()
             raise protocol.exception
@@ -2138,11 +2211,18 @@ class AsyncIOBackend(AsyncBackend):
         type: int | SocketKind = 0,
         proto: int = 0,
         flags: int = 0,
-    ) -> GetAddrInfoReturnType:
-        result = await get_running_loop().getaddrinfo(
+    ) -> list[
+        tuple[
+            AddressFamily,
+            SocketKind,
+            int,
+            str,
+            tuple[str, int] | tuple[str, int, int, int],
+        ]
+    ]:
+        return await get_running_loop().getaddrinfo(
             host, port, family=family, type=type, proto=proto, flags=flags
         )
-        return cast(GetAddrInfoReturnType, result)
 
     @classmethod
     async def getnameinfo(

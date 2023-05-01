@@ -14,7 +14,6 @@ from socket import AddressFamily, SocketKind
 from types import TracebackType
 from typing import (
     IO,
-    TYPE_CHECKING,
     Any,
     AsyncGenerator,
     Awaitable,
@@ -22,7 +21,6 @@ from typing import (
     Collection,
     ContextManager,
     Coroutine,
-    Deque,
     Generic,
     Mapping,
     NoReturn,
@@ -53,16 +51,15 @@ from .._core._exceptions import (
     ClosedResourceError,
     EndOfStream,
 )
-from .._core._sockets import GetAddrInfoReturnType, convert_ipv6_sockaddr
+from .._core._sockets import convert_ipv6_sockaddr
+from .._core._streams import create_memory_object_stream
 from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
 from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import ResourceGuard
 from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend
-
-if TYPE_CHECKING:
-    from trio_typing import TaskStatus
+from ..streams.memory import MemoryObjectSendStream
 
 T = TypeVar("T")
 T_Retval = TypeVar("T_Retval")
@@ -100,7 +97,10 @@ class CancelScope(BaseCancelScope):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> bool | None:
-        return self.__original.__exit__(exc_type, exc_val, exc_tb)
+        # https://github.com/python-trio/trio-typing/pull/79
+        return self.__original.__exit__(  # type: ignore[func-returns-value]
+            exc_type, exc_val, exc_tb
+        )
 
     def cancel(self) -> None:
         self.__original.cancel()
@@ -302,13 +302,12 @@ class _ProcessPoolShutdownInstrument(trio.abc.Instrument):
         super().after_run()
 
 
-current_default_worker_process_limiter: RunVar = RunVar(
+current_default_worker_process_limiter: trio.lowlevel.RunVar = RunVar(
     "current_default_worker_process_limiter"
 )
 
 
-async def _shutdown_process_pool(workers: set[Process]) -> None:
-    process: Process
+async def _shutdown_process_pool(workers: set[abc.Process]) -> None:
     try:
         await trio.sleep(math.inf)
     except trio.Cancelled:
@@ -666,7 +665,7 @@ class CapacityLimiter(BaseCapacityLimiter):
         )
 
 
-_capacity_limiter_wrapper: RunVar = RunVar("_capacity_limiter_wrapper")
+_capacity_limiter_wrapper: trio.lowlevel.RunVar = RunVar("_capacity_limiter_wrapper")
 
 
 #
@@ -708,60 +707,50 @@ class _SignalReceiver:
 
 class TestRunner(abc.TestRunner):
     def __init__(self, **options: Any) -> None:
-        from collections import deque
         from queue import Queue
 
         self._call_queue: Queue[Callable[..., object]] = Queue()
-        self._result_queue: Deque[Outcome] = deque()
-        self._stop_event: trio.Event | None = None
-        self._nursery: trio.Nursery | None = None
+        self._send_stream: MemoryObjectSendStream | None = None
         self._options = options
 
-    async def _trio_main(self) -> None:
-        self._stop_event = trio.Event()
-        async with trio.open_nursery() as self._nursery:
-            await self._stop_event.wait()
-
-    async def _call_func(
-        self, func: Callable[..., Awaitable[object]], args: tuple, kwargs: dict
-    ) -> None:
-        try:
-            retval = await func(*args, **kwargs)
-        except BaseException as exc:
-            self._result_queue.append(Error(exc))
-        else:
-            self._result_queue.append(Value(retval))
+    async def _run_tests_and_fixtures(self) -> None:
+        self._send_stream, receive_stream = create_memory_object_stream(1)
+        with receive_stream:
+            async for coro, outcome_holder in receive_stream:
+                try:
+                    retval = await coro
+                except BaseException as exc:
+                    outcome_holder.append(Error(exc))
+                else:
+                    outcome_holder.append(Value(retval))
 
     def _main_task_finished(self, outcome: object) -> None:
-        self._nursery = None
+        self._send_stream = None
 
-    def _get_nursery(self) -> trio.Nursery:
-        if self._nursery is None:
+    def _call_in_runner_task(
+        self, func: Callable[..., Awaitable[T_Retval]], *args: object, **kwargs: object
+    ) -> T_Retval:
+        if self._send_stream is None:
             trio.lowlevel.start_guest_run(
-                self._trio_main,
+                self._run_tests_and_fixtures,
                 run_sync_soon_threadsafe=self._call_queue.put,
                 done_callback=self._main_task_finished,
                 **self._options,
             )
-            while self._nursery is None:
+            while self._send_stream is None:
                 self._call_queue.get()()
 
-        return self._nursery
-
-    def _call(
-        self, func: Callable[..., Awaitable[T_Retval]], *args: object, **kwargs: object
-    ) -> T_Retval:
-        self._get_nursery().start_soon(self._call_func, func, args, kwargs)
-        while not self._result_queue:
+        outcome_holder: list[Outcome] = []
+        self._send_stream.send_nowait((func(*args, **kwargs), outcome_holder))
+        while not outcome_holder:
             self._call_queue.get()()
 
-        outcome = self._result_queue.pop()
-        return outcome.unwrap()
+        return outcome_holder[0].unwrap()
 
     def close(self) -> None:
-        if self._stop_event:
-            self._stop_event.set()
-            while self._nursery is not None:
+        if self._send_stream:
+            self._send_stream.close()
+            while self._send_stream is not None:
                 self._call_queue.get()()
 
     def run_asyncgen_fixture(
@@ -769,35 +758,30 @@ class TestRunner(abc.TestRunner):
         fixture_func: Callable[..., AsyncGenerator[T_Retval, Any]],
         kwargs: dict[str, Any],
     ) -> Iterable[T_Retval]:
-        async def fixture_runner(*, task_status: TaskStatus[T_Retval]) -> None:
-            agen = fixture_func(**kwargs)
-            retval = await agen.asend(None)
-            task_status.started(retval)
-            await teardown_event.wait()
-            try:
-                await agen.asend(None)
-            except StopAsyncIteration:
-                pass
-            else:
-                await agen.aclose()
-                raise RuntimeError("Async generator fixture did not stop")
+        asyncgen = fixture_func(**kwargs)
+        fixturevalue: T_Retval = self._call_in_runner_task(asyncgen.asend, None)
 
-        teardown_event = trio.Event()
-        fixture_value = self._call(lambda: self._get_nursery().start(fixture_runner))
-        yield fixture_value
-        teardown_event.set()
+        yield fixturevalue
+
+        try:
+            self._call_in_runner_task(asyncgen.asend, None)
+        except StopAsyncIteration:
+            pass
+        else:
+            self._call_in_runner_task(asyncgen.aclose)
+            raise RuntimeError("Async generator fixture did not stop")
 
     def run_fixture(
         self,
         fixture_func: Callable[..., Coroutine[Any, Any, T_Retval]],
         kwargs: dict[str, Any],
     ) -> T_Retval:
-        return self._call(fixture_func, **kwargs)
+        return self._call_in_runner_task(fixture_func, **kwargs)
 
     def run_test(
         self, test_func: Callable[..., Coroutine[Any, Any, Any]], kwargs: dict[str, Any]
     ) -> None:
-        self._call(test_func, **kwargs)
+        self._call_in_runner_task(test_func, **kwargs)
 
 
 class TrioBackend(AsyncBackend):
@@ -912,8 +896,8 @@ class TrioBackend(AsyncBackend):
         env: Mapping[str, str] | None = None,
         start_new_session: bool = False,
     ) -> Process:
-        process = await trio.lowlevel.open_process(  # type: ignore[attr-defined]
-            command,
+        process = await trio.lowlevel.open_process(  # type: ignore[misc]
+            command,  # type: ignore[arg-type]
             stdin=stdin,
             stdout=stdout,
             stderr=stderr,
@@ -1005,7 +989,7 @@ class TrioBackend(AsyncBackend):
         ...
 
     @classmethod
-    async def create_unix_datagram_socket(  # type: ignore[override]
+    async def create_unix_datagram_socket(
         cls, raw_socket: socket.socket, remote_path: str | None
     ) -> abc.UNIXDatagramSocket | abc.ConnectedUNIXDatagramSocket:
         trio_socket = trio.socket.from_stdlib_socket(raw_socket)
@@ -1026,20 +1010,22 @@ class TrioBackend(AsyncBackend):
         type: int | SocketKind = 0,
         proto: int = 0,
         flags: int = 0,
-    ) -> GetAddrInfoReturnType:
-        # https://github.com/python-trio/trio-typing/pull/57
-        return await trio.socket.getaddrinfo(  # type: ignore[return-value]
-            host, port, family, type, proto, flags  # type: ignore[arg-type]
-        )
+    ) -> list[
+        tuple[
+            AddressFamily,
+            SocketKind,
+            int,
+            str,
+            tuple[str, int] | tuple[str, int, int, int],
+        ]
+    ]:
+        return await trio.socket.getaddrinfo(host, port, family, type, proto, flags)
 
     @classmethod
     async def getnameinfo(
         cls, sockaddr: IPSockAddrType, flags: int = 0
     ) -> tuple[str, str]:
-        # https://github.com/python-trio/trio-typing/pull/56
-        return await trio.socket.getnameinfo(  # type: ignore[return-value]
-            sockaddr, flags
-        )
+        return await trio.socket.getnameinfo(sockaddr, flags)
 
     @classmethod
     async def wait_socket_readable(cls, sock: socket.socket) -> None:
