@@ -48,16 +48,18 @@ jobs:
         cache: pip
         cache-dependency-path: pyproject.toml
     - name: Install dependencies
-      run: pip install -e .[test]
+      run: pip install -e .[test] coveralls
     - name: Test with pytest
       run: coverage run -m pytest -v
       timeout-minutes: 5
       env:
         PYTEST_DISABLE_PLUGIN_AUTOLOAD: 1
     - name: Upload Coverage
-      uses: coverallsapp/github-action@v2
-      with:
-        parallel: true
+      run: coveralls --service=github
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        COVERALLS_FLAG_NAME: ${{ matrix.test-name }}
+        COVERALLS_PARALLEL: true
 
   coveralls:
     name: Finish Coveralls
