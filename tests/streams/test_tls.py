@@ -388,7 +388,7 @@ class TestTLSStream:
     async def test_default_context_ignore_unexpected_eof_flag_off(
         self, mocker: MockerFixture
     ) -> None:
-        send1, receive1 = create_memory_object_stream()
+        send1, receive1 = create_memory_object_stream[bytes]()
         client_stream = StapledObjectStream(send1, receive1)
         mocker.patch.object(TLSStream, "_call_sslobject_method")
         tls_stream = await TLSStream.wrap(client_stream)
