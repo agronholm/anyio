@@ -156,7 +156,7 @@ class TLSStream(ByteStream):
                 self._read_bio.write_eof()
                 self._write_bio.write_eof()
                 if (
-                    isinstance(exc, (ssl.SSLEOFError, ssl.SSLZeroReturnError))
+                    isinstance(exc, ssl.SSLEOFError)
                     or "UNEXPECTED_EOF_WHILE_READING" in exc.strerror
                 ):
                     if self.standard_compatible:
