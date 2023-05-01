@@ -54,6 +54,7 @@ test = [
 ]
 doc = [
     "packaging",
+    "Sphinx >= 6.1.0",
     "sphinx_rtd_theme",
     "sphinx-autodoc-typehints >= 1.2.0",
 ]
@@ -65,13 +66,19 @@ pytest11 = {anyio = "anyio.pytest_plugin"}
 version_scheme = "post-release"
 local_scheme = "dirty-tag"
 
-[tool.isort]
-skip_gitignore = true
-profile = "black"
-
-[tool.flake8]
-max-line-length = 88
-ignore = ["E203", "W503"]
+[tool.ruff]
+line-length = 88
+select = [
+    "E", "F", "W",  # default flake-8
+    "I",            # isort
+    "PGH",          # pygrep-hooks
+    "UP",           # pyupgrade
+]
+ignore = [
+    "UP026",  # deprecated-mock-import (needed on py3.7)
+]
+target-version = "py37"
+src = ["src"]
 
 [tool.mypy]
 python_version = "3.10"
@@ -109,30 +116,29 @@ show_missing = true
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-minversion = 3.7.0
+minversion = 4.0.0
 envlist = pre-commit, py37, py38, py39, py310, py311, pypy3
 skip_missing_interpreters = true
-isolated_build = true
 
 [testenv]
 depends = pre-commit
+package = editable
 commands = coverage run -m pytest {posargs}
-extras = test
-
-[testenv:py311]
-commands = pytest {posargs}
+extras =
+    test
+    trio
 
 [testenv:pre-commit]
 depends =
 basepython = python3
+package = skip
 deps = pre-commit
 commands = pre-commit run --all-files --show-diff-on-failure
-skip_install = true
 
 [testenv:pyright]
 deps = pyright
 commands = pyright --verifytypes anyio
-usedevelop = true
+package = editable
 
 [testenv:docs]
 depends =

@@ -8,7 +8,7 @@ from ipaddress import IPv6Address, ip_address
 from os import PathLike, chmod
 from pathlib import Path
 from socket import AddressFamily, SocketKind
-from typing import List, Tuple, cast, overload
+from typing import Tuple, cast, overload
 
 from .. import to_thread
 from ..abc import (
@@ -39,9 +39,6 @@ else:
 
 IPPROTO_IPV6 = getattr(socket, "IPPROTO_IPV6", 41)  # https://bugs.python.org/issue29515
 
-GetAddrInfoReturnType = List[
-    Tuple[AddressFamily, SocketKind, int, str, Tuple[str, int]]
-]
 AnyIPAddressFamily = Literal[
     AddressFamily.AF_UNSPEC, AddressFamily.AF_INET, AddressFamily.AF_INET6
 ]
@@ -529,7 +526,7 @@ async def getaddrinfo(
     type: int | SocketKind = 0,
     proto: int = 0,
     flags: int = 0,
-) -> GetAddrInfoReturnType:
+) -> list[tuple[AddressFamily, SocketKind, int, str, tuple[str, int]]]:
     """
     Look up a numeric IP address given a host name.
 

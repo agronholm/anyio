@@ -31,6 +31,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   - ``create_memory_object_stream()`` now allows passing only ``item_type``
   - Object receive streams are now covariant and object send streams are correspondingly
     contravariant
+- Changed ``TLSAttribute.shared_ciphers`` to match the documented semantics of
+  ``SSLSocket.shared_ciphers`` of always returning ``None`` for client-side streams
 - Fixed ``CapacityLimiter`` on the asyncio backend to order waiting tasks in the FIFO
   order (instead of LIFO) (PR by Conor Stevenson)
 - Fixed ``CancelScope.cancel()`` not working on asyncio if called before entering the
@@ -44,6 +46,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   the event loop to be closed
 - Fixed ``current_effective_deadline()`` not returning ``-inf`` on asyncio when the
   currently active cancel scope has been cancelled (PR by Ganden Schaffner)
+- Fixed the ``OP_IGNORE_UNEXPECTED_EOF`` flag in an SSL context created by default in
+  ``TLSStream.wrap()`` being inadvertently set on Python 3.11.3 and 3.10.11
 - Fixed ``from_thread.run`` and ``from_thread.run_sync`` not setting sniffio on asyncio.
   As a result:
 

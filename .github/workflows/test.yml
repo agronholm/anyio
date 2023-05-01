@@ -28,7 +28,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", pypy-3.8]
+        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", pypy-3.9]
         include:
         - os: macos-latest
           python-version: "3.7"
@@ -48,7 +48,7 @@ jobs:
         cache: pip
         cache-dependency-path: pyproject.toml
     - name: Install dependencies
-      run: pip install .[test] coveralls
+      run: pip install -e .[test] coveralls
     - name: Test with pytest
       run: coverage run -m pytest -v
       timeout-minutes: 5
@@ -65,11 +65,8 @@ jobs:
     name: Finish Coveralls
     needs: test
     runs-on: ubuntu-latest
-    container: python:3-slim
     steps:
     - name: Finished
-      run: |
-        pip install coveralls
-        coveralls --service=github --finish
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: coverallsapp/github-action@v2
+      with:
+        parallel-finished: true

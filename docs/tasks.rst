@@ -127,13 +127,13 @@ If you need to set local variables in the handlers, declare them as ``nonlocal``
         nonlocal somevariable
         somevariable = 'whatever'
 
-.. _exceptiongroup:: https://pypi.org/project/exceptiongroup/
+.. _exceptiongroup: https://pypi.org/project/exceptiongroup/
 
 Context propagation
 -------------------
 
 Whenever a new task is spawned, `context`_ will be copied to the new task. It is important to note
-*which* content will be copied to the newly spawned task. It is not the context of the task group's
+*which* context will be copied to the newly spawned task. It is not the context of the task group's
 host task that will be copied, but the context of the task that calls
 :meth:`TaskGroup.start() <.abc.TaskGroup.start>` or
 :meth:`TaskGroup.start_soon() <.abc.TaskGroup.start_soon>`.

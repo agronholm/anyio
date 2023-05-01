@@ -8,6 +8,7 @@ __pycache__
 .coverage
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
 .hypothesis/
 .eggs/
 .tox

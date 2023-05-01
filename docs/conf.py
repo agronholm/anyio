@@ -20,7 +20,7 @@ v = parse(get_version("anyio"))
 version = v.base_version
 release = v.public
 
-language = None
+language = "en"
 
 exclude_patterns = ["_build"]
 pygments_style = "sphinx"
@@ -28,7 +28,6 @@ autodoc_default_options = {"members": True, "show-inheritance": True}
 todo_include_todos = False
 
 html_theme = "sphinx_rtd_theme"
-html_static_path = ["_static"]
 htmlhelp_basename = "anyiodoc"
 
 intersphinx_mapping = {"python": ("https://docs.python.org/3/", None)}

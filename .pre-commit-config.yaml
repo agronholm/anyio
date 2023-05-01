@@ -15,42 +15,22 @@ repos:
         args: [ "--fix=lf" ]
       - id: trailing-whitespace
 
-  - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.0.262
     hooks:
-      - id: isort
-        args: [ "-a", "from __future__ import annotations" ]
-        exclude: "docs/conf.py"
-
-  - repo: https://github.com/asottile/pyupgrade
-    rev: v3.3.1
-    hooks:
-      - id: pyupgrade
-        args: [ "--py37-plus", "--keep-mock" ]
-        exclude: "docs/conf.py"
+      - id: ruff
+        args: [--fix, --show-fixes]
 
   - repo: https://github.com/psf/black
-    rev: 23.1.0
+    rev: 23.3.0
     hooks:
       - id: black
 
-  - repo: https://github.com/csachs/pyproject-flake8
-    rev: v6.0.0.post1
-    hooks:
-      - id: pyproject-flake8
-
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.0.1
+    rev: v1.2.0
     hooks:
       - id: mypy
-        additional_dependencies: [ "pytest", "trio-typing", "packaging" ]
-
-  - repo: https://github.com/pre-commit/pygrep-hooks
-    rev: v1.10.0
-    hooks:
-      - id: python-check-blanket-noqa
-      - id: python-check-blanket-type-ignore
-      - id: python-no-eval
-      - id: rst-backticks
-      - id: rst-directive-colons
-      - id: rst-inline-touching-normal
+        additional_dependencies:
+          - pytest
+          - trio-typing >= 0.8.0
+          - packaging

@@ -20,7 +20,6 @@ from typing import (
 if TYPE_CHECKING:
     from typing import Literal
 
-    from .._core._sockets import GetAddrInfoReturnType
     from .._core._synchronization import CapacityLimiter, Event
     from .._core._tasks import CancelScope
     from .._core._testing import TaskInfo
@@ -317,7 +316,15 @@ class AsyncBackend(metaclass=ABCMeta):
         type: int | SocketKind = 0,
         proto: int = 0,
         flags: int = 0,
-    ) -> GetAddrInfoReturnType:
+    ) -> list[
+        tuple[
+            AddressFamily,
+            SocketKind,
+            int,
+            str,
+            tuple[str, int] | tuple[str, int, int, int],
+        ]
+    ]:
         pass
 
     @classmethod

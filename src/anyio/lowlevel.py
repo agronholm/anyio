@@ -26,6 +26,7 @@ async def checkpoint() -> None:
         await checkpoint_if_cancelled()
         await cancel_shielded_checkpoint()
 
+
     .. versionadded:: 3.0
 
     """
@@ -52,6 +53,7 @@ async def cancel_shielded_checkpoint() -> None:
 
         with CancelScope(shield=True):
             await checkpoint()
+
 
     .. versionadded:: 3.0
 
