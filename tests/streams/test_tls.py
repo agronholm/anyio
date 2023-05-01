@@ -8,6 +8,7 @@ from threading import Thread
 from typing import ContextManager, NoReturn
 
 import pytest
+from pytest_mock import MockerFixture
 from trustme import CA
 
 from anyio import (
@@ -15,11 +16,13 @@ from anyio import (
     EndOfStream,
     Event,
     connect_tcp,
+    create_memory_object_stream,
     create_task_group,
     create_tcp_listener,
     to_thread,
 )
 from anyio.abc import AnyByteStream, SocketAttribute, SocketStream
+from anyio.streams.stapled import StapledObjectStream
 from anyio.streams.tls import TLSAttribute, TLSListener, TLSStream
 
 pytestmark = pytest.mark.anyio
@@ -377,6 +380,20 @@ class TestTLSStream:
 
         server_thread.join()
         server_sock.close()
+
+    @pytest.mark.skipif(
+        not hasattr(ssl, "OP_IGNORE_UNEXPECTED_EOF"),
+        reason="The ssl module does not have the OP_IGNORE_UNEXPECTED_EOF attribute",
+    )
+    async def test_default_context_ignore_unexpected_eof_flag_off(
+        self, mocker: MockerFixture
+    ) -> None:
+        send1, receive1 = create_memory_object_stream()
+        client_stream = StapledObjectStream(send1, receive1)
+        mocker.patch.object(TLSStream, "_call_sslobject_method")
+        tls_stream = await TLSStream.wrap(client_stream)
+        ssl_context = tls_stream.extra(TLSAttribute.ssl_object).context
+        assert not ssl_context.options & ssl.OP_IGNORE_UNEXPECTED_EOF
 
 
 class TestTLSListener:
