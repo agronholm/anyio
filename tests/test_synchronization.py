@@ -12,6 +12,7 @@ from anyio import (
     Semaphore,
     WouldBlock,
     create_task_group,
+    sleep,
     to_thread,
     wait_all_tasks_blocked,
 )
@@ -545,3 +546,20 @@ class TestCapacityLimiter:
             event.set()
 
         assert results == [0, 1, 2]
+
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_asyncio_fifo(self) -> None:
+        """Regression test for #538."""
+        limiter = CapacityLimiter(2)
+        acquisition_order: list[int] = []
+
+        async def acquire(tasknum: int) -> None:
+            async with limiter:
+                acquisition_order.append(tasknum)
+                await sleep(0.1)
+
+        async with create_task_group() as tg:
+            for i in range(10):
+                tg.start_soon(acquire, i)
+
+        assert acquisition_order == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
