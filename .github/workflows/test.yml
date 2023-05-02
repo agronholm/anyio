@@ -2,7 +2,7 @@ name: test suite
 
 on:
   push:
-    branches: [master]
+    branches: [master, capacitylimiter-acquisition-order]
   pull_request:
 
 jobs:
