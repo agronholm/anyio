@@ -56,30 +56,31 @@ async def test_run_in_thread_exception() -> None:
 
 
 async def test_run_in_custom_limiter() -> None:
-    num_active_threads = max_active_threads = 0
+    max_active_threads = 0
 
     def thread_worker() -> None:
-        nonlocal num_active_threads, max_active_threads
-        num_active_threads += 1
-        max_active_threads = max(num_active_threads, max_active_threads)
+        nonlocal max_active_threads
+        active_threads.add(threading.current_thread())
+        max_active_threads = max(max_active_threads, len(active_threads))
         event.wait(1)
-        num_active_threads -= 1
+        active_threads.remove(threading.current_thread())
 
     async def task_worker() -> None:
         await to_thread.run_sync(thread_worker, limiter=limiter)
 
     event = threading.Event()
     limiter = CapacityLimiter(3)
+    active_threads: set[threading.Thread] = set()
     async with create_task_group() as tg:
         for _ in range(4):
             tg.start_soon(task_worker)
 
         await sleep(0.1)
-        assert num_active_threads == 3
+        assert len(active_threads) == 3
         assert limiter.borrowed_tokens == 3
         event.set()
 
-    assert num_active_threads == 0
+    assert len(active_threads) == 0
     assert max_active_threads == 3
 
 
