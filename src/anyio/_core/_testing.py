@@ -22,14 +22,14 @@ class TaskInfo:
         id: int,
         parent_id: Optional[int],
         name: Optional[str],
-        coro: Union[Generator, Awaitable[Any]],
+        coro: Union[Generator[Any, Any, Any], Awaitable[Any]],
     ):
         func = get_current_task
         self._name = f"{func.__module__}.{func.__qualname__}"
         self.id: int = id
         self.parent_id: Optional[int] = parent_id
         self.name: Optional[str] = name
-        self.coro: Union[Generator, Awaitable[Any]] = coro
+        self.coro: Union[Generator[Any, Any, Any], Awaitable[Any]] = coro
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, TaskInfo):
