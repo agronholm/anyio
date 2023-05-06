@@ -11,6 +11,7 @@ from typing import (
     Coroutine,
     Dict,
     Generator,
+    Generic,
     Iterable,
     Optional,
     Tuple,
@@ -84,7 +85,7 @@ def run_sync_from_thread(func: Callable[..., T_Retval], *args: object) -> T_Retv
     return run_sync(func, *args)
 
 
-class _BlockingAsyncContextManager(AbstractContextManager):
+class _BlockingAsyncContextManager(Generic[T_co], AbstractContextManager):
     _enter_future: Future
     _exit_future: Future
     _exit_event: Event

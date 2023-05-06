@@ -71,9 +71,12 @@ else:
     from trio.lowlevel import wait_readable, wait_writable
 
 try:
-    trio_open_process = trio_lowlevel.open_process  # type: ignore[attr-defined]
+    trio_open_process = trio_lowlevel.open_process
 except AttributeError:
-    from trio import open_process as trio_open_process
+    # isort: off
+    from trio import (  # type: ignore[attr-defined, no-redef]
+        open_process as trio_open_process,
+    )
 
 T_Retval = TypeVar("T_Retval")
 T_SockAddr = TypeVar("T_SockAddr", str, IPSockAddrType)
@@ -121,7 +124,10 @@ class CancelScope(BaseCancelScope):
         exc_val: Optional[BaseException],
         exc_tb: Optional[TracebackType],
     ) -> Optional[bool]:
-        return self.__original.__exit__(exc_type, exc_val, exc_tb)
+        # https://github.com/python-trio/trio-typing/pull/79
+        return self.__original.__exit__(  # type: ignore[func-returns-value]
+            exc_type, exc_val, exc_tb
+        )
 
     def cancel(self) -> DeprecatedAwaitable:
         self.__original.cancel()
@@ -394,8 +400,8 @@ async def open_process(
     env: Optional[Mapping[str, str]] = None,
     start_new_session: bool = False,
 ) -> Process:
-    process = await trio_open_process(
-        command,
+    process = await trio_open_process(  # type: ignore[misc]
+        command,  # type: ignore[arg-type]
         stdin=stdin,
         stdout=stdout,
         stderr=stderr,
@@ -766,8 +772,8 @@ class CapacityLimiter(BaseCapacityLimiter):
         exc_type: Optional[Type[BaseException]],
         exc_val: Optional[BaseException],
         exc_tb: Optional[TracebackType],
-    ) -> Optional[bool]:
-        return await self.__original.__aexit__(exc_type, exc_val, exc_tb)
+    ) -> None:
+        await self.__original.__aexit__(exc_type, exc_val, exc_tb)
 
     @property
     def total_tokens(self) -> float:

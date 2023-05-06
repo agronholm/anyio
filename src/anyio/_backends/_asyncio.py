@@ -86,7 +86,7 @@ if sys.version_info >= (3, 7):
     from asyncio import run as native_run
 
     def _get_task_callbacks(task: asyncio.Task) -> Iterable[Callable]:
-        return [cb for cb, context in task._callbacks]  # type: ignore[attr-defined]
+        return [cb for cb, context in task._callbacks]
 
 else:
     _T = TypeVar("_T")
@@ -1528,7 +1528,7 @@ class TCPSocketListener(abc.SocketListener):
         transport, protocol = await self._loop.connect_accepted_socket(
             StreamProtocol, client_sock
         )
-        return SocketStream(cast(asyncio.Transport, transport), protocol)
+        return SocketStream(transport, protocol)
 
     async def aclose(self) -> None:
         if self._closed:
@@ -1729,7 +1729,7 @@ async def create_udp_socket(
         family=family,
         reuse_port=reuse_port,
     )
-    transport = cast(asyncio.DatagramTransport, result[0])
+    transport = result[0]
     protocol = result[1]
     if protocol.exception:
         transport.close()
