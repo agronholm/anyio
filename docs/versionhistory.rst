@@ -6,6 +6,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **UNRELEASED**
 
 - Dropped support for Python 3.6
+- Changed ``TLSAttribute.shared_ciphers`` to match the documented semantics of
+  ``SSLSocket.shared_ciphers`` of always returning ``None`` for client-side streams
 - Fixed the ``OP_IGNORE_UNEXPECTED_EOF`` flag in an SSL context created by default in
   ``TLSStream.wrap()`` being inadvertently set on Python 3.11.3 and 3.10.11
 
