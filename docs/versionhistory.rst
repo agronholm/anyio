@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed the ``OP_IGNORE_UNEXPECTED_EOF`` flag in an SSL context created by default in
+  ``TLSStream.wrap()`` being inadvertently set on Python 3.11.3 and 3.10.11
+
 **3.6.2**
 
 - Pinned Trio to < 0.22 to avoid incompatibility with AnyIO's ``ExceptionGroup`` class
