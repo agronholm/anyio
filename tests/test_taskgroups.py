@@ -5,7 +5,7 @@ import math
 import sys
 import time
 from collections.abc import AsyncGenerator, Coroutine, Generator
-from typing import Any, NoReturn
+from typing import Any, NoReturn, cast
 
 import pytest
 
@@ -237,7 +237,7 @@ async def test_start_exception_delivery() -> None:
 
     async with anyio.create_task_group() as tg:
         with pytest.raises(TypeError, match="to be synchronous$"):
-            await tg.start(task_fn)  # type: ignore[arg-type]
+            await tg.start(task_fn)
 
 
 async def test_host_exception() -> None:
@@ -863,9 +863,9 @@ def test_cancel_generator_based_task() -> None:
             await asyncio.sleep(1)
             pytest.fail("Execution should not have reached this line")
 
-    @asyncio.coroutine
+    @asyncio.coroutine  # type: ignore[attr-defined]
     def generator_part() -> Generator[object, BaseException, None]:
-        yield from native_coro_part()
+        yield from native_coro_part()  # type: ignore[misc]
 
     anyio.run(generator_part, backend="asyncio")
 
@@ -1099,17 +1099,29 @@ async def test_start_parent_id() -> None:
     reason="Task uncancelling is only supported on Python 3.11",
 )
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
-async def test_uncancel_after_cancel() -> None:
-    scope = CancelScope()
-    with pytest.raises(asyncio.CancelledError):
-        with scope:
-            asyncio.current_task().cancel()
+class TestUncancel:
+    async def test_uncancel_after_native_cancel(self) -> None:
+        task = cast(asyncio.Task, asyncio.current_task())
+        with pytest.raises(asyncio.CancelledError), CancelScope():
+            task.cancel()
             await anyio.sleep(0)
-    assert asyncio.current_task().cancelling() == 1  # type: ignore[union-attr]
-    asyncio.current_task().uncancel()
-    with scope:
-        scope.cancel()
-        with pytest.raises(asyncio.CancelledError):
+
+        assert task.cancelling() == 1
+        task.uncancel()
+
+    async def test_uncancel_after_scope_cancel(self) -> None:
+        task = cast(asyncio.Task, asyncio.current_task())
+        with CancelScope() as scope:
+            scope.cancel()
             await anyio.sleep(0)
-        await anyio.sleep(0)
-    assert asyncio.current_task().cancelling() == 0  # type: ignore[union-attr]
+
+        assert task.cancelling() == 0
+
+    async def test_uncancel_after_scope_and_native_cancel(self) -> None:
+        task = cast(asyncio.Task, asyncio.current_task())
+        with pytest.raises(asyncio.CancelledError), CancelScope() as scope:
+            scope.cancel()
+            task.cancel()
+            await anyio.sleep(0)
+
+        assert task.cancelling() == 1
