@@ -1,12 +1,11 @@
 import socket
 from abc import abstractmethod
+from contextlib import AsyncExitStack
 from io import IOBase
 from ipaddress import IPv4Address, IPv6Address
 from socket import AddressFamily
-from types import TracebackType
 from typing import (
     Any,
-    AsyncContextManager,
     Callable,
     Collection,
     Dict,
@@ -14,11 +13,11 @@ from typing import (
     Mapping,
     Optional,
     Tuple,
-    Type,
     TypeVar,
     Union,
 )
 
+from .._core._tasks import create_task_group
 from .._core._typedattr import (
     TypedAttributeProvider,
     TypedAttributeSet,
@@ -32,19 +31,6 @@ IPSockAddrType = Tuple[str, int]
 SockAddrType = Union[IPSockAddrType, str]
 UDPPacketType = Tuple[bytes, IPSockAddrType]
 T_Retval = TypeVar("T_Retval")
-
-
-class _NullAsyncContextManager:
-    async def __aenter__(self) -> None:
-        pass
-
-    async def __aexit__(
-        self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> Optional[bool]:
-        return None
 
 
 class SocketAttribute(TypedAttributeSet):
@@ -148,16 +134,10 @@ class SocketListener(Listener[SocketStream], _SocketProvider):
     async def serve(
         self, handler: Callable[[T_Stream], Any], task_group: Optional[TaskGroup] = None
     ) -> None:
-        from .. import create_task_group
+        async with AsyncExitStack() as exit_stack:
+            if task_group is None:
+                task_group = await exit_stack.enter_async_context(create_task_group())
 
-        context_manager: AsyncContextManager
-        if task_group is None:
-            task_group = context_manager = create_task_group()
-        else:
-            # Can be replaced with AsyncExitStack once on py3.7+
-            context_manager = _NullAsyncContextManager()
-
-        async with context_manager:
             while True:
                 stream = await self.accept()
                 task_group.start_soon(handler, stream)
