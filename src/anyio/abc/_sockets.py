@@ -23,7 +23,7 @@ from .._core._typedattr import (
     TypedAttributeSet,
     typed_attribute,
 )
-from ._streams import ByteStream, Listener, T_Stream, UnreliableObjectStream
+from ._streams import ByteStream, Listener, UnreliableObjectStream
 from ._tasks import TaskGroup
 
 IPAddressType = Union[str, IPv4Address, IPv6Address]
@@ -132,7 +132,9 @@ class SocketListener(Listener[SocketStream], _SocketProvider):
         """Accept an incoming connection."""
 
     async def serve(
-        self, handler: Callable[[T_Stream], Any], task_group: Optional[TaskGroup] = None
+        self,
+        handler: Callable[[SocketStream], Any],
+        task_group: Optional[TaskGroup] = None,
     ) -> None:
         async with AsyncExitStack() as exit_stack:
             if task_group is None:

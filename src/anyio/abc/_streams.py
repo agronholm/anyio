@@ -7,7 +7,7 @@ from ._resources import AsyncResource
 from ._tasks import TaskGroup
 
 T_Item = TypeVar("T_Item")
-T_Stream = TypeVar("T_Stream")
+T_Stream_co = TypeVar("T_Stream_co", covariant=True)
 
 
 class UnreliableObjectReceiveStream(
@@ -182,12 +182,14 @@ AnyByteSendStream = Union[ObjectSendStream[bytes], ByteSendStream]
 AnyByteStream = Union[ObjectStream[bytes], ByteStream]
 
 
-class Listener(Generic[T_Stream], AsyncResource, TypedAttributeProvider):
+class Listener(Generic[T_Stream_co], AsyncResource, TypedAttributeProvider):
     """An interface for objects that let you accept incoming connections."""
 
     @abstractmethod
     async def serve(
-        self, handler: Callable[[T_Stream], Any], task_group: Optional[TaskGroup] = None
+        self,
+        handler: Callable[[T_Stream_co], Any],
+        task_group: Optional[TaskGroup] = None,
     ) -> None:
         """
         Accept incoming connections as they come in and start tasks to handle them.
