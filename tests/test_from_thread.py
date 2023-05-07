@@ -508,7 +508,7 @@ class TestBlockingPortal:
         assert not caplog.text
 
     def test_raise_baseexception_from_task(
-        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
     ) -> None:
         """
         Test that when a task raises a BaseException, it does not trigger additional
