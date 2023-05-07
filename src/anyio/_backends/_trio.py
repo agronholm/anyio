@@ -14,10 +14,10 @@ from typing import (
     TYPE_CHECKING,
     Any,
     AsyncGenerator,
+    AsyncIterator,
     Awaitable,
     Callable,
     Collection,
-    ContextManager,
     Coroutine,
     Deque,
     Dict,
@@ -43,7 +43,7 @@ from trio.socket import SocketType as TrioSocketType
 from trio.to_thread import run_sync
 
 from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
-from .._core._compat import DeprecatedAsyncContextManager, DeprecatedAwaitable, T
+from .._core._compat import DeprecatedAsyncContextManager, DeprecatedAwaitable
 from .._core._eventloop import claim_worker_thread
 from .._core._exceptions import (
     BrokenResourceError,
@@ -840,12 +840,16 @@ def current_default_thread_limiter() -> CapacityLimiter:
 #
 
 
-class _SignalReceiver(DeprecatedAsyncContextManager[T]):
-    def __init__(self, cm: ContextManager[T]):
-        self._cm = cm
+class _SignalReceiver(DeprecatedAsyncContextManager["_SignalReceiver"]):
+    _iterator: AsyncIterator[int]
 
-    def __enter__(self) -> T:
-        return self._cm.__enter__()
+    def __init__(self, signals: Tuple[Signals, ...]):
+        self._signals = signals
+
+    def __enter__(self) -> "_SignalReceiver":
+        self._cm = trio.open_signal_receiver(*self._signals)
+        self._iterator = self._cm.__enter__()
+        return self
 
     def __exit__(
         self,
@@ -855,10 +859,16 @@ class _SignalReceiver(DeprecatedAsyncContextManager[T]):
     ) -> Optional[bool]:
         return self._cm.__exit__(exc_type, exc_val, exc_tb)
 
+    def __aiter__(self) -> "_SignalReceiver":
+        return self
+
+    async def __anext__(self) -> Signals:
+        signum = await self._iterator.__anext__()
+        return Signals(signum)
+
 
 def open_signal_receiver(*signals: Signals) -> _SignalReceiver:
-    cm = trio.open_signal_receiver(*signals)
-    return _SignalReceiver(cm)
+    return _SignalReceiver(signals)
 
 
 #
