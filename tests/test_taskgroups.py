@@ -1125,3 +1125,4 @@ class TestUncancel:
             await anyio.sleep(0)
 
         assert task.cancelling() == 1
+        task.uncancel()
