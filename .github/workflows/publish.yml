@@ -11,6 +11,8 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python
@@ -20,8 +22,6 @@ jobs:
     - name: Install dependencies
       run: pip install build
     - name: Create packages
-      run: python -m build -s -w .
+      run: python -m build
     - name: Upload packages
       uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        password: ${{ secrets.pypi_password }}
