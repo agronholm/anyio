@@ -109,7 +109,7 @@ Example::
 
 
     async def main():
-        send, receive = create_memory_object_stream(4)
+        send, receive = create_memory_object_stream[bytes](4)
         buffered = BufferedByteReceiveStream(receive)
         for part in b'hel', b'lo, ', b'wo', b'rld!':
             await send.send(part)
@@ -139,7 +139,7 @@ Example::
 
 
     async def main():
-        bytes_send, bytes_receive = create_memory_object_stream(1)
+        bytes_send, bytes_receive = create_memory_object_stream[bytes](1)
         text_send = TextSendStream(bytes_send)
         await text_send.send('åäö')
         result = await bytes_receive.receive()
