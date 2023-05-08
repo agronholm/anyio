@@ -58,7 +58,7 @@ This can be done with :meth:`TaskGroup.start() <.abc.TaskGroup.start>`::
         ...
 
 
-    async def start_some_service(port: int, *, task_status: TaskStatus = TASK_STATUS_IGNORED):
+    async def start_some_service(port: int, *, task_status: TaskStatus[None] = TASK_STATUS_IGNORED):
         async with await create_tcp_listener(local_host='127.0.0.1', local_port=port) as listener:
             task_status.started()
             await listener.serve(handler)

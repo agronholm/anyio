@@ -8,6 +8,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Dropped support for Python 3.6
 - Improved type annotations:
 
+  - The ``TaskStatus`` class is now generic, and should be parametrized to indicate the
+    type of the value passed to ``task_status.started()``
   - The ``Listener`` class is now covariant in its stream type
   - ``create_memory_object_stream()`` now allows passing only ``item_type``
   - Object receive streams are now covariant and object send streams are correspondingly

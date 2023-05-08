@@ -1,7 +1,7 @@
 import typing
 from abc import ABCMeta, abstractmethod
 from types import TracebackType
-from typing import Any, Callable, Coroutine, Optional, Type, TypeVar
+from typing import Any, Callable, Coroutine, Generic, Optional, Type, TypeVar
 from warnings import warn
 
 if typing.TYPE_CHECKING:
@@ -10,9 +10,9 @@ if typing.TYPE_CHECKING:
 T_Retval = TypeVar("T_Retval")
 
 
-class TaskStatus(metaclass=ABCMeta):
+class TaskStatus(Generic[T_Retval]):
     @abstractmethod
-    def started(self, value: object = None) -> None:
+    def started(self, value: Optional[T_Retval] = None) -> None:
         """
         Signal that the task has started.
 
@@ -34,7 +34,7 @@ class TaskGroup(metaclass=ABCMeta):
         self,
         func: Callable[..., Coroutine[Any, Any, Any]],
         *args: object,
-        name: object = None
+        name: object = None,
     ) -> None:
         """
         Start a new task in this task group.
@@ -59,7 +59,7 @@ class TaskGroup(metaclass=ABCMeta):
         self,
         func: Callable[..., Coroutine[Any, Any, Any]],
         *args: object,
-        name: object = None
+        name: object = None,
     ) -> None:
         """
         Start a new task in this task group.
@@ -76,7 +76,7 @@ class TaskGroup(metaclass=ABCMeta):
         self,
         func: Callable[..., Coroutine[Any, Any, Any]],
         *args: object,
-        name: object = None
+        name: object = None,
     ) -> object:
         """
         Start a new task and wait until it signals for readiness.

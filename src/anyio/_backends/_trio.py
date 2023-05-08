@@ -973,7 +973,7 @@ class TestRunner(abc.TestRunner):
         fixture_func: Callable[..., AsyncGenerator[T_Retval, Any]],
         kwargs: Dict[str, Any],
     ) -> Iterable[T_Retval]:
-        async def fixture_runner(*, task_status: "TaskStatus") -> None:
+        async def fixture_runner(*, task_status: "TaskStatus[T_Retval]") -> None:
             agen = fixture_func(**kwargs)
             retval = await agen.asend(None)
             task_status.started(retval)
