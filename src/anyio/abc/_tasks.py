@@ -21,7 +21,7 @@ T_co = TypeVar("T_co", covariant=True)
 
 class TaskStatus(Protocol[T_contra]):
     @overload
-    def started(self) -> None:
+    def started(self: TaskStatus[None]) -> None:
         ...
 
     @overload
