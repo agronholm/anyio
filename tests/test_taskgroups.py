@@ -1092,3 +1092,21 @@ async def test_start_parent_id() -> None:
     assert initial_parent_id != permanent_parent_id
     assert initial_parent_id == starter_task_id
     assert permanent_parent_id == root_task_id
+
+
+class TestTaskStatusTyping:
+    """
+    These tests do not do anything at run time, but since the test suite is also checked
+    with a static type checker, it ensures that the `TaskStatus` typing works as
+    intended.
+    """
+
+    async def typetest_variance_good(*, task_status: TaskStatus[float]) -> None:
+        task_status2: TaskStatus[int] = task_status
+        task_status2.started(int())
+
+    async def typetest_variance_bad(*, task_status: TaskStatus[int]) -> None:
+        # We use `type: ignore` and `--warn-unused-ignores` to get type checking errors
+        # if these ever stop failing.
+        task_status2: TaskStatus[float] = task_status  # type: ignore[assignment]
+        task_status2.started(float())
