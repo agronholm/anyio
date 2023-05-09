@@ -201,6 +201,7 @@ class CancelScope(BaseCancelScope):
         self._tasks: set[asyncio.Task] = set()
         self._host_task: asyncio.Task | None = None
         self._timeout_expired = False
+        self._cancel_calls: int = 0
 
     def __enter__(self) -> CancelScope:
         if self._active:
@@ -271,15 +272,27 @@ class CancelScope(BaseCancelScope):
             )
             if all(isinstance(exc, CancelledError) for exc in exceptions):
                 if self._timeout_expired:
-                    return True
+                    return self._uncancel()
                 elif not self._cancel_called:
                     # Task was cancelled natively
                     return None
                 elif not self._parent_cancelled():
                     # This scope was directly cancelled
-                    return True
+                    return self._uncancel()
 
         return None
+
+    def _uncancel(self) -> bool:
+        if sys.version_info < (3, 11) or self._host_task is None:
+            self._cancel_calls = 0
+            return True
+
+        # Uncancel all AnyIO cancellations
+        for i in range(self._cancel_calls):
+            self._host_task.uncancel()
+
+        self._cancel_calls = 0
+        return not self._host_task.cancelling()
 
     def _timeout(self) -> None:
         if self._deadline != math.inf:
@@ -316,6 +329,7 @@ class CancelScope(BaseCancelScope):
                 if task is not current and (
                     task is self._host_task or _task_started(task)
                 ):
+                    self._cancel_calls += 1
                     task.cancel()
 
         # Schedule another callback if there are still tasks left
@@ -582,7 +596,7 @@ class TaskGroup(abc.TaskGroup):
                 "This task group is not active; no new tasks can be started."
             )
 
-        options = {}
+        options: dict[str, Any] = {}
         name = get_callable_name(func) if name is None else str(name)
         if _native_task_names:
             options["name"] = name
@@ -2106,7 +2120,7 @@ class AsyncIOBackend(AsyncBackend):
 
     @classmethod
     def setup_process_pool_exit_at_shutdown(cls, workers: set[abc.Process]) -> None:
-        kwargs = (
+        kwargs: dict[str, Any] = (
             {"name": "AnyIO process pool shutdown task"} if _native_task_names else {}
         )
         create_task(_shutdown_process_pool_on_exit(workers), **kwargs)
