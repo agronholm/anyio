@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-import asyncio
 import math
 import sys
+from typing import Any
 
 import pytest
 from pytest_mock.plugin import MockerFixture
 
 from anyio import run, sleep_forever, sleep_until
+
+from .misc import return_non_coro_awaitable
 
 if sys.version_info < (3, 8):
     from mock import AsyncMock
@@ -41,11 +43,14 @@ async def test_sleep_forever(fake_sleep: AsyncMock) -> None:
     fake_sleep.assert_called_once_with(math.inf)
 
 
-def test_run_task() -> None:
-    """Test that anyio.run() on asyncio will work with a callable returning a Future."""
+def test_run_non_corofunc(
+    anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+) -> None:
+    @return_non_coro_awaitable
+    async def func() -> str:
+        return "foo"
 
-    async def async_add(x: int, y: int) -> int:
-        return x + y
-
-    result = run(asyncio.create_task, async_add(1, 2), backend="asyncio")
-    assert result == 3
+    result = run(
+        func, backend=anyio_backend_name, backend_options=anyio_backend_options
+    )
+    assert result == "foo"

@@ -27,6 +27,8 @@ from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
 from anyio.lowlevel import checkpoint
 
+from .misc import return_non_coro_awaitable
+
 if sys.version_info >= (3, 8):
     from typing import Literal
 else:
@@ -68,6 +70,12 @@ def thread_worker_sync(func: Callable[..., T_Retval], *args: Any) -> T_Retval:
 class TestRunAsyncFromThread:
     async def test_run_corofunc_from_thread(self) -> None:
         result = await to_thread.run_sync(thread_worker_async, async_add, 1, 2)
+        assert result == 3
+
+    async def test_run_non_corofunc_from_thread(self) -> None:
+        result = await to_thread.run_sync(
+            thread_worker_async, return_non_coro_awaitable(async_add), 1, 2
+        )
         assert result == 3
 
     async def test_run_asyncgen_from_thread(self) -> None:
@@ -175,6 +183,13 @@ class TestBlockingPortal:
     async def test_call_corofunc(self) -> None:
         async with BlockingPortal() as portal:
             result = await to_thread.run_sync(portal.call, async_add, 1, 2)
+            assert result == 3
+
+    async def test_call_non_corofunc(self) -> None:
+        async with BlockingPortal() as portal:
+            result = await to_thread.run_sync(
+                portal.call, return_non_coro_awaitable(async_add), 1, 2
+            )
             assert result == 3
 
     async def test_call_anext(self) -> None:
@@ -293,6 +308,17 @@ class TestBlockingPortal:
             portal.call(event2.wait)
             assert future.result() == "test"
 
+    def test_start_task_soon_non_corofunc(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        @return_non_coro_awaitable
+        async def taskfunc() -> Literal["test"]:
+            return "test"
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            future = portal.start_task_soon(taskfunc)
+        assert future.result() == "test"
+
     def test_start_task_soon_cancel_later(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
@@ -403,6 +429,18 @@ class TestBlockingPortal:
     def test_start_with_value(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
+        async def taskfunc(*, task_status: TaskStatus) -> None:
+            task_status.started("foo")
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            future, value = portal.start_task(taskfunc)
+            assert value == "foo"
+            assert future.result() is None
+
+    def test_start_non_corofunc(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        @return_non_coro_awaitable
         async def taskfunc(*, task_status: TaskStatus) -> None:
             task_status.started("foo")
 

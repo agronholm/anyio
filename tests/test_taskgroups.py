@@ -26,6 +26,8 @@ from anyio import (
 from anyio.abc import TaskGroup, TaskStatus
 from anyio.lowlevel import checkpoint
 
+from .misc import return_non_coro_awaitable
+
 if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup
 
@@ -1092,6 +1094,29 @@ async def test_start_parent_id() -> None:
     assert initial_parent_id != permanent_parent_id
     assert initial_parent_id == starter_task_id
     assert permanent_parent_id == root_task_id
+
+
+async def test_start_soon_non_corofunc() -> None:
+    finished = False
+
+    @return_non_coro_awaitable
+    async def taskfunc() -> None:
+        nonlocal finished
+        finished = True
+
+    async with create_task_group() as tg:
+        tg.start_soon(taskfunc)
+    assert finished
+
+
+async def test_start_non_corofunc() -> None:
+    @return_non_coro_awaitable
+    async def taskfunc(*, task_status: TaskStatus[str]) -> None:
+        task_status.started("foo")
+
+    async with create_task_group() as tg:
+        value = await tg.start(taskfunc)
+        assert value == "foo"
 
 
 @pytest.mark.skipif(
