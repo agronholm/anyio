@@ -6,9 +6,9 @@ from types import TracebackType
 from typing import (
     Any,
     AsyncContextManager,
+    Awaitable,
     Callable,
     ContextManager,
-    Coroutine,
     Dict,
     Generator,
     Generic,
@@ -33,7 +33,7 @@ T_Retval = TypeVar("T_Retval")
 T_co = TypeVar("T_co")
 
 
-def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object) -> T_Retval:
+def run(func: Callable[..., Awaitable[T_Retval]], *args: object) -> T_Retval:
     """
     Call a coroutine function from a worker thread.
 
@@ -51,7 +51,7 @@ def run(func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object) -> T_
 
 
 def run_async_from_thread(
-    func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object
+    func: Callable[..., Awaitable[T_Retval]], *args: object
 ) -> T_Retval:
     warn(
         "run_async_from_thread() has been deprecated, use anyio.from_thread.run() instead",
@@ -257,9 +257,7 @@ class BlockingPortal:
         raise NotImplementedError
 
     @overload
-    def call(
-        self, func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object
-    ) -> T_Retval:
+    def call(self, func: Callable[..., Awaitable[T_Retval]], *args: object) -> T_Retval:
         ...
 
     @overload
@@ -267,9 +265,7 @@ class BlockingPortal:
         ...
 
     def call(
-        self,
-        func: Callable[..., Union[Coroutine[Any, Any, T_Retval], T_Retval]],
-        *args: object
+        self, func: Callable[..., Union[Awaitable[T_Retval], T_Retval]], *args: object
     ) -> T_Retval:
         """
         Call the given function in the event loop thread.
@@ -286,7 +282,7 @@ class BlockingPortal:
     @overload
     def spawn_task(
         self,
-        func: Callable[..., Coroutine[Any, Any, T_Retval]],
+        func: Callable[..., Awaitable[T_Retval]],
         *args: object,
         name: object = None
     ) -> "Future[T_Retval]":
@@ -300,7 +296,7 @@ class BlockingPortal:
 
     def spawn_task(
         self,
-        func: Callable[..., Union[Coroutine[Any, Any, T_Retval], T_Retval]],
+        func: Callable[..., Union[Awaitable[T_Retval], T_Retval]],
         *args: object,
         name: object = None
     ) -> "Future[T_Retval]":
@@ -330,7 +326,7 @@ class BlockingPortal:
     @overload
     def start_task_soon(
         self,
-        func: Callable[..., Coroutine[Any, Any, T_Retval]],
+        func: Callable[..., Awaitable[T_Retval]],
         *args: object,
         name: object = None
     ) -> "Future[T_Retval]":
@@ -344,7 +340,7 @@ class BlockingPortal:
 
     def start_task_soon(
         self,
-        func: Callable[..., Union[Coroutine[Any, Any, T_Retval], T_Retval]],
+        func: Callable[..., Union[Awaitable[T_Retval], T_Retval]],
         *args: object,
         name: object = None
     ) -> "Future[T_Retval]":
@@ -354,7 +350,7 @@ class BlockingPortal:
         The task will be run inside a cancel scope which can be cancelled by cancelling the
         returned future.
 
-        :param func: the target coroutine function
+        :param func: the target function
         :param args: positional arguments passed to ``func``
         :param name: name of the task (will be coerced to a string if not ``None``)
         :return: a future that resolves with the return value of the callable if the task completes
@@ -371,17 +367,14 @@ class BlockingPortal:
         return f
 
     def start_task(
-        self,
-        func: Callable[..., Coroutine[Any, Any, Any]],
-        *args: object,
-        name: object = None
+        self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
     ) -> Tuple["Future[Any]", Any]:
         """
         Start a task in the portal's task group and wait until it signals for readiness.
 
         This method works the same way as :meth:`TaskGroup.start`.
 
-        :param func: the target coroutine function
+        :param func: the target function
         :param args: positional arguments passed to ``func``
         :param name: name of the task (will be coerced to a string if not ``None``)
         :return: a tuple of (future, task_status_value) where the ``task_status_value`` is the

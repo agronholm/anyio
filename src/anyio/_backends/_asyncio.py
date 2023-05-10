@@ -741,7 +741,7 @@ class TaskGroup(abc.TaskGroup):
 
     def _spawn(
         self,
-        func: Callable[..., Coroutine],
+        func: Callable[..., Awaitable[Any]],
         args: tuple,
         name: object,
         task_status_future: Optional[asyncio.Future] = None,
@@ -812,12 +812,12 @@ class TaskGroup(abc.TaskGroup):
         return task
 
     def start_soon(
-        self, func: Callable[..., Coroutine], *args: object, name: object = None
+        self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
     ) -> None:
         self._spawn(func, args, name)
 
     async def start(
-        self, func: Callable[..., Coroutine], *args: object, name: object = None
+        self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
     ) -> None:
         future: asyncio.Future = asyncio.Future()
         task = self._spawn(func, args, name, future)
@@ -990,7 +990,7 @@ def run_sync_from_thread(
 
 
 def run_async_from_thread(
-    func: Callable[..., Coroutine[Any, Any, T_Retval]], *args: object
+    func: Callable[..., Awaitable[T_Retval]], *args: object
 ) -> T_Retval:
     f: concurrent.futures.Future[T_Retval] = asyncio.run_coroutine_threadsafe(
         func(*args), threadlocals.loop

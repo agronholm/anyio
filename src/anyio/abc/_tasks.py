@@ -1,7 +1,7 @@
 import typing
 from abc import ABCMeta, abstractmethod
 from types import TracebackType
-from typing import Any, Callable, Coroutine, Generic, Optional, Type, TypeVar
+from typing import Any, Awaitable, Callable, Generic, Optional, Type, TypeVar
 from warnings import warn
 
 if typing.TYPE_CHECKING:
@@ -32,7 +32,7 @@ class TaskGroup(metaclass=ABCMeta):
 
     async def spawn(
         self,
-        func: Callable[..., Coroutine[Any, Any, Any]],
+        func: Callable[..., Awaitable[Any]],
         *args: object,
         name: object = None,
     ) -> None:
@@ -57,7 +57,7 @@ class TaskGroup(metaclass=ABCMeta):
     @abstractmethod
     def start_soon(
         self,
-        func: Callable[..., Coroutine[Any, Any, Any]],
+        func: Callable[..., Awaitable[Any]],
         *args: object,
         name: object = None,
     ) -> None:
@@ -74,7 +74,7 @@ class TaskGroup(metaclass=ABCMeta):
     @abstractmethod
     async def start(
         self,
-        func: Callable[..., Coroutine[Any, Any, Any]],
+        func: Callable[..., Awaitable[Any]],
         *args: object,
         name: object = None,
     ) -> object:

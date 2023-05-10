@@ -4,7 +4,17 @@ import time
 from concurrent.futures import CancelledError
 from contextlib import suppress
 from contextvars import ContextVar
-from typing import Any, AsyncGenerator, Dict, List, NoReturn, Optional
+from typing import (
+    Any,
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Dict,
+    List,
+    NoReturn,
+    Optional,
+    TypeVar,
+)
 
 import pytest
 from _pytest.logging import LogCaptureFixture
@@ -37,32 +47,50 @@ else:
 
 pytestmark = pytest.mark.anyio
 
+T_Retval = TypeVar("T_Retval")
+
+
+async def async_add(a: int, b: int) -> int:
+    assert threading.current_thread() is threading.main_thread()
+    return a + b
+
+
+async def asyncgen_add(a: int, b: int) -> AsyncGenerator[int, Any]:
+    yield a + b
+
+
+def sync_add(a: int, b: int) -> int:
+    assert threading.current_thread() is threading.main_thread()
+    return a + b
+
+
+def thread_worker_async(
+    func: Callable[..., Awaitable[T_Retval]], *args: Any
+) -> T_Retval:
+    assert threading.current_thread() is not threading.main_thread()
+    return from_thread.run(func, *args)
+
+
+def thread_worker_sync(func: Callable[..., T_Retval], *args: Any) -> T_Retval:
+    assert threading.current_thread() is not threading.main_thread()
+    return from_thread.run_sync(func, *args)
+
 
 class TestRunAsyncFromThread:
-    async def test_run_async_from_thread(self) -> None:
-        async def add(a: int, b: int) -> int:
-            assert threading.get_ident() == event_loop_thread_id
-            return a + b
-
-        def worker(a: int, b: int) -> int:
-            assert threading.get_ident() != event_loop_thread_id
-            return from_thread.run(add, a, b)
-
-        event_loop_thread_id = threading.get_ident()
-        result = await to_thread.run_sync(worker, 1, 2)
+    async def test_run_corofunc_from_thread(self) -> None:
+        result = await to_thread.run_sync(thread_worker_async, async_add, 1, 2)
         assert result == 3
 
+    async def test_run_asyncgen_from_thread(self) -> None:
+        gen = asyncgen_add(1, 2)
+        try:
+            result = await to_thread.run_sync(thread_worker_async, gen.__anext__)
+            assert result == 3
+        finally:
+            await gen.aclose()
+
     async def test_run_sync_from_thread(self) -> None:
-        def add(a: int, b: int) -> int:
-            assert threading.get_ident() == event_loop_thread_id
-            return a + b
-
-        def worker(a: int, b: int) -> int:
-            assert threading.get_ident() != event_loop_thread_id
-            return from_thread.run_sync(add, a, b)
-
-        event_loop_thread_id = threading.get_ident()
-        result = await to_thread.run_sync(worker, 1, 2)
+        result = await to_thread.run_sync(thread_worker_sync, sync_add, 1, 2)
         assert result == 3
 
     def test_run_sync_from_thread_pooling(self) -> None:
@@ -89,32 +117,14 @@ class TestRunAsyncFromThread:
         pytest.fail("Worker thread did not exit within 1 second")
 
     async def test_run_async_from_thread_exception(self) -> None:
-        async def add(a: int, b: int) -> int:
-            assert threading.get_ident() == event_loop_thread_id
-            return a + b
-
-        def worker(a: int, b: int) -> int:
-            assert threading.get_ident() != event_loop_thread_id
-            return from_thread.run(add, a, b)
-
-        event_loop_thread_id = threading.get_ident()
         with pytest.raises(TypeError) as exc:
-            await to_thread.run_sync(worker, 1, "foo")
+            await to_thread.run_sync(thread_worker_async, async_add, 1, "foo")
 
         exc.match("unsupported operand type")
 
     async def test_run_sync_from_thread_exception(self) -> None:
-        def add(a: int, b: int) -> int:
-            assert threading.get_ident() == event_loop_thread_id
-            return a + b
-
-        def worker(a: int, b: int) -> int:
-            assert threading.get_ident() != event_loop_thread_id
-            return from_thread.run_sync(add, a, b)
-
-        event_loop_thread_id = threading.get_ident()
         with pytest.raises(TypeError) as exc:
-            await to_thread.run_sync(worker, 1, "foo")
+            await to_thread.run_sync(thread_worker_sync, sync_add, 1, "foo")
 
         exc.match("unsupported operand type")
 
@@ -180,22 +190,19 @@ class TestBlockingPortal:
         ) -> bool:
             return self.ignore_error
 
-    async def test_successful_call(self) -> None:
-        async def async_get_thread_id() -> int:
-            return threading.get_ident()
-
-        def external_thread() -> None:
-            thread_ids.append(portal.call(threading.get_ident))
-            thread_ids.append(portal.call(async_get_thread_id))
-
-        thread_ids: List[int] = []
+    async def test_call_corofunc(self) -> None:
         async with BlockingPortal() as portal:
-            thread = threading.Thread(target=external_thread)
-            thread.start()
-            await to_thread.run_sync(thread.join)
+            result = await to_thread.run_sync(portal.call, async_add, 1, 2)
+            assert result == 3
 
-        for thread_id in thread_ids:
-            assert thread_id == threading.get_ident()
+    async def test_call_anext(self) -> None:
+        gen = asyncgen_add(1, 2)
+        try:
+            async with BlockingPortal() as portal:
+                result = await to_thread.run_sync(portal.call, gen.__anext__)
+                assert result == 3
+        finally:
+            await gen.aclose()
 
     async def test_aexit_with_exception(self) -> None:
         """Test that when the portal exits with an exception, all tasks are cancelled."""

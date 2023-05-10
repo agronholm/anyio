@@ -5,8 +5,8 @@ from contextlib import contextmanager
 from importlib import import_module
 from typing import (
     Any,
+    Awaitable,
     Callable,
-    Coroutine,
     Dict,
     Generator,
     Optional,
@@ -27,7 +27,7 @@ threadlocals = threading.local()
 
 
 def run(
-    func: Callable[..., Coroutine[Any, Any, T_Retval]],
+    func: Callable[..., Awaitable[T_Retval]],
     *args: object,
     backend: str = "asyncio",
     backend_options: Optional[Dict[str, Any]] = None,
