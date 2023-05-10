@@ -1126,3 +1126,35 @@ class TestUncancel:
 
         assert task.cancelling() == 1
         task.uncancel()
+
+
+class TestTaskStatusTyping:
+    """
+    These tests do not do anything at run time, but since the test suite is also checked
+    with a static type checker, it ensures that the `TaskStatus` typing works as
+    intended.
+    """
+
+    async def typetest_None(*, task_status: TaskStatus[None]) -> None:
+        task_status.started()
+        task_status.started(None)
+
+    async def typetest_None_Union(*, task_status: TaskStatus[int | None]) -> None:
+        task_status.started()
+        task_status.started(None)
+
+    async def typetest_non_None(*, task_status: TaskStatus[int]) -> None:
+        # We use `type: ignore` and `--warn-unused-ignores` to get type checking errors
+        # if these ever stop failing.
+        task_status.started()  # type: ignore[call-arg]
+        task_status.started(None)  # type: ignore[arg-type]
+
+    async def typetest_variance_good(*, task_status: TaskStatus[float]) -> None:
+        task_status2: TaskStatus[int] = task_status
+        task_status2.started(int())
+
+    async def typetest_variance_bad(*, task_status: TaskStatus[int]) -> None:
+        # We use `type: ignore` and `--warn-unused-ignores` to get type checking errors
+        # if these ever stop failing.
+        task_status2: TaskStatus[float] = task_status  # type: ignore[assignment]
+        task_status2.started(float())
