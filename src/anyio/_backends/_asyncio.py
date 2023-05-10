@@ -68,6 +68,7 @@ from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import ResourceGuard
 from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import IPSockAddrType, UDPPacketType
+from ..abc._tasks import T_contra
 from ..lowlevel import RunVar
 
 if sys.version_info >= (3, 8):
@@ -626,7 +627,7 @@ class _AsyncioTaskStatus(abc.TaskStatus):
         self._future = future
         self._parent_id = parent_id
 
-    def started(self, value: object = None) -> None:
+    def started(self, value: T_contra | None = None) -> None:
         try:
             self._future.set_result(value)
         except asyncio.InvalidStateError:

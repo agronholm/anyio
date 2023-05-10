@@ -1,18 +1,34 @@
-import typing
+from __future__ import annotations
+
+import sys
 from abc import ABCMeta, abstractmethod
 from types import TracebackType
-from typing import Any, Awaitable, Callable, Generic, Optional, Type, TypeVar
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, TypeVar, overload
 from warnings import warn
 
-if typing.TYPE_CHECKING:
+if sys.version_info >= (3, 8):
+    from typing import Protocol
+else:
+    from typing_extensions import Protocol
+
+if TYPE_CHECKING:
     from anyio._core._tasks import CancelScope
 
 T_Retval = TypeVar("T_Retval")
+T_contra = TypeVar("T_contra", contravariant=True)
+T_co = TypeVar("T_co", covariant=True)
 
 
-class TaskStatus(Generic[T_Retval]):
-    @abstractmethod
-    def started(self, value: Optional[T_Retval] = None) -> None:
+class TaskStatus(Protocol[T_contra]):
+    @overload
+    def started(self: TaskStatus[None]) -> None:
+        ...
+
+    @overload
+    def started(self, value: T_contra) -> None:
+        ...
+
+    def started(self, value: T_contra | None = None) -> None:
         """
         Signal that the task has started.
 
@@ -28,7 +44,7 @@ class TaskGroup(metaclass=ABCMeta):
     :vartype cancel_scope: CancelScope
     """
 
-    cancel_scope: "CancelScope"
+    cancel_scope: CancelScope
 
     async def spawn(
         self,
@@ -77,7 +93,7 @@ class TaskGroup(metaclass=ABCMeta):
         func: Callable[..., Awaitable[Any]],
         *args: object,
         name: object = None,
-    ) -> object:
+    ) -> Any:
         """
         Start a new task and wait until it signals for readiness.
 
@@ -97,8 +113,8 @@ class TaskGroup(metaclass=ABCMeta):
     @abstractmethod
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         """Exit the task group context waiting for all tasks to finish."""
