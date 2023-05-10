@@ -123,12 +123,8 @@ def test_wait_generator_based_task_blocked(
         await wait_all_tasks_blocked()
         gen = cast(Generator, get_coro(gen_task))
         assert not gen.gi_running
-        if sys.version_info < (3, 7):
-            assert gen.gi_yieldfrom.gi_code.co_name == "wait"
-        else:
-            coro = cast(Coroutine, gen.gi_yieldfrom)
-            assert coro.cr_code.co_name == "wait"
-
+        coro = cast(Coroutine, gen.gi_yieldfrom)
+        assert coro.cr_code.co_name == "wait"
         event.set()
 
     @asyncio.coroutine  # type: ignore[attr-defined]

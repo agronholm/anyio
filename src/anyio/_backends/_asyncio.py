@@ -894,11 +894,7 @@ def run_sync_from_thread(
 
     f: concurrent.futures.Future[T_Retval] = Future()
     loop = loop or threadlocals.loop
-    if sys.version_info < (3, 7):
-        loop.call_soon_threadsafe(copy_context().run, wrapper)
-    else:
-        loop.call_soon_threadsafe(wrapper)
-
+    loop.call_soon_threadsafe(wrapper)
     return f.result()
 
 

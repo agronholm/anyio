@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import sys
 import threading
 import time
 from concurrent.futures import Future
@@ -22,11 +21,6 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
-
-if sys.version_info < (3, 7):
-    current_task = asyncio.Task.current_task
-else:
-    current_task = asyncio.current_task
 
 pytestmark = pytest.mark.anyio
 
@@ -163,7 +157,7 @@ async def test_asyncio_cancel_native_task() -> None:
 
     async def run_in_thread() -> None:
         nonlocal task
-        task = current_task()
+        task = asyncio.current_task()
         await to_thread.run_sync(time.sleep, 0.2, cancellable=True)
 
     async with create_task_group() as tg:
