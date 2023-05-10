@@ -627,7 +627,7 @@ class _AsyncioTaskStatus(abc.TaskStatus):
         self._future = future
         self._parent_id = parent_id
 
-    def started(self, value: T_contra | None = None) -> None:
+    def started(self, value: Optional[T_contra] = None) -> None:
         try:
             self._future.set_result(value)
         except asyncio.InvalidStateError:

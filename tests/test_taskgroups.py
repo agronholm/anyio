@@ -1167,7 +1167,7 @@ class TestTaskStatusTyping:
         task_status.started()
         task_status.started(None)
 
-    async def typetest_None_Union(*, task_status: TaskStatus[int | None]) -> None:
+    async def typetest_None_Union(*, task_status: TaskStatus[Optional[int]]) -> None:
         task_status.started()
         task_status.started(None)
 
