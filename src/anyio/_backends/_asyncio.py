@@ -19,7 +19,7 @@ from asyncio import (
 from asyncio import run as native_run
 from asyncio.base_events import _run_until_complete_cb  # type: ignore[attr-defined]
 from collections import OrderedDict, deque
-from collections.abc import AsyncIterator, Iterable
+from collections.abc import AsyncIterator, Awaitable, Iterable
 from concurrent.futures import Future
 from contextvars import Context, copy_context
 from dataclasses import dataclass
@@ -36,7 +36,6 @@ from typing import (
     IO,
     Any,
     AsyncGenerator,
-    Awaitable,
     Callable,
     Collection,
     ContextManager,
@@ -83,6 +82,11 @@ from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup, ExceptionGroup
 
+if sys.version_info >= (3, 10):
+    from typing import ParamSpec
+else:
+    from typing_extensions import ParamSpec
+
 if sys.version_info >= (3, 8):
 
     def get_coro(task: asyncio.Task) -> Generator | Awaitable[Any]:
@@ -96,6 +100,7 @@ else:
 
 T_Retval = TypeVar("T_Retval")
 T_contra = TypeVar("T_contra", contravariant=True)
+P = ParamSpec("P")
 
 # Check whether there is native support for task names in asyncio (3.8+)
 _native_task_names = hasattr(asyncio.Task, "get_name")
@@ -138,6 +143,31 @@ def get_callable_name(func: Callable) -> str:
     module = getattr(func, "__module__", None)
     qualname = getattr(func, "__qualname__", None)
     return ".".join([x for x in (module, qualname) if x])
+
+
+def ensure_returns_coro(
+    func: Callable[P, Awaitable[T_Retval]]
+) -> Callable[P, Coroutine[Any, Any, T_Retval]]:
+    @wraps(func)
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> Coroutine[Any, Any, T_Retval]:
+        awaitable = func(*args, **kwargs)
+        # Check the common case first.
+        if asyncio.iscoroutine(awaitable):
+            return awaitable
+        elif not isinstance(awaitable, Awaitable):
+            # The user violated the type annotations.
+            raise TypeError(
+                f"Expected an async function, but {func} appears to be synchronous"
+            )
+        else:
+
+            @wraps(func)
+            async def inner_wrapper() -> T_Retval:
+                return await awaitable
+
+            return inner_wrapper()
+
+    return wrapper
 
 
 #
@@ -611,11 +641,7 @@ class TaskGroup(abc.TaskGroup):
         else:
             parent_id = id(self.cancel_scope._host_task)
 
-        coro = func(*args, **kwargs)
-        if not asyncio.iscoroutine(coro):
-            raise TypeError(
-                f"Expected an async function, but {func} appears to be synchronous"
-            )
+        coro = ensure_returns_coro(func)(*args, **kwargs)
 
         foreign_coro = not hasattr(coro, "cr_frame") and not hasattr(coro, "gi_frame")
         if foreign_coro or sys.version_info < (3, 8):
@@ -1784,9 +1810,9 @@ class TestRunner(abc.TestRunner):
         ],
     ) -> None:
         with receive_stream:
-            async for coro, future in receive_stream:
+            async for awaitable, future in receive_stream:
                 try:
-                    retval = await coro
+                    retval = await awaitable
                 except BaseException as exc:
                     if not future.cancelled():
                         future.set_exception(exc)
@@ -1803,9 +1829,9 @@ class TestRunner(abc.TestRunner):
                 self._run_tests_and_fixtures(receive_stream)
             )
 
-        coro = func(*args, **kwargs)
+        awaitable = func(*args, **kwargs)
         future: asyncio.Future[T_Retval] = self._loop.create_future()
-        self._send_stream.send_nowait((coro, future))
+        self._send_stream.send_nowait((awaitable, future))
         return await future
 
     def close(self) -> None:
@@ -2051,7 +2077,7 @@ class AsyncIOBackend(AsyncBackend):
     ) -> T_Retval:
         loop = cast(AbstractEventLoop, token)
         f: concurrent.futures.Future[T_Retval] = asyncio.run_coroutine_threadsafe(
-            func(*args), loop
+            ensure_returns_coro(func)(*args), loop
         )
         return f.result()
 

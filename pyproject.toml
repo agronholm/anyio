@@ -29,7 +29,7 @@ dependencies = [
     "exceptiongroup; python_version < '3.11'",
     "idna >= 2.8",
     "sniffio >= 1.1",
-    "typing_extensions; python_version < '3.8'",
+    "typing_extensions >= 3.10; python_version < '3.10'",
 ]
 dynamic = ["version"]
 
@@ -49,7 +49,6 @@ test = [
     "pytest >= 7.0",
     "pytest-mock >= 3.6.1",
     "trustme",
-    "typing_extensions >= 3.10; python_version < '3.10'",
     "uvloop >= 0.17; platform_python_implementation == 'CPython' and platform_system != 'Windows'",
 ]
 doc = [

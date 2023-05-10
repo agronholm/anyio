@@ -3,10 +3,11 @@ from __future__ import annotations
 import array
 import math
 import socket
-from collections.abc import AsyncIterator, Iterable
+import sys
+from collections.abc import AsyncIterator, Awaitable, Coroutine, Iterable
 from concurrent.futures import Future
 from dataclasses import dataclass
-from functools import partial
+from functools import partial, wraps
 from io import IOBase
 from os import PathLike
 from signal import Signals
@@ -16,11 +17,9 @@ from typing import (
     IO,
     Any,
     AsyncGenerator,
-    Awaitable,
     Callable,
     Collection,
     ContextManager,
-    Coroutine,
     Generic,
     Mapping,
     NoReturn,
@@ -61,9 +60,38 @@ from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend
 from ..streams.memory import MemoryObjectSendStream
 
-T = TypeVar("T")
+if sys.version_info >= (3, 10):
+    from typing import ParamSpec
+else:
+    from typing_extensions import ParamSpec
+
 T_Retval = TypeVar("T_Retval")
 T_SockAddr = TypeVar("T_SockAddr", str, IPSockAddrType)
+P = ParamSpec("P")
+
+
+def ensure_returns_coro(
+    func: Callable[P, Awaitable[T_Retval]]
+) -> Callable[P, Coroutine[Any, Any, T_Retval]]:
+    @wraps(func)
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> Coroutine[Any, Any, T_Retval]:
+        awaitable = func(*args, **kwargs)
+        # Check the common case first.
+        if isinstance(awaitable, Coroutine):
+            return awaitable
+        elif not isinstance(awaitable, Awaitable):
+            # The user violated the type annotations. Still, we should pass this on to
+            # Trio so it can raise with an appropriate message.
+            return awaitable
+        else:
+
+            @wraps(func)
+            async def inner_wrapper() -> T_Retval:
+                return await awaitable
+
+            return inner_wrapper()
+
+    return wrapper
 
 
 #
@@ -154,13 +182,15 @@ class TaskGroup(abc.TaskGroup):
         finally:
             self._active = False
 
-    def start_soon(self, func: Callable, *args: object, name: object = None) -> None:
+    def start_soon(
+        self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
+    ) -> None:
         if not self._active:
             raise RuntimeError(
                 "This task group is not active; no new tasks can be started."
             )
 
-        self._nursery.start_soon(func, *args, name=name)
+        self._nursery.start_soon(ensure_returns_coro(func), *args, name=name)
 
     async def start(
         self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
@@ -170,7 +200,7 @@ class TaskGroup(abc.TaskGroup):
                 "This task group is not active; no new tasks can be started."
             )
 
-        return await self._nursery.start(func, *args, name=name)
+        return await self._nursery.start(ensure_returns_coro(func), *args, name=name)
 
 
 #
@@ -710,15 +740,17 @@ class TestRunner(abc.TestRunner):
         from queue import Queue
 
         self._call_queue: Queue[Callable[..., object]] = Queue()
-        self._send_stream: MemoryObjectSendStream | None = None
+        self._send_stream: MemoryObjectSendStream[
+            tuple[Awaitable[Any], list[Outcome]]
+        ] | None = None
         self._options = options
 
     async def _run_tests_and_fixtures(self) -> None:
         self._send_stream, receive_stream = create_memory_object_stream(1)
         with receive_stream:
-            async for coro, outcome_holder in receive_stream:
+            async for awaitable, outcome_holder in receive_stream:
                 try:
-                    retval = await coro
+                    retval = await awaitable
                 except BaseException as exc:
                     outcome_holder.append(Error(exc))
                 else:
@@ -793,7 +825,7 @@ class TrioBackend(AsyncBackend):
         kwargs: dict[str, Any],
         options: dict[str, Any],
     ) -> T_Retval:
-        return trio.run(func, *args)
+        return trio.run(ensure_returns_coro(func), *args)
 
     @classmethod
     def current_token(cls) -> object:
@@ -871,7 +903,9 @@ class TrioBackend(AsyncBackend):
         args: tuple[Any, ...],
         token: object,
     ) -> T_Retval:
-        return trio.from_thread.run(func, *args, trio_token=cast(TrioToken, token))
+        return trio.from_thread.run(
+            ensure_returns_coro(func), *args, trio_token=cast(TrioToken, token)
+        )
 
     @classmethod
     def run_sync_from_thread(

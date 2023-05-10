@@ -14,17 +14,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   create UNIX datagram sockets (PR by Jean Hominal)
 - Improved type annotations:
 
-  - Several functions and methods that previously only accepted coroutines as the return
-    type of the callable have been amended to accept any awaitables:
-
-    - ``anyio.run()``
-    - ``anyio.from_thread.run()``
-    - ``TaskGroup.start_soon()``
-    - ``TaskGroup.start()``
-    - ``BlockingPortal.call()``
-    - ``BlockingPortal.start_task_soon()``
-    - ``BlockingPortal.start_task()``
-
   - The ``TaskStatus`` class is now a generic protocol, and should be parametrized to
     indicate the type of the value passed to ``task_status.started()``
   - The ``Listener`` class is now covariant in its stream type
@@ -50,6 +39,18 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``TLSStream.wrap()`` being inadvertently set on Python 3.11.3 and 3.10.11
 - Fixed ``CancelScope`` to properly handle asyncio task uncancellation on Python 3.11
   (PR by Nikolay Bryskin)
+- Several functions and methods that previously only accepted coroutines as the return
+  type of the callable can now accept any awaitables:
+
+  - ``anyio.run()``
+  - ``anyio.from_thread.run()``
+  - ``TaskGroup.start_soon()``
+  - ``TaskGroup.start()``
+  - ``BlockingPortal.call()``
+  - ``BlockingPortal.start_task_soon()``
+  - ``BlockingPortal.start_task()``
+
+  (PRs by Alex Grönholm and Ganden Schaffner)
 
 **3.6.1**
 
