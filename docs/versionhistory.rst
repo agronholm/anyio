@@ -25,8 +25,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     - ``BlockingPortal.start_task_soon()``
     - ``BlockingPortal.start_task()``
 
-  - The ``TaskStatus`` class is now generic, and should be parametrized to indicate the
-    type of the value passed to ``task_status.started()``
+  - The ``TaskStatus`` class is now a generic protocol, and should be parametrized to
+    indicate the type of the value passed to ``task_status.started()``
   - The ``Listener`` class is now covariant in its stream type
   - ``create_memory_object_stream()`` now allows passing only ``item_type``
   - Object receive streams are now covariant and object send streams are correspondingly
@@ -48,6 +48,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   currently active cancel scope has been cancelled (PR by Ganden Schaffner)
 - Fixed the ``OP_IGNORE_UNEXPECTED_EOF`` flag in an SSL context created by default in
   ``TLSStream.wrap()`` being inadvertently set on Python 3.11.3 and 3.10.11
+- Fixed ``CancelScope`` to properly handle asyncio task uncancellation on Python 3.11
+  (PR by Nikolay Bryskin)
 - Fixed ``from_thread.run`` and ``from_thread.run_sync`` not setting sniffio on asyncio.
   As a result:
 

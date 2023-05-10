@@ -5,7 +5,7 @@ import math
 import sys
 import time
 from collections.abc import AsyncGenerator, Coroutine, Generator
-from typing import Any, NoReturn
+from typing import Any, NoReturn, cast
 
 import pytest
 
@@ -863,9 +863,9 @@ def test_cancel_generator_based_task() -> None:
             await asyncio.sleep(1)
             pytest.fail("Execution should not have reached this line")
 
-    @asyncio.coroutine
+    @asyncio.coroutine  # type: ignore[attr-defined]
     def generator_part() -> Generator[object, BaseException, None]:
-        yield from native_coro_part()
+        yield from native_coro_part()  # type: ignore[misc]
 
     anyio.run(generator_part, backend="asyncio")
 
@@ -1092,3 +1092,74 @@ async def test_start_parent_id() -> None:
     assert initial_parent_id != permanent_parent_id
     assert initial_parent_id == starter_task_id
     assert permanent_parent_id == root_task_id
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 11),
+    reason="Task uncancelling is only supported on Python 3.11",
+)
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+class TestUncancel:
+    async def test_uncancel_after_native_cancel(self) -> None:
+        task = cast(asyncio.Task, asyncio.current_task())
+        with pytest.raises(asyncio.CancelledError), CancelScope():
+            task.cancel()
+            await anyio.sleep(0)
+
+        assert task.cancelling() == 1
+        task.uncancel()
+
+    async def test_uncancel_after_scope_cancel(self) -> None:
+        task = cast(asyncio.Task, asyncio.current_task())
+        with CancelScope() as scope:
+            scope.cancel()
+            await anyio.sleep(0)
+
+        assert task.cancelling() == 0
+
+    async def test_uncancel_after_scope_and_native_cancel(self) -> None:
+        task = cast(asyncio.Task, asyncio.current_task())
+        with pytest.raises(asyncio.CancelledError), CancelScope() as scope:
+            scope.cancel()
+            task.cancel()
+            await anyio.sleep(0)
+
+        assert task.cancelling() == 1
+        task.uncancel()
+
+
+class TestTaskStatusTyping:
+    """
+    These tests do not do anything at run time, but since the test suite is also checked
+    with a static type checker, it ensures that the `TaskStatus` typing works as
+    intended.
+    """
+
+    async def typetest_None(*, task_status: TaskStatus[None]) -> None:
+        task_status.started()
+        task_status.started(None)
+
+    async def typetest_None_Union(*, task_status: TaskStatus[int | None]) -> None:
+        task_status.started()
+        task_status.started(None)
+
+    async def typetest_non_None(*, task_status: TaskStatus[int]) -> None:
+        # We use `type: ignore` and `--warn-unused-ignores` to get type checking errors
+        # if these ever stop failing.
+        task_status.started()  # type: ignore[call-arg]
+        task_status.started(None)  # type: ignore[arg-type]
+
+    async def typetest_variance_good(*, task_status: TaskStatus[float]) -> None:
+        task_status2: TaskStatus[int] = task_status
+        task_status2.started(int())
+
+    async def typetest_variance_bad(*, task_status: TaskStatus[int]) -> None:
+        # We use `type: ignore` and `--warn-unused-ignores` to get type checking errors
+        # if these ever stop failing.
+        task_status2: TaskStatus[float] = task_status  # type: ignore[assignment]
+        task_status2.started(float())
+
+    async def typetest_optional_status(
+        *, task_status: TaskStatus[int] = TASK_STATUS_IGNORED
+    ) -> None:
+        task_status.started(1)
