@@ -95,7 +95,7 @@ else:
 
 
 T_Retval = TypeVar("T_Retval")
-T_contra = TypeVar("T_contra")
+T_contra = TypeVar("T_contra", contravariant=True)
 
 # Check whether there is native support for task names in asyncio (3.8+)
 _native_task_names = hasattr(asyncio.Task, "get_name")
