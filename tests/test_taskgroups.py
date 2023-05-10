@@ -1158,3 +1158,8 @@ class TestTaskStatusTyping:
         # if these ever stop failing.
         task_status2: TaskStatus[float] = task_status  # type: ignore[assignment]
         task_status2.started(float())
+
+    async def typetest_optional_status(
+        *, task_status: TaskStatus[int] = TASK_STATUS_IGNORED
+    ) -> None:
+        task_status.started(1)
