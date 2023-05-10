@@ -77,7 +77,6 @@ from ..abc import (
     UDPPacketType,
     UNIXDatagramPacketType,
 )
-from ..abc._tasks import T_contra
 from ..lowlevel import RunVar
 from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
@@ -96,6 +95,7 @@ else:
 
 
 T_Retval = TypeVar("T_Retval")
+T_contra = TypeVar("T_contra")
 
 # Check whether there is native support for task names in asyncio (3.8+)
 _native_task_names = hasattr(asyncio.Task, "get_name")
