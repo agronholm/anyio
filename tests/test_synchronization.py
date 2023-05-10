@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import asyncio
-from typing import Optional
 
 import pytest
 
@@ -348,7 +349,7 @@ class TestSemaphore:
         assert semaphore.value == 1
 
     @pytest.mark.parametrize("max_value", [2, None])
-    async def test_max_value(self, max_value: Optional[int]) -> None:
+    async def test_max_value(self, max_value: int | None) -> None:
         semaphore = Semaphore(0, max_value=max_value)
         assert semaphore.max_value == max_value
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import threading
 from asyncio import iscoroutine
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
@@ -9,15 +11,10 @@ from typing import (
     Awaitable,
     Callable,
     ContextManager,
-    Dict,
     Generator,
     Generic,
     Iterable,
-    Optional,
-    Tuple,
-    Type,
     TypeVar,
-    Union,
     cast,
     overload,
 )
@@ -89,15 +86,15 @@ class _BlockingAsyncContextManager(Generic[T_co], AbstractContextManager):
     _enter_future: Future
     _exit_future: Future
     _exit_event: Event
-    _exit_exc_info: Tuple[
-        Optional[Type[BaseException]], Optional[BaseException], Optional[TracebackType]
+    _exit_exc_info: tuple[
+        type[BaseException] | None, BaseException | None, TracebackType | None
     ] = (None, None, None)
 
-    def __init__(self, async_cm: AsyncContextManager[T_co], portal: "BlockingPortal"):
+    def __init__(self, async_cm: AsyncContextManager[T_co], portal: BlockingPortal):
         self._async_cm = async_cm
         self._portal = portal
 
-    async def run_async_cm(self) -> Optional[bool]:
+    async def run_async_cm(self) -> bool | None:
         try:
             self._exit_event = Event()
             value = await self._async_cm.__aenter__()
@@ -128,10 +125,10 @@ class _BlockingAsyncContextManager(Generic[T_co], AbstractContextManager):
 
     def __exit__(
         self,
-        __exc_type: Optional[Type[BaseException]],
-        __exc_value: Optional[BaseException],
-        __traceback: Optional[TracebackType],
-    ) -> Optional[bool]:
+        __exc_type: type[BaseException] | None,
+        __exc_value: BaseException | None,
+        __traceback: TracebackType | None,
+    ) -> bool | None:
         self._exit_exc_info = __exc_type, __exc_value, __traceback
         self._portal.call(self._exit_event.set)
         return self._exit_future.result()
@@ -148,25 +145,25 @@ class _BlockingPortalTaskStatus(TaskStatus):
 class BlockingPortal:
     """An object that lets external threads run code in an asynchronous event loop."""
 
-    def __new__(cls) -> "BlockingPortal":
+    def __new__(cls) -> BlockingPortal:
         return get_asynclib().BlockingPortal()
 
     def __init__(self) -> None:
-        self._event_loop_thread_id: Optional[int] = threading.get_ident()
+        self._event_loop_thread_id: int | None = threading.get_ident()
         self._stop_event = Event()
         self._task_group = create_task_group()
         self._cancelled_exc_class = get_cancelled_exc_class()
 
-    async def __aenter__(self) -> "BlockingPortal":
+    async def __aenter__(self) -> BlockingPortal:
         await self._task_group.__aenter__()
         return self
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         await self.stop()
         return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
 
@@ -199,7 +196,7 @@ class BlockingPortal:
             self._task_group.cancel_scope.cancel()
 
     async def _call_func(
-        self, func: Callable, args: tuple, kwargs: Dict[str, Any], future: Future
+        self, func: Callable, args: tuple, kwargs: dict[str, Any], future: Future
     ) -> None:
         def callback(f: Future) -> None:
             if f.cancelled() and self._event_loop_thread_id not in (
@@ -237,7 +234,7 @@ class BlockingPortal:
         self,
         func: Callable,
         args: tuple,
-        kwargs: Dict[str, Any],
+        kwargs: dict[str, Any],
         name: object,
         future: Future,
     ) -> None:
@@ -265,7 +262,7 @@ class BlockingPortal:
         ...
 
     def call(
-        self, func: Callable[..., Union[Awaitable[T_Retval], T_Retval]], *args: object
+        self, func: Callable[..., Awaitable[T_Retval] | T_Retval], *args: object
     ) -> T_Retval:
         """
         Call the given function in the event loop thread.
@@ -284,22 +281,22 @@ class BlockingPortal:
         self,
         func: Callable[..., Awaitable[T_Retval]],
         *args: object,
-        name: object = None
-    ) -> "Future[T_Retval]":
+        name: object = None,
+    ) -> Future[T_Retval]:
         ...
 
     @overload
     def spawn_task(
         self, func: Callable[..., T_Retval], *args: object, name: object = None
-    ) -> "Future[T_Retval]":
+    ) -> Future[T_Retval]:
         ...
 
     def spawn_task(
         self,
-        func: Callable[..., Union[Awaitable[T_Retval], T_Retval]],
+        func: Callable[..., Awaitable[T_Retval] | T_Retval],
         *args: object,
-        name: object = None
-    ) -> "Future[T_Retval]":
+        name: object = None,
+    ) -> Future[T_Retval]:
         """
         Start a task in the portal's task group.
 
@@ -328,22 +325,22 @@ class BlockingPortal:
         self,
         func: Callable[..., Awaitable[T_Retval]],
         *args: object,
-        name: object = None
-    ) -> "Future[T_Retval]":
+        name: object = None,
+    ) -> Future[T_Retval]:
         ...
 
     @overload
     def start_task_soon(
         self, func: Callable[..., T_Retval], *args: object, name: object = None
-    ) -> "Future[T_Retval]":
+    ) -> Future[T_Retval]:
         ...
 
     def start_task_soon(
         self,
-        func: Callable[..., Union[Awaitable[T_Retval], T_Retval]],
+        func: Callable[..., Awaitable[T_Retval] | T_Retval],
         *args: object,
-        name: object = None
-    ) -> "Future[T_Retval]":
+        name: object = None,
+    ) -> Future[T_Retval]:
         """
         Start a task in the portal's task group.
 
@@ -368,7 +365,7 @@ class BlockingPortal:
 
     def start_task(
         self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
-    ) -> Tuple["Future[Any]", Any]:
+    ) -> tuple[Future[Any], Any]:
         """
         Start a task in the portal's task group and wait until it signals for readiness.
 
@@ -443,7 +440,7 @@ def create_blocking_portal() -> BlockingPortal:
 
 @contextmanager
 def start_blocking_portal(
-    backend: str = "asyncio", backend_options: Optional[Dict[str, Any]] = None
+    backend: str = "asyncio", backend_options: dict[str, Any] | None = None
 ) -> Generator[BlockingPortal, Any, None]:
     """
     Start a new event loop in a new thread and run a blocking portal in its main task.

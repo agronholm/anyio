@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import pickle
 import signal
 import sys
 import threading
-from typing import Union
 
 import pytest
 
@@ -219,7 +220,7 @@ class TestPickle:
         assert result == 2.3
 
     def test_deprecated_awaitable_list(self) -> None:
-        def fn() -> DeprecatedAwaitableList[Union[str, int]]:
+        def fn() -> DeprecatedAwaitableList[str | int]:
             return DeprecatedAwaitableList([1, "a"], func=fn)
 
         obj = fn()

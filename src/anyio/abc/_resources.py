@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from abc import ABCMeta, abstractmethod
 from types import TracebackType
-from typing import Optional, Type, TypeVar
+from typing import TypeVar
 
 T = TypeVar("T")
 
@@ -18,9 +20,9 @@ class AsyncResource(metaclass=ABCMeta):
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         await self.aclose()
 

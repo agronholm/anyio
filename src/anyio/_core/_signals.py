@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import AsyncIterator
 
 from ._compat import DeprecatedAsyncContextManager

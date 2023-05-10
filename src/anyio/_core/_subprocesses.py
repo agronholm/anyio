@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from io import BytesIO
 from os import PathLike
 from subprocess import DEVNULL, PIPE, CalledProcessError, CompletedProcess
@@ -5,11 +7,8 @@ from typing import (
     IO,
     Any,
     AsyncIterable,
-    List,
     Mapping,
-    Optional,
     Sequence,
-    Union,
     cast,
 )
 
@@ -19,16 +18,16 @@ from ._tasks import create_task_group
 
 
 async def run_process(
-    command: Union[str, bytes, Sequence[Union[str, bytes]]],
+    command: str | bytes | Sequence[str | bytes],
     *,
-    input: Optional[bytes] = None,
-    stdout: Union[int, IO[Any], None] = PIPE,
-    stderr: Union[int, IO[Any], None] = PIPE,
+    input: bytes | None = None,
+    stdout: int | IO[Any] | None = PIPE,
+    stderr: int | IO[Any] | None = PIPE,
     check: bool = True,
-    cwd: Union[str, bytes, "PathLike[str]", None] = None,
-    env: Optional[Mapping[str, str]] = None,
+    cwd: str | bytes | PathLike[str] | None = None,
+    env: Mapping[str, str] | None = None,
     start_new_session: bool = False,
-) -> "CompletedProcess[bytes]":
+) -> CompletedProcess[bytes]:
     """
     Run an external command in a subprocess and wait until it completes.
 
@@ -69,7 +68,7 @@ async def run_process(
         env=env,
         start_new_session=start_new_session,
     ) as process:
-        stream_contents: List[Optional[bytes]] = [None, None]
+        stream_contents: list[bytes | None] = [None, None]
         try:
             async with create_task_group() as tg:
                 if process.stdout:
@@ -93,13 +92,13 @@ async def run_process(
 
 
 async def open_process(
-    command: Union[str, bytes, Sequence[Union[str, bytes]]],
+    command: str | bytes | Sequence[str | bytes],
     *,
-    stdin: Union[int, IO[Any], None] = PIPE,
-    stdout: Union[int, IO[Any], None] = PIPE,
-    stderr: Union[int, IO[Any], None] = PIPE,
-    cwd: Union[str, bytes, "PathLike[str]", None] = None,
-    env: Optional[Mapping[str, str]] = None,
+    stdin: int | IO[Any] | None = PIPE,
+    stdout: int | IO[Any] | None = PIPE,
+    stderr: int | IO[Any] | None = PIPE,
+    cwd: str | bytes | PathLike[str] | None = None,
+    env: Mapping[str, str] | None = None,
     start_new_session: bool = False,
 ) -> Process:
     """

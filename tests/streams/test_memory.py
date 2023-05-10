@@ -1,4 +1,4 @@
-from typing import List, Union
+from __future__ import annotations
 
 import pytest
 
@@ -37,7 +37,7 @@ async def test_receive_then_send() -> None:
         received_objects.append(await receive.receive())
 
     send, receive = create_memory_object_stream(0)
-    received_objects: List[str] = []
+    received_objects: list[str] = []
     async with create_task_group() as tg:
         tg.start_soon(receiver)
         await wait_all_tasks_blocked()
@@ -52,7 +52,7 @@ async def test_receive_then_send_nowait() -> None:
         received_objects.append(await receive.receive())
 
     send, receive = create_memory_object_stream(0)
-    received_objects: List[str] = []
+    received_objects: list[str] = []
     async with create_task_group() as tg:
         tg.start_soon(receiver)
         tg.start_soon(receiver)
@@ -98,7 +98,7 @@ async def test_iterate() -> None:
             received_objects.append(item)
 
     send, receive = create_memory_object_stream()
-    received_objects: List[str] = []
+    received_objects: list[str] = []
     async with create_task_group() as tg:
         tg.start_soon(receiver)
         await send.send("hello")
@@ -224,7 +224,7 @@ async def test_send_when_cancelled() -> None:
     async def receiver() -> None:
         received.append(await receive.receive())
 
-    received: List[str] = []
+    received: list[str] = []
     send, receive = create_memory_object_stream()
     async with create_task_group() as tg:
         tg.start_soon(receiver)
@@ -252,7 +252,7 @@ async def test_cancel_during_receive() -> None:
 
         assert receiver_scope.cancel_called
 
-    received: List[str] = []
+    received: list[str] = []
     send, receive = create_memory_object_stream()
     async with create_task_group() as tg:
         tg.start_soon(scoped_receiver)
@@ -281,9 +281,10 @@ async def test_close_receive_after_send() -> None:
 
 async def test_statistics() -> None:
     send_stream, receive_stream = create_memory_object_stream(1)
-    streams: List[
-        Union[MemoryObjectReceiveStream[int], MemoryObjectSendStream[int]]
-    ] = [send_stream, receive_stream]
+    streams: list[MemoryObjectReceiveStream[int] | MemoryObjectSendStream[int]] = [
+        send_stream,
+        receive_stream,
+    ]
     for stream in streams:
         statistics = stream.statistics()
         assert statistics.max_buffer_size == 1

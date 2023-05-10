@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Union
 
 import pytest
 from _pytest.fixtures import SubRequest
@@ -20,9 +21,7 @@ class TestFileReadStream:
         return path
 
     @pytest.fixture(params=[False, True], ids=["str", "path"])
-    def file_path_or_str(
-        self, request: SubRequest, file_path: Path
-    ) -> Union[Path, str]:
+    def file_path_or_str(self, request: SubRequest, file_path: Path) -> Path | str:
         return file_path if request.param else str(file_path)
 
     async def _run_filestream_test(self, stream: ByteReceiveStream) -> None:
@@ -31,7 +30,7 @@ class TestFileReadStream:
         with pytest.raises(EndOfStream):
             await stream.receive(1)
 
-    async def test_read_file_as_path(self, file_path_or_str: Union[Path, str]) -> None:
+    async def test_read_file_as_path(self, file_path_or_str: Path | str) -> None:
         async with await FileReadStream.from_path(file_path_or_str) as stream:
             await self._run_filestream_test(stream)
 

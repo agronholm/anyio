@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import socket
 import ssl
 import sys
 from contextlib import ExitStack
 from threading import Thread
-from typing import ContextManager, NoReturn, Tuple
+from typing import ContextManager, NoReturn
 
 import pytest
 from pytest_mock import MockerFixture
@@ -429,7 +431,7 @@ class TestTLSListener:
     async def test_extra_attributes(
         self, client_context: ssl.SSLContext, server_context: ssl.SSLContext, ca: CA
     ) -> None:
-        def connect_sync(addr: Tuple[str, int]) -> None:
+        def connect_sync(addr: tuple[str, int]) -> None:
             with socket.create_connection(addr) as plain_sock:
                 plain_sock.settimeout(2)
                 with client_context.wrap_socket(

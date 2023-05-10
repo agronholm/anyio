@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import sys
 import threading
@@ -5,7 +7,7 @@ import time
 from concurrent.futures import Future
 from contextvars import ContextVar
 from functools import partial
-from typing import Any, List, NoReturn, Optional
+from typing import Any, NoReturn
 
 import pytest
 import sniffio
@@ -101,7 +103,7 @@ async def test_cancel_worker_thread(
     until the thread finishes.
 
     """
-    last_active: Optional[str] = None
+    last_active: str | None = None
 
     def thread_worker() -> None:
         nonlocal last_active
@@ -157,7 +159,7 @@ async def test_asynclib_detection() -> None:
 
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_asyncio_cancel_native_task() -> None:
-    task: "Optional[asyncio.Task[None]]" = None
+    task: asyncio.Task[None] | None = None
 
     async def run_in_thread() -> None:
         nonlocal task
@@ -227,7 +229,7 @@ def test_asyncio_run_sync_no_asyncio_run(
     def exception_handler(loop: object, context: Any = None) -> None:
         exceptions.append(context["exception"])
 
-    exceptions: List[BaseException] = []
+    exceptions: list[BaseException] = []
     asyncio_event_loop.set_exception_handler(exception_handler)
     asyncio_event_loop.run_until_complete(to_thread.run_sync(time.sleep, 0))
     assert not exceptions

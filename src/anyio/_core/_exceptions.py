@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from traceback import format_exception
-from typing import List
 
 
 class BrokenResourceError(Exception):
@@ -52,7 +53,7 @@ class ExceptionGroup(BaseException):
 
     SEPARATOR = "----------------------------\n"
 
-    exceptions: List[BaseException]
+    exceptions: list[BaseException]
 
     def __str__(self) -> str:
         tracebacks = [

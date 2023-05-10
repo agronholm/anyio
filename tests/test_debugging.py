@@ -1,14 +1,12 @@
+from __future__ import annotations
+
 import asyncio
 import sys
 from typing import (
     Any,
     AsyncGenerator,
     Coroutine,
-    Dict,
     Generator,
-    List,
-    Optional,
-    Union,
     cast,
 )
 
@@ -38,7 +36,7 @@ else:
 
 
 def test_main_task_name(
-    anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+    anyio_backend_name: str, anyio_backend_options: dict[str, Any]
 ) -> None:
     task_name = None
 
@@ -72,7 +70,7 @@ def test_main_task_name(
     ],
 )
 async def test_non_main_task_name(
-    name_input: Optional[Union[bytes, str]], expected: str
+    name_input: bytes | str | None, expected: str
 ) -> None:
     async def non_main(*, task_status: TaskStatus) -> None:
         task_status.started(anyio.get_current_task().name)
@@ -91,7 +89,7 @@ async def test_get_running_tasks() -> None:
         event.set()
 
     event = Event()
-    task_infos: List[TaskInfo] = []
+    task_infos: list[TaskInfo] = []
     host_task = get_current_task()
     async with create_task_group() as tg:
         existing_tasks = set(get_running_tasks())

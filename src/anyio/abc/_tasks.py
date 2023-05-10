@@ -106,7 +106,7 @@ class TaskGroup(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    async def __aenter__(self) -> "TaskGroup":
+    async def __aenter__(self) -> TaskGroup:
         """Enter the task group context and allow starting new tasks."""
 
     @abstractmethod

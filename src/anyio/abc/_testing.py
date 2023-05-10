@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import types
 from abc import ABCMeta, abstractmethod
 from collections.abc import AsyncGenerator, Iterable
-from typing import Any, Callable, Coroutine, Dict, Optional, Type, TypeVar
+from typing import Any, Callable, Coroutine, TypeVar
 
 _T = TypeVar("_T")
 
@@ -12,15 +14,15 @@ class TestRunner(metaclass=ABCMeta):
     loop.
     """
 
-    def __enter__(self) -> "TestRunner":
+    def __enter__(self) -> TestRunner:
         return self
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[types.TracebackType],
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
+    ) -> bool | None:
         self.close()
         return None
 
@@ -31,9 +33,9 @@ class TestRunner(metaclass=ABCMeta):
     @abstractmethod
     def run_asyncgen_fixture(
         self,
-        fixture_func: Callable[..., "AsyncGenerator[_T, Any]"],
-        kwargs: Dict[str, Any],
-    ) -> "Iterable[_T]":
+        fixture_func: Callable[..., AsyncGenerator[_T, Any]],
+        kwargs: dict[str, Any],
+    ) -> Iterable[_T]:
         """
         Run an async generator fixture.
 
@@ -46,7 +48,7 @@ class TestRunner(metaclass=ABCMeta):
     def run_fixture(
         self,
         fixture_func: Callable[..., Coroutine[Any, Any, _T]],
-        kwargs: Dict[str, Any],
+        kwargs: dict[str, Any],
     ) -> _T:
         """
         Run an async fixture.
@@ -58,7 +60,7 @@ class TestRunner(metaclass=ABCMeta):
 
     @abstractmethod
     def run_test(
-        self, test_func: Callable[..., Coroutine[Any, Any, Any]], kwargs: Dict[str, Any]
+        self, test_func: Callable[..., Coroutine[Any, Any, Any]], kwargs: dict[str, Any]
     ) -> None:
         """
         Run an async test function.

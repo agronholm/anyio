@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import asyncio
 import ssl
 from ssl import SSLContext
-from typing import Any, Dict, Generator, Tuple
+from typing import Any, Generator
 
 import pytest
 import trustme
@@ -41,7 +43,7 @@ pytest_plugins = ["pytester", "pytest_mock"]
         pytest.param("trio"),
     ]
 )
-def anyio_backend(request: SubRequest) -> Tuple[str, Dict[str, Any]]:
+def anyio_backend(request: SubRequest) -> tuple[str, dict[str, Any]]:
     return request.param
 
 

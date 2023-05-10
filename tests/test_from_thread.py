@@ -1,18 +1,17 @@
+from __future__ import annotations
+
 import sys
 import threading
 import time
 from concurrent.futures import CancelledError
-from contextlib import suppress
+from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
 from typing import (
     Any,
     AsyncGenerator,
     Awaitable,
     Callable,
-    Dict,
-    List,
     NoReturn,
-    Optional,
     TypeVar,
 )
 
@@ -38,12 +37,6 @@ if sys.version_info >= (3, 8):
     from typing import Literal
 else:
     from typing_extensions import Literal
-
-if sys.version_info >= (3, 7):
-    from contextlib import asynccontextmanager
-else:
-    from contextlib2 import asynccontextmanager
-
 
 pytestmark = pytest.mark.anyio
 
@@ -215,7 +208,7 @@ class TestBlockingPortal:
             else:
                 results.append(None)
 
-        results: List[Optional[BaseException]] = []
+        results: list[BaseException | None] = []
         with suppress(Exception):
             async with BlockingPortal() as portal:
                 thread1 = threading.Thread(target=external_thread)
@@ -244,7 +237,7 @@ class TestBlockingPortal:
             else:
                 results.append(None)
 
-        results: List[Optional[BaseException]] = []
+        results: list[BaseException | None] = []
         async with BlockingPortal() as portal:
             thread1 = threading.Thread(target=external_thread)
             thread1.start()
@@ -264,7 +257,7 @@ class TestBlockingPortal:
             exc.match("This method cannot be called from the event loop thread")
 
     def test_start_with_new_event_loop(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         async def async_get_thread_id() -> int:
             return threading.get_ident()
@@ -283,7 +276,7 @@ class TestBlockingPortal:
         exc.match("No such backend: foo")
 
     def test_call_stopped_portal(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
             pass
@@ -293,7 +286,7 @@ class TestBlockingPortal:
         )
 
     def test_start_task_soon(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         async def event_waiter() -> Literal["test"]:
             await event1.wait()
@@ -309,7 +302,7 @@ class TestBlockingPortal:
             assert future.result() == "test"
 
     def test_start_task_soon_cancel_later(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         async def noop() -> None:
             await sleep(2)
@@ -322,7 +315,7 @@ class TestBlockingPortal:
         assert future.cancelled()
 
     def test_start_task_soon_cancel_immediately(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         cancelled = False
 
@@ -340,7 +333,7 @@ class TestBlockingPortal:
         assert cancelled
 
     def test_start_task_soon_with_name(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         task_name = None
 
@@ -354,7 +347,7 @@ class TestBlockingPortal:
         assert task_name == "testname"
 
     def test_async_context_manager_success(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
             with portal.wrap_async_context_manager(
@@ -363,7 +356,7 @@ class TestBlockingPortal:
                 assert cm == "test"
 
     def test_async_context_manager_error(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
             with pytest.raises(Exception) as exc:
@@ -376,7 +369,7 @@ class TestBlockingPortal:
                 exc.match("should NOT be ignored")
 
     def test_async_context_manager_error_ignore(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
             with portal.wrap_async_context_manager(
@@ -386,7 +379,7 @@ class TestBlockingPortal:
                 raise Exception("should be ignored")
 
     def test_async_context_manager_exception_in_task_group(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         """Regression test for #381."""
 
@@ -405,7 +398,7 @@ class TestBlockingPortal:
                     pass
 
     def test_start_no_value(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         def taskfunc(*, task_status: TaskStatus) -> None:
             task_status.started()
@@ -416,7 +409,7 @@ class TestBlockingPortal:
             assert future.result() is None
 
     def test_start_with_value(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         def taskfunc(*, task_status: TaskStatus) -> None:
             task_status.started("foo")
@@ -427,7 +420,7 @@ class TestBlockingPortal:
             assert future.result() is None
 
     def test_start_crash_before_started_call(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         def taskfunc(*, task_status: object) -> NoReturn:
             raise Exception("foo")
@@ -437,7 +430,7 @@ class TestBlockingPortal:
                 portal.start_task(taskfunc)
 
     def test_start_crash_after_started_call(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         def taskfunc(*, task_status: TaskStatus) -> NoReturn:
             task_status.started(2)
@@ -450,7 +443,7 @@ class TestBlockingPortal:
                 future.result()
 
     def test_start_no_started_call(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         def taskfunc(*, task_status: TaskStatus) -> None:
             pass
@@ -460,7 +453,7 @@ class TestBlockingPortal:
                 portal.start_task(taskfunc)  # type: ignore[arg-type]
 
     def test_start_with_name(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         def taskfunc(*, task_status: TaskStatus) -> None:
             task_status.started(get_current_task().name)
@@ -472,7 +465,7 @@ class TestBlockingPortal:
             assert start_value == "testname"
 
     def test_contextvar_propagation_sync(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         if anyio_backend_name == "asyncio" and sys.version_info < (3, 7):
             pytest.skip("Asyncio does not propagate context before Python 3.7")
@@ -485,7 +478,7 @@ class TestBlockingPortal:
         assert propagated_value == 6
 
     def test_contextvar_propagation_async(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         if anyio_backend_name == "asyncio" and sys.version_info < (3, 7):
             pytest.skip("Asyncio does not propagate context before Python 3.7")
@@ -515,7 +508,7 @@ class TestBlockingPortal:
         assert not caplog.text
 
     def test_raise_baseexception_from_task(
-        self, anyio_backend_name: str, anyio_backend_options: Dict[str, Any]
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         """
         Test that when a task raises a BaseException, it does not trigger additional

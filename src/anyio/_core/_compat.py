@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABCMeta, abstractmethod
 from contextlib import AbstractContextManager
 from types import TracebackType
@@ -11,9 +13,6 @@ from typing import (
     Generic,
     Iterable,
     List,
-    Optional,
-    Tuple,
-    Type,
     TypeVar,
     Union,
     overload,
@@ -40,23 +39,23 @@ async def maybe_async(__obj: TaskInfo) -> TaskInfo:
 
 
 @overload
-async def maybe_async(__obj: "DeprecatedAwaitableFloat") -> float:
+async def maybe_async(__obj: DeprecatedAwaitableFloat) -> float:
     ...
 
 
 @overload
-async def maybe_async(__obj: "DeprecatedAwaitableList[T]") -> List[T]:
+async def maybe_async(__obj: DeprecatedAwaitableList[T]) -> list[T]:
     ...
 
 
 @overload
-async def maybe_async(__obj: "DeprecatedAwaitable") -> None:
+async def maybe_async(__obj: DeprecatedAwaitable) -> None:
     ...
 
 
 async def maybe_async(
-    __obj: "AnyDeprecatedAwaitable[T]",
-) -> Union[TaskInfo, float, List[T], None]:
+    __obj: AnyDeprecatedAwaitable[T],
+) -> TaskInfo | float | list[T] | None:
     """
     Await on the given object if necessary.
 
@@ -82,15 +81,15 @@ class _ContextManagerWrapper:
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         return self._cm.__exit__(exc_type, exc_val, exc_tb)
 
 
 def maybe_async_cm(
-    cm: Union[ContextManager[T], AsyncContextManager[T]]
+    cm: ContextManager[T] | AsyncContextManager[T],
 ) -> AsyncContextManager[T]:
     """
     Wrap a regular context manager as an async one if necessary.
@@ -111,7 +110,7 @@ def maybe_async_cm(
 
 
 def _warn_deprecation(
-    awaitable: "AnyDeprecatedAwaitable[Any]", stacklevel: int = 1
+    awaitable: AnyDeprecatedAwaitable[Any], stacklevel: int = 1
 ) -> None:
     warn(
         f'Awaiting on {awaitable._name}() is deprecated. Use "await '
@@ -123,7 +122,7 @@ def _warn_deprecation(
 
 
 class DeprecatedAwaitable:
-    def __init__(self, func: Callable[..., "DeprecatedAwaitable"]):
+    def __init__(self, func: Callable[..., DeprecatedAwaitable]):
         self._name = f"{func.__module__}.{func.__qualname__}"
 
     def __await__(self) -> Generator[None, None, None]:
@@ -131,7 +130,7 @@ class DeprecatedAwaitable:
         if False:
             yield
 
-    def __reduce__(self) -> Tuple[Type[None], Tuple[()]]:
+    def __reduce__(self) -> tuple[type[None], tuple[()]]:
         return type(None), ()
 
     def _unwrap(self) -> None:
@@ -140,11 +139,11 @@ class DeprecatedAwaitable:
 
 class DeprecatedAwaitableFloat(float):
     def __new__(
-        cls, x: float, func: Callable[..., "DeprecatedAwaitableFloat"]
-    ) -> "DeprecatedAwaitableFloat":
+        cls, x: float, func: Callable[..., DeprecatedAwaitableFloat]
+    ) -> DeprecatedAwaitableFloat:
         return super().__new__(cls, x)
 
-    def __init__(self, x: float, func: Callable[..., "DeprecatedAwaitableFloat"]):
+    def __init__(self, x: float, func: Callable[..., DeprecatedAwaitableFloat]):
         self._name = f"{func.__module__}.{func.__qualname__}"
 
     def __await__(self) -> Generator[None, None, float]:
@@ -154,7 +153,7 @@ class DeprecatedAwaitableFloat(float):
 
         return float(self)
 
-    def __reduce__(self) -> Tuple[Type[float], Tuple[float]]:
+    def __reduce__(self) -> tuple[type[float], tuple[float]]:
         return float, (float(self),)
 
     def _unwrap(self) -> float:
@@ -166,22 +165,22 @@ class DeprecatedAwaitableList(List[T]):
         self,
         iterable: Iterable[T] = (),
         *,
-        func: Callable[..., "DeprecatedAwaitableList[T]"],
+        func: Callable[..., DeprecatedAwaitableList[T]],
     ):
         super().__init__(iterable)
         self._name = f"{func.__module__}.{func.__qualname__}"
 
-    def __await__(self) -> Generator[None, None, List[T]]:
+    def __await__(self) -> Generator[None, None, list[T]]:
         _warn_deprecation(self)
         if False:
             yield
 
         return list(self)
 
-    def __reduce__(self) -> Tuple[Type[List[T]], Tuple[List[T]]]:
+    def __reduce__(self) -> tuple[type[list[T]], tuple[list[T]]]:
         return list, (list(self),)
 
-    def _unwrap(self) -> List[T]:
+    def _unwrap(self) -> list[T]:
         return list(self)
 
 
@@ -193,10 +192,10 @@ class DeprecatedAsyncContextManager(Generic[T], metaclass=ABCMeta):
     @abstractmethod
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         pass
 
     async def __aenter__(self) -> T:
@@ -211,8 +210,8 @@ class DeprecatedAsyncContextManager(Generic[T], metaclass=ABCMeta):
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         return self.__exit__(exc_type, exc_val, exc_tb)

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import math
 import sys
 import threading
@@ -7,11 +9,7 @@ from typing import (
     Any,
     Awaitable,
     Callable,
-    Dict,
     Generator,
-    Optional,
-    Tuple,
-    Type,
     TypeVar,
 )
 
@@ -30,7 +28,7 @@ def run(
     func: Callable[..., Awaitable[T_Retval]],
     *args: object,
     backend: str = "asyncio",
-    backend_options: Optional[Dict[str, Any]] = None,
+    backend_options: dict[str, Any] | None = None,
 ) -> T_Retval:
     """
     Run the given coroutine function in an asynchronous event loop.
@@ -119,12 +117,12 @@ def current_time() -> DeprecatedAwaitableFloat:
     return DeprecatedAwaitableFloat(get_asynclib().current_time(), current_time)
 
 
-def get_all_backends() -> Tuple[str, ...]:
+def get_all_backends() -> tuple[str, ...]:
     """Return a tuple of the names of all built-in backends."""
     return BACKENDS
 
 
-def get_cancelled_exc_class() -> Type[BaseException]:
+def get_cancelled_exc_class() -> type[BaseException]:
     """Return the current async library's cancellation exception class."""
     return get_asynclib().CancelledError
 
@@ -144,7 +142,7 @@ def claim_worker_thread(backend: str) -> Generator[Any, None, None]:
         del threadlocals.current_async_module
 
 
-def get_asynclib(asynclib_name: Optional[str] = None) -> Any:
+def get_asynclib(asynclib_name: str | None = None) -> Any:
     if asynclib_name is None:
         asynclib_name = sniffio.current_async_library()
 

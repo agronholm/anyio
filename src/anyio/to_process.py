@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import os
 import pickle
 import subprocess
 import sys
 from collections import deque
 from importlib.util import module_from_spec, spec_from_file_location
-from typing import Callable, Deque, List, Optional, Set, Tuple, TypeVar, cast
+from typing import Callable, Deque, TypeVar, cast
 
 from ._core._eventloop import current_time, get_asynclib, get_cancelled_exc_class
 from ._core._exceptions import BrokenWorkerProcess
@@ -18,8 +20,8 @@ from .streams.buffered import BufferedByteReceiveStream
 WORKER_MAX_IDLE_TIME = 300  # 5 minutes
 
 T_Retval = TypeVar("T_Retval")
-_process_pool_workers: RunVar[Set[Process]] = RunVar("_process_pool_workers")
-_process_pool_idle_workers: RunVar[Deque[Tuple[Process, float]]] = RunVar(
+_process_pool_workers: RunVar[set[Process]] = RunVar("_process_pool_workers")
+_process_pool_idle_workers: RunVar[Deque[tuple[Process, float]]] = RunVar(
     "_process_pool_idle_workers"
 )
 _default_process_limiter: RunVar[CapacityLimiter] = RunVar("_default_process_limiter")
@@ -29,7 +31,7 @@ async def run_sync(
     func: Callable[..., T_Retval],
     *args: object,
     cancellable: bool = False,
-    limiter: Optional[CapacityLimiter] = None,
+    limiter: CapacityLimiter | None = None,
 ) -> T_Retval:
     """
     Call the given function with the given arguments in a worker process.
@@ -109,7 +111,7 @@ async def run_sync(
                 # Prune any other workers that have been idle for WORKER_MAX_IDLE_TIME seconds or
                 # longer
                 now = current_time()
-                killed_processes: List[Process] = []
+                killed_processes: list[Process] = []
                 while idle_workers:
                     if now - idle_workers[0][1] < WORKER_MAX_IDLE_TIME:
                         break
@@ -208,7 +210,7 @@ def process_worker() -> None:
                 except BaseException as exc:
                     exception = exc
             elif command == "init":
-                main_module_path: Optional[str]
+                main_module_path: str | None
                 sys.path, main_module_path = args
                 del sys.modules["__main__"]
                 if main_module_path:

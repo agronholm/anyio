@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 import os
 import platform
 import sys
 from pathlib import Path
 from subprocess import CalledProcessError
 from textwrap import dedent
-from typing import List, Union
 
 import pytest
 
@@ -40,7 +41,7 @@ def check_compatibility(anyio_backend_name: str) -> None:
     ],
 )
 async def test_run_process(
-    shell: bool, command: Union[str, List[str]], anyio_backend_name: str
+    shell: bool, command: str | list[str], anyio_backend_name: str
 ) -> None:
     process = await run_process(command, input=b"abc")
     assert process.returncode == 0

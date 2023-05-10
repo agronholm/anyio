@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 import os
 import pathlib
 import platform
 import socket
 import stat
-from typing import Tuple
 
 import pytest
 from _pytest.tmpdir import TempPathFactory
@@ -279,7 +280,7 @@ class TestPath:
     @pytest.mark.parametrize(
         "args, result", [(("/xyz", "abc"), True), (("/xyz", "baz"), False)]
     )
-    def test_is_relative_to(self, args: Tuple[str], result: bool) -> None:
+    def test_is_relative_to(self, args: tuple[str], result: bool) -> None:
         assert Path("/xyz/abc/foo").is_relative_to(*args) == result
 
     async def test_glob(self, populated_tmpdir: pathlib.Path) -> None:
