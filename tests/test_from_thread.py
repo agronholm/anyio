@@ -39,10 +39,12 @@ T_Retval = TypeVar("T_Retval")
 
 async def async_add(a: int, b: int) -> int:
     assert threading.current_thread() is threading.main_thread()
+    await checkpoint()
     return a + b
 
 
 async def asyncgen_add(a: int, b: int) -> AsyncGenerator[int, Any]:
+    await checkpoint()
     yield a + b
 
 
@@ -114,13 +116,6 @@ class TestRunAsyncFromThread:
             await to_thread.run_sync(thread_worker_sync, sync_add, 1, "foo")
 
         exc.match("unsupported operand type")
-
-    async def test_run_anyio_async_func_from_thread(self) -> None:
-        def worker(*args: int) -> Literal[True]:
-            from_thread.run(sleep, *args)
-            return True
-
-        assert await to_thread.run_sync(worker, 0)
 
     def test_run_async_from_unclaimed_thread(self) -> None:
         async def foo() -> None:
