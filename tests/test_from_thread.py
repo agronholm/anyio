@@ -544,13 +544,18 @@ class TestBlockingPortal:
 
                 assert exc.value.__context__ is None
 
-    @pytest.mark.timeout(1)
     @pytest.mark.parametrize("portal_backend_name", get_all_backends())
     async def test_from_async(
         self, anyio_backend_name: str, portal_backend_name: str
     ) -> None:
-        """Test that portals don't deadlock when started/used from async code."""
+        """
+        Test that portals don't deadlock when started/used from async code.
 
+        Note: This test will deadlock if there is a regression. A deadlock should be
+        treated as a failure. See also
+        https://github.com/agronholm/anyio/pull/524#discussion_r1183080886.
+
+        """
         if anyio_backend_name == "trio" and portal_backend_name == "trio":
             pytest.xfail("known bug (#525)")
 
