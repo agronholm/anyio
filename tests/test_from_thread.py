@@ -10,12 +10,14 @@ from contextvars import ContextVar
 from typing import Any, AsyncGenerator, NoReturn, TypeVar
 
 import pytest
+import sniffio
 from _pytest.logging import LogCaptureFixture
 
 from anyio import (
     Event,
     create_task_group,
     from_thread,
+    get_all_backends,
     get_cancelled_exc_class,
     get_current_task,
     run,
@@ -145,6 +147,16 @@ class TestRunAsyncFromThread:
 
         assert await to_thread.run_sync(worker) == 6
 
+    async def test_sniffio(self, anyio_backend_name: str) -> None:
+        async def async_func() -> str:
+            return sniffio.current_async_library()
+
+        def worker() -> str:
+            sniffio.current_async_library_cvar.set("something invalid for async_func")
+            return from_thread.run(async_func)
+
+        assert await to_thread.run_sync(worker) == anyio_backend_name
+
 
 class TestRunSyncFromThread:
     def test_run_sync_from_unclaimed_thread(self) -> None:
@@ -162,6 +174,13 @@ class TestRunSyncFromThread:
             return from_thread.run_sync(var.get)
 
         assert await to_thread.run_sync(worker) == 6
+
+    async def test_sniffio(self, anyio_backend_name: str) -> None:
+        def worker() -> str:
+            sniffio.current_async_library_cvar.set("something invalid for async_func")
+            return from_thread.run_sync(sniffio.current_async_library)
+
+        assert await to_thread.run_sync(worker) == anyio_backend_name
 
 
 class TestBlockingPortal:
@@ -524,3 +543,21 @@ class TestBlockingPortal:
                     portal.call(raise_baseexception)
 
                 assert exc.value.__context__ is None
+
+    @pytest.mark.parametrize("portal_backend_name", get_all_backends())
+    async def test_from_async(
+        self, anyio_backend_name: str, portal_backend_name: str
+    ) -> None:
+        """
+        Test that portals don't deadlock when started/used from async code.
+
+        Note: This test will deadlock if there is a regression. A deadlock should be
+        treated as a failure. See also
+        https://github.com/agronholm/anyio/pull/524#discussion_r1183080886.
+
+        """
+        if anyio_backend_name == "trio" and portal_backend_name == "trio":
+            pytest.xfail("known bug (#525)")
+
+        with start_blocking_portal(portal_backend_name) as portal:
+            portal.call(checkpoint)

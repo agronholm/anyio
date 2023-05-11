@@ -50,6 +50,15 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``TLSStream.wrap()`` being inadvertently set on Python 3.11.3 and 3.10.11
 - Fixed ``CancelScope`` to properly handle asyncio task uncancellation on Python 3.11
   (PR by Nikolay Bryskin)
+- Fixed ``from_thread.run`` and ``from_thread.run_sync`` not setting sniffio on asyncio.
+  As a result:
+
+  - Fixed ``from_thread.run_sync`` failing when used to call sniffio-dependent functions
+    on asyncio
+  - Fixed ``from_thread.run`` failing when used to call sniffio-dependent functions on
+    asyncio from a thread running trio or curio
+  - Fixed deadlock when using ``from_thread.start_blocking_portal(backend="asyncio")``
+    in a thread running trio or curio (PR by Ganden Schaffner)
 
 **3.6.1**
 
