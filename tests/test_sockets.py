@@ -681,7 +681,7 @@ class TestTCPListener:
     @skip_ipv6_mark
     @pytest.mark.skipif(
         sys.platform == "win32",
-        reason="Windows does not support interface name suffixes"
+        reason="Windows does not support interface name suffixes",
     )
     async def test_bind_link_local(self) -> None:
         # Regression test for #554
