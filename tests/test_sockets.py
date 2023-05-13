@@ -23,6 +23,7 @@ from typing import (
     cast,
 )
 
+import psutil
 import pytest
 from _pytest.fixtures import SubRequest
 from _pytest.logging import LogCaptureFixture
@@ -85,6 +86,8 @@ if socket.has_ipv6:
     else:
         has_ipv6 = True
 
+skip_ipv6_mark = pytest.mark.skipif(not has_ipv6, reason="IPv6 is not available")
+
 
 @pytest.fixture
 def fake_localhost_dns(monkeypatch: MonkeyPatch) -> None:
@@ -100,11 +103,7 @@ def fake_localhost_dns(monkeypatch: MonkeyPatch) -> None:
 @pytest.fixture(
     params=[
         pytest.param(AddressFamily.AF_INET, id="ipv4"),
-        pytest.param(
-            AddressFamily.AF_INET6,
-            id="ipv6",
-            marks=[pytest.mark.skipif(not has_ipv6, reason="no IPv6 support")],
-        ),
+        pytest.param(AddressFamily.AF_INET6, id="ipv6", marks=[skip_ipv6_mark]),
     ]
 )
 def family(request: SubRequest) -> AnyIPAddressFamily:
@@ -267,7 +266,7 @@ class TestTCPStream:
             raw_socket = stream.extra(SocketAttribute.raw_socket)
             assert raw_socket.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY) != 0
 
-    @pytest.mark.skipif(not has_ipv6, reason="IPv6 is not available")
+    @skip_ipv6_mark
     @pytest.mark.parametrize(
         "local_addr, expected_client_addr",
         [
@@ -309,12 +308,7 @@ class TestTCPStream:
         "target, exception_class",
         [
             pytest.param(
-                "localhost",
-                ExceptionGroup,
-                id="multi",
-                marks=[
-                    pytest.mark.skipif(not has_ipv6, reason="IPv6 is not available")
-                ],
+                "localhost", ExceptionGroup, id="multi", marks=[skip_ipv6_mark]
             ),
             pytest.param("127.0.0.1", ConnectionRefusedError, id="single"),
         ],
@@ -554,16 +548,8 @@ class TestTCPListener:
         "family",
         [
             pytest.param(AddressFamily.AF_INET, id="ipv4"),
-            pytest.param(
-                AddressFamily.AF_INET6,
-                id="ipv6",
-                marks=[pytest.mark.skipif(not has_ipv6, reason="no IPv6 support")],
-            ),
-            pytest.param(
-                socket.AF_UNSPEC,
-                id="both",
-                marks=[pytest.mark.skipif(not has_ipv6, reason="no IPv6 support")],
-            ),
+            pytest.param(AddressFamily.AF_INET6, id="ipv6", marks=[skip_ipv6_mark]),
+            pytest.param(socket.AF_UNSPEC, id="both", marks=[skip_ipv6_mark]),
         ],
     )
     async def test_accept(self, family: AnyIPAddressFamily) -> None:
@@ -691,6 +677,17 @@ class TestTCPListener:
                             break
 
             tg.cancel_scope.cancel()
+
+    @skip_ipv6_mark
+    async def test_bind_link_local(self) -> None:
+        # Regression test for #554
+        for ifname, addresses in psutil.net_if_addrs().items():
+            for addr in addresses:
+                if addr.address.startswith("fe80::"):
+                    async with await create_tcp_listener(local_host=addr.address):
+                        return
+
+        pytest.fail("Could not find a link-local IPv6 interface")
 
 
 @pytest.mark.skipif(

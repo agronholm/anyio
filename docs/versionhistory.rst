@@ -44,6 +44,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``TLSStream.wrap()`` being inadvertently set on Python 3.11.3 and 3.10.11
 - Fixed ``CancelScope`` to properly handle asyncio task uncancellation on Python 3.11
   (PR by Nikolay Bryskin)
+- Fixed ``OSError`` when trying to use ``create_tcp_listener()`` to bind to a link-local
+  IPv6 address (and worked around related bugs in `uvloop` and `PyPy`)
 
 **3.6.2**
 
