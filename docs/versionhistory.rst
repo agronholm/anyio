@@ -14,8 +14,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   create UNIX datagram sockets (PR by Jean Hominal)
 - Improved type annotations:
 
-  - Several functions and methods that previously only accepted coroutines as the return
-    type of the callable have been amended to accept any awaitables:
+  - Several functions and methods that were previously annotated as accepting
+    ``Coroutine[Any, Any, Any]`` as the return type of the callable have been amended to
+    accept ``Awaitable[Any]`` instead, to allow a slightly broader set of coroutine-like
+    inputs, like ``async_generator_asend`` objects returned from the ``asend()`` method
+    of async generators, and to match the ``trio`` annotations:
 
     - ``anyio.run()``
     - ``anyio.from_thread.run()``
@@ -24,6 +27,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     - ``BlockingPortal.call()``
     - ``BlockingPortal.start_task_soon()``
     - ``BlockingPortal.start_task()``
+
+    Note that this change involved only changing the type annotations; run-time
+    functionality was not altered.
 
   - The ``TaskStatus`` class is now a generic protocol, and should be parametrized to
     indicate the type of the value passed to ``task_status.started()``
