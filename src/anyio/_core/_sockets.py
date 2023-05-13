@@ -316,9 +316,7 @@ async def create_tcp_listener(
 
                 # Workaround for #554
                 if "%" in sockaddr[0]:
-                    # PyPy (as of v7.3.11) leaves the interface name in the result, so
-                    # we discard it and only get the scope ID from the end
-                    addr, *_, scope_id = sockaddr[0].split("%")
+                    addr, scope_id = sockaddr[0].split("%", 1)
                     sockaddr = (addr, sockaddr[1], 0, int(scope_id))
 
             raw_socket.bind(sockaddr)
@@ -595,6 +593,11 @@ def convert_ipv6_sockaddr(
     if isinstance(sockaddr, tuple) and len(sockaddr) == 4:
         host, port, flowinfo, scope_id = cast(Tuple[str, int, int, int], sockaddr)
         if scope_id:
+            # PyPy (as of v7.3.11) leaves the interface name in the result, so
+            # we discard it and only get the scope ID from the end
+            # (https://foss.heptapod.net/pypy/pypy/-/issues/3938)
+            host = host.split("%")[0]
+
             # Add scope_id to the address
             return f"{host}%{scope_id}", port
         else:
