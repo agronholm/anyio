@@ -683,7 +683,7 @@ class TestTCPListener:
         # Regression test for #554
         for ifname, addresses in psutil.net_if_addrs().items():
             for addr in addresses:
-                if addr.address.startswith("fe80::"):
+                if addr.address.startswith("fe80::") and "%" in addr.address:
                     async with await create_tcp_listener(local_host=addr.address):
                         return
 
