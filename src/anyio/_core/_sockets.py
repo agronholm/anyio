@@ -284,7 +284,7 @@ async def create_tcp_listener(
         local_host,  # type: ignore[arg-type]
         local_port,
         family=family,
-        type=socket.SocketKind.SOCK_STREAM if sys.platform == "win32" else None,
+        type=socket.SocketKind.SOCK_STREAM if sys.platform == "win32" else 0,
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
     listeners: list[SocketListener] = []
