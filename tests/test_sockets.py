@@ -23,7 +23,6 @@ from typing import (
     cast,
 )
 
-import psutil
 import pytest
 from _pytest.fixtures import SubRequest
 from _pytest.logging import LogCaptureFixture
@@ -679,15 +678,17 @@ class TestTCPListener:
             tg.cancel_scope.cancel()
 
     @skip_ipv6_mark
+    @pytest.mark.skipif(
+        platform.system() == "Windows",
+        reason=(
+            "Windows does not support interface name suffixes in link-local "
+            "addresses"
+        ),
+    )
     async def test_bind_link_local(self) -> None:
         # Regression test for #554
-        for ifname, addresses in psutil.net_if_addrs().items():
-            for addr in addresses:
-                if addr.address.startswith("fe80::"):
-                    async with await create_tcp_listener(local_host=addr.address):
-                        return
-
-        pytest.fail("Could not find a link-local IPv6 interface")
+        async with await create_tcp_listener(local_host="fe80::1%lo"):
+            return
 
 
 @pytest.mark.skipif(
