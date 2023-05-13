@@ -259,7 +259,6 @@ async def create_tcp_listener(
     local_host: IPAddressType | None = None,
     local_port: int = 0,
     family: AnyIPAddressFamily = socket.AddressFamily.AF_UNSPEC,
-    type=socket.SocketKind.SOCK_STREAM if sys.platform == "win32" else None,
     backlog: int = 65536,
     reuse_port: bool = False,
 ) -> MultiListener[SocketStream]:
@@ -285,6 +284,7 @@ async def create_tcp_listener(
         local_host,  # type: ignore[arg-type]
         local_port,
         family=family,
+        type=socket.SocketKind.SOCK_STREAM if sys.platform == "win32" else None,
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
     listeners: list[SocketListener] = []
