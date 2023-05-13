@@ -259,6 +259,7 @@ async def create_tcp_listener(
     local_host: IPAddressType | None = None,
     local_port: int = 0,
     family: AnyIPAddressFamily = socket.AddressFamily.AF_UNSPEC,
+    type=socket.SocketKind.SOCK_STREAM if sys.platform == "win32" else None,
     backlog: int = 65536,
     reuse_port: bool = False,
 ) -> MultiListener[SocketStream]:
@@ -295,7 +296,7 @@ async def create_tcp_listener(
             # Workaround for an uvloop bug where we don't get the correct scope ID for
             # IPv6 link-local addresses when passing type=socket.SOCK_STREAM to
             # getaddrinfo()
-            if kind is not SocketKind.SOCK_STREAM:
+            if sys.platform != "win32" and kind is not SocketKind.SOCK_STREAM:
                 continue
 
             raw_socket = socket.socket(fam)

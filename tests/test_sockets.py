@@ -679,6 +679,10 @@ class TestTCPListener:
             tg.cancel_scope.cancel()
 
     @skip_ipv6_mark
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Windows does not support interface name suffixes"
+    )
     async def test_bind_link_local(self) -> None:
         # Regression test for #554
         for ifname, addresses in psutil.net_if_addrs().items():
