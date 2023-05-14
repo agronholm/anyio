@@ -9,7 +9,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   654 ``BaseExceptionGroup`` and ``ExceptionGroup``
 - **BACKWARDS INCOMPATIBLE** Changes the pytest plugin to run all tests and fixtures in
   the same task, allowing fixtures to set context variables for tests and other fixtures
+- **BACKWARDS INCOMPATIBLE** Changed ``anyio.Path.relative_to()`` and
+  ``anyio.Path.is_relative_to()`` to only accept one argument, as passing multiple
+  arguments is deprecated as of Python 3.12
 - Bumped minimum version of trio to v0.22
+- Added the ``anyio.Path.is_junction()`` and ``anyio.Path.walk()`` methods
 - Added ``create_unix_datagram_socket`` and ``create_connected_unix_datagram_socket`` to
   create UNIX datagram sockets (PR by Jean Hominal)
 - Improved type annotations:

@@ -370,12 +370,17 @@ class Path:
     def match(self, path_pattern: str) -> bool:
         return self._path.match(path_pattern)
 
-    def is_relative_to(self, *other: str | PathLike[str]) -> bool:
+    def is_relative_to(self, other: str | PathLike[str]) -> bool:
         try:
-            self.relative_to(*other)
+            self.relative_to(other)
             return True
         except ValueError:
             return False
+
+    async def is_junction(self) -> bool:
+        return await to_thread.run_sync(
+            self._path.is_junction  # type: ignore [attr-defined]
+        )
 
     async def chmod(self, mode: int, *, follow_symlinks: bool = True) -> None:
         func = partial(os.chmod, follow_symlinks=follow_symlinks)
@@ -569,6 +574,29 @@ class Path:
         except FileNotFoundError:
             if not missing_ok:
                 raise
+
+    if sys.version_info >= (3, 12):
+
+        async def walk(
+            self,
+            top_down: bool = True,
+            on_error: Callable[[OSError], object] | None = None,
+            follow_symlinks: bool = False,
+        ) -> AsyncIterator[tuple[Path, list[str], list[str]]]:
+            def get_next_value() -> tuple[pathlib.Path, list[str], list[str]] | None:
+                try:
+                    return next(gen)
+                except StopIteration:
+                    return None
+
+            gen = self._path.walk(top_down, on_error, follow_symlinks)
+            while True:
+                value = await to_thread.run_sync(get_next_value)
+                if value is None:
+                    return
+
+                root, dirs, paths = value
+                yield Path(root), dirs, paths
 
     def with_name(self, name: str) -> Path:
         return Path(self._path.with_name(name))

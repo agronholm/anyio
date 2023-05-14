@@ -850,11 +850,12 @@ def _forcibly_shutdown_process_pool_on_exit(
 ) -> None:
     """
     Forcibly shuts down worker processes belonging to this event loop."""
-    child_watcher: asyncio.AbstractChildWatcher | None
-    try:
-        child_watcher = asyncio.get_event_loop_policy().get_child_watcher()
-    except NotImplementedError:
-        child_watcher = None
+    child_watcher: asyncio.AbstractChildWatcher | None = None
+    if sys.version_info < (3, 12):
+        try:
+            child_watcher = asyncio.get_event_loop_policy().get_child_watcher()
+        except NotImplementedError:
+            pass
 
     # Close as much as possible (w/o async/await) to avoid warnings
     for process in workers:

@@ -80,7 +80,7 @@ target-version = "py37"
 src = ["src"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 ignore_missing_imports = true
 disallow_any_generics = false
