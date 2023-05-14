@@ -295,7 +295,7 @@ async def create_tcp_listener(
         for fam, kind, *_, sockaddr in sorted(set(gai_res)):
             # Workaround for an uvloop bug where we don't get the correct scope ID for
             # IPv6 link-local addresses when passing type=socket.SOCK_STREAM to
-            # getaddrinfo()
+            # getaddrinfo(): https://github.com/MagicStack/uvloop/issues/539
             if sys.platform != "win32" and kind is not SocketKind.SOCK_STREAM:
                 continue
 
