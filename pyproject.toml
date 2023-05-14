@@ -1,10 +1,65 @@
 [build-system]
 requires = [
-    "setuptools >= 42",
-    "wheel >= 0.29.0",
-    "setuptools_scm[toml] >= 3.4"
+    "setuptools >= 64",
+    "setuptools_scm >= 6.4"
 ]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "anyio"
+description = "High level compatibility layer for multiple asynchronous event loop implementations"
+readme = "README.rst"
+authors = [{name = "Alex Grönholm", email = "alex.gronholm@nextday.fi"}]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Framework :: AnyIO",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+requires-python = ">= 3.7"
+dependencies = [
+    "exceptiongroup; python_version < '3.11'",
+    "idna >= 2.8",
+    "sniffio >= 1.1",
+    "typing_extensions; python_version < '3.8'",
+]
+dynamic = ["version"]
+
+[project.urls]
+Documentation = "https://anyio.readthedocs.io/en/latest/"
+Changelog = "https://anyio.readthedocs.io/en/stable/versionhistory.html"
+"Source code" = "https://github.com/agronholm/anyio"
+"Issue tracker" = "https://github.com/agronholm/anyio/issues"
+
+[project.optional-dependencies]
+trio = ["trio < 0.22"]
+test = [
+    "anyio[trio]",
+    "mock >= 4; python_version < '3.8'",
+    "coverage[toml] >= 4.5",
+    "hypothesis >= 4.0",
+    "pytest >= 7.0",
+    "pytest-mock >= 3.6.1",
+    "trustme",
+    "uvloop >= 0.17; platform_python_implementation == 'CPython' and platform_system != 'Windows'",
+]
+doc = [
+    "packaging",
+    "Sphinx >= 6.1.0",
+    "sphinx_rtd_theme",
+    "sphinx-autodoc-typehints >= 1.2.0",
+]
+
+[project.entry-points]
+pytest11 = {anyio = "anyio.pytest_plugin"}
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
@@ -38,7 +93,7 @@ disallow_subclassing_any = false
 show_error_codes = true
 
 [tool.pytest.ini_options]
-addopts = "-rsx --tb=short --strict-config --strict-markers -p anyio -p no:asyncio"
+addopts = "-rsx --tb=short --strict-config --strict-markers -p anyio -p no:asyncio -p no:trio"
 testpaths = ["tests"]
 # Ignore resource warnings due to a CPython/Windows bug (https://bugs.python.org/issue44428)
 filterwarnings = [
@@ -58,3 +113,36 @@ relative_files = true
 
 [tool.coverage.report]
 show_missing = true
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+minversion = 4.0.0
+envlist = pre-commit, py37, py38, py39, py310, py311, pypy3
+skip_missing_interpreters = true
+
+[testenv]
+depends = pre-commit
+package = editable
+commands = coverage run -m pytest {posargs}
+extras =
+    test
+    trio
+
+[testenv:pre-commit]
+depends =
+basepython = python3
+package = skip
+deps = pre-commit
+commands = pre-commit run --all-files
+
+[testenv:pyright]
+deps = pyright
+commands = pyright --verifytypes anyio
+package = editable
+
+[testenv:docs]
+depends =
+extras = doc
+commands = sphinx-build docs build/sphinx
+"""
