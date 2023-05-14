@@ -95,6 +95,7 @@ else:
 
 
 T_Retval = TypeVar("T_Retval")
+T_contra = TypeVar("T_contra", contravariant=True)
 
 # Check whether there is native support for task names in asyncio (3.8+)
 _native_task_names = hasattr(asyncio.Task, "get_name")
@@ -442,7 +443,7 @@ class _AsyncioTaskStatus(abc.TaskStatus):
         self._future = future
         self._parent_id = parent_id
 
-    def started(self, value: object = None) -> None:
+    def started(self, value: T_contra | None = None) -> None:
         try:
             self._future.set_result(value)
         except asyncio.InvalidStateError:
@@ -2051,8 +2052,10 @@ class AsyncIOBackend(AsyncBackend):
         token: object,
     ) -> T_Retval:
         loop = cast(AbstractEventLoop, token)
-        f: concurrent.futures.Future[T_Retval] = asyncio.run_coroutine_threadsafe(
-            func(*args), loop
+        context = copy_context()
+        context.run(sniffio.current_async_library_cvar.set, "asyncio")
+        f: concurrent.futures.Future[T_Retval] = context.run(
+            asyncio.run_coroutine_threadsafe, func(*args), loop
         )
         return f.result()
 
@@ -2063,6 +2066,7 @@ class AsyncIOBackend(AsyncBackend):
         @wraps(func)
         def wrapper() -> None:
             try:
+                sniffio.current_async_library_cvar.set("asyncio")
                 f.set_result(func(*args))
             except BaseException as exc:
                 f.set_exception(exc)
