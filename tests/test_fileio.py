@@ -511,7 +511,7 @@ class TestPath:
         root, dirs, files = await iterator.__anext__()
         assert root == path / "subdir"
         assert dirs == []
-        assert files == ["file2", "file1"]
+        assert sorted(files) == ["file1", "file2"]
 
         with pytest.raises(StopAsyncIteration):
             await iterator.__anext__()
