@@ -70,6 +70,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   - Fixed deadlock when using ``from_thread.start_blocking_portal(backend="asyncio")``
     in a thread running trio or curio (PR by Ganden Schaffner)
 
+**3.6.2**
+
+- Pinned Trio to < 0.22 to avoid incompatibility with AnyIO's ``ExceptionGroup`` class
+  causing ``AttributeError: 'NonBaseMultiError' object has no attribute '_exceptions'``
+
 **3.6.1**
 
 - Fixed exception handler in the asyncio test runner not properly handling a context
