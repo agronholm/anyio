@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 
 from ._core._eventloop import current_time as current_time

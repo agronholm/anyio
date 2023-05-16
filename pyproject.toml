@@ -79,6 +79,9 @@ ignore = [
 target-version = "py37"
 src = ["src"]
 
+[tool.ruff.isort]
+"required-imports" = ["from __future__ import annotations"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
@@ -131,7 +134,7 @@ depends =
 basepython = python3
 package = skip
 deps = pre-commit
-commands = pre-commit run --all-files --show-diff-on-failure
+commands = pre-commit run --all-files
 
 [testenv:pyright]
 deps = pyright
