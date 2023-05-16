@@ -55,7 +55,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Pinned Trio to < 0.22 to avoid incompatibility with AnyIO's ``ExceptionGroup`` class
   causing ``AttributeError: 'NonBaseMultiError' object has no attribute '_exceptions'``
-  (AnyIO 4 is unaffected)
 
 **3.6.1**
 
