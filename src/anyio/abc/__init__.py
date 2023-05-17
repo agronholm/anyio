@@ -50,7 +50,7 @@ from .._core._tasks import CancelScope as CancelScope
 from ..from_thread import BlockingPortal as BlockingPortal
 
 # Re-export imports so they look like they live directly in this package
-value: Any
+value: Any = None
 for value in list(locals().copy().values()):
     if getattr(value, "__module__", "").startswith("anyio.abc."):
         value.__module__ = __name__
