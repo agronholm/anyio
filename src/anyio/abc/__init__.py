@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from ._eventloop import AsyncBackend as AsyncBackend
 from ._resources import AsyncResource as AsyncResource
 from ._sockets import ConnectedUDPSocket as ConnectedUDPSocket
