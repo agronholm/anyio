@@ -685,13 +685,20 @@ class TestTCPListener:
     )
     async def test_bind_link_local(self) -> None:
         # Regression test for #554
-        for ifname, addresses in psutil.net_if_addrs().items():
-            for addr in addresses:
-                if addr.address.startswith("fe80::") and "%" in addr.address:
-                    async with await create_tcp_listener(local_host=addr.address):
-                        return
-
-        pytest.fail("Could not find a link-local IPv6 interface")
+        link_local_ipv6_address = next(
+            (
+                addr.address
+                for addresses in psutil.net_if_addrs().values()
+                for addr in addresses
+                if addr.address.startswith("fe80::") and "%" in addr.address
+            ),
+            None,
+        )
+        if link_local_ipv6_address is None:
+            pytest.fail("Could not find a link-local IPv6 interface")
+            
+        async with await create_tcp_listener(local_host=addr.address):
+            pass
 
 
 @pytest.mark.skipif(
