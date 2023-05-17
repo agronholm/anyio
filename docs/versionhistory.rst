@@ -51,7 +51,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``CancelScope`` to properly handle asyncio task uncancellation on Python 3.11
   (PR by Nikolay Bryskin)
 - Fixed ``OSError`` when trying to use ``create_tcp_listener()`` to bind to a link-local
-  IPv6 address (and worked around related bugs in `uvloop`)
+  IPv6 address (and worked around related bugs in ``uvloop``)
 - Worked around a `PyPy bug <https://foss.heptapod.net/pypy/pypy/-/issues/3938>`_
   when using ``anyio.getaddrinfo()`` with for IPv6 link-local addresses containing
   interface names
