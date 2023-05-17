@@ -231,6 +231,19 @@ async def test_start_native_child_cancelled() -> None:
     assert not finished
 
 
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_propagate_native_cancellation_from_taskgroup() -> None:
+    async def taskfunc() -> None:
+        async with create_task_group() as tg:
+            tg.start_soon(asyncio.sleep, 2)
+
+    task = asyncio.create_task(taskfunc())
+    await wait_all_tasks_blocked()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+
 async def test_start_exception_delivery(anyio_backend_name: str) -> None:
     def task_fn(*, task_status: TaskStatus = TASK_STATUS_IGNORED) -> None:
         task_status.started("hello")
