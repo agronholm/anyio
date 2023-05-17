@@ -696,7 +696,7 @@ class TestTCPListener:
         )
         if link_local_ipv6_address is None:
             pytest.fail("Could not find a link-local IPv6 interface")
-            
+
         async with await create_tcp_listener(local_host=addr.address):
             pass
 
