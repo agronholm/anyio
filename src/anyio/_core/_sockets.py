@@ -294,14 +294,21 @@ async def create_tcp_listener(
         local_host,
         local_port,
         family=family,
-        type=socket.SOCK_STREAM,
+        type=socket.SocketKind.SOCK_STREAM if sys.platform == "win32" else 0,
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
     listeners: list[SocketListener] = []
     try:
         # The set() is here to work around a glibc bug:
         # https://sourceware.org/bugzilla/show_bug.cgi?id=14969
-        for fam, *_, sockaddr in sorted(set(gai_res)):
+        sockaddr: tuple[str, int] | tuple[str, int, int, int]
+        for fam, kind, *_, sockaddr in sorted(set(gai_res)):
+            # Workaround for an uvloop bug where we don't get the correct scope ID for
+            # IPv6 link-local addresses when passing type=socket.SOCK_STREAM to
+            # getaddrinfo(): https://github.com/MagicStack/uvloop/issues/539
+            if sys.platform != "win32" and kind is not SocketKind.SOCK_STREAM:
+                continue
+
             raw_socket = socket.socket(fam)
             raw_socket.setblocking(False)
 
@@ -318,6 +325,11 @@ async def create_tcp_listener(
             # If only IPv6 was requested, disable dual stack operation
             if fam == socket.AF_INET6:
                 raw_socket.setsockopt(IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+
+                # Workaround for #554
+                if "%" in sockaddr[0]:
+                    addr, scope_id = sockaddr[0].split("%", 1)
+                    sockaddr = (addr, sockaddr[1], 0, int(scope_id))
 
             raw_socket.bind(sockaddr)
             raw_socket.listen(backlog)
@@ -644,6 +656,11 @@ def convert_ipv6_sockaddr(
     if isinstance(sockaddr, tuple) and len(sockaddr) == 4:
         host, port, flowinfo, scope_id = cast(Tuple[str, int, int, int], sockaddr)
         if scope_id:
+            # PyPy (as of v7.3.11) leaves the interface name in the result, so
+            # we discard it and only get the scope ID from the end
+            # (https://foss.heptapod.net/pypy/pypy/-/issues/3938)
+            host = host.split("%")[0]
+
             # Add scope_id to the address
             return f"{host}%{scope_id}", port
         else:
