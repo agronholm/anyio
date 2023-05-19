@@ -9,6 +9,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.intersphinx",
     "sphinx_autodoc_typehints",
+    "sphinxcontrib.jquery",
 ]
 
 templates_path = ["_templates"]
