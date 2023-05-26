@@ -6,7 +6,7 @@ import subprocess
 import sys
 from collections import deque
 from importlib.util import module_from_spec, spec_from_file_location
-from typing import Callable, Deque, TypeVar, cast
+from typing import Callable, TypeVar, cast
 
 from ._core._eventloop import current_time, get_asynclib, get_cancelled_exc_class
 from ._core._exceptions import BrokenWorkerProcess
@@ -21,7 +21,7 @@ WORKER_MAX_IDLE_TIME = 300  # 5 minutes
 
 T_Retval = TypeVar("T_Retval")
 _process_pool_workers: RunVar[set[Process]] = RunVar("_process_pool_workers")
-_process_pool_idle_workers: RunVar[Deque[tuple[Process, float]]] = RunVar(
+_process_pool_idle_workers: RunVar[deque[tuple[Process, float]]] = RunVar(
     "_process_pool_idle_workers"
 )
 _default_process_limiter: RunVar[CapacityLimiter] = RunVar("_default_process_limiter")

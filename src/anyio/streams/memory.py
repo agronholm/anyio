@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Deque, Generic, NamedTuple, TypeVar
+from typing import Generic, NamedTuple, TypeVar
 
 from .. import (
     BrokenResourceError,
@@ -35,7 +35,7 @@ class MemoryObjectStreamStatistics(NamedTuple):
 @dataclass(eq=False)
 class MemoryObjectStreamState(Generic[T_Item]):
     max_buffer_size: float = field()
-    buffer: Deque[T_Item] = field(init=False, default_factory=deque)
+    buffer: deque[T_Item] = field(init=False, default_factory=deque)
     open_send_channels: int = field(init=False, default=0)
     open_receive_channels: int = field(init=False, default=0)
     waiting_receivers: OrderedDict[Event, list[T_Item]] = field(

@@ -34,7 +34,6 @@ from typing import (
     Callable,
     Collection,
     Coroutine,
-    Deque,
     Generator,
     Iterable,
     Mapping,
@@ -760,7 +759,7 @@ class WorkerThread(Thread):
         self,
         root_task: asyncio.Task,
         workers: set[WorkerThread],
-        idle_workers: Deque[WorkerThread],
+        idle_workers: deque[WorkerThread],
     ):
         super().__init__(name="AnyIO worker thread")
         self.root_task = root_task
@@ -826,7 +825,7 @@ class WorkerThread(Thread):
             pass
 
 
-_threadpool_idle_workers: RunVar[Deque[WorkerThread]] = RunVar(
+_threadpool_idle_workers: RunVar[deque[WorkerThread]] = RunVar(
     "_threadpool_idle_workers"
 )
 _threadpool_workers: RunVar[set[WorkerThread]] = RunVar("_threadpool_workers")
@@ -1114,7 +1113,7 @@ def setup_process_pool_exit_at_shutdown(workers: set[Process]) -> None:
 
 
 class StreamProtocol(asyncio.Protocol):
-    read_queue: Deque[bytes]
+    read_queue: deque[bytes]
     read_event: asyncio.Event
     write_event: asyncio.Event
     exception: Exception | None = None
@@ -1150,7 +1149,7 @@ class StreamProtocol(asyncio.Protocol):
 
 
 class DatagramProtocol(asyncio.DatagramProtocol):
-    read_queue: Deque[tuple[bytes, IPSockAddrType]]
+    read_queue: deque[tuple[bytes, IPSockAddrType]]
     read_event: asyncio.Event
     write_event: asyncio.Event
     exception: Exception | None = None
@@ -1925,7 +1924,7 @@ class _SignalReceiver(DeprecatedAsyncContextManager["_SignalReceiver"]):
     def __init__(self, signals: tuple[int, ...]):
         self._signals = signals
         self._loop = get_running_loop()
-        self._signal_queue: Deque[int] = deque()
+        self._signal_queue: deque[int] = deque()
         self._future: asyncio.Future = asyncio.Future()
         self._handled_signals: set[int] = set()
 

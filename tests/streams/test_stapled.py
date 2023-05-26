@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import InitVar, dataclass, field
-from typing import Deque, Iterable, TypeVar
+from typing import Iterable, TypeVar
 
 import pytest
 
@@ -103,7 +103,7 @@ T_Item = TypeVar("T_Item")
 @dataclass
 class DummyObjectReceiveStream(ObjectReceiveStream[T_Item]):
     data: InitVar[Iterable[T_Item]]
-    buffer: Deque[T_Item] = field(init=False)
+    buffer: deque[T_Item] = field(init=False)
     _closed: bool = field(init=False, default=False)
 
     def __post_init__(self, data: Iterable[T_Item]) -> None:

@@ -21,7 +21,6 @@ from typing import (
     Callable,
     Collection,
     Coroutine,
-    Deque,
     Generic,
     Iterable,
     Mapping,
@@ -909,7 +908,7 @@ class TestRunner(abc.TestRunner):
         from queue import Queue
 
         self._call_queue: Queue[Callable[..., object]] = Queue()
-        self._result_queue: Deque[Outcome] = deque()
+        self._result_queue: deque[Outcome] = deque()
         self._stop_event: trio.Event | None = None
         self._nursery: trio.Nursery | None = None
         self._options = options

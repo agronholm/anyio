@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Deque
 from warnings import warn
 
 from ..lowlevel import cancel_shielded_checkpoint, checkpoint, checkpoint_if_cancelled
@@ -105,7 +104,7 @@ class Lock:
     _owner_task: TaskInfo | None = None
 
     def __init__(self) -> None:
-        self._waiters: Deque[tuple[TaskInfo, Event]] = deque()
+        self._waiters: deque[tuple[TaskInfo, Event]] = deque()
 
     async def __aenter__(self) -> None:
         await self.acquire()
@@ -193,7 +192,7 @@ class Condition:
 
     def __init__(self, lock: Lock | None = None):
         self._lock = lock or Lock()
-        self._waiters: Deque[Event] = deque()
+        self._waiters: deque[Event] = deque()
 
     async def __aenter__(self) -> None:
         await self.acquire()
@@ -295,7 +294,7 @@ class Semaphore:
 
         self._value = initial_value
         self._max_value = max_value
-        self._waiters: Deque[Event] = deque()
+        self._waiters: deque[Event] = deque()
 
     async def __aenter__(self) -> Semaphore:
         await self.acquire()
