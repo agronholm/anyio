@@ -119,17 +119,15 @@ show_missing = true
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-minversion = 4.0.0
 envlist = pre-commit, py37, py38, py39, py310, py311, pypy3
 skip_missing_interpreters = true
+minversion = 4.4.3
 
 [testenv]
 depends = pre-commit
 package = editable
 commands = coverage run -m pytest {posargs}
-extras =
-    test
-    trio
+extras = test
 
 [testenv:pre-commit]
 depends =
