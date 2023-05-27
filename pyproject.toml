@@ -16,6 +16,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Framework :: AnyIO",
+    "Typing :: Typed",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.7",
@@ -55,6 +56,7 @@ doc = [
     "packaging",
     "Sphinx >= 6.1.0",
     "sphinx_rtd_theme",
+    "sphinxcontrib-jquery",
     "sphinx-autodoc-typehints >= 1.2.0",
 ]
 
@@ -100,6 +102,9 @@ filterwarnings = [
     "error",
     "ignore:unclosed <socket.socket.*:ResourceWarning",
     "ignore:unclosed transport <_ProactorSocketTransport.*:ResourceWarning",
+    "ignore:ast.Str is deprecated:DeprecationWarning",
+    "ignore:Attribute s is deprecated:DeprecationWarning",
+    "ignore:ast.NameConstant is deprecated:DeprecationWarning",
     # Workaround for Python 3.9.7 (see https://bugs.python.org/issue45097)
     "ignore:The loop argument is deprecated since Python 3\\.8, and scheduled for removal in Python 3\\.10\\.:DeprecationWarning:asyncio",
 ]
@@ -117,17 +122,15 @@ show_missing = true
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-minversion = 4.0.0
 envlist = pre-commit, py37, py38, py39, py310, py311, py312, pypy3
 skip_missing_interpreters = true
+minversion = 4.0.0
 
 [testenv]
 depends = pre-commit
 package = editable
 commands = coverage run -m pytest {posargs}
-extras =
-    test
-    trio
+extras = test
 
 [testenv:pre-commit]
 depends =
@@ -139,10 +142,9 @@ commands = pre-commit run --all-files
 [testenv:pyright]
 deps = pyright
 commands = pyright --verifytypes anyio
-package = editable
 
 [testenv:docs]
 depends =
 extras = doc
-commands = sphinx-build docs build/sphinx
+commands = sphinx-build -W -n docs build/sphinx
 """
