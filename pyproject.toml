@@ -50,7 +50,7 @@ test = [
     "pytest >= 7.0",
     "pytest-mock >= 3.6.1",
     "trustme",
-    "uvloop >= 0.17; platform_python_implementation == 'CPython' and platform_system != 'Windows'",
+    "uvloop >= 0.17; python_version < '3.12' and platform_python_implementation == 'CPython' and platform_system != 'Windows'",
 ]
 doc = [
     "packaging",
@@ -102,6 +102,9 @@ filterwarnings = [
     "error",
     "ignore:unclosed <socket.socket.*:ResourceWarning",
     "ignore:unclosed transport <_ProactorSocketTransport.*:ResourceWarning",
+    "ignore:ast.Str is deprecated:DeprecationWarning",
+    "ignore:Attribute s is deprecated:DeprecationWarning",
+    "ignore:ast.NameConstant is deprecated:DeprecationWarning",
     # Workaround for Python 3.9.7 (see https://bugs.python.org/issue45097)
     "ignore:The loop argument is deprecated since Python 3\\.8, and scheduled for removal in Python 3\\.10\\.:DeprecationWarning:asyncio",
 ]
