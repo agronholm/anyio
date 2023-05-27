@@ -139,7 +139,6 @@ commands = pre-commit run --all-files
 [testenv:pyright]
 deps = pyright
 commands = pyright --verifytypes anyio
-package = editable
 
 [testenv:docs]
 depends =
