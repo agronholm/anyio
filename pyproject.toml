@@ -144,5 +144,5 @@ package = editable
 [testenv:docs]
 depends =
 extras = doc
-commands = sphinx-build docs build/sphinx
+commands = sphinx-build -W -n docs build/sphinx
 """
