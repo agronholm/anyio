@@ -1329,7 +1329,7 @@ class UNIXSocketStream(abc.SocketStream):
             view = memoryview(item)
             while view:
                 try:
-                    bytes_sent = self.__raw_socket.send(item)
+                    bytes_sent = self.__raw_socket.send(view)
                 except BlockingIOError:
                     await self._wait_until_writable(loop)
                 except OSError as exc:

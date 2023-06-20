@@ -3,6 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed sending large buffers via UNIX stream sockets on asyncio
+
 **3.7.0**
 
 - Dropped support for Python 3.6
