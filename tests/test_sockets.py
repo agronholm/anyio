@@ -750,7 +750,7 @@ class TestUNIXStream:
 
         assert response == b"halb"
 
-    async def test_send_large_buffer(
+    async def test_receive_large_buffer(
         self, server_sock: socket.socket, socket_path: Path
     ) -> None:
         def serve() -> None:
@@ -759,7 +759,7 @@ class TestUNIXStream:
             client.close()
 
         buffer = (
-            b"\xff" * 1024 * 1024
+            b"\xff" * 1024 * 512 + b"\x00" * 1024 * 512
         )  # should exceed the maximum kernel send buffer size
         async with await connect_unix(socket_path) as stream:
             thread = Thread(target=serve, daemon=True)
@@ -767,6 +767,34 @@ class TestUNIXStream:
             response = b""
             while len(response) < len(buffer):
                 response += await stream.receive()
+
+        thread.join()
+        assert response == buffer
+
+    async def test_send_large_buffer(
+        self, server_sock: socket.socket, socket_path: Path
+    ) -> None:
+        response = b""
+
+        def serve() -> None:
+            nonlocal response
+            client, _ = server_sock.accept()
+            while True:
+                data = client.recv(1024)
+                if not data:
+                    break
+
+                response += data
+
+            client.close()
+
+        buffer = (
+            b"\xff" * 1024 * 512 + b"\x00" * 1024 * 512
+        )  # should exceed the maximum kernel send buffer size
+        async with await connect_unix(socket_path) as stream:
+            thread = Thread(target=serve, daemon=True)
+            thread.start()
+            await stream.send(buffer)
 
         thread.join()
         assert response == buffer
