@@ -16,7 +16,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added the ``anyio.Path.is_junction()`` and ``anyio.Path.walk()`` methods
 - Added ``create_unix_datagram_socket`` and ``create_connected_unix_datagram_socket`` to
   create UNIX datagram sockets (PR by Jean Hominal)
+
+**3.7.1**
+
 - Fixed sending large buffers via UNIX stream sockets on asyncio
+- Fixed several minor documentation issues (broken links to classes, missing classes or
+  attributes)
 
 **3.7.0**
 
