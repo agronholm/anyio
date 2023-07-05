@@ -129,7 +129,7 @@ def fail_after(delay: float | None, shield: bool = False) -> FailAfterContextMan
         disable the timeout
     :param shield: ``True`` to shield the cancel scope from external cancellation
     :return: a context manager that yields a cancel scope
-    :rtype: :class:`~typing.ContextManager`\\[:class:`~anyio.abc.CancelScope`\\]
+    :rtype: :class:`~typing.ContextManager`\\[:class:`~anyio.CancelScope`\\]
 
     """
     deadline = (

@@ -19,7 +19,7 @@ The following functions and methods were changed:
 
 * :func:`current_time`
 * :func:`current_effective_deadline`
-* :meth:`CancelScope.cancel() <.abc.CancelScope.cancel>`
+* :meth:`CancelScope.cancel() <.CancelScope.cancel>`
 * :meth:`CapacityLimiter.acquire_nowait`
 * :meth:`CapacityLimiter.acquire_on_behalf_of_nowait`
 * :meth:`Condition.release`
@@ -40,14 +40,14 @@ When migrating to AnyIO 3, simply remove the ``await`` from each call to these.
           awaitable versions of their original types (:class:`float` and :class:`list`,
           respectively). These awaitable versions are subclasses of the original types so they
           should behave as their originals, but if you absolutely need the pristine original types,
-          you can either use :func:`maybe_async` or ``float()`` / ``list()`` on the returned
+          you can either use ``maybe_async`` or ``float()`` / ``list()`` on the returned
           value as appropriate.
 
 The following async context managers changed to regular context managers:
 
 * :func:`fail_after`
 * :func:`move_on_after`
-* :func:`open_cancel_scope` (now just ``CancelScope()``)
+* ``open_cancel_scope()`` (now just ``CancelScope()``)
 
 When migrating, just change ``async with`` into a plain ``with``.
 
@@ -57,8 +57,8 @@ all of them can still be used like before – they will raise :exc:`DeprecationW
 this way on AnyIO 3, however.
 
 If you're writing a library that needs to be compatible with both major releases, you will need
-to use the compatibility functions added in AnyIO 2.2: :func:`maybe_async` and
-:func:`maybe_async_cm`. These will let you safely use functions/methods and context managers
+to use the compatibility functions added in AnyIO 2.2: ``maybe_async()`` and
+``maybe_async_cm()``. These will let you safely use functions/methods and context managers
 (respectively) regardless of which major release is currently installed.
 
 Example 1 – setting an event::
@@ -84,11 +84,11 @@ Example 2 – opening a cancel scope::
 Starting tasks
 --------------
 
-The :meth:`TaskGroup.spawn` coroutine method has been deprecated in favor of the synchronous
-method :meth:`TaskGroup.start_soon` (which mirrors ``start_soon()`` in trio's nurseries). If you're
-fully migrating to AnyIO 3, simply switch to calling the new method (and remove the ``await``).
+The ``TaskGroup.spawn()`` coroutine method has been deprecated in favor of the synchronous
+method :meth:`.TaskGroup.start_soon` (which mirrors ``start_soon()`` in trio's nurseries).
+If you're fully migrating to AnyIO 3, simply switch to calling the new method (and remove the ``await``).
 
-If your code needs to work with both AnyIO 2 and 3, you can keep using :meth:`~TaskGroup.spawn`
+If your code needs to work with both AnyIO 2 and 3, you can keep using ``TaskGroup.spawn()``
 (until AnyIO 4) and suppress the deprecation warning::
 
     import warnings
@@ -109,18 +109,18 @@ AnyIO now **requires** :func:`.from_thread.start_blocking_portal` to be used as 
     with start_blocking_portal() as portal:
         portal.call(sleep, 1)
 
-As with :meth:`TaskGroup.spawn`, the :meth:`BlockingPortal.spawn_task` method has also been renamed
-to :meth:`~BlockingPortal.start_task_soon`, so as to be consistent with task groups.
+As with ``TaskGroup.spawn()``, the ``BlockingPortal.spawn_task()`` method has also been renamed
+to :meth:`~from_thread.BlockingPortal.start_task_soon`, so as to be consistent with task groups.
 
-The :func:`create_blocking_portal` factory function was also deprecated in favor of instantiating
-:class:`BlockingPortal` directly.
+The ``create_blocking_portal()`` factory function was also deprecated in favor of instantiating
+:class:`~from_thread.BlockingPortal` directly.
 
 For code requiring cross compatibility, catching the deprecation warning (as above) should work.
 
 Synchronization primitives
 --------------------------
 
-Synchronization primitive factories (:func:`create_event` etc.) were deprecated in favor of
+Synchronization primitive factories (``create_event()`` etc.) were deprecated in favor of
 instantiating the classes directly. So convert code like this::
 
     from anyio import create_event

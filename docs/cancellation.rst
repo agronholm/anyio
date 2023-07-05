@@ -28,9 +28,9 @@ context managers. The difference between these two is that the former simply exi
 block prematurely on a timeout, while the other raises a :exc:`TimeoutError`.
 
 Both methods create a new cancel scope, and you can check the deadline by accessing the
-:attr:`~.abc.CancelScope.deadline` attribute. Note, however, that an outer cancel scope may
-have an earlier deadline than your current cancel scope. To check the actual deadline, you can use
-the :func:`~current_effective_deadline` function.
+:attr:`~.CancelScope.deadline` attribute. Note, however, that an outer cancel scope
+may have an earlier deadline than your current cancel scope. To check the actual
+deadline, you can use the :func:`~current_effective_deadline` function.
 
 Here's how you typically use timeouts::
 

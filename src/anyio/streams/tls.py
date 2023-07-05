@@ -30,8 +30,8 @@ class TLSAttribute(TypedAttributeSet):
     channel_binding_tls_unique: bytes = typed_attribute()
     #: the selected cipher
     cipher: tuple[str, str, int] = typed_attribute()
-    #: the peer certificate in dictionary form (see :meth:`ssl.SSLSocket.getpeercert` for more
-    #: information)
+    #: the peer certificate in dictionary form (see :meth:`ssl.SSLSocket.getpeercert`
+    #: for more information)
     peer_certificate: dict[str, str | _PCTRTTT | _PCTRTT] | None = typed_attribute()
     #: the peer certificate in binary form
     peer_certificate_binary: bytes | None = typed_attribute()
@@ -42,8 +42,8 @@ class TLSAttribute(TypedAttributeSet):
     shared_ciphers: list[tuple[str, str, int]] | None = typed_attribute()
     #: the :class:`~ssl.SSLObject` used for encryption
     ssl_object: ssl.SSLObject = typed_attribute()
-    #: ``True`` if this stream does (and expects) a closing TLS handshake when the stream is being
-    #: closed
+    #: ``True`` if this stream does (and expects) a closing TLS handshake when the
+    #: stream is being closed
     standard_compatible: bool = typed_attribute()
     #: the TLS protocol version (e.g. ``TLSv1.2``)
     tls_version: str = typed_attribute()
@@ -83,13 +83,13 @@ class TLSStream(ByteStream):
         This performs a TLS handshake with the peer.
 
         :param transport_stream: a bytes-transporting stream to wrap
-        :param server_side: ``True`` if this is the server side of the connection, ``False`` if
-            this is the client side (if omitted, will be set to ``False`` if ``hostname`` has been
-            provided, ``False`` otherwise). Used only to create a default context when an explicit
-            context has not been provided.
+        :param server_side: ``True`` if this is the server side of the connection,
+            ``False`` if this is the client side (if omitted, will be set to ``False``
+            if ``hostname`` has been provided, ``False`` otherwise). Used only to create
+            a default context when an explicit context has not been provided.
         :param hostname: host name of the peer (if host name checking is desired)
-        :param ssl_context: the SSLContext object to use (if not provided, a secure default will be
-            created)
+        :param ssl_context: the SSLContext object to use (if not provided, a secure
+            default will be created)
         :param standard_compatible: if ``False``, skip the closing handshake when closing the
             connection, and don't raise an exception if the peer does the same
         :raises ~ssl.SSLError: if the TLS handshake fails
@@ -263,14 +263,14 @@ class TLSListener(Listener[TLSStream]):
 
     @staticmethod
     async def handle_handshake_error(exc: BaseException, stream: AnyByteStream) -> None:
-        f"""
+        """
         Handle an exception raised during the TLS handshake.
 
         This method does 3 things:
 
         #. Forcefully closes the original stream
-        #. Logs the exception (unless it was a cancellation exception) using the ``{__name__}``
-           logger
+        #. Logs the exception (unless it was a cancellation exception) using the
+           ``anyio.streams.tls`` logger
         #. Reraises the exception if it was a base exception or a cancellation exception
 
         :param exc: the exception

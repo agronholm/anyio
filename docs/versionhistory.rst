@@ -6,6 +6,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **UNRELEASED**
 
 - Fixed sending large buffers via UNIX stream sockets on asyncio
+- Fixed several minor documentation issues (broken links to classes, missing classes or
+  attributes)
 
 **3.7.0**
 

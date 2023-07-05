@@ -350,10 +350,11 @@ class BlockingPortal:
         :param func: the target function
         :param args: positional arguments passed to ``func``
         :param name: name of the task (will be coerced to a string if not ``None``)
-        :return: a future that resolves with the return value of the callable if the task completes
-            successfully, or with the exception raised in the task
-        :raises RuntimeError: if the portal is not running or if this method is called from within
-            the event loop thread
+        :return: a future that resolves with the return value of the callable if the
+            task completes successfully, or with the exception raised in the task
+        :raises RuntimeError: if the portal is not running or if this method is called
+            from within the event loop thread
+        :rtype: concurrent.futures.Future[T_Retval]
 
         .. versionadded:: 3.0
 
@@ -369,13 +370,15 @@ class BlockingPortal:
         """
         Start a task in the portal's task group and wait until it signals for readiness.
 
-        This method works the same way as :meth:`TaskGroup.start`.
+        This method works the same way as :meth:`.abc.TaskGroup.start`.
 
         :param func: the target function
         :param args: positional arguments passed to ``func``
         :param name: name of the task (will be coerced to a string if not ``None``)
-        :return: a tuple of (future, task_status_value) where the ``task_status_value`` is the
-            value passed to ``task_status.started()`` from within the target function
+        :return: a tuple of (future, task_status_value) where the ``task_status_value``
+            is the value passed to ``task_status.started()`` from within the target
+            function
+        :rtype: tuple[concurrent.futures.Future[Any], Any]
 
         .. versionadded:: 3.0
 
