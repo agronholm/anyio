@@ -47,7 +47,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
         allow-prereleases: true
         cache: pip
-        cache-dependency-path: setup.cfg
+        cache-dependency-path: pyproject.toml
     - name: Install dependencies
       run: pip install -e .[test] coveralls
     - name: Test with pytest
