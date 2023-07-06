@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable
 from concurrent.futures import CancelledError
 from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
-from typing import Any, AsyncGenerator, NoReturn, TypeVar
+from typing import Any, AsyncGenerator, Literal, NoReturn, TypeVar
 
 import pytest
 import sniffio
@@ -28,11 +28,6 @@ from anyio import (
 from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
 from anyio.lowlevel import checkpoint
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 pytestmark = pytest.mark.anyio
 

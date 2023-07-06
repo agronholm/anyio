@@ -12,6 +12,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - **BACKWARDS INCOMPATIBLE** Changed ``anyio.Path.relative_to()`` and
   ``anyio.Path.is_relative_to()`` to only accept one argument, as passing multiple
   arguments is deprecated as of Python 3.12
+- **BACKWARDS INCOMPATIBLE** Dropped support for spawning tasks from old-style coroutine
+  functions (``@asyncio.coroutine``)
+- Dropped support for Python 3.7
 - Bumped minimum version of trio to v0.22
 - Added the ``anyio.Path.is_junction()`` and ``anyio.Path.walk()`` methods
 - Added ``create_unix_datagram_socket`` and ``create_connected_unix_datagram_socket`` to

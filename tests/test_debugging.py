@@ -22,12 +22,7 @@ from anyio.abc import TaskStatus
 pytestmark = pytest.mark.anyio
 
 
-if sys.version_info >= (3, 8):
-    get_coro = asyncio.Task.get_coro
-else:
-
-    def get_coro(self: asyncio.Task) -> Any:
-        return self._coro
+get_coro = asyncio.Task.get_coro
 
 
 def test_main_task_name(

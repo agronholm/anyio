@@ -28,14 +28,14 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", pypy-3.9]
+        python-version: ["3.8", "3.9", "3.10", "3.11", pypy-3.10]
         include:
         - os: macos-latest
-          python-version: "3.7"
+          python-version: "3.8"
         - os: macos-latest
           python-version: "3.11"
         - os: windows-latest
-          python-version: "3.7"
+          python-version: "3.8"
         - os: windows-latest
           python-version: "3.11"
     runs-on: ${{ matrix.os }}

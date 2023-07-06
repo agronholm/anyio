@@ -11,10 +11,6 @@ You can either give the command as a string, in which case it is passed to your 
 (``shell=False``) in which case the executable is the first item in the sequence and the rest are
 arguments passed to it.
 
-.. note:: On Windows and Python 3.7 and earlier, asyncio uses :class:`~asyncio.SelectorEventLoop`
-    by default which does not support subprocesses. It is recommended to upgrade to at least Python
-    3.8 to overcome this limitation.
-
 Running one-shot commands
 -------------------------
 

@@ -1,17 +1,11 @@
 from __future__ import annotations
 
 import enum
-import sys
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar, overload
+from typing import Any, Generic, Literal, TypeVar, overload
 from weakref import WeakKeyDictionary
 
 from ._core._eventloop import get_async_backend
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 T = TypeVar("T")
 D = TypeVar("D")

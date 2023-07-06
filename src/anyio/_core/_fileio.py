@@ -13,6 +13,7 @@ from typing import (
     Any,
     AnyStr,
     AsyncIterator,
+    Final,
     Generic,
     cast,
     overload,
@@ -20,11 +21,6 @@ from typing import (
 
 from .. import to_thread
 from ..abc import AsyncResource
-
-if sys.version_info >= (3, 8):
-    from typing import Final
-else:
-    from typing_extensions import Final
 
 if TYPE_CHECKING:
     from _typeshed import OpenBinaryMode, OpenTextMode, ReadableBuffer, WriteableBuffer
