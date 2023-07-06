@@ -57,10 +57,7 @@ from anyio.streams.stapled import MultiListener
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
+from typing import Literal
 
 AnyIPAddressFamily = Literal[
     AddressFamily.AF_UNSPEC, AddressFamily.AF_INET, AddressFamily.AF_INET6

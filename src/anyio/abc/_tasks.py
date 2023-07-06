@@ -1,15 +1,9 @@
 from __future__ import annotations
 
-import sys
 from abc import ABCMeta, abstractmethod
 from collections.abc import Awaitable, Callable, Coroutine
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, TypeVar, overload
-
-if sys.version_info >= (3, 8):
-    from typing import Protocol
-else:
-    from typing_extensions import Protocol
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar, overload
 
 if TYPE_CHECKING:
     from .._core._tasks import CancelScope

@@ -8,7 +8,7 @@ from ipaddress import IPv6Address, ip_address
 from os import PathLike, chmod
 from pathlib import Path
 from socket import AddressFamily, SocketKind
-from typing import Tuple, cast, overload
+from typing import Literal, Tuple, cast, overload
 
 from .. import to_thread
 from ..abc import (
@@ -31,11 +31,6 @@ from ._tasks import create_task_group, move_on_after
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 IPPROTO_IPV6 = getattr(socket, "IPPROTO_IPV6", 41)  # https://bugs.python.org/issue29515
 

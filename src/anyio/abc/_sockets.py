@@ -3,11 +3,12 @@ from __future__ import annotations
 import socket
 from abc import abstractmethod
 from collections.abc import Callable, Collection, Mapping
+from contextlib import AsyncExitStack
 from io import IOBase
 from ipaddress import IPv4Address, IPv6Address
 from socket import AddressFamily
 from types import TracebackType
-from typing import Any, AsyncContextManager, Tuple, TypeVar, Union
+from typing import Any, Tuple, TypeVar, Union
 
 from .._core._typedattr import (
     TypedAttributeProvider,
@@ -139,14 +140,10 @@ class SocketListener(Listener[SocketStream], _SocketProvider):
     ) -> None:
         from .. import create_task_group
 
-        context_manager: AsyncContextManager
-        if task_group is None:
-            task_group = context_manager = create_task_group()
-        else:
-            # Can be replaced with AsyncExitStack once on py3.7+
-            context_manager = _NullAsyncContextManager()
+        async with AsyncExitStack() as stack:
+            if task_group is None:
+                task_group = await stack.enter_async_context(create_task_group())
 
-        async with context_manager:
             while True:
                 stream = await self.accept()
                 task_group.start_soon(handler, stream)

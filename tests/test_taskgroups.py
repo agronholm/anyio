@@ -231,12 +231,17 @@ async def test_start_native_child_cancelled() -> None:
     assert not finished
 
 
-async def test_start_exception_delivery() -> None:
+async def test_start_exception_delivery(anyio_backend_name: str) -> None:
     def task_fn(*, task_status: TaskStatus = TASK_STATUS_IGNORED) -> None:
         task_status.started("hello")
 
+    if anyio_backend_name == "trio":
+        pattern = "appears to be synchronous"
+    else:
+        pattern = "is not a coroutine object"
+
     async with anyio.create_task_group() as tg:
-        with pytest.raises(TypeError, match="to be synchronous$"):
+        with pytest.raises(TypeError, match=pattern):
             await tg.start(task_fn)  # type: ignore[arg-type]
 
 
@@ -868,6 +873,36 @@ def test_cancel_generator_based_task() -> None:
         yield from native_coro_part()  # type: ignore[misc]
 
     anyio.run(generator_part, backend="asyncio")
+
+
+@pytest.mark.skipif(
+    sys.version_info >= (3, 11),
+    reason="Generator based coroutines have been removed in Python 3.11",
+)
+@pytest.mark.filterwarnings(
+    'ignore:"@coroutine" decorator is deprecated:DeprecationWarning'
+)
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_schedule_old_style_coroutine_func() -> None:
+    """
+    Test that we give a sensible error when a user tries to spawn a task from a
+    generator-style coroutine function.
+    """
+
+    @asyncio.coroutine  # type: ignore[attr-defined]
+    def corofunc() -> Generator[Any, Any, None]:
+        yield from asyncio.sleep(1)  # type: ignore[misc]
+
+    async with create_task_group() as tg:
+        funcname = (
+            f"{__name__}.test_schedule_old_style_coroutine_func.<locals>.corofunc"
+        )
+        with pytest.raises(
+            TypeError,
+            match=f"Expected {funcname}\\(\\) to return a coroutine, but the return "
+            f"value \\(<generator .+>\\) is not a coroutine object",
+        ):
+            tg.start_soon(corofunc)
 
 
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
