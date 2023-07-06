@@ -141,9 +141,8 @@ _run_vars = (
 
 def _task_started(task: asyncio.Task) -> bool:
     """Return ``True`` if the task has been started and has not finished."""
-    coro = cast(Coroutine[Any, Any, Any], task.get_coro())
     try:
-        return getcoroutinestate(coro) in (CORO_RUNNING, CORO_SUSPENDED)
+        return getcoroutinestate(task.get_coro()) in (CORO_RUNNING, CORO_SUSPENDED)
     except AttributeError:
         # task coro is async_genenerator_asend https://bugs.python.org/issue37771
         raise Exception(f"Cannot determine if task {task} has started or not")
