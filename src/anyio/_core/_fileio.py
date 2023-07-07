@@ -603,6 +603,9 @@ class Path:
     def with_suffix(self, suffix: str) -> Path:
         return Path(self._path.with_suffix(suffix))
 
+    def with_segments(self, *pathsegments: str) -> Path:
+        return Path(*pathsegments)
+
     async def write_bytes(self, data: bytes) -> int:
         return await to_thread.run_sync(self._path.write_bytes, data)
 
