@@ -1737,7 +1737,7 @@ class TestRunner(abc.TestRunner):
     @staticmethod
     async def _run_tests_and_fixtures(
         receive_stream: MemoryObjectReceiveStream[
-            tuple[Coroutine[Any, Any, T_Retval], Future[T_Retval]]
+            tuple[Awaitable[T_Retval], asyncio.Future[T_Retval]]
         ],
     ) -> None:
         with receive_stream:
@@ -1755,7 +1755,9 @@ class TestRunner(abc.TestRunner):
         self, func: Callable[..., Awaitable[T_Retval]], *args: object, **kwargs: object
     ) -> T_Retval:
         if not self._runner_task:
-            self._send_stream, receive_stream = create_memory_object_stream(1)
+            self._send_stream, receive_stream = create_memory_object_stream[
+                Tuple[Awaitable[Any], asyncio.Future]
+            ](1)
             self._runner_task = self._loop.create_task(
                 self._run_tests_and_fixtures(receive_stream)
             )
