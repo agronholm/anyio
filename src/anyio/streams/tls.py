@@ -198,8 +198,8 @@ class TLSStream(ByteStream):
     def receive_nowait(self, max_bytes: int = 65536) -> bytes:
         try:
             data = self._ssl_object.read(max_bytes)
-        except ssl.SSLError:
-            raise WouldBlock
+        except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
+            raise WouldBlock from None
 
         if not data:
             raise EndOfStream
