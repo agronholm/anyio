@@ -1,17 +1,11 @@
 from __future__ import annotations
 
 import enum
-import sys
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar, overload
+from typing import Any, Generic, Literal, TypeVar, overload
 from weakref import WeakKeyDictionary
 
 from ._core._eventloop import get_async_backend
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 T = TypeVar("T")
 D = TypeVar("D")
@@ -25,6 +19,7 @@ async def checkpoint() -> None:
 
         await checkpoint_if_cancelled()
         await cancel_shielded_checkpoint()
+
 
     .. versionadded:: 3.0
 
@@ -52,6 +47,7 @@ async def cancel_shielded_checkpoint() -> None:
 
         with CancelScope(shield=True):
             await checkpoint()
+
 
     .. versionadded:: 3.0
 

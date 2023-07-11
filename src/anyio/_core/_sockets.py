@@ -8,7 +8,7 @@ from ipaddress import IPv6Address, ip_address
 from os import PathLike, chmod
 from pathlib import Path
 from socket import AddressFamily, SocketKind
-from typing import List, Tuple, cast, overload
+from typing import Literal, Tuple, cast, overload
 
 from .. import to_thread
 from ..abc import (
@@ -32,16 +32,8 @@ from ._tasks import create_task_group, move_on_after
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
-
 IPPROTO_IPV6 = getattr(socket, "IPPROTO_IPV6", 41)  # https://bugs.python.org/issue29515
 
-GetAddrInfoReturnType = List[
-    Tuple[AddressFamily, SocketKind, int, str, Tuple[str, int]]
-]
 AnyIPAddressFamily = Literal[
     AddressFamily.AF_UNSPEC, AddressFamily.AF_INET, AddressFamily.AF_INET6
 ]
@@ -297,14 +289,21 @@ async def create_tcp_listener(
         local_host,
         local_port,
         family=family,
-        type=socket.SOCK_STREAM,
+        type=socket.SocketKind.SOCK_STREAM if sys.platform == "win32" else 0,
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
     listeners: list[SocketListener] = []
     try:
         # The set() is here to work around a glibc bug:
         # https://sourceware.org/bugzilla/show_bug.cgi?id=14969
-        for fam, *_, sockaddr in sorted(set(gai_res)):
+        sockaddr: tuple[str, int] | tuple[str, int, int, int]
+        for fam, kind, *_, sockaddr in sorted(set(gai_res)):
+            # Workaround for an uvloop bug where we don't get the correct scope ID for
+            # IPv6 link-local addresses when passing type=socket.SOCK_STREAM to
+            # getaddrinfo(): https://github.com/MagicStack/uvloop/issues/539
+            if sys.platform != "win32" and kind is not SocketKind.SOCK_STREAM:
+                continue
+
             raw_socket = socket.socket(fam)
             raw_socket.setblocking(False)
 
@@ -321,6 +320,11 @@ async def create_tcp_listener(
             # If only IPv6 was requested, disable dual stack operation
             if fam == socket.AF_INET6:
                 raw_socket.setsockopt(IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+
+                # Workaround for #554
+                if "%" in sockaddr[0]:
+                    addr, scope_id = sockaddr[0].split("%", 1)
+                    sockaddr = (addr, sockaddr[1], 0, int(scope_id))
 
             raw_socket.bind(sockaddr)
             raw_socket.listen(backlog)
@@ -375,7 +379,7 @@ async def create_udp_socket(
     Create a UDP socket.
 
     If ``port`` has been given, the socket will be bound to this port on the local
-    machine,making this socket suitable for providing UDP based services.
+    machine, making this socket suitable for providing UDP based services.
 
     :param family: address family (``AF_INET`` or ``AF_INET6``) – automatically
         determined from ``local_host`` if omitted
@@ -529,7 +533,7 @@ async def getaddrinfo(
     type: int | SocketKind = 0,
     proto: int = 0,
     flags: int = 0,
-) -> GetAddrInfoReturnType:
+) -> list[tuple[AddressFamily, SocketKind, int, str, tuple[str, int]]]:
     """
     Look up a numeric IP address given a host name.
 
@@ -647,6 +651,11 @@ def convert_ipv6_sockaddr(
     if isinstance(sockaddr, tuple) and len(sockaddr) == 4:
         host, port, flowinfo, scope_id = cast(Tuple[str, int, int, int], sockaddr)
         if scope_id:
+            # PyPy (as of v7.3.11) leaves the interface name in the result, so
+            # we discard it and only get the scope ID from the end
+            # (https://foss.heptapod.net/pypy/pypy/-/issues/3938)
+            host = host.split("%")[0]
+
             # Add scope_id to the address
             return f"{host}%{scope_id}", port
         else:

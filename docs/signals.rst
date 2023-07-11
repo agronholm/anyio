@@ -26,7 +26,7 @@ AnyIO provides a simple mechanism for you to receive the signals you're interest
     run(main)
 
 .. note:: Signal handlers can only be installed in the main thread, so they will not work when the
-    event loop is being run through :func:`~start_blocking_portal`, for instance.
+    event loop is being run through :class:`~.from_thread.BlockingPortal`, for instance.
 
 .. note:: Windows does not natively support signals so do not rely on this in a cross platform
     application.

@@ -13,6 +13,7 @@ from typing import (
     Any,
     AnyStr,
     AsyncIterator,
+    Final,
     Generic,
     cast,
     overload,
@@ -20,11 +21,6 @@ from typing import (
 
 from .. import to_thread
 from ..abc import AsyncResource
-
-if sys.version_info >= (3, 8):
-    from typing import Final
-else:
-    from typing_extensions import Final
 
 if TYPE_CHECKING:
     from _typeshed import OpenBinaryMode, OpenTextMode, ReadableBuffer, WriteableBuffer
@@ -370,12 +366,17 @@ class Path:
     def match(self, path_pattern: str) -> bool:
         return self._path.match(path_pattern)
 
-    def is_relative_to(self, *other: str | PathLike[str]) -> bool:
+    def is_relative_to(self, other: str | PathLike[str]) -> bool:
         try:
-            self.relative_to(*other)
+            self.relative_to(other)
             return True
         except ValueError:
             return False
+
+    async def is_junction(self) -> bool:
+        return await to_thread.run_sync(
+            self._path.is_junction  # type: ignore [attr-defined]
+        )
 
     async def chmod(self, mode: int, *, follow_symlinks: bool = True) -> None:
         func = partial(os.chmod, follow_symlinks=follow_symlinks)
@@ -570,6 +571,29 @@ class Path:
             if not missing_ok:
                 raise
 
+    if sys.version_info >= (3, 12):
+
+        async def walk(
+            self,
+            top_down: bool = True,
+            on_error: Callable[[OSError], object] | None = None,
+            follow_symlinks: bool = False,
+        ) -> AsyncIterator[tuple[Path, list[str], list[str]]]:
+            def get_next_value() -> tuple[pathlib.Path, list[str], list[str]] | None:
+                try:
+                    return next(gen)
+                except StopIteration:
+                    return None
+
+            gen = self._path.walk(top_down, on_error, follow_symlinks)
+            while True:
+                value = await to_thread.run_sync(get_next_value)
+                if value is None:
+                    return
+
+                root, dirs, paths = value
+                yield Path(root), dirs, paths
+
     def with_name(self, name: str) -> Path:
         return Path(self._path.with_name(name))
 
@@ -578,6 +602,9 @@ class Path:
 
     def with_suffix(self, suffix: str) -> Path:
         return Path(self._path.with_suffix(suffix))
+
+    def with_segments(self, *pathsegments: str) -> Path:
+        return Path(*pathsegments)
 
     async def write_bytes(self, data: bytes) -> int:
         return await to_thread.run_sync(self._path.write_bytes, data)

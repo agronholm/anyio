@@ -22,12 +22,7 @@ from anyio.abc import TaskStatus
 pytestmark = pytest.mark.anyio
 
 
-if sys.version_info >= (3, 8):
-    get_coro = asyncio.Task.get_coro
-else:
-
-    def get_coro(self: asyncio.Task) -> Any:
-        return self._coro
+get_coro = asyncio.Task.get_coro
 
 
 def test_main_task_name(
@@ -123,14 +118,12 @@ def test_wait_generator_based_task_blocked(
 
         event.set()
 
-    @asyncio.coroutine
+    @asyncio.coroutine  # type: ignore[attr-defined]
     def generator_part() -> Generator[object, BaseException, None]:
-        yield from event.wait()
+        yield from event.wait()  # type: ignore[misc]
 
     event = asyncio.Event()
-    gen_task: asyncio.Task[None] = asyncio_event_loop.create_task(
-        generator_part()  # type: ignore[arg-type]
-    )
+    gen_task: asyncio.Task[None] = asyncio_event_loop.create_task(generator_part())
     asyncio_event_loop.run_until_complete(native_coro_part())
 
 

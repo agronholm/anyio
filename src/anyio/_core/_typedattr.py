@@ -1,15 +1,9 @@
 from __future__ import annotations
 
-import sys
 from collections.abc import Callable, Mapping
-from typing import Any, TypeVar, overload
+from typing import Any, TypeVar, final, overload
 
 from ._exceptions import TypedAttributeLookupError
-
-if sys.version_info >= (3, 8):
-    from typing import final
-else:
-    from typing_extensions import final
 
 T_Attr = TypeVar("T_Attr")
 T_Default = TypeVar("T_Default")

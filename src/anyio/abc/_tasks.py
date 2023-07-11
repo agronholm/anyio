@@ -3,17 +3,25 @@ from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 from collections.abc import Awaitable, Callable, Coroutine
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar, overload
 
 if TYPE_CHECKING:
     from .._core._tasks import CancelScope
 
 T_Retval = TypeVar("T_Retval")
+T_contra = TypeVar("T_contra", contravariant=True)
 
 
-class TaskStatus(Generic[T_Retval]):
-    @abstractmethod
-    def started(self, value: T_Retval | None = None) -> None:
+class TaskStatus(Protocol[T_contra]):
+    @overload
+    def started(self: TaskStatus[None]) -> None:
+        ...
+
+    @overload
+    def started(self, value: T_contra) -> None:
+        ...
+
+    def started(self, value: T_contra | None = None) -> None:
         """
         Signal that the task has started.
 
@@ -54,7 +62,7 @@ class TaskGroup(metaclass=ABCMeta):
         func: Callable[..., Awaitable[Any]],
         *args: object,
         name: object = None,
-    ) -> object:
+    ) -> Any:
         """
         Start a new task and wait until it signals for readiness.
 

@@ -11,7 +11,7 @@ Byte streams ("Streams" in Trio lingo) are objects that receive and/or send chun
 They are modelled after the limitations of the stream sockets, meaning the boundaries are not
 respected. In practice this means that if, for example, you call ``.send(b'hello ')`` and then
 ``.send(b'world')``, the other end will receive the data chunked in any arbitrary way, like
-(``b'hello'`` and ``b'world'``), ``b'hello world'`` or (``b'hel'``, ``b'lo wo'``, ``b'rld'``).
+(``b'hello'`` and ``b' world'``), ``b'hello world'`` or (``b'hel'``, ``b'lo wo'``, ``b'rld'``).
 
 Object streams ("Channels" in Trio lingo), on the other hand, deal with Python objects. The most
 commonly used implementation of these is the memory object stream. The exact semantics of object
@@ -49,16 +49,20 @@ The loop exits when all clones of the send stream have been closed.
 Example::
 
     from anyio import create_task_group, create_memory_object_stream, run
+    from anyio.streams.memory import MemoryObjectReceiveStream
 
 
-    async def process_items(receive_stream):
+    async def process_items(receive_stream: MemoryObjectReceiveStream[str]) -> None:
         async with receive_stream:
             async for item in receive_stream:
                 print('received', item)
 
 
     async def main():
-        send_stream, receive_stream = create_memory_object_stream()
+        # The [str] specifies the type of the objects being passed through the
+        # memory object stream. This is a bit of trick, as create_memory_object_stream
+        # is actually a class masquerading as a function.
+        send_stream, receive_stream = create_memory_object_stream[str]()
         async with create_task_group() as tg:
             tg.start_soon(process_items, receive_stream)
             async with send_stream:
@@ -71,7 +75,10 @@ In contrast to other AnyIO streams (but in line with trio's Channels), memory ob
 closed synchronously, using either the ``close()`` method or by using the stream as a context
 manager::
 
-    def synchronous_callback(send_stream: MemoryObjectSendStream) -> None:
+    from anyio.streams.memory import MemoryObjectSendStream
+
+
+    def synchronous_callback(send_stream: MemoryObjectSendStream[str]) -> None:
         with send_stream:
             send_stream.send_nowait('hello')
 
@@ -102,7 +109,7 @@ Example::
 
 
     async def main():
-        send, receive = create_memory_object_stream(4)
+        send, receive = create_memory_object_stream[bytes](4)
         buffered = BufferedByteReceiveStream(receive)
         for part in b'hel', b'lo, ', b'wo', b'rld!':
             await send.send(part)
@@ -132,7 +139,7 @@ Example::
 
 
     async def main():
-        bytes_send, bytes_receive = create_memory_object_stream(1)
+        bytes_send, bytes_receive = create_memory_object_stream[bytes](1)
         text_send = TextSendStream(bytes_send)
         await text_send.send('åäö')
         result = await bytes_receive.receive()

@@ -30,7 +30,6 @@ Typed attributes
 Timeouts and cancellation
 -------------------------
 
-.. autofunction:: anyio.open_cancel_scope
 .. autofunction:: anyio.move_on_after
 .. autofunction:: anyio.fail_after
 .. autofunction:: anyio.current_effective_deadline
@@ -62,10 +61,9 @@ Running asynchronous code from other threads
 
 .. autofunction:: anyio.from_thread.run
 .. autofunction:: anyio.from_thread.run_sync
-.. autofunction:: anyio.from_thread.create_blocking_portal
 .. autofunction:: anyio.from_thread.start_blocking_portal
 
-.. autoclass:: anyio.abc.BlockingPortal
+.. autoclass:: anyio.from_thread.BlockingPortal
 
 Async file I/O
 --------------
@@ -135,6 +133,7 @@ Sockets and networking
 .. autoclass:: anyio.abc.SocketListener()
 .. autoclass:: anyio.abc.UDPSocket()
 .. autoclass:: anyio.abc.ConnectedUDPSocket()
+.. autoclass:: anyio.abc.UNIXSocketStream()
 
 Subprocesses
 ------------
@@ -157,12 +156,7 @@ Synchronization
 .. autoclass:: anyio.EventStatistics
 .. autoclass:: anyio.ConditionStatistics
 .. autoclass:: anyio.CapacityLimiterStatistics
-
-.. autofunction:: anyio.create_event
-.. autofunction:: anyio.create_lock
-.. autofunction:: anyio.create_condition
-.. autofunction:: anyio.create_semaphore
-.. autofunction:: anyio.create_capacity_limiter
+.. autoclass:: anyio.SemaphoreStatistics
 
 Operating system signals
 ------------------------
@@ -177,12 +171,6 @@ Low level operations
 .. autofunction:: anyio.lowlevel.cancel_shielded_checkpoint
 
 .. autoclass:: anyio.lowlevel.RunVar
-
-Compatibility
--------------
-
-.. autofunction:: anyio.maybe_async
-.. autofunction:: anyio.maybe_async_cm
 
 Testing and debugging
 ---------------------
@@ -200,7 +188,6 @@ Exceptions
 .. autoexception:: anyio.ClosedResourceError
 .. autoexception:: anyio.DelimiterNotFound
 .. autoexception:: anyio.EndOfStream
-.. autoexception:: anyio.ExceptionGroup
 .. autoexception:: anyio.IncompleteRead
 .. autoexception:: anyio.TypedAttributeLookupError
 .. autoexception:: anyio.WouldBlock

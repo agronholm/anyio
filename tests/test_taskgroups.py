@@ -5,7 +5,7 @@ import math
 import sys
 import time
 from collections.abc import AsyncGenerator, Coroutine, Generator
-from typing import Any, NoReturn
+from typing import Any, NoReturn, cast
 
 import pytest
 
@@ -231,12 +231,17 @@ async def test_start_native_child_cancelled() -> None:
     assert not finished
 
 
-async def test_start_exception_delivery() -> None:
+async def test_start_exception_delivery(anyio_backend_name: str) -> None:
     def task_fn(*, task_status: TaskStatus = TASK_STATUS_IGNORED) -> None:
         task_status.started("hello")
 
+    if anyio_backend_name == "trio":
+        pattern = "appears to be synchronous"
+    else:
+        pattern = "is not a coroutine object"
+
     async with anyio.create_task_group() as tg:
-        with pytest.raises(TypeError, match="to be synchronous$"):
+        with pytest.raises(TypeError, match=pattern):
             await tg.start(task_fn)  # type: ignore[arg-type]
 
 
@@ -863,11 +868,41 @@ def test_cancel_generator_based_task() -> None:
             await asyncio.sleep(1)
             pytest.fail("Execution should not have reached this line")
 
-    @asyncio.coroutine
+    @asyncio.coroutine  # type: ignore[attr-defined]
     def generator_part() -> Generator[object, BaseException, None]:
-        yield from native_coro_part()
+        yield from native_coro_part()  # type: ignore[misc]
 
     anyio.run(generator_part, backend="asyncio")
+
+
+@pytest.mark.skipif(
+    sys.version_info >= (3, 11),
+    reason="Generator based coroutines have been removed in Python 3.11",
+)
+@pytest.mark.filterwarnings(
+    'ignore:"@coroutine" decorator is deprecated:DeprecationWarning'
+)
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_schedule_old_style_coroutine_func() -> None:
+    """
+    Test that we give a sensible error when a user tries to spawn a task from a
+    generator-style coroutine function.
+    """
+
+    @asyncio.coroutine  # type: ignore[attr-defined]
+    def corofunc() -> Generator[Any, Any, None]:
+        yield from asyncio.sleep(1)  # type: ignore[misc]
+
+    async with create_task_group() as tg:
+        funcname = (
+            f"{__name__}.test_schedule_old_style_coroutine_func.<locals>.corofunc"
+        )
+        with pytest.raises(
+            TypeError,
+            match=f"Expected {funcname}\\(\\) to return a coroutine, but the return "
+            f"value \\(<generator .+>\\) is not a coroutine object",
+        ):
+            tg.start_soon(corofunc)
 
 
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
@@ -1092,3 +1127,74 @@ async def test_start_parent_id() -> None:
     assert initial_parent_id != permanent_parent_id
     assert initial_parent_id == starter_task_id
     assert permanent_parent_id == root_task_id
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 11),
+    reason="Task uncancelling is only supported on Python 3.11",
+)
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+class TestUncancel:
+    async def test_uncancel_after_native_cancel(self) -> None:
+        task = cast(asyncio.Task, asyncio.current_task())
+        with pytest.raises(asyncio.CancelledError), CancelScope():
+            task.cancel()
+            await anyio.sleep(0)
+
+        assert task.cancelling() == 1
+        task.uncancel()
+
+    async def test_uncancel_after_scope_cancel(self) -> None:
+        task = cast(asyncio.Task, asyncio.current_task())
+        with CancelScope() as scope:
+            scope.cancel()
+            await anyio.sleep(0)
+
+        assert task.cancelling() == 0
+
+    async def test_uncancel_after_scope_and_native_cancel(self) -> None:
+        task = cast(asyncio.Task, asyncio.current_task())
+        with pytest.raises(asyncio.CancelledError), CancelScope() as scope:
+            scope.cancel()
+            task.cancel()
+            await anyio.sleep(0)
+
+        assert task.cancelling() == 1
+        task.uncancel()
+
+
+class TestTaskStatusTyping:
+    """
+    These tests do not do anything at run time, but since the test suite is also checked
+    with a static type checker, it ensures that the `TaskStatus` typing works as
+    intended.
+    """
+
+    async def typetest_None(*, task_status: TaskStatus[None]) -> None:
+        task_status.started()
+        task_status.started(None)
+
+    async def typetest_None_Union(*, task_status: TaskStatus[int | None]) -> None:
+        task_status.started()
+        task_status.started(None)
+
+    async def typetest_non_None(*, task_status: TaskStatus[int]) -> None:
+        # We use `type: ignore` and `--warn-unused-ignores` to get type checking errors
+        # if these ever stop failing.
+        task_status.started()  # type: ignore[call-arg]
+        task_status.started(None)  # type: ignore[arg-type]
+
+    async def typetest_variance_good(*, task_status: TaskStatus[float]) -> None:
+        task_status2: TaskStatus[int] = task_status
+        task_status2.started(int())
+
+    async def typetest_variance_bad(*, task_status: TaskStatus[int]) -> None:
+        # We use `type: ignore` and `--warn-unused-ignores` to get type checking errors
+        # if these ever stop failing.
+        task_status2: TaskStatus[float] = task_status  # type: ignore[assignment]
+        task_status2.started(float())
+
+    async def typetest_optional_status(
+        *, task_status: TaskStatus[int] = TASK_STATUS_IGNORED
+    ) -> None:
+        task_status.started(1)

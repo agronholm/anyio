@@ -9,7 +9,7 @@ pytestmark = pytest.mark.anyio
 
 
 async def test_receive_exactly() -> None:
-    send_stream, receive_stream = create_memory_object_stream(2)
+    send_stream, receive_stream = create_memory_object_stream[bytes](2)
     buffered_stream = BufferedByteReceiveStream(receive_stream)
     await send_stream.send(b"abcd")
     await send_stream.send(b"efgh")
@@ -19,7 +19,7 @@ async def test_receive_exactly() -> None:
 
 
 async def test_receive_exactly_incomplete() -> None:
-    send_stream, receive_stream = create_memory_object_stream(1)
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
     buffered_stream = BufferedByteReceiveStream(receive_stream)
     await send_stream.send(b"abcd")
     await send_stream.aclose()
@@ -28,7 +28,7 @@ async def test_receive_exactly_incomplete() -> None:
 
 
 async def test_receive_until() -> None:
-    send_stream, receive_stream = create_memory_object_stream(2)
+    send_stream, receive_stream = create_memory_object_stream[bytes](2)
     buffered_stream = BufferedByteReceiveStream(receive_stream)
     await send_stream.send(b"abcd")
     await send_stream.send(b"efgh")
@@ -43,7 +43,7 @@ async def test_receive_until() -> None:
 
 
 async def test_receive_until_incomplete() -> None:
-    send_stream, receive_stream = create_memory_object_stream(1)
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
     buffered_stream = BufferedByteReceiveStream(receive_stream)
     await send_stream.send(b"abcd")
     await send_stream.aclose()
