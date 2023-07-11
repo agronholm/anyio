@@ -5,6 +5,7 @@ import pathlib
 import platform
 import socket
 import stat
+import sys
 
 import pytest
 from _pytest.tmpdir import TempPathFactory
@@ -252,6 +253,13 @@ class TestPath:
         path.touch()
         assert await Path(path).is_file()
 
+    @pytest.mark.skipif(
+        sys.version_info < (3, 12),
+        reason="Path.is_junction() is only available on Python 3.12+",
+    )
+    async def test_is_junction(self, tmp_path: pathlib.Path) -> None:
+        assert not await Path(tmp_path).is_junction()
+
     async def test_is_mount(self) -> None:
         assert not await Path("/gfobj4ewiotj").is_mount()
         assert await Path("/").is_mount()
@@ -281,11 +289,9 @@ class TestPath:
         path.symlink_to("/foo")
         assert await Path(path).is_symlink()
 
-    @pytest.mark.parametrize(
-        "args, result", [(("/xyz", "abc"), True), (("/xyz", "baz"), False)]
-    )
-    def test_is_relative_to(self, args: tuple[str], result: bool) -> None:
-        assert Path("/xyz/abc/foo").is_relative_to(*args) == result
+    @pytest.mark.parametrize("arg, result", [("/xyz/abc", True), ("/xyz/baz", False)])
+    def test_is_relative_to(self, arg: str, result: bool) -> None:
+        assert Path("/xyz/abc/foo").is_relative_to(arg) == result
 
     async def test_glob(self, populated_tmpdir: pathlib.Path) -> None:
         all_paths = []
@@ -415,6 +421,10 @@ class TestPath:
         path.write_text("some text åäö", encoding="utf-8")
         assert await Path(path).read_text(encoding="utf-8") == "some text åäö"
 
+    async def test_relative_to(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / "subdir"
+        assert path.relative_to(tmp_path) == Path("subdir")
+
     async def test_rename(self, tmp_path: pathlib.Path) -> None:
         path = tmp_path / "somefile"
         path.touch()
@@ -479,6 +489,32 @@ class TestPath:
         await Path(path).unlink(missing_ok=True)
         with pytest.raises(FileNotFoundError):
             await Path(path).unlink(missing_ok=False)
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 12),
+        reason="Path.walk() is only available on Python 3.12+",
+    )
+    async def test_walk(self, tmp_path: pathlib.Path) -> None:
+        subdir = tmp_path / "subdir"
+        subdir.mkdir()
+        subdir.joinpath("file1").touch()
+        subdir.joinpath("file2").touch()
+
+        path = Path(tmp_path)
+        iterator = Path(tmp_path).walk().__aiter__()
+
+        root, dirs, files = await iterator.__anext__()
+        assert root == path
+        assert dirs == ["subdir"]
+        assert files == []
+
+        root, dirs, files = await iterator.__anext__()
+        assert root == path / "subdir"
+        assert dirs == []
+        assert sorted(files) == ["file1", "file2"]
+
+        with pytest.raises(StopAsyncIteration):
+            await iterator.__anext__()
 
     def test_with_name(self) -> None:
         assert Path("/xyz/foo.txt").with_name("bar").name == "bar"

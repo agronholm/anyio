@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 from importlib.metadata import version as get_version
 
 from packaging.version import parse
@@ -25,6 +27,7 @@ language = "en"
 exclude_patterns = ["_build"]
 pygments_style = "sphinx"
 autodoc_default_options = {"members": True, "show-inheritance": True}
+autodoc_mock_imports = ["_typeshed"]
 todo_include_todos = False
 
 html_theme = "sphinx_rtd_theme"

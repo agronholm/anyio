@@ -63,7 +63,7 @@ Running asynchronous code from other threads
 .. autofunction:: anyio.from_thread.run_sync
 .. autofunction:: anyio.from_thread.start_blocking_portal
 
-.. autoclass:: anyio.abc.BlockingPortal
+.. autoclass:: anyio.from_thread.BlockingPortal
 
 Async file I/O
 --------------
@@ -133,6 +133,7 @@ Sockets and networking
 .. autoclass:: anyio.abc.SocketListener()
 .. autoclass:: anyio.abc.UDPSocket()
 .. autoclass:: anyio.abc.ConnectedUDPSocket()
+.. autoclass:: anyio.abc.UNIXSocketStream()
 
 Subprocesses
 ------------
@@ -155,6 +156,7 @@ Synchronization
 .. autoclass:: anyio.EventStatistics
 .. autoclass:: anyio.ConditionStatistics
 .. autoclass:: anyio.CapacityLimiterStatistics
+.. autoclass:: anyio.SemaphoreStatistics
 
 Operating system signals
 ------------------------

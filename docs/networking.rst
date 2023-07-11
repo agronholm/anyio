@@ -109,7 +109,7 @@ Sending and receiving file descriptors
 ++++++++++++++++++++++++++++++++++++++
 
 UNIX sockets can be used to pass open file descriptors (sockets and files) to another process.
-The receiving end can then use either :func:`os.fdopen` or :func:`socket.socket` to get a usable
+The receiving end can then use either :func:`os.fdopen` or :class:`socket.socket` to get a usable
 file or socket object, respectively.
 
 The following is an example where a client connects to a UNIX socket server and receives the

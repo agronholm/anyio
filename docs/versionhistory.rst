@@ -9,9 +9,27 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   654 ``BaseExceptionGroup`` and ``ExceptionGroup``
 - **BACKWARDS INCOMPATIBLE** Changes the pytest plugin to run all tests and fixtures in
   the same task, allowing fixtures to set context variables for tests and other fixtures
+- **BACKWARDS INCOMPATIBLE** Changed ``anyio.Path.relative_to()`` and
+  ``anyio.Path.is_relative_to()`` to only accept one argument, as passing multiple
+  arguments is deprecated as of Python 3.12
+- **BACKWARDS INCOMPATIBLE** Dropped support for spawning tasks from old-style coroutine
+  functions (``@asyncio.coroutine``)
+- Dropped support for Python 3.7
+- Added support for Python 3.12
 - Bumped minimum version of trio to v0.22
+- Added the ``anyio.Path.is_junction()`` and ``anyio.Path.walk()`` methods
 - Added ``create_unix_datagram_socket`` and ``create_connected_unix_datagram_socket`` to
   create UNIX datagram sockets (PR by Jean Hominal)
+
+**3.7.1**
+
+- Fixed sending large buffers via UNIX stream sockets on asyncio
+- Fixed several minor documentation issues (broken links to classes, missing classes or
+  attributes)
+
+**3.7.0**
+
+- Dropped support for Python 3.6
 - Improved type annotations:
 
   - **BACKWARDS INCOMPATIBLE** ``create_memory_object_stream`` no longer accepts an
@@ -62,6 +80,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``TLSStream.wrap()`` being inadvertently set on Python 3.11.3 and 3.10.11
 - Fixed ``CancelScope`` to properly handle asyncio task uncancellation on Python 3.11
   (PR by Nikolay Bryskin)
+- Fixed ``OSError`` when trying to use ``create_tcp_listener()`` to bind to a link-local
+  IPv6 address (and worked around related bugs in ``uvloop``)
+- Worked around a `PyPy bug <https://foss.heptapod.net/pypy/pypy/-/issues/3938>`_
+  when using ``anyio.getaddrinfo()`` with for IPv6 link-local addresses containing
+  interface names
 - Fixed ``from_thread.run`` and ``from_thread.run_sync`` not setting sniffio on asyncio.
   As a result:
 
@@ -71,6 +94,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     asyncio from a thread running trio or curio
   - Fixed deadlock when using ``from_thread.start_blocking_portal(backend="asyncio")``
     in a thread running trio or curio (PR by Ganden Schaffner)
+
+**3.6.2**
+
+- Pinned Trio to < 0.22 to avoid incompatibility with AnyIO's ``ExceptionGroup`` class
+  causing ``AttributeError: 'NonBaseMultiError' object has no attribute '_exceptions'``
 
 **3.6.1**
 

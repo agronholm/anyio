@@ -150,7 +150,7 @@ class Lock:
         """
         Acquire the lock, without blocking.
 
-        :raises ~WouldBlock: if the operation would block
+        :raises ~anyio.WouldBlock: if the operation would block
 
         """
         task = get_current_task()
@@ -217,7 +217,7 @@ class Condition:
         """
         Acquire the underlying lock, without blocking.
 
-        :raises ~WouldBlock: if the operation would block
+        :raises ~anyio.WouldBlock: if the operation would block
 
         """
         self._lock.acquire_nowait()
@@ -334,7 +334,7 @@ class Semaphore:
         """
         Acquire the underlying lock, without blocking.
 
-        :raises ~WouldBlock: if the operation would block
+        :raises ~anyio.WouldBlock: if the operation would block
 
         """
         if self._value == 0:

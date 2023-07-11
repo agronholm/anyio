@@ -44,7 +44,7 @@ class TLSAttribute(TypedAttributeSet):
     #: the :class:`~ssl.SSLObject` used for encryption
     ssl_object: ssl.SSLObject = typed_attribute()
     #: ``True`` if this stream does (and expects) a closing TLS handshake when the
-    # stream is being closed
+    #: stream is being closed
     standard_compatible: bool = typed_attribute()
     #: the TLS protocol version (e.g. ``TLSv1.2``)
     tls_version: str = typed_attribute()
@@ -268,14 +268,14 @@ class TLSListener(Listener[TLSStream]):
 
     @staticmethod
     async def handle_handshake_error(exc: BaseException, stream: AnyByteStream) -> None:
-        f"""
+        """
         Handle an exception raised during the TLS handshake.
 
         This method does 3 things:
 
         #. Forcefully closes the original stream
         #. Logs the exception (unless it was a cancellation exception) using the
-          ``{__name__}`` logger
+           ``anyio.streams.tls`` logger
         #. Reraises the exception if it was a base exception or a cancellation exception
 
         :param exc: the exception

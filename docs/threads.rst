@@ -79,7 +79,7 @@ If you need to run async code from a thread that is not a worker thread spawned 
 you need a *blocking portal*. This needs to be obtained from within the event loop thread.
 
 One way to do this is to start a new event loop with a portal, using
-:func:`~start_blocking_portal` (which takes mostly the same arguments as :func:`~run`::
+:class:`~from_thread.start_blocking_portal` (which takes mostly the same arguments as :func:`~run`::
 
     from anyio.from_thread import start_blocking_portal
 
@@ -189,7 +189,7 @@ Adjusting the default maximum worker thread count
 -------------------------------------------------
 
 The default AnyIO worker thread limiter has a value of **40**, meaning that any calls
-to :func:`.to_thread.run` without an explicit ``limiter`` argument will cause a maximum
+to :func:`.to_thread.run_sync` without an explicit ``limiter`` argument will cause a maximum
 of 40 threads to be spawned. You can adjust this limit like this::
 
     from anyio import to_thread

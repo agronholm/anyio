@@ -138,7 +138,4 @@ host task that will be copied, but the context of the task that calls
 :meth:`TaskGroup.start() <.abc.TaskGroup.start>` or
 :meth:`TaskGroup.start_soon() <.abc.TaskGroup.start_soon>`.
 
-.. note:: Context propagation **does not work** on asyncio when using Python 3.6, as asyncio
-    support for this only landed in v3.7.
-
 .. _context: https://docs.python.org/3/library/contextvars.html

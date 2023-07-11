@@ -24,7 +24,12 @@ from concurrent.futures import Future
 from contextvars import Context, copy_context
 from dataclasses import dataclass
 from functools import partial, wraps
-from inspect import CORO_RUNNING, CORO_SUSPENDED, getcoroutinestate
+from inspect import (
+    CORO_RUNNING,
+    CORO_SUSPENDED,
+    getcoroutinestate,
+    iscoroutine,
+)
 from io import IOBase
 from os import PathLike
 from queue import Queue
@@ -41,8 +46,6 @@ from typing import (
     Collection,
     ContextManager,
     Coroutine,
-    Deque,
-    Generator,
     Iterator,
     Mapping,
     Optional,
@@ -83,22 +86,9 @@ from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup, ExceptionGroup
 
-if sys.version_info >= (3, 8):
-
-    def get_coro(task: asyncio.Task) -> Generator | Awaitable[Any]:
-        return task.get_coro()
-
-else:
-
-    def get_coro(task: asyncio.Task) -> Generator | Awaitable[Any]:
-        return task._coro
-
 
 T_Retval = TypeVar("T_Retval")
 T_contra = TypeVar("T_contra", contravariant=True)
-
-# Check whether there is native support for task names in asyncio (3.8+)
-_native_task_names = hasattr(asyncio.Task, "get_name")
 
 _root_task: RunVar[asyncio.Task | None] = RunVar("_root_task")
 
@@ -151,9 +141,8 @@ _run_vars = (
 
 def _task_started(task: asyncio.Task) -> bool:
     """Return ``True`` if the task has been started and has not finished."""
-    coro = cast(Coroutine[Any, Any, Any], get_coro(task))
     try:
-        return getcoroutinestate(coro) in (CORO_RUNNING, CORO_SUSPENDED)
+        return getcoroutinestate(task.get_coro()) in (CORO_RUNNING, CORO_SUSPENDED)
     except AttributeError:
         # task coro is async_genenerator_asend https://bugs.python.org/issue37771
         raise Exception(f"Cannot determine if task {task} has started or not")
@@ -215,7 +204,7 @@ class CancelScope(BaseCancelScope):
         try:
             task_state = _task_states[host_task]
         except KeyError:
-            task_name = host_task.get_name() if _native_task_names else None
+            task_name = host_task.get_name()
             task_state = TaskState(None, task_name, self)
             _task_states[host_task] = task_state
         else:
@@ -535,31 +524,6 @@ class TaskGroup(abc.TaskGroup):
 
         return ignore_exception
 
-    async def _run_wrapped_task(
-        self, coro: Coroutine, task_status_future: asyncio.Future | None
-    ) -> None:
-        # This is the code path for Python 3.7 on which asyncio freaks out if a task
-        # raises a BaseException.
-        __traceback_hide__ = __tracebackhide__ = True  # noqa: F841
-        task = cast(asyncio.Task, current_task())
-        try:
-            await coro
-        except BaseException as exc:
-            if task_status_future is None or task_status_future.done():
-                self._exceptions.append(exc)
-                self.cancel_scope.cancel()
-            else:
-                task_status_future.set_exception(exc)
-        else:
-            if task_status_future is not None and not task_status_future.done():
-                task_status_future.set_exception(
-                    RuntimeError("Child exited without calling task_status.started()")
-                )
-        finally:
-            if task in self.cancel_scope._tasks:
-                self.cancel_scope._tasks.remove(task)
-                del _task_states[task]
-
     def _spawn(
         self,
         func: Callable[..., Awaitable[Any]],
@@ -568,7 +532,6 @@ class TaskGroup(abc.TaskGroup):
         task_status_future: asyncio.Future | None = None,
     ) -> asyncio.Task:
         def task_done(_task: asyncio.Task) -> None:
-            # This is the code path for Python 3.8+
             assert _task in self.cancel_scope._tasks
             self.cancel_scope._tasks.remove(_task)
             del _task_states[_task]
@@ -597,11 +560,6 @@ class TaskGroup(abc.TaskGroup):
                 "This task group is not active; no new tasks can be started."
             )
 
-        options: dict[str, Any] = {}
-        name = get_callable_name(func) if name is None else str(name)
-        if _native_task_names:
-            options["name"] = name
-
         kwargs = {}
         if task_status_future:
             parent_id = id(current_task())
@@ -612,18 +570,16 @@ class TaskGroup(abc.TaskGroup):
             parent_id = id(self.cancel_scope._host_task)
 
         coro = func(*args, **kwargs)
-        if not asyncio.iscoroutine(coro):
+        if not iscoroutine(coro):
+            prefix = f"{func.__module__}." if hasattr(func, "__module__") else ""
             raise TypeError(
-                f"Expected an async function, but {func} appears to be synchronous"
+                f"Expected {prefix}{func.__qualname__}() to return a coroutine, but "
+                f"the return value ({coro!r}) is not a coroutine object"
             )
 
-        foreign_coro = not hasattr(coro, "cr_frame") and not hasattr(coro, "gi_frame")
-        if foreign_coro or sys.version_info < (3, 8):
-            coro = self._run_wrapped_task(coro, task_status_future)
-
-        task = create_task(coro, **options)
-        if not foreign_coro and sys.version_info >= (3, 8):
-            task.add_done_callback(task_done)
+        name = get_callable_name(func) if name is None else str(name)
+        task = create_task(coro, name=name)
+        task.add_done_callback(task_done)
 
         # Make the spawned task inherit the task group's cancel scope
         _task_states[task] = TaskState(
@@ -669,7 +625,7 @@ class WorkerThread(Thread):
         self,
         root_task: asyncio.Task,
         workers: set[WorkerThread],
-        idle_workers: Deque[WorkerThread],
+        idle_workers: deque[WorkerThread],
     ):
         super().__init__(name="AnyIO worker thread")
         self.root_task = root_task
@@ -734,7 +690,7 @@ class WorkerThread(Thread):
             pass
 
 
-_threadpool_idle_workers: RunVar[Deque[WorkerThread]] = RunVar(
+_threadpool_idle_workers: RunVar[deque[WorkerThread]] = RunVar(
     "_threadpool_idle_workers"
 )
 _threadpool_workers: RunVar[set[WorkerThread]] = RunVar("_threadpool_workers")
@@ -850,11 +806,12 @@ def _forcibly_shutdown_process_pool_on_exit(
 ) -> None:
     """
     Forcibly shuts down worker processes belonging to this event loop."""
-    child_watcher: asyncio.AbstractChildWatcher | None
-    try:
-        child_watcher = asyncio.get_event_loop_policy().get_child_watcher()
-    except NotImplementedError:
-        child_watcher = None
+    child_watcher: asyncio.AbstractChildWatcher | None = None
+    if sys.version_info < (3, 12):
+        try:
+            child_watcher = asyncio.get_event_loop_policy().get_child_watcher()
+        except NotImplementedError:
+            pass
 
     # Close as much as possible (w/o async/await) to avoid warnings
     for process in workers:
@@ -895,7 +852,7 @@ async def _shutdown_process_pool_on_exit(workers: set[abc.Process]) -> None:
 
 
 class StreamProtocol(asyncio.Protocol):
-    read_queue: Deque[bytes]
+    read_queue: deque[bytes]
     read_event: asyncio.Event
     write_event: asyncio.Event
     exception: Exception | None = None
@@ -931,7 +888,7 @@ class StreamProtocol(asyncio.Protocol):
 
 
 class DatagramProtocol(asyncio.DatagramProtocol):
-    read_queue: Deque[tuple[bytes, IPSockAddrType]]
+    read_queue: deque[tuple[bytes, IPSockAddrType]]
     read_event: asyncio.Event
     write_event: asyncio.Event
     exception: Exception | None = None
@@ -1123,7 +1080,7 @@ class UNIXSocketStream(_RawSocketMixin, abc.UNIXSocketStream):
             view = memoryview(item)
             while view:
                 try:
-                    bytes_sent = self._raw_socket.send(item)
+                    bytes_sent = self._raw_socket.send(view)
                 except BlockingIOError:
                     await self._wait_until_writable(loop)
                 except OSError as exc:
@@ -1635,7 +1592,7 @@ class _SignalReceiver:
     def __init__(self, signals: tuple[Signals, ...]):
         self._signals = signals
         self._loop = get_running_loop()
-        self._signal_queue: Deque[Signals] = deque()
+        self._signal_queue: deque[Signals] = deque()
         self._future: asyncio.Future = asyncio.Future()
         self._handled_signals: set[Signals] = set()
 
@@ -1681,13 +1638,13 @@ class _SignalReceiver:
 def _create_task_info(task: asyncio.Task) -> TaskInfo:
     task_state = _task_states.get(task)
     if task_state is None:
-        name = task.get_name() if _native_task_names else None
+        name: str | None = task.get_name()
         parent_id = None
     else:
         name = task_state.name
         parent_id = task_state.parent_id
 
-    return TaskInfo(id(task), parent_id, name, get_coro(task))
+    return TaskInfo(id(task), parent_id, name, task.get_coro())
 
 
 async def _shutdown_default_executor(loop: asyncio.BaseEventLoop) -> None:
@@ -1892,8 +1849,7 @@ class AsyncIOBackend(AsyncBackend):
             task = cast(asyncio.Task, current_task())
             task_state = TaskState(None, get_callable_name(func), None)
             _task_states[task] = task_state
-            if _native_task_names:
-                task.set_name(task_state.name)
+            task.set_name(task_state.name)
 
             try:
                 return await func(*args)
@@ -2124,10 +2080,10 @@ class AsyncIOBackend(AsyncBackend):
 
     @classmethod
     def setup_process_pool_exit_at_shutdown(cls, workers: set[abc.Process]) -> None:
-        kwargs: dict[str, Any] = (
-            {"name": "AnyIO process pool shutdown task"} if _native_task_names else {}
+        create_task(
+            _shutdown_process_pool_on_exit(workers),
+            name="AnyIO process pool shutdown task",
         )
-        create_task(_shutdown_process_pool_on_exit(workers), **kwargs)
         find_root_task().add_done_callback(
             partial(_forcibly_shutdown_process_pool_on_exit, workers)
         )

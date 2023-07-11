@@ -53,7 +53,7 @@ Asynchronous path operations
 AnyIO provides an asynchronous version of the :class:`pathlib.Path` class. It differs with the
 original in a number of ways:
 
-* Operations that perform disk I/O (like :meth:`~pathlib.Path.read_bytes``) are run in a worker
+* Operations that perform disk I/O (like :meth:`~pathlib.Path.read_bytes`) are run in a worker
   thread and thus require an ``await``
 * Methods like :meth:`~pathlib.Path.glob` return an asynchronous iterator that yields asynchronous
   :class:`~.Path` objects

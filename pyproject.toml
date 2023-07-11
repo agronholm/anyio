@@ -16,20 +16,20 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Framework :: AnyIO",
+    "Typing :: Typed",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
-requires-python = ">= 3.7"
+requires-python = ">= 3.8"
 dependencies = [
     "exceptiongroup; python_version < '3.11'",
     "idna >= 2.8",
     "sniffio >= 1.1",
-    "typing_extensions; python_version < '3.8'",
 ]
 dynamic = ["version"]
 
@@ -43,18 +43,19 @@ Changelog = "https://anyio.readthedocs.io/en/stable/versionhistory.html"
 trio = ["trio >= 0.22"]
 test = [
     "anyio[trio]",
-    "mock >= 4; python_version < '3.8'",
     "coverage[toml] >= 4.5",
     "hypothesis >= 4.0",
+    "psutil >= 5.9",
     "pytest >= 7.0",
     "pytest-mock >= 3.6.1",
     "trustme",
-    "uvloop >= 0.17; platform_python_implementation == 'CPython' and platform_system != 'Windows'",
+    "uvloop >= 0.17; python_version < '3.12' and platform_python_implementation == 'CPython' and platform_system != 'Windows'",
 ]
 doc = [
     "packaging",
     "Sphinx >= 6.1.0",
     "sphinx_rtd_theme",
+    "sphinxcontrib-jquery",
     "sphinx-autodoc-typehints >= 1.2.0",
 ]
 
@@ -73,14 +74,13 @@ select = [
     "PGH",          # pygrep-hooks
     "UP",           # pyupgrade
 ]
-ignore = [
-    "UP026",  # deprecated-mock-import (needed on py3.7)
-]
-target-version = "py37"
 src = ["src"]
 
+[tool.ruff.isort]
+"required-imports" = ["from __future__ import annotations"]
+
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 ignore_missing_imports = true
 disallow_any_generics = false
@@ -97,6 +97,9 @@ filterwarnings = [
     "error",
     "ignore:unclosed <socket.socket.*:ResourceWarning",
     "ignore:unclosed transport <_ProactorSocketTransport.*:ResourceWarning",
+    "ignore:ast.Str is deprecated:DeprecationWarning",
+    "ignore:Attribute s is deprecated:DeprecationWarning",
+    "ignore:ast.NameConstant is deprecated:DeprecationWarning",
     # Workaround for Python 3.9.7 (see https://bugs.python.org/issue45097)
     "ignore:The loop argument is deprecated since Python 3\\.8, and scheduled for removal in Python 3\\.10\\.:DeprecationWarning:asyncio",
 ]
@@ -114,32 +117,29 @@ show_missing = true
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-minversion = 4.0.0
-envlist = pre-commit, py37, py38, py39, py310, py311, pypy3
+envlist = pre-commit, py38, py39, py310, py311, py312, pypy3
 skip_missing_interpreters = true
+minversion = 4.0.0
 
 [testenv]
 depends = pre-commit
 package = editable
 commands = coverage run -m pytest {posargs}
-extras =
-    test
-    trio
+extras = test
 
 [testenv:pre-commit]
 depends =
 basepython = python3
 package = skip
 deps = pre-commit
-commands = pre-commit run --all-files --show-diff-on-failure
+commands = pre-commit run --all-files
 
 [testenv:pyright]
 deps = pyright
 commands = pyright --verifytypes anyio
-package = editable
 
 [testenv:docs]
 depends =
 extras = doc
-commands = sphinx-build docs build/sphinx
+commands = sphinx-build -W -n docs build/sphinx
 """
