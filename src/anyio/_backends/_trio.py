@@ -397,6 +397,10 @@ class SocketStream(_TrioSocketMixin, abc.SocketStream):
 
                 view = view[bytes_sent:]
 
+    def send_nowait(self, item: bytes) -> int:
+        with self._send_guard:
+            return self._raw_socket.send(item)
+
     async def send_eof(self) -> None:
         self._trio_socket.shutdown(socket.SHUT_WR)
 

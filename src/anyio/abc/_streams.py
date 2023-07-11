@@ -85,6 +85,20 @@ class UnreliableObjectSendStream(
             due to external causes
         """
 
+    def send_nowait(self, item: T_contra) -> None:
+        """
+        Send an item immediately if it can be done without waiting.
+
+        :param item: the item to send
+        :raises ~anyio.WouldBlock: if ``item`` cannot be sent without blocking
+        :raises ~anyio.ClosedResourceError: if the send stream has been explicitly
+            closed
+        :raises ~anyio.BrokenResourceError: if this stream has been rendered unusable
+            due to external causes
+
+        """
+        raise WouldBlock
+
 
 class UnreliableObjectStream(
     UnreliableObjectReceiveStream[T_Item], UnreliableObjectSendStream[T_Item]
@@ -158,6 +172,7 @@ class ByteReceiveStream(AsyncResource, TypedAttributeProvider):
         :return: the received bytes
         :raises ~anyio.EndOfStream: if this stream has been closed from the other end
         :raises ~anyio.WouldBlock: if there is no data waiting to be received
+
         """
         raise WouldBlock
 
@@ -177,6 +192,16 @@ class ByteReceiveStream(AsyncResource, TypedAttributeProvider):
 
 class ByteSendStream(AsyncResource, TypedAttributeProvider):
     """An interface for sending bytes to a single peer."""
+
+    def send_nowait(self, item: bytes) -> int:
+        """
+        Send as many of the given bytes as possible to the peer without blocking.
+
+        :param item: the bytes to send
+        :return: the number of bytes actually sent
+
+        """
+        return 0
 
     @abstractmethod
     async def send(self, item: bytes) -> None:

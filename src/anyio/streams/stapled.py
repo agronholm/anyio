@@ -40,6 +40,9 @@ class StapledByteStream(ByteStream):
     async def receive(self, max_bytes: int = 65536) -> bytes:
         return await self.receive_stream.receive(max_bytes)
 
+    def send_nowait(self, item: bytes) -> int:
+        return self.send_stream.send_nowait(item)
+
     async def send(self, item: bytes) -> None:
         await self.send_stream.send(item)
 
