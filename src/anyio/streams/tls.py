@@ -196,10 +196,38 @@ class TLSStream(ByteStream):
         await self.transport_stream.aclose()
 
     def receive_nowait(self, max_bytes: int = 65536) -> bytes:
-        try:
-            data = self._ssl_object.read(max_bytes)
-        except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
-            raise WouldBlock from None
+        while True:
+            try:
+                data = self._ssl_object.read(max_bytes)
+                break
+            except ssl.SSLWantReadError:
+                try:
+                    data = self.transport_stream.receive_nowait()
+                except WouldBlock:
+                    raise WouldBlock from None
+                except EndOfStream:
+                    self._read_bio.write_eof()
+                except OSError as exc:
+                    self._read_bio.write_eof()
+                    self._write_bio.write_eof()
+                    raise BrokenResourceError from exc
+                else:
+                    self._read_bio.write(data)
+            except ssl.SSLWantWriteError:
+                raise WouldBlock from None
+            except ssl.SSLError as exc:
+                self._read_bio.write_eof()
+                self._write_bio.write_eof()
+                if (
+                    isinstance(exc, ssl.SSLEOFError)
+                    or "UNEXPECTED_EOF_WHILE_READING" in exc.strerror
+                ):
+                    if self.standard_compatible:
+                        raise BrokenResourceError from exc
+                    else:
+                        raise EndOfStream from None
+
+                raise
 
         if not data:
             raise EndOfStream
