@@ -499,28 +499,23 @@ class TaskGroup(abc.TaskGroup):
         while self.cancel_scope._tasks:
             try:
                 await asyncio.wait(self.cancel_scope._tasks)
-            except asyncio.CancelledError:
+            except asyncio.CancelledError as exc:
+                # This task was cancelled natively; reraise the CancelledError later
+                # unless this task was already interrupted by another exception
                 self.cancel_scope.cancel()
+                if exc_val is None:
+                    exc_val = exc
+                    ignore_exception = False
+                    self._exceptions.append(exc)
 
         self._active = False
         if self._exceptions:
-            exc: BaseException | None
             group = BaseExceptionGroup("multiple tasks failed", self._exceptions)
-            if not self.cancel_scope._parent_cancelled():
-                # If any exceptions other than AnyIO cancellation exceptions have been
-                # received, raise those
-                _, exc = group.split(is_anyio_cancelled_exc)
-            elif all(is_anyio_cancelled_exc(e) for e in walk_exception_group(group)):
-                # All tasks were cancelled by AnyIO
-                exc = CancelledError()
-            else:
-                exc = group
-
-            if isinstance(exc, BaseExceptionGroup):
-                exc = collapse_exception_group(exc)
-
-            if exc is not None and exc is not exc_val:
-                raise exc
+            _, errors = group.split(CancelledError)
+            if errors is not None:
+                raise errors
+            elif exc_val is not None and not ignore_exception:
+                raise exc_val
 
         return ignore_exception
 
