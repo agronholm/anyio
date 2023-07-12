@@ -7,6 +7,13 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - **BACKWARDS INCOMPATIBLE** Replaced AnyIO's own ``ExceptionGroup`` class with the PEP
   654 ``BaseExceptionGroup`` and ``ExceptionGroup``
+- **BACKWARDS INCOMPATIBLE** Changes to cancellation semantics:
+
+  - Any exceptions raising out of a task groups are now nested inside an
+    ``ExceptionGroup`` (or ``BaseExceptionGroup`` if one or more ``BaseException`` were
+    included)
+  - Fixed task group not raising a cancellation exception on asyncio at exit if no child
+    tasks were spawned and an outer cancellation scope had been cancelled before
 - **BACKWARDS INCOMPATIBLE** Changes the pytest plugin to run all tests and fixtures in
   the same task, allowing fixtures to set context variables for tests and other fixtures
 - **BACKWARDS INCOMPATIBLE** Changed ``anyio.Path.relative_to()`` and
