@@ -510,7 +510,9 @@ class TaskGroup(abc.TaskGroup):
 
         self._active = False
         if self._exceptions:
-            group = BaseExceptionGroup("multiple tasks failed", self._exceptions)
+            group = BaseExceptionGroup(
+                "unhandled errors in a TaskGroup", self._exceptions
+            )
             _, errors = group.split(CancelledError)
             if errors is not None:
                 raise errors
