@@ -5,6 +5,7 @@ import ssl
 from collections.abc import Generator
 from ssl import SSLContext
 from typing import Any
+from unittest.mock import Mock
 
 import pytest
 import trustme
@@ -12,11 +13,11 @@ from _pytest.fixtures import SubRequest
 from trustme import CA
 
 uvloop_marks = []
-uvloop_policy = None
 try:
     import uvloop
 except ImportError:
     uvloop_marks.append(pytest.mark.skip(reason="uvloop not available"))
+    uvloop = Mock()
 else:
     if hasattr(asyncio.AbstractEventLoop, "shutdown_default_executor") and not hasattr(
         uvloop.loop.Loop, "shutdown_default_executor"
@@ -24,8 +25,6 @@ else:
         uvloop_marks.append(
             pytest.mark.skip(reason="uvloop is missing shutdown_default_executor()")
         )
-    else:
-        uvloop_policy = uvloop.EventLoopPolicy()
 
 pytest_plugins = ["pytester", "pytest_mock"]
 
@@ -33,11 +32,11 @@ pytest_plugins = ["pytester", "pytest_mock"]
 @pytest.fixture(
     params=[
         pytest.param(
-            ("asyncio", {"debug": True, "policy": asyncio.DefaultEventLoopPolicy()}),
+            ("asyncio", {"debug": True, "loop_factory": None}),
             id="asyncio",
         ),
         pytest.param(
-            ("asyncio", {"debug": True, "policy": uvloop_policy}),
+            ("asyncio", {"debug": True, "loop_factory": uvloop.new_event_loop}),
             marks=uvloop_marks,
             id="asyncio+uvloop",
         ),

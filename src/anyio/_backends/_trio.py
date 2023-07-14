@@ -3,6 +3,7 @@ from __future__ import annotations
 import array
 import math
 import socket
+import types
 from collections.abc import AsyncIterator, Iterable
 from concurrent.futures import Future
 from dataclasses import dataclass
@@ -713,6 +714,17 @@ class TestRunner(abc.TestRunner):
         self._send_stream: MemoryObjectSendStream | None = None
         self._options = options
 
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
+    ) -> None:
+        if self._send_stream:
+            self._send_stream.close()
+            while self._send_stream is not None:
+                self._call_queue.get()()
+
     async def _run_tests_and_fixtures(self) -> None:
         self._send_stream, receive_stream = create_memory_object_stream(1)
         with receive_stream:
@@ -746,12 +758,6 @@ class TestRunner(abc.TestRunner):
             self._call_queue.get()()
 
         return outcome_holder[0].unwrap()
-
-    def close(self) -> None:
-        if self._send_stream:
-            self._send_stream.close()
-            while self._send_stream is not None:
-                self._call_queue.get()()
 
     def run_asyncgen_fixture(
         self,

@@ -83,8 +83,191 @@ from ..abc import (
 from ..lowlevel import RunVar
 from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
-if sys.version_info < (3, 11):
+if sys.version_info >= (3, 11):
+    from asyncio import Runner
+else:
+    import contextvars
+    import enum
+    import signal
+    from asyncio import coroutines, events, exceptions, tasks
+
     from exceptiongroup import BaseExceptionGroup, ExceptionGroup
+
+    class _State(enum.Enum):
+        CREATED = "created"
+        INITIALIZED = "initialized"
+        CLOSED = "closed"
+
+    class Runner:
+        # Copied from CPython 3.11
+        def __init__(
+            self,
+            *,
+            debug: bool | None = None,
+            loop_factory: Callable[[], AbstractEventLoop] | None = None,
+        ):
+            self._state = _State.CREATED
+            self._debug = debug
+            self._loop_factory = loop_factory
+            self._loop: AbstractEventLoop | None = None
+            self._context = None
+            self._interrupt_count = 0
+            self._set_event_loop = False
+
+        def __enter__(self) -> Runner:
+            self._lazy_init()
+            return self
+
+        def __exit__(
+            self,
+            exc_type: type[BaseException],
+            exc_val: BaseException,
+            exc_tb: TracebackType,
+        ) -> None:
+            self.close()
+
+        def close(self) -> None:
+            """Shutdown and close event loop."""
+            if self._state is not _State.INITIALIZED:
+                return
+            try:
+                loop = self._loop
+                _cancel_all_tasks(loop)
+                loop.run_until_complete(loop.shutdown_asyncgens())
+                if hasattr(loop, "shutdown_default_executor"):
+                    loop.run_until_complete(loop.shutdown_default_executor())
+                else:
+                    loop.run_until_complete(_shutdown_default_executor(loop))
+            finally:
+                if self._set_event_loop:
+                    events.set_event_loop(None)
+                loop.close()
+                self._loop = None
+                self._state = _State.CLOSED
+
+        def get_loop(self) -> AbstractEventLoop:
+            """Return embedded event loop."""
+            self._lazy_init()
+            return self._loop
+
+        def run(self, coro: Coroutine[T_Retval], *, context=None) -> T_Retval:
+            """Run a coroutine inside the embedded event loop."""
+            if not coroutines.iscoroutine(coro):
+                raise ValueError(f"a coroutine was expected, got {coro!r}")
+
+            if events._get_running_loop() is not None:
+                # fail fast with short traceback
+                raise RuntimeError(
+                    "Runner.run() cannot be called from a running event loop"
+                )
+
+            self._lazy_init()
+
+            if context is None:
+                context = self._context
+            task = self._loop.create_task(coro, context=context)
+
+            if (
+                threading.current_thread() is threading.main_thread()
+                and signal.getsignal(signal.SIGINT) is signal.default_int_handler
+            ):
+                sigint_handler = partial(self._on_sigint, main_task=task)
+                try:
+                    signal.signal(signal.SIGINT, sigint_handler)
+                except ValueError:
+                    # `signal.signal` may throw if `threading.main_thread` does
+                    # not support signals (e.g. embedded interpreter with signals
+                    # not registered - see gh-91880)
+                    sigint_handler = None
+            else:
+                sigint_handler = None
+
+            self._interrupt_count = 0
+            try:
+                return self._loop.run_until_complete(task)
+            except exceptions.CancelledError:
+                if self._interrupt_count > 0:
+                    uncancel = getattr(task, "uncancel", None)
+                    if uncancel is not None and uncancel() == 0:
+                        raise KeyboardInterrupt()
+                raise  # CancelledError
+            finally:
+                if (
+                    sigint_handler is not None
+                    and signal.getsignal(signal.SIGINT) is sigint_handler
+                ):
+                    signal.signal(signal.SIGINT, signal.default_int_handler)
+
+        def _lazy_init(self) -> None:
+            if self._state is _State.CLOSED:
+                raise RuntimeError("Runner is closed")
+            if self._state is _State.INITIALIZED:
+                return
+            if self._loop_factory is None:
+                self._loop = events.new_event_loop()
+                if not self._set_event_loop:
+                    # Call set_event_loop only once to avoid calling
+                    # attach_loop multiple times on child watchers
+                    events.set_event_loop(self._loop)
+                    self._set_event_loop = True
+            else:
+                self._loop = self._loop_factory()
+            if self._debug is not None:
+                self._loop.set_debug(self._debug)
+            self._context = contextvars.copy_context()
+            self._state = _State.INITIALIZED
+
+        def _on_sigint(self, signum, frame, main_task: asyncio.Task) -> None:
+            self._interrupt_count += 1
+            if self._interrupt_count == 1 and not main_task.done():
+                main_task.cancel()
+                # wakeup loop if it is blocked by select() with long timeout
+                self._loop.call_soon_threadsafe(lambda: None)
+                return
+            raise KeyboardInterrupt()
+
+    def _cancel_all_tasks(loop: AbstractEventLoop) -> None:
+        to_cancel = tasks.all_tasks(loop)
+        if not to_cancel:
+            return
+
+        for task in to_cancel:
+            task.cancel()
+
+        loop.run_until_complete(tasks.gather(*to_cancel, return_exceptions=True))
+
+        for task in to_cancel:
+            if task.cancelled():
+                continue
+            if task.exception() is not None:
+                loop.call_exception_handler(
+                    {
+                        "message": "unhandled exception during asyncio.run() shutdown",
+                        "exception": task.exception(),
+                        "task": task,
+                    }
+                )
+
+    async def _shutdown_default_executor(loop: AbstractEventLoop) -> None:
+        """Schedule the shutdown of the default executor."""
+
+        def _do_shutdown(future: asyncio.futures.Future) -> None:
+            try:
+                loop._default_executor.shutdown(wait=True)  # type: ignore[attr-defined]
+                loop.call_soon_threadsafe(future.set_result, None)
+            except Exception as ex:
+                loop.call_soon_threadsafe(future.set_exception, ex)
+
+        loop._executor_shutdown_called = True
+        if loop._default_executor is None:
+            return
+        future = loop.create_future()
+        thread = threading.Thread(target=_do_shutdown, args=(future,))
+        thread.start()
+        try:
+            await future
+        finally:
+            thread.join()
 
 
 T_Retval = TypeVar("T_Retval")
@@ -146,27 +329,6 @@ def _task_started(task: asyncio.Task) -> bool:
     except AttributeError:
         # task coro is async_genenerator_asend https://bugs.python.org/issue37771
         raise Exception(f"Cannot determine if task {task} has started or not")
-
-
-def _maybe_set_event_loop_policy(
-    policy: asyncio.AbstractEventLoopPolicy | None, use_uvloop: bool
-) -> None:
-    # On CPython, use uvloop when possible if no other policy has been given and if not
-    # explicitly disabled
-    if policy is None and use_uvloop and sys.implementation.name == "cpython":
-        try:
-            import uvloop
-        except ImportError:
-            pass
-        else:
-            # Test for missing shutdown_default_executor() (uvloop 0.14.0 and earlier)
-            if not hasattr(
-                asyncio.AbstractEventLoop, "shutdown_default_executor"
-            ) or hasattr(uvloop.loop.Loop, "shutdown_default_executor"):
-                policy = uvloop.EventLoopPolicy()
-
-    if policy is not None:
-        asyncio.set_event_loop_policy(policy)
 
 
 #
@@ -1641,73 +1803,40 @@ def _create_task_info(task: asyncio.Task) -> TaskInfo:
     return TaskInfo(id(task), parent_id, task.get_name(), task.get_coro())
 
 
-async def _shutdown_default_executor(loop: asyncio.BaseEventLoop) -> None:
-    """Schedule the shutdown of the default executor.
-    BaseEventLoop.shutdown_default_executor was introduced in Python 3.9.
-    This function is an adapted version of the method from Python 3.11.
-    It's used in TestRunner.close only if python < 3.9.
-    """
-
-    def _do_shutdown(
-        loop_: asyncio.BaseEventLoop, future: asyncio.futures.Future
-    ) -> None:
-        try:
-            loop_._default_executor.shutdown(wait=True)  # type: ignore[attr-defined]
-            loop_.call_soon_threadsafe(future.set_result, None)
-        except Exception as ex:
-            loop_.call_soon_threadsafe(future.set_exception, ex)
-
-    if loop._default_executor is None:  # type: ignore[attr-defined]
-        return
-    future = loop.create_future()
-    thread = threading.Thread(
-        target=_do_shutdown,
-        args=(
-            loop,
-            future,
-        ),
-    )
-    thread.start()
-    try:
-        await future
-    finally:
-        thread.join()
-
-
 class TestRunner(abc.TestRunner):
     _send_stream: MemoryObjectSendStream[tuple[Awaitable[Any], asyncio.Future[Any]]]
 
     def __init__(
         self,
-        debug: bool = False,
+        *,
+        debug: bool | None = None,
         use_uvloop: bool = False,
-        policy: asyncio.AbstractEventLoopPolicy | None = None,
-    ):
+        loop_factory: Callable[[], AbstractEventLoop] | None = None,
+    ) -> None:
+        if use_uvloop and loop_factory is None:
+            import uvloop
+
+            loop_factory = uvloop.new_event_loop
+
+        self._runner = Runner(debug=debug, loop_factory=loop_factory)
         self._exceptions: list[BaseException] = []
-        _maybe_set_event_loop_policy(policy, use_uvloop)
-        self._loop = asyncio.new_event_loop()
-        self._loop.set_debug(debug)
-        self._loop.set_exception_handler(self._exception_handler)
         self._runner_task: asyncio.Task | None = None
-        asyncio.set_event_loop(self._loop)
 
-    def _cancel_all_tasks(self) -> None:
-        to_cancel = all_tasks(self._loop)
-        if not to_cancel:
-            return
+    def __enter__(self) -> TestRunner:
+        self._runner.__enter__()
+        self.get_loop().set_exception_handler(self._exception_handler)
+        return self
 
-        for task in to_cancel:
-            task.cancel()
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self._runner.__exit__(exc_type, exc_val, exc_tb)
 
-        self._loop.run_until_complete(
-            asyncio.gather(*to_cancel, return_exceptions=True)
-        )
-
-        for task in to_cancel:
-            if task.cancelled():
-                continue
-            if task.exception() is not None:
-                raise cast(BaseException, task.exception())
+    def get_loop(self) -> AbstractEventLoop:
+        return self._runner.get_loop()
 
     def _exception_handler(
         self, loop: asyncio.AbstractEventLoop, context: dict[str, Any]
@@ -1752,35 +1881,35 @@ class TestRunner(abc.TestRunner):
             self._send_stream, receive_stream = create_memory_object_stream[
                 Tuple[Awaitable[Any], asyncio.Future]
             ](1)
-            self._runner_task = self._loop.create_task(
+            self._runner_task = self.get_loop().create_task(
                 self._run_tests_and_fixtures(receive_stream)
             )
 
         coro = func(*args, **kwargs)
-        future: asyncio.Future[T_Retval] = self._loop.create_future()
+        future: asyncio.Future[T_Retval] = self.get_loop().create_future()
         self._send_stream.send_nowait((coro, future))
         return await future
 
-    def close(self) -> None:
-        try:
-            if self._runner_task is not None:
-                self._runner_task = None
-                self._loop.run_until_complete(self._send_stream.aclose())
-                del self._send_stream
-
-            self._cancel_all_tasks()
-            self._loop.run_until_complete(self._loop.shutdown_asyncgens())
-            if hasattr(self._loop, "shutdown_default_executor"):
-                # asyncio in Python >= 3.9 or uvloop >= 0.15.0
-                self._loop.run_until_complete(self._loop.shutdown_default_executor())
-            elif isinstance(self._loop, asyncio.BaseEventLoop) and hasattr(
-                self._loop, "_default_executor"
-            ):
-                # asyncio in Python < 3.9
-                self._loop.run_until_complete(_shutdown_default_executor(self._loop))
-        finally:
-            asyncio.set_event_loop(None)
-            self._loop.close()
+    # def close(self) -> None:
+    #     try:
+    #         if self._runner_task is not None:
+    #             self._runner_task = None
+    #             self._loop.run_until_complete(self._send_stream.aclose())
+    #             del self._send_stream
+    #
+    #         self._cancel_all_tasks()
+    #         self._loop.run_until_complete(self._loop.shutdown_asyncgens())
+    #         if hasattr(self._loop, "shutdown_default_executor"):
+    #             # asyncio in Python >= 3.9 or uvloop >= 0.15.0
+    #             self._loop.run_until_complete(self._loop.shutdown_default_executor())
+    #         elif isinstance(self._loop, asyncio.BaseEventLoop) and hasattr(
+    #             self._loop, "_default_executor"
+    #         ):
+    #             # asyncio in Python < 3.9
+    #             self._loop.run_until_complete(_shutdown_default_executor(self._loop))
+    #     finally:
+    #         asyncio.set_event_loop(None)
+    #         self._loop.close()
 
     def run_asyncgen_fixture(
         self,
@@ -1788,7 +1917,7 @@ class TestRunner(abc.TestRunner):
         kwargs: dict[str, Any],
     ) -> Iterable[T_Retval]:
         asyncgen = fixture_func(**kwargs)
-        fixturevalue: T_Retval = self._loop.run_until_complete(
+        fixturevalue: T_Retval = self.get_loop().run_until_complete(
             self._call_in_runner_task(asyncgen.asend, None)
         )
         self._raise_async_exceptions()
@@ -1796,13 +1925,13 @@ class TestRunner(abc.TestRunner):
         yield fixturevalue
 
         try:
-            self._loop.run_until_complete(
+            self.get_loop().run_until_complete(
                 self._call_in_runner_task(asyncgen.asend, None)
             )
         except StopAsyncIteration:
             self._raise_async_exceptions()
         else:
-            self._loop.run_until_complete(asyncgen.aclose())
+            self.get_loop().run_until_complete(asyncgen.aclose())
             raise RuntimeError("Async generator fixture did not stop")
 
     def run_fixture(
@@ -1810,7 +1939,7 @@ class TestRunner(abc.TestRunner):
         fixture_func: Callable[..., Coroutine[Any, Any, T_Retval]],
         kwargs: dict[str, Any],
     ) -> T_Retval:
-        retval = self._loop.run_until_complete(
+        retval = self.get_loop().run_until_complete(
             self._call_in_runner_task(fixture_func, **kwargs)
         )
         self._raise_async_exceptions()
@@ -1820,7 +1949,7 @@ class TestRunner(abc.TestRunner):
         self, test_func: Callable[..., Coroutine[Any, Any, Any]], kwargs: dict[str, Any]
     ) -> None:
         try:
-            self._loop.run_until_complete(
+            self.get_loop().run_until_complete(
                 self._call_in_runner_task(test_func, **kwargs)
             )
         except Exception as exc:
@@ -1850,9 +1979,8 @@ class AsyncIOBackend(AsyncBackend):
                 del _task_states[task]
 
         debug = options.get("debug", False)
-        policy = options.get("policy", None)
-        use_uvloop = options.get("use_uvloop", False)
-        _maybe_set_event_loop_policy(policy, use_uvloop)
+        options.get("loop_factory", None)
+        options.get("use_uvloop", False)
         return native_run(wrapper(), debug=debug)
 
     @classmethod
