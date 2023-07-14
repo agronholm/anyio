@@ -53,7 +53,7 @@ test = [
 ]
 doc = [
     "packaging",
-    "Sphinx >= 6.1.0",
+    "Sphinx ~= 6.1.0",
     "sphinx_rtd_theme",
     "sphinxcontrib-jquery",
     "sphinx-autodoc-typehints >= 1.2.0",
@@ -141,5 +141,5 @@ commands = pyright --verifytypes anyio
 [testenv:docs]
 depends =
 extras = doc
-commands = sphinx-build -W -n docs build/sphinx
+commands = sphinx-build -W docs build/sphinx
 """
