@@ -494,8 +494,10 @@ class TaskGroup(abc.TaskGroup):
         ignore_exception = self.cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         if exc_val is not None:
             self.cancel_scope.cancel()
-            self._exceptions.append(exc_val)
+            if not isinstance(exc_val, CancelledError):
+                self._exceptions.append(exc_val)
 
+        cancelled_exc_while_waiting_tasks: CancelledError | None = None
         while self.cancel_scope._tasks:
             try:
                 await asyncio.wait(self.cancel_scope._tasks)
@@ -503,22 +505,20 @@ class TaskGroup(abc.TaskGroup):
                 # This task was cancelled natively; reraise the CancelledError later
                 # unless this task was already interrupted by another exception
                 self.cancel_scope.cancel()
-                if exc_val is None:
-                    exc_val = exc
-                    ignore_exception = False
-                    self._exceptions.append(exc)
+                if cancelled_exc_while_waiting_tasks is None:
+                    cancelled_exc_while_waiting_tasks = exc
 
         self._active = False
         if self._exceptions:
-            group = BaseExceptionGroup(
+            raise BaseExceptionGroup(
                 "unhandled errors in a TaskGroup", self._exceptions
             )
-            # Remove cancellation errors from the group
-            _, errors = group.split(CancelledError)
-            if errors is not None:
-                raise errors
-            elif exc_val is not None and not ignore_exception:
-                raise exc_val
+
+        # Raise the CancelledError received while waiting for child tasks to exit,
+        # unless the context manager itself was previously exited with another exception
+        if cancelled_exc_while_waiting_tasks:
+            if exc_val is None or ignore_exception:
+                raise cancelled_exc_while_waiting_tasks
 
         return ignore_exception
 
@@ -544,7 +544,9 @@ class TaskGroup(abc.TaskGroup):
 
             if exc is not None:
                 if task_status_future is None or task_status_future.done():
-                    self._exceptions.append(exc)
+                    if not isinstance(exc, CancelledError):
+                        self._exceptions.append(exc)
+
                     self.cancel_scope.cancel()
                 else:
                     task_status_future.set_exception(exc)
