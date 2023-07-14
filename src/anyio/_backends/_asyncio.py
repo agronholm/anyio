@@ -499,7 +499,7 @@ class TaskGroup(abc.TaskGroup):
         while self.cancel_scope._tasks:
             try:
                 await asyncio.wait(self.cancel_scope._tasks)
-            except asyncio.CancelledError as exc:
+            except CancelledError as exc:
                 # This task was cancelled natively; reraise the CancelledError later
                 # unless this task was already interrupted by another exception
                 self.cancel_scope.cancel()
