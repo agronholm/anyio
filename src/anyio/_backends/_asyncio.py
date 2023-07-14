@@ -513,6 +513,7 @@ class TaskGroup(abc.TaskGroup):
             group = BaseExceptionGroup(
                 "unhandled errors in a TaskGroup", self._exceptions
             )
+            # Remove cancellation errors from the group
             _, errors = group.split(CancelledError)
             if errors is not None:
                 raise errors
