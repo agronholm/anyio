@@ -46,7 +46,6 @@ from typing import (
     Collection,
     ContextManager,
     Coroutine,
-    Iterator,
     Mapping,
     Optional,
     Sequence,
@@ -460,18 +459,6 @@ def collapse_exception_group(excgroup: BaseExceptionGroup) -> BaseException:
         return excgroup.derive(exceptions)
     else:
         return excgroup
-
-
-def walk_exception_group(excgroup: BaseExceptionGroup) -> Iterator[BaseException]:
-    for exc in excgroup.exceptions:
-        if isinstance(exc, BaseExceptionGroup):
-            yield from walk_exception_group(exc)
-        else:
-            yield exc
-
-
-def is_anyio_cancelled_exc(exc: BaseException) -> bool:
-    return isinstance(exc, CancelledError) and not exc.args
 
 
 class TaskGroup(abc.TaskGroup):
