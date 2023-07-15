@@ -204,8 +204,7 @@ class CancelScope(BaseCancelScope):
         try:
             task_state = _task_states[host_task]
         except KeyError:
-            task_name = host_task.get_name()
-            task_state = TaskState(None, task_name, self)
+            task_state = TaskState(None, self)
             _task_states[host_task] = task_state
         else:
             self._parent_scope = task_state.cancel_scope
@@ -409,13 +408,10 @@ class TaskState:
     itself because there are no guarantees about its implementation.
     """
 
-    __slots__ = "parent_id", "name", "cancel_scope"
+    __slots__ = "parent_id", "cancel_scope"
 
-    def __init__(
-        self, parent_id: int | None, name: str | None, cancel_scope: CancelScope | None
-    ):
+    def __init__(self, parent_id: int | None, cancel_scope: CancelScope | None):
         self.parent_id = parent_id
-        self.name = name
         self.cancel_scope = cancel_scope
 
 
@@ -583,7 +579,7 @@ class TaskGroup(abc.TaskGroup):
 
         # Make the spawned task inherit the task group's cancel scope
         _task_states[task] = TaskState(
-            parent_id=parent_id, name=name, cancel_scope=self.cancel_scope
+            parent_id=parent_id, cancel_scope=self.cancel_scope
         )
         self.cancel_scope._tasks.add(task)
         return task
@@ -1638,13 +1634,11 @@ class _SignalReceiver:
 def _create_task_info(task: asyncio.Task) -> TaskInfo:
     task_state = _task_states.get(task)
     if task_state is None:
-        name: str | None = task.get_name()
         parent_id = None
     else:
-        name = task_state.name
         parent_id = task_state.parent_id
 
-    return TaskInfo(id(task), parent_id, name, task.get_coro())
+    return TaskInfo(id(task), parent_id, task.get_name(), task.get_coro())
 
 
 async def _shutdown_default_executor(loop: asyncio.BaseEventLoop) -> None:
@@ -1847,9 +1841,8 @@ class AsyncIOBackend(AsyncBackend):
         @wraps(func)
         async def wrapper() -> T_Retval:
             task = cast(asyncio.Task, current_task())
-            task_state = TaskState(None, get_callable_name(func), None)
-            _task_states[task] = task_state
-            task.set_name(task_state.name)
+            task.set_name(get_callable_name(func))
+            _task_states[task] = TaskState(None, None)
 
             try:
                 return await func(*args)
