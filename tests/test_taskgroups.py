@@ -1170,6 +1170,15 @@ class TestUncancel:
         task.uncancel()
 
 
+async def test_cancel_before_entering_task_group() -> None:
+    with CancelScope() as scope:
+        scope.cancel()
+        async with create_task_group():
+            pass
+
+        pytest.fail("Execution should never reach this point")
+
+
 class TestTaskStatusTyping:
     """
     These tests do not do anything at run time, but since the test suite is also checked
