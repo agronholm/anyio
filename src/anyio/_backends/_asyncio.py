@@ -1890,27 +1890,6 @@ class TestRunner(abc.TestRunner):
         self._send_stream.send_nowait((coro, future))
         return await future
 
-    # def close(self) -> None:
-    #     try:
-    #         if self._runner_task is not None:
-    #             self._runner_task = None
-    #             self._loop.run_until_complete(self._send_stream.aclose())
-    #             del self._send_stream
-    #
-    #         self._cancel_all_tasks()
-    #         self._loop.run_until_complete(self._loop.shutdown_asyncgens())
-    #         if hasattr(self._loop, "shutdown_default_executor"):
-    #             # asyncio in Python >= 3.9 or uvloop >= 0.15.0
-    #             self._loop.run_until_complete(self._loop.shutdown_default_executor())
-    #         elif isinstance(self._loop, asyncio.BaseEventLoop) and hasattr(
-    #             self._loop, "_default_executor"
-    #         ):
-    #             # asyncio in Python < 3.9
-    #             self._loop.run_until_complete(_shutdown_default_executor(self._loop))
-    #     finally:
-    #         asyncio.set_event_loop(None)
-    #         self._loop.close()
-
     def run_asyncgen_fixture(
         self,
         fixture_func: Callable[..., AsyncGenerator[T_Retval, Any]],
