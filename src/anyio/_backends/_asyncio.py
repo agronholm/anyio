@@ -499,11 +499,15 @@ class TaskGroup(abc.TaskGroup):
             )
 
         # Raise the CancelledError received while waiting for child tasks to exit,
-        # unless the context manager itself was previously exited with another exception
+        # unless the context manager itself was previously exited with another
+        # exception, or if any of the  child tasks raised an exception other than
+        # CancelledError
         if cancelled_exc_while_waiting_tasks:
             if exc_val is None or ignore_exception:
                 raise cancelled_exc_while_waiting_tasks
 
+        # Yield control to the event loop here to ensure that there is at least one
+        # yield point within __aexit__() (trio does the same)
         if not waited_for_tasks_to_finish:
             await AsyncIOBackend.checkpoint()
 
