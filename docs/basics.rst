@@ -54,27 +54,32 @@ native ``run()`` function of the backend library::
 
     trio.run(main)
 
+.. versionchanged:: 4.0.0
+    On the ``asyncio`` backend, ``anyio.run()`` now uses a back-ported version of
+    :class:`asyncio.Runner` on Pythons older than 3.11.
+
 .. _backend options:
 
 Backend specific options
 ------------------------
 
-Asyncio:
+**Asyncio**:
 
-* ``debug`` (``bool``, default=False): Enables `debug mode`_ in the event loop
+* options covered in the documentation of :class:`asyncio.Runner`
 * ``use_uvloop`` (``bool``, default=False): Use the faster uvloop_ event loop
-  implementation, if available
-* ``policy`` (``AbstractEventLoopPolicy``, default=None): the event loop policy instance
-  to use for creating a new event loop (overrides ``use_uvloop``)
+  implementation, if available (this is a shorthand for passing
+  ``loop_factory=uvloop.new_event_loop``, and is ignored if ``loop_factory`` is passed
+  a value other than ``None``)
 
-Trio: options covered in the
+**Trio**: options covered in the
 `official documentation
 <https://trio.readthedocs.io/en/stable/reference-core.html#trio.run>`_
 
-.. note:: The default value of ``use_uvloop`` was ``True`` before v3.2.0.
+.. versionchanged:: 3.2.0
+    The default value of ``use_uvloop`` was changed to ``False``.
+.. versionchanged:: 4.0.0
+    The ``policy`` option was replaced with ``loop_factory``.
 
-.. _debug mode:
-    https://docs.python.org/3/library/asyncio-eventloop.html#enabling-debug-mode
 .. _uvloop: https://pypi.org/project/uvloop/
 
 Using native async libraries
