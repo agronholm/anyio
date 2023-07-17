@@ -14,6 +14,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   arguments is deprecated as of Python 3.12
 - **BACKWARDS INCOMPATIBLE** Dropped support for spawning tasks from old-style coroutine
   functions (``@asyncio.coroutine``)
+- **BACKWARDS INCOMPATIBLE** The ``policy`` option on the ``asyncio`` backend was
+  changed to ``loop_factory`` to accommodate ``asyncio.Runner``
+- Changed ``anyio.run()`` to use ``asyncio.Runner`` (or a back-ported version of it on
+  Pythons older than 3.11) on the ``asyncio`` backend
 - Dropped support for Python 3.7
 - Added support for Python 3.12
 - Bumped minimum version of trio to v0.22
