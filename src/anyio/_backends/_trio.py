@@ -142,7 +142,7 @@ class CancelScope(BaseCancelScope):
 class TaskGroup(abc.TaskGroup):
     def __init__(self) -> None:
         self._active = False
-        self._nursery_manager = trio.open_nursery()
+        self._nursery_manager = trio.open_nursery(strict_exception_groups=True)
         self.cancel_scope = None  # type: ignore[assignment]
 
     async def __aenter__(self) -> TaskGroup:

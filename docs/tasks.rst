@@ -139,3 +139,22 @@ host task that will be copied, but the context of the task that calls
 :meth:`TaskGroup.start_soon() <.abc.TaskGroup.start_soon>`.
 
 .. _context: https://docs.python.org/3/library/contextvars.html
+
+Differences with asyncio.TaskGroup
+----------------------------------
+
+The :class:`asyncio.TaskGroup` class, added in Python 3.11, is very similar in design to
+the AnyIO :class:`~TaskGroup` class. The asyncio counterpart has some important
+differences in its semantics, however:
+
+* Tasks are spawned solely through :meth:`~asyncio.TaskGroup.create_task`; there is no
+  ``start()`` or ``start_soon()`` method
+* The :meth:`~asyncio.TaskGroup.create_task` method returns a task object which can be
+  awaited on (or cancelled)
+* Tasks spawned via :meth:`~asyncio.TaskGroup.create_task` can only be cancelled
+  individually (there is no ``cancel()`` method or similar in the task group)
+* When a task spawned via :meth:`~asyncio.TaskGroup.create_task` is cancelled before its
+  coroutine has started running, it will not get a chance to handle the cancellation
+  exception
+* :class:`asyncio.TaskGroup` does not allow starting new tasks after an exception in
+  one of the tasks has triggered a shutdown of the task group

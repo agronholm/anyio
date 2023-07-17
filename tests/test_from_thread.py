@@ -29,6 +29,9 @@ from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
 from anyio.lowlevel import checkpoint
 
+if sys.version_info < (3, 11):
+    from exceptiongroup import BaseExceptionGroup, ExceptionGroup
+
 pytestmark = pytest.mark.anyio
 
 T_Retval = TypeVar("T_Retval")
@@ -404,9 +407,12 @@ class TestBlockingPortal:
                 yield
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
-            with pytest.raises(ZeroDivisionError):
+            with pytest.raises(ExceptionGroup) as exc:
                 with portal.wrap_async_context_manager(run_in_context()):
                     pass
+
+            assert len(exc.value.exceptions) == 1
+            assert isinstance(exc.value.exceptions[0], ZeroDivisionError)
 
     def test_start_no_value(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
@@ -530,7 +536,7 @@ class TestBlockingPortal:
         async def raise_baseexception() -> None:
             raise BaseException("fatal error")
 
-        with pytest.raises(BaseException, match="fatal error"):
+        with pytest.raises(BaseExceptionGroup) as outer_exc:
             with start_blocking_portal(
                 anyio_backend_name, anyio_backend_options
             ) as portal:
@@ -538,6 +544,9 @@ class TestBlockingPortal:
                     portal.call(raise_baseexception)
 
                 assert exc.value.__context__ is None
+
+        assert len(outer_exc.value.exceptions) == 1
+        assert str(outer_exc.value.exceptions[0]) == "fatal error"
 
     @pytest.mark.parametrize("portal_backend_name", get_all_backends())
     async def test_from_async(
