@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from typing import NoReturn
 
 import pytest
@@ -17,6 +18,9 @@ from anyio import (
 )
 from anyio.abc import ObjectReceiveStream, ObjectSendStream
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 pytestmark = pytest.mark.anyio
 
@@ -172,20 +176,26 @@ async def test_clone_closed() -> None:
 
 async def test_close_send_while_receiving() -> None:
     send, receive = create_memory_object_stream[NoReturn](1)
-    with pytest.raises(EndOfStream):
+    with pytest.raises(ExceptionGroup) as exc:
         async with create_task_group() as tg:
             tg.start_soon(receive.receive)
             await wait_all_tasks_blocked()
             await send.aclose()
 
+    assert len(exc.value.exceptions) == 1
+    assert isinstance(exc.value.exceptions[0], EndOfStream)
+
 
 async def test_close_receive_while_sending() -> None:
     send, receive = create_memory_object_stream[str](0)
-    with pytest.raises(BrokenResourceError):
+    with pytest.raises(ExceptionGroup) as exc:
         async with create_task_group() as tg:
             tg.start_soon(send.send, "hello")
             await wait_all_tasks_blocked()
             await receive.aclose()
+
+    assert len(exc.value.exceptions) == 1
+    assert isinstance(exc.value.exceptions[0], BrokenResourceError)
 
 
 async def test_receive_after_send_closed() -> None:

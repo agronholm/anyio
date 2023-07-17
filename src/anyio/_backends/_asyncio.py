@@ -46,7 +46,6 @@ from typing import (
     Collection,
     ContextManager,
     Coroutine,
-    Iterator,
     Mapping,
     Optional,
     Sequence,
@@ -620,18 +619,6 @@ def collapse_exception_group(excgroup: BaseExceptionGroup) -> BaseException:
         return excgroup
 
 
-def walk_exception_group(excgroup: BaseExceptionGroup) -> Iterator[BaseException]:
-    for exc in excgroup.exceptions:
-        if isinstance(exc, BaseExceptionGroup):
-            yield from walk_exception_group(exc)
-        else:
-            yield exc
-
-
-def is_anyio_cancelled_exc(exc: BaseException) -> bool:
-    return isinstance(exc, CancelledError) and not exc.args
-
-
 class TaskGroup(abc.TaskGroup):
     def __init__(self) -> None:
         self.cancel_scope: CancelScope = CancelScope()
@@ -652,33 +639,39 @@ class TaskGroup(abc.TaskGroup):
         ignore_exception = self.cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         if exc_val is not None:
             self.cancel_scope.cancel()
-            self._exceptions.append(exc_val)
+            if not isinstance(exc_val, CancelledError):
+                self._exceptions.append(exc_val)
 
+        cancelled_exc_while_waiting_tasks: CancelledError | None = None
+        waited_for_tasks_to_finish = bool(self.cancel_scope._tasks)
         while self.cancel_scope._tasks:
             try:
                 await asyncio.wait(self.cancel_scope._tasks)
-            except asyncio.CancelledError:
+            except CancelledError as exc:
+                # This task was cancelled natively; reraise the CancelledError later
+                # unless this task was already interrupted by another exception
                 self.cancel_scope.cancel()
+                if cancelled_exc_while_waiting_tasks is None:
+                    cancelled_exc_while_waiting_tasks = exc
 
         self._active = False
         if self._exceptions:
-            exc: BaseException | None
-            group = BaseExceptionGroup("multiple tasks failed", self._exceptions)
-            if not self.cancel_scope._parent_cancelled():
-                # If any exceptions other than AnyIO cancellation exceptions have been
-                # received, raise those
-                _, exc = group.split(is_anyio_cancelled_exc)
-            elif all(is_anyio_cancelled_exc(e) for e in walk_exception_group(group)):
-                # All tasks were cancelled by AnyIO
-                exc = CancelledError()
-            else:
-                exc = group
+            raise BaseExceptionGroup(
+                "unhandled errors in a TaskGroup", self._exceptions
+            )
 
-            if isinstance(exc, BaseExceptionGroup):
-                exc = collapse_exception_group(exc)
+        # Raise the CancelledError received while waiting for child tasks to exit,
+        # unless the context manager itself was previously exited with another
+        # exception, or if any of the  child tasks raised an exception other than
+        # CancelledError
+        if cancelled_exc_while_waiting_tasks:
+            if exc_val is None or ignore_exception:
+                raise cancelled_exc_while_waiting_tasks
 
-            if exc is not None and exc is not exc_val:
-                raise exc
+        # Yield control to the event loop here to ensure that there is at least one
+        # yield point within __aexit__() (trio does the same)
+        if not waited_for_tasks_to_finish:
+            await AsyncIOBackend.checkpoint()
 
         return ignore_exception
 
@@ -704,7 +697,9 @@ class TaskGroup(abc.TaskGroup):
 
             if exc is not None:
                 if task_status_future is None or task_status_future.done():
-                    self._exceptions.append(exc)
+                    if not isinstance(exc, CancelledError):
+                        self._exceptions.append(exc)
+
                     self.cancel_scope.cancel()
                 else:
                     task_status_future.set_exception(exc)
