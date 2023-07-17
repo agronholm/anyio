@@ -54,6 +54,10 @@ native ``run()`` function of the backend library::
 
     trio.run(main)
 
+.. versionchanged:: 4.0.0
+    On the ``asyncio`` backend, ``anyio.run()`` now uses a back-ported version of
+    :class:`asyncio.Runner` on Pythons older than 3.11.
+
 .. _backend options:
 
 Backend specific options
