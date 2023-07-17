@@ -544,6 +544,10 @@ class CancelScope(BaseCancelScope):
             self._timeout()
 
     @property
+    def deadline_reached(self) -> bool:
+        return self._timeout_expired
+
+    @property
     def cancel_called(self) -> bool:
         return self._cancel_called
 

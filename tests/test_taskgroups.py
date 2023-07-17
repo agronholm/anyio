@@ -467,11 +467,26 @@ async def test_fail_after_after_cancellation() -> None:
     assert not block_complete
 
 
+async def test_fail_after_cancelled_before_deadline() -> None:
+    """
+    Test that fail_after() won't raise TimeoutError if its scope is cancelled before the
+    deadline.
+
+    """
+    with fail_after(1) as scope:
+        scope.cancel()
+        await checkpoint()
+
+
 @pytest.mark.parametrize("delay", [0, 0.1], ids=["instant", "delayed"])
 async def test_move_on_after(delay: float) -> None:
     result = False
     with move_on_after(delay) as scope:
-        await sleep(1)
+        try:
+            await sleep(1)
+        finally:
+            assert scope.deadline_reached
+
         result = True
 
     assert not result

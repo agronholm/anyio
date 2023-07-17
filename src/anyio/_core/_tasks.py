@@ -47,6 +47,11 @@ class CancelScope:
         raise NotImplementedError
 
     @property
+    def deadline_reached(self) -> bool:
+        """``True`` if this scope was cancelled due to the deadline being reached."""
+        raise NotImplementedError
+
+    @property
     def cancel_called(self) -> bool:
         """``True`` if :meth:`cancel` has been called."""
         raise NotImplementedError
@@ -91,7 +96,7 @@ class FailAfterContextManager:
         exc_tb: TracebackType | None,
     ) -> bool | None:
         retval = self._cancel_scope.__exit__(exc_type, exc_val, exc_tb)
-        if self._cancel_scope.cancel_called:
+        if self._cancel_scope.deadline_reached:
             raise TimeoutError
 
         return retval

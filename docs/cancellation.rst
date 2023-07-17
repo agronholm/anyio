@@ -46,8 +46,8 @@ Here's how you typically use timeouts::
                 await sleep(2)
                 print('This should never be printed')
 
-            # The cancel_called property will be True if timeout was reached
-            print('Exited cancel scope, cancelled =', scope.cancel_called)
+            # The deadline_reached property will be True if a timeout occurred
+            print('Exited cancel scope, deadline reached =', scope.deadline_reached)
 
     run(main)
 

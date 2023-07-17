@@ -115,6 +115,13 @@ class CancelScope(BaseCancelScope):
         self.__original.deadline = value
 
     @property
+    def deadline_reached(self) -> bool:
+        return (
+            self.__original.cancel_called
+            and trio.current_time() >= self.__original.deadline
+        )
+
+    @property
     def cancel_called(self) -> bool:
         return self.__original.cancel_called
 
