@@ -3,6 +3,7 @@ from __future__ import annotations
 import array
 import math
 import socket
+import sys
 import types
 from collections.abc import AsyncIterator, Iterable
 from concurrent.futures import Future
@@ -61,6 +62,9 @@ from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend
 from ..streams.memory import MemoryObjectSendStream
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import BaseExceptionGroup
 
 T = TypeVar("T")
 T_Retval = TypeVar("T_Retval")
@@ -152,6 +156,13 @@ class TaskGroup(abc.TaskGroup):
     ) -> bool | None:
         try:
             return await self._nursery_manager.__aexit__(exc_type, exc_val, exc_tb)
+        except BaseExceptionGroup as exc:
+            _, rest = exc.split(trio.Cancelled)
+            if not rest:
+                cancelled_exc = trio.Cancelled._create()  # type: ignore [attr-defined]
+                raise cancelled_exc from exc
+
+            raise
         finally:
             self._active = False
 

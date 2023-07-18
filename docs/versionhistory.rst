@@ -16,6 +16,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     tasks were spawned and an outer cancellation scope had been cancelled before
   - Ensured that exiting a ``TaskGroup`` always hits a yield point, regardless of
     whether there are running child tasks to be waited on
+  - Task groups on all backends now raise a single cancellation exception when an outer
+    cancel scope is cancelled, and no exceptions other than cancellation exceptions are
+    raised in the group
 - **BACKWARDS INCOMPATIBLE** Changes the pytest plugin to run all tests and fixtures in
   the same task, allowing fixtures to set context variables for tests and other fixtures
 - **BACKWARDS INCOMPATIBLE** Changed ``anyio.Path.relative_to()`` and

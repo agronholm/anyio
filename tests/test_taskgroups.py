@@ -1094,6 +1094,28 @@ def test_unhandled_exception_group(caplog: pytest.LogCaptureFixture) -> None:
     assert not caplog.messages
 
 
+async def test_single_cancellation_exc() -> None:
+    """
+    Test that only a single cancellation exception bubbles out of the task group when
+    case it was cancelled via an outer scope and no actual errors were raised.
+
+    """
+    with CancelScope() as outer:
+        try:
+            async with create_task_group() as tg:
+                tg.start_soon(sleep, 5)
+                await wait_all_tasks_blocked()
+                outer.cancel()
+                await sleep(5)
+        except BaseException as exc:
+            if isinstance(exc, get_cancelled_exc_class()):
+                raise
+
+            pytest.fail(f"Raised the wrong type of exception: {exc}")
+        else:
+            pytest.fail("Did not raise a cancellation exception")
+
+
 async def test_start_soon_parent_id() -> None:
     root_task_id = get_current_task().id
     parent_id: int | None = None
