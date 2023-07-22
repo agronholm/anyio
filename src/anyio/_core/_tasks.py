@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Generator
+from contextlib import contextmanager
 from types import TracebackType
 
 from ..abc._tasks import TaskGroup, TaskStatus
@@ -48,7 +50,11 @@ class CancelScope:
 
     @property
     def deadline_reached(self) -> bool:
-        """``True`` if this scope was cancelled due to the deadline being reached."""
+        """
+        ``True`` if this scope has caught a cancellation exception that was raised due
+        to the deadline being reached.
+
+        """
         raise NotImplementedError
 
     @property
@@ -82,27 +88,10 @@ class CancelScope:
         raise NotImplementedError
 
 
-class FailAfterContextManager:
-    def __init__(self, cancel_scope: CancelScope):
-        self._cancel_scope = cancel_scope
-
-    def __enter__(self) -> CancelScope:
-        return self._cancel_scope.__enter__()
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> bool | None:
-        retval = self._cancel_scope.__exit__(exc_type, exc_val, exc_tb)
-        if self._cancel_scope.deadline_reached:
-            raise TimeoutError
-
-        return retval
-
-
-def fail_after(delay: float | None, shield: bool = False) -> FailAfterContextManager:
+@contextmanager
+def fail_after(
+    delay: float | None, shield: bool = False
+) -> Generator[CancelScope, None, None]:
     """
     Create a context manager which raises a :class:`TimeoutError` if does not finish in
     time.
@@ -117,10 +106,13 @@ def fail_after(delay: float | None, shield: bool = False) -> FailAfterContextMan
     deadline = (
         (get_async_backend().current_time() + delay) if delay is not None else math.inf
     )
-    cancel_scope = get_async_backend().create_cancel_scope(
+    with get_async_backend().create_cancel_scope(
         deadline=deadline, shield=shield
-    )
-    return FailAfterContextManager(cancel_scope)
+    ) as cancel_scope:
+        yield cancel_scope
+
+    if cancel_scope.deadline_reached:
+        raise TimeoutError
 
 
 def move_on_after(delay: float | None, shield: bool = False) -> CancelScope:

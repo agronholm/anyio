@@ -430,6 +430,7 @@ class CancelScope(BaseCancelScope):
                     # This scope was directly cancelled
                     return self._uncancel()
 
+        self._timeout_expired = False
         return None
 
     def _uncancel(self) -> bool:
@@ -544,7 +545,7 @@ class CancelScope(BaseCancelScope):
 
     @property
     def deadline_reached(self) -> bool:
-        return self._timeout_expired
+        return self._timeout_expired and not self._active
 
     @property
     def cancel_called(self) -> bool:
