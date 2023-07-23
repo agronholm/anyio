@@ -327,7 +327,7 @@ def _task_started(task: asyncio.Task) -> bool:
         return getcoroutinestate(task.get_coro()) in (CORO_RUNNING, CORO_SUSPENDED)
     except AttributeError:
         # task coro is async_genenerator_asend https://bugs.python.org/issue37771
-        raise Exception(f"Cannot determine if task {task} has started or not")
+        raise Exception(f"Cannot determine if task {task} has started or not") from None
 
 
 #
@@ -1106,7 +1106,7 @@ class SocketStream(abc.SocketStream):
                 if self._closed:
                     raise ClosedResourceError from None
                 elif self._protocol.exception:
-                    raise self._protocol.exception
+                    raise self._protocol.exception from None
                 else:
                     raise EndOfStream from None
 
