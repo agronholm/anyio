@@ -28,6 +28,8 @@ jobs:
           pip install anyio@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
       - name: Run tests
         run: scripts/test
+      - name: Enforce coverage
+        run: scripts/coverage
 
   httpcore:
     name: "Httpcore on Python ${{ matrix.python-version }}"
@@ -52,3 +54,5 @@ jobs:
           pip install anyio@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
       - name: Run tests
         run: scripts/test
+      - name: Enforce coverage
+        run: scripts/coverage
