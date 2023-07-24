@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from types import TracebackType
 
 from ..abc._tasks import TaskGroup, TaskStatus
-from ._eventloop import get_async_backend
+from ._eventloop import current_time, get_async_backend
 
 
 class _IgnoredTaskStatus(TaskStatus[object]):
@@ -49,17 +49,21 @@ class CancelScope:
         raise NotImplementedError
 
     @property
-    def deadline_reached(self) -> bool:
-        """
-        ``True`` if this scope has caught a cancellation exception that was raised due
-        to the deadline being reached.
-
-        """
+    def cancel_called(self) -> bool:
+        """``True`` if :meth:`cancel` has been called."""
         raise NotImplementedError
 
     @property
-    def cancel_called(self) -> bool:
-        """``True`` if :meth:`cancel` has been called."""
+    def cancelled_caught(self) -> bool:
+        """
+        ``True`` if this scope suppressed a cancellation exception it itself raised.
+
+        This is typically used to check if any work was interrupted, or to see if the
+        scope was cancelled due to its deadline being reached. The value will, however,
+        only be ``True`` if the cancellation was triggered by the scope itself (and not
+        an outer scope).
+
+        """
         raise NotImplementedError
 
     @property
@@ -111,7 +115,7 @@ def fail_after(
     ) as cancel_scope:
         yield cancel_scope
 
-    if cancel_scope.deadline_reached:
+    if cancel_scope.cancelled_caught and current_time() >= cancel_scope.deadline:
         raise TimeoutError
 
 

@@ -46,17 +46,14 @@ Here's how you typically use timeouts::
                 await sleep(2)
                 print('This should never be printed')
 
-            # The deadline_reached property will be True if a timeout occurred
-            print('Exited cancel scope, deadline reached =', scope.deadline_reached)
+            # The cancelled_caught property will be True if timeout was reached
+            print('Exited cancel scope, cancelled =', scope.cancelled_caught)
 
     run(main)
 
-.. warning:: On Trio, there is a known issue where explicitly cancelling a cancel scope
-    with a deadline can lead to :exc:`TimeoutError` being erronously raised from
-    the :func:`fail_after` context manager if the manual cancellation happens before the
-    deadline is reached, but exiting from the context block is delayed long enough for'
-    the deadline timer to go off. See the relevant
-    `Trio issue <https://github.com/python-trio/trio/issues/698>`_ for details.
+.. note:: It's recommended not to directly cancel a scope from :func:`~fail_after`, as
+    that may currently result in :exc:`TimeoutError` being erroneously raised if exiting
+    the scope is delayed long enough for the deadline to be exceeded.
 
 Shielding
 ---------
