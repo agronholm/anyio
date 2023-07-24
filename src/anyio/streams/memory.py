@@ -10,7 +10,6 @@ from .. import (
     ClosedResourceError,
     EndOfStream,
     WouldBlock,
-    get_cancelled_exc_class,
 )
 from ..abc import Event, ObjectReceiveStream, ObjectSendStream
 from ..lowlevel import checkpoint
@@ -104,11 +103,6 @@ class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
 
             try:
                 await receive_event.wait()
-            except get_cancelled_exc_class():
-                # Ignore the immediate cancellation if we already received an item, so
-                # as not to lose it
-                if not container:
-                    raise
             finally:
                 self._state.waiting_receivers.pop(receive_event, None)
 

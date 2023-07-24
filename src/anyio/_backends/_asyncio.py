@@ -468,8 +468,10 @@ class CancelScope(BaseCancelScope):
                 if task is not current and (
                     task is self._host_task or _task_started(task)
                 ):
-                    self._cancel_calls += 1
-                    task.cancel()
+                    waiter = task._fut_waiter  # type: ignore[attr-defined]
+                    if not isinstance(waiter, asyncio.Future) or not waiter.done():
+                        self._cancel_calls += 1
+                        task.cancel()
 
         # Schedule another callback if there are still tasks left
         if should_retry:
