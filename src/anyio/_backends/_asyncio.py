@@ -417,17 +417,9 @@ class CancelScope(BaseCancelScope):
         if self._shield:
             self._deliver_cancellation_to_parent()
 
-        if isinstance(exc_val, CancelledError):
-            if self._timeout_expired:
-                self._cancelled_caught = self._uncancel()
-                return self._cancelled_caught
-            elif not self._cancel_called:
-                # Task was cancelled natively
-                return None
-            elif not self._parent_cancelled():
-                # This scope was directly cancelled
-                self._cancelled_caught = self._uncancel()
-                return self._cancelled_caught
+        if isinstance(exc_val, CancelledError) and self._cancel_called:
+            self._cancelled_caught = self._uncancel()
+            return self._cancelled_caught
 
         return None
 
