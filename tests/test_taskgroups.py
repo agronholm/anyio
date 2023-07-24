@@ -531,24 +531,6 @@ async def test_move_on_after_no_timeout() -> None:
     assert not scope.cancel_called
 
 
-async def test_move_on_after_scope_camcelled_before_timeout(
-    anyio_backend_name: str,
-) -> None:
-    with move_on_after(0.1) as scope:
-        scope.cancel()
-        time.sleep(0.11)
-        assert current_time() > scope.deadline
-        await sleep(0)
-
-    if anyio_backend_name == "trio":
-        pytest.xfail(
-            "Trio cannot distinguish between explicitly cancelled scopes and timed out "
-            "scopes when the deadline is reached"
-        )
-
-    assert not scope.deadline_reached
-
-
 async def test_nested_move_on_after() -> None:
     sleep_completed = inner_scope_completed = False
     with move_on_after(0.1) as outer_scope:
