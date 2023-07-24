@@ -459,6 +459,7 @@ async def test_fail_after(delay: float) -> None:
             await sleep(1)
 
     assert scope.cancel_called
+    assert scope.cancelled_caught
 
 
 async def test_fail_after_no_timeout() -> None:
@@ -467,6 +468,7 @@ async def test_fail_after_no_timeout() -> None:
         await sleep(0.1)
 
     assert not scope.cancel_called
+    assert not scope.cancelled_caught
 
 
 async def test_fail_after_after_cancellation() -> None:
@@ -484,6 +486,28 @@ async def test_fail_after_after_cancellation() -> None:
     assert not block_complete
 
 
+async def test_fail_after_cancelled_before_deadline() -> None:
+    """
+    Test that fail_after() won't raise TimeoutError if its scope is cancelled before the
+    deadline.
+
+    """
+    with fail_after(1) as scope:
+        scope.cancel()
+        await checkpoint()
+
+
+@pytest.mark.xfail(
+    reason="There is currently no way to tell if cancellation happened due to timeout "
+    "explicitly if the deadline has been exceeded"
+)
+async def test_fail_after_scope_camcelled_before_timeout() -> None:
+    with fail_after(0.1) as scope:
+        scope.cancel()
+        time.sleep(0.11)
+        await sleep(0)
+
+
 @pytest.mark.parametrize("delay", [0, 0.1], ids=["instant", "delayed"])
 async def test_move_on_after(delay: float) -> None:
     result = False
@@ -493,6 +517,7 @@ async def test_move_on_after(delay: float) -> None:
 
     assert not result
     assert scope.cancel_called
+    assert scope.cancelled_caught
 
 
 async def test_move_on_after_no_timeout() -> None:
@@ -520,7 +545,9 @@ async def test_nested_move_on_after() -> None:
     assert not sleep_completed
     assert not inner_scope_completed
     assert outer_scope.cancel_called
+    assert outer_scope.cancelled_caught
     assert not inner_scope.cancel_called
+    assert not inner_scope.cancelled_caught
 
 
 async def test_shielding() -> None:
@@ -569,6 +596,14 @@ async def test_cancel_shielded_scope() -> None:
 
         with pytest.raises(get_cancelled_exc_class()):
             await sleep(0)
+
+
+async def test_cancelled_not_caught() -> None:
+    with CancelScope() as scope:
+        scope.cancel()
+
+    assert scope.cancel_called
+    assert not scope.cancelled_caught
 
 
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
