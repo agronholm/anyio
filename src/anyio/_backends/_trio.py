@@ -119,6 +119,10 @@ class CancelScope(BaseCancelScope):
         return self.__original.cancel_called
 
     @property
+    def cancelled_caught(self) -> bool:
+        return self.__original.cancelled_caught
+
+    @property
     def shield(self) -> bool:
         return self.__original.shield
 

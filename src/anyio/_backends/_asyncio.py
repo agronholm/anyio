@@ -90,7 +90,7 @@ else:
     import signal
     from asyncio import coroutines, events, exceptions, tasks
 
-    from exceptiongroup import BaseExceptionGroup, ExceptionGroup
+    from exceptiongroup import BaseExceptionGroup
 
     class _State(enum.Enum):
         CREATED = "created"
@@ -346,12 +346,12 @@ class CancelScope(BaseCancelScope):
         self._shield = shield
         self._parent_scope: CancelScope | None = None
         self._cancel_called = False
+        self._cancelled_caught = False
         self._active = False
         self._timeout_handle: asyncio.TimerHandle | None = None
         self._cancel_handle: asyncio.Handle | None = None
         self._tasks: set[asyncio.Task] = set()
         self._host_task: asyncio.Task | None = None
-        self._timeout_expired = False
         self._cancel_calls: int = 0
 
     def __enter__(self) -> CancelScope:
@@ -416,19 +416,9 @@ class CancelScope(BaseCancelScope):
         if self._shield:
             self._deliver_cancellation_to_parent()
 
-        if exc_val is not None:
-            exceptions = (
-                exc_val.exceptions if isinstance(exc_val, ExceptionGroup) else [exc_val]
-            )
-            if all(isinstance(exc, CancelledError) for exc in exceptions):
-                if self._timeout_expired:
-                    return self._uncancel()
-                elif not self._cancel_called:
-                    # Task was cancelled natively
-                    return None
-                elif not self._parent_cancelled():
-                    # This scope was directly cancelled
-                    return self._uncancel()
+        if isinstance(exc_val, CancelledError) and self._cancel_called:
+            self._cancelled_caught = self._uncancel()
+            return self._cancelled_caught
 
         return None
 
@@ -448,7 +438,6 @@ class CancelScope(BaseCancelScope):
         if self._deadline != math.inf:
             loop = get_running_loop()
             if loop.time() >= self._deadline:
-                self._timeout_expired = True
                 self.cancel()
             else:
                 self._timeout_handle = loop.call_at(self._deadline, self._timeout)
@@ -545,6 +534,10 @@ class CancelScope(BaseCancelScope):
     @property
     def cancel_called(self) -> bool:
         return self._cancel_called
+
+    @property
+    def cancelled_caught(self) -> bool:
+        return self._cancelled_caught
 
     @property
     def shield(self) -> bool:
