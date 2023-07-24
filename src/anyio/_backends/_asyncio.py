@@ -1600,8 +1600,10 @@ class Event(BaseEvent):
         return self._event.is_set()
 
     async def wait(self) -> None:
-        if await self._event.wait():
+        if self.is_set():
             await AsyncIOBackend.checkpoint()
+        else:
+            await self._event.wait()
 
     def statistics(self) -> EventStatistics:
         return EventStatistics(len(self._event._waiters))  # type: ignore[attr-defined]
