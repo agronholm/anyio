@@ -115,15 +115,6 @@ class CancelScope(BaseCancelScope):
         self.__original.deadline = value
 
     @property
-    def deadline_reached(self) -> bool:
-        # If exiting the scope is delayed long enough after manual cancellation,
-        # it's impossible to distinguish between a timeout and a manual cancellation
-        return (
-            self.__original.cancelled_caught
-            and trio.current_time() >= self.__original.deadline
-        )
-
-    @property
     def cancel_called(self) -> bool:
         return self.__original.cancel_called
 
