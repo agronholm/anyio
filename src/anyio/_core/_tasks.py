@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from types import TracebackType
 
 from ..abc._tasks import TaskGroup, TaskStatus
-from ._eventloop import current_time, get_async_backend
+from ._eventloop import get_async_backend
 
 
 class _IgnoredTaskStatus(TaskStatus[object]):
@@ -107,9 +107,8 @@ def fail_after(
     :rtype: :class:`~typing.ContextManager`\\[:class:`~anyio.CancelScope`\\]
 
     """
-    deadline = (
-        (get_async_backend().current_time() + delay) if delay is not None else math.inf
-    )
+    current_time = get_async_backend().current_time
+    deadline = (current_time() + delay) if delay is not None else math.inf
     with get_async_backend().create_cancel_scope(
         deadline=deadline, shield=shield
     ) as cancel_scope:
