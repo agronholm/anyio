@@ -40,6 +40,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   scope suppressed a cancellation exception
 - Fixed ``fail_after()`` raising an unwarranted ``TimeoutError`` when the cancel scope
   was cancelled before reaching its deadline
+- Removed unnecessary extra waiting cycle in ``Event.wait()`` on asyncio in the case
+  where the event was not yet set
 
 **3.7.1**
 
