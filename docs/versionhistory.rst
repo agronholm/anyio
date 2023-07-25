@@ -16,6 +16,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     tasks were spawned and an outer cancellation scope had been cancelled before
   - Ensured that exiting a ``TaskGroup`` always hits a yield point, regardless of
     whether there are running child tasks to be waited on
+  - On asyncio, cancel scopes will defer cancelling tasks that are scheduled to resume
+    with a finished future
   - Task groups on all backends now raise a single cancellation exception when an outer
     cancel scope is cancelled, and no exceptions other than cancellation exceptions are
     raised in the group
@@ -40,6 +42,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   scope suppressed a cancellation exception
 - Fixed ``fail_after()`` raising an unwarranted ``TimeoutError`` when the cancel scope
   was cancelled before reaching its deadline
+- Fixed ``MemoryObjectReceiveStream.receive()`` causing the receiving task on asyncio to
+  remain in a cancelled state if the operation was cancelled after an item was queued to
+  be received by the task (but before the task could actually receive the item)
 - Removed unnecessary extra waiting cycle in ``Event.wait()`` on asyncio in the case
   where the event was not yet set
 
