@@ -259,6 +259,34 @@ async def test_start_exception_delivery(anyio_backend_name: str) -> None:
             await tg.start(task_fn)  # type: ignore[arg-type]
 
 
+async def test_start_cancel_after_error(anyio_backend_name: str) -> None:
+    """Regression test for #517."""
+    if anyio_backend_name == "asyncio":
+        pytest.xfail("Known issue with the asyncio backend")
+
+    sleep_completed = False
+
+    async def sleep_and_raise() -> None:
+        await wait_all_tasks_blocked()
+        raise RuntimeError("This should cancel the second start() call")
+
+    async def sleep_only(task_status: TaskStatus[None]) -> None:
+        nonlocal sleep_completed
+        await sleep(1)
+        sleep_completed = True
+        task_status.started()
+
+    with pytest.raises(ExceptionGroup) as exc:
+        async with anyio.create_task_group() as outer_tg:
+            async with anyio.create_task_group() as inner_tg:
+                inner_tg.start_soon(sleep_and_raise)
+                await outer_tg.start(sleep_only)
+
+    assert isinstance(exc.value.exceptions[0], ExceptionGroup)
+    assert isinstance(exc.value.exceptions[0].exceptions[0], RuntimeError)
+    assert not sleep_completed
+
+
 async def test_host_exception() -> None:
     result = None
 
