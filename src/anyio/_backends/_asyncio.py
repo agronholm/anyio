@@ -418,22 +418,23 @@ class CancelScope(BaseCancelScope):
             self._deliver_cancellation_to_parent()
 
         if isinstance(exc_val, CancelledError) and self._cancel_called:
-            self._cancelled_caught = self._uncancel()
+            self._cancelled_caught = self._uncancel(exc_val)
             return self._cancelled_caught
 
         return None
 
-    def _uncancel(self) -> bool:
-        if sys.version_info < (3, 11) or self._host_task is None:
+    def _uncancel(self, cancelled_exc: CancelledError) -> bool:
+        if sys.version_info < (3, 9) or self._host_task is None:
             self._cancel_calls = 0
             return True
 
         # Uncancel all AnyIO cancellations
-        for i in range(self._cancel_calls):
-            self._host_task.uncancel()
+        if sys.version_info >= (3, 11):
+            for i in range(self._cancel_calls):
+                self._host_task.uncancel()
 
         self._cancel_calls = 0
-        return not self._host_task.cancelling()
+        return f"Cancelled by cancel scope {id(self):x}" in cancelled_exc.args
 
     def _timeout(self) -> None:
         if self._deadline != math.inf:
@@ -472,7 +473,10 @@ class CancelScope(BaseCancelScope):
                     waiter = task._fut_waiter  # type: ignore[attr-defined]
                     if not isinstance(waiter, asyncio.Future) or not waiter.done():
                         self._cancel_calls += 1
-                        task.cancel()
+                        if sys.version_info >= (3, 9):
+                            task.cancel(f"Cancelled by cancel scope {id(self):x}")
+                        else:
+                            task.cancel()
 
         # Schedule another callback if there are still tasks left
         if should_retry:

@@ -18,6 +18,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     whether there are running child tasks to be waited on
   - On asyncio, cancel scopes will defer cancelling tasks that are scheduled to resume
     with a finished future
+  - On asyncio and Python 3.9 or later, cancel scopes now only suppress cancellation
+    exceptions if the cancel message matches the scope
   - Task groups on all backends now raise a single cancellation exception when an outer
     cancel scope is cancelled, and no exceptions other than cancellation exceptions are
     raised in the group
