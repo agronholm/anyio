@@ -18,6 +18,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     whether there are running child tasks to be waited on
   - On asyncio, cancel scopes will defer cancelling tasks that are scheduled to resume
     with a finished future
+  - On asyncio and Python 3.9 or later, cancel scopes now only suppress cancellation
+    exceptions if the cancel message matches the scope
   - Task groups on all backends now raise a single cancellation exception when an outer
     cancel scope is cancelled, and no exceptions other than cancellation exceptions are
     raised in the group
@@ -45,6 +47,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``MemoryObjectReceiveStream.receive()`` causing the receiving task on asyncio to
   remain in a cancelled state if the operation was cancelled after an item was queued to
   be received by the task (but before the task could actually receive the item)
+- Fixed ``TaskGroup.start()`` on asyncio not responding to cancellation from the outside
 - Fixed tasks started from ``BlockingPortal`` not notifying synchronous listeners
   (``concurrent.futures.wait()``) when they're cancelled
 - Removed unnecessary extra waiting cycle in ``Event.wait()`` on asyncio in the case

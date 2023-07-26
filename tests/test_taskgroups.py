@@ -198,6 +198,9 @@ async def test_start_native_host_cancelled() -> None:
         async with create_task_group() as tg:
             await tg.start(taskfunc)
 
+    if sys.version_info < (3, 9):
+        pytest.xfail("Requires a way to detect cancellation source")
+
     task = asyncio.get_running_loop().create_task(start_another())
     await wait_all_tasks_blocked()
     task.cancel()
@@ -259,11 +262,8 @@ async def test_start_exception_delivery(anyio_backend_name: str) -> None:
             await tg.start(task_fn)  # type: ignore[arg-type]
 
 
-async def test_start_cancel_after_error(anyio_backend_name: str) -> None:
+async def test_start_cancel_after_error() -> None:
     """Regression test for #517."""
-    if anyio_backend_name == "asyncio":
-        pytest.xfail("Known issue with the asyncio backend")
-
     sleep_completed = False
 
     async def sleep_and_raise() -> None:

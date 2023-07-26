@@ -21,6 +21,7 @@ from asyncio.base_events import _run_until_complete_cb  # type: ignore[attr-defi
 from collections import OrderedDict, deque
 from collections.abc import AsyncIterator, Iterable
 from concurrent.futures import Future
+from contextlib import suppress
 from contextvars import Context, copy_context
 from dataclasses import dataclass
 from functools import partial, wraps
@@ -417,22 +418,23 @@ class CancelScope(BaseCancelScope):
             self._deliver_cancellation_to_parent()
 
         if isinstance(exc_val, CancelledError) and self._cancel_called:
-            self._cancelled_caught = self._uncancel()
+            self._cancelled_caught = self._uncancel(exc_val)
             return self._cancelled_caught
 
         return None
 
-    def _uncancel(self) -> bool:
-        if sys.version_info < (3, 11) or self._host_task is None:
+    def _uncancel(self, cancelled_exc: CancelledError) -> bool:
+        if sys.version_info < (3, 9) or self._host_task is None:
             self._cancel_calls = 0
             return True
 
         # Uncancel all AnyIO cancellations
-        for i in range(self._cancel_calls):
-            self._host_task.uncancel()
+        if sys.version_info >= (3, 11):
+            for i in range(self._cancel_calls):
+                self._host_task.uncancel()
 
         self._cancel_calls = 0
-        return not self._host_task.cancelling()
+        return f"Cancelled by cancel scope {id(self):x}" in cancelled_exc.args
 
     def _timeout(self) -> None:
         if self._deadline != math.inf:
@@ -471,7 +473,10 @@ class CancelScope(BaseCancelScope):
                     waiter = task._fut_waiter  # type: ignore[attr-defined]
                     if not isinstance(waiter, asyncio.Future) or not waiter.done():
                         self._cancel_calls += 1
-                        task.cancel()
+                        if sys.version_info >= (3, 9):
+                            task.cancel(f"Cancelled by cancel scope {id(self):x}")
+                        else:
+                            task.cancel()
 
         # Schedule another callback if there are still tasks left
         if should_retry:
@@ -751,12 +756,15 @@ class TaskGroup(abc.TaskGroup):
         # point between, the task group is cancelled and this method never proceeds to
         # process the completed future. That's why we have to have a shielded cancel
         # scope here.
-        with CancelScope(shield=True):
-            try:
-                return await future
-            except CancelledError:
-                task.cancel()
-                raise
+        try:
+            return await future
+        except CancelledError:
+            # Cancel the task and wait for it to exit before returning
+            task.cancel()
+            with CancelScope(shield=True), suppress(CancelledError):
+                await task
+
+            raise
 
 
 #
