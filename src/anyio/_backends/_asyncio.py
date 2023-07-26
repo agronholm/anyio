@@ -754,6 +754,7 @@ class TaskGroup(abc.TaskGroup):
         try:
             return await future
         except CancelledError:
+            # Cancel the task and wait for it to exit before returning
             task.cancel()
             with CancelScope(shield=True):
                 try:
