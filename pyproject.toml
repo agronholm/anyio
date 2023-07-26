@@ -92,6 +92,7 @@ show_error_codes = true
 [tool.pytest.ini_options]
 addopts = "-rsx --tb=short --strict-config --strict-markers -p anyio -p no:asyncio -p no:trio"
 testpaths = ["tests"]
+xfail_strict = true
 # Ignore resource warnings due to a CPython/Windows bug (https://bugs.python.org/issue44428)
 filterwarnings = [
     "error",
