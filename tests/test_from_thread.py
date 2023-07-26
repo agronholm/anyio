@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import math
 import sys
 import threading
 import time
 from collections.abc import Awaitable, Callable
+from concurrent import futures
 from concurrent.futures import CancelledError
 from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
@@ -565,3 +567,22 @@ class TestBlockingPortal:
 
         with start_blocking_portal(portal_backend_name) as portal:
             portal.call(checkpoint)
+
+    async def test_cancel_portal_future(self) -> None:
+        """Regression test for #575."""
+        event = Event()
+
+        def sync_thread() -> None:
+            fs = [portal.start_task_soon(sleep, math.inf)]
+            from_thread.run_sync(event.set)
+            done, not_done = futures.wait(
+                fs, timeout=1, return_when=futures.FIRST_COMPLETED
+            )
+            assert not not_done
+
+        async with from_thread.BlockingPortal() as portal:
+            async with create_task_group() as tg:
+                tg.start_soon(to_thread.run_sync, sync_thread)
+                # Ensure thread has time to start the task
+                await event.wait()
+                await portal.stop(cancel_remaining=True)

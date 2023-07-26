@@ -198,6 +198,7 @@ class BlockingPortal:
                     retval = await retval
         except self._cancelled_exc_class:
             future.cancel()
+            future.set_running_or_notify_cancel()
         except BaseException as exc:
             if not future.cancelled():
                 future.set_exception(exc)
