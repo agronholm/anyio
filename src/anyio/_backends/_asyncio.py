@@ -751,12 +751,17 @@ class TaskGroup(abc.TaskGroup):
         # point between, the task group is cancelled and this method never proceeds to
         # process the completed future. That's why we have to have a shielded cancel
         # scope here.
-        with CancelScope(shield=True):
-            try:
-                return await future
-            except CancelledError:
-                task.cancel()
-                raise
+        try:
+            return await future
+        except CancelledError:
+            task.cancel()
+            with CancelScope(shield=True):
+                try:
+                    await task
+                except CancelledError:
+                    pass
+
+            raise
 
 
 #

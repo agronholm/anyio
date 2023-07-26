@@ -259,11 +259,8 @@ async def test_start_exception_delivery(anyio_backend_name: str) -> None:
             await tg.start(task_fn)  # type: ignore[arg-type]
 
 
-async def test_start_cancel_after_error(anyio_backend_name: str) -> None:
+async def test_start_cancel_after_error() -> None:
     """Regression test for #517."""
-    if anyio_backend_name == "asyncio":
-        pytest.xfail("Known issue with the asyncio backend")
-
     sleep_completed = False
 
     async def sleep_and_raise() -> None:
