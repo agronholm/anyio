@@ -48,6 +48,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   remain in a cancelled state if the operation was cancelled after an item was queued to
   be received by the task (but before the task could actually receive the item)
 - Fixed ``TaskGroup.start()`` on asyncio not responding to cancellation from the outside
+- Fixed tasks started from ``BlockingPortal`` not notifying synchronous listeners
+  (``concurrent.futures.wait()``) when they're cancelled
 - Removed unnecessary extra waiting cycle in ``Event.wait()`` on asyncio in the case
   where the event was not yet set
 
