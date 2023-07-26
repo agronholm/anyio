@@ -21,6 +21,7 @@ from asyncio.base_events import _run_until_complete_cb  # type: ignore[attr-defi
 from collections import OrderedDict, deque
 from collections.abc import AsyncIterator, Iterable
 from concurrent.futures import Future
+from contextlib import suppress
 from contextvars import Context, copy_context
 from dataclasses import dataclass
 from functools import partial, wraps
@@ -756,11 +757,8 @@ class TaskGroup(abc.TaskGroup):
         except CancelledError:
             # Cancel the task and wait for it to exit before returning
             task.cancel()
-            with CancelScope(shield=True):
-                try:
-                    await task
-                except CancelledError:
-                    pass
+            with CancelScope(shield=True), suppress(CancelledError):
+                await task
 
             raise
 
