@@ -1,7 +1,140 @@
-Migrating from AnyIO 2 to AnyIO 3
+Migrating from AnyIO 3 to AnyIO 4
 =================================
 
 .. py:currentmodule:: anyio
+
+The non-standard exception group class was removed
+--------------------------------------------------
+
+AnyIO 3 had its own ``ExceptionGroup`` class which predated the :pep:`654` exception
+group classes. This class has now been removed in favor of the built-in
+:exc:`BaseExceptionGroup` and :exc:`ExceptionGroup` classes. If your code was either
+raising the old ``ExceptionGroup`` exception or catching it, you need to make the switch
+to these standard classes. Otherwise you can ignore this part.
+
+If you're targeting Python releases older than 3.11, you need to use the exceptiongroup_
+backport and import one of those classes from ``exceptiongroup``. The only difference
+between :exc:`BaseExceptionGroup` and :exc:`ExceptionGroup` is that the latter can
+only contain exceptions derived from :exc:`Exception`, and likewise can be caught with
+``except Exception:``.
+
+Task groups now wrap single exceptions in groups
+------------------------------------------------
+
+The most prominent backwards incompatible change in AnyIO 4 was that task groups now
+always raise exception groups when either the host task or any child tasks raise an
+exception (other than a cancellation exception). Previously, an exception group was only
+raised when more than one exception needed to be raised from the task group. The
+practical consequence is that if your code previously expected to catch a specific kind
+of exception falling out of a task group, you now need to either switch to the
+``except*`` syntax (if you're fortunate enough to work solely with Python 3.11 or
+later), or use the ``catch()`` context manager from the exceptiongroup_ backport.
+
+So, if you had code like this::
+
+    try:
+        await function_using_a_taskgroup()
+    except ValueError as exc:
+        ...
+
+The Python 3.11+ equivalent would look almost the same::
+
+    try:
+        await function_using_a_taskgroup()
+    except* ValueError as excgrp:
+        # Note: excgrp is an ExceptionGroup now!
+        ...
+
+If you need to stay compatible with older Python releases, you need to use the
+backport::
+
+    from exceptiongroup import ExceptionGroup, catch
+
+    def handle_value_errors(excgrp: ExceptionGroup) -> None:
+        ...
+
+    with catch({ValueError: handle_value_errors}):
+        await function_using_a_taskgroup()
+
+This difference often comes up in test suites too. For example, if you had this before
+in a pytest-based test suite::
+
+    with pytest.raises(ValueError):
+        await function_using_a_taskgroup()
+
+You now need to change it to::
+
+    from exceptiongroup import ExceptionGroup
+
+    with pytest.raises(ExceptionGroup) as exc:
+        await function_using_a_taskgroup()
+
+    assert len(exc.value.exceptions) == 1
+    assert isinstance(exc.value.exceptions[0], ValueError)
+
+If you need to stay compatible with both AnyIO 3 and 4, you can use the following
+compatibility code to "collapse" single-exception groups by unwrapping them::
+
+    import sys
+    from contextlib import contextmanager
+    from typing import Generator
+
+    has_exceptiongroups = True
+    if sys.version_info < (3, 11):
+        try:
+            from exceptiongroup import BaseExceptionGroup
+        except ImportError:
+            has_exceptiongroups = False
+
+
+    @contextmanager
+    def collapse_excgroups() -> Generator[None, None, None]:
+        try:
+            yield
+        except BaseException as exc:
+            if has_exceptiongroups:
+                while isinstance(exc, BaseExceptionGroup) and len(exc.exceptions) == 1:
+                    exc = exc.exceptions[0]
+
+            raise exc
+
+Syntax for type annotated memory object streams has changed
+-----------------------------------------------------------
+
+Where previously, creating type annotated memory object streams worked by passing the
+desired type as the second argument::
+
+    send, receive = create_memory_object_stream(100, int)
+
+In 4.0, :class:`create_memory_object_stream` is a class masquerading as a function, so
+you need to parametrize it::
+
+    send, receive = create_memory_object_stream[int](100)
+
+If you didn't parametrize your memory object streams before, then you don't need to make
+any changes in this regard.
+
+Event loop factories instead of event loop policies
+----------------------------------------------------
+
+If you're using a custom asyncio event loop policy with :func:`run`, you need to switch
+to passing an *event loop factory*, that is, a callable that returns a new event loop.
+
+Using uvloop_ as an example, code like the following::
+
+    anyio.run(main, backend_options={"event_loop_policy": uvloop.EventLoopPolicy()})
+
+should be converted into::
+
+    anyio.run(main, backend_options={"loop_factory": uvloop.new_event_loop})
+
+Make sure not to actually call the factory function!
+
+.. _exceptiongroup: https://pypi.org/project/exceptiongroup/
+.. _uvloop: https://github.com/MagicStack/uvloop
+
+Migrating from AnyIO 2 to AnyIO 3
+=================================
 
 AnyIO 3 changed some functions and methods in a way that needs some adaptation in your code.
 All deprecated functions and methods will be removed in AnyIO 4.
