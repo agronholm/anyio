@@ -82,8 +82,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     ``create_memory_object_stream[T_Item]()`` instead. Type checking should no longer
     fail when annotating memory object streams with uninstantiable item types (PR by
     Ganden Schaffner)
-  - Several functions and methods that previously only accepted coroutines as the return
-    type of the callable have been amended to accept any awaitables:
   - Several functions and methods that were previously annotated as accepting
     ``Coroutine[Any, Any, Any]`` as the return type of the callable have been amended to
     accept ``Awaitable[Any]`` instead, to allow a slightly broader set of coroutine-like
