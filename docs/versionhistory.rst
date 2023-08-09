@@ -53,6 +53,13 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     asyncio from a thread running trio or curio
   - Fixed deadlock when using ``from_thread.start_blocking_portal(backend="asyncio")``
     in a thread running trio or curio (PR by Ganden Schaffner)
+- Improved type annotations:
+
+  - **BACKWARDS INCOMPATIBLE** ``create_memory_object_stream`` no longer accepts an
+    ``item_type`` argument for static typing. Use
+    ``create_memory_object_stream[T_Item]()`` instead. Type checking should no longer
+    fail when annotating memory object streams with uninstantiable item types (PR by
+    Ganden Schaffner)
 - Added the ``CancelScope.cancelled_caught`` property which tells users if the cancel
   scope suppressed a cancellation exception
 - Fixed ``fail_after()`` raising an unwarranted ``TimeoutError`` when the cancel scope
@@ -77,11 +84,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Dropped support for Python 3.6
 - Improved type annotations:
 
-  - **BACKWARDS INCOMPATIBLE** ``create_memory_object_stream`` no longer accepts an
-    ``item_type`` argument for static typing. Use
-    ``create_memory_object_stream[T_Item]()`` instead. Type checking should no longer
-    fail when annotating memory object streams with uninstantiable item types (PR by
-    Ganden Schaffner)
   - Several functions and methods that were previously annotated as accepting
     ``Coroutine[Any, Any, Any]`` as the return type of the callable have been amended to
     accept ``Awaitable[Any]`` instead, to allow a slightly broader set of coroutine-like
@@ -102,6 +104,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   - The ``TaskStatus`` class is now a generic protocol, and should be parametrized to
     indicate the type of the value passed to ``task_status.started()``
   - The ``Listener`` class is now covariant in its stream type
+  - ``create_memory_object_stream()`` now allows passing only ``item_type``
   - Object receive streams are now covariant and object send streams are correspondingly
     contravariant
 - Changed ``TLSAttribute.shared_ciphers`` to match the documented semantics of
