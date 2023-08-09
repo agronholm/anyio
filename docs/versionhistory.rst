@@ -44,6 +44,15 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added the ``anyio.Path.is_junction()`` and ``anyio.Path.walk()`` methods
 - Added ``create_unix_datagram_socket`` and ``create_connected_unix_datagram_socket`` to
   create UNIX datagram sockets (PR by Jean Hominal)
+- Fixed ``from_thread.run`` and ``from_thread.run_sync`` not setting sniffio on asyncio.
+  As a result:
+
+  - Fixed ``from_thread.run_sync`` failing when used to call sniffio-dependent functions
+    on asyncio
+  - Fixed ``from_thread.run`` failing when used to call sniffio-dependent functions on
+    asyncio from a thread running trio or curio
+  - Fixed deadlock when using ``from_thread.start_blocking_portal(backend="asyncio")``
+    in a thread running trio or curio (PR by Ganden Schaffner)
 - Added the ``CancelScope.cancelled_caught`` property which tells users if the cancel
   scope suppressed a cancellation exception
 - Fixed ``fail_after()`` raising an unwarranted ``TimeoutError`` when the cancel scope
@@ -121,15 +130,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Worked around a `PyPy bug <https://foss.heptapod.net/pypy/pypy/-/issues/3938>`_
   when using ``anyio.getaddrinfo()`` with for IPv6 link-local addresses containing
   interface names
-- Fixed ``from_thread.run`` and ``from_thread.run_sync`` not setting sniffio on asyncio.
-  As a result:
-
-  - Fixed ``from_thread.run_sync`` failing when used to call sniffio-dependent functions
-    on asyncio
-  - Fixed ``from_thread.run`` failing when used to call sniffio-dependent functions on
-    asyncio from a thread running trio or curio
-  - Fixed deadlock when using ``from_thread.start_blocking_portal(backend="asyncio")``
-    in a thread running trio or curio (PR by Ganden Schaffner)
 
 **3.6.2**
 
