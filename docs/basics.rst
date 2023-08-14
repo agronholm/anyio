@@ -15,7 +15,7 @@ To install AnyIO, run:
 
     pip install anyio
 
-To install a supported version of trio_, you can install it as an extra like this:
+To install a supported version of Trio_, you can install it as an extra like this:
 
 .. code-block:: bash
 
@@ -35,7 +35,7 @@ The simplest possible AnyIO program looks like this::
     run(main)
 
 This will run the program above on the default backend (asyncio). To run it on another
-supported backend, say trio_, you can use the ``backend`` argument, like so::
+supported backend, say Trio_, you can use the ``backend`` argument, like so::
 
     run(main, backend='trio')
 
@@ -89,11 +89,11 @@ AnyIO lets you mix and match code written for AnyIO and code written for the
 asynchronous framework of your choice. There are a few rules to keep in mind however:
 
 * You can only use "native" libraries for the backend you're running, so you cannot, for
-  example, use a library written for trio together with a library written for asyncio.
-* Tasks spawned by these "native" libraries on backends other than trio_ are not subject
+  example, use a library written for Trio_ together with a library written for asyncio.
+* Tasks spawned by these "native" libraries on backends other than Trio_ are not subject
   to the cancellation rules enforced by AnyIO
 * Threads spawned outside of AnyIO cannot use :func:`.from_thread.run` to call
   asynchronous code
 
 .. _virtualenv: https://docs.python-guide.org/dev/virtualenvs/
-.. _trio: https://github.com/python-trio/trio
+.. _Trio: https://github.com/python-trio/trio

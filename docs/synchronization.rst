@@ -36,7 +36,7 @@ Example::
 
 .. note:: Unlike standard library Events, AnyIO events cannot be reused, and must be replaced
           instead. This practice prevents a class of race conditions, and matches the semantics
-          of the trio library.
+          of the Trio library.
 
 Semaphores
 ----------
