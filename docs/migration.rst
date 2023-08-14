@@ -106,7 +106,7 @@ desired type as the second argument::
 
     send, receive = create_memory_object_stream(100, int)
 
-In 4.0, :class:`create_memory_object_stream` is a class masquerading as a function, so
+In 4.0, :class:`create_memory_object_stream() <create_memory_object_stream>` is a class masquerading as a function, so
 you need to parametrize it::
 
     send, receive = create_memory_object_stream[int](100)
