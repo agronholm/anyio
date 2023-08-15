@@ -374,9 +374,7 @@ class Path:
             return False
 
     async def is_junction(self) -> bool:
-        return await to_thread.run_sync(
-            self._path.is_junction  # type: ignore [attr-defined]
-        )
+        return await to_thread.run_sync(self._path.is_junction)
 
     async def chmod(self, mode: int, *, follow_symlinks: bool = True) -> None:
         func = partial(os.chmod, follow_symlinks=follow_symlinks)
