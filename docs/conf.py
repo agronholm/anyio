@@ -30,7 +30,7 @@ autodoc_default_options = {"members": True, "show-inheritance": True}
 autodoc_mock_imports = ["_typeshed"]
 todo_include_todos = False
 
-html_theme = "sphinx_rtd_theme"
+html_theme = "nature"
 htmlhelp_basename = "anyiodoc"
 
 intersphinx_mapping = {"python": ("https://docs.python.org/3/", None)}

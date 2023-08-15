@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Awaitable, Callable
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar, overload
 
@@ -42,7 +42,7 @@ class TaskGroup(metaclass=ABCMeta):
     @abstractmethod
     def start_soon(
         self,
-        func: Callable[..., Coroutine[Any, Any, Any]],
+        func: Callable[..., Awaitable[Any]],
         *args: object,
         name: object = None,
     ) -> None:

@@ -106,7 +106,7 @@ desired type as the second argument::
 
     send, receive = create_memory_object_stream(100, int)
 
-In 4.0, :class:`create_memory_object_stream` is a class masquerading as a function, so
+In 4.0, :class:`create_memory_object_stream() <create_memory_object_stream>` is a class masquerading as a function, so
 you need to parametrize it::
 
     send, receive = create_memory_object_stream[int](100)
@@ -146,7 +146,7 @@ AnyIO 3 changed several previously asynchronous functions and methods into regul
 reasons:
 
 #. to better serve use cases where synchronous callbacks are used by third party libraries
-#. to better match the API of trio_
+#. to better match the API of Trio_
 
 The following functions and methods were changed:
 
@@ -212,13 +212,13 @@ Example 2 – opening a cancel scope::
         async with maybe_async_cm(CancelScope()) as scope:
             ...
 
-.. _trio: https://github.com/python-trio/trio
+.. _Trio: https://github.com/python-trio/trio
 
 Starting tasks
 --------------
 
 The ``TaskGroup.spawn()`` coroutine method has been deprecated in favor of the synchronous
-method :meth:`.TaskGroup.start_soon` (which mirrors ``start_soon()`` in trio's nurseries).
+method :meth:`.TaskGroup.start_soon` (which mirrors ``start_soon()`` in Trio's nurseries).
 If you're fully migrating to AnyIO 3, simply switch to calling the new method (and remove the ``await``).
 
 If your code needs to work with both AnyIO 2 and 3, you can keep using ``TaskGroup.spawn()``
@@ -283,7 +283,7 @@ or, if you need to work with both AnyIO 2 and 3::
 Threading functions moved
 -------------------------
 
-Threading functions were restructured to submodules, following the example of trio:
+Threading functions were restructured to submodules, following the example of Trio:
 
 * ``current_default_worker_thread_limiter`` → :func:`.to_thread.current_default_thread_limiter`
   (NOTE: the function was renamed too!)

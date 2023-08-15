@@ -10,7 +10,7 @@ to sleep until something happens, the event loop is then free to work on another
 thing the first task was waiting is complete, the event loop will resume the execution of that task
 on the first opportunity it gets.
 
-Task handling in AnyIO loosely follows the trio_ model. Tasks can be created (*spawned*) using
+Task handling in AnyIO loosely follows the Trio_ model. Tasks can be created (*spawned*) using
 *task groups*. A task group is an asynchronous context manager that makes sure that all its child
 tasks are finished one way or another after the context block is exited. If a child task, or the
 code in the enclosed context block raises an exception, all child tasks are cancelled. Otherwise
@@ -36,7 +36,7 @@ Here's a demonstration::
 
     run(main)
 
-.. _trio: https://trio.readthedocs.io/en/latest/reference-core.html#tasks-let-you-do-multiple-things-at-once
+.. _Trio: https://trio.readthedocs.io/en/latest/reference-core.html#tasks-let-you-do-multiple-things-at-once
 
 Starting and initializing tasks
 -------------------------------
