@@ -1287,13 +1287,13 @@ class TestTaskStatusTyping:
 
     async def typetest_variance_good(*, task_status: TaskStatus[float]) -> None:
         task_status2: TaskStatus[int] = task_status
-        task_status2.started(int())
+        task_status2.started(0)
 
     async def typetest_variance_bad(*, task_status: TaskStatus[int]) -> None:
         # We use `type: ignore` and `--warn-unused-ignores` to get type checking errors
         # if these ever stop failing.
         task_status2: TaskStatus[float] = task_status  # type: ignore[assignment]
-        task_status2.started(float())
+        task_status2.started(0.0)
 
     async def typetest_optional_status(
         *, task_status: TaskStatus[int] = TASK_STATUS_IGNORED
