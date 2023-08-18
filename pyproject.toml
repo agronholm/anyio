@@ -43,7 +43,7 @@ Changelog = "https://anyio.readthedocs.io/en/stable/versionhistory.html"
 trio = ["trio >= 0.22"]
 test = [
     "anyio[trio]",
-    "coverage[toml] >= 4.5",
+    "coverage[toml] >= 7",
     "hypothesis >= 4.0",
     "psutil >= 5.9",
     "pytest >= 7.0",
