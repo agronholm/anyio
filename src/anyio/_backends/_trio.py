@@ -103,9 +103,7 @@ class CancelScope(BaseCancelScope):
         exc_tb: TracebackType | None,
     ) -> bool | None:
         # https://github.com/python-trio/trio-typing/pull/79
-        return self.__original.__exit__(  # type: ignore[func-returns-value]
-            exc_type, exc_val, exc_tb
-        )
+        return self.__original.__exit__(exc_type, exc_val, exc_tb)
 
     def cancel(self) -> None:
         self.__original.cancel()
