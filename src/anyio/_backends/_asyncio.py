@@ -354,6 +354,7 @@ class CancelScope(BaseCancelScope):
         self._tasks: set[asyncio.Task] = set()
         self._host_task: asyncio.Task | None = None
         self._cancel_calls: int = 0
+        self._cancelling: int | None = None
 
     def __enter__(self) -> CancelScope:
         if self._active:
@@ -374,6 +375,8 @@ class CancelScope(BaseCancelScope):
 
         self._timeout()
         self._active = True
+        if sys.version_info >= (3, 11):
+            self._cancelling = self._host_task.cancelling()
 
         # Start cancelling the host task if the scope was cancelled before entering
         if self._cancel_called:
@@ -429,10 +432,10 @@ class CancelScope(BaseCancelScope):
             return True
 
         # Undo all cancellations done by this scope
-        if sys.version_info >= (3, 11):
+        if self._cancelling is not None:
             while self._cancel_calls:
                 self._cancel_calls -= 1
-                if not self._host_task.uncancel() and not self._cancel_calls:
+                if self._host_task.uncancel() <= self._cancelling:
                     return True
 
         self._cancel_calls = 0
