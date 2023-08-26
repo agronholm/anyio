@@ -8,6 +8,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added documentation on how to migrate from AnyIO 3 to 4
 - Fixed the type annotation of ``TaskGroup.start_soon()`` to accept any awaitables
   (already in v3.7.0 but was missing from 4.0.0rc1)
+- Changed ``CancelScope`` to also consider the cancellation count (in addition to the cancel
+  message) on asyncio to determine if a cancellation exception should be swallowed on scope exit,
+  to combat issues where third party libraries catch the ``CancelledError`` and raise another, thus
+  erasing the original cancel message
 
 **4.0.0rc1**
 

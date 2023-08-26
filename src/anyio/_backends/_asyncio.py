@@ -428,10 +428,12 @@ class CancelScope(BaseCancelScope):
             self._cancel_calls = 0
             return True
 
-        # Uncancel all AnyIO cancellations
+        # Undo all cancellations done by this scope
         if sys.version_info >= (3, 11):
-            for i in range(self._cancel_calls):
-                self._host_task.uncancel()
+            while self._cancel_calls:
+                self._cancel_calls -= 1
+                if not self._host_task.uncancel() and not self._cancel_calls:
+                    return True
 
         self._cancel_calls = 0
         return f"Cancelled by cancel scope {id(self):x}" in cancelled_exc.args

@@ -1254,6 +1254,17 @@ class TestUncancel:
         assert task.cancelling() == 1
         task.uncancel()
 
+    async def test_cancel_message_replaced(self) -> None:
+        try:
+            with CancelScope() as scope:
+                scope.cancel()
+                try:
+                    await anyio.sleep(0)
+                except asyncio.CancelledError:
+                    raise asyncio.CancelledError
+        except asyncio.CancelledError:
+            pytest.fail("Should have swallowed the CancelledError")
+
 
 async def test_cancel_before_entering_task_group() -> None:
     with CancelScope() as scope:
