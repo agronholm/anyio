@@ -4,6 +4,7 @@
 build
 dist
 docs/_build
+venv*/
 __pycache__
 .coverage
 .pytest_cache/
