@@ -15,6 +15,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Worked around a `CPython bug <https://github.com/python/cpython/issues/108668>`_ that
   caused ``TLSListener.handle_handshake_error()`` on asyncio to log ``"NoneType: None"``
   instead of the error (PR by Ganden Schaffner)
+- Re-added the ``item_type`` argument to ``create_memory_object_stream()`` (but using it
+  raises a deprecation warning and does nothing with regards to the static types of the
+  returned streams)
 
 **4.0.0rc1**
 

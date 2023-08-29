@@ -373,3 +373,8 @@ async def test_type_variance() -> None:
     receive2: ObjectReceiveStream[complex] = receive  # noqa: F841
     send1: MemoryObjectSendStream[int] = send  # noqa: F841
     send2: ObjectSendStream[int] = send  # noqa: F841
+
+
+async def test_deprecated_item_type_parameter() -> None:
+    with pytest.warns(DeprecationWarning, match="item_type argument has been "):
+        create_memory_object_stream(item_type=int)
