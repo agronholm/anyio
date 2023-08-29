@@ -93,31 +93,38 @@ exception objects.
 To catch such exceptions potentially nested in groups, special measures are required.
 On Python 3.11 and later, you can use the ``except*`` syntax to catch multiple exceptions::
 
+    from anyio import create_task_group
+
     try:
-        async with TaskGroup() as tg:
+        async with create_task_group() as tg:
             tg.start_soon(some_task)
             tg.start_soon(another_task)
-    except* ValueError:
-        ...  # handle each ValueError
-    except* KeyError:
-        ...  # handle each KeyError
+    except* ValueError as excgroup:
+        for exc in excgroup:
+            ...  # handle each ValueError
+    except* KeyError as excgroup:
+        for exc in excgroup:
+            ...  # handle each KeyError
 
-If compatibility with older Python versions is required, you can use the ``catch()`` function from
-the exceptiongroup_ package::
+If compatibility with older Python versions is required, you can use the ``catch()``
+function from the exceptiongroup_ package::
 
+    from anyio import create_task_group
     from exceptiongroup import catch
 
-    def handle_valueerror(exc: ValueError) -> None:
-        ...  # handle each ValueError
+    def handle_valueerror(excgroup: ExceptionGroup) -> None:
+        for exc in excgroup.exceptions:
+            ...  # handle each ValueError
 
-    def handle_keyerror(exc: KeyError) -> None:
-        ...  # handle each KeyError
+    def handle_keyerror(excgroup: ExceptionGroup) -> None:
+        for exc in excgroup.exceptions:
+            ...  # handle each KeyError
 
     with catch({
         ValueError: handle_valueerror,
         KeyError: handle_keyerror
     }):
-        async with TaskGroup() as tg:
+        async with create_task_group() as tg:
             tg.start_soon(some_task)
             tg.start_soon(another_task)
 
@@ -144,9 +151,10 @@ Differences with asyncio.TaskGroup
 ----------------------------------
 
 The :class:`asyncio.TaskGroup` class, added in Python 3.11, is very similar in design to
-the AnyIO :class:`~TaskGroup` class. The asyncio counterpart has some important
+the AnyIO :class:`~.abc.TaskGroup` class. The asyncio counterpart has some important
 differences in its semantics, however:
 
+* The task group itself is instantiated directly, rather than using a factory function
 * Tasks are spawned solely through :meth:`~asyncio.TaskGroup.create_task`; there is no
   ``start()`` or ``start_soon()`` method
 * The :meth:`~asyncio.TaskGroup.create_task` method returns a task object which can be
