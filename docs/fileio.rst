@@ -3,8 +3,8 @@ Asynchronous file I/O support
 
 .. py:currentmodule:: anyio
 
-AnyIO provides asynchronous wrappers for blocking file operations. These wrappers run blocking
-operations in worker threads.
+AnyIO provides asynchronous wrappers for blocking file operations. These wrappers run
+blocking operations in worker threads.
 
 Example::
 
@@ -18,8 +18,8 @@ Example::
 
     run(main)
 
-The wrappers also support asynchronous iteration of the file line by line, just as the standard
-file objects support synchronous iteration::
+The wrappers also support asynchronous iteration of the file line by line, just as the
+standard file objects support synchronous iteration::
 
     from anyio import open_file, run
 
@@ -31,7 +31,8 @@ file objects support synchronous iteration::
 
     run(main)
 
-To wrap an existing open file object as an asynchronous file, you can use :func:`.wrap_file`::
+To wrap an existing open file object as an asynchronous file, you can use
+:func:`.wrap_file`::
 
     from anyio import wrap_file, run
 
@@ -50,15 +51,15 @@ To wrap an existing open file object as an asynchronous file, you can use :func:
 Asynchronous path operations
 ----------------------------
 
-AnyIO provides an asynchronous version of the :class:`pathlib.Path` class. It differs with the
-original in a number of ways:
+AnyIO provides an asynchronous version of the :class:`pathlib.Path` class. It differs
+with the original in a number of ways:
 
-* Operations that perform disk I/O (like :meth:`~pathlib.Path.read_bytes`) are run in a worker
-  thread and thus require an ``await``
-* Methods like :meth:`~pathlib.Path.glob` return an asynchronous iterator that yields asynchronous
-  :class:`~.Path` objects
-* Properties and methods that normally return :class:`pathlib.Path` objects return :class:`~.Path`
-  objects instead
+* Operations that perform disk I/O (like :meth:`~pathlib.Path.read_bytes`) are run in a
+  worker thread and thus require an ``await``
+* Methods like :meth:`~pathlib.Path.glob` return an asynchronous iterator that yields
+  asynchronous :class:`~.Path` objects
+* Properties and methods that normally return :class:`pathlib.Path` objects return
+  :class:`~.Path` objects instead
 * Methods and properties from the Python 3.10 API are available on all versions
 * Use as a context manager is not supported, as it is deprecated in pathlib
 

@@ -3,10 +3,11 @@ Working with threads
 
 .. py:currentmodule:: anyio
 
-Practical asynchronous applications occasionally need to run network, file or computationally
-expensive operations. Such operations would normally block the asynchronous event loop, leading to
-performance issues. The solution is to run such code in *worker threads*. Using worker threads lets
-the event loop continue running other tasks while the worker thread runs the blocking call.
+Practical asynchronous applications occasionally need to run network, file or
+computationally expensive operations. Such operations would normally block the
+asynchronous event loop, leading to performance issues. The solution is to run such code
+in *worker threads*. Using worker threads lets the event loop continue running other
+tasks while the worker thread runs the blocking call.
 
 Running a function in a worker thread
 -------------------------------------
@@ -23,9 +24,10 @@ To run a (synchronous) callable in a worker thread::
 
     run(main)
 
-By default, tasks are shielded from cancellation while they are waiting for a worker thread to
-finish. You can pass the ``cancellable=True`` parameter to allow such tasks to be cancelled.
-Note, however, that the thread will still continue running – only its outcome will be ignored.
+By default, tasks are shielded from cancellation while they are waiting for a worker
+thread to finish. You can pass the ``cancellable=True`` parameter to allow such tasks to
+be cancelled. Note, however, that the thread will still continue running – only its
+outcome will be ignored.
 
 .. seealso:: :ref:`RunInProcess`
 
@@ -46,16 +48,16 @@ If you need to call a coroutine function from a worker thread, you can do this::
 
     run(main)
 
-.. note:: The worker thread must have been spawned using :func:`~to_thread.run_sync` for this to
-   work.
+.. note:: The worker thread must have been spawned using :func:`~to_thread.run_sync` for
+   this to work.
 
 Calling synchronous code from a worker thread
 ---------------------------------------------
 
-Occasionally you may need to call synchronous code in the event loop thread from a worker thread.
-Common cases include setting asynchronous events or sending data to a memory object stream.
-Because these methods aren't thread safe, you need to arrange them to be called inside the event
-loop thread using :func:`~from_thread.run_sync`::
+Occasionally you may need to call synchronous code in the event loop thread from a
+worker thread. Common cases include setting asynchronous events or sending data to a
+memory object stream. Because these methods aren't thread safe, you need to arrange them
+to be called inside the event loop thread using :func:`~from_thread.run_sync`::
 
     import time
 
@@ -75,11 +77,13 @@ loop thread using :func:`~from_thread.run_sync`::
 Calling asynchronous code from an external thread
 -------------------------------------------------
 
-If you need to run async code from a thread that is not a worker thread spawned by the event loop,
-you need a *blocking portal*. This needs to be obtained from within the event loop thread.
+If you need to run async code from a thread that is not a worker thread spawned by the
+event loop, you need a *blocking portal*. This needs to be obtained from within the
+event loop thread.
 
 One way to do this is to start a new event loop with a portal, using
-:class:`~from_thread.start_blocking_portal` (which takes mostly the same arguments as :func:`~run`::
+:class:`~from_thread.start_blocking_portal` (which takes mostly the same arguments as
+:func:`~run`::
 
     from anyio.from_thread import start_blocking_portal
 
@@ -87,8 +91,8 @@ One way to do this is to start a new event loop with a portal, using
     with start_blocking_portal(backend='trio') as portal:
         portal.call(...)
 
-If you already have an event loop running and wish to grant access to external threads, you can
-create a :class:`~.BlockingPortal` directly::
+If you already have an event loop running and wish to grant access to external threads,
+you can create a :class:`~.BlockingPortal` directly::
 
     from anyio import run
     from anyio.from_thread import BlockingPortal
@@ -128,9 +132,10 @@ When you need to spawn a task to be run in the background, you can do so using
 Cancelling tasks spawned this way can be done by cancelling the returned
 :class:`~concurrent.futures.Future`.
 
-Blocking portals also have a method similar to :meth:`TaskGroup.start() <.abc.TaskGroup.start>`:
-:meth:`~.BlockingPortal.start_task` which, like its counterpart, waits for the callable to signal
-readiness by calling ``task_status.started()``::
+Blocking portals also have a method similar to
+:meth:`TaskGroup.start() <.abc.TaskGroup.start>`:
+:meth:`~.BlockingPortal.start_task` which, like its counterpart, waits for the callable
+to signal readiness by calling ``task_status.started()``::
 
     from anyio import sleep, TASK_STATUS_IGNORED
     from anyio.from_thread import start_blocking_portal
@@ -153,8 +158,8 @@ readiness by calling ``task_status.started()``::
 Using asynchronous context managers from worker threads
 -------------------------------------------------------
 
-You can use :meth:`~.BlockingPortal.wrap_async_context_manager` to wrap an asynchronous context
-managers as a synchronous one::
+You can use :meth:`~.BlockingPortal.wrap_async_context_manager` to wrap an asynchronous
+context managers as a synchronous one::
 
     from anyio.from_thread import start_blocking_portal
 
@@ -171,26 +176,26 @@ managers as a synchronous one::
     with start_blocking_portal() as portal, portal.wrap_async_context_manager(async_cm):
         print('inside the context manager block')
 
-.. note:: You cannot use wrapped async context managers in synchronous callbacks inside the event
-          loop thread.
+.. note:: You cannot use wrapped async context managers in synchronous callbacks inside
+   the event loop thread.
 
 Context propagation
 -------------------
 
-When running functions in worker threads, the current context is copied to the worker thread.
-Therefore any context variables available on the task will also be available to the code running
-on the thread. As always with context variables, any changes made to them will not propagate back
-to the calling asynchronous task.
+When running functions in worker threads, the current context is copied to the worker
+thread. Therefore any context variables available on the task will also be available to
+the code running on the thread. As always with context variables, any changes made to
+them will not propagate back to the calling asynchronous task.
 
-When calling asynchronous code from worker threads, context is again copied to the task that calls
-the target function in the event loop thread.
+When calling asynchronous code from worker threads, context is again copied to the task
+that calls the target function in the event loop thread.
 
 Adjusting the default maximum worker thread count
 -------------------------------------------------
 
 The default AnyIO worker thread limiter has a value of **40**, meaning that any calls
-to :func:`.to_thread.run_sync` without an explicit ``limiter`` argument will cause a maximum
-of 40 threads to be spawned. You can adjust this limit like this::
+to :func:`.to_thread.run_sync` without an explicit ``limiter`` argument will cause a
+maximum of 40 threads to be spawned. You can adjust this limit like this::
 
     from anyio import to_thread
 
