@@ -3,27 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
-
-- Added documentation on how to migrate from AnyIO 3 to 4
-- Fixed the type annotation of ``TaskGroup.start_soon()`` to accept any awaitables
-  (already in v3.7.0 but was missing from 4.0.0rc1)
-- Changed ``CancelScope`` to also consider the cancellation count (in addition to the
-  cancel message) on asyncio to determine if a cancellation exception should be
-  swallowed on scope exit, to combat issues where third party libraries catch the
-  ``CancelledError`` and raise another, thus erasing the original cancel message
-- Worked around a `CPython bug <https://github.com/python/cpython/issues/108668>`_ that
-  caused ``TLSListener.handle_handshake_error()`` on asyncio to log ``"NoneType: None"``
-  instead of the error (PR by Ganden Schaffner)
-- Re-added the ``item_type`` argument to ``create_memory_object_stream()`` (but using it
-  raises a deprecation warning and does nothing with regards to the static types of the
-  returned streams)
-- Fixed processes spawned by ``anyio.to_process()`` being "lost" as unusable to the
-  process pool when processes that have idled over 5 minutes are pruned at part of the
-  ``to_process.run_sync()`` call, leading to increased memory consumption
-  (PR by Anael Gorfinkel)
-
-**4.0.0rc1**
+**4.0.0**
 
 - **BACKWARDS INCOMPATIBLE** Replaced AnyIO's own ``ExceptionGroup`` class with the PEP
   654 ``BaseExceptionGroup`` and ``ExceptionGroup``
@@ -38,7 +18,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     whether there are running child tasks to be waited on
   - On asyncio, cancel scopes will defer cancelling tasks that are scheduled to resume
     with a finished future
-  - On asyncio and Python 3.9 or later, cancel scopes now only suppress cancellation
+  - On asyncio and Python 3.9/3.10, cancel scopes now only suppress cancellation
     exceptions if the cancel message matches the scope
   - Task groups on all backends now raise a single cancellation exception when an outer
     cancel scope is cancelled, and no exceptions other than cancellation exceptions are
@@ -71,8 +51,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     in a thread running trio or curio (PR by Ganden Schaffner)
 - Improved type annotations:
 
-  - **BACKWARDS INCOMPATIBLE** ``create_memory_object_stream`` no longer accepts an
-    ``item_type`` argument for static typing. Use
+  - The ``item_type`` argument of ``create_memory_object_stream`` was deprecated.
+    To indicate the item type handled by the stream, use
     ``create_memory_object_stream[T_Item]()`` instead. Type checking should no longer
     fail when annotating memory object streams with uninstantiable item types (PR by
     Ganden Schaffner)
@@ -88,6 +68,29 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (``concurrent.futures.wait()``) when they're cancelled
 - Removed unnecessary extra waiting cycle in ``Event.wait()`` on asyncio in the case
   where the event was not yet set
+- Fixed processes spawned by ``anyio.to_process()`` being "lost" as unusable to the
+  process pool when processes that have idled over 5 minutes are pruned at part of the
+  ``to_process.run_sync()`` call, leading to increased memory consumption
+  (PR by Anael Gorfinkel)
+
+Changes since 4.0.0rc1:
+
+- Fixed the type annotation of ``TaskGroup.start_soon()`` to accept any awaitables
+  (already in v3.7.0 but was missing from 4.0.0rc1)
+- Changed ``CancelScope`` to also consider the cancellation count (in addition to the
+  cancel message) on asyncio to determine if a cancellation exception should be
+  swallowed on scope exit, to combat issues where third party libraries catch the
+  ``CancelledError`` and raise another, thus erasing the original cancel message
+- Worked around a `CPython bug <https://github.com/python/cpython/issues/108668>`_ that
+  caused ``TLSListener.handle_handshake_error()`` on asyncio to log ``"NoneType: None"``
+  instead of the error (PR by Ganden Schaffner)
+- Re-added the ``item_type`` argument to ``create_memory_object_stream()`` (but using it
+  raises a deprecation warning and does nothing with regards to the static types of the
+  returned streams)
+- Fixed processes spawned by ``anyio.to_process()`` being "lost" as unusable to the
+  process pool when processes that have idled over 5 minutes are pruned at part of the
+  ``to_process.run_sync()`` call, leading to increased memory consumption
+  (PR by Anael Gorfinkel)
 
 **3.7.1**
 
