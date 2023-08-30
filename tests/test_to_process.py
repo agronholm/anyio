@@ -8,7 +8,6 @@ from functools import partial
 from unittest.mock import Mock
 
 import pytest
-from _pytest.fixtures import FixtureRequest
 
 from anyio import (
     CancelScope,
@@ -100,7 +99,7 @@ async def test_cancel_during() -> None:
     assert await to_process.run_sync(os.getpid) != worker_pid
 
 
-async def test_exec_while_pruning(request: FixtureRequest) -> None:
+async def test_exec_while_pruning() -> None:
     """
     Test that in the case when one or more idle workers are pruned, the originally
     selected idle worker is re-added to the queue of idle workers.
@@ -113,10 +112,12 @@ async def test_exec_while_pruning(request: FixtureRequest) -> None:
 
     fake_idle_process = Mock(Process)
     workers.add(fake_idle_process)
-    request.addfinalizer(partial(workers.discard, fake_idle_process))
-    idle_workers.appendleft((fake_idle_process, 0))
+    try:
+        idle_workers.appendleft((fake_idle_process, 0))
 
-    worker_pid2 = await to_process.run_sync(os.getpid)
-    assert worker_pid1 == worker_pid2
-    fake_idle_process.kill.assert_called_once_with()
-    assert idle_workers[0][0] is real_worker
+        worker_pid2 = await to_process.run_sync(os.getpid)
+        assert worker_pid1 == worker_pid2
+        fake_idle_process.kill.assert_called_once_with()
+        assert idle_workers[0][0] is real_worker
+    finally:
+        workers.discard(fake_idle_process)
