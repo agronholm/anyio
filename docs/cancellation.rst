@@ -17,7 +17,8 @@ requiring waiting, such as :func:`~sleep`.
 A task group contains its own cancel scope. The entire task group can be cancelled by
 cancelling this scope.
 
-.. _Trio: https://trio.readthedocs.io/en/latest/reference-core.html#cancellation-and-timeouts
+.. _Trio: https://trio.readthedocs.io/en/latest/reference-core.html
+   #cancellation-and-timeouts
 
 Timeouts
 --------

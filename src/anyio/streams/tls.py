@@ -286,7 +286,13 @@ class TLSListener(Listener[TLSStream]):
 
         # Log all except cancellation exceptions
         if not isinstance(exc, get_cancelled_exc_class()):
-            logging.getLogger(__name__).exception("Error during TLS handshake")
+            # CPython (as of 3.11.5) returns incorrect `sys.exc_info()` here when using
+            # any asyncio implementation, so we explicitly pass the exception to log
+            # (https://github.com/python/cpython/issues/108668). Trio does not have this
+            # issue because it works around the CPython bug.
+            logging.getLogger(__name__).exception(
+                "Error during TLS handshake", exc_info=exc
+            )
 
         # Only reraise base exceptions and cancellation exceptions
         if not isinstance(exc, Exception) or isinstance(exc, get_cancelled_exc_class()):

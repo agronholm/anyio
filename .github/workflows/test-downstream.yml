@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           scripts/install
-          pip install anyio@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
+          pip install anyio[trio]@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
       - name: Run tests
         run: scripts/test
       - name: Enforce coverage
@@ -51,7 +51,7 @@ jobs:
       - name: Install dependencies
         run: |
           scripts/install
-          pip install anyio@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
+          pip install anyio[trio]@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
       - name: Run tests
         run: scripts/test
       - name: Enforce coverage

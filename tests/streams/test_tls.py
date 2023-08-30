@@ -398,7 +398,9 @@ class TestTLSStream:
 
 class TestTLSListener:
     @skip_on_broken_openssl
-    async def test_handshake_fail(self, server_context: ssl.SSLContext) -> None:
+    async def test_handshake_fail(
+        self, server_context: ssl.SSLContext, caplog: pytest.LogCaptureFixture
+    ) -> None:
         def handler(stream: object) -> NoReturn:
             pytest.fail("This function should never be called in this scenario")
 
@@ -411,6 +413,13 @@ class TestTLSListener:
             ) -> None:
                 nonlocal exception
                 await TLSListener.handle_handshake_error(exc, stream)
+
+                # Regression test for #608
+                assert len(caplog.records) == 1
+                logged_exc_info = caplog.records[0].exc_info
+                logged_exc = logged_exc_info[1] if logged_exc_info is not None else None
+                assert logged_exc is exc
+
                 assert isinstance(stream, SocketStream)
                 exception = exc
                 event.set()

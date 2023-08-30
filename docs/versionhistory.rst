@@ -8,6 +8,16 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added documentation on how to migrate from AnyIO 3 to 4
 - Fixed the type annotation of ``TaskGroup.start_soon()`` to accept any awaitables
   (already in v3.7.0 but was missing from 4.0.0rc1)
+- Changed ``CancelScope`` to also consider the cancellation count (in addition to the
+  cancel message) on asyncio to determine if a cancellation exception should be
+  swallowed on scope exit, to combat issues where third party libraries catch the
+  ``CancelledError`` and raise another, thus erasing the original cancel message
+- Worked around a `CPython bug <https://github.com/python/cpython/issues/108668>`_ that
+  caused ``TLSListener.handle_handshake_error()`` on asyncio to log ``"NoneType: None"``
+  instead of the error (PR by Ganden Schaffner)
+- Re-added the ``item_type`` argument to ``create_memory_object_stream()`` (but using it
+  raises a deprecation warning and does nothing with regards to the static types of the
+  returned streams)
 
 **4.0.0rc1**
 
