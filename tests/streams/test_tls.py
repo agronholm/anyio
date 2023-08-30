@@ -414,7 +414,7 @@ class TestTLSListener:
                 nonlocal exception
                 await TLSListener.handle_handshake_error(exc, stream)
 
-                # Regression test for #608.
+                # Regression test for #608
                 assert len(caplog.records) == 1
                 logged_exc_info = caplog.records[0].exc_info
                 logged_exc = logged_exc_info[1] if logged_exc_info is not None else None
