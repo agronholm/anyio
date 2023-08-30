@@ -4,11 +4,11 @@ import os
 import platform
 import sys
 import time
-from collections.abc import AsyncGenerator
 from functools import partial
 from unittest.mock import Mock
 
 import pytest
+from _pytest.fixtures import FixtureRequest
 
 from anyio import (
     CancelScope,
@@ -30,26 +30,6 @@ def check_compatibility(anyio_backend_name: str) -> None:
                 "Python < 3.8 uses SelectorEventLoop by default and it does not "
                 "support subprocesses"
             )
-
-
-@pytest.fixture(autouse=True)
-async def cleanup() -> AsyncGenerator[None, None]:
-    yield
-
-    # Remove any mocks from the process sets/queues after each test
-    try:
-        workers = to_process._process_pool_workers.get()
-        idle_workers = to_process._process_pool_idle_workers.get()
-    except LookupError:
-        return
-
-    for process in workers:
-        if isinstance(process, Process):
-            process.kill()
-            await process.aclose()
-
-    workers.clear()
-    idle_workers.clear()
 
 
 async def test_run_sync_in_process_pool() -> None:
@@ -120,7 +100,7 @@ async def test_cancel_during() -> None:
     assert await to_process.run_sync(os.getpid) != worker_pid
 
 
-async def test_exec_while_pruning() -> None:
+async def test_exec_while_pruning(request: FixtureRequest) -> None:
     """
     Test that in the case when one or more idle workers are pruned, the originally
     selected idle worker is re-added to the queue of idle workers.
@@ -133,6 +113,7 @@ async def test_exec_while_pruning() -> None:
 
     fake_idle_process = Mock(Process)
     workers.add(fake_idle_process)
+    request.addfinalizer(partial(workers.discard, fake_idle_process))
     idle_workers.appendleft((fake_idle_process, 0))
 
     worker_pid2 = await to_process.run_sync(os.getpid)
