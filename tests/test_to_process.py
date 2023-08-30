@@ -5,6 +5,7 @@ import platform
 import sys
 import time
 from functools import partial
+from unittest.mock import Mock
 
 import pytest
 
@@ -15,6 +16,7 @@ from anyio import (
     to_process,
     wait_all_tasks_blocked,
 )
+from anyio.abc import Process
 
 pytestmark = pytest.mark.anyio
 
@@ -95,3 +97,30 @@ async def test_cancel_during() -> None:
 
     # The previous worker was killed so we should get a new one now
     assert await to_process.run_sync(os.getpid) != worker_pid
+
+
+async def test_exec_while_pruning() -> None:
+    """
+    Test that in the case when one or more idle workers are pruned, the originally
+    selected idle worker is re-added to the queue of idle workers.
+    """
+
+    worker_pid1 = await to_process.run_sync(os.getpid)
+    workers = to_process._process_pool_workers.get()
+    idle_workers = to_process._process_pool_idle_workers.get()
+    real_worker = next(iter(workers))
+
+    fake_idle_process = Mock(Process)
+    workers.add(fake_idle_process)
+    try:
+        # Add a mock worker process that's guaranteed to be eligible for pruning
+        idle_workers.appendleft(
+            (fake_idle_process, -to_process.WORKER_MAX_IDLE_TIME - 1)
+        )
+
+        worker_pid2 = await to_process.run_sync(os.getpid)
+        assert worker_pid1 == worker_pid2
+        fake_idle_process.kill.assert_called_once_with()
+        assert idle_workers[0][0] is real_worker
+    finally:
+        workers.discard(fake_idle_process)

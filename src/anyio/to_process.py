@@ -118,14 +118,14 @@ async def run_sync(
                     if now - idle_workers[0][1] < WORKER_MAX_IDLE_TIME:
                         break
 
-                    process, idle_since = idle_workers.popleft()
-                    process.kill()
-                    workers.remove(process)
-                    killed_processes.append(process)
+                    process_to_kill, idle_since = idle_workers.popleft()
+                    process_to_kill.kill()
+                    workers.remove(process_to_kill)
+                    killed_processes.append(process_to_kill)
 
                 with CancelScope(shield=True):
-                    for process in killed_processes:
-                        await process.aclose()
+                    for killed_process in killed_processes:
+                        await killed_process.aclose()
 
                 break
 

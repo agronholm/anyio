@@ -18,6 +18,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Re-added the ``item_type`` argument to ``create_memory_object_stream()`` (but using it
   raises a deprecation warning and does nothing with regards to the static types of the
   returned streams)
+- Fixed processes spawned by ``anyio.to_process()`` being "lost" as unusable to the
+  process pool when processes that have idled over 5 minutes are pruned at part of the
+  ``to_process.run_sync()`` call, leading to increased memory consumption
+  (PR by Anael Gorfinkel)
 
 **4.0.0rc1**
 
