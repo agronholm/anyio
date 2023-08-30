@@ -115,14 +115,9 @@ async def run_sync(
                 now = current_time()
                 killed_processes: list[Process] = []
                 while idle_workers:
-                    print(
-                        f"process={process!r}, now={now}, "
-                        f"idle_workers[0][1]={idle_workers[0][1]}"
-                    )
                     if now - idle_workers[0][1] < WORKER_MAX_IDLE_TIME:
                         break
 
-                    print(f"killing process {process!r}")
                     process_to_kill, idle_since = idle_workers.popleft()
                     process_to_kill.kill()
                     workers.remove(process_to_kill)
