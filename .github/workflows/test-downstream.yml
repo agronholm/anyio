@@ -63,7 +63,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.10", "3.12"]
+        python-version: ["3.8", "3.11"]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -77,6 +77,8 @@ jobs:
             requirements-tests.txt
             pyproject.toml
       - name: Install dependencies
-        run: pip install -r requirements-tests.txt
+        run: |
+          pip install -r requirements-tests.txt
+          pip install anyio[trio]@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
       - name: Run tests
         run: bash scripts/test.sh
