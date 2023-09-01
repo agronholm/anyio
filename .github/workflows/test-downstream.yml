@@ -74,7 +74,7 @@ jobs:
           allow-prereleases: true
           cache: pip
           cache-dependency-path: |
-            requirements-test.txt
+            requirements-tests.txt
             pyproject.toml
       - name: Install dependencies
         run: pip install -r requirements-tests.txt
