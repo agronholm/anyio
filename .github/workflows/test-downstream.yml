@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.8", "3.10", "3.12"]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -37,7 +37,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.8", "3.10", "3.12"]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -56,3 +56,27 @@ jobs:
         run: scripts/test
       - name: Enforce coverage
         run: scripts/coverage
+
+  fastapi:
+    name: "FastAPI on Python ${{ matrix.python-version }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: tiangolo/fastapi
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "${{ matrix.python-version }}"
+          allow-prereleases: true
+          cache: pip
+          cache-dependency-path: |
+            requirements-test.txt
+            pyproject.toml
+      - name: Install dependencies
+        run: pip install -r requirements-test.txt
+      - name: Run tests
+        run: bash scripts/test.sh
