@@ -77,6 +77,6 @@ jobs:
             requirements-test.txt
             pyproject.toml
       - name: Install dependencies
-        run: pip install -r requirements-test.txt
+        run: pip install -r requirements-tests.txt
       - name: Run tests
         run: bash scripts/test.sh
