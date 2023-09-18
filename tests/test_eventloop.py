@@ -2,17 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import math
-import sys
+from unittest.mock import AsyncMock
 
 import pytest
 from pytest_mock.plugin import MockerFixture
 
 from anyio import run, sleep_forever, sleep_until
-
-if sys.version_info < (3, 8):
-    from unittest.mock import AsyncMock
-else:
-    from unittest.mock import AsyncMock
 
 pytestmark = pytest.mark.anyio
 fake_current_time = 1620581544.0
