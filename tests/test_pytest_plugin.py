@@ -87,6 +87,70 @@ def test_plugin(testdir: Pytester) -> None:
     )
 
 
+@pytest.mark.parametrize("scope", ["function", "class", "module", "package", "session"])
+def test_context_vars_isolated_between_tests(testdir: Pytester, scope: str) -> None:
+    testdir.makepyfile(
+        f"""
+        from contextvars import ContextVar
+
+        import pytest
+
+        var = ContextVar("var")
+
+
+        @pytest.fixture(
+            scope="{scope}",
+            params=[
+                pytest.param(
+                    ("asyncio", {{"debug": True, "loop_factory": None}}),
+                    id="asyncio",
+                ),
+                pytest.param("trio"),
+            ],
+        )
+        def anyio_backend(request):
+            return request.param
+
+
+        @pytest.fixture(scope="{scope}")
+        async def module_fixture():
+            yield
+
+
+        @pytest.fixture(scope="{scope}")
+        async def set_fixture_var():
+            token = var.set("value_from_fixture")
+            yield "value_from_fixture"
+            var.reset(token)
+
+
+        class TestContextVarsIsolation:
+            @pytest.mark.anyio
+            @pytest.mark.parametrize(
+                "param", [pytest.param(True), pytest.param(False)]
+            )
+            async def test_set_test_var(self, module_fixture, param):
+                # test that setting contextvar in a test does not affect other tests
+                if param:
+                    var.set("var_is_set")
+                    assert var.get() == "var_is_set"
+                else:
+                    with pytest.raises(LookupError):
+                        var.get()
+
+            @pytest.mark.anyio
+            @pytest.mark.parametrize("test_value", ["foo", "bar"])
+            async def test_set_fixture_var(self, set_fixture_var, test_value):
+                # test that contextvar set in fixture has value from fixture
+                assert set_fixture_var == var.get()
+                var.set(test_value)
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=8)
+
+
 def test_asyncio(testdir: Pytester, caplog: LogCaptureFixture) -> None:
     testdir.makeconftest(
         """

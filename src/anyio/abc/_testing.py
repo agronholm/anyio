@@ -31,12 +31,14 @@ class TestRunner(metaclass=ABCMeta):
         self,
         fixture_func: Callable[..., AsyncGenerator[_T, Any]],
         kwargs: dict[str, Any],
+        scope: str = "function",
     ) -> Iterable[_T]:
         """
         Run an async generator fixture.
 
         :param fixture_func: the fixture function
         :param kwargs: keyword arguments to call the fixture function with
+        :param scope: the pytest scope in which the fixture is defined
         :return: an iterator yielding the value yielded from the async generator
         """
 
@@ -45,12 +47,14 @@ class TestRunner(metaclass=ABCMeta):
         self,
         fixture_func: Callable[..., Coroutine[Any, Any, _T]],
         kwargs: dict[str, Any],
+        scope: str = "function",
     ) -> _T:
         """
         Run an async fixture.
 
         :param fixture_func: the fixture function
         :param kwargs: keyword arguments to call the fixture function with
+        :param scope: the pytest scope in which the fixture is defined
         :return: the return value of the fixture function
         """
 
@@ -63,4 +67,11 @@ class TestRunner(metaclass=ABCMeta):
 
         :param test_func: the test function
         :param kwargs: keyword arguments to call the test function with
+        """
+
+    def close_scope(self, scope: str) -> None:
+        """
+        Close the context associated to a scope
+
+        :param scope: the scope to close
         """

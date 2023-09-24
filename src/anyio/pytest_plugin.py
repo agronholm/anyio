@@ -3,15 +3,17 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from inspect import isasyncgenfunction, iscoroutinefunction
-from typing import Any, Dict, Tuple, cast
+from typing import Any, Dict, Set, Tuple, cast
 
 import pytest
 import sniffio
+from _pytest.stash import StashKey
 
 from ._core._eventloop import get_all_backends, get_async_backend
 from .abc import TestRunner
 
 _current_runner: TestRunner | None = None
+_running_fixtures = StashKey[Set[Any]]()
 
 
 def extract_backend_and_options(backend: object) -> tuple[str, dict[str, Any]]:
@@ -60,16 +62,27 @@ def pytest_configure(config: Any) -> None:
 
 
 def pytest_fixture_setup(fixturedef: Any, request: Any) -> None:
-    def wrapper(*args, anyio_backend, **kwargs):  # type: ignore[no-untyped-def]
+    def wrapper(*, request, anyio_backend, **kwargs):  # type: ignore[no-untyped-def]
         backend_name, backend_options = extract_backend_and_options(anyio_backend)
         if has_backend_arg:
             kwargs["anyio_backend"] = anyio_backend
+        if has_request_arg:
+            kwargs["request"] = request
 
         with get_runner(backend_name, backend_options) as runner:
-            if isasyncgenfunction(func):
-                yield from runner.run_asyncgen_fixture(func, kwargs)
-            else:
-                yield runner.run_fixture(func, kwargs)
+            running_fixtures = request.node.stash.setdefault(_running_fixtures, set())
+            running_fixtures.add(fixturedef)
+            try:
+                if isasyncgenfunction(func):
+                    yield from runner.run_asyncgen_fixture(
+                        func, kwargs, fixturedef.scope
+                    )
+                else:
+                    yield runner.run_fixture(func, kwargs, fixturedef.scope)
+            finally:
+                running_fixtures.remove(fixturedef)
+                if not running_fixtures:
+                    runner.close_scope(fixturedef.scope)
 
     # Only apply this to coroutine functions and async generator functions in requests
     # that involve the anyio_backend fixture
@@ -77,9 +90,12 @@ def pytest_fixture_setup(fixturedef: Any, request: Any) -> None:
     if isasyncgenfunction(func) or iscoroutinefunction(func):
         if "anyio_backend" in request.fixturenames:
             has_backend_arg = "anyio_backend" in fixturedef.argnames
+            has_request_arg = "request" in fixturedef.argnames
             fixturedef.func = wrapper
             if not has_backend_arg:
                 fixturedef.argnames += ("anyio_backend",)
+            if not has_request_arg:
+                fixturedef.argnames += ("request",)
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -98,6 +114,8 @@ def pytest_pyfunc_call(pyfuncitem: Any) -> bool | None:
     def run_with_hypothesis(**kwargs: Any) -> None:
         with get_runner(backend_name, backend_options) as runner:
             runner.run_test(original_func, kwargs)
+            if not pyfuncitem.stash.get(_running_fixtures, set()):
+                runner.close_scope("function")
 
     backend = pyfuncitem.funcargs.get("anyio_backend")
     if backend:
@@ -117,6 +135,8 @@ def pytest_pyfunc_call(pyfuncitem: Any) -> bool | None:
             testargs = {arg: funcargs[arg] for arg in pyfuncitem._fixtureinfo.argnames}
             with get_runner(backend_name, backend_options) as runner:
                 runner.run_test(pyfuncitem.obj, testargs)
+                if not pyfuncitem.stash.get(_running_fixtures, set()):
+                    runner.close_scope("function")
 
             return True
 

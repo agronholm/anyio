@@ -1845,8 +1845,13 @@ class _TaskManager:
         self._send_stream.send_nowait((coro, future))
         return await future
 
+    def shutdown(self) -> None:
+        self._send_stream.close()
+
 
 class TestRunner(abc.TestRunner):
+    scopes = ("function", "class", "module", "package", "session")
+
     def __init__(
         self,
         *,
@@ -1861,7 +1866,7 @@ class TestRunner(abc.TestRunner):
 
         self._runner = Runner(debug=debug, loop_factory=loop_factory)
         self._exceptions: list[BaseException] = []
-        self._runner_task_manager: _TaskManager | None = None
+        self._scope_task_managers: dict[str, _TaskManager] = {}
 
     def __enter__(self) -> TestRunner:
         self._runner.__enter__()
@@ -1898,22 +1903,47 @@ class TestRunner(abc.TestRunner):
                     "Multiple exceptions occurred in asynchronous callbacks", exceptions
                 )
 
-    async def _call_in_runner_task(
-        self, func: Callable[..., Awaitable[T_Retval]], *args: object, **kwargs: object
-    ) -> T_Retval:
-        if not self._runner_task_manager:
-            self._runner_task_manager = _TaskManager(loop=self.get_loop())
+    async def _create_task(self) -> _TaskManager:
+        return _TaskManager(self.get_loop())
 
-        return await self._runner_task_manager.call_in_task(func, *args, **kwargs)
+    async def _get_task_manager(self, scope: str) -> _TaskManager:
+        if scope not in self.scopes:
+            raise ValueError(f"Unknown scope '{scope}'")
+        if scope in self._scope_task_managers:
+            return self._scope_task_managers[scope]
+
+        parent_task: _TaskManager | None = None
+        for parent_scope in self.scopes[self.scopes.index(scope) + 1 :]:
+            parent_task = self._scope_task_managers.get(parent_scope)
+            if parent_task is not None:
+                break
+
+        if parent_task is None:
+            result = await self._create_task()
+        else:
+            result = await parent_task.call_in_task(self._create_task)
+        self._scope_task_managers[scope] = result
+        return result
+
+    async def _call_in_runner_task(
+        self,
+        scope: str,
+        func: Callable[..., Awaitable[T_Retval]],
+        *args: object,
+        **kwargs: object,
+    ) -> T_Retval:
+        task_manager = await self._get_task_manager(scope)
+        return await task_manager.call_in_task(func, *args, **kwargs)
 
     def run_asyncgen_fixture(
         self,
         fixture_func: Callable[..., AsyncGenerator[T_Retval, Any]],
         kwargs: dict[str, Any],
+        scope: str = "function",
     ) -> Iterable[T_Retval]:
         asyncgen = fixture_func(**kwargs)
         fixturevalue: T_Retval = self.get_loop().run_until_complete(
-            self._call_in_runner_task(asyncgen.asend, None)
+            self._call_in_runner_task(scope, asyncgen.asend, None)
         )
         self._raise_async_exceptions()
 
@@ -1921,7 +1951,7 @@ class TestRunner(abc.TestRunner):
 
         try:
             self.get_loop().run_until_complete(
-                self._call_in_runner_task(asyncgen.asend, None)
+                self._call_in_runner_task(scope, asyncgen.asend, None)
             )
         except StopAsyncIteration:
             self._raise_async_exceptions()
@@ -1933,9 +1963,10 @@ class TestRunner(abc.TestRunner):
         self,
         fixture_func: Callable[..., Coroutine[Any, Any, T_Retval]],
         kwargs: dict[str, Any],
+        scope: str = "function",
     ) -> T_Retval:
         retval = self.get_loop().run_until_complete(
-            self._call_in_runner_task(fixture_func, **kwargs)
+            self._call_in_runner_task(scope, fixture_func, **kwargs)
         )
         self._raise_async_exceptions()
         return retval
@@ -1945,12 +1976,16 @@ class TestRunner(abc.TestRunner):
     ) -> None:
         try:
             self.get_loop().run_until_complete(
-                self._call_in_runner_task(test_func, **kwargs)
+                self._call_in_runner_task("function", test_func, **kwargs)
             )
         except Exception as exc:
             self._exceptions.append(exc)
 
         self._raise_async_exceptions()
+
+    def close_scope(self, scope: str) -> None:
+        if scope in self._scope_task_managers:
+            self._scope_task_managers.pop(scope).shutdown()
 
 
 class AsyncIOBackend(AsyncBackend):

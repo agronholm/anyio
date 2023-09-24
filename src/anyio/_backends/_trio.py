@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import array
+import contextvars
 import math
 import socket
 import sys
@@ -742,12 +743,14 @@ class _TaskManager:
                 else:
                     outcome_holder.append(Value(retval))
 
-    def __init__(self) -> None:
+    def __init__(self, context: contextvars.Context) -> None:
         self._send_stream, receive_stream = create_memory_object_stream[
             Tuple[Awaitable[Any], MutableSequence[Outcome]]
         ](1)
         self.task = trio.lowlevel.spawn_system_task(
-            self._run_coroutines, receive_stream
+            self._run_coroutines,
+            receive_stream,
+            context=context,  # type: ignore[call-arg] # missing from trio-typing
         )
 
     def call_in_task(
@@ -757,15 +760,20 @@ class _TaskManager:
         self._send_stream.send_nowait((func(*args, **kwargs), outcome_holder))
         return outcome_holder
 
+    def shutdown(self) -> None:
+        self._send_stream.close()
+
 
 class TestRunner(abc.TestRunner):
+    scopes = ("function", "class", "module", "package", "session")
+
     def __init__(self, **options: Any) -> None:
         from queue import Queue
 
         self._call_queue: Queue[Callable[..., object]] = Queue()
         self._end_event: trio.Event | None = None
         self._options = options
-        self._runner_task_manager: _TaskManager | None = None
+        self._scope_task_managers: dict[str, _TaskManager] = {}
 
     def __exit__(
         self,
@@ -785,8 +793,31 @@ class TestRunner(abc.TestRunner):
     def _main_task_finished(self, outcome: object) -> None:
         self._end_event = None
 
+    def _get_task_manager(self, scope: str) -> _TaskManager:
+        if scope not in self.scopes:
+            raise ValueError(f"Unknown scope '{scope}'")
+        if scope in self._scope_task_managers:
+            return self._scope_task_managers[scope]
+
+        context: contextvars.Context
+        for parent_scope in self.scopes[self.scopes.index(scope) + 1 :]:
+            parent = self._scope_task_managers.get(parent_scope)
+            if parent is not None:
+                context = parent.task.context.copy()
+                break
+        else:
+            context = contextvars.copy_context()
+
+        result = _TaskManager(context=context)
+        self._scope_task_managers[scope] = result
+        return result
+
     def _call_in_runner_task(
-        self, func: Callable[..., Awaitable[T_Retval]], *args: object, **kwargs: object
+        self,
+        scope: str,
+        func: Callable[..., Awaitable[T_Retval]],
+        *args: object,
+        **kwargs: object,
     ) -> T_Retval:
         if self._end_event is None:
             trio.lowlevel.start_guest_run(
@@ -798,10 +829,9 @@ class TestRunner(abc.TestRunner):
             while self._end_event is None:
                 self._call_queue.get()()
 
-        if self._runner_task_manager is None:
-            self._runner_task_manager = _TaskManager()
+        task_manager = self._get_task_manager(scope)
 
-        outcome_holder = self._runner_task_manager.call_in_task(func, *args, **kwargs)
+        outcome_holder = task_manager.call_in_task(func, *args, **kwargs)
         while not outcome_holder:
             self._call_queue.get()()
 
@@ -811,31 +841,37 @@ class TestRunner(abc.TestRunner):
         self,
         fixture_func: Callable[..., AsyncGenerator[T_Retval, Any]],
         kwargs: dict[str, Any],
+        scope: str = "function",
     ) -> Iterable[T_Retval]:
         asyncgen = fixture_func(**kwargs)
-        fixturevalue: T_Retval = self._call_in_runner_task(asyncgen.asend, None)
+        fixturevalue: T_Retval = self._call_in_runner_task(scope, asyncgen.asend, None)
 
         yield fixturevalue
 
         try:
-            self._call_in_runner_task(asyncgen.asend, None)
+            self._call_in_runner_task(scope, asyncgen.asend, None)
         except StopAsyncIteration:
             pass
         else:
-            self._call_in_runner_task(asyncgen.aclose)
+            self._call_in_runner_task(scope, asyncgen.aclose)
             raise RuntimeError("Async generator fixture did not stop")
 
     def run_fixture(
         self,
         fixture_func: Callable[..., Coroutine[Any, Any, T_Retval]],
         kwargs: dict[str, Any],
+        scope: str = "function",
     ) -> T_Retval:
-        return self._call_in_runner_task(fixture_func, **kwargs)
+        return self._call_in_runner_task(scope, fixture_func, **kwargs)
 
     def run_test(
         self, test_func: Callable[..., Coroutine[Any, Any, Any]], kwargs: dict[str, Any]
     ) -> None:
-        self._call_in_runner_task(test_func, **kwargs)
+        self._call_in_runner_task("function", test_func, **kwargs)
+
+    def close_scope(self, scope: str) -> None:
+        if scope in self._scope_task_managers:
+            self._scope_task_managers.pop(scope).shutdown()
 
 
 class TrioBackend(AsyncBackend):
