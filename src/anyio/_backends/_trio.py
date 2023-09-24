@@ -25,8 +25,10 @@ from typing import (
     Coroutine,
     Generic,
     Mapping,
+    MutableSequence,
     NoReturn,
     Sequence,
+    Tuple,
     TypeVar,
     cast,
     overload,
@@ -61,7 +63,7 @@ from .._core._synchronization import ResourceGuard
 from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend
-from ..streams.memory import MemoryObjectSendStream
+from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup
@@ -719,27 +721,18 @@ class _SignalReceiver:
 #
 
 
-class TestRunner(abc.TestRunner):
-    def __init__(self, **options: Any) -> None:
-        from queue import Queue
+class _TaskManager:
+    _send_stream: MemoryObjectSendStream[
+        tuple[Awaitable[Any], MutableSequence[Outcome]]
+    ]
+    task: trio.lowlevel.Task
 
-        self._call_queue: Queue[Callable[..., object]] = Queue()
-        self._send_stream: MemoryObjectSendStream | None = None
-        self._options = options
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: types.TracebackType | None,
+    @staticmethod
+    async def _run_coroutines(
+        receive_stream: MemoryObjectReceiveStream[
+            tuple[Awaitable[Any], MutableSequence[Outcome]]
+        ],
     ) -> None:
-        if self._send_stream:
-            self._send_stream.close()
-            while self._send_stream is not None:
-                self._call_queue.get()()
-
-    async def _run_tests_and_fixtures(self) -> None:
-        self._send_stream, receive_stream = create_memory_object_stream(1)
         with receive_stream:
             async for coro, outcome_holder in receive_stream:
                 try:
@@ -749,24 +742,66 @@ class TestRunner(abc.TestRunner):
                 else:
                     outcome_holder.append(Value(retval))
 
+    def __init__(self) -> None:
+        self._send_stream, receive_stream = create_memory_object_stream[
+            Tuple[Awaitable[Any], MutableSequence[Outcome]]
+        ](1)
+        self.task = trio.lowlevel.spawn_system_task(
+            self._run_coroutines, receive_stream
+        )
+
+    def call_in_task(
+        self, func: Callable[..., Awaitable[Any]], *args: object, **kwargs: object
+    ) -> list[Outcome]:
+        outcome_holder: list[Outcome] = []
+        self._send_stream.send_nowait((func(*args, **kwargs), outcome_holder))
+        return outcome_holder
+
+
+class TestRunner(abc.TestRunner):
+    def __init__(self, **options: Any) -> None:
+        from queue import Queue
+
+        self._call_queue: Queue[Callable[..., object]] = Queue()
+        self._end_event: trio.Event | None = None
+        self._options = options
+        self._runner_task_manager: _TaskManager | None = None
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
+    ) -> None:
+        if self._end_event:
+            self._end_event.set()
+            while self._end_event is not None:
+                self._call_queue.get()()
+
+    async def _wait_for_end(self) -> None:
+        self._end_event = trio.Event()
+        await self._end_event.wait()
+
     def _main_task_finished(self, outcome: object) -> None:
-        self._send_stream = None
+        self._end_event = None
 
     def _call_in_runner_task(
         self, func: Callable[..., Awaitable[T_Retval]], *args: object, **kwargs: object
     ) -> T_Retval:
-        if self._send_stream is None:
+        if self._end_event is None:
             trio.lowlevel.start_guest_run(
-                self._run_tests_and_fixtures,
+                self._wait_for_end,
                 run_sync_soon_threadsafe=self._call_queue.put,
                 done_callback=self._main_task_finished,
                 **self._options,
             )
-            while self._send_stream is None:
+            while self._end_event is None:
                 self._call_queue.get()()
 
-        outcome_holder: list[Outcome] = []
-        self._send_stream.send_nowait((func(*args, **kwargs), outcome_holder))
+        if self._runner_task_manager is None:
+            self._runner_task_manager = _TaskManager()
+
+        outcome_holder = self._runner_task_manager.call_in_task(func, *args, **kwargs)
         while not outcome_holder:
             self._call_queue.get()()
 

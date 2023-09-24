@@ -1808,9 +1808,45 @@ def _create_task_info(task: asyncio.Task) -> TaskInfo:
     return TaskInfo(id(task), parent_id, task.get_name(), task.get_coro())
 
 
-class TestRunner(abc.TestRunner):
+class _TaskManager:
     _send_stream: MemoryObjectSendStream[tuple[Awaitable[Any], asyncio.Future[Any]]]
+    _task: asyncio.Task
+    _loop: asyncio.AbstractEventLoop
 
+    @staticmethod
+    async def _run_coroutines(
+        receive_stream: MemoryObjectReceiveStream[
+            tuple[Awaitable[Any], asyncio.Future[Any]]
+        ],
+    ) -> None:
+        with receive_stream:
+            async for coro, future in receive_stream:
+                try:
+                    retval = await coro
+                except BaseException as exc:
+                    if not future.cancelled():
+                        future.set_exception(exc)
+                else:
+                    if not future.cancelled():
+                        future.set_result(retval)
+
+    def __init__(self, loop: asyncio.AbstractEventLoop):
+        self._loop = loop
+        self._send_stream, receive_stream = create_memory_object_stream[
+            Tuple[Awaitable[Any], asyncio.Future]
+        ](1)
+        self._task = loop.create_task(self._run_coroutines(receive_stream))
+
+    async def call_in_task(
+        self, func: Callable[..., Awaitable[T_Retval]], *args: object, **kwargs: object
+    ) -> T_Retval:
+        coro = func(*args, **kwargs)
+        future: asyncio.Future[T_Retval] = self._loop.create_future()
+        self._send_stream.send_nowait((coro, future))
+        return await future
+
+
+class TestRunner(abc.TestRunner):
     def __init__(
         self,
         *,
@@ -1825,7 +1861,7 @@ class TestRunner(abc.TestRunner):
 
         self._runner = Runner(debug=debug, loop_factory=loop_factory)
         self._exceptions: list[BaseException] = []
-        self._runner_task: asyncio.Task | None = None
+        self._runner_task_manager: _TaskManager | None = None
 
     def __enter__(self) -> TestRunner:
         self._runner.__enter__()
@@ -1862,38 +1898,13 @@ class TestRunner(abc.TestRunner):
                     "Multiple exceptions occurred in asynchronous callbacks", exceptions
                 )
 
-    @staticmethod
-    async def _run_tests_and_fixtures(
-        receive_stream: MemoryObjectReceiveStream[
-            tuple[Awaitable[T_Retval], asyncio.Future[T_Retval]]
-        ],
-    ) -> None:
-        with receive_stream:
-            async for coro, future in receive_stream:
-                try:
-                    retval = await coro
-                except BaseException as exc:
-                    if not future.cancelled():
-                        future.set_exception(exc)
-                else:
-                    if not future.cancelled():
-                        future.set_result(retval)
-
     async def _call_in_runner_task(
         self, func: Callable[..., Awaitable[T_Retval]], *args: object, **kwargs: object
     ) -> T_Retval:
-        if not self._runner_task:
-            self._send_stream, receive_stream = create_memory_object_stream[
-                Tuple[Awaitable[Any], asyncio.Future]
-            ](1)
-            self._runner_task = self.get_loop().create_task(
-                self._run_tests_and_fixtures(receive_stream)
-            )
+        if not self._runner_task_manager:
+            self._runner_task_manager = _TaskManager(loop=self.get_loop())
 
-        coro = func(*args, **kwargs)
-        future: asyncio.Future[T_Retval] = self.get_loop().create_future()
-        self._send_stream.send_nowait((coro, future))
-        return await future
+        return await self._runner_task_manager.call_in_task(func, *args, **kwargs)
 
     def run_asyncgen_fixture(
         self,
