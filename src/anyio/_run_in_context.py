@@ -32,8 +32,8 @@ class GeneratorWrapper(Generator):
     def send(self, value, /):
         return self._context.run(self._wrapped.send, value)
 
-    def throw(self, typ, val=None, tb=None, /):
-        return self._context.run(self._wrapped.throw, typ, val, tb)
+    def throw(self, *args):
+        return self._context.run(self._wrapped.throw, *args)
 
 
 class AwaitableWrapper(Awaitable):
@@ -55,8 +55,8 @@ class AsyncGeneratorWrapper(AsyncGenerator):
         awaitable = self._context.run(self._wrapped.asend, value)
         return AwaitableWrapper(self._context, awaitable)
 
-    def athrow(self, typ, val=None, tb=None, /):
-        awaitable = self._context.run(self._wrapped.athrow, typ, val, tb)
+    def athrow(self, *args):
+        awaitable = self._context.run(self._wrapped.athrow, *args)
         return AwaitableWrapper(self._context, awaitable)
 
 
