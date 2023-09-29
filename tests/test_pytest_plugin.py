@@ -265,8 +265,8 @@ def test_module_scoped_task_group_fixture(testdir: Pytester) -> None:
 
 
         @pytest.fixture(scope="module", params=get_all_backends())
-        def anyio_backend():
-            return 'asyncio'
+        def anyio_backend(request):
+            return request.param
 
 
         @pytest.fixture(scope="module")
