@@ -380,3 +380,62 @@ def test_hypothesis_function_mark(testdir: Pytester) -> None:
     result.assert_outcomes(
         passed=2 * len(get_all_backends()), xfailed=2 * len(get_all_backends())
     )
+
+
+def test_all_tests_and_fixtures_run_in_same_context(testdir: Pytester) -> None:
+    testdir.makepyfile(
+        """
+        import pytest
+        import contextvars
+
+        async_fixture_var = contextvars.ContextVar("async_fixture_var")
+        sync_fixture_var = contextvars.ContextVar("sync_fixture_var")
+
+
+        @pytest.fixture
+        async def async_var_setter():
+            reset_token = async_fixture_var.set("set")
+            yield
+            async_fixture_var.reset(reset_token)
+
+
+        @pytest.fixture
+        def sync_var_setter():
+            reset_token = sync_fixture_var.set("set")
+            yield
+            sync_fixture_var.reset(reset_token)
+
+
+        @pytest.mark.anyio
+        async def test_async_func_async_then_sync_fixture(
+            async_var_setter, sync_var_setter
+        ):
+            assert "set" == sync_fixture_var.get()
+            assert "set" == async_fixture_var.get()
+
+
+        @pytest.mark.anyio
+        async def test_async_func_sync_then_async_fixture(
+            sync_var_setter, async_var_setter
+        ):
+            assert "set" == sync_fixture_var.get()
+            assert "set" == async_fixture_var.get()
+
+
+        def test_sync_func_async_then_sync_fixture(
+            anyio_backend_name, async_var_setter, sync_var_setter
+        ):
+            assert "set" == sync_fixture_var.get()
+            assert "set" == async_fixture_var.get()
+
+
+        def test_sync_func_sync_then_async_fixture(
+            anyio_backend_name, sync_var_setter, async_var_setter
+        ):
+            assert "set" == sync_fixture_var.get()
+            assert "set" == async_fixture_var.get()
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=4 * len(get_all_backends()))
