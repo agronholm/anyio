@@ -15,8 +15,8 @@ from ._run_in_context import ContextLike, context_wrap, context_wrap_async
 from .abc import TestRunner
 
 _current_runner: TestRunner | None = None
-contextvars_context_key = StashKey[Context]()
-_test_context_like_key = StashKey[ContextLike]()
+contextvars_context_key: StashKey[Context] = StashKey()
+_test_context_like_key: StashKey[ContextLike] = StashKey()
 
 
 class _TestContext(ContextLike):
@@ -95,7 +95,7 @@ def pytest_configure(config: Any) -> None:
     )
 
 
-def pytest_sessionstart(session: pytest.Session) -> None:
+def pytest_sessionstart(session: Any) -> None:
     context = copy_context()
     session.stash[contextvars_context_key] = context
     session.stash[_test_context_like_key] = _TestContext(context)
