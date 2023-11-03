@@ -218,7 +218,7 @@ class TestPath:
         assert not await Path("/btelkbee").is_block_device()
         with os.scandir("/dev") as iterator:
             for entry in iterator:
-                if stat.S_ISBLK(entry.stat().st_mode):
+                if stat.S_ISBLK(entry.stat(follow_symlinks=False).st_mode):
                     assert await Path(entry.path).is_block_device()
                     break
             else:
