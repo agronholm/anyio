@@ -31,8 +31,7 @@ async def test_send() -> None:
 
 
 @pytest.mark.xfail(
-    platform.python_implementation() == "PyPy"
-    and sys.pypy_version_info < (7, 3, 2),  # type: ignore[attr-defined]
+    platform.python_implementation() == "PyPy" and sys.pypy_version_info < (7, 3, 2),  # type: ignore[attr-defined]
     reason="PyPy has a bug in its incremental UTF-8 decoder (#3274)",
 )
 async def test_receive_encoding_error() -> None:

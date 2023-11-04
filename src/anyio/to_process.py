@@ -98,7 +98,7 @@ async def run_sync(
         _process_pool_idle_workers.set(idle_workers)
         get_async_backend().setup_process_pool_exit_at_shutdown(workers)
 
-    async with (limiter or current_default_process_limiter()):
+    async with limiter or current_default_process_limiter():
         # Pop processes from the pool (starting from the most recently used) until we
         # find one that hasn't exited yet
         process: Process

@@ -479,7 +479,8 @@ class TestBlockingPortal:
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
             future, start_value = portal.start_task(
-                taskfunc, name="testname"  # type: ignore[arg-type]
+                taskfunc,  # type: ignore[arg-type]
+                name="testname",
             )
             assert start_value == "testname"
 

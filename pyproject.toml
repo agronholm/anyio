@@ -65,7 +65,6 @@ version_scheme = "post-release"
 local_scheme = "dirty-tag"
 
 [tool.ruff]
-line-length = 88
 select = [
     "E", "F", "W",  # default flake-8
     "I",            # isort

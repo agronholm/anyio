@@ -317,9 +317,7 @@ def get_callable_name(func: Callable) -> str:
 # Event loop
 #
 
-_run_vars = (
-    WeakKeyDictionary()
-)  # type: WeakKeyDictionary[asyncio.AbstractEventLoop, Any]
+_run_vars: WeakKeyDictionary[asyncio.AbstractEventLoop, Any] = WeakKeyDictionary()
 
 
 def _task_started(task: asyncio.Task) -> bool:
@@ -2072,7 +2070,7 @@ class AsyncIOBackend(AsyncBackend):
             _threadpool_idle_workers.set(idle_workers)
             _threadpool_workers.set(workers)
 
-        async with (limiter or cls.current_default_thread_limiter()):
+        async with limiter or cls.current_default_thread_limiter():
             with CancelScope(shield=not cancellable):
                 future: asyncio.Future = asyncio.Future()
                 root_task = find_root_task()
