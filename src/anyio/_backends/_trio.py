@@ -161,7 +161,7 @@ class TaskGroup(abc.TaskGroup):
         except BaseExceptionGroup as exc:
             _, rest = exc.split(trio.Cancelled)
             if not rest:
-                cancelled_exc = trio.Cancelled._create()  # type: ignore [attr-defined]
+                cancelled_exc = trio.Cancelled._create()
                 raise cancelled_exc from exc
 
             raise
@@ -460,7 +460,7 @@ class UNIXSocketStream(SocketStream, abc.UNIXSocketStream):
                         [
                             (
                                 socket.SOL_SOCKET,
-                                socket.SCM_RIGHTS,  # type: ignore[list-item]
+                                socket.SCM_RIGHTS,
                                 fdarray,
                             )
                         ],
@@ -674,7 +674,7 @@ class CapacityLimiter(BaseCapacityLimiter):
         return CapacityLimiterStatistics(
             borrowed_tokens=orig.borrowed_tokens,
             total_tokens=orig.total_tokens,
-            borrowers=orig.borrowers,
+            borrowers=tuple(orig.borrowers),
             tasks_waiting=orig.tasks_waiting,
         )
 
@@ -1049,7 +1049,7 @@ class TrioBackend(AsyncBackend):
     @classmethod
     async def wait_socket_readable(cls, sock: socket.socket) -> None:
         try:
-            await wait_readable(sock)  # type: ignore[arg-type]
+            await wait_readable(sock)
         except trio.ClosedResourceError as exc:
             raise ClosedResourceError().with_traceback(exc.__traceback__) from None
         except trio.BusyResourceError:
@@ -1058,7 +1058,7 @@ class TrioBackend(AsyncBackend):
     @classmethod
     async def wait_socket_writable(cls, sock: socket.socket) -> None:
         try:
-            await wait_writable(sock)  # type: ignore[arg-type]
+            await wait_writable(sock)
         except trio.ClosedResourceError as exc:
             raise ClosedResourceError().with_traceback(exc.__traceback__) from None
         except trio.BusyResourceError:
@@ -1094,6 +1094,7 @@ class TrioBackend(AsyncBackend):
     @classmethod
     def get_running_tasks(cls) -> list[TaskInfo]:
         root_task = current_root_task()
+        assert root_task
         task_infos = [TaskInfo(id(root_task), None, root_task.name, root_task.coro)]
         nurseries = root_task.child_nurseries
         while nurseries:
