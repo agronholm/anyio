@@ -646,7 +646,6 @@ class TaskGroup(abc.TaskGroup):
                 self._exceptions.append(exc_val)
 
         cancelled_exc_while_waiting_tasks: CancelledError | None = None
-        waited_for_tasks_to_finish = bool(self.cancel_scope._tasks)
         while self.cancel_scope._tasks:
             try:
                 await asyncio.wait(self.cancel_scope._tasks)
@@ -670,11 +669,6 @@ class TaskGroup(abc.TaskGroup):
         if cancelled_exc_while_waiting_tasks:
             if exc_val is None or ignore_exception:
                 raise cancelled_exc_while_waiting_tasks
-
-        # Yield control to the event loop here to ensure that there is at least one
-        # yield point within __aexit__() (trio does the same)
-        if not waited_for_tasks_to_finish:
-            await AsyncIOBackend.checkpoint()
 
         return ignore_exception
 

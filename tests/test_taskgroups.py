@@ -1275,10 +1275,11 @@ class TestUncancel:
 async def test_cancel_before_entering_task_group() -> None:
     with CancelScope() as scope:
         scope.cancel()
-        async with create_task_group():
-            pass
-
-        pytest.fail("Execution should never reach this point")
+        try:
+            async with create_task_group():
+                pass
+        except get_cancelled_exc_class():
+            pytest.fail("This should not raise a cancellation exception")
 
 
 class TestTaskStatusTyping:
