@@ -22,7 +22,7 @@ from collections import OrderedDict, deque
 from collections.abc import AsyncIterator, Iterable
 from concurrent.futures import Future
 from contextlib import suppress
-from contextvars import Context, ContextVar, copy_context
+from contextvars import Context, copy_context
 from dataclasses import dataclass
 from functools import partial, wraps
 from inspect import (
@@ -318,7 +318,6 @@ def get_callable_name(func: Callable) -> str:
 #
 
 _run_vars: WeakKeyDictionary[asyncio.AbstractEventLoop, Any] = WeakKeyDictionary()
-_current_scope: ContextVar[CancelScope] = ContextVar("_current_scope")
 
 
 def _task_started(task: asyncio.Task) -> bool:
