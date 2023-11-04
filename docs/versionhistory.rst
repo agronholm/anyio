@@ -3,6 +3,15 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Adapted to API changes made in Trio v0.23:
+
+  - Call ``trio.to_thread.run_sync()`` using the ``abandon_on_cancel`` keyword argument
+    instead of ``cancellable``
+  - Removed a checkpoint when exiting a task group
+- Bumped minimum version of trio to v0.23
+
 **4.0.0**
 
 - **BACKWARDS INCOMPATIBLE** Replaced AnyIO's own ``ExceptionGroup`` class with the PEP

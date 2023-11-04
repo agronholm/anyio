@@ -879,7 +879,7 @@ class TrioBackend(AsyncBackend):
         token = TrioBackend.current_token()
         return await run_sync(
             wrapper,
-            cancellable=cancellable,
+            abandon_on_cancel=cancellable,
             limiter=cast(trio.CapacityLimiter, limiter),
         )
 
