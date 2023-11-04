@@ -22,7 +22,7 @@ from collections import OrderedDict, deque
 from collections.abc import AsyncIterator, Iterable
 from concurrent.futures import Future
 from contextlib import suppress
-from contextvars import Context, copy_context
+from contextvars import Context, ContextVar, copy_context
 from dataclasses import dataclass
 from functools import partial, wraps
 from inspect import (
@@ -59,7 +59,7 @@ from weakref import WeakKeyDictionary
 import sniffio
 
 from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
-from .._core._eventloop import claim_worker_thread
+from .._core._eventloop import claim_worker_thread, threadlocals
 from .._core._exceptions import (
     BrokenResourceError,
     BusyResourceError,
@@ -318,6 +318,7 @@ def get_callable_name(func: Callable) -> str:
 #
 
 _run_vars: WeakKeyDictionary[asyncio.AbstractEventLoop, Any] = WeakKeyDictionary()
+_current_scope: ContextVar[CancelScope] = ContextVar("_current_scope")
 
 
 def _task_started(task: asyncio.Task) -> bool:
@@ -786,7 +787,7 @@ class WorkerThread(Thread):
         self.idle_workers = idle_workers
         self.loop = root_task._loop
         self.queue: Queue[
-            tuple[Context, Callable, tuple, asyncio.Future] | None
+            tuple[Context, Callable, tuple, asyncio.Future, CancelScope] | None
         ] = Queue(2)
         self.idle_since = AsyncIOBackend.current_time()
         self.stopping = False
@@ -817,14 +818,17 @@ class WorkerThread(Thread):
                     # Shutdown command received
                     return
 
-                context, func, args, future = item
+                context, func, args, future, cancel_scope = item
                 if not future.cancelled():
                     result = None
                     exception: BaseException | None = None
+                    threadlocals.current_cancel_scope = cancel_scope
                     try:
                         result = context.run(func, *args)
                     except BaseException as exc:
                         exception = exc
+                    finally:
+                        del threadlocals.current_cancel_scope
 
                     if not self.loop.is_closed():
                         self.loop.call_soon_threadsafe(
@@ -2048,7 +2052,7 @@ class AsyncIOBackend(AsyncBackend):
         cls,
         func: Callable[..., T_Retval],
         args: tuple[Any, ...],
-        cancellable: bool = False,
+        abandon_on_cancel: bool = False,
         limiter: abc.CapacityLimiter | None = None,
     ) -> T_Retval:
         await cls.checkpoint()
@@ -2065,7 +2069,7 @@ class AsyncIOBackend(AsyncBackend):
             _threadpool_workers.set(workers)
 
         async with limiter or cls.current_default_thread_limiter():
-            with CancelScope(shield=not cancellable):
+            with CancelScope(shield=not abandon_on_cancel) as scope:
                 future: asyncio.Future = asyncio.Future()
                 root_task = find_root_task()
                 if not idle_workers:
@@ -2094,8 +2098,13 @@ class AsyncIOBackend(AsyncBackend):
 
                 context = copy_context()
                 context.run(sniffio.current_async_library_cvar.set, None)
-                worker.queue.put_nowait((context, func, args, future))
+                worker.queue.put_nowait((context, func, args, future, scope))
                 return await future
+
+    @classmethod
+    def check_cancelled(cls) -> None:
+        if threadlocals.current_cancel_scope._parent_cancelled():
+            raise CancelledError
 
     @classmethod
     def run_async_from_thread(

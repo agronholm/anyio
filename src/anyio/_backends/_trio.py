@@ -869,7 +869,7 @@ class TrioBackend(AsyncBackend):
         cls,
         func: Callable[..., T_Retval],
         args: tuple[Any, ...],
-        cancellable: bool = False,
+        abandon_on_cancel: bool = False,
         limiter: abc.CapacityLimiter | None = None,
     ) -> T_Retval:
         def wrapper() -> T_Retval:
@@ -879,9 +879,13 @@ class TrioBackend(AsyncBackend):
         token = TrioBackend.current_token()
         return await run_sync(
             wrapper,
-            abandon_on_cancel=cancellable,
+            abandon_on_cancel=abandon_on_cancel,
             limiter=cast(trio.CapacityLimiter, limiter),
         )
+
+    @classmethod
+    def check_cancelled(cls) -> None:
+        trio.from_thread.check_cancelled()
 
     @classmethod
     def run_async_from_thread(
