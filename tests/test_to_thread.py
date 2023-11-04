@@ -142,6 +142,11 @@ async def test_cancel_wait_on_thread() -> None:
     assert future.result(1)
 
 
+async def test_deprecated_cancellable_param() -> None:
+    with pytest.warns(DeprecationWarning, match="The `cancellable=`"):
+        await to_thread.run_sync(bool, cancellable=True)
+
+
 async def test_contextvar_propagation() -> None:
     var = ContextVar("var", default=1)
     var.set(6)
