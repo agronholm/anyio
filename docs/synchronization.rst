@@ -163,3 +163,22 @@ Example::
 
 You can adjust the total number of tokens by setting a different value on the limiter's
 ``total_tokens`` property.
+
+Resource guards
+---------------
+
+Some resources, such as sockets, are very sensitive about concurrent use and should not
+allow even attempts to be used concurrently. For such cases, :class:`ResourceGuard` is
+the appropriate solution::
+
+    class Resource:
+        def __init__(self):
+            self._guard = ResourceGuard()
+
+        async def do_something() -> None:
+            with self._guard:
+                ...
+
+Now, if another task tries calling the ``do_something()`` method on the same
+``Resource`` instance before the first call has finished, that will raise a
+:exc:`BusyResourceError`.

@@ -483,10 +483,21 @@ class CapacityLimiter:
 
 
 class ResourceGuard:
+    """
+    A context manager for ensuring that a resource is only used by a single task at a
+    time.
+
+    Entering this context manager while the previous has not exited it yet will trigger
+    :exc:`BusyResourceError`.
+
+    :param action: the action to guard against (visible in the :exc:`BusyResourceError`
+        when triggered, e.g. "Another task is already {action} this resource")
+    """
+
     __slots__ = "action", "_guarded"
 
-    def __init__(self, action: str):
-        self.action = action
+    def __init__(self, action: str = "using"):
+        self.action: str = action
         self._guarded = False
 
     def __enter__(self) -> None:

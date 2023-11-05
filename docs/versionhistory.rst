@@ -11,6 +11,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     instead of ``cancellable``
   - Removed a checkpoint when exiting a task group
 - Bumped minimum version of trio to v0.23
+- Exposed the ``ResourceGuard`` class in the public API
 
 **4.0.0**
 
