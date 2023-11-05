@@ -151,6 +151,7 @@ Synchronization
 .. autoclass:: anyio.Condition
 .. autoclass:: anyio.Semaphore
 .. autoclass:: anyio.CapacityLimiter
+.. autoclass:: anyio.ResourceGuard
 
 .. autoclass:: anyio.LockStatistics
 .. autoclass:: anyio.EventStatistics
