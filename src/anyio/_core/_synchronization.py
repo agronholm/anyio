@@ -497,7 +497,7 @@ class ResourceGuard:
     __slots__ = "action", "_guarded"
 
     def __init__(self, action: str = "using"):
-        self.action = action
+        self.action: str = action
         self._guarded = False
 
     def __enter__(self) -> None:
