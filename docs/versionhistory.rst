@@ -15,6 +15,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   - Bumped minimum version of Trio to v0.23
 - Added support for voluntary thread cancellation via
   ``anyio.from_thread.check_cancelled()``
+- Bumped minimum version of trio to v0.23
+- Exposed the ``ResourceGuard`` class in the public API
 
 **4.0.0**
 
