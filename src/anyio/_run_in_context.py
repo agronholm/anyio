@@ -79,8 +79,17 @@ class GeneratorWrapper(Generator[_T_co, _T_contra, _V_co]):
     ) -> _T_co:
         ...
 
-    def throw(self, *args: Any) -> _T_co:
-        return self._context.run(self._wrapped.throw, *args)
+    def throw(
+        self,
+        tv: type[BaseException] | BaseException,
+        v: object = None,
+        tb: TracebackType | None = None,
+        /,
+    ) -> _T_co:
+        if isinstance(tv, BaseException):
+            return self._context.run(self._wrapped.throw, tv)
+        else:
+            return self._context.run(self._wrapped.throw, tv, v, tb)
 
 
 class AwaitableWrapper(Awaitable[_V_co]):
@@ -130,8 +139,17 @@ class AsyncGeneratorWrapper(AsyncGenerator[_T_co, _T_contra]):
     ) -> Awaitable[_T_co]:
         ...
 
-    def athrow(self, *args: Any) -> Awaitable[_T_co]:
-        awaitable = self._context.run(self._wrapped.athrow, *args)
+    def athrow(
+        self,
+        tv: type[BaseException] | BaseException,
+        v: object = None,
+        tb: TracebackType | None = None,
+        /,
+    ) -> Awaitable[_T_co]:
+        if isinstance(tv, BaseException):
+            awaitable = self._context.run(self._wrapped.athrow, tv)
+        else:
+            awaitable = self._context.run(self._wrapped.athrow, tv, v, tb)
         return AwaitableWrapper(self._context, awaitable)
 
 
