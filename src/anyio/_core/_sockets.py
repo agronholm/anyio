@@ -8,7 +8,7 @@ from ipaddress import IPv6Address, ip_address
 from os import PathLike, chmod
 from pathlib import Path
 from socket import AddressFamily, SocketKind
-from typing import Literal, Tuple, cast, overload
+from typing import Literal, cast, overload
 
 from .. import to_thread
 from ..abc import (
@@ -649,7 +649,7 @@ def convert_ipv6_sockaddr(
     """
     # This is more complicated than it should be because of MyPy
     if isinstance(sockaddr, tuple) and len(sockaddr) == 4:
-        host, port, flowinfo, scope_id = cast(Tuple[str, int, int, int], sockaddr)
+        host, port, flowinfo, scope_id = sockaddr
         if scope_id:
             # PyPy (as of v7.3.11) leaves the interface name in the result, so
             # we discard it and only get the scope ID from the end
@@ -661,7 +661,7 @@ def convert_ipv6_sockaddr(
         else:
             return host, port
     else:
-        return cast(Tuple[str, int], sockaddr)
+        return sockaddr
 
 
 async def setup_unix_local_socket(
