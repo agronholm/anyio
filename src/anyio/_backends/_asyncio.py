@@ -2107,9 +2107,15 @@ class AsyncIOBackend(AsyncBackend):
 
     @classmethod
     def check_cancelled(cls) -> None:
-        scope = threadlocals.current_cancel_scope
-        if scope.cancel_called or scope._parent_cancelled():
-            raise CancelledError
+        scope: CancelScope | None = threadlocals.current_cancel_scope
+        while scope is not None:
+            if scope.cancel_called:
+                raise CancelledError(f"Cancelled by cancel scope {id(scope):x}")
+
+            if scope.shield:
+                return
+
+            scope = scope._parent_scope
 
     @classmethod
     def run_async_from_thread(
@@ -2125,6 +2131,8 @@ class AsyncIOBackend(AsyncBackend):
             scope._tasks.add(task)
             try:
                 return await func(*args)
+            except CancelledError as exc:
+                raise concurrent.futures.CancelledError(str(exc)) from None
             finally:
                 scope._tasks.discard(task)
 
@@ -2135,10 +2143,7 @@ class AsyncIOBackend(AsyncBackend):
         f: concurrent.futures.Future[T_Retval] = context.run(
             asyncio.run_coroutine_threadsafe, wrapper, loop
         )
-        try:
-            return f.result()
-        except concurrent.futures.CancelledError:
-            raise CancelledError from None
+        return f.result()
 
     @classmethod
     def run_sync_from_thread(
