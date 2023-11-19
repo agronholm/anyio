@@ -2097,12 +2097,18 @@ class AsyncIOBackend(AsyncBackend):
 
                 context = copy_context()
                 context.run(sniffio.current_async_library_cvar.set, None)
-                worker.queue.put_nowait((context, func, args, future, scope))
+                if abandon_on_cancel or scope._parent_scope is None:
+                    worker_scope = scope
+                else:
+                    worker_scope = scope._parent_scope
+
+                worker.queue.put_nowait((context, func, args, future, worker_scope))
                 return await future
 
     @classmethod
     def check_cancelled(cls) -> None:
-        if threadlocals.current_cancel_scope._parent_cancelled():
+        scope = threadlocals.current_cancel_scope
+        if scope.cancel_called or scope._parent_cancelled():
             raise CancelledError
 
     @classmethod
@@ -2112,13 +2118,27 @@ class AsyncIOBackend(AsyncBackend):
         args: tuple[Any, ...],
         token: object,
     ) -> T_Retval:
+        async def task_wrapper(scope: CancelScope) -> T_Retval:
+            __tracebackhide__ = True
+            task = cast(asyncio.Task, current_task())
+            _task_states[task] = TaskState(None, scope)
+            scope._tasks.add(task)
+            try:
+                return await func(*args)
+            finally:
+                scope._tasks.discard(task)
+
         loop = cast(AbstractEventLoop, token)
         context = copy_context()
         context.run(sniffio.current_async_library_cvar.set, "asyncio")
+        wrapper = task_wrapper(threadlocals.current_cancel_scope)
         f: concurrent.futures.Future[T_Retval] = context.run(
-            asyncio.run_coroutine_threadsafe, func(*args), loop
+            asyncio.run_coroutine_threadsafe, wrapper, loop
         )
-        return f.result()
+        try:
+            return f.result()
+        except concurrent.futures.CancelledError:
+            raise CancelledError from None
 
     @classmethod
     def run_sync_from_thread(

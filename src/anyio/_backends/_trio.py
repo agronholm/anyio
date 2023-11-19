@@ -36,7 +36,6 @@ import trio.from_thread
 import trio.lowlevel
 from outcome import Error, Outcome, Value
 from trio.lowlevel import (
-    TrioToken,
     current_root_task,
     current_task,
     wait_readable,
@@ -894,13 +893,13 @@ class TrioBackend(AsyncBackend):
         args: tuple[Any, ...],
         token: object,
     ) -> T_Retval:
-        return trio.from_thread.run(func, *args, trio_token=cast(TrioToken, token))
+        return trio.from_thread.run(func, *args)
 
     @classmethod
     def run_sync_from_thread(
         cls, func: Callable[..., T_Retval], args: tuple[Any, ...], token: object
     ) -> T_Retval:
-        return trio.from_thread.run_sync(func, *args, trio_token=cast(TrioToken, token))
+        return trio.from_thread.run_sync(func, *args)
 
     @classmethod
     def create_blocking_portal(cls) -> abc.BlockingPortal:
