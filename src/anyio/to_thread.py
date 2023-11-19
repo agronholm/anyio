@@ -30,7 +30,8 @@ async def run_sync(
         unchecked on own) if the host task is cancelled, ``False`` to ignore
         cancellations in the host task until the operation has completed in the worker
         thread
-    :param cancellable: deprecated alias of ``abandon_on_cancel``
+    :param cancellable: deprecated alias of ``abandon_on_cancel``; will override
+        ``abandon_on_cancel`` if both parameters are passed
     :param limiter: capacity limiter to use to limit the total amount of threads running
         (if omitted, the default limiter is used)
     :return: an awaitable that yields the return value of the function.
