@@ -19,7 +19,7 @@ from asyncio import (
 from asyncio import run as native_run
 from asyncio.base_events import _run_until_complete_cb  # type: ignore[attr-defined]
 from collections import OrderedDict, deque
-from collections.abc import AsyncIterator, Iterable
+from collections.abc import AsyncIterator, Generator, Iterable
 from concurrent.futures import Future
 from contextlib import suppress
 from contextvars import Context, copy_context
@@ -418,17 +418,12 @@ class CancelScope(BaseCancelScope):
         if self._shield:
             self._deliver_cancellation_to_parent()
 
-        if self._cancel_called:
-            if isinstance(exc_val, CancelledError):
-                self._cancelled_caught = self._uncancel(exc_val)
-            elif isinstance(exc_val, BaseExceptionGroup) and (
-                excgrp := exc_val.split(CancelledError)[0]
-            ):
-                for exc in excgrp.exceptions:
-                    if isinstance(exc, CancelledError):
-                        self._cancelled_caught = self._uncancel(exc)
-                        if self._cancelled_caught:
-                            break
+        if self._cancel_called and exc_val is not None:
+            for exc in iterate_exceptions(exc_val):
+                if isinstance(exc, CancelledError):
+                    self._cancelled_caught = self._uncancel(exc)
+                    if self._cancelled_caught:
+                        break
 
             return self._cancelled_caught
 
@@ -614,22 +609,14 @@ class _AsyncioTaskStatus(abc.TaskStatus):
         _task_states[task].parent_id = self._parent_id
 
 
-def collapse_exception_group(excgroup: BaseExceptionGroup) -> BaseException:
-    exceptions = list(excgroup.exceptions)
-    modified = False
-    for i, exc in enumerate(exceptions):
-        if isinstance(exc, BaseExceptionGroup):
-            new_exc = collapse_exception_group(exc)
-            if new_exc is not exc:
-                modified = True
-                exceptions[i] = new_exc
-
-    if len(exceptions) == 1:
-        return exceptions[0]
-    elif modified:
-        return excgroup.derive(exceptions)
+def iterate_exceptions(
+    exception: BaseException
+) -> Generator[BaseException, None, None]:
+    if isinstance(exception, BaseExceptionGroup):
+        for exc in exception.exceptions:
+            yield from iterate_exceptions(exc)
     else:
-        return excgroup
+        yield exception
 
 
 class TaskGroup(abc.TaskGroup):
