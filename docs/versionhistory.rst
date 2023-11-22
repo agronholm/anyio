@@ -17,6 +17,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``anyio.from_thread.check_cancelled()``
 - Bumped minimum version of trio to v0.23
 - Exposed the ``ResourceGuard`` class in the public API
+- Fixed ``RuntimeError: Runner is closed`` when running higher-scoped async generator
+  fixtures in some cases (`#619 <https://github.com/agronholm/anyio/issues/619>`_)
 
 **4.0.0**
 

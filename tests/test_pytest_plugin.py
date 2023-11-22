@@ -308,6 +308,44 @@ def test_module_scoped_task_group_fixture(testdir: Pytester) -> None:
     result.assert_outcomes(passed=len(get_all_backends()))
 
 
+def test_async_fixture_teardown_after_sync_test(testdir: Pytester) -> None:
+    # Regression test for #619
+    testdir.makepyfile(
+        """
+        import pytest
+
+        from anyio import create_task_group, sleep
+
+        @pytest.fixture(scope="session")
+        def anyio_backend():
+            return "asyncio"
+
+
+        @pytest.fixture(scope="module")
+        async def bbbbbb():
+            yield ""
+
+
+        @pytest.fixture(scope="module")
+        async def aaaaaa():
+            yield ""
+
+
+        @pytest.mark.anyio
+        async def test_1(bbbbbb):
+            pass
+
+
+        @pytest.mark.anyio
+        async def test_2(aaaaaa, bbbbbb):
+            pass
+        """
+    )
+
+    result = testdir.runpytest_subprocess(*pytest_args)
+    result.assert_outcomes(passed=2)
+
+
 def test_hypothesis_module_mark(testdir: Pytester) -> None:
     testdir.makepyfile(
         """
