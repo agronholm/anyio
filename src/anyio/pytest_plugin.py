@@ -2,16 +2,72 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from contextvars import Context, ContextVar, copy_context
 from inspect import isasyncgenfunction, iscoroutinefunction
 from typing import Any, Dict, Tuple, cast
 
 import pytest
 import sniffio
+from _pytest.stash import StashKey
 
 from ._core._eventloop import get_all_backends, get_async_backend
+from ._run_in_context import ContextLike, context_wrap, context_wrap_async
 from .abc import TestRunner
 
 _current_runner: TestRunner | None = None
+_current_reentrancy_token = ContextVar[object]("anyio.pytest_plugin.reentrancy_token")
+contextvars_context_key: StashKey[Context] = StashKey()
+_test_context_like_key: StashKey[ContextLike] = StashKey()
+
+
+class _TestContext(ContextLike):
+    """Manages reentrancy and transmission of sniffio.current_async_library_cvar"""
+
+    def __init__(self, context: Context):
+        self._context = context
+        self._reentrancy_token = object()
+
+    def _is_already_in_context(self) -> bool:
+        # if context var is not set to the token, we are in another context
+        if _current_reentrancy_token.get(None) is not self._reentrancy_token:
+            return False
+
+        # Token value is the same, but we may be in a copy of self._context
+        test_value = object()
+        reset_reentrancy = _current_reentrancy_token.set(test_value)
+        try:
+            return self._context[_current_reentrancy_token] is test_value
+        finally:
+            _current_reentrancy_token.reset(reset_reentrancy)
+
+    def run(self, func: Any, /, *args: Any, **kwargs: Any) -> Any:
+        if self._is_already_in_context():
+            return func(*args, **kwargs)
+
+        return self._context.run(
+            self._set_context_and_run,
+            sniffio.current_async_library_cvar.get(None),
+            func,
+            *args,
+            **kwargs,
+        )
+
+    def _set_context_and_run(
+        self, current_async_library: str | None, func: Any, /, *args: Any, **kwargs: Any
+    ) -> Any:
+        reset_reentrancy = _current_reentrancy_token.set(self._reentrancy_token)
+        reset_sniffio = None
+        if current_async_library is not None:
+            reset_sniffio = sniffio.current_async_library_cvar.set(
+                current_async_library
+            )
+
+        try:
+            return func(*args, **kwargs)
+        finally:
+            _current_reentrancy_token.reset(reset_reentrancy)
+            if reset_sniffio is not None:
+                sniffio.current_async_library_cvar.reset(reset_sniffio)
 
 
 def extract_backend_and_options(backend: object) -> tuple[str, dict[str, Any]]:
@@ -59,17 +115,26 @@ def pytest_configure(config: Any) -> None:
     )
 
 
+def pytest_sessionstart(session: Any) -> None:
+    context = copy_context()
+    session.stash[contextvars_context_key] = context
+    session.stash[_test_context_like_key] = _TestContext(context)
+
+
 def pytest_fixture_setup(fixturedef: Any, request: Any) -> None:
+    context_like: ContextLike = request.session.stash[_test_context_like_key]
+
     def wrapper(*args, anyio_backend, **kwargs):  # type: ignore[no-untyped-def]
         backend_name, backend_options = extract_backend_and_options(anyio_backend)
         if has_backend_arg:
             kwargs["anyio_backend"] = anyio_backend
 
         with get_runner(backend_name, backend_options) as runner:
+            context_wrapped = context_wrap_async(context_like, func)
             if isasyncgenfunction(func):
-                yield from runner.run_asyncgen_fixture(func, kwargs)
+                yield from runner.run_asyncgen_fixture(context_wrapped, kwargs)
             else:
-                yield runner.run_fixture(func, kwargs)
+                yield runner.run_fixture(context_wrapped, kwargs)
 
     # Only apply this to coroutine functions and async generator functions in requests
     # that involve the anyio_backend fixture
@@ -77,9 +142,14 @@ def pytest_fixture_setup(fixturedef: Any, request: Any) -> None:
     if isasyncgenfunction(func) or iscoroutinefunction(func):
         if "anyio_backend" in request.fixturenames:
             has_backend_arg = "anyio_backend" in fixturedef.argnames
+            setattr(wrapper, "_runs_in_session_context", True)
             fixturedef.func = wrapper
             if not has_backend_arg:
                 fixturedef.argnames += ("anyio_backend",)
+    elif not getattr(func, "_runs_in_session_context", False):
+        wrapper = context_wrap(context_like, func)
+        setattr(wrapper, "_runs_in_session_context", True)
+        fixturedef.func = wrapper
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -95,9 +165,12 @@ def pytest_pycollect_makeitem(collector: Any, name: Any, obj: Any) -> None:
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_pyfunc_call(pyfuncitem: Any) -> bool | None:
+    context_like: ContextLike = pyfuncitem.session.stash[_test_context_like_key]
+
     def run_with_hypothesis(**kwargs: Any) -> None:
         with get_runner(backend_name, backend_options) as runner:
-            runner.run_test(original_func, kwargs)
+            context_wrapped = context_wrap_async(context_like, original_func)
+            runner.run_test(context_wrapped, kwargs)
 
     backend = pyfuncitem.funcargs.get("anyio_backend")
     if backend:
@@ -116,9 +189,13 @@ def pytest_pyfunc_call(pyfuncitem: Any) -> bool | None:
             funcargs = pyfuncitem.funcargs
             testargs = {arg: funcargs[arg] for arg in pyfuncitem._fixtureinfo.argnames}
             with get_runner(backend_name, backend_options) as runner:
-                runner.run_test(pyfuncitem.obj, testargs)
+                context_wrapped = context_wrap_async(context_like, pyfuncitem.obj)
+                runner.run_test(context_wrapped, testargs)
 
             return True
+
+    if not iscoroutinefunction(pyfuncitem.obj):
+        pyfuncitem.obj = context_wrap(context_like, pyfuncitem.obj)
 
     return None
 
