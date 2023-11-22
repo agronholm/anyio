@@ -8,6 +8,7 @@ from collections.abc import AsyncGenerator, Coroutine, Generator
 from typing import Any, NoReturn, cast
 
 import pytest
+from exceptiongroup import catch
 
 import anyio
 from anyio import (
@@ -1280,6 +1281,16 @@ async def test_cancel_before_entering_task_group() -> None:
                 pass
         except get_cancelled_exc_class():
             pytest.fail("This should not raise a cancellation exception")
+
+
+async def test_reraise_cancelled_in_excgroup() -> None:
+    def handler(excgrp: BaseExceptionGroup) -> None:
+        raise
+
+    with CancelScope() as scope:
+        scope.cancel()
+        with catch({get_cancelled_exc_class(): handler}):
+            await anyio.sleep_forever()
 
 
 class TestTaskStatusTyping:
