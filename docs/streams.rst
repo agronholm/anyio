@@ -22,6 +22,8 @@ Many stream implementations wrap other streams. Of these, some can wrap any
 bytes-oriented streams, meaning ``ObjectStream[bytes]`` and ``ByteStream``. This enables
 many interesting use cases.
 
+.. _memory object streams:
+
 Memory object streams
 ---------------------
 

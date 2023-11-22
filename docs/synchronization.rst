@@ -182,3 +182,9 @@ the appropriate solution::
 Now, if another task tries calling the ``do_something()`` method on the same
 ``Resource`` instance before the first call has finished, that will raise a
 :exc:`BusyResourceError`.
+
+Queues
+------
+
+In place of queues, AnyIO offers a more powerful construct:
+:ref:`memory object streams <memory object streams>`.
