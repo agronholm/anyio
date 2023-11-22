@@ -6,7 +6,7 @@ import threading
 import time
 from collections.abc import Awaitable, Callable
 from concurrent import futures
-from concurrent.futures import CancelledError
+from concurrent.futures import CancelledError, Future
 from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
 from typing import Any, AsyncGenerator, Literal, NoReturn, TypeVar
@@ -16,8 +16,10 @@ import sniffio
 from _pytest.logging import LogCaptureFixture
 
 from anyio import (
+    CancelScope,
     Event,
     create_task_group,
+    fail_after,
     from_thread,
     get_all_backends,
     get_cancelled_exc_class,
@@ -63,6 +65,92 @@ def thread_worker_async(
 def thread_worker_sync(func: Callable[..., T_Retval], *args: Any) -> T_Retval:
     assert threading.current_thread() is not threading.main_thread()
     return from_thread.run_sync(func, *args)
+
+
+@pytest.mark.parametrize("cancel", [True, False])
+async def test_thread_cancelled(cancel: bool) -> None:
+    event = threading.Event()
+    thread_finished_future: Future[None] = Future()
+
+    def sync_function() -> None:
+        event.wait(3)
+        try:
+            from_thread.check_cancelled()
+        except BaseException as exc:
+            thread_finished_future.set_exception(exc)
+        else:
+            thread_finished_future.set_result(None)
+
+    async with create_task_group() as tg:
+        tg.start_soon(to_thread.run_sync, sync_function)
+        await wait_all_tasks_blocked()
+        if cancel:
+            tg.cancel_scope.cancel()
+
+        event.set()
+
+    if cancel:
+        with pytest.raises(get_cancelled_exc_class()):
+            thread_finished_future.result(3)
+    else:
+        thread_finished_future.result(3)
+
+
+async def test_thread_cancelled_and_abandoned() -> None:
+    event = threading.Event()
+    thread_finished_future: Future[None] = Future()
+
+    def sync_function() -> None:
+        event.wait(3)
+        try:
+            from_thread.check_cancelled()
+        except BaseException as exc:
+            thread_finished_future.set_exception(exc)
+        else:
+            thread_finished_future.set_result(None)
+
+    async with create_task_group() as tg:
+        tg.start_soon(lambda: to_thread.run_sync(sync_function, abandon_on_cancel=True))
+        await wait_all_tasks_blocked()
+        tg.cancel_scope.cancel()
+
+    event.set()
+    with pytest.raises(get_cancelled_exc_class()):
+        thread_finished_future.result(3)
+
+
+async def test_cancelscope_propagation() -> None:
+    async def async_time_bomb() -> None:
+        cancel_scope.cancel()
+        with fail_after(1):
+            await sleep(3)
+
+    with CancelScope() as cancel_scope:
+        await to_thread.run_sync(from_thread.run, async_time_bomb)
+
+    assert cancel_scope.cancelled_caught
+
+
+async def test_cancelscope_propagation_when_abandoned() -> None:
+    host_cancelled_event = Event()
+    completed_event = Event()
+
+    async def async_time_bomb() -> None:
+        cancel_scope.cancel()
+        with fail_after(3):
+            await host_cancelled_event.wait()
+
+        completed_event.set()
+
+    with CancelScope() as cancel_scope:
+        await to_thread.run_sync(
+            from_thread.run, async_time_bomb, abandon_on_cancel=True
+        )
+
+    assert cancel_scope.cancelled_caught
+    host_cancelled_event.set()
+    with fail_after(3):
+        await completed_event.wait()
 
 
 class TestRunAsyncFromThread:

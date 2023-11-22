@@ -10,6 +10,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   - Call ``trio.to_thread.run_sync()`` using the ``abandon_on_cancel`` keyword argument
     instead of ``cancellable``
   - Removed a checkpoint when exiting a task group
+  - Renamed the ``cancellable`` argument in ``anyio.to_thread.run_sync()`` to
+    ``abandon_on_cancel`` (and deprecated the old parameter name)
+  - Bumped minimum version of Trio to v0.23
+- Added support for voluntary thread cancellation via
+  ``anyio.from_thread.check_cancelled()``
 - Bumped minimum version of trio to v0.23
 - Exposed the ``ResourceGuard`` class in the public API
 - Fixed ``RuntimeError: Runner is closed`` when running higher-scoped async generator

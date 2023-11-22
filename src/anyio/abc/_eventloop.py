@@ -171,9 +171,14 @@ class AsyncBackend(metaclass=ABCMeta):
         cls,
         func: Callable[..., T_Retval],
         args: tuple[Any, ...],
-        cancellable: bool = False,
+        abandon_on_cancel: bool = False,
         limiter: CapacityLimiter | None = None,
     ) -> T_Retval:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def check_cancelled(cls) -> None:
         pass
 
     @classmethod

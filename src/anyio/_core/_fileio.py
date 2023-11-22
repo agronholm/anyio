@@ -205,7 +205,9 @@ class _PathIterator(AsyncIterator["Path"]):
     iterator: Iterator[PathLike[str]]
 
     async def __anext__(self) -> Path:
-        nextval = await to_thread.run_sync(next, self.iterator, None, cancellable=True)
+        nextval = await to_thread.run_sync(
+            next, self.iterator, None, abandon_on_cancel=True
+        )
         if nextval is None:
             raise StopAsyncIteration from None
 
@@ -386,17 +388,19 @@ class Path:
         return cls(path)
 
     async def exists(self) -> bool:
-        return await to_thread.run_sync(self._path.exists, cancellable=True)
+        return await to_thread.run_sync(self._path.exists, abandon_on_cancel=True)
 
     async def expanduser(self) -> Path:
-        return Path(await to_thread.run_sync(self._path.expanduser, cancellable=True))
+        return Path(
+            await to_thread.run_sync(self._path.expanduser, abandon_on_cancel=True)
+        )
 
     def glob(self, pattern: str) -> AsyncIterator[Path]:
         gen = self._path.glob(pattern)
         return _PathIterator(gen)
 
     async def group(self) -> str:
-        return await to_thread.run_sync(self._path.group, cancellable=True)
+        return await to_thread.run_sync(self._path.group, abandon_on_cancel=True)
 
     async def hardlink_to(self, target: str | pathlib.Path | Path) -> None:
         if isinstance(target, Path):
@@ -413,31 +417,37 @@ class Path:
         return self._path.is_absolute()
 
     async def is_block_device(self) -> bool:
-        return await to_thread.run_sync(self._path.is_block_device, cancellable=True)
+        return await to_thread.run_sync(
+            self._path.is_block_device, abandon_on_cancel=True
+        )
 
     async def is_char_device(self) -> bool:
-        return await to_thread.run_sync(self._path.is_char_device, cancellable=True)
+        return await to_thread.run_sync(
+            self._path.is_char_device, abandon_on_cancel=True
+        )
 
     async def is_dir(self) -> bool:
-        return await to_thread.run_sync(self._path.is_dir, cancellable=True)
+        return await to_thread.run_sync(self._path.is_dir, abandon_on_cancel=True)
 
     async def is_fifo(self) -> bool:
-        return await to_thread.run_sync(self._path.is_fifo, cancellable=True)
+        return await to_thread.run_sync(self._path.is_fifo, abandon_on_cancel=True)
 
     async def is_file(self) -> bool:
-        return await to_thread.run_sync(self._path.is_file, cancellable=True)
+        return await to_thread.run_sync(self._path.is_file, abandon_on_cancel=True)
 
     async def is_mount(self) -> bool:
-        return await to_thread.run_sync(os.path.ismount, self._path, cancellable=True)
+        return await to_thread.run_sync(
+            os.path.ismount, self._path, abandon_on_cancel=True
+        )
 
     def is_reserved(self) -> bool:
         return self._path.is_reserved()
 
     async def is_socket(self) -> bool:
-        return await to_thread.run_sync(self._path.is_socket, cancellable=True)
+        return await to_thread.run_sync(self._path.is_socket, abandon_on_cancel=True)
 
     async def is_symlink(self) -> bool:
-        return await to_thread.run_sync(self._path.is_symlink, cancellable=True)
+        return await to_thread.run_sync(self._path.is_symlink, abandon_on_cancel=True)
 
     def iterdir(self) -> AsyncIterator[Path]:
         gen = self._path.iterdir()
@@ -450,7 +460,7 @@ class Path:
         await to_thread.run_sync(self._path.lchmod, mode)
 
     async def lstat(self) -> os.stat_result:
-        return await to_thread.run_sync(self._path.lstat, cancellable=True)
+        return await to_thread.run_sync(self._path.lstat, abandon_on_cancel=True)
 
     async def mkdir(
         self, mode: int = 0o777, parents: bool = False, exist_ok: bool = False
@@ -493,7 +503,7 @@ class Path:
         return AsyncFile(fp)
 
     async def owner(self) -> str:
-        return await to_thread.run_sync(self._path.owner, cancellable=True)
+        return await to_thread.run_sync(self._path.owner, abandon_on_cancel=True)
 
     async def read_bytes(self) -> bytes:
         return await to_thread.run_sync(self._path.read_bytes)
@@ -526,7 +536,7 @@ class Path:
 
     async def resolve(self, strict: bool = False) -> Path:
         func = partial(self._path.resolve, strict=strict)
-        return Path(await to_thread.run_sync(func, cancellable=True))
+        return Path(await to_thread.run_sync(func, abandon_on_cancel=True))
 
     def rglob(self, pattern: str) -> AsyncIterator[Path]:
         gen = self._path.rglob(pattern)
@@ -542,12 +552,12 @@ class Path:
             other_path = other_path._path
 
         return await to_thread.run_sync(
-            self._path.samefile, other_path, cancellable=True
+            self._path.samefile, other_path, abandon_on_cancel=True
         )
 
     async def stat(self, *, follow_symlinks: bool = True) -> os.stat_result:
         func = partial(os.stat, follow_symlinks=follow_symlinks)
-        return await to_thread.run_sync(func, self._path, cancellable=True)
+        return await to_thread.run_sync(func, self._path, abandon_on_cancel=True)
 
     async def symlink_to(
         self,

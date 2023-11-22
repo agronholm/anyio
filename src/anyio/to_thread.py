@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import TypeVar
+from warnings import warn
 
 from ._core._eventloop import get_async_backend
 from .abc import CapacityLimiter
@@ -12,7 +13,8 @@ T_Retval = TypeVar("T_Retval")
 async def run_sync(
     func: Callable[..., T_Retval],
     *args: object,
-    cancellable: bool = False,
+    abandon_on_cancel: bool = False,
+    cancellable: bool | None = None,
     limiter: CapacityLimiter | None = None,
 ) -> T_Retval:
     """
@@ -24,14 +26,28 @@ async def run_sync(
 
     :param func: a callable
     :param args: positional arguments for the callable
-    :param cancellable: ``True`` to allow cancellation of the operation
+    :param abandon_on_cancel: ``True`` to abandon the thread (leaving it to run
+        unchecked on own) if the host task is cancelled, ``False`` to ignore
+        cancellations in the host task until the operation has completed in the worker
+        thread
+    :param cancellable: deprecated alias of ``abandon_on_cancel``; will override
+        ``abandon_on_cancel`` if both parameters are passed
     :param limiter: capacity limiter to use to limit the total amount of threads running
         (if omitted, the default limiter is used)
     :return: an awaitable that yields the return value of the function.
 
     """
+    if cancellable is not None:
+        abandon_on_cancel = cancellable
+        warn(
+            "The `cancellable=` keyword argument to `anyio.to_thread.run_sync` is "
+            "deprecated since AnyIO 4.1.0; use `abandon_on_cancel=` instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
     return await get_async_backend().run_sync_in_worker_thread(
-        func, args, cancellable=cancellable, limiter=limiter
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
     )
 
 

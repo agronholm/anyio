@@ -21,6 +21,7 @@ from ._core import _eventloop
 from ._core._eventloop import get_async_backend, get_cancelled_exc_class, threadlocals
 from ._core._synchronization import Event
 from ._core._tasks import CancelScope, create_task_group
+from .abc import AsyncBackend
 from .abc._tasks import TaskStatus
 
 T_Retval = TypeVar("T_Retval")
@@ -40,7 +41,9 @@ def run(func: Callable[..., Awaitable[T_Retval]], *args: object) -> T_Retval:
         async_backend = threadlocals.current_async_backend
         token = threadlocals.current_token
     except AttributeError:
-        raise RuntimeError("This function can only be run from an AnyIO worker thread")
+        raise RuntimeError(
+            "This function can only be run from an AnyIO worker thread"
+        ) from None
 
     return async_backend.run_async_from_thread(func, args, token=token)
 
@@ -58,7 +61,9 @@ def run_sync(func: Callable[..., T_Retval], *args: object) -> T_Retval:
         async_backend = threadlocals.current_async_backend
         token = threadlocals.current_token
     except AttributeError:
-        raise RuntimeError("This function can only be run from an AnyIO worker thread")
+        raise RuntimeError(
+            "This function can only be run from an AnyIO worker thread"
+        ) from None
 
     return async_backend.run_sync_from_thread(func, args, token=token)
 
@@ -422,3 +427,25 @@ def start_blocking_portal(
                     pass
 
         run_future.result()
+
+
+def check_cancelled() -> None:
+    """
+    Check if the cancel scope of the host task's running the current worker thread has
+    been cancelled.
+
+    If the host task's current cancel scope has indeed been cancelled, the
+    backend-specific cancellation exception will be raised.
+
+    :raises RuntimeError: if the current thread was not spawned by
+        :func:`.to_thread.run_sync`
+
+    """
+    try:
+        async_backend: AsyncBackend = threadlocals.current_async_backend
+    except AttributeError:
+        raise RuntimeError(
+            "This function can only be run from an AnyIO worker thread"
+        ) from None
+
+    async_backend.check_cancelled()

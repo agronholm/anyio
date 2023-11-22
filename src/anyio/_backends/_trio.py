@@ -36,7 +36,6 @@ import trio.from_thread
 import trio.lowlevel
 from outcome import Error, Outcome, Value
 from trio.lowlevel import (
-    TrioToken,
     current_root_task,
     current_task,
     wait_readable,
@@ -869,7 +868,7 @@ class TrioBackend(AsyncBackend):
         cls,
         func: Callable[..., T_Retval],
         args: tuple[Any, ...],
-        cancellable: bool = False,
+        abandon_on_cancel: bool = False,
         limiter: abc.CapacityLimiter | None = None,
     ) -> T_Retval:
         def wrapper() -> T_Retval:
@@ -879,9 +878,13 @@ class TrioBackend(AsyncBackend):
         token = TrioBackend.current_token()
         return await run_sync(
             wrapper,
-            abandon_on_cancel=cancellable,
+            abandon_on_cancel=abandon_on_cancel,
             limiter=cast(trio.CapacityLimiter, limiter),
         )
+
+    @classmethod
+    def check_cancelled(cls) -> None:
+        trio.from_thread.check_cancelled()
 
     @classmethod
     def run_async_from_thread(
@@ -890,13 +893,13 @@ class TrioBackend(AsyncBackend):
         args: tuple[Any, ...],
         token: object,
     ) -> T_Retval:
-        return trio.from_thread.run(func, *args, trio_token=cast(TrioToken, token))
+        return trio.from_thread.run(func, *args)
 
     @classmethod
     def run_sync_from_thread(
         cls, func: Callable[..., T_Retval], args: tuple[Any, ...], token: object
     ) -> T_Retval:
-        return trio.from_thread.run_sync(func, *args, trio_token=cast(TrioToken, token))
+        return trio.from_thread.run_sync(func, *args)
 
     @classmethod
     def create_blocking_portal(cls) -> abc.BlockingPortal:

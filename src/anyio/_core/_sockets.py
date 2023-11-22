@@ -693,9 +693,9 @@ async def setup_unix_local_socket(
 
     if path_str is not None:
         try:
-            await to_thread.run_sync(raw_socket.bind, path_str, cancellable=True)
+            await to_thread.run_sync(raw_socket.bind, path_str, abandon_on_cancel=True)
             if mode is not None:
-                await to_thread.run_sync(chmod, path_str, mode, cancellable=True)
+                await to_thread.run_sync(chmod, path_str, mode, abandon_on_cancel=True)
         except BaseException:
             raw_socket.close()
             raise
