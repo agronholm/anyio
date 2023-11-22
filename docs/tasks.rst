@@ -115,10 +115,10 @@ exceptions::
             tg.start_soon(some_task)
             tg.start_soon(another_task)
     except* ValueError as excgroup:
-        for exc in excgroup:
+        for exc in excgroup.exceptions:
             ...  # handle each ValueError
     except* KeyError as excgroup:
-        for exc in excgroup:
+        for exc in excgroup.exceptions:
             ...  # handle each KeyError
 
 If compatibility with older Python versions is required, you can use the ``catch()``

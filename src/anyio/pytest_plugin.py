@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from inspect import isasyncgenfunction, iscoroutinefunction
 from typing import Any, Dict, Tuple, cast
 
@@ -12,6 +12,8 @@ from ._core._eventloop import get_all_backends, get_async_backend
 from .abc import TestRunner
 
 _current_runner: TestRunner | None = None
+_runner_stack: ExitStack | None = None
+_runner_leases = 0
 
 
 def extract_backend_and_options(backend: object) -> tuple[str, dict[str, Any]]:
@@ -28,27 +30,30 @@ def extract_backend_and_options(backend: object) -> tuple[str, dict[str, Any]]:
 def get_runner(
     backend_name: str, backend_options: dict[str, Any]
 ) -> Iterator[TestRunner]:
-    global _current_runner
-    if _current_runner:
-        yield _current_runner
-        return
+    global _current_runner, _runner_leases, _runner_stack
+    if _current_runner is None:
+        asynclib = get_async_backend(backend_name)
+        _runner_stack = ExitStack()
+        if sniffio.current_async_library_cvar.get(None) is None:
+            # Since we're in control of the event loop, we can cache the name of the
+            # async library
+            token = sniffio.current_async_library_cvar.set(backend_name)
+            _runner_stack.callback(sniffio.current_async_library_cvar.reset, token)
 
-    asynclib = get_async_backend(backend_name)
-    token = None
-    if sniffio.current_async_library_cvar.get(None) is None:
-        # Since we're in control of the event loop, we can cache the name of the async
-        # library
-        token = sniffio.current_async_library_cvar.set(backend_name)
-
-    try:
         backend_options = backend_options or {}
-        with asynclib.create_test_runner(backend_options) as runner:
-            _current_runner = runner
-            yield runner
+        _current_runner = _runner_stack.enter_context(
+            asynclib.create_test_runner(backend_options)
+        )
+
+    _runner_leases += 1
+    try:
+        yield _current_runner
     finally:
-        _current_runner = None
-        if token:
-            sniffio.current_async_library_cvar.reset(token)
+        _runner_leases -= 1
+        if not _runner_leases:
+            assert _runner_stack is not None
+            _runner_stack.close()
+            _runner_stack = _current_runner = None
 
 
 def pytest_configure(config: Any) -> None:
