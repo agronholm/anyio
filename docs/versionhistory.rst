@@ -12,6 +12,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   - Removed a checkpoint when exiting a task group
 - Bumped minimum version of trio to v0.23
 - Exposed the ``ResourceGuard`` class in the public API
+- Fixed discrepancy between ``asyncio`` and ``trio`` where reraising a cancellation
+  exception in an ``except*`` block would incorrectly bubble out of its cancel scope
 
 **4.0.0**
 

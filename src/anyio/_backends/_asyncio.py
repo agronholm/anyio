@@ -418,8 +418,18 @@ class CancelScope(BaseCancelScope):
         if self._shield:
             self._deliver_cancellation_to_parent()
 
-        if isinstance(exc_val, CancelledError) and self._cancel_called:
-            self._cancelled_caught = self._uncancel(exc_val)
+        if self._cancel_called:
+            if isinstance(exc_val, CancelledError):
+                self._cancelled_caught = self._uncancel(exc_val)
+            elif isinstance(exc_val, BaseExceptionGroup) and (
+                excgrp := exc_val.split(CancelledError)[0]
+            ):
+                for exc in excgrp.exceptions:
+                    if isinstance(exc, CancelledError):
+                        self._cancelled_caught = self._uncancel(exc)
+                        if self._cancelled_caught:
+                            break
+
             return self._cancelled_caught
 
         return None
