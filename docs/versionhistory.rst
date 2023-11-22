@@ -14,6 +14,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Exposed the ``ResourceGuard`` class in the public API
 - Fixed ``RuntimeError: Runner is closed`` when running higher-scoped async generator
   fixtures in some cases (`#619 <https://github.com/agronholm/anyio/issues/619>`_)
+- Fixed discrepancy between ``asyncio`` and ``trio`` where reraising a cancellation
+  exception in an ``except*`` block would incorrectly bubble out of its cancel scope
 
 **4.0.0**
 
