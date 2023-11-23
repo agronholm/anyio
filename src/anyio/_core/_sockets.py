@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import os
 import socket
 import ssl
@@ -689,9 +690,16 @@ async def setup_unix_local_socket(
     path_str: str | bytes | None
     if path is not None:
         path_str = os.fspath(path)
-        stat_result = os.stat(path)
-        if stat.S_ISSOCK(stat_result.st_mode):
-            os.unlink(path)
+
+        # Copied from pathlib...
+        try:
+            stat_result = os.stat(path)
+        except OSError as e:
+            if e.errno not in (errno.ENOENT, errno.ENOTDIR, errno.EBADF, errno.ELOOP):
+                raise
+        else:
+            if stat.S_ISSOCK(stat_result.st_mode):
+                os.unlink(path)
     else:
         path_str = None
 
