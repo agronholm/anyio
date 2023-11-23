@@ -299,14 +299,14 @@ class AsyncBackend(metaclass=ABCMeta):
     @classmethod
     @overload
     async def create_unix_datagram_socket(
-        cls, raw_socket: socket, remote_path: str
+        cls, raw_socket: socket, remote_path: str | bytes
     ) -> ConnectedUNIXDatagramSocket:
         ...
 
     @classmethod
     @abstractmethod
     async def create_unix_datagram_socket(
-        cls, raw_socket: socket, remote_path: str | None
+        cls, raw_socket: socket, remote_path: str | bytes | None
     ) -> UNIXDatagramSocket | ConnectedUNIXDatagramSocket:
         pass
 

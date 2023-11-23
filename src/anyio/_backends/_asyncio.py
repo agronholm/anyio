@@ -2282,7 +2282,7 @@ class AsyncIOBackend(AsyncBackend):
 
     @classmethod
     async def create_unix_datagram_socket(  # type: ignore[override]
-        cls, raw_socket: socket.socket, remote_path: str | None
+        cls, raw_socket: socket.socket, remote_path: str | bytes | None
     ) -> abc.UNIXDatagramSocket | abc.ConnectedUNIXDatagramSocket:
         await cls.checkpoint()
         loop = get_running_loop()

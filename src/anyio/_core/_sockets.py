@@ -3,11 +3,11 @@ from __future__ import annotations
 import os
 import socket
 import ssl
+import stat
 import sys
 from collections.abc import Awaitable
 from ipaddress import IPv6Address, ip_address
 from os import PathLike, chmod
-from pathlib import Path
 from socket import AddressFamily, SocketKind
 from typing import Literal, cast, overload
 
@@ -343,7 +343,10 @@ async def create_tcp_listener(
 
 
 async def create_unix_listener(
-    path: str | PathLike[str], *, mode: int | None = None, backlog: int = 65536
+    path: str | bytes | PathLike[str] | PathLike[bytes],
+    *,
+    mode: int | None = None,
+    backlog: int = 65536,
 ) -> SocketListener:
     """
     Create a UNIX socket listener.
@@ -469,7 +472,7 @@ async def create_connected_udp_socket(
 
 async def create_unix_datagram_socket(
     *,
-    local_path: None | str | PathLike[str] = None,
+    local_path: None | str | bytes | PathLike[str] = None,
     local_mode: int | None = None,
 ) -> UNIXDatagramSocket:
     """
@@ -496,9 +499,9 @@ async def create_unix_datagram_socket(
 
 
 async def create_connected_unix_datagram_socket(
-    remote_path: str | PathLike[str],
+    remote_path: str | bytes | PathLike[str],
     *,
-    local_path: None | str | PathLike[str] = None,
+    local_path: None | str | bytes | PathLike[str] = None,
     local_mode: int | None = None,
 ) -> ConnectedUNIXDatagramSocket:
     """
@@ -519,7 +522,7 @@ async def create_connected_unix_datagram_socket(
     :return: a connected UNIX datagram socket
 
     """
-    remote_path = str(Path(remote_path))
+    remote_path = os.fspath(remote_path)
     raw_socket = await setup_unix_local_socket(
         local_path, local_mode, socket.SOCK_DGRAM
     )
@@ -668,7 +671,7 @@ def convert_ipv6_sockaddr(
 
 
 async def setup_unix_local_socket(
-    path: None | str | PathLike[str],
+    path: None | str | bytes | PathLike[str] | PathLike[bytes],
     mode: int | None,
     socktype: int,
 ) -> socket.socket:
@@ -683,11 +686,12 @@ async def setup_unix_local_socket(
     :param socktype: socket.SOCK_STREAM or socket.SOCK_DGRAM
 
     """
+    path_str: str | bytes | None
     if path is not None:
-        path_str = str(path)
-        path = Path(path)
-        if path.is_socket():
-            path.unlink()
+        path_str = os.fspath(path)
+        stat_result = os.stat(path)
+        if stat.S_ISSOCK(stat_result.st_mode):
+            os.unlink(path)
     else:
         path_str = None
 
