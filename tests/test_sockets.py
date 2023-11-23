@@ -1008,6 +1008,9 @@ class TestUNIXStream:
         async with await connect_unix(str(socket_path).encode()):
             pass
 
+    @pytest.mark.skipif(
+        sys.platform == "darwin", reason="OSX requires valid UTF-8 paths"
+    )
     async def test_connecting_with_non_utf8(self, socket_path: Path) -> None:
         actual_path = str(socket_path).encode() + b"\xF0"
         server = socket.socket(socket.AF_UNIX)
@@ -1120,6 +1123,9 @@ class TestUNIXListener:
         async with await create_unix_listener(str(socket_path).encode()):
             pass
 
+    @pytest.mark.skipif(
+        sys.platform == "darwin", reason="OSX requires valid UTF-8 paths"
+    )
     async def test_listening_invalid_ascii(self, socket_path: Path) -> None:
         real_path = str(socket_path).encode() + b"\xF0"
         async with await create_unix_listener(real_path):
@@ -1525,6 +1531,9 @@ class TestUNIXDatagramSocket:
         ):
             pass
 
+    @pytest.mark.skipif(
+        sys.platform == "darwin", reason="OSX requires valid UTF-8 paths"
+    )
     async def test_local_path_invalid_ascii(self, socket_path: Path) -> None:
         real_path = str(socket_path).encode() + b"\xF0"
         async with await create_unix_datagram_socket(local_path=real_path):
