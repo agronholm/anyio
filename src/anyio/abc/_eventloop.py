@@ -265,7 +265,7 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    async def connect_unix(cls, path: str) -> UNIXSocketStream:
+    async def connect_unix(cls, path: str | bytes) -> UNIXSocketStream:
         pass
 
     @classmethod

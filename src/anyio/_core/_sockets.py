@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import socket
 import ssl
 import sys
@@ -245,7 +246,9 @@ async def connect_tcp(
     return connected_stream
 
 
-async def connect_unix(path: str | PathLike[str]) -> UNIXSocketStream:
+async def connect_unix(
+    path: str | bytes | PathLike[str] | PathLike[bytes]
+) -> UNIXSocketStream:
     """
     Connect to the given UNIX socket.
 
@@ -255,7 +258,7 @@ async def connect_unix(path: str | PathLike[str]) -> UNIXSocketStream:
     :return: a socket stream object
 
     """
-    path = str(Path(path))
+    path = os.fspath(path)
     return await get_async_backend().connect_unix(path)
 
 
