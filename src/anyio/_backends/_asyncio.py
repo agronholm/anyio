@@ -2229,7 +2229,7 @@ class AsyncIOBackend(AsyncBackend):
         return SocketStream(transport, protocol)
 
     @classmethod
-    async def connect_unix(cls, path: str) -> abc.UNIXSocketStream:
+    async def connect_unix(cls, path: str | bytes) -> abc.UNIXSocketStream:
         await cls.checkpoint()
         loop = get_running_loop()
         raw_socket = socket.socket(socket.AF_UNIX)
@@ -2282,7 +2282,7 @@ class AsyncIOBackend(AsyncBackend):
 
     @classmethod
     async def create_unix_datagram_socket(  # type: ignore[override]
-        cls, raw_socket: socket.socket, remote_path: str | None
+        cls, raw_socket: socket.socket, remote_path: str | bytes | None
     ) -> abc.UNIXDatagramSocket | abc.ConnectedUNIXDatagramSocket:
         await cls.checkpoint()
         loop = get_running_loop()

@@ -1002,6 +1002,24 @@ class TestUNIXStream:
         with pytest.raises(FileNotFoundError):
             await connect_unix(socket_path)
 
+    async def test_connecting_using_bytes(
+        self, server_sock: socket.socket, socket_path: Path
+    ) -> None:
+        async with await connect_unix(str(socket_path).encode()):
+            pass
+
+    @pytest.mark.skipif(
+        platform.system() == "Darwin", reason="macOS requires valid UTF-8 paths"
+    )
+    async def test_connecting_with_non_utf8(self, socket_path: Path) -> None:
+        actual_path = str(socket_path).encode() + b"\xF0"
+        server = socket.socket(socket.AF_UNIX)
+        server.bind(actual_path)
+        server.listen(1)
+
+        async with await connect_unix(actual_path):
+            pass
+
 
 @pytest.mark.skipif(
     sys.platform == "win32", reason="UNIX sockets are not available on Windows"
@@ -1100,6 +1118,18 @@ class TestUNIXListener:
         for _ in range(2):
             async with await create_unix_listener(socket_path):
                 pass
+
+    async def test_listening_bytes_path(self, socket_path: Path) -> None:
+        async with await create_unix_listener(str(socket_path).encode()):
+            pass
+
+    @pytest.mark.skipif(
+        platform.system() == "Darwin", reason="macOS requires valid UTF-8 paths"
+    )
+    async def test_listening_invalid_ascii(self, socket_path: Path) -> None:
+        real_path = str(socket_path).encode() + b"\xF0"
+        async with await create_unix_listener(real_path):
+            pass
 
 
 async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
@@ -1494,6 +1524,20 @@ class TestUNIXDatagramSocket:
         await unix_dg.aclose()
         with pytest.raises(ClosedResourceError):
             await unix_dg.sendto(b"foo", path)
+
+    async def test_local_path_bytes(self, socket_path: Path) -> None:
+        async with await create_unix_datagram_socket(
+            local_path=str(socket_path).encode()
+        ):
+            pass
+
+    @pytest.mark.skipif(
+        platform.system() == "Darwin", reason="macOS requires valid UTF-8 paths"
+    )
+    async def test_local_path_invalid_ascii(self, socket_path: Path) -> None:
+        real_path = str(socket_path).encode() + b"\xF0"
+        async with await create_unix_datagram_socket(local_path=real_path):
+            pass
 
 
 @pytest.mark.skipif(
