@@ -1009,7 +1009,7 @@ class TestUNIXStream:
             pass
 
     @pytest.mark.skipif(
-        platform.platform() == "Darwin", reason="macOS requires valid UTF-8 paths"
+        platform.system() == "Darwin", reason="macOS requires valid UTF-8 paths"
     )
     async def test_connecting_with_non_utf8(self, socket_path: Path) -> None:
         actual_path = str(socket_path).encode() + b"\xF0"
