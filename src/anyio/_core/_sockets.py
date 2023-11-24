@@ -10,7 +10,7 @@ from collections.abc import Awaitable
 from ipaddress import IPv6Address, ip_address
 from os import PathLike, chmod
 from socket import AddressFamily, SocketKind
-from typing import Literal, cast, overload
+from typing import Any, Literal, cast, overload
 
 from .. import to_thread
 from ..abc import (
@@ -247,9 +247,7 @@ async def connect_tcp(
     return connected_stream
 
 
-async def connect_unix(
-    path: str | bytes | PathLike[str] | PathLike[bytes]
-) -> UNIXSocketStream:
+async def connect_unix(path: str | bytes | PathLike[Any]) -> UNIXSocketStream:
     """
     Connect to the given UNIX socket.
 
@@ -344,7 +342,7 @@ async def create_tcp_listener(
 
 
 async def create_unix_listener(
-    path: str | bytes | PathLike[str] | PathLike[bytes],
+    path: str | bytes | PathLike[Any],
     *,
     mode: int | None = None,
     backlog: int = 65536,
@@ -473,7 +471,7 @@ async def create_connected_udp_socket(
 
 async def create_unix_datagram_socket(
     *,
-    local_path: None | str | bytes | PathLike[str] = None,
+    local_path: None | str | bytes | PathLike[Any] = None,
     local_mode: int | None = None,
 ) -> UNIXDatagramSocket:
     """
@@ -500,9 +498,9 @@ async def create_unix_datagram_socket(
 
 
 async def create_connected_unix_datagram_socket(
-    remote_path: str | bytes | PathLike[str],
+    remote_path: str | bytes | PathLike[Any],
     *,
-    local_path: None | str | bytes | PathLike[str] = None,
+    local_path: None | str | bytes | PathLike[Any] = None,
     local_mode: int | None = None,
 ) -> ConnectedUNIXDatagramSocket:
     """
@@ -672,7 +670,7 @@ def convert_ipv6_sockaddr(
 
 
 async def setup_unix_local_socket(
-    path: None | str | bytes | PathLike[str] | PathLike[bytes],
+    path: None | str | bytes | PathLike[Any],
     mode: int | None,
     socktype: int,
 ) -> socket.socket:
