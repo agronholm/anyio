@@ -504,6 +504,77 @@ class TestCapacityLimiter:
 
         assert event2.is_set()
 
+    async def _silly_worker(
+        self, limiter: CapacityLimiter, event_entered: Event, event_continue: Event
+    ) -> None:
+        async with limiter:
+            event_entered.set()
+            await event_continue.wait()
+
+    def _prepare_events(self, workers_count: int) -> dict[int, dict[str, Event]]:
+        return {
+            i: {"entered": Event(), "continue": Event()} for i in range(workers_count)
+        }
+
+    async def test_increase_tokens_lets_others_acquire(self) -> None:
+        limiter = CapacityLimiter(1)
+        events = self._prepare_events(3)
+        async with create_task_group() as tg:
+            tg.start_soon(
+                self._silly_worker, limiter, events[0]["entered"], events[0]["continue"]
+            )
+            tg.start_soon(
+                self._silly_worker, limiter, events[1]["entered"], events[1]["continue"]
+            )
+            await wait_all_tasks_blocked()
+            assert events[0]["entered"].is_set()
+            assert not events[1]["entered"].is_set()
+
+            limiter.total_tokens = 3
+            tg.start_soon(
+                self._silly_worker, limiter, events[2]["entered"], events[2]["continue"]
+            )
+            await (
+                wait_all_tasks_blocked()
+            )  # after increase, worker 1 and worker 2 should acquire
+
+            assert events[1]["entered"].is_set()
+            assert events[2]["entered"].is_set()
+
+            for e in events.values():
+                e["continue"].set()
+
+    async def test_increase_tokens_lets_others_acquire_after_release(self) -> None:
+        limiter = CapacityLimiter(1)
+        events = self._prepare_events(3)
+        async with create_task_group() as tg:
+            tg.start_soon(
+                self._silly_worker, limiter, events[0]["entered"], events[0]["continue"]
+            )
+            tg.start_soon(
+                self._silly_worker, limiter, events[1]["entered"], events[1]["continue"]
+            )
+            await wait_all_tasks_blocked()
+            assert events[0]["entered"].is_set()
+            assert not events[1]["entered"].is_set()
+
+            limiter.total_tokens = 2
+            tg.start_soon(
+                self._silly_worker, limiter, events[2]["entered"], events[2]["continue"]
+            )
+            await wait_all_tasks_blocked()  # after increase worker 1 must join
+
+            events[0]["continue"].set()
+            await (
+                wait_all_tasks_blocked()
+            )  # after worker 0 releases, worker 2 should acquire
+
+            assert events[1]["entered"].is_set()
+            assert events[2]["entered"].is_set()
+
+            for e in events.values():
+                e["continue"].set()
+
     async def test_current_default_thread_limiter(self) -> None:
         limiter = to_thread.current_default_thread_limiter()
         assert isinstance(limiter, CapacityLimiter)

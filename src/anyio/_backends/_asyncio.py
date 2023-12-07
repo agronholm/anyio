@@ -1651,17 +1651,11 @@ class CapacityLimiter(BaseCapacityLimiter):
 
         old_value = self._total_tokens
         self._total_tokens = value
-        events = []
-        for event in self._wait_queue.values():
-            if value <= old_value:
-                break
-
-            if not event.is_set():
-                events.append(event)
-                old_value += 1
-
-        for event in events:
+        to_unblock_count = min(len(self._wait_queue), value - old_value)
+        while to_unblock_count > 0:
+            event = self._wait_queue.popitem(last=False)[1]
             event.set()
+            to_unblock_count -= 1
 
     @property
     def borrowed_tokens(self) -> int:
@@ -1669,7 +1663,7 @@ class CapacityLimiter(BaseCapacityLimiter):
 
     @property
     def available_tokens(self) -> float:
-        return self._total_tokens - len(self._borrowers)
+        return self._total_tokens - self.borrowed_tokens
 
     def acquire_nowait(self) -> None:
         self.acquire_on_behalf_of_nowait(current_task())
@@ -1681,7 +1675,7 @@ class CapacityLimiter(BaseCapacityLimiter):
                 "tokens"
             )
 
-        if self._wait_queue or len(self._borrowers) >= self._total_tokens:
+        if self._wait_queue or not self.available_tokens:
             raise WouldBlock
 
         self._borrowers.add(borrower)
@@ -1722,7 +1716,7 @@ class CapacityLimiter(BaseCapacityLimiter):
             ) from None
 
         # Notify the next task in line if this limiter has free capacity now
-        if self._wait_queue and len(self._borrowers) < self._total_tokens:
+        if self._wait_queue and self.available_tokens:
             event = self._wait_queue.popitem(last=False)[1]
             event.set()
 
