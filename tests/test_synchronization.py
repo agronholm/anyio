@@ -12,6 +12,7 @@ from anyio import (
     Semaphore,
     WouldBlock,
     create_task_group,
+    fail_after,
     to_thread,
     wait_all_tasks_blocked,
 )
@@ -564,3 +565,33 @@ class TestCapacityLimiter:
             event.set()
 
         assert results == [0, 1, 2]
+
+    async def test_increase_tokens_lets_others_acquire(self) -> None:
+        limiter = CapacityLimiter(1)
+        entered_events = [Event() for _ in range(3)]
+        continue_event = Event()
+
+        async def worker(entered_event: Event) -> None:
+            async with limiter:
+                entered_event.set()
+                await continue_event.wait()
+
+        async with create_task_group() as tg:
+            for event in entered_events[:2]:
+                tg.start_soon(worker, event)
+
+            # One task should be able to acquire the limiter while the other is left
+            # waiting
+            await wait_all_tasks_blocked()
+            assert sum(ev.is_set() for ev in entered_events) == 1
+
+            # Increase the total tokens and start another worker.
+            # All tasks should be able to acquire the limiter now.
+            limiter.total_tokens = 3
+            tg.start_soon(worker, entered_events[2])
+            with fail_after(1):
+                for ev in entered_events[1:]:
+                    await ev.wait()
+
+            # Allow all tasks to exit
+            continue_event.set()
