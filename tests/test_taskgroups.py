@@ -1293,6 +1293,29 @@ async def test_reraise_cancelled_in_excgroup() -> None:
             await anyio.sleep_forever()
 
 
+async def test_cancel_child_task_when_host_is_shielded() -> None:
+    # Regression test for #642
+    # Tests that cancellation propagates to a child task even if the host task is within
+    # a shielded cancel scope.
+    cancelled = anyio.Event()
+
+    async def wait_cancel() -> None:
+        try:
+            await anyio.sleep_forever()
+        except anyio.get_cancelled_exc_class():
+            cancelled.set()
+            raise
+
+    with CancelScope() as parent_scope:
+        async with anyio.create_task_group() as task_group:
+            task_group.start_soon(wait_cancel)
+            await wait_all_tasks_blocked()
+
+            with CancelScope(shield=True), fail_after(1):
+                parent_scope.cancel()
+                await cancelled.wait()
+
+
 class TestTaskStatusTyping:
     """
     These tests do not do anything at run time, but since the test suite is also checked
