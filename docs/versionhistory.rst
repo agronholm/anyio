@@ -11,6 +11,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed adjusting the total number of tokens in a ``CapacityLimiter`` on asyncio failing
   to wake up tasks waiting to acquire the limiter in certain edge cases (fixed with help
   from Egor Blagov)
+- Fixed ``loop_factory`` and ``use_uvloop`` options not being used on the asyncio
+  backend (`#643 <https://github.com/agronholm/anyio/issues/643>`_)
 
 **4.1.0**
 

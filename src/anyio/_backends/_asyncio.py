@@ -16,7 +16,6 @@ from asyncio import (
     get_running_loop,
     sleep,
 )
-from asyncio import run as native_run
 from asyncio.base_events import _run_until_complete_cb  # type: ignore[attr-defined]
 from collections import OrderedDict, deque
 from collections.abc import AsyncIterator, Generator, Iterable
@@ -165,7 +164,7 @@ else:
 
             if context is None:
                 context = self._context
-            task = self._loop.create_task(coro, context=context)
+            task = context.run(self._loop.create_task, coro)
 
             if (
                 threading.current_thread() is threading.main_thread()
@@ -1950,9 +1949,14 @@ class AsyncIOBackend(AsyncBackend):
                 del _task_states[task]
 
         debug = options.get("debug", False)
-        options.get("loop_factory", None)
-        options.get("use_uvloop", False)
-        return native_run(wrapper(), debug=debug)
+        loop_factory = options.get("loop_factory", None)
+        if loop_factory is None and options.get("use_uvloop", False):
+            import uvloop
+
+            loop_factory = uvloop.new_event_loop
+
+        with Runner(debug=debug, loop_factory=loop_factory) as runner:
+            return runner.run(wrapper())
 
     @classmethod
     def current_token(cls) -> object:
