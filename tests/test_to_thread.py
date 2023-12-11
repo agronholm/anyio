@@ -85,12 +85,14 @@ async def test_run_in_custom_limiter() -> None:
 
 
 @pytest.mark.parametrize(
-    "cancellable, expected_last_active",
-    [(False, "task"), (True, "thread")],
-    ids=["uncancellable", "cancellable"],
+    "abandon_on_cancel, expected_last_active",
+    [
+        pytest.param(False, "task", id="noabandon"),
+        pytest.param(True, "thread", id="abandon"),
+    ],
 )
 async def test_cancel_worker_thread(
-    cancellable: bool, expected_last_active: str
+    abandon_on_cancel: bool, expected_last_active: str
 ) -> None:
     """
     Test that when a task running a worker thread is cancelled, the cancellation is not
@@ -109,7 +111,7 @@ async def test_cancel_worker_thread(
     async def task_worker() -> None:
         nonlocal last_active
         try:
-            await to_thread.run_sync(thread_worker, cancellable=cancellable)
+            await to_thread.run_sync(thread_worker, abandon_on_cancel=abandon_on_cancel)
         finally:
             last_active = "task"
 
@@ -132,12 +134,17 @@ async def test_cancel_wait_on_thread() -> None:
         future.set_result(event.wait(1))
 
     async with create_task_group() as tg:
-        tg.start_soon(partial(to_thread.run_sync, cancellable=True), wait_event)
+        tg.start_soon(partial(to_thread.run_sync, abandon_on_cancel=True), wait_event)
         await wait_all_tasks_blocked()
         tg.cancel_scope.cancel()
 
     await to_thread.run_sync(event.set)
     assert future.result(1)
+
+
+async def test_deprecated_cancellable_param() -> None:
+    with pytest.warns(DeprecationWarning, match="The `cancellable=`"):
+        await to_thread.run_sync(bool, cancellable=True)
 
 
 async def test_contextvar_propagation() -> None:
@@ -158,7 +165,7 @@ async def test_asyncio_cancel_native_task() -> None:
     async def run_in_thread() -> None:
         nonlocal task
         task = asyncio.current_task()
-        await to_thread.run_sync(time.sleep, 0.2, cancellable=True)
+        await to_thread.run_sync(time.sleep, 0.2, abandon_on_cancel=True)
 
     async with create_task_group() as tg:
         tg.start_soon(run_in_thread)

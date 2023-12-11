@@ -1,0 +1,84 @@
+---
+name: Test against downstream projects
+
+on:
+  workflow_dispatch:
+
+jobs:
+  starlette:
+    name: "Starlette on Python ${{ matrix.python-version }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: encode/starlette
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "${{ matrix.python-version }}"
+          allow-prereleases: true
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install dependencies
+        run: |
+          scripts/install
+          pip install anyio[trio]@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
+      - name: Run tests
+        run: scripts/test
+      - name: Enforce coverage
+        run: scripts/coverage
+
+  httpcore:
+    name: "Httpcore on Python ${{ matrix.python-version }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: encode/httpcore
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "${{ matrix.python-version }}"
+          allow-prereleases: true
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install dependencies
+        run: |
+          scripts/install
+          pip install anyio[trio]@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
+      - name: Run tests
+        run: scripts/test
+      - name: Enforce coverage
+        run: scripts/coverage
+
+  fastapi:
+    name: "FastAPI on Python ${{ matrix.python-version }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.11"]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: tiangolo/fastapi
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "${{ matrix.python-version }}"
+          allow-prereleases: true
+          cache: pip
+          cache-dependency-path: |
+            requirements-tests.txt
+            pyproject.toml
+      - name: Install dependencies
+        run: |
+          pip install -r requirements-tests.txt
+          pip install anyio[trio]@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
+      - name: Run tests
+        run: bash scripts/test.sh

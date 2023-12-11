@@ -27,7 +27,7 @@ classifiers = [
 ]
 requires-python = ">= 3.8"
 dependencies = [
-    "exceptiongroup; python_version < '3.11'",
+    "exceptiongroup >= 1.0.2; python_version < '3.11'",
     "idna >= 2.8",
     "sniffio >= 1.1",
 ]
@@ -40,22 +40,22 @@ Changelog = "https://anyio.readthedocs.io/en/stable/versionhistory.html"
 "Issue tracker" = "https://github.com/agronholm/anyio/issues"
 
 [project.optional-dependencies]
-trio = ["trio >= 0.22"]
+trio = ["trio >= 0.23"]
 test = [
     "anyio[trio]",
-    "coverage[toml] >= 4.5",
+    "coverage[toml] >= 7",
+    "exceptiongroup >= 1.2.0",
     "hypothesis >= 4.0",
     "psutil >= 5.9",
     "pytest >= 7.0",
     "pytest-mock >= 3.6.1",
     "trustme",
-    "uvloop >= 0.17; python_version < '3.12' and platform_python_implementation == 'CPython' and platform_system != 'Windows'",
+    "uvloop >= 0.17; platform_python_implementation == 'CPython' and platform_system != 'Windows'",
 ]
 doc = [
     "packaging",
-    "Sphinx >= 6.1.0",
+    "Sphinx >= 7",
     "sphinx_rtd_theme",
-    "sphinxcontrib-jquery",
     "sphinx-autodoc-typehints >= 1.2.0",
 ]
 
@@ -67,7 +67,6 @@ version_scheme = "post-release"
 local_scheme = "dirty-tag"
 
 [tool.ruff]
-line-length = 88
 select = [
     "E", "F", "W",  # default flake-8
     "I",            # isort
@@ -92,6 +91,7 @@ show_error_codes = true
 [tool.pytest.ini_options]
 addopts = "-rsx --tb=short --strict-config --strict-markers -p anyio -p no:asyncio -p no:trio"
 testpaths = ["tests"]
+xfail_strict = true
 # Ignore resource warnings due to a CPython/Windows bug (https://bugs.python.org/issue44428)
 filterwarnings = [
     "error",
@@ -141,5 +141,5 @@ commands = pyright --verifytypes anyio
 [testenv:docs]
 depends =
 extras = doc
-commands = sphinx-build -W -n docs build/sphinx
+commands = sphinx-build -W docs build/sphinx
 """

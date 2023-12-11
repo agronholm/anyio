@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Generator
+from contextlib import contextmanager
 from types import TracebackType
 
 from ..abc._tasks import TaskGroup, TaskStatus
@@ -52,6 +54,19 @@ class CancelScope:
         raise NotImplementedError
 
     @property
+    def cancelled_caught(self) -> bool:
+        """
+        ``True`` if this scope suppressed a cancellation exception it itself raised.
+
+        This is typically used to check if any work was interrupted, or to see if the
+        scope was cancelled due to its deadline being reached. The value will, however,
+        only be ``True`` if the cancellation was triggered by the scope itself (and not
+        an outer scope).
+
+        """
+        raise NotImplementedError
+
+    @property
     def shield(self) -> bool:
         """
         ``True`` if this scope is shielded from external cancellation.
@@ -77,27 +92,10 @@ class CancelScope:
         raise NotImplementedError
 
 
-class FailAfterContextManager:
-    def __init__(self, cancel_scope: CancelScope):
-        self._cancel_scope = cancel_scope
-
-    def __enter__(self) -> CancelScope:
-        return self._cancel_scope.__enter__()
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> bool | None:
-        retval = self._cancel_scope.__exit__(exc_type, exc_val, exc_tb)
-        if self._cancel_scope.cancel_called:
-            raise TimeoutError
-
-        return retval
-
-
-def fail_after(delay: float | None, shield: bool = False) -> FailAfterContextManager:
+@contextmanager
+def fail_after(
+    delay: float | None, shield: bool = False
+) -> Generator[CancelScope, None, None]:
     """
     Create a context manager which raises a :class:`TimeoutError` if does not finish in
     time.
@@ -109,13 +107,15 @@ def fail_after(delay: float | None, shield: bool = False) -> FailAfterContextMan
     :rtype: :class:`~typing.ContextManager`\\[:class:`~anyio.CancelScope`\\]
 
     """
-    deadline = (
-        (get_async_backend().current_time() + delay) if delay is not None else math.inf
-    )
-    cancel_scope = get_async_backend().create_cancel_scope(
+    current_time = get_async_backend().current_time
+    deadline = (current_time() + delay) if delay is not None else math.inf
+    with get_async_backend().create_cancel_scope(
         deadline=deadline, shield=shield
-    )
-    return FailAfterContextManager(cancel_scope)
+    ) as cancel_scope:
+        yield cancel_scope
+
+    if cancel_scope.cancelled_caught and current_time() >= cancel_scope.deadline:
+        raise TimeoutError
 
 
 def move_on_after(delay: float | None, shield: bool = False) -> CancelScope:

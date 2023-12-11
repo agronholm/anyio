@@ -2,17 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import math
-import sys
+from asyncio import get_running_loop
+from unittest.mock import AsyncMock
 
 import pytest
 from pytest_mock.plugin import MockerFixture
 
 from anyio import run, sleep_forever, sleep_until
-
-if sys.version_info < (3, 8):
-    from unittest.mock import AsyncMock
-else:
-    from unittest.mock import AsyncMock
 
 pytestmark = pytest.mark.anyio
 fake_current_time = 1620581544.0
@@ -49,3 +45,32 @@ def test_run_task() -> None:
 
     result = run(asyncio.create_task, async_add(1, 2), backend="asyncio")
     assert result == 3
+
+
+class TestAsyncioOptions:
+    def test_debug(self) -> None:
+        async def main() -> bool:
+            return get_running_loop().get_debug()
+
+        debug = run(main, backend="asyncio", backend_options={"debug": True})
+        assert debug is True
+
+    def test_loop_factory(self) -> None:
+        async def main() -> type:
+            return type(get_running_loop())
+
+        uvloop = pytest.importorskip("uvloop", reason="uvloop not installed")
+        loop_class = run(
+            main,
+            backend="asyncio",
+            backend_options={"loop_factory": uvloop.new_event_loop},
+        )
+        assert issubclass(loop_class, uvloop.Loop)
+
+    def test_use_uvloop(self) -> None:
+        async def main() -> type:
+            return type(get_running_loop())
+
+        uvloop = pytest.importorskip("uvloop", reason="uvloop not installed")
+        loop_class = run(main, backend="asyncio", backend_options={"use_uvloop": True})
+        assert issubclass(loop_class, uvloop.Loop)

@@ -3,6 +3,8 @@ from __future__ import annotations
 import array
 import math
 import socket
+import sys
+import types
 from collections.abc import AsyncIterator, Iterable
 from concurrent.futures import Future
 from dataclasses import dataclass
@@ -34,7 +36,6 @@ import trio.from_thread
 import trio.lowlevel
 from outcome import Error, Outcome, Value
 from trio.lowlevel import (
-    TrioToken,
     current_root_task,
     current_task,
     wait_readable,
@@ -60,6 +61,9 @@ from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend
 from ..streams.memory import MemoryObjectSendStream
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import BaseExceptionGroup
 
 T = TypeVar("T")
 T_Retval = TypeVar("T_Retval")
@@ -98,9 +102,7 @@ class CancelScope(BaseCancelScope):
         exc_tb: TracebackType | None,
     ) -> bool | None:
         # https://github.com/python-trio/trio-typing/pull/79
-        return self.__original.__exit__(  # type: ignore[func-returns-value]
-            exc_type, exc_val, exc_tb
-        )
+        return self.__original.__exit__(exc_type, exc_val, exc_tb)
 
     def cancel(self) -> None:
         self.__original.cancel()
@@ -116,6 +118,10 @@ class CancelScope(BaseCancelScope):
     @property
     def cancel_called(self) -> bool:
         return self.__original.cancel_called
+
+    @property
+    def cancelled_caught(self) -> bool:
+        return self.__original.cancelled_caught
 
     @property
     def shield(self) -> bool:
@@ -134,7 +140,7 @@ class CancelScope(BaseCancelScope):
 class TaskGroup(abc.TaskGroup):
     def __init__(self) -> None:
         self._active = False
-        self._nursery_manager = trio.open_nursery()
+        self._nursery_manager = trio.open_nursery(strict_exception_groups=True)
         self.cancel_scope = None  # type: ignore[assignment]
 
     async def __aenter__(self) -> TaskGroup:
@@ -151,6 +157,13 @@ class TaskGroup(abc.TaskGroup):
     ) -> bool | None:
         try:
             return await self._nursery_manager.__aexit__(exc_type, exc_val, exc_tb)
+        except BaseExceptionGroup as exc:
+            _, rest = exc.split(trio.Cancelled)
+            if not rest:
+                cancelled_exc = trio.Cancelled._create()
+                raise cancelled_exc from exc
+
+            raise
         finally:
             self._active = False
 
@@ -462,7 +475,7 @@ class UNIXSocketStream(SocketStream, abc.UNIXSocketStream):
                         [
                             (
                                 socket.SOL_SOCKET,
-                                socket.SCM_RIGHTS,  # type: ignore[list-item]
+                                socket.SCM_RIGHTS,
                                 fdarray,
                             )
                         ],
@@ -676,7 +689,7 @@ class CapacityLimiter(BaseCapacityLimiter):
         return CapacityLimiterStatistics(
             borrowed_tokens=orig.borrowed_tokens,
             total_tokens=orig.total_tokens,
-            borrowers=orig.borrowers,
+            borrowers=tuple(orig.borrowers),
             tasks_waiting=orig.tasks_waiting,
         )
 
@@ -729,6 +742,17 @@ class TestRunner(abc.TestRunner):
         self._send_stream: MemoryObjectSendStream | None = None
         self._options = options
 
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
+    ) -> None:
+        if self._send_stream:
+            self._send_stream.close()
+            while self._send_stream is not None:
+                self._call_queue.get()()
+
     async def _run_tests_and_fixtures(self) -> None:
         self._send_stream, receive_stream = create_memory_object_stream(1)
         with receive_stream:
@@ -762,12 +786,6 @@ class TestRunner(abc.TestRunner):
             self._call_queue.get()()
 
         return outcome_holder[0].unwrap()
-
-    def close(self) -> None:
-        if self._send_stream:
-            self._send_stream.close()
-            while self._send_stream is not None:
-                self._call_queue.get()()
 
     def run_asyncgen_fixture(
         self,
@@ -866,7 +884,7 @@ class TrioBackend(AsyncBackend):
         cls,
         func: Callable[..., T_Retval],
         args: tuple[Any, ...],
-        cancellable: bool = False,
+        abandon_on_cancel: bool = False,
         limiter: abc.CapacityLimiter | None = None,
     ) -> T_Retval:
         def wrapper() -> T_Retval:
@@ -876,9 +894,13 @@ class TrioBackend(AsyncBackend):
         token = TrioBackend.current_token()
         return await run_sync(
             wrapper,
-            cancellable=cancellable,
+            abandon_on_cancel=abandon_on_cancel,
             limiter=cast(trio.CapacityLimiter, limiter),
         )
+
+    @classmethod
+    def check_cancelled(cls) -> None:
+        trio.from_thread.check_cancelled()
 
     @classmethod
     def run_async_from_thread(
@@ -887,13 +909,13 @@ class TrioBackend(AsyncBackend):
         args: tuple[Any, ...],
         token: object,
     ) -> T_Retval:
-        return trio.from_thread.run(func, *args, trio_token=cast(TrioToken, token))
+        return trio.from_thread.run(func, *args)
 
     @classmethod
     def run_sync_from_thread(
         cls, func: Callable[..., T_Retval], args: tuple[Any, ...], token: object
     ) -> T_Retval:
-        return trio.from_thread.run_sync(func, *args, trio_token=cast(TrioToken, token))
+        return trio.from_thread.run_sync(func, *args)
 
     @classmethod
     def create_blocking_portal(cls) -> abc.BlockingPortal:
@@ -950,7 +972,7 @@ class TrioBackend(AsyncBackend):
         return SocketStream(trio_socket)
 
     @classmethod
-    async def connect_unix(cls, path: str) -> abc.UNIXSocketStream:
+    async def connect_unix(cls, path: str | bytes) -> abc.UNIXSocketStream:
         trio_socket = trio.socket.socket(socket.AF_UNIX)
         try:
             await trio_socket.connect(path)
@@ -1000,13 +1022,13 @@ class TrioBackend(AsyncBackend):
     @classmethod
     @overload
     async def create_unix_datagram_socket(
-        cls, raw_socket: socket.socket, remote_path: str
+        cls, raw_socket: socket.socket, remote_path: str | bytes
     ) -> abc.ConnectedUNIXDatagramSocket:
         ...
 
     @classmethod
     async def create_unix_datagram_socket(
-        cls, raw_socket: socket.socket, remote_path: str | None
+        cls, raw_socket: socket.socket, remote_path: str | bytes | None
     ) -> abc.UNIXDatagramSocket | abc.ConnectedUNIXDatagramSocket:
         trio_socket = trio.socket.from_stdlib_socket(raw_socket)
 
@@ -1046,7 +1068,7 @@ class TrioBackend(AsyncBackend):
     @classmethod
     async def wait_socket_readable(cls, sock: socket.socket) -> None:
         try:
-            await wait_readable(sock)  # type: ignore[arg-type]
+            await wait_readable(sock)
         except trio.ClosedResourceError as exc:
             raise ClosedResourceError().with_traceback(exc.__traceback__) from None
         except trio.BusyResourceError:
@@ -1055,7 +1077,7 @@ class TrioBackend(AsyncBackend):
     @classmethod
     async def wait_socket_writable(cls, sock: socket.socket) -> None:
         try:
-            await wait_writable(sock)  # type: ignore[arg-type]
+            await wait_writable(sock)
         except trio.ClosedResourceError as exc:
             raise ClosedResourceError().with_traceback(exc.__traceback__) from None
         except trio.BusyResourceError:
@@ -1091,6 +1113,7 @@ class TrioBackend(AsyncBackend):
     @classmethod
     def get_running_tasks(cls) -> list[TaskInfo]:
         root_task = current_root_task()
+        assert root_task
         task_infos = [TaskInfo(id(root_task), None, root_task.name, root_task.coro)]
         nurseries = root_task.child_nurseries
         while nurseries:

@@ -171,9 +171,14 @@ class AsyncBackend(metaclass=ABCMeta):
         cls,
         func: Callable[..., T_Retval],
         args: tuple[Any, ...],
-        cancellable: bool = False,
+        abandon_on_cancel: bool = False,
         limiter: CapacityLimiter | None = None,
     ) -> T_Retval:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def check_cancelled(cls) -> None:
         pass
 
     @classmethod
@@ -260,7 +265,7 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    async def connect_unix(cls, path: str) -> UNIXSocketStream:
+    async def connect_unix(cls, path: str | bytes) -> UNIXSocketStream:
         pass
 
     @classmethod
@@ -294,14 +299,14 @@ class AsyncBackend(metaclass=ABCMeta):
     @classmethod
     @overload
     async def create_unix_datagram_socket(
-        cls, raw_socket: socket, remote_path: str
+        cls, raw_socket: socket, remote_path: str | bytes
     ) -> ConnectedUNIXDatagramSocket:
         ...
 
     @classmethod
     @abstractmethod
     async def create_unix_datagram_socket(
-        cls, raw_socket: socket, remote_path: str | None
+        cls, raw_socket: socket, remote_path: str | bytes | None
     ) -> UNIXDatagramSocket | ConnectedUNIXDatagramSocket:
         pass
 

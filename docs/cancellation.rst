@@ -7,7 +7,7 @@ The ability to cancel tasks is the foremost advantage of the asynchronous progra
 model. Threads, on the other hand, cannot be forcibly killed and shutting them down will
 require perfect cooperation from the code running in them.
 
-Cancellation in AnyIO follows the model established by the trio_ framework. This means
+Cancellation in AnyIO follows the model established by the Trio_ framework. This means
 that cancellation of tasks is done via so called *cancel scopes*. Cancel scopes are used
 as context managers and can be nested. Cancelling a cancel scope cancels all cancel
 scopes nested within it. If a task is waiting on something, it is cancelled immediately.
@@ -17,7 +17,8 @@ requiring waiting, such as :func:`~sleep`.
 A task group contains its own cancel scope. The entire task group can be cancelled by
 cancelling this scope.
 
-.. _trio: https://trio.readthedocs.io/en/latest/reference-core.html#cancellation-and-timeouts
+.. _Trio: https://trio.readthedocs.io/en/latest/reference-core.html
+   #cancellation-and-timeouts
 
 Timeouts
 --------
@@ -46,10 +47,14 @@ Here's how you typically use timeouts::
                 await sleep(2)
                 print('This should never be printed')
 
-            # The cancel_called property will be True if timeout was reached
-            print('Exited cancel scope, cancelled =', scope.cancel_called)
+            # The cancelled_caught property will be True if timeout was reached
+            print('Exited cancel scope, cancelled =', scope.cancelled_caught)
 
     run(main)
+
+.. note:: It's recommended not to directly cancel a scope from :func:`~fail_after`, as
+    that may currently result in :exc:`TimeoutError` being erroneously raised if exiting
+    the scope is delayed long enough for the deadline to be exceeded.
 
 Shielding
 ---------

@@ -15,7 +15,7 @@ To install AnyIO, run:
 
     pip install anyio
 
-To install a supported version of trio_, you can install it as an extra like this:
+To install a supported version of Trio_, you can install it as an extra like this:
 
 .. code-block:: bash
 
@@ -35,7 +35,7 @@ The simplest possible AnyIO program looks like this::
     run(main)
 
 This will run the program above on the default backend (asyncio). To run it on another
-supported backend, say trio_, you can use the ``backend`` argument, like so::
+supported backend, say Trio_, you can use the ``backend`` argument, like so::
 
     run(main, backend='trio')
 
@@ -54,27 +54,32 @@ native ``run()`` function of the backend library::
 
     trio.run(main)
 
+.. versionchanged:: 4.0.0
+    On the ``asyncio`` backend, ``anyio.run()`` now uses a back-ported version of
+    :class:`asyncio.Runner` on Pythons older than 3.11.
+
 .. _backend options:
 
 Backend specific options
 ------------------------
 
-Asyncio:
+**Asyncio**:
 
-* ``debug`` (``bool``, default=False): Enables `debug mode`_ in the event loop
+* options covered in the documentation of :class:`asyncio.Runner`
 * ``use_uvloop`` (``bool``, default=False): Use the faster uvloop_ event loop
-  implementation, if available
-* ``policy`` (``AbstractEventLoopPolicy``, default=None): the event loop policy instance
-  to use for creating a new event loop (overrides ``use_uvloop``)
+  implementation, if available (this is a shorthand for passing
+  ``loop_factory=uvloop.new_event_loop``, and is ignored if ``loop_factory`` is passed
+  a value other than ``None``)
 
-Trio: options covered in the
+**Trio**: options covered in the
 `official documentation
 <https://trio.readthedocs.io/en/stable/reference-core.html#trio.run>`_
 
-.. note:: The default value of ``use_uvloop`` was ``True`` before v3.2.0.
+.. versionchanged:: 3.2.0
+    The default value of ``use_uvloop`` was changed to ``False``.
+.. versionchanged:: 4.0.0
+    The ``policy`` option was replaced with ``loop_factory``.
 
-.. _debug mode:
-    https://docs.python.org/3/library/asyncio-eventloop.html#enabling-debug-mode
 .. _uvloop: https://pypi.org/project/uvloop/
 
 Using native async libraries
@@ -84,11 +89,11 @@ AnyIO lets you mix and match code written for AnyIO and code written for the
 asynchronous framework of your choice. There are a few rules to keep in mind however:
 
 * You can only use "native" libraries for the backend you're running, so you cannot, for
-  example, use a library written for trio together with a library written for asyncio.
-* Tasks spawned by these "native" libraries on backends other than trio_ are not subject
+  example, use a library written for Trio_ together with a library written for asyncio.
+* Tasks spawned by these "native" libraries on backends other than Trio_ are not subject
   to the cancellation rules enforced by AnyIO
 * Threads spawned outside of AnyIO cannot use :func:`.from_thread.run` to call
   asynchronous code
 
 .. _virtualenv: https://docs.python-guide.org/dev/virtualenvs/
-.. _trio: https://github.com/python-trio/trio
+.. _Trio: https://github.com/python-trio/trio

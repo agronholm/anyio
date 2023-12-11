@@ -61,6 +61,7 @@ Running asynchronous code from other threads
 
 .. autofunction:: anyio.from_thread.run
 .. autofunction:: anyio.from_thread.run_sync
+.. autofunction:: anyio.from_thread.check_cancelled
 .. autofunction:: anyio.from_thread.start_blocking_portal
 
 .. autoclass:: anyio.from_thread.BlockingPortal
@@ -151,6 +152,7 @@ Synchronization
 .. autoclass:: anyio.Condition
 .. autoclass:: anyio.Semaphore
 .. autoclass:: anyio.CapacityLimiter
+.. autoclass:: anyio.ResourceGuard
 
 .. autoclass:: anyio.LockStatistics
 .. autoclass:: anyio.EventStatistics

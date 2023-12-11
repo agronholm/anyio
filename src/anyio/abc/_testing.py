@@ -17,18 +17,14 @@ class TestRunner(metaclass=ABCMeta):
     def __enter__(self) -> TestRunner:
         return self
 
+    @abstractmethod
     def __exit__(
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: types.TracebackType | None,
     ) -> bool | None:
-        self.close()
-        return None
-
-    @abstractmethod
-    def close(self) -> None:
-        """Close the event loop."""
+        ...
 
     @abstractmethod
     def run_asyncgen_fixture(
