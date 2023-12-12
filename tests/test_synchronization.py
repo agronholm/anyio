@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import pytest
 
@@ -13,6 +14,7 @@ from anyio import (
     WouldBlock,
     create_task_group,
     fail_after,
+    run,
     to_thread,
     wait_all_tasks_blocked,
 )
@@ -207,6 +209,18 @@ class TestEvent:
             event.set()
 
         assert event.statistics().tasks_waiting == 0
+
+    def test_instantiate_outside_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        async def use_event() -> None:
+            event.set()
+            await event.wait()
+
+        event = Event()
+        run(
+            use_event, backend=anyio_backend_name, backend_options=anyio_backend_options
+        )
 
 
 class TestCondition:
@@ -595,3 +609,17 @@ class TestCapacityLimiter:
 
             # Allow all tasks to exit
             continue_event.set()
+
+    def test_instantiate_outside_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        async def use_limiter() -> None:
+            async with limiter:
+                pass
+
+        limiter = CapacityLimiter(1)
+        run(
+            use_limiter,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
+        )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections import deque
 from dataclasses import dataclass
 from types import TracebackType
@@ -76,7 +77,7 @@ class SemaphoreStatistics:
 
 class Event:
     def __new__(cls) -> Event:
-        return get_async_backend().create_event()
+        return EventAdapter()
 
     def set(self) -> None:
         """Set the flag, notifying all listeners."""
@@ -99,6 +100,32 @@ class Event:
     def statistics(self) -> EventStatistics:
         """Return statistics about the current state of this event."""
         raise NotImplementedError
+
+
+class EventAdapter(Event):
+    _internal_event: Event | None = None
+
+    def __new__(cls) -> EventAdapter:
+        return object.__new__(cls)
+
+    @property
+    def _event(self) -> Event:
+        if self._internal_event is None:
+            self._internal_event = get_async_backend().create_event()
+
+        return self._internal_event
+
+    def set(self) -> None:
+        self._event.set()
+
+    def is_set(self) -> bool:
+        return self._internal_event is not None and self._internal_event.is_set()
+
+    async def wait(self) -> None:
+        await self._event.wait()
+
+    def statistics(self) -> EventStatistics:
+        return self._event.statistics()
 
 
 class Lock:
@@ -372,8 +399,8 @@ class Semaphore:
 
 
 class CapacityLimiter:
-    def __new__(cls, total_tokens: float) -> CapacityLimiter:
-        return get_async_backend().create_capacity_limiter(total_tokens)
+    def __new__(cls, total_tokens: int) -> CapacityLimiter:
+        return CapacityLimiterAdapter(total_tokens)
 
     async def __aenter__(self) -> None:
         raise NotImplementedError
@@ -480,6 +507,78 @@ class CapacityLimiter:
 
         """
         raise NotImplementedError
+
+
+class CapacityLimiterAdapter(CapacityLimiter):
+    _internal_limiter: CapacityLimiter | None = None
+
+    def __new__(cls, total_tokens: int) -> CapacityLimiterAdapter:
+        return object.__new__(cls)
+
+    def __init__(self, total_tokens: int) -> None:
+        if not isinstance(total_tokens, int) and total_tokens is not math.inf:
+            raise TypeError("total_tokens must be an int or math.inf")
+        elif total_tokens < 1:
+            raise ValueError("total_tokens must be >= 1")
+
+        self._total_tokens = total_tokens
+
+    @property
+    def _limiter(self) -> CapacityLimiter:
+        if self._internal_limiter is None:
+            self._internal_limiter = get_async_backend().create_capacity_limiter(
+                self._total_tokens
+            )
+
+        return self._internal_limiter
+
+    async def __aenter__(self) -> None:
+        await self._limiter.__aenter__()
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
+        return await self._limiter.__aexit__(exc_type, exc_val, exc_tb)
+
+    @property
+    def total_tokens(self) -> float:
+        return self._limiter.total_tokens
+
+    @total_tokens.setter
+    def total_tokens(self, value: float) -> None:
+        self._limiter.total_tokens = value
+
+    @property
+    def borrowed_tokens(self) -> int:
+        return self._limiter.borrowed_tokens
+
+    @property
+    def available_tokens(self) -> float:
+        return self._limiter.available_tokens
+
+    def acquire_nowait(self) -> None:
+        self._limiter.acquire_nowait()
+
+    def acquire_on_behalf_of_nowait(self, borrower: object) -> None:
+        self._limiter.acquire_on_behalf_of_nowait(borrower)
+
+    async def acquire(self) -> None:
+        await self._limiter.acquire()
+
+    async def acquire_on_behalf_of(self, borrower: object) -> None:
+        await self._limiter.acquire_on_behalf_of(borrower)
+
+    def release(self) -> None:
+        self._limiter.release()
+
+    def release_on_behalf_of(self, borrower: object) -> None:
+        self._limiter.release_on_behalf_of(borrower)
+
+    def statistics(self) -> CapacityLimiterStatistics:
+        return self._limiter.statistics()
 
 
 class ResourceGuard:
