@@ -163,6 +163,17 @@ class MemoryObjectSendStream(Generic[T_contra], ObjectSendStream[T_contra]):
         self._state.open_send_channels += 1
 
     def send_nowait(self, item: T_contra) -> None:
+        """
+        Send an item immediately if it can be done without waiting.
+
+        :param item: the item to send
+        :raises ~anyio.ClosedResourceError: if this send stream has been closed
+        :raises ~anyio.BrokenResourceError: if the stream has been closed from the
+            receiving end
+        :raises ~anyio.WouldBlock: if the buffer is full and there are no tasks waiting
+            to receive
+
+        """
         if self._closed:
             raise ClosedResourceError
         if not self._state.open_receive_channels:

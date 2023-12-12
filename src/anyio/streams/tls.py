@@ -207,7 +207,7 @@ class TLSStream(ByteStream):
                     raise WouldBlock from None
                 except EndOfStream:
                     self._read_bio.write_eof()
-                except BrokenResourceError as exc:
+                except OSError as exc:
                     self._read_bio.write_eof()
                     self._write_bio.write_eof()
                     raise BrokenResourceError from exc
@@ -233,11 +233,6 @@ class TLSStream(ByteStream):
             raise EndOfStream
 
         return data
-
-    # def send_nowait(self, item: bytes) -> int:
-    #     while True:
-    #         self._ssl_object.write(item)
-    #         self.transport_stream.send_nowait()
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
         data = await self._call_sslobject_method(self._ssl_object.read, max_bytes)

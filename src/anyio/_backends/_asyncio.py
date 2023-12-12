@@ -909,10 +909,6 @@ class StreamWriterWrapper(abc.ByteSendStream):
         self._stream.write(item)
         await self._stream.drain()
 
-    def send_nowait(self, item: bytes) -> int:
-        self._stream.write(item)
-        return len(item)
-
     async def aclose(self) -> None:
         self._stream.close()
 
