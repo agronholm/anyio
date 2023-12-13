@@ -419,7 +419,7 @@ class CancelScope(BaseCancelScope):
 
         host_task_state.cancel_scope = self._parent_scope
 
-        # Restart the cancellation effort in the farthest directly cancelled parent
+        # Restart the cancellation effort in the closest directly cancelled parent
         # scope if this one was shielded
         self._restart_cancellation_in_parent()
 
