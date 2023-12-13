@@ -130,7 +130,10 @@ class EventAdapter(Event):
         await self._event.wait()
 
     def statistics(self) -> EventStatistics:
-        return self._event.statistics()
+        if self._internal_event is None:
+            return EventStatistics(tasks_waiting=0)
+
+        return self._internal_event.statistics()
 
 
 class Lock:
@@ -553,7 +556,10 @@ class CapacityLimiterAdapter(CapacityLimiter):
 
     @property
     def total_tokens(self) -> float:
-        return self._limiter.total_tokens
+        if self._internal_limiter is None:
+            return self._total_tokens
+
+        return self._internal_limiter.total_tokens
 
     @total_tokens.setter
     def total_tokens(self, value: float) -> None:
@@ -561,11 +567,17 @@ class CapacityLimiterAdapter(CapacityLimiter):
 
     @property
     def borrowed_tokens(self) -> int:
-        return self._limiter.borrowed_tokens
+        if self._internal_limiter is None:
+            return 0
+
+        return self._internal_limiter.borrowed_tokens
 
     @property
     def available_tokens(self) -> float:
-        return self._limiter.available_tokens
+        if self._internal_limiter is None:
+            return self._total_tokens
+
+        return self._internal_limiter.available_tokens
 
     def acquire_nowait(self) -> None:
         self._limiter.acquire_nowait()
@@ -586,7 +598,15 @@ class CapacityLimiterAdapter(CapacityLimiter):
         self._limiter.release_on_behalf_of(borrower)
 
     def statistics(self) -> CapacityLimiterStatistics:
-        return self._limiter.statistics()
+        if self._internal_limiter is None:
+            return CapacityLimiterStatistics(
+                borrowed_tokens=0,
+                total_tokens=self.total_tokens,
+                borrowers=(),
+                tasks_waiting=0,
+            )
+
+        return self._internal_limiter.statistics()
 
 
 class ResourceGuard:
