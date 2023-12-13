@@ -143,6 +143,21 @@ class TestLock:
         task1.cancel()
         await asyncio.wait_for(task2, 1)
 
+    def test_instantiate_outside_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        async def use_lock() -> None:
+            async with lock:
+                pass
+
+        lock = Lock()
+        statistics = lock.statistics()
+        assert not statistics.locked
+        assert statistics.owner is None
+        assert statistics.tasks_waiting == 0
+
+        run(use_lock, backend=anyio_backend_name, backend_options=anyio_backend_options)
+
 
 class TestEvent:
     async def test_event(self) -> None:
@@ -218,6 +233,9 @@ class TestEvent:
             await event.wait()
 
         event = Event()
+        assert not event.is_set()
+        assert event.statistics().tasks_waiting == 0
+
         run(
             use_event, backend=anyio_backend_name, backend_options=anyio_backend_options
         )
@@ -317,6 +335,22 @@ class TestCondition:
 
         assert not condition.statistics().lock_statistics.locked
         assert condition.statistics().tasks_waiting == 0
+
+    def test_instantiate_outside_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        async def use_condition() -> None:
+            async with condition:
+                pass
+
+        condition = Condition()
+        assert condition.statistics().tasks_waiting == 0
+
+        run(
+            use_condition,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
+        )
 
 
 class TestSemaphore:
@@ -439,6 +473,22 @@ class TestSemaphore:
         await asyncio.sleep(0)
         task1.cancel()
         await asyncio.wait_for(task2, 1)
+
+    def test_instantiate_outside_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        async def use_semaphore() -> None:
+            async with semaphore:
+                pass
+
+        semaphore = Semaphore(1)
+        assert semaphore.statistics().tasks_waiting == 0
+
+        run(
+            use_semaphore,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
+        )
 
 
 class TestCapacityLimiter:
@@ -618,6 +668,14 @@ class TestCapacityLimiter:
                 pass
 
         limiter = CapacityLimiter(1)
+        assert limiter.total_tokens == 1
+        assert limiter.borrowed_tokens == 0
+        statistics = limiter.statistics()
+        assert statistics.total_tokens == 1
+        assert statistics.borrowed_tokens == 0
+        assert statistics.borrowers == ()
+        assert statistics.tasks_waiting == 0
+
         run(
             use_limiter,
             backend=anyio_backend_name,
