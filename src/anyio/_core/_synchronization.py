@@ -399,7 +399,7 @@ class Semaphore:
 
 
 class CapacityLimiter:
-    def __new__(cls, total_tokens: int) -> CapacityLimiter:
+    def __new__(cls, total_tokens: float) -> CapacityLimiter:
         return CapacityLimiterAdapter(total_tokens)
 
     async def __aenter__(self) -> None:
@@ -512,10 +512,10 @@ class CapacityLimiter:
 class CapacityLimiterAdapter(CapacityLimiter):
     _internal_limiter: CapacityLimiter | None = None
 
-    def __new__(cls, total_tokens: int) -> CapacityLimiterAdapter:
+    def __new__(cls, total_tokens: float) -> CapacityLimiterAdapter:
         return object.__new__(cls)
 
-    def __init__(self, total_tokens: int) -> None:
+    def __init__(self, total_tokens: float) -> None:
         if not isinstance(total_tokens, int) and total_tokens is not math.inf:
             raise TypeError("total_tokens must be an int or math.inf")
         elif total_tokens < 1:
