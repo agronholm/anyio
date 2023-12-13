@@ -639,7 +639,7 @@ def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
 
 
 def convert_ipv6_sockaddr(
-    sockaddr: tuple[str, int, int, int] | tuple[str, int]
+    sockaddr: tuple[str, int, int, int] | tuple[str, int],
 ) -> tuple[str, int]:
     """
     Convert a 4-tuple IPv6 socket address to a 2-tuple (address, port) format.

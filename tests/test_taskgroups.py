@@ -1348,6 +1348,7 @@ class TestTaskStatusTyping:
         task_status2.started(0.0)
 
     async def typetest_optional_status(
-        *, task_status: TaskStatus[int] = TASK_STATUS_IGNORED
+        *,
+        task_status: TaskStatus[int] = TASK_STATUS_IGNORED,
     ) -> None:
         task_status.started(1)

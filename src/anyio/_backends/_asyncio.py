@@ -617,7 +617,7 @@ class _AsyncioTaskStatus(abc.TaskStatus):
 
 
 def iterate_exceptions(
-    exception: BaseException
+    exception: BaseException,
 ) -> Generator[BaseException, None, None]:
     if isinstance(exception, BaseExceptionGroup):
         for exc in exception.exceptions:
