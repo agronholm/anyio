@@ -5,6 +5,8 @@ from collections import deque
 from dataclasses import dataclass
 from types import TracebackType
 
+from sniffio import AsyncLibraryNotFoundError
+
 from ..lowlevel import cancel_shielded_checkpoint, checkpoint, checkpoint_if_cancelled
 from ._eventloop import get_async_backend
 from ._exceptions import BusyResourceError, WouldBlock
@@ -77,7 +79,10 @@ class SemaphoreStatistics:
 
 class Event:
     def __new__(cls) -> Event:
-        return EventAdapter()
+        try:
+            return get_async_backend().create_event()
+        except AsyncLibraryNotFoundError:
+            return EventAdapter()
 
     def set(self) -> None:
         """Set the flag, notifying all listeners."""
@@ -400,7 +405,10 @@ class Semaphore:
 
 class CapacityLimiter:
     def __new__(cls, total_tokens: float) -> CapacityLimiter:
-        return CapacityLimiterAdapter(total_tokens)
+        try:
+            return get_async_backend().create_capacity_limiter(total_tokens)
+        except AsyncLibraryNotFoundError:
+            return CapacityLimiterAdapter(total_tokens)
 
     async def __aenter__(self) -> None:
         raise NotImplementedError
