@@ -15,6 +15,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   from Egor Blagov)
 - Fixed ``loop_factory`` and ``use_uvloop`` options not being used on the asyncio
   backend (`#643 <https://github.com/agronholm/anyio/issues/643>`_)
+- Fixed cancellation propagating on asyncio from a task group to child tasks if the task
+  hosting the task group is in a shielded cancel scope
+  (`#642 <https://github.com/agronholm/anyio/issues/642>`_)
 
 **4.1.0**
 

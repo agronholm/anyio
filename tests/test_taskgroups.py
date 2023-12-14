@@ -844,7 +844,7 @@ async def test_nested_shield() -> None:
     assert isinstance(exc.value.exceptions[0], TimeoutError)
 
 
-async def test_triple_nested_shield() -> None:
+async def test_triple_nested_shield_checkpoint_in_outer() -> None:
     """Regression test for #370."""
 
     got_past_checkpoint = False
@@ -860,6 +860,26 @@ async def test_triple_nested_shield() -> None:
 
             await checkpoint()
             got_past_checkpoint = True
+
+    async with create_task_group() as tg:
+        tg.start_soon(taskfunc)
+
+    assert not got_past_checkpoint
+
+
+async def test_triple_nested_shield_checkpoint_in_middle() -> None:
+    got_past_checkpoint = False
+
+    async def taskfunc() -> None:
+        nonlocal got_past_checkpoint
+
+        with CancelScope() as scope1:
+            with CancelScope():
+                with CancelScope(shield=True):
+                    scope1.cancel()
+
+                await checkpoint()
+                got_past_checkpoint = True
 
     async with create_task_group() as tg:
         tg.start_soon(taskfunc)
@@ -1291,6 +1311,29 @@ async def test_reraise_cancelled_in_excgroup() -> None:
         scope.cancel()
         with catch({get_cancelled_exc_class(): handler}):
             await anyio.sleep_forever()
+
+
+async def test_cancel_child_task_when_host_is_shielded() -> None:
+    # Regression test for #642
+    # Tests that cancellation propagates to a child task even if the host task is within
+    # a shielded cancel scope.
+    cancelled = anyio.Event()
+
+    async def wait_cancel() -> None:
+        try:
+            await anyio.sleep_forever()
+        except anyio.get_cancelled_exc_class():
+            cancelled.set()
+            raise
+
+    with CancelScope() as parent_scope:
+        async with anyio.create_task_group() as task_group:
+            task_group.start_soon(wait_cancel)
+            await wait_all_tasks_blocked()
+
+            with CancelScope(shield=True), fail_after(1):
+                parent_scope.cancel()
+                await cancelled.wait()
 
 
 class TestTaskStatusTyping:
