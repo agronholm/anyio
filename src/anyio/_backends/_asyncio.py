@@ -503,7 +503,10 @@ class CancelScope(BaseCancelScope):
         return should_retry
 
     def _restart_cancellation_in_parent(self) -> None:
-        """Restart the cancellation effort in the closest directly cancelled parent scope"""
+        """
+        Restart the cancellation effort in the closest directly cancelled parent scope.
+
+        """
         scope = self._parent_scope
         while scope is not None:
             if scope._cancel_called:
