@@ -421,7 +421,7 @@ def start_blocking_portal(
     future: Future[BlockingPortal] = Future()
     with ThreadPoolExecutor(1) as executor:
         run_future = executor.submit(
-            _eventloop.run,
+            _eventloop.run,  # type: ignore[arg-type]
             run_portal,
             backend=backend,
             backend_options=backend_options,
