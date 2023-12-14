@@ -844,7 +844,7 @@ async def test_nested_shield() -> None:
     assert isinstance(exc.value.exceptions[0], TimeoutError)
 
 
-async def test_triple_nested_shield() -> None:
+async def test_triple_nested_shield_checkpoint_in_outer() -> None:
     """Regression test for #370."""
 
     got_past_checkpoint = False
@@ -860,6 +860,26 @@ async def test_triple_nested_shield() -> None:
 
             await checkpoint()
             got_past_checkpoint = True
+
+    async with create_task_group() as tg:
+        tg.start_soon(taskfunc)
+
+    assert not got_past_checkpoint
+
+
+async def test_triple_nested_shield_checkpoint_in_middle() -> None:
+    got_past_checkpoint = False
+
+    async def taskfunc() -> None:
+        nonlocal got_past_checkpoint
+
+        with CancelScope() as scope1:
+            with CancelScope():
+                with CancelScope(shield=True):
+                    scope1.cancel()
+
+                await checkpoint()
+                got_past_checkpoint = True
 
     async with create_task_group() as tg:
         tg.start_soon(taskfunc)
