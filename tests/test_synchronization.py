@@ -668,10 +668,18 @@ class TestCapacityLimiter:
                 pass
 
         limiter = CapacityLimiter(1)
-        assert limiter.total_tokens == 1
+        limiter.total_tokens = 2
+
+        with pytest.raises(TypeError):
+            limiter.total_tokens = "2"  # type: ignore[assignment]
+
+        with pytest.raises(TypeError):
+            limiter.total_tokens = 3.0
+
+        assert limiter.total_tokens == 2
         assert limiter.borrowed_tokens == 0
         statistics = limiter.statistics()
-        assert statistics.total_tokens == 1
+        assert statistics.total_tokens == 2
         assert statistics.borrowed_tokens == 0
         assert statistics.borrowers == ()
         assert statistics.tasks_waiting == 0
