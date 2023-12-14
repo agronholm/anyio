@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import threading
 from collections.abc import Awaitable, Callable, Generator
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
@@ -24,11 +25,19 @@ from ._core._tasks import CancelScope, create_task_group
 from .abc import AsyncBackend
 from .abc._tasks import TaskStatus
 
+if sys.version_info >= (3, 11):
+    from typing import TypeVarTuple, Unpack
+else:
+    from typing_extensions import TypeVarTuple, Unpack
+
 T_Retval = TypeVar("T_Retval")
 T_co = TypeVar("T_co")
+PosArgsT = TypeVarTuple("PosArgsT")
 
 
-def run(func: Callable[..., Awaitable[T_Retval]], *args: object) -> T_Retval:
+def run(
+    func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]], *args: Unpack[PosArgsT]
+) -> T_Retval:
     """
     Call a coroutine function from a worker thread.
 
@@ -48,7 +57,9 @@ def run(func: Callable[..., Awaitable[T_Retval]], *args: object) -> T_Retval:
     return async_backend.run_async_from_thread(func, args, token=token)
 
 
-def run_sync(func: Callable[..., T_Retval], *args: object) -> T_Retval:
+def run_sync(
+    func: Callable[[Unpack[PosArgsT]], T_Retval], *args: Unpack[PosArgsT]
+) -> T_Retval:
     """
     Call a function in the event loop thread from a worker thread.
 
@@ -182,7 +193,11 @@ class BlockingPortal:
             self._task_group.cancel_scope.cancel()
 
     async def _call_func(
-        self, func: Callable, args: tuple, kwargs: dict[str, Any], future: Future
+        self,
+        func: Callable[[Unpack[PosArgsT]], T_Retval],
+        args: tuple[Unpack[PosArgsT]],
+        kwargs: dict[str, Any],
+        future: Future[T_Retval],
     ) -> None:
         def callback(f: Future) -> None:
             if f.cancelled() and self._event_loop_thread_id not in (
@@ -219,11 +234,11 @@ class BlockingPortal:
 
     def _spawn_task_from_thread(
         self,
-        func: Callable,
-        args: tuple[Any, ...],
+        func: Callable[[Unpack[PosArgsT]], T_Retval],
+        args: tuple[Unpack[PosArgsT]],
         kwargs: dict[str, Any],
         name: object,
-        future: Future,
+        future: Future[T_Retval],
     ) -> None:
         """
         Spawn a new task using the given callable.
@@ -241,17 +256,23 @@ class BlockingPortal:
         raise NotImplementedError
 
     @overload
-    def call(self, func: Callable[..., Awaitable[T_Retval]], *args: object) -> T_Retval:
+    def call(
+        self,
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+        *args: Unpack[PosArgsT],
+    ) -> T_Retval:
         ...
 
     @overload
-    def call(self, func: Callable[..., T_Retval], *args: object) -> T_Retval:
+    def call(
+        self, func: Callable[[Unpack[PosArgsT]], T_Retval], *args: Unpack[PosArgsT]
+    ) -> T_Retval:
         ...
 
     def call(
         self,
-        func: Callable[..., Awaitable[T_Retval] | T_Retval],
-        *args: object,
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
+        *args: Unpack[PosArgsT],
     ) -> T_Retval:
         """
         Call the given function in the event loop thread.
@@ -268,22 +289,25 @@ class BlockingPortal:
     @overload
     def start_task_soon(
         self,
-        func: Callable[..., Awaitable[T_Retval]],
-        *args: object,
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+        *args: Unpack[PosArgsT],
         name: object = None,
     ) -> Future[T_Retval]:
         ...
 
     @overload
     def start_task_soon(
-        self, func: Callable[..., T_Retval], *args: object, name: object = None
+        self,
+        func: Callable[[Unpack[PosArgsT]], T_Retval],
+        *args: Unpack[PosArgsT],
+        name: object = None,
     ) -> Future[T_Retval]:
         ...
 
     def start_task_soon(
         self,
-        func: Callable[..., Awaitable[T_Retval] | T_Retval],
-        *args: object,
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
+        *args: Unpack[PosArgsT],
         name: object = None,
     ) -> Future[T_Retval]:
         """

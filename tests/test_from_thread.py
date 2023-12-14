@@ -206,8 +206,8 @@ class TestRunAsyncFromThread:
         exc.match("unsupported operand type")
 
     async def test_run_anyio_async_func_from_thread(self) -> None:
-        def worker(*args: int) -> Literal[True]:
-            from_thread.run(sleep, *args)
+        def worker(delay: float) -> Literal[True]:
+            from_thread.run(sleep, delay)
             return True
 
         assert await to_thread.run_sync(worker, 0)

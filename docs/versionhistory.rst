@@ -8,6 +8,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Add support for ``byte``-based paths in ``connect_unix``, ``create_unix_listeners``,
   ``create_unix_datagram_socket``, and ``create_connected_unix_datagram_socket``. (PR by
   Lura Skye)
+- Improved type annotations of numerous methods and functions including ``anyio.run()``,
+  ``TaskGroup.start_soon()``, ``anyio.from_thread.run()``,
+  ``anyio.to_thread.run_sync()`` and ``anyio.to_process.run_sync()`` by making use of
+  PEP 646 ``TypeVarTuple`` to allow the positional arguments to be validated by static
+  type checkers
 - Fixed adjusting the total number of tokens in a ``CapacityLimiter`` on asyncio failing
   to wake up tasks waiting to acquire the limiter in certain edge cases (fixed with help
   from Egor Blagov)
@@ -16,6 +21,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed cancellation propagating on asyncio from a task group to child tasks if the task
   hosting the task group is in a shielded cancel scope
   (`#642 <https://github.com/agronholm/anyio/issues/642>`_)
+- Fixed the type annotation of ``anyio.Path.samefile()`` to match Typeshed
 
 **4.1.0**
 

@@ -1,15 +1,22 @@
 from __future__ import annotations
 
+import sys
 from abc import ABCMeta, abstractmethod
 from collections.abc import Awaitable, Callable
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar, overload
+
+if sys.version_info >= (3, 11):
+    from typing import TypeVarTuple, Unpack
+else:
+    from typing_extensions import TypeVarTuple, Unpack
 
 if TYPE_CHECKING:
     from .._core._tasks import CancelScope
 
 T_Retval = TypeVar("T_Retval")
 T_contra = TypeVar("T_contra", contravariant=True)
+PosArgsT = TypeVarTuple("PosArgsT")
 
 
 class TaskStatus(Protocol[T_contra]):
@@ -42,8 +49,8 @@ class TaskGroup(metaclass=ABCMeta):
     @abstractmethod
     def start_soon(
         self,
-        func: Callable[..., Awaitable[Any]],
-        *args: object,
+        func: Callable[[Unpack[PosArgsT]], Awaitable[Any]],
+        *args: Unpack[PosArgsT],
         name: object = None,
     ) -> None:
         """

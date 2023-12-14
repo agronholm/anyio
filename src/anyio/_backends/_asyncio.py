@@ -82,8 +82,14 @@ from ..abc import (
 from ..lowlevel import RunVar
 from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
+if sys.version_info >= (3, 10):
+    from typing import ParamSpec
+else:
+    from typing_extensions import ParamSpec
+
 if sys.version_info >= (3, 11):
     from asyncio import Runner
+    from typing import TypeVarTuple, Unpack
 else:
     import contextvars
     import enum
@@ -91,6 +97,7 @@ else:
     from asyncio import coroutines, events, exceptions, tasks
 
     from exceptiongroup import BaseExceptionGroup
+    from typing_extensions import TypeVarTuple, Unpack
 
     class _State(enum.Enum):
         CREATED = "created"
@@ -271,6 +278,8 @@ else:
 
 T_Retval = TypeVar("T_Retval")
 T_contra = TypeVar("T_contra", contravariant=True)
+PosArgsT = TypeVarTuple("PosArgsT")
+P = ParamSpec("P")
 
 _root_task: RunVar[asyncio.Task | None] = RunVar("_root_task")
 
@@ -682,8 +691,8 @@ class TaskGroup(abc.TaskGroup):
 
     def _spawn(
         self,
-        func: Callable[..., Awaitable[Any]],
-        args: tuple,
+        func: Callable[[Unpack[PosArgsT]], Awaitable[Any]],
+        args: tuple[Unpack[PosArgsT]],
         name: object,
         task_status_future: asyncio.Future | None = None,
     ) -> asyncio.Task:
@@ -752,7 +761,10 @@ class TaskGroup(abc.TaskGroup):
         return task
 
     def start_soon(
-        self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
+        self,
+        func: Callable[[Unpack[PosArgsT]], Awaitable[Any]],
+        *args: Unpack[PosArgsT],
+        name: object = None,
     ) -> None:
         self._spawn(func, args, name)
 
@@ -875,11 +887,11 @@ class BlockingPortal(abc.BlockingPortal):
 
     def _spawn_task_from_thread(
         self,
-        func: Callable,
-        args: tuple[Any, ...],
+        func: Callable[[Unpack[PosArgsT]], T_Retval],
+        args: tuple[Unpack[PosArgsT]],
         kwargs: dict[str, Any],
         name: object,
-        future: Future,
+        future: Future[T_Retval],
     ) -> None:
         AsyncIOBackend.run_sync_from_thread(
             partial(self._task_group.start_soon, name=name),
@@ -1883,7 +1895,10 @@ class TestRunner(abc.TestRunner):
                         future.set_result(retval)
 
     async def _call_in_runner_task(
-        self, func: Callable[..., Awaitable[T_Retval]], *args: object, **kwargs: object
+        self,
+        func: Callable[P, Awaitable[T_Retval]],
+        *args: P.args,
+        **kwargs: P.kwargs,
     ) -> T_Retval:
         if not self._runner_task:
             self._send_stream, receive_stream = create_memory_object_stream[
@@ -2062,8 +2077,8 @@ class AsyncIOBackend(AsyncBackend):
     @classmethod
     async def run_sync_in_worker_thread(
         cls,
-        func: Callable[..., T_Retval],
-        args: tuple[Any, ...],
+        func: Callable[[Unpack[PosArgsT]], T_Retval],
+        args: tuple[Unpack[PosArgsT]],
         abandon_on_cancel: bool = False,
         limiter: abc.CapacityLimiter | None = None,
     ) -> T_Retval:
@@ -2133,8 +2148,8 @@ class AsyncIOBackend(AsyncBackend):
     @classmethod
     def run_async_from_thread(
         cls,
-        func: Callable[..., Awaitable[T_Retval]],
-        args: tuple[Any, ...],
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+        args: tuple[Unpack[PosArgsT]],
         token: object,
     ) -> T_Retval:
         async def task_wrapper(scope: CancelScope) -> T_Retval:
@@ -2160,7 +2175,10 @@ class AsyncIOBackend(AsyncBackend):
 
     @classmethod
     def run_sync_from_thread(
-        cls, func: Callable[..., T_Retval], args: tuple[Any, ...], token: object
+        cls,
+        func: Callable[[Unpack[PosArgsT]], T_Retval],
+        args: tuple[Unpack[PosArgsT]],
+        token: object,
     ) -> T_Retval:
         @wraps(func)
         def wrapper() -> None:
