@@ -505,8 +505,18 @@ class CancelScope(BaseCancelScope):
     def _restart_cancellation_in_parent(self) -> None:
         """Start cancellation effort in the closest directly cancelled parent scope"""
         scope = self._parent_scope
-        if scope is not None and scope._cancel_called and scope._cancel_handle is None:
-            scope._deliver_cancellation(scope)
+        while scope is not None:
+            if scope._cancel_called:
+                if scope._cancel_handle is None:
+                    scope._deliver_cancellation(scope)
+
+                break
+
+            # No point in looking beyond any shielded scope
+            if scope._shield:
+                break
+
+            scope = scope._parent_scope
 
     def _parent_cancelled(self) -> bool:
         # Check whether any parent has been cancelled
