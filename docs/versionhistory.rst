@@ -8,6 +8,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Add support for ``byte``-based paths in ``connect_unix``, ``create_unix_listeners``,
   ``create_unix_datagram_socket``, and ``create_connected_unix_datagram_socket``. (PR by
   Lura Skye)
+- Enabled the ``Event`` and ``CapacityLimiter`` classes to be instantiated outside an
+  event loop thread
 - Improved type annotations of numerous methods and functions including ``anyio.run()``,
   ``TaskGroup.start_soon()``, ``anyio.from_thread.run()``,
   ``anyio.to_thread.run_sync()`` and ``anyio.to_process.run_sync()`` by making use of

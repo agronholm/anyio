@@ -624,7 +624,9 @@ class Event(BaseEvent):
 
 
 class CapacityLimiter(BaseCapacityLimiter):
-    def __new__(cls, *args: object, **kwargs: object) -> CapacityLimiter:
+    def __new__(
+        cls, *args: Any, original: trio.CapacityLimiter | None = None
+    ) -> CapacityLimiter:
         return object.__new__(cls)
 
     def __init__(
