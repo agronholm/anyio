@@ -233,7 +233,7 @@ class BlockingPortal:
 
     def _spawn_task_from_thread(
         self,
-        func: Callable[[Unpack[PosArgsT]], T_Retval],
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
         args: tuple[Unpack[PosArgsT]],
         kwargs: dict[str, Any],
         name: object,
@@ -328,7 +328,7 @@ class BlockingPortal:
 
         """
         self._check_running()
-        f: Future = Future()
+        f: Future[T_Retval] = Future()
         self._spawn_task_from_thread(func, args, {}, name, f)
         return f
 

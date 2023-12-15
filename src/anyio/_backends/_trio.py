@@ -210,7 +210,7 @@ class BlockingPortal(abc.BlockingPortal):
 
     def _spawn_task_from_thread(
         self,
-        func: Callable[[Unpack[PosArgsT]], T_Retval],
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
         args: tuple[Unpack[PosArgsT]],
         kwargs: dict[str, Any],
         name: object,
