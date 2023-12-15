@@ -80,8 +80,8 @@ def run_sync(
 
 
 class _BlockingAsyncContextManager(Generic[T_co], AbstractContextManager):
-    _enter_future: Future
-    _exit_future: Future
+    _enter_future: Future[T_co]
+    _exit_future: Future[bool | None]
     _exit_event: Event
     _exit_exc_info: tuple[
         type[BaseException] | None, BaseException | None, TracebackType | None
@@ -117,8 +117,7 @@ class _BlockingAsyncContextManager(Generic[T_co], AbstractContextManager):
     def __enter__(self) -> T_co:
         self._enter_future = Future()
         self._exit_future = self._portal.start_task_soon(self.run_async_cm)
-        cm = self._enter_future.result()
-        return cast(T_co, cm)
+        return self._enter_future.result()
 
     def __exit__(
         self,
