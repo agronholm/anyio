@@ -289,30 +289,46 @@ class Path:
         return self._path.__hash__()
 
     def __eq__(self, other: object) -> bool:
+        if not (isinstance(other, pathlib.PurePath) or isinstance(other, Path)):
+            return NotImplemented
         target = other._path if isinstance(other, Path) else other
         return self._path.__eq__(target)
 
     def __lt__(self, other: pathlib.PurePath | Path) -> bool:
+        if not (isinstance(other, pathlib.PurePath) or isinstance(other, Path)):
+            return NotImplemented
         target = other._path if isinstance(other, Path) else other
         return self._path.__lt__(target)
 
     def __le__(self, other: pathlib.PurePath | Path) -> bool:
+        if not (isinstance(other, pathlib.PurePath) or isinstance(other, Path)):
+            return NotImplemented
         target = other._path if isinstance(other, Path) else other
         return self._path.__le__(target)
 
     def __gt__(self, other: pathlib.PurePath | Path) -> bool:
+        if not (isinstance(other, pathlib.PurePath) or isinstance(other, Path)):
+            return NotImplemented
         target = other._path if isinstance(other, Path) else other
         return self._path.__gt__(target)
 
     def __ge__(self, other: pathlib.PurePath | Path) -> bool:
+        if not (isinstance(other, pathlib.PurePath) or isinstance(other, Path)):
+            return NotImplemented
         target = other._path if isinstance(other, Path) else other
         return self._path.__ge__(target)
 
     def __truediv__(self, other: str | PathLike[str]) -> Path:
-        return Path(self._path / other)
+        try:
+            return Path(self._path / other)
+        except TypeError:
+            return NotImplemented
 
     def __rtruediv__(self, other: str | PathLike[str]) -> Path:
-        return Path(other) / self
+        try:
+            return Path(other) / self
+        except TypeError:
+            return NotImplemented
 
     @property
     def parts(self) -> tuple[str, ...]:
