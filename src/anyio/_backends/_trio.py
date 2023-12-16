@@ -763,7 +763,10 @@ class TestRunner(abc.TestRunner):
         self._send_stream = None
 
     def _call_in_runner_task(
-        self, func: Callable[..., Awaitable[T_Retval]], *args: object, **kwargs: object
+        self,
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+        *args: Unpack[PosArgsT],
+        **kwargs: object,
     ) -> T_Retval:
         if self._send_stream is None:
             trio.lowlevel.start_guest_run(
