@@ -62,6 +62,11 @@ from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend
 from ..streams.memory import MemoryObjectSendStream
 
+if sys.version_info >= (3, 10):
+    from typing import ParamSpec
+else:
+    from typing_extensions import ParamSpec
+
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
 else:
@@ -72,6 +77,7 @@ T = TypeVar("T")
 T_Retval = TypeVar("T_Retval")
 T_SockAddr = TypeVar("T_SockAddr", str, IPSockAddrType)
 PosArgsT = TypeVarTuple("PosArgsT")
+P = ParamSpec("P")
 
 
 #
@@ -764,9 +770,9 @@ class TestRunner(abc.TestRunner):
 
     def _call_in_runner_task(
         self,
-        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
-        *args: Unpack[PosArgsT],
-        **kwargs: object,
+        func: Callable[P, Awaitable[T_Retval]],
+        *args: P.args,
+        **kwargs: P.kwargs,
     ) -> T_Retval:
         if self._send_stream is None:
             trio.lowlevel.start_guest_run(
