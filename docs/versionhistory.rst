@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**4.2.0**
 
 - Add support for ``byte``-based paths in ``connect_unix``, ``create_unix_listeners``,
   ``create_unix_datagram_socket``, and ``create_connected_unix_datagram_socket``. (PR by
