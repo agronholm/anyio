@@ -192,7 +192,7 @@ class TaskGroup(abc.TaskGroup):
 
     async def start(
         self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
-    ) -> object:
+    ) -> Any:
         if not self._active:
             raise RuntimeError(
                 "This task group is not active; no new tasks can be started."

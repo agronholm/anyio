@@ -770,7 +770,7 @@ class TaskGroup(abc.TaskGroup):
 
     async def start(
         self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
-    ) -> None:
+    ) -> Any:
         future: asyncio.Future = asyncio.Future()
         task = self._spawn(func, args, name, future)
 
