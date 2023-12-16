@@ -15,7 +15,7 @@ jobs:
       tests-changed: ${{ steps.changed-files.outputs.tests_any_changed }}
       docs-changed: ${{ steps.changed-files.outputs.doc_any_changed }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Get changed files by category
       id: changed-files
       uses: tj-actions/changed-files@v37
@@ -42,9 +42,9 @@ jobs:
         || (needs.changed-files.outputs.src-changed == 'true')
       }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: 3.x
     - uses: actions/cache@v3
@@ -81,9 +81,9 @@ jobs:
         || (needs.changed-files.outputs.tests-changed == 'true')
       }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
         allow-prereleases: true
@@ -115,9 +115,9 @@ jobs:
         || (needs.changed-files.outputs.docs-changed == 'true')
       }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "3.11"
         cache: pip
