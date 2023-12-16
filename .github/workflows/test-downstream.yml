@@ -82,3 +82,28 @@ jobs:
           pip install anyio[trio]@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
       - name: Run tests
         run: bash scripts/test.sh
+
+  litestar:
+    name: "Litestar on Python ${{ matrix.python-version }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: litestar-org/litestar
+      - uses: pdm-project/setup-pdm@v3
+        name: Set up PDM
+        with:
+          python-version: ${{ matrix.python-version }}
+          allow-python-prereleases: false
+          cache: true
+          cache-dependency-path: pdm.lock
+      - name: Install dependencies
+        run: |
+          pdm install -G:all
+          pdm add --no-lock --update-reuse-installed anyio[trio]@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
+      - name: Test
+        run: pdm run pytest docs/examples tests -n auto
