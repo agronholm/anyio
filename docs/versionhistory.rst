@@ -34,7 +34,20 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed cancellation propagating on asyncio from a task group to child tasks if the task
   hosting the task group is in a shielded cancel scope
   (`#642 <https://github.com/agronholm/anyio/issues/642>`_)
-- Fixed the type annotation of ``anyio.Path.samefile()`` to match Typeshed
+- Fixed various type annotations of ``anyio.Path`` to match Typeshed:
+
+  - ``anyio.Path.__lt__()``
+  - ``anyio.Path.__le__()``
+  - ``anyio.Path.__gt__()``
+  - ``anyio.Path.__ge__()``
+  - ``anyio.Path.__truediv__()``
+  - ``anyio.Path.__rtruediv__()``
+  - ``anyio.Path.hardlink_to()``
+  - ``anyio.Path.samefile()``
+  - ``anyio.Path.symlink_to()``
+  - ``anyio.Path.with_segments()``
+
+  (PR by Ganden Schaffner)
 
 **4.1.0**
 
