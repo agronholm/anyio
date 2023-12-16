@@ -18,6 +18,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``anyio.run()``
   * ``TaskGroup.start_soon()``
   * ``anyio.from_thread.run()``
+  * ``anyio.from_thread.run_sync()``
   * ``anyio.to_thread.run_sync()``
   * ``anyio.to_process.run_sync()``
   * ``BlockingPortal.call()``
