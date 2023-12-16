@@ -136,7 +136,7 @@ deps = pre-commit
 commands = pre-commit run --all-files
 
 [testenv:pyright]
-deps = pyright==1.1.339
+deps = pyright
 commands = pyright --verifytypes anyio
 
 [testenv:docs]
