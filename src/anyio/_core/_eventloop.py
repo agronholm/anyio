@@ -10,6 +10,11 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 import sniffio
 
+if sys.version_info >= (3, 11):
+    from typing import TypeVarTuple, Unpack
+else:
+    from typing_extensions import TypeVarTuple, Unpack
+
 if TYPE_CHECKING:
     from ..abc import AsyncBackend
 
@@ -17,12 +22,14 @@ if TYPE_CHECKING:
 BACKENDS = "asyncio", "trio"
 
 T_Retval = TypeVar("T_Retval")
+PosArgsT = TypeVarTuple("PosArgsT")
+
 threadlocals = threading.local()
 
 
 def run(
-    func: Callable[..., Awaitable[T_Retval]],
-    *args: object,
+    func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+    *args: Unpack[PosArgsT],
     backend: str = "asyncio",
     backend_options: dict[str, Any] | None = None,
 ) -> T_Retval:

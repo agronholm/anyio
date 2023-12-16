@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import sys
 from abc import ABCMeta, abstractmethod
 from collections.abc import AsyncIterator, Awaitable, Mapping
 from os import PathLike
@@ -16,6 +17,11 @@ from typing import (
     TypeVar,
     overload,
 )
+
+if sys.version_info >= (3, 11):
+    from typing import TypeVarTuple, Unpack
+else:
+    from typing_extensions import TypeVarTuple, Unpack
 
 if TYPE_CHECKING:
     from typing import Literal
@@ -39,6 +45,7 @@ if TYPE_CHECKING:
     from ._testing import TestRunner
 
 T_Retval = TypeVar("T_Retval")
+PosArgsT = TypeVarTuple("PosArgsT")
 
 
 class AsyncBackend(metaclass=ABCMeta):
@@ -46,8 +53,8 @@ class AsyncBackend(metaclass=ABCMeta):
     @abstractmethod
     def run(
         cls,
-        func: Callable[..., Awaitable[T_Retval]],
-        args: tuple[Any, ...],
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+        args: tuple[Unpack[PosArgsT]],
         kwargs: dict[str, Any],
         options: dict[str, Any],
     ) -> T_Retval:
@@ -169,8 +176,8 @@ class AsyncBackend(metaclass=ABCMeta):
     @abstractmethod
     async def run_sync_in_worker_thread(
         cls,
-        func: Callable[..., T_Retval],
-        args: tuple[Any, ...],
+        func: Callable[[Unpack[PosArgsT]], T_Retval],
+        args: tuple[Unpack[PosArgsT]],
         abandon_on_cancel: bool = False,
         limiter: CapacityLimiter | None = None,
     ) -> T_Retval:
@@ -185,8 +192,8 @@ class AsyncBackend(metaclass=ABCMeta):
     @abstractmethod
     def run_async_from_thread(
         cls,
-        func: Callable[..., Awaitable[T_Retval]],
-        args: tuple[Any],
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+        args: tuple[Unpack[PosArgsT]],
         token: object,
     ) -> T_Retval:
         pass
@@ -194,7 +201,10 @@ class AsyncBackend(metaclass=ABCMeta):
     @classmethod
     @abstractmethod
     def run_sync_from_thread(
-        cls, func: Callable[..., T_Retval], args: tuple[Any, ...], token: object
+        cls,
+        func: Callable[[Unpack[PosArgsT]], T_Retval],
+        args: tuple[Unpack[PosArgsT]],
+        token: object,
     ) -> T_Retval:
         pass
 

@@ -62,12 +62,22 @@ from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend
 from ..streams.memory import MemoryObjectSendStream
 
-if sys.version_info < (3, 11):
+if sys.version_info >= (3, 10):
+    from typing import ParamSpec
+else:
+    from typing_extensions import ParamSpec
+
+if sys.version_info >= (3, 11):
+    from typing import TypeVarTuple, Unpack
+else:
     from exceptiongroup import BaseExceptionGroup
+    from typing_extensions import TypeVarTuple, Unpack
 
 T = TypeVar("T")
 T_Retval = TypeVar("T_Retval")
 T_SockAddr = TypeVar("T_SockAddr", str, IPSockAddrType)
+PosArgsT = TypeVarTuple("PosArgsT")
+P = ParamSpec("P")
 
 
 #
@@ -167,7 +177,12 @@ class TaskGroup(abc.TaskGroup):
         finally:
             self._active = False
 
-    def start_soon(self, func: Callable, *args: object, name: object = None) -> None:
+    def start_soon(
+        self,
+        func: Callable[[Unpack[PosArgsT]], Awaitable[Any]],
+        *args: Unpack[PosArgsT],
+        name: object = None,
+    ) -> None:
         if not self._active:
             raise RuntimeError(
                 "This task group is not active; no new tasks can be started."
@@ -177,7 +192,7 @@ class TaskGroup(abc.TaskGroup):
 
     async def start(
         self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
-    ) -> object:
+    ) -> Any:
         if not self._active:
             raise RuntimeError(
                 "This task group is not active; no new tasks can be started."
@@ -201,11 +216,11 @@ class BlockingPortal(abc.BlockingPortal):
 
     def _spawn_task_from_thread(
         self,
-        func: Callable,
-        args: tuple,
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
+        args: tuple[Unpack[PosArgsT]],
         kwargs: dict[str, Any],
         name: object,
-        future: Future,
+        future: Future[T_Retval],
     ) -> None:
         trio.from_thread.run_sync(
             partial(self._task_group.start_soon, name=name),
@@ -724,7 +739,7 @@ class TestRunner(abc.TestRunner):
     def __init__(self, **options: Any) -> None:
         from queue import Queue
 
-        self._call_queue: Queue[Callable[..., object]] = Queue()
+        self._call_queue: Queue[Callable[[], object]] = Queue()
         self._send_stream: MemoryObjectSendStream | None = None
         self._options = options
 
@@ -754,7 +769,10 @@ class TestRunner(abc.TestRunner):
         self._send_stream = None
 
     def _call_in_runner_task(
-        self, func: Callable[..., Awaitable[T_Retval]], *args: object, **kwargs: object
+        self,
+        func: Callable[P, Awaitable[T_Retval]],
+        *args: P.args,
+        **kwargs: P.kwargs,
     ) -> T_Retval:
         if self._send_stream is None:
             trio.lowlevel.start_guest_run(
@@ -808,8 +826,8 @@ class TrioBackend(AsyncBackend):
     @classmethod
     def run(
         cls,
-        func: Callable[..., Awaitable[T_Retval]],
-        args: tuple,
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+        args: tuple[Unpack[PosArgsT]],
         kwargs: dict[str, Any],
         options: dict[str, Any],
     ) -> T_Retval:
@@ -868,8 +886,8 @@ class TrioBackend(AsyncBackend):
     @classmethod
     async def run_sync_in_worker_thread(
         cls,
-        func: Callable[..., T_Retval],
-        args: tuple[Any, ...],
+        func: Callable[[Unpack[PosArgsT]], T_Retval],
+        args: tuple[Unpack[PosArgsT]],
         abandon_on_cancel: bool = False,
         limiter: abc.CapacityLimiter | None = None,
     ) -> T_Retval:
@@ -891,15 +909,18 @@ class TrioBackend(AsyncBackend):
     @classmethod
     def run_async_from_thread(
         cls,
-        func: Callable[..., Awaitable[T_Retval]],
-        args: tuple[Any, ...],
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+        args: tuple[Unpack[PosArgsT]],
         token: object,
     ) -> T_Retval:
         return trio.from_thread.run(func, *args)
 
     @classmethod
     def run_sync_from_thread(
-        cls, func: Callable[..., T_Retval], args: tuple[Any, ...], token: object
+        cls,
+        func: Callable[[Unpack[PosArgsT]], T_Retval],
+        args: tuple[Unpack[PosArgsT]],
+        token: object,
     ) -> T_Retval:
         return trio.from_thread.run_sync(func, *args)
 

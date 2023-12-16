@@ -15,7 +15,6 @@ from typing import (
     AsyncIterator,
     Final,
     Generic,
-    cast,
     overload,
 )
 
@@ -211,7 +210,7 @@ class _PathIterator(AsyncIterator["Path"]):
         if nextval is None:
             raise StopAsyncIteration from None
 
-        return Path(cast("PathLike[str]", nextval))
+        return Path(nextval)
 
 
 class Path:
@@ -518,7 +517,7 @@ class Path:
 
     async def readlink(self) -> Path:
         target = await to_thread.run_sync(os.readlink, self._path)
-        return Path(cast(str, target))
+        return Path(target)
 
     async def rename(self, target: str | pathlib.PurePath | Path) -> Path:
         if isinstance(target, Path):
@@ -545,9 +544,7 @@ class Path:
     async def rmdir(self) -> None:
         await to_thread.run_sync(self._path.rmdir)
 
-    async def samefile(
-        self, other_path: str | bytes | int | pathlib.Path | Path
-    ) -> bool:
+    async def samefile(self, other_path: str | PathLike[str]) -> bool:
         if isinstance(other_path, Path):
             other_path = other_path._path
 

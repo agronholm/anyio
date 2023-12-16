@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import threading
 from collections.abc import Awaitable, Callable, Generator
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
@@ -24,11 +25,19 @@ from ._core._tasks import CancelScope, create_task_group
 from .abc import AsyncBackend
 from .abc._tasks import TaskStatus
 
+if sys.version_info >= (3, 11):
+    from typing import TypeVarTuple, Unpack
+else:
+    from typing_extensions import TypeVarTuple, Unpack
+
 T_Retval = TypeVar("T_Retval")
-T_co = TypeVar("T_co")
+T_co = TypeVar("T_co", covariant=True)
+PosArgsT = TypeVarTuple("PosArgsT")
 
 
-def run(func: Callable[..., Awaitable[T_Retval]], *args: object) -> T_Retval:
+def run(
+    func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]], *args: Unpack[PosArgsT]
+) -> T_Retval:
     """
     Call a coroutine function from a worker thread.
 
@@ -48,7 +57,9 @@ def run(func: Callable[..., Awaitable[T_Retval]], *args: object) -> T_Retval:
     return async_backend.run_async_from_thread(func, args, token=token)
 
 
-def run_sync(func: Callable[..., T_Retval], *args: object) -> T_Retval:
+def run_sync(
+    func: Callable[[Unpack[PosArgsT]], T_Retval], *args: Unpack[PosArgsT]
+) -> T_Retval:
     """
     Call a function in the event loop thread from a worker thread.
 
@@ -69,8 +80,8 @@ def run_sync(func: Callable[..., T_Retval], *args: object) -> T_Retval:
 
 
 class _BlockingAsyncContextManager(Generic[T_co], AbstractContextManager):
-    _enter_future: Future
-    _exit_future: Future
+    _enter_future: Future[T_co]
+    _exit_future: Future[bool | None]
     _exit_event: Event
     _exit_exc_info: tuple[
         type[BaseException] | None, BaseException | None, TracebackType | None
@@ -106,8 +117,7 @@ class _BlockingAsyncContextManager(Generic[T_co], AbstractContextManager):
     def __enter__(self) -> T_co:
         self._enter_future = Future()
         self._exit_future = self._portal.start_task_soon(self.run_async_cm)
-        cm = self._enter_future.result()
-        return cast(T_co, cm)
+        return self._enter_future.result()
 
     def __exit__(
         self,
@@ -182,9 +192,13 @@ class BlockingPortal:
             self._task_group.cancel_scope.cancel()
 
     async def _call_func(
-        self, func: Callable, args: tuple, kwargs: dict[str, Any], future: Future
+        self,
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
+        args: tuple[Unpack[PosArgsT]],
+        kwargs: dict[str, Any],
+        future: Future[T_Retval],
     ) -> None:
-        def callback(f: Future) -> None:
+        def callback(f: Future[T_Retval]) -> None:
             if f.cancelled() and self._event_loop_thread_id not in (
                 None,
                 threading.get_ident(),
@@ -192,15 +206,17 @@ class BlockingPortal:
                 self.call(scope.cancel)
 
         try:
-            retval = func(*args, **kwargs)
-            if isawaitable(retval):
+            retval_or_awaitable = func(*args, **kwargs)
+            if isawaitable(retval_or_awaitable):
                 with CancelScope() as scope:
                     if future.cancelled():
                         scope.cancel()
                     else:
                         future.add_done_callback(callback)
 
-                    retval = await retval
+                    retval = await retval_or_awaitable
+            else:
+                retval = retval_or_awaitable
         except self._cancelled_exc_class:
             future.cancel()
             future.set_running_or_notify_cancel()
@@ -219,11 +235,11 @@ class BlockingPortal:
 
     def _spawn_task_from_thread(
         self,
-        func: Callable,
-        args: tuple[Any, ...],
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
+        args: tuple[Unpack[PosArgsT]],
         kwargs: dict[str, Any],
         name: object,
-        future: Future,
+        future: Future[T_Retval],
     ) -> None:
         """
         Spawn a new task using the given callable.
@@ -241,17 +257,23 @@ class BlockingPortal:
         raise NotImplementedError
 
     @overload
-    def call(self, func: Callable[..., Awaitable[T_Retval]], *args: object) -> T_Retval:
+    def call(
+        self,
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+        *args: Unpack[PosArgsT],
+    ) -> T_Retval:
         ...
 
     @overload
-    def call(self, func: Callable[..., T_Retval], *args: object) -> T_Retval:
+    def call(
+        self, func: Callable[[Unpack[PosArgsT]], T_Retval], *args: Unpack[PosArgsT]
+    ) -> T_Retval:
         ...
 
     def call(
         self,
-        func: Callable[..., Awaitable[T_Retval] | T_Retval],
-        *args: object,
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
+        *args: Unpack[PosArgsT],
     ) -> T_Retval:
         """
         Call the given function in the event loop thread.
@@ -268,22 +290,25 @@ class BlockingPortal:
     @overload
     def start_task_soon(
         self,
-        func: Callable[..., Awaitable[T_Retval]],
-        *args: object,
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+        *args: Unpack[PosArgsT],
         name: object = None,
     ) -> Future[T_Retval]:
         ...
 
     @overload
     def start_task_soon(
-        self, func: Callable[..., T_Retval], *args: object, name: object = None
+        self,
+        func: Callable[[Unpack[PosArgsT]], T_Retval],
+        *args: Unpack[PosArgsT],
+        name: object = None,
     ) -> Future[T_Retval]:
         ...
 
     def start_task_soon(
         self,
-        func: Callable[..., Awaitable[T_Retval] | T_Retval],
-        *args: object,
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
+        *args: Unpack[PosArgsT],
         name: object = None,
     ) -> Future[T_Retval]:
         """
@@ -305,16 +330,16 @@ class BlockingPortal:
 
         """
         self._check_running()
-        f: Future = Future()
+        f: Future[T_Retval] = Future()
         self._spawn_task_from_thread(func, args, {}, name, f)
         return f
 
     def start_task(
         self,
-        func: Callable[..., Awaitable[Any]],
+        func: Callable[..., Awaitable[T_Retval]],
         *args: object,
         name: object = None,
-    ) -> tuple[Future[Any], Any]:
+    ) -> tuple[Future[T_Retval], Any]:
         """
         Start a task in the portal's task group and wait until it signals for readiness.
 
@@ -326,13 +351,13 @@ class BlockingPortal:
         :return: a tuple of (future, task_status_value) where the ``task_status_value``
             is the value passed to ``task_status.started()`` from within the target
             function
-        :rtype: tuple[concurrent.futures.Future[Any], Any]
+        :rtype: tuple[concurrent.futures.Future[T_Retval], Any]
 
         .. versionadded:: 3.0
 
         """
 
-        def task_done(future: Future) -> None:
+        def task_done(future: Future[T_Retval]) -> None:
             if not task_status_future.done():
                 if future.cancelled():
                     task_status_future.cancel()
@@ -397,7 +422,7 @@ def start_blocking_portal(
     future: Future[BlockingPortal] = Future()
     with ThreadPoolExecutor(1) as executor:
         run_future = executor.submit(
-            _eventloop.run,
+            _eventloop.run,  # type: ignore[arg-type]
             run_portal,
             backend=backend,
             backend_options=backend_options,

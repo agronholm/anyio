@@ -10,6 +10,21 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   Lura Skye)
 - Enabled the ``Event`` and ``CapacityLimiter`` classes to be instantiated outside an
   event loop thread
+- Broadly improved/fixed the type annotations. Among other things, many functions and
+  methods that take variadic positional arguments now make use of PEP 646
+  ``TypeVarTuple`` to allow the positional arguments to be validated by static type
+  checkers. These changes affected numerous methods and functions, including:
+
+  * ``anyio.run()``
+  * ``TaskGroup.start_soon()``
+  * ``anyio.from_thread.run()``
+  * ``anyio.to_thread.run_sync()``
+  * ``anyio.to_process.run_sync()``
+  * ``BlockingPortal.call()``
+  * ``BlockingPortal.start_task_soon()``
+  * ``BlockingPortal.start_task()``
+
+  (`#560 <https://github.com/agronholm/anyio/issues/560>`_)
 - Fixed adjusting the total number of tokens in a ``CapacityLimiter`` on asyncio failing
   to wake up tasks waiting to acquire the limiter in certain edge cases (fixed with help
   from Egor Blagov)
@@ -18,6 +33,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed cancellation propagating on asyncio from a task group to child tasks if the task
   hosting the task group is in a shielded cancel scope
   (`#642 <https://github.com/agronholm/anyio/issues/642>`_)
+- Fixed the type annotation of ``anyio.Path.samefile()`` to match Typeshed
 
 **4.1.0**
 
