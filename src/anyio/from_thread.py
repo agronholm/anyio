@@ -193,12 +193,12 @@ class BlockingPortal:
 
     async def _call_func(
         self,
-        func: Callable[[Unpack[PosArgsT]], T_Retval],
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
         args: tuple[Unpack[PosArgsT]],
         kwargs: dict[str, Any],
         future: Future[T_Retval],
     ) -> None:
-        def callback(f: Future) -> None:
+        def callback(f: Future[T_Retval]) -> None:
             if f.cancelled() and self._event_loop_thread_id not in (
                 None,
                 threading.get_ident(),
@@ -206,15 +206,17 @@ class BlockingPortal:
                 self.call(scope.cancel)
 
         try:
-            retval = func(*args, **kwargs)
-            if isawaitable(retval):
+            retval_or_awaitable = func(*args, **kwargs)
+            if isawaitable(retval_or_awaitable):
                 with CancelScope() as scope:
                     if future.cancelled():
                         scope.cancel()
                     else:
                         future.add_done_callback(callback)
 
-                    retval = await retval
+                    retval = await retval_or_awaitable
+            else:
+                retval = retval_or_awaitable
         except self._cancelled_exc_class:
             future.cancel()
             future.set_running_or_notify_cancel()
