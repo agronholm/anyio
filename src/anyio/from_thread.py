@@ -336,10 +336,10 @@ class BlockingPortal:
 
     def start_task(
         self,
-        func: Callable[..., Awaitable[Any]],
+        func: Callable[..., Awaitable[T_Retval]],
         *args: object,
         name: object = None,
-    ) -> tuple[Future[Any], Any]:
+    ) -> tuple[Future[T_Retval], Any]:
         """
         Start a task in the portal's task group and wait until it signals for readiness.
 
@@ -351,13 +351,13 @@ class BlockingPortal:
         :return: a tuple of (future, task_status_value) where the ``task_status_value``
             is the value passed to ``task_status.started()`` from within the target
             function
-        :rtype: tuple[concurrent.futures.Future[Any], Any]
+        :rtype: tuple[concurrent.futures.Future[T_Retval], Any]
 
         .. versionadded:: 3.0
 
         """
 
-        def task_done(future: Future) -> None:
+        def task_done(future: Future[T_Retval]) -> None:
             if not task_status_future.done():
                 if future.cancelled():
                     task_status_future.cancel()
