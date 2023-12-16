@@ -14,7 +14,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``TaskGroup.start_soon()``, ``anyio.from_thread.run()``,
   ``anyio.to_thread.run_sync()`` and ``anyio.to_process.run_sync()`` by making use of
   PEP 646 ``TypeVarTuple`` to allow the positional arguments to be validated by static
-  type checkers
+  type checkers (`#560 <https://github.com/agronholm/anyio/issues/560>`_)
 - Fixed adjusting the total number of tokens in a ``CapacityLimiter`` on asyncio failing
   to wake up tasks waiting to acquire the limiter in certain edge cases (fixed with help
   from Egor Blagov)
