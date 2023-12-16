@@ -44,7 +44,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   - ``anyio.Path.hardlink_to()``
   - ``anyio.Path.samefile()``
   - ``anyio.Path.symlink_to()``
-  - ``anyio.Path.with_segments()`` (PR by Ganden Schaffner)
+  - ``anyio.Path.with_segments()``
+
+  (PR by Ganden Schaffner)
 
 **4.1.0**
 
