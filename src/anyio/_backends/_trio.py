@@ -739,7 +739,7 @@ class TestRunner(abc.TestRunner):
     def __init__(self, **options: Any) -> None:
         from queue import Queue
 
-        self._call_queue: Queue[Callable[..., object]] = Queue()
+        self._call_queue: Queue[Callable[[], object]] = Queue()
         self._send_stream: MemoryObjectSendStream | None = None
         self._options = options
 
