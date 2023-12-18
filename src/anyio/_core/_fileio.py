@@ -514,8 +514,17 @@ class Path:
     ) -> str:
         return await to_thread.run_sync(self._path.read_text, encoding, errors)
 
-    def relative_to(self, *other: str | PathLike[str]) -> Path:
-        return Path(self._path.relative_to(*other))
+    if sys.version_info >= (3, 12):
+
+        def relative_to(
+            self, *other: str | PathLike[str], walk_up: bool = False
+        ) -> Path:
+            return Path(self._path.relative_to(*other, walk_up=walk_up))
+
+    else:
+
+        def relative_to(self, *other: str | PathLike[str]) -> Path:
+            return Path(self._path.relative_to(*other))
 
     async def readlink(self) -> Path:
         target = await to_thread.run_sync(os.readlink, self._path)
