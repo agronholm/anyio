@@ -1,6 +1,11 @@
 Version history
 ===============
 
+**UNRELEASED**
+
+- Update mypy pre-commit hook to use ``--no-warn-unused-ignores`` argument to bypass
+  ``Unused "type: ignore" comment`` errors (PR by Colin Taylor)
+
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **4.2.0**
