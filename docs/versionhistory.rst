@@ -5,7 +5,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
-- Added support for the python 3.12 ``walk_up`` keyword argument in
+- Added support for the Python 3.12 ``walk_up`` keyword argument in
   ``anyio.Path.relative_to()`` (PR by Colin Taylor)
 
 **4.2.0**
