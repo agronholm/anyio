@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-import contextlib
 import os
 import pathlib
 import platform
 import socket
 import stat
 import sys
-from types import TracebackType
 
 import pytest
 from _pytest.tmpdir import TempPathFactory
 
-from anyio import AsyncFile, Path, open_file, to_thread, wrap_file
+from anyio import AsyncFile, Path, open_file, wrap_file
 
 pytestmark = pytest.mark.anyio
 
@@ -66,27 +64,6 @@ class TestAsyncFile:
 
 
 class TestPath:
-    class ChangeDirectory(contextlib.AbstractAsyncContextManager):
-        def __init__(self, cwd: Path) -> None:
-            super().__init__()
-            self.__cwd: Path = cwd
-            self.__pwd: Path | None = None
-
-        async def __aenter__(self) -> Path:
-            self.__pwd = await Path.cwd()
-            await to_thread.run_sync(os.chdir, self.__cwd)
-            return self.__cwd
-
-        async def __aexit__(
-            self,
-            exc_type: type[BaseException] | None,
-            exc_value: BaseException | None,
-            traceback: TracebackType | None,
-        ) -> bool | None:
-            if self.__pwd is not None:
-                await to_thread.run_sync(os.chdir, self.__pwd)
-            return await super().__aexit__(exc_type, exc_value, traceback)
-
     @pytest.fixture
     def populated_tmpdir(self, tmp_path: pathlib.Path) -> pathlib.Path:
         tmp_path.joinpath("testfile").touch()
@@ -467,16 +444,20 @@ class TestPath:
         sys.version_info < (3, 12),
         reason="Path.relative_to(walk_up=<bool>) is only available on Python 3.12+",
     )
-    async def test_relative_to_sibling(self, populated_tmpdir: pathlib.Path) -> None:
+    async def test_relative_to_sibling(
+        self,
+        populated_tmpdir: pathlib.Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         subdir = Path(populated_tmpdir / "subdir")
         sibdir = Path(populated_tmpdir / "sibdir")
 
         with pytest.raises(ValueError):
             subdir.relative_to(sibdir, walk_up=False)
 
-        async with TestPath.ChangeDirectory(sibdir) as path:
-            relpath = subdir.relative_to(path, walk_up=True) / "dummyfile1.txt"
-            assert os.access(relpath, os.R_OK)
+        monkeypatch.chdir(sibdir)
+        relpath = subdir.relative_to(sibdir, walk_up=True) / "dummyfile1.txt"
+        assert os.access(relpath, os.R_OK)
 
     async def test_rename(self, tmp_path: pathlib.Path) -> None:
         path = tmp_path / "somefile"
