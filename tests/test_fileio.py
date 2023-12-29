@@ -68,10 +68,15 @@ class TestPath:
     def populated_tmpdir(self, tmp_path: pathlib.Path) -> pathlib.Path:
         tmp_path.joinpath("testfile").touch()
         tmp_path.joinpath("testfile2").touch()
+
         subdir = tmp_path / "subdir"
-        subdir.mkdir()
-        subdir.joinpath("dummyfile1.txt").touch()
-        subdir.joinpath("dummyfile2.txt").touch()
+        sibdir = tmp_path / "sibdir"
+
+        for subpath in (subdir, sibdir):
+            subpath.mkdir()
+            subpath.joinpath("dummyfile1.txt").touch()
+            subpath.joinpath("dummyfile2.txt").touch()
+
         return tmp_path
 
     async def test_properties(self) -> None:
@@ -297,19 +302,29 @@ class TestPath:
         all_paths = []
         async for path in Path(populated_tmpdir).glob("**/*.txt"):
             assert isinstance(path, Path)
-            all_paths.append(path.name)
+            all_paths.append(path.relative_to(populated_tmpdir))
 
         all_paths.sort()
-        assert all_paths == ["dummyfile1.txt", "dummyfile2.txt"]
+        assert all_paths == [
+            Path("sibdir") / "dummyfile1.txt",
+            Path("sibdir") / "dummyfile2.txt",
+            Path("subdir") / "dummyfile1.txt",
+            Path("subdir") / "dummyfile2.txt",
+        ]
 
     async def test_rglob(self, populated_tmpdir: pathlib.Path) -> None:
         all_paths = []
         async for path in Path(populated_tmpdir).rglob("*.txt"):
             assert isinstance(path, Path)
-            all_paths.append(path.name)
+            all_paths.append(path.relative_to(populated_tmpdir))
 
         all_paths.sort()
-        assert all_paths == ["dummyfile1.txt", "dummyfile2.txt"]
+        assert all_paths == [
+            Path("sibdir") / "dummyfile1.txt",
+            Path("sibdir") / "dummyfile2.txt",
+            Path("subdir") / "dummyfile1.txt",
+            Path("subdir") / "dummyfile2.txt",
+        ]
 
     async def test_iterdir(self, populated_tmpdir: pathlib.Path) -> None:
         all_paths = []
@@ -318,7 +333,7 @@ class TestPath:
             all_paths.append(path.name)
 
         all_paths.sort()
-        assert all_paths == ["subdir", "testfile", "testfile2"]
+        assert all_paths == ["sibdir", "subdir", "testfile", "testfile2"]
 
     def test_joinpath(self) -> None:
         path = Path("/foo").joinpath("bar")
@@ -421,9 +436,28 @@ class TestPath:
         path.write_text("some text åäö", encoding="utf-8")
         assert await Path(path).read_text(encoding="utf-8") == "some text åäö"
 
-    async def test_relative_to(self, tmp_path: pathlib.Path) -> None:
+    async def test_relative_to_subpath(self, tmp_path: pathlib.Path) -> None:
         path = tmp_path / "subdir"
         assert path.relative_to(tmp_path) == Path("subdir")
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 12),
+        reason="Path.relative_to(walk_up=<bool>) is only available on Python 3.12+",
+    )
+    async def test_relative_to_sibling(
+        self,
+        populated_tmpdir: pathlib.Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        subdir = Path(populated_tmpdir / "subdir")
+        sibdir = Path(populated_tmpdir / "sibdir")
+
+        with pytest.raises(ValueError):
+            subdir.relative_to(sibdir, walk_up=False)
+
+        monkeypatch.chdir(sibdir)
+        relpath = subdir.relative_to(sibdir, walk_up=True) / "dummyfile1.txt"
+        assert os.access(relpath, os.R_OK)
 
     async def test_rename(self, tmp_path: pathlib.Path) -> None:
         path = tmp_path / "somefile"
