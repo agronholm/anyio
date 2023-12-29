@@ -1,6 +1,11 @@
 Version history
 ===============
 
+**UNRELEASED**
+
+- Add `Prettier <https://prettier.io/>`_ to the pre-commit configuration to enforce
+  consistent formatting of non-python files (PR by Colin Taylor)
+
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**

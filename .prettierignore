@@ -1,0 +1,16 @@
+# macOS resource forks
+._*
+.DS_Store
+
+# Build artifacts
+/build
+/dist
+
+# Generated environments
+/venv
+
+# Cache files
+/.hypothesis
+/.mypy_cache
+/.pytest_cache
+/.ruff_cache
