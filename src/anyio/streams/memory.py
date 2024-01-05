@@ -164,6 +164,9 @@ class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
     ) -> None:
         self.close()
 
+    def __del__(self) -> None:
+        self.close()
+
 
 @dataclass(eq=False)
 class MemoryObjectSendStream(Generic[T_contra], ObjectSendStream[T_contra]):
@@ -280,4 +283,7 @@ class MemoryObjectSendStream(Generic[T_contra], ObjectSendStream[T_contra]):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
+        self.close()
+
+    def __del__(self) -> None:
         self.close()
