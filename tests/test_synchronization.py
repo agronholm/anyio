@@ -689,3 +689,8 @@ class TestCapacityLimiter:
             backend=anyio_backend_name,
             backend_options=anyio_backend_options,
         )
+
+    async def test_total_tokens_as_kwarg(self) -> None:
+        # Regression test for #515
+        limiter = CapacityLimiter(total_tokens=1)
+        assert limiter.total_tokens == 1

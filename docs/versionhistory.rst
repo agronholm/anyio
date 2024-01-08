@@ -3,6 +3,12 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed passing ``total_tokens`` to ``anyio.CapacityLimiter()`` as a keyword argument
+  not working on the ``trio`` backend
+  (`#515 <https://github.com/agronholm/anyio/issues/515>`_)
+
 **4.2.0**
 
 - Add support for ``byte``-based paths in ``connect_unix``, ``create_unix_listeners``,

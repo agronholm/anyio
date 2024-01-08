@@ -631,14 +631,24 @@ class Event(BaseEvent):
 
 class CapacityLimiter(BaseCapacityLimiter):
     def __new__(
-        cls, *args: Any, original: trio.CapacityLimiter | None = None
+        cls,
+        total_tokens: float | None = None,
+        *,
+        original: trio.CapacityLimiter | None = None,
     ) -> CapacityLimiter:
         return object.__new__(cls)
 
     def __init__(
-        self, *args: Any, original: trio.CapacityLimiter | None = None
+        self,
+        total_tokens: float | None = None,
+        *,
+        original: trio.CapacityLimiter | None = None,
     ) -> None:
-        self.__original = original or trio.CapacityLimiter(*args)
+        if original is not None:
+            self.__original = original
+        else:
+            assert total_tokens is not None
+            self.__original = trio.CapacityLimiter(total_tokens)
 
     async def __aenter__(self) -> None:
         return await self.__original.__aenter__()
