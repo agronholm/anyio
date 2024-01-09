@@ -92,12 +92,12 @@ jobs:
     - name: Install dependencies
       run: pip install -e .[test]
     - name: Test with pytest
-      run: |
-        coverage run -m pytest -v
-        coverage xml
+      run: coverage run -m pytest -v
       timeout-minutes: 5
       env:
         PYTEST_DISABLE_PLUGIN_AUTOLOAD: 1
+    - name: Generate coverage report
+      run: coverage xml
     - name: Upload Coverage
       uses: coverallsapp/github-action@v2
       with:
