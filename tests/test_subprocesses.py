@@ -9,7 +9,7 @@ from textwrap import dedent
 
 import pytest
 
-from anyio import open_process, run_process
+from anyio import CancelScope, open_process, run_process
 from anyio.streams.buffered import BufferedByteReceiveStream
 
 pytestmark = pytest.mark.anyio
@@ -176,3 +176,21 @@ async def test_run_process_inherit_stdout(capfd: pytest.CaptureFixture[str]) -> 
     out, err = capfd.readouterr()
     assert out == "stdout-text" + os.linesep
     assert err == "stderr-text" + os.linesep
+
+
+async def test_process_aexit_cancellation_doesnt_orphan_process() -> None:
+    """
+    Regression test for #669.
+
+    Ensures that open_process.__aexit__() doesn't leave behind an orphan process when
+    cancelled.
+
+    """
+    with CancelScope() as scope:
+        async with await open_process(
+            [sys.executable, "-c", "import time; time.sleep(1)"]
+        ) as process:
+            scope.cancel()
+
+    assert process.returncode is not None
+    assert process.returncode != 0
