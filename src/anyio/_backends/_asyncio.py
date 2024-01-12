@@ -940,14 +940,21 @@ class Process(abc.Process):
     _stderr: StreamReaderWrapper | None
 
     async def aclose(self) -> None:
-        if self._stdin:
-            await self._stdin.aclose()
-        if self._stdout:
-            await self._stdout.aclose()
-        if self._stderr:
-            await self._stderr.aclose()
+        with CancelScope(shield=True):
+            if self._stdin:
+                await self._stdin.aclose()
+            if self._stdout:
+                await self._stdout.aclose()
+            if self._stderr:
+                await self._stderr.aclose()
 
-        await self.wait()
+        try:
+            await self.wait()
+        except BaseException:
+            self.kill()
+            with CancelScope(shield=True):
+                await self.wait()
+            raise
 
     async def wait(self) -> int:
         return await self._process.wait()

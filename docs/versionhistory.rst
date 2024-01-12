@@ -10,6 +10,15 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed passing ``total_tokens`` to ``anyio.CapacityLimiter()`` as a keyword argument
   not working on the ``trio`` backend
   (`#515 <https://github.com/agronholm/anyio/issues/515>`_)
+- Fixed ``Process.aclose()`` not performing the minimum level of necessary cleanup when
+  cancelled. Previously:
+
+  - Cancellation of ``Process.aclose()`` could leak an orphan process
+  - Cancellation of ``run_process()`` could very briefly leak an orphan process.
+  - Cancellation of ``Process.aclose()`` or ``run_process()`` on Trio could leave
+    standard streams unclosed
+
+  (PR by Ganden Schaffner)
 
 **4.2.0**
 
