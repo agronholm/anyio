@@ -918,6 +918,7 @@ class StreamReaderWrapper(abc.ByteReceiveStream):
 
     async def aclose(self) -> None:
         self._stream.feed_eof()
+        await AsyncIOBackend.checkpoint()
 
 
 @dataclass(eq=False)
@@ -930,6 +931,7 @@ class StreamWriterWrapper(abc.ByteSendStream):
 
     async def aclose(self) -> None:
         self._stream.close()
+        await AsyncIOBackend.checkpoint()
 
 
 @dataclass(eq=False)

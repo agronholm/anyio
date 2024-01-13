@@ -19,6 +19,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     standard streams unclosed
 
   (PR by Ganden Schaffner)
+- Fixed ``Process.stdin.aclose()``, ``Process.stdout.aclose()``, and
+  ``Process.stderr.aclose()`` not including a checkpoint on asyncio (PR by Ganden
+  Schaffner)
 
 **4.2.0**
 
