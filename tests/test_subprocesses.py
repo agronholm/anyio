@@ -9,7 +9,7 @@ from textwrap import dedent
 
 import pytest
 
-from anyio import CancelScope, open_process, run_process
+from anyio import CancelScope, ClosedResourceError, open_process, run_process
 from anyio.streams.buffered import BufferedByteReceiveStream
 
 pytestmark = pytest.mark.anyio
@@ -194,3 +194,31 @@ async def test_process_aexit_cancellation_doesnt_orphan_process() -> None:
 
     assert process.returncode is not None
     assert process.returncode != 0
+
+
+async def test_process_aexit_cancellation_closes_standard_streams() -> None:
+    """
+    Regression test for #669.
+
+    Ensures that open_process.__aexit__() closes standard streams when cancelled. Also
+    ensures that process.std{in.send,{out,err}.receive}() raise ClosedResourceError on a
+    closed stream.
+
+    """
+    pytest.xfail("#671 needs to be resolved first")
+
+    with CancelScope() as scope:
+        async with await open_process(
+            [sys.executable, "-c", "import time; time.sleep(1)"]
+        ) as process:
+            scope.cancel()
+
+    assert process.stdin is not None
+    with pytest.raises(ClosedResourceError):
+        await process.stdin.send(b"foo")
+    assert process.stdout is not None
+    with pytest.raises(ClosedResourceError):
+        await process.stdout.receive(1)
+    assert process.stderr is not None
+    with pytest.raises(ClosedResourceError):
+        await process.stderr.receive(1)
