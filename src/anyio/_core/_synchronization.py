@@ -623,6 +623,8 @@ class ResourceGuard:
 
     :param action: the action to guard against (visible in the :exc:`BusyResourceError`
         when triggered, e.g. "Another task is already {action} this resource")
+
+    .. versionadded:: 4.1
     """
 
     __slots__ = "action", "_guarded"
