@@ -1336,6 +1336,22 @@ async def test_cancel_child_task_when_host_is_shielded() -> None:
                 await cancelled.wait()
 
 
+async def test_start_soon_from_asend() -> None:
+    started = False
+
+    async def genfunc() -> AsyncGenerator[None, None]:
+        nonlocal started
+        started = True
+        yield
+
+    generator = genfunc()
+    async with anyio.create_task_group() as task_group:
+        task_group.start_soon(generator.asend, None)
+
+    assert started
+    await generator.aclose()
+
+
 class TestTaskStatusTyping:
     """
     These tests do not do anything at run time, but since the test suite is also checked

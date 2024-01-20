@@ -18,7 +18,7 @@ from asyncio import (
 )
 from asyncio.base_events import _run_until_complete_cb  # type: ignore[attr-defined]
 from collections import OrderedDict, deque
-from collections.abc import AsyncIterator, Generator, Iterable
+from collections.abc import AsyncIterator, Coroutine, Generator, Iterable
 from concurrent.futures import Future
 from contextlib import suppress
 from contextvars import Context, copy_context
@@ -28,7 +28,6 @@ from inspect import (
     CORO_RUNNING,
     CORO_SUSPENDED,
     getcoroutinestate,
-    iscoroutine,
 )
 from io import IOBase
 from os import PathLike
@@ -45,7 +44,6 @@ from typing import (
     Callable,
     Collection,
     ContextManager,
-    Coroutine,
     Mapping,
     Optional,
     Sequence,
@@ -741,7 +739,7 @@ class TaskGroup(abc.TaskGroup):
             parent_id = id(self.cancel_scope._host_task)
 
         coro = func(*args, **kwargs)
-        if not iscoroutine(coro):
+        if not isinstance(coro, Coroutine):
             prefix = f"{func.__module__}." if hasattr(func, "__module__") else ""
             raise TypeError(
                 f"Expected {prefix}{func.__qualname__}() to return a coroutine, but "

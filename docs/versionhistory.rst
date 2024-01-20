@@ -10,6 +10,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed passing ``total_tokens`` to ``anyio.CapacityLimiter()`` as a keyword argument
   not working on the ``trio`` backend
   (`#515 <https://github.com/agronholm/anyio/issues/515>`_)
+- Fixed inability to start tasks from ``async_generator_asend`` objects on asyncio
 
 **4.2.0**
 
