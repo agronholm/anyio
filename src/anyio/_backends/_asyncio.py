@@ -956,6 +956,7 @@ class Process(abc.Process):
             self.kill()
             with CancelScope(shield=True):
                 await self.wait()
+
             raise
 
     async def wait(self) -> int:

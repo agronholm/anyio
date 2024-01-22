@@ -68,8 +68,10 @@ async def run_process(
         async with create_task_group() as tg:
             if process.stdout:
                 tg.start_soon(drain_stream, process.stdout, 0)
+
             if process.stderr:
                 tg.start_soon(drain_stream, process.stderr, 1)
+
             if process.stdin and input:
                 await process.stdin.send(input)
                 await process.stdin.aclose()
