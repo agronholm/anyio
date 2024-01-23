@@ -196,8 +196,9 @@ async def test_process_aexit_cancellation_doesnt_orphan_process() -> None:
     assert process.returncode != 0
 
 
-@pytest.mark.xfail(reason="#671 needs to be resolved first")
-async def test_process_aexit_cancellation_closes_standard_streams() -> None:
+async def test_process_aexit_cancellation_closes_standard_streams(
+    anyio_backend_name: str,
+) -> None:
     """
     Regression test for #669.
 
@@ -206,6 +207,9 @@ async def test_process_aexit_cancellation_closes_standard_streams() -> None:
     closed stream.
 
     """
+    if anyio_backend_name == "asyncio":
+        pytest.xfail("#671 needs to be resolved first")
+
     with CancelScope() as scope:
         async with await open_process(
             [sys.executable, "-c", "import time; time.sleep(1)"]
