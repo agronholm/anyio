@@ -8,6 +8,7 @@ from subprocess import CalledProcessError
 from textwrap import dedent
 
 import pytest
+from _pytest.fixtures import FixtureRequest
 
 from anyio import CancelScope, ClosedResourceError, open_process, run_process
 from anyio.streams.buffered import BufferedByteReceiveStream
@@ -197,6 +198,7 @@ async def test_process_aexit_cancellation_doesnt_orphan_process() -> None:
 
 
 async def test_process_aexit_cancellation_closes_standard_streams(
+    request: FixtureRequest,
     anyio_backend_name: str,
 ) -> None:
     """
@@ -208,7 +210,10 @@ async def test_process_aexit_cancellation_closes_standard_streams(
 
     """
     if anyio_backend_name == "asyncio":
-        pytest.xfail("#671 needs to be resolved first")
+        # Avoid pytest.xfail here due to https://github.com/pytest-dev/pytest/issues/9027
+        request.node.add_marker(
+            pytest.mark.xfail(reason="#671 needs to be resolved first")
+        )
 
     with CancelScope() as scope:
         async with await open_process(
