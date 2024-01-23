@@ -196,7 +196,7 @@ async def test_process_aexit_cancellation_doesnt_orphan_process() -> None:
     assert process.returncode != 0
 
 
-@pytest.mark.xfail("#671 needs to be resolved first")
+@pytest.mark.xfail(reason="#671 needs to be resolved first")
 async def test_process_aexit_cancellation_closes_standard_streams() -> None:
     """
     Regression test for #669.
