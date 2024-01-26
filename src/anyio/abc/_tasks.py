@@ -14,7 +14,7 @@ else:
 if TYPE_CHECKING:
     from .._core._tasks import CancelScope
 
-T_Retval = TypeVar("T_Retval")
+T_Retval = TypeVar("T_Retval", covariant=True)
 T_contra = TypeVar("T_contra", contravariant=True)
 PosArgsT = TypeVarTuple("PosArgsT")
 
@@ -34,6 +34,13 @@ class TaskStatus(Protocol[T_contra]):
 
         :param value: object passed back to the starter of the task
         """
+
+
+class _StartFunc(Protocol[Unpack[PosArgsT], T_Retval]):
+    async def __call__(
+        self, *args: Unpack[PosArgsT], task_status: TaskStatus[T_Retval]
+    ) -> None:
+        ...
 
 
 class TaskGroup(metaclass=ABCMeta):
@@ -66,10 +73,10 @@ class TaskGroup(metaclass=ABCMeta):
     @abstractmethod
     async def start(
         self,
-        func: Callable[..., Awaitable[Any]],
-        *args: object,
+        func: _StartFunc[Unpack[PosArgsT], T_Retval],
+        *args: Unpack[PosArgsT],
         name: object = None,
-    ) -> Any:
+    ) -> T_Retval:
         """
         Start a new task and wait until it signals for readiness.
 
