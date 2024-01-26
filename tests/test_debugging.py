@@ -62,7 +62,7 @@ def test_main_task_name(
 async def test_non_main_task_name(
     name_input: bytes | str | None, expected: str
 ) -> None:
-    async def non_main(*, task_status: TaskStatus) -> None:
+    async def non_main(*, task_status: TaskStatus[str | None]) -> None:
         task_status.started(anyio.get_current_task().name)
 
     async with anyio.create_task_group() as tg:

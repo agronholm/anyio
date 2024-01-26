@@ -101,16 +101,16 @@ async def test_start_soon_after_error() -> None:
 
 
 async def test_start_no_value() -> None:
-    async def taskfunc(*, task_status: TaskStatus) -> None:
+    async def taskfunc(*, task_status: TaskStatus[None]) -> None:
         task_status.started()
 
     async with create_task_group() as tg:
-        value = await tg.start(taskfunc)
+        value: None = await tg.start(taskfunc)
         assert value is None
 
 
 async def test_start_called_twice() -> None:
-    async def taskfunc(*, task_status: TaskStatus) -> None:
+    async def taskfunc(*, task_status: TaskStatus[None]) -> None:
         task_status.started()
 
         with pytest.raises(
@@ -119,12 +119,12 @@ async def test_start_called_twice() -> None:
             task_status.started()
 
     async with create_task_group() as tg:
-        value = await tg.start(taskfunc)
+        value: None = await tg.start(taskfunc)
         assert value is None
 
 
 async def test_start_with_value() -> None:
-    async def taskfunc(*, task_status: TaskStatus) -> None:
+    async def taskfunc(*, task_status: TaskStatus[str]) -> None:
         task_status.started("foo")
 
     async with create_task_group() as tg:
@@ -144,7 +144,7 @@ async def test_start_crash_before_started_call() -> None:
 
 
 async def test_start_crash_after_started_call() -> None:
-    async def taskfunc(*, task_status: TaskStatus) -> NoReturn:
+    async def taskfunc(*, task_status: TaskStatus[int]) -> NoReturn:
         task_status.started(2)
         raise Exception("foo")
 
@@ -250,7 +250,7 @@ async def test_propagate_native_cancellation_from_taskgroup() -> None:
 
 
 async def test_start_exception_delivery(anyio_backend_name: str) -> None:
-    def task_fn(*, task_status: TaskStatus = TASK_STATUS_IGNORED) -> None:
+    def task_fn(*, task_status: TaskStatus[str] = TASK_STATUS_IGNORED) -> None:
         task_status.started("hello")
 
     if anyio_backend_name == "trio":

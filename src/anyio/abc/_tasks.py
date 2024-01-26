@@ -7,9 +7,9 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar, overload
 
 if sys.version_info >= (3, 11):
-    from typing import TypeVarTuple, Unpack
+    from typing import Never, TypeVarTuple, Unpack
 else:
-    from typing_extensions import TypeVarTuple, Unpack
+    from typing_extensions import Never, TypeVarTuple, Unpack
 
 if TYPE_CHECKING:
     from .._core._tasks import CancelScope
@@ -69,6 +69,31 @@ class TaskGroup(metaclass=ABCMeta):
 
         .. versionadded:: 3.0
         """
+
+    @overload
+    async def start(
+        self,
+        func: _StartFunc[Unpack[PosArgsT], object],
+        *args: Unpack[PosArgsT],
+        name: object = None,
+    ) -> Never:
+        # Overload added for when the returned value is never captured.
+        # In that case, it doesn't matter which kind of function is given.
+        # Without this overload, mypy would fail:
+        #   Argument 1 to "start" of "TaskGroup" has incompatible type
+        #   "Callable[[TaskStatus[None]], Coroutine[Any, Any, None]]";
+        #   expected "_StartFunc[Never]"
+        ...
+
+    @overload
+    async def start(
+        self,
+        func: _StartFunc[Unpack[PosArgsT], T_Retval],
+        *args: Unpack[PosArgsT],
+        name: object = None,
+    ) -> T_Retval:
+        ...
+
 
     @abstractmethod
     async def start(
