@@ -94,7 +94,6 @@ class TaskGroup(metaclass=ABCMeta):
     ) -> T_Retval:
         ...
 
-
     @abstractmethod
     async def start(
         self,
