@@ -530,7 +530,7 @@ async def test_fail_after_cancelled_before_deadline() -> None:
     reason="There is currently no way to tell if cancellation happened due to timeout "
     "explicitly if the deadline has been exceeded"
 )
-async def test_fail_after_scope_camcelled_before_timeout() -> None:
+async def test_fail_after_scope_cancelled_before_timeout() -> None:
     with fail_after(0.1) as scope:
         scope.cancel()
         time.sleep(0.11)
