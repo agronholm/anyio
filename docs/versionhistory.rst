@@ -22,6 +22,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``Process.stdin.aclose()``, ``Process.stdout.aclose()``, and
   ``Process.stderr.aclose()`` not including a checkpoint on asyncio (PR by Ganden
   Schaffner)
+- Fixed inability to start tasks from ``async_generator_asend`` objects on asyncio
 
 **4.2.0**
 
