@@ -65,20 +65,18 @@ async def run_process(
         start_new_session=start_new_session,
     ) as process:
         stream_contents: list[bytes | None] = [None, None]
-        try:
-            async with create_task_group() as tg:
-                if process.stdout:
-                    tg.start_soon(drain_stream, process.stdout, 0)
-                if process.stderr:
-                    tg.start_soon(drain_stream, process.stderr, 1)
-                if process.stdin and input:
-                    await process.stdin.send(input)
-                    await process.stdin.aclose()
+        async with create_task_group() as tg:
+            if process.stdout:
+                tg.start_soon(drain_stream, process.stdout, 0)
 
-                await process.wait()
-        except BaseException:
-            process.kill()
-            raise
+            if process.stderr:
+                tg.start_soon(drain_stream, process.stderr, 1)
+
+            if process.stdin and input:
+                await process.stdin.send(input)
+                await process.stdin.aclose()
+
+            await process.wait()
 
     output, errors = stream_contents
     if check and process.returncode != 0:
