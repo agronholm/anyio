@@ -185,6 +185,9 @@ async def test_start_cancelled() -> None:
     assert not finished
 
 
+@pytest.mark.xfail(
+    sys.version_info < (3, 9), reason="Requires a way to detect cancellation source"
+)
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_start_native_host_cancelled() -> None:
     started = finished = False
@@ -198,9 +201,6 @@ async def test_start_native_host_cancelled() -> None:
     async def start_another() -> None:
         async with create_task_group() as tg:
             await tg.start(taskfunc)
-
-    if sys.version_info < (3, 9):
-        pytest.xfail("Requires a way to detect cancellation source")
 
     task = asyncio.get_running_loop().create_task(start_another())
     await wait_all_tasks_blocked()
@@ -530,7 +530,7 @@ async def test_fail_after_cancelled_before_deadline() -> None:
     reason="There is currently no way to tell if cancellation happened due to timeout "
     "explicitly if the deadline has been exceeded"
 )
-async def test_fail_after_scope_camcelled_before_timeout() -> None:
+async def test_fail_after_scope_cancelled_before_timeout() -> None:
     with fail_after(0.1) as scope:
         scope.cancel()
         time.sleep(0.11)
