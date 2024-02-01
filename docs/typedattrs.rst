@@ -34,21 +34,24 @@ Defining your own typed attributes
 By convention, typed attributes are stored together in a container class with other
 attributes of the same category::
 
-    from anyio import TypedAttribute, TypedAttributeSet
+    from anyio import TypedAttributeSet, typed_attribute
 
 
-    class MyTypedAttribute:
-        string_valued_attribute = TypedAttribute[str]()
-        some_float_attribute = TypedAttribute[float]()
+    class MyTypedAttribute(TypedAttributeSet):
+        string_valued_attribute: str = typed_attribute()
+        some_float_attribute: float = typed_attribute()
 
 To provide values for these attributes, implement the
 :meth:`~.TypedAttributeProvider.extra_attributes` property in your class::
+
+    from collections.abc import Callable, Mapping
 
     from anyio import TypedAttributeProvider
 
 
     class MyAttributeProvider(TypedAttributeProvider):
-        def extra_attributes():
+        @property
+        def extra_attributes() -> Mapping[Any, Callable[[], Any]]:
             return {
                 MyTypedAttribute.string_valued_attribute: lambda: 'my attribute value',
                 MyTypedAttribute.some_float_attribute: lambda: 6.492
@@ -58,7 +61,8 @@ If your class inherits from another typed attribute provider, make sure you incl
 attributes in the return value::
 
     class AnotherAttributeProvider(MyAttributeProvider):
-        def extra_attributes():
+        @property
+        def extra_attributes() -> Mapping[Any, Callable[[], Any]]:
             return {
                 **super().extra_attributes,
                 MyTypedAttribute.string_valued_attribute: lambda: 'overridden attribute value'
