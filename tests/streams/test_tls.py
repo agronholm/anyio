@@ -350,10 +350,7 @@ class TestTLSStream:
         ca.configure_trust(client_context)
         if force_tlsv12:
             expected_pattern = r"send_eof\(\) requires at least TLSv1.3"
-            if hasattr(ssl, "TLSVersion"):
-                client_context.maximum_version = ssl.TLSVersion.TLSv1_2
-            else:  # Python 3.6
-                client_context.options |= ssl.OP_NO_TLSv1_3
+            client_context.maximum_version = ssl.TLSVersion.TLSv1_2
         else:
             expected_pattern = (
                 r"send_eof\(\) has not yet been implemented for TLS streams"
