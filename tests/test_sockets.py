@@ -512,6 +512,7 @@ class TestTCPStream:
         assert not caplog.text
 
 
+@pytest.mark.network
 class TestTCPListener:
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_tcp_listener(
@@ -1180,6 +1181,7 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
         assert client_addresses == expected_addresses
 
 
+@pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestUDPSocket:
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
@@ -1305,6 +1307,7 @@ class TestUDPSocket:
             assert local_address[1] > 0
 
 
+@pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestConnectedUDPSocket:
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
