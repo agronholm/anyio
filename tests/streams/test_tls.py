@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import socket
 import ssl
-import sys
 from contextlib import ExitStack
 from threading import Thread
 from typing import ContextManager, NoReturn
