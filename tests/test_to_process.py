@@ -21,16 +21,6 @@ from anyio.abc import Process
 pytestmark = pytest.mark.anyio
 
 
-@pytest.fixture(autouse=True)
-def check_compatibility(anyio_backend_name: str) -> None:
-    if anyio_backend_name == "asyncio":
-        if platform.system() == "Windows" and sys.version_info < (3, 8):
-            pytest.skip(
-                "Python < 3.8 uses SelectorEventLoop by default and it does not "
-                "support subprocesses"
-            )
-
-
 async def test_run_sync_in_process_pool() -> None:
     """
     Test that the function runs in a different process, and the same process in both
