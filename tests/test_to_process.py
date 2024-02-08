@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import platform
 import sys
 import time
 from functools import partial
@@ -19,16 +18,6 @@ from anyio import (
 from anyio.abc import Process
 
 pytestmark = pytest.mark.anyio
-
-
-@pytest.fixture(autouse=True)
-def check_compatibility(anyio_backend_name: str) -> None:
-    if anyio_backend_name == "asyncio":
-        if platform.system() == "Windows" and sys.version_info < (3, 8):
-            pytest.skip(
-                "Python < 3.8 uses SelectorEventLoop by default and it does not "
-                "support subprocesses"
-            )
 
 
 async def test_run_sync_in_process_pool() -> None:
