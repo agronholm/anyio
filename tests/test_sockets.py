@@ -1017,7 +1017,7 @@ class TestUNIXStream:
         platform.system() == "Darwin", reason="macOS requires valid UTF-8 paths"
     )
     async def test_connecting_with_non_utf8(self, socket_path: Path) -> None:
-        actual_path = str(socket_path).encode() + b"\xF0"
+        actual_path = str(socket_path).encode() + b"\xf0"
         server = socket.socket(socket.AF_UNIX)
         server.bind(actual_path)
         server.listen(1)
@@ -1135,7 +1135,7 @@ class TestUNIXListener:
         platform.system() == "Darwin", reason="macOS requires valid UTF-8 paths"
     )
     async def test_listening_invalid_ascii(self, socket_path: Path) -> None:
-        real_path = str(socket_path).encode() + b"\xF0"
+        real_path = str(socket_path).encode() + b"\xf0"
         async with await create_unix_listener(real_path):
             pass
 
@@ -1553,7 +1553,7 @@ class TestUNIXDatagramSocket:
         platform.system() == "Darwin", reason="macOS requires valid UTF-8 paths"
     )
     async def test_local_path_invalid_ascii(self, socket_path: Path) -> None:
-        real_path = str(socket_path).encode() + b"\xF0"
+        real_path = str(socket_path).encode() + b"\xf0"
         async with await create_unix_datagram_socket(local_path=real_path):
             pass
 
