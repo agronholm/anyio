@@ -73,9 +73,11 @@ class TypedAttributeProvider:
 
         """
         try:
-            return self.extra_attributes[attribute]()
+            getter = self.extra_attributes[attribute]
         except KeyError:
             if default is undefined:
                 raise TypedAttributeLookupError("Attribute not found") from None
             else:
                 return default
+
+        return getter()
