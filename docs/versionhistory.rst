@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed erroneous ``TypedAttributeLookupError`` if a typed attribute getter raises
+  ``KeyError``
+
 **4.3.0**
 
 - Added support for the Python 3.12 ``walk_up`` keyword argument in
