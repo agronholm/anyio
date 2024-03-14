@@ -533,7 +533,7 @@ async def test_fail_after_cancelled_before_deadline() -> None:
 async def test_fail_after_scope_cancelled_before_timeout() -> None:
     with fail_after(0.1) as scope:
         scope.cancel()
-        time.sleep(0.11)
+        time.sleep(0.11)  # noqa: ASYNC101
         await sleep(0)
 
 

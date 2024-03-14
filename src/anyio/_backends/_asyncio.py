@@ -1651,7 +1651,7 @@ class Event(BaseEvent):
             await self._event.wait()
 
     def statistics(self) -> EventStatistics:
-        return EventStatistics(len(self._event._waiters))  # type: ignore[attr-defined]
+        return EventStatistics(len(self._event._waiters))
 
 
 class CapacityLimiter(BaseCapacityLimiter):
@@ -1751,7 +1751,7 @@ class CapacityLimiter(BaseCapacityLimiter):
             self._borrowers.remove(borrower)
         except KeyError:
             raise RuntimeError(
-                "this borrower isn't holding any of this CapacityLimiter's " "tokens"
+                "this borrower isn't holding any of this CapacityLimiter's tokens"
             ) from None
 
         # Notify the next task in line if this limiter has free capacity now

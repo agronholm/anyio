@@ -1040,15 +1040,13 @@ class TrioBackend(AsyncBackend):
     @overload
     async def create_unix_datagram_socket(
         cls, raw_socket: socket.socket, remote_path: None
-    ) -> abc.UNIXDatagramSocket:
-        ...
+    ) -> abc.UNIXDatagramSocket: ...
 
     @classmethod
     @overload
     async def create_unix_datagram_socket(
         cls, raw_socket: socket.socket, remote_path: str | bytes
-    ) -> abc.ConnectedUNIXDatagramSocket:
-        ...
+    ) -> abc.ConnectedUNIXDatagramSocket: ...
 
     @classmethod
     async def create_unix_datagram_socket(

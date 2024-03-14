@@ -261,14 +261,12 @@ class BlockingPortal:
         self,
         func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
         *args: Unpack[PosArgsT],
-    ) -> T_Retval:
-        ...
+    ) -> T_Retval: ...
 
     @overload
     def call(
         self, func: Callable[[Unpack[PosArgsT]], T_Retval], *args: Unpack[PosArgsT]
-    ) -> T_Retval:
-        ...
+    ) -> T_Retval: ...
 
     def call(
         self,
@@ -293,8 +291,7 @@ class BlockingPortal:
         func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
         *args: Unpack[PosArgsT],
         name: object = None,
-    ) -> Future[T_Retval]:
-        ...
+    ) -> Future[T_Retval]: ...
 
     @overload
     def start_task_soon(
@@ -302,8 +299,7 @@ class BlockingPortal:
         func: Callable[[Unpack[PosArgsT]], T_Retval],
         *args: Unpack[PosArgsT],
         name: object = None,
-    ) -> Future[T_Retval]:
-        ...
+    ) -> Future[T_Retval]: ...
 
     def start_task_soon(
         self,
