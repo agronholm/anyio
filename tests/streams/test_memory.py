@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import sys
 from typing import NoReturn
 
@@ -52,6 +53,9 @@ async def test_receive_then_send() -> None:
 
     assert received_objects == ["hello", "anyio"]
 
+    send.close()
+    receive.close()
+
 
 async def test_receive_then_send_nowait() -> None:
     async def receiver() -> None:
@@ -68,6 +72,9 @@ async def test_receive_then_send_nowait() -> None:
 
     assert sorted(received_objects, reverse=True) == ["hello", "anyio"]
 
+    send.close()
+    receive.close()
+
 
 async def test_send_then_receive_nowait() -> None:
     send, receive = create_memory_object_stream[str](0)
@@ -75,6 +82,9 @@ async def test_send_then_receive_nowait() -> None:
         tg.start_soon(send.send, "hello")
         await wait_all_tasks_blocked()
         assert receive.receive_nowait() == "hello"
+
+    send.close()
+    receive.close()
 
 
 async def test_send_is_unblocked_after_receive_nowait() -> None:
@@ -89,6 +99,9 @@ async def test_send_is_unblocked_after_receive_nowait() -> None:
 
     assert receive.receive_nowait() == "anyio"
 
+    send.close()
+    receive.close()
+
 
 async def test_send_nowait_then_receive_nowait() -> None:
     send, receive = create_memory_object_stream[str](2)
@@ -96,6 +109,9 @@ async def test_send_nowait_then_receive_nowait() -> None:
     send.send_nowait("anyio")
     assert receive.receive_nowait() == "hello"
     assert receive.receive_nowait() == "anyio"
+
+    send.close()
+    receive.close()
 
 
 async def test_iterate() -> None:
@@ -113,6 +129,9 @@ async def test_iterate() -> None:
 
     assert received_objects == ["hello", "anyio"]
 
+    send.close()
+    receive.close()
+
 
 async def test_receive_send_closed_send_stream() -> None:
     send, receive = create_memory_object_stream[None]()
@@ -123,6 +142,8 @@ async def test_receive_send_closed_send_stream() -> None:
     with pytest.raises(ClosedResourceError):
         await send.send(None)
 
+    receive.close()
+
 
 async def test_receive_send_closed_receive_stream() -> None:
     send, receive = create_memory_object_stream[None]()
@@ -132,6 +153,8 @@ async def test_receive_send_closed_receive_stream() -> None:
 
     with pytest.raises(BrokenResourceError):
         await send.send(None)
+
+    send.close()
 
 
 async def test_cancel_receive() -> None:
@@ -144,6 +167,9 @@ async def test_cancel_receive() -> None:
     with pytest.raises(WouldBlock):
         send.send_nowait("hello")
 
+    send.close()
+    receive.close()
+
 
 async def test_cancel_send() -> None:
     send, receive = create_memory_object_stream[str]()
@@ -155,6 +181,9 @@ async def test_cancel_send() -> None:
     with pytest.raises(WouldBlock):
         receive.receive_nowait()
 
+    send.close()
+    receive.close()
+
 
 async def test_clone() -> None:
     send1, receive1 = create_memory_object_stream[str](1)
@@ -164,6 +193,11 @@ async def test_clone() -> None:
     await receive1.aclose()
     send2.send_nowait("hello")
     assert receive2.receive_nowait() == "hello"
+
+    send1.close()
+    receive1.close()
+    send2.close()
+    receive2.close()
 
 
 async def test_clone_closed() -> None:
@@ -185,6 +219,9 @@ async def test_close_send_while_receiving() -> None:
     assert len(exc.value.exceptions) == 1
     assert isinstance(exc.value.exceptions[0], EndOfStream)
 
+    send.close()
+    receive.close()
+
 
 async def test_close_receive_while_sending() -> None:
     send, receive = create_memory_object_stream[str](0)
@@ -197,12 +234,18 @@ async def test_close_receive_while_sending() -> None:
     assert len(exc.value.exceptions) == 1
     assert isinstance(exc.value.exceptions[0], BrokenResourceError)
 
+    send.close()
+    receive.close()
+
 
 async def test_receive_after_send_closed() -> None:
     send, receive = create_memory_object_stream[str](1)
     await send.send("hello")
     await send.aclose()
     assert await receive.receive() == "hello"
+
+    send.close()
+    receive.close()
 
 
 async def test_receive_when_cancelled() -> None:
@@ -224,6 +267,9 @@ async def test_receive_when_cancelled() -> None:
 
         assert await receive.receive() == "hello"
         assert await receive.receive() == "world"
+
+    send.close()
+    receive.close()
 
 
 async def test_send_when_cancelled() -> None:
@@ -247,6 +293,9 @@ async def test_send_when_cancelled() -> None:
         await send.send("world")
 
     assert received == ["world"]
+
+    send.close()
+    receive.close()
 
 
 async def test_cancel_during_receive() -> None:
@@ -275,6 +324,9 @@ async def test_cancel_during_receive() -> None:
 
     assert received == ["hello"]
 
+    send.close()
+    receive.close()
+
 
 async def test_close_receive_after_send() -> None:
     async def send() -> None:
@@ -289,6 +341,9 @@ async def test_close_receive_after_send() -> None:
     async with create_task_group() as tg:
         tg.start_soon(send)
         tg.start_soon(receive)
+
+    send_stream.close()
+    receive_stream.close()
 
 
 async def test_statistics() -> None:
@@ -347,6 +402,9 @@ async def test_statistics() -> None:
         assert stream.statistics().tasks_waiting_send == 0
         assert stream.statistics().tasks_waiting_receive == 0
 
+    send_stream.close()
+    receive_stream.close()
+
 
 async def test_sync_close() -> None:
     send_stream, receive_stream = create_memory_object_stream[None](1)
@@ -374,7 +432,25 @@ async def test_type_variance() -> None:
     send1: MemoryObjectSendStream[int] = send  # noqa: F841
     send2: ObjectSendStream[int] = send  # noqa: F841
 
+    send.close()
+    receive.close()
+
 
 async def test_deprecated_item_type_parameter() -> None:
     with pytest.warns(DeprecationWarning, match="item_type argument has been "):
-        create_memory_object_stream(item_type=int)
+        send, receive = create_memory_object_stream(item_type=int)  # type: ignore[var-annotated]
+
+        send.close()
+        receive.close()
+
+
+async def test_not_closed_warning() -> None:
+    send, receive = create_memory_object_stream[int]()
+
+    with pytest.warns(ResourceWarning, match="Unclosed <MemoryObjectSendStream, "):
+        del send
+        gc.collect()
+
+    with pytest.warns(ResourceWarning, match="Unclosed <MemoryObjectReceiveStream, "):
+        del receive
+        gc.collect()

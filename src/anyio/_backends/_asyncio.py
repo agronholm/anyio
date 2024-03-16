@@ -80,7 +80,7 @@ from ..abc import (
     UNIXDatagramPacketType,
 )
 from ..lowlevel import RunVar
-from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+from ..streams.memory import MemoryObjectReceiveStream
 
 if sys.version_info >= (3, 10):
     from typing import ParamSpec
@@ -1838,8 +1838,6 @@ def _create_task_info(task: asyncio.Task) -> TaskInfo:
 
 
 class TestRunner(abc.TestRunner):
-    _send_stream: MemoryObjectSendStream[tuple[Awaitable[Any], asyncio.Future[Any]]]
-
     def __init__(
         self,
         *,
@@ -1921,6 +1919,8 @@ class TestRunner(abc.TestRunner):
             self._runner_task = self.get_loop().create_task(
                 self._run_tests_and_fixtures(receive_stream)
             )
+
+            self._runner_task.add_done_callback(lambda _: self._send_stream.close())
 
         coro = func(*args, **kwargs)
         future: asyncio.Future[T_Retval] = self.get_loop().create_future()
