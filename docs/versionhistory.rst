@@ -7,6 +7,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Fixed erroneous ``TypedAttributeLookupError`` if a typed attribute getter raises
   ``KeyError``
+- Fixed ``SocketStream.receive()`` not detecting EOF on asyncio if there is also data in
+  the read buffer (`#701 <https://github.com/agronholm/anyio/issues/701>`_)
 
 **4.3.0**
 
