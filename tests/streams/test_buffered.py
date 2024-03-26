@@ -17,6 +17,9 @@ async def test_receive_exactly() -> None:
     assert result == b"abcdefgh"
     assert isinstance(result, bytes)
 
+    send_stream.close()
+    receive_stream.close()
+
 
 async def test_receive_exactly_incomplete() -> None:
     send_stream, receive_stream = create_memory_object_stream[bytes](1)
@@ -25,6 +28,9 @@ async def test_receive_exactly_incomplete() -> None:
     await send_stream.aclose()
     with pytest.raises(IncompleteRead):
         await buffered_stream.receive_exactly(8)
+
+    send_stream.close()
+    receive_stream.close()
 
 
 async def test_receive_until() -> None:
@@ -41,6 +47,9 @@ async def test_receive_until() -> None:
     assert result == b"fg"
     assert isinstance(result, bytes)
 
+    send_stream.close()
+    receive_stream.close()
+
 
 async def test_receive_until_incomplete() -> None:
     send_stream, receive_stream = create_memory_object_stream[bytes](1)
@@ -51,3 +60,6 @@ async def test_receive_until_incomplete() -> None:
         assert await buffered_stream.receive_until(b"de", 10)
 
     assert buffered_stream.buffer == b"abcd"
+
+    send_stream.close()
+    receive_stream.close()

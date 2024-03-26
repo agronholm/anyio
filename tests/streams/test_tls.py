@@ -385,6 +385,9 @@ class TestTLSStream:
         ssl_context = tls_stream.extra(TLSAttribute.ssl_object).context
         assert not ssl_context.options & ssl.OP_IGNORE_UNEXPECTED_EOF
 
+        send1.close()
+        receive1.close()
+
 
 class TestTLSListener:
     async def test_handshake_fail(
