@@ -123,6 +123,17 @@ async def test_start_called_twice() -> None:
         assert value is None
 
 
+async def test_no_called_started_twice() -> None:
+    async def taskfunc(*, task_status: TaskStatus) -> None:
+        task_status.started()
+
+    # anyio>4.3.0 should not raise "RuntimeError: called 'started' twice on the same task status"
+    async with create_task_group() as tg:
+        coro = tg.start(taskfunc)
+        tg.cancel_scope.cancel()
+        await coro
+
+
 async def test_start_with_value() -> None:
     async def taskfunc(*, task_status: TaskStatus) -> None:
         task_status.started("foo")
