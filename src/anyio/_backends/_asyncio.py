@@ -1990,7 +1990,7 @@ class AsyncIOBackend(AsyncBackend):
             finally:
                 del _task_states[task]
 
-        debug = options.get("debug", False)
+        debug = options.get("debug", None)
         loop_factory = options.get("loop_factory", None)
         if loop_factory is None and options.get("use_uvloop", False):
             import uvloop
