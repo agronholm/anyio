@@ -28,6 +28,7 @@ from anyio import (
     BrokenResourceError,
     BusyResourceError,
     ClosedResourceError,
+    EndOfStream,
     Event,
     TypedAttributeLookupError,
     connect_tcp,
@@ -680,6 +681,29 @@ class TestTCPListener:
                             break
 
             tg.cancel_scope.cancel()
+
+    async def test_eof_after_send(self, family: AnyIPAddressFamily) -> None:
+        """Regression test for #701."""
+        received_bytes = b""
+
+        async def handle(stream: SocketStream) -> None:
+            nonlocal received_bytes
+            async with stream:
+                received_bytes = await stream.receive()
+                with pytest.raises(EndOfStream), fail_after(1):
+                    await stream.receive()
+
+            tg.cancel_scope.cancel()
+
+        multi = await create_tcp_listener(family=family, local_host="localhost")
+        async with multi, create_task_group() as tg:
+            with socket.socket(family) as client:
+                client.connect(multi.extra(SocketAttribute.local_address))
+                client.send(b"Hello")
+                client.shutdown(socket.SHUT_WR)
+                await multi.serve(handle)
+
+        assert received_bytes == b"Hello"
 
     @skip_ipv6_mark
     @pytest.mark.skipif(

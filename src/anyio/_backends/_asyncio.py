@@ -1047,6 +1047,7 @@ class StreamProtocol(asyncio.Protocol):
     read_event: asyncio.Event
     write_event: asyncio.Event
     exception: Exception | None = None
+    is_at_eof: bool = False
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.read_queue = deque()
@@ -1068,6 +1069,7 @@ class StreamProtocol(asyncio.Protocol):
         self.read_event.set()
 
     def eof_received(self) -> bool | None:
+        self.is_at_eof = True
         self.read_event.set()
         return True
 
@@ -1123,15 +1125,16 @@ class SocketStream(abc.SocketStream):
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
         with self._receive_guard:
-            await AsyncIOBackend.checkpoint()
-
             if (
                 not self._protocol.read_event.is_set()
                 and not self._transport.is_closing()
+                and not self._protocol.is_at_eof
             ):
                 self._transport.resume_reading()
                 await self._protocol.read_event.wait()
                 self._transport.pause_reading()
+            else:
+                await AsyncIOBackend.checkpoint_if_cancelled()
 
             try:
                 chunk = self._protocol.read_queue.popleft()
