@@ -348,6 +348,11 @@ class Path:
     def stem(self) -> str:
         return self._path.stem
 
+    @property
+    def wrapped(self) -> Final[pathlib.Path]:
+        """The wrapped pathlib.Path object."""
+        return self._path
+
     async def absolute(self) -> Path:
         path = await to_thread.run_sync(self._path.absolute)
         return Path(path)
