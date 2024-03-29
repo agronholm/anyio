@@ -349,7 +349,7 @@ class Path:
         return self._path.stem
 
     @property
-    def wrapped(self) -> Final[pathlib.Path]:
+    def wrapped(self) -> pathlib.Path:
         """The wrapped pathlib.Path object."""
         return self._path
 
