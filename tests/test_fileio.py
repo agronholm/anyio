@@ -169,6 +169,11 @@ class TestPath:
     def test_stem_property(self) -> None:
         assert Path("/abc/xyz/foo.txt.zip").stem == "foo.txt"
 
+    def test_wrapped_property(self) -> None:
+        path = Path("/abc/xyz/foo.txt.zip")
+        assert isinstance(path.wrapped, pathlib.Path)
+        assert path == path.wrapped
+
     async def test_absolute(self) -> None:
         result = await Path("../foo/bar").absolute()
         assert isinstance(result, Path)
