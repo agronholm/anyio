@@ -9,6 +9,7 @@ from typing import Any, NoReturn, cast
 
 import pytest
 from exceptiongroup import catch
+from pytest_mock import MockerFixture
 
 import anyio
 from anyio import (
@@ -247,6 +248,27 @@ async def test_propagate_native_cancellation_from_taskgroup() -> None:
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
+
+
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_cancel_with_nested_shielded_scope(mocker: MockerFixture) -> None:
+    """Regression test for #695."""
+
+    async def shield_task() -> None:
+        with CancelScope(shield=True):
+            await sleep(0.5)
+
+    async def task() -> None:
+        async with create_task_group() as tg:
+            tg.start_soon(shield_task)
+
+    async with create_task_group() as tg:
+        spy = mocker.spy(tg.cancel_scope, "_deliver_cancellation")
+        tg.start_soon(task)
+        await wait_all_tasks_blocked()
+        tg.cancel_scope.cancel()
+
+    assert len(spy.call_args_list) < 3
 
 
 async def test_start_exception_delivery(anyio_backend_name: str) -> None:
