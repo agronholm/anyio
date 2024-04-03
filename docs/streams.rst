@@ -219,7 +219,7 @@ There are three principal ways you can get an X.509 certificate for your server:
    `Let's Encrypt`_
 #. Buy one from a certificate vendor
 
-The first option is probably the easiest, but this requires that the any client
+The first option is probably the easiest, but this requires that any client
 connecting to your server adds the self signed certificate to their list of trusted
 certificates. This is of course impractical outside of local development and is strongly
 discouraged in production use.
