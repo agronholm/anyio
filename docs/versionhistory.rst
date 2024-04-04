@@ -7,6 +7,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Fixed erroneous ``TypedAttributeLookupError`` if a typed attribute getter raises
   ``KeyError``
+- Fixed the asyncio backend not respecting the ``PYTHONASYNCIODEBUG`` environment
+  variable when setting the ``debug`` flag in ``anyio.run()``
 
 **4.3.0**
 
