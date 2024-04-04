@@ -9,6 +9,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``KeyError``
 - Fixed the asyncio backend not respecting the ``PYTHONASYNCIODEBUG`` environment
   variable when setting the ``debug`` flag in ``anyio.run()``
+- Fixed ``SocketStream.receive()`` not detecting EOF on asyncio if there is also data in
+  the read buffer (`#701 <https://github.com/agronholm/anyio/issues/701>`_)
 
 **4.3.0**
 
