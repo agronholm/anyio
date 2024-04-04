@@ -1134,7 +1134,7 @@ class SocketStream(abc.SocketStream):
                 await self._protocol.read_event.wait()
                 self._transport.pause_reading()
             else:
-                await AsyncIOBackend.checkpoint_if_cancelled()
+                await AsyncIOBackend.checkpoint()
 
             try:
                 chunk = self._protocol.read_queue.popleft()
