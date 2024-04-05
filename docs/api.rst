@@ -65,6 +65,7 @@ Running asynchronous code from other threads
 .. autofunction:: anyio.from_thread.start_blocking_portal
 
 .. autoclass:: anyio.from_thread.BlockingPortal
+.. autoclass:: anyio.from_thread.BlockingPortalProvider
 
 Async file I/O
 --------------

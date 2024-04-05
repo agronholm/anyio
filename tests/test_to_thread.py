@@ -21,6 +21,7 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
+from anyio.from_thread import BlockingPortalProvider
 
 pytestmark = pytest.mark.anyio
 
@@ -287,3 +288,23 @@ async def test_stopiteration() -> None:
 
     with pytest.raises(RuntimeError, match="coroutine raised StopIteration"):
         await to_thread.run_sync(raise_stopiteration)
+
+
+def test_blocking_portal_provider(
+    anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+) -> None:
+    threads: set[threading.Thread] = set()
+
+    async def check_thread() -> None:
+        assert sniffio.current_async_library() == anyio_backend_name
+        threads.add(threading.current_thread())
+
+    provider = BlockingPortalProvider(
+        backend=anyio_backend_name, backend_options=anyio_backend_options
+    )
+    with provider as portal1, provider as portal2:
+        portal1.call(check_thread)
+        portal2.call(check_thread)
+        portal1.call(check_thread)
+
+    assert len(threads) == 1

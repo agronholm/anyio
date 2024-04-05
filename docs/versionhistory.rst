@@ -5,6 +5,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added the ``BlockingPortalProvider`` class to aid with constructing synchronous
+  counterparts to asynchronous interfaces that would otherwise require multiple blocking
+  portals
 - Fixed erroneous ``RuntimeError: called 'started' twice on the same task status``
   when cancelling a task in a TaskGroup created with the ``start()`` method before
   the first checkpoint is reached after calling ``task_status.started()``
