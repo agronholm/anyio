@@ -5,6 +5,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed erroneous ``RuntimeError: called 'started' twice on the same task status``
+  when cancelling a task in a TaskGroup created with the ``start`` method
+  (`#706 <https://github.com/agronholm/anyio/issues/706>`_; PR by Dominik Schwabe)
 - Fixed erroneous ``TypedAttributeLookupError`` if a typed attribute getter raises
   ``KeyError``
 
