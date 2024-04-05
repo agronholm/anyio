@@ -6,6 +6,7 @@ from asyncio import get_running_loop
 from unittest.mock import AsyncMock
 
 import pytest
+from pytest import MonkeyPatch
 from pytest_mock.plugin import MockerFixture
 
 from anyio import run, sleep_forever, sleep_until
@@ -53,6 +54,14 @@ class TestAsyncioOptions:
             return get_running_loop().get_debug()
 
         debug = run(main, backend="asyncio", backend_options={"debug": True})
+        assert debug is True
+
+    def test_debug_via_env(self, monkeypatch: MonkeyPatch) -> None:
+        async def main() -> bool:
+            return get_running_loop().get_debug()
+
+        monkeypatch.setenv("PYTHONASYNCIODEBUG", "1")
+        debug = run(main, backend="asyncio")
         assert debug is True
 
     def test_loop_factory(self) -> None:
