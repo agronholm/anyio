@@ -620,9 +620,10 @@ class _AsyncioTaskStatus(abc.TaskStatus):
         try:
             self._future.set_result(value)
         except asyncio.InvalidStateError:
-            raise RuntimeError(
-                "called 'started' twice on the same task status"
-            ) from None
+            if not self._future.cancelled():
+                raise RuntimeError(
+                    "called 'started' twice on the same task status"
+                ) from None
 
         task = cast(asyncio.Task, current_task())
         _task_states[task].parent_id = self._parent_id
