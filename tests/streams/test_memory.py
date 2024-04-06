@@ -5,6 +5,7 @@ import sys
 from typing import NoReturn
 
 import pytest
+from pytest_mock import MockerFixture
 
 from anyio import (
     BrokenResourceError,
@@ -444,13 +445,36 @@ async def test_deprecated_item_type_parameter() -> None:
         receive.close()
 
 
-async def test_not_closed_warning() -> None:
+@pytest.mark.parametrize("is_source_traceback_capturing_enabled", [True, False])
+async def test_not_closed_warning(
+    mocker: MockerFixture, is_source_traceback_capturing_enabled: bool
+) -> None:
+    mocker.patch.object(
+        MemoryObjectReceiveStream,
+        "_is_source_traceback_capturing_enabled",
+        return_value=is_source_traceback_capturing_enabled,
+    )
+    mocker.patch.object(
+        MemoryObjectSendStream,
+        "_is_source_traceback_capturing_enabled",
+        return_value=is_source_traceback_capturing_enabled,
+    )
+
     send, receive = create_memory_object_stream[int]()
 
-    with pytest.warns(ResourceWarning, match="Unclosed <MemoryObjectSendStream, "):
+    if is_source_traceback_capturing_enabled:
+        match_suffix = ", .*>$"
+    else:
+        match_suffix = ">$"
+
+    with pytest.warns(
+        ResourceWarning, match=f"Unclosed <MemoryObjectSendStream{match_suffix}"
+    ):
         del send
         gc.collect()
 
-    with pytest.warns(ResourceWarning, match="Unclosed <MemoryObjectReceiveStream, "):
+    with pytest.warns(
+        ResourceWarning, match=f"Unclosed <MemoryObjectReceiveStream{match_suffix}"
+    ):
         del receive
         gc.collect()

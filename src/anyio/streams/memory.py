@@ -62,11 +62,16 @@ class MemoryObjectStreamState(Generic[T_Item]):
 class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
     _state: MemoryObjectStreamState[T_co]
     _closed: bool = field(init=False, default=False)
-    _source_traceback: traceback.StackSummary = field(init=False)
+    _source_traceback: traceback.StackSummary | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         self._state.open_receive_channels += 1
-        self._source_traceback = traceback.extract_stack(sys._getframe(1))
+
+        if self._is_source_traceback_capturing_enabled():
+            self._source_traceback = traceback.extract_stack(sys._getframe(1))
+
+    def _is_source_traceback_capturing_enabled(self) -> bool:
+        return sys.flags.dev_mode
 
     def receive_nowait(self) -> T_co:
         """
@@ -171,8 +176,11 @@ class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
 
     def __del__(self) -> None:
         if not self._closed:
-            frame = self._source_traceback[-3]
-            created_at_message = f", created_at {frame[0]}:{frame[1]}"
+            created_at_message = ""
+
+            if self._source_traceback is not None:
+                frame = self._source_traceback[-3]
+                created_at_message = f", created_at {frame[0]}:{frame[1]}"
 
             warnings.warn(
                 f"Unclosed <{self.__class__.__name__}{created_at_message}>",
@@ -185,11 +193,16 @@ class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
 class MemoryObjectSendStream(Generic[T_contra], ObjectSendStream[T_contra]):
     _state: MemoryObjectStreamState[T_contra]
     _closed: bool = field(init=False, default=False)
-    _source_traceback: traceback.StackSummary = field(init=False)
+    _source_traceback: traceback.StackSummary | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         self._state.open_send_channels += 1
-        self._source_traceback = traceback.extract_stack(sys._getframe(1))
+
+        if self._is_source_traceback_capturing_enabled():
+            self._source_traceback = traceback.extract_stack(sys._getframe(1))
+
+    def _is_source_traceback_capturing_enabled(self) -> bool:
+        return sys.flags.dev_mode
 
     def send_nowait(self, item: T_contra) -> None:
         """
@@ -302,8 +315,11 @@ class MemoryObjectSendStream(Generic[T_contra], ObjectSendStream[T_contra]):
 
     def __del__(self) -> None:
         if not self._closed:
-            frame = self._source_traceback[-3]
-            created_at_message = f", created_at {frame[0]}:{frame[1]}"
+            created_at_message = ""
+
+            if self._source_traceback is not None:
+                frame = self._source_traceback[-3]
+                created_at_message = f", created_at {frame.filename}:{frame.lineno}"
 
             warnings.warn(
                 f"Unclosed <{self.__class__.__name__}{created_at_message}>",

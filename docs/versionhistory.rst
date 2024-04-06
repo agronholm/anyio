@@ -18,6 +18,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   variable when setting the ``debug`` flag in ``anyio.run()``
 - Fixed ``SocketStream.receive()`` not detecting EOF on asyncio if there is also data in
   the read buffer (`#701 <https://github.com/agronholm/anyio/issues/701>`_)
+- Add check on closed ``MemoryObjectReceiveStream`` and ``MemoryObjectSendStream``
+  in ``__del__`` method
 
 **4.3.0**
 
