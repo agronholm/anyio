@@ -134,6 +134,9 @@ package = editable
 commands = coverage run -m pytest {posargs}
 extras = test
 
+[testenv:pypy3]
+commands = pytest {posargs}
+
 [testenv:pre-commit]
 depends =
 basepython = python3
