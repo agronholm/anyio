@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
-from concurrent.futures import Future
+from concurrent.futures import Future, ThreadPoolExecutor
 from contextvars import ContextVar
 from functools import partial
 from typing import Any, NoReturn
@@ -21,6 +21,7 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
+from anyio.from_thread import BlockingPortalProvider
 
 pytestmark = pytest.mark.anyio
 
@@ -287,3 +288,73 @@ async def test_stopiteration() -> None:
 
     with pytest.raises(RuntimeError, match="coroutine raised StopIteration"):
         await to_thread.run_sync(raise_stopiteration)
+
+
+class TestBlockingPortalProvider:
+    @pytest.fixture
+    def provider(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> BlockingPortalProvider:
+        return BlockingPortalProvider(
+            backend=anyio_backend_name, backend_options=anyio_backend_options
+        )
+
+    def test_single_thread(
+        self, provider: BlockingPortalProvider, anyio_backend_name: str
+    ) -> None:
+        threads: set[threading.Thread] = set()
+
+        async def check_thread() -> None:
+            assert sniffio.current_async_library() == anyio_backend_name
+            threads.add(threading.current_thread())
+
+        active_threads_before = threading.active_count()
+        for _ in range(3):
+            with provider as portal:
+                portal.call(check_thread)
+
+        assert len(threads) == 3
+        assert threading.active_count() == active_threads_before
+
+    def test_single_thread_overlapping(
+        self, provider: BlockingPortalProvider, anyio_backend_name: str
+    ) -> None:
+        threads: set[threading.Thread] = set()
+
+        async def check_thread() -> None:
+            assert sniffio.current_async_library() == anyio_backend_name
+            threads.add(threading.current_thread())
+
+        with provider as portal1:
+            with provider as portal2:
+                assert portal1 is portal2
+                portal2.call(check_thread)
+
+            portal1.call(check_thread)
+
+        assert len(threads) == 1
+
+    def test_multiple_threads(
+        self, provider: BlockingPortalProvider, anyio_backend_name: str
+    ) -> None:
+        threads: set[threading.Thread] = set()
+        event = Event()
+
+        async def check_thread() -> None:
+            assert sniffio.current_async_library() == anyio_backend_name
+            await event.wait()
+            threads.add(threading.current_thread())
+
+        def dummy() -> None:
+            with provider as portal:
+                portal.call(check_thread)
+
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            for _ in range(3):
+                pool.submit(dummy)
+
+            with provider as portal:
+                portal.call(wait_all_tasks_blocked)
+                portal.call(event.set)
+
+        assert len(threads) == 1
