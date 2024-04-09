@@ -153,11 +153,6 @@ def claim_worker_thread(
 def get_async_backend(asynclib_name: str | None = None) -> AsyncBackend:
     if asynclib_name is None:
         asynclib_name = sniffio.current_async_library()
-
-    modulename = "anyio._backends._" + asynclib_name
-    try:
-        module = sys.modules[modulename]
-    except KeyError:
-        module = import_module(modulename)
+    module = import_module("anyio._backends._" + asynclib_name)
 
     return getattr(module, "backend_class")
