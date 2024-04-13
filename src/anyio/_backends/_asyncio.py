@@ -1891,13 +1891,13 @@ class TestRunner(abc.TestRunner):
                     "Multiple exceptions occurred in asynchronous callbacks", exceptions
                 )
 
-    @staticmethod
     async def _run_tests_and_fixtures(
+        self,
         receive_stream: MemoryObjectReceiveStream[
             tuple[Awaitable[T_Retval], asyncio.Future[T_Retval]]
         ],
     ) -> None:
-        with receive_stream:
+        with receive_stream, self._send_stream:
             async for coro, future in receive_stream:
                 try:
                     retval = await coro
@@ -1921,8 +1921,6 @@ class TestRunner(abc.TestRunner):
             self._runner_task = self.get_loop().create_task(
                 self._run_tests_and_fixtures(receive_stream)
             )
-
-            self._runner_task.add_done_callback(lambda _: self._send_stream.close())
 
         coro = func(*args, **kwargs)
         future: asyncio.Future[T_Retval] = self.get_loop().create_future()
