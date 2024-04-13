@@ -22,6 +22,7 @@ from anyio import (
     get_current_task,
     move_on_after,
     sleep,
+    sleep_forever,
     wait_all_tasks_blocked,
 )
 from anyio.abc import TaskGroup, TaskStatus
@@ -127,7 +128,6 @@ async def test_no_called_started_twice() -> None:
     async def taskfunc(*, task_status: TaskStatus) -> None:
         task_status.started()
 
-    # anyio>4.3.0 should not raise "RuntimeError: called 'started' twice on the same task status"
     async with create_task_group() as tg:
         coro = tg.start(taskfunc)
         tg.cancel_scope.cancel()
@@ -196,9 +196,6 @@ async def test_start_cancelled() -> None:
     assert not finished
 
 
-@pytest.mark.xfail(
-    sys.version_info < (3, 9), reason="Requires a way to detect cancellation source"
-)
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_start_native_host_cancelled() -> None:
     started = finished = False
@@ -1345,6 +1342,24 @@ async def test_cancel_child_task_when_host_is_shielded() -> None:
             with CancelScope(shield=True), fail_after(1):
                 parent_scope.cancel()
                 await cancelled.wait()
+
+
+async def test_start_cancels_parent_scope() -> None:
+    """Regression test for #685 / #710."""
+    started: bool = False
+
+    async def in_task_group(task_status: TaskStatus[None]) -> None:
+        nonlocal started
+        started = True
+        await sleep_forever()
+
+    async with create_task_group() as tg:
+        with CancelScope() as inner_scope:
+            inner_scope.cancel()
+            await tg.start(in_task_group)
+
+    assert started
+    assert not tg.cancel_scope.cancel_called
 
 
 class TestTaskStatusTyping:
