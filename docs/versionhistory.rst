@@ -17,6 +17,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * Fixed the entire task group being cancelled if a ``TaskGroup.start()`` call gets
     cancelled (`#685 <https://github.com/agronholm/anyio/issues/685>`_,
     `#710 <https://github.com/agronholm/anyio/issues/710>`_)
+- Fixed cancellation delivery on asyncio incrementing the wrong cancel scope's
+  cancellation counter when cascading a cancel operation to a child scope, thus failing
+  to uncancel the host task (`#716 <https://github.com/agronholm/anyio/issues/716>`_)
 - Fixed erroneous ``TypedAttributeLookupError`` if a typed attribute getter raises
   ``KeyError``
 - Fixed the asyncio backend not respecting the ``PYTHONASYNCIODEBUG`` environment

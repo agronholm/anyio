@@ -455,6 +455,19 @@ async def test_cancel_before_entering_scope() -> None:
         pytest.fail("execution should not reach this point")
 
 
+@pytest.mark.xfail(
+    sys.version_info < (3, 11), reason="Requires asyncio.Task.cancelling()"
+)
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_cancel_counter_nested_scopes() -> None:
+    with CancelScope() as root_scope:
+        with CancelScope():
+            root_scope.cancel()
+            await sleep(0.5)
+
+    assert not cast(asyncio.Task, asyncio.current_task()).cancelling()
+
+
 async def test_exception_group_children() -> None:
     with pytest.raises(BaseExceptionGroup) as exc:
         async with create_task_group() as tg:
