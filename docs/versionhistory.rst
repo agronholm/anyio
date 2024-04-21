@@ -12,12 +12,18 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   when cancelling a task in a TaskGroup created with the ``start()`` method before
   the first checkpoint is reached after calling ``task_status.started()``
   (`#706 <https://github.com/agronholm/anyio/issues/706>`_; PR by Dominik Schwabe)
+- Fixed cancellation delivery on asyncio incrementing the wrong cancel scope's
+  cancellation counter when cascading a cancel operation to a child scope, thus failing
+  to uncancel the host task (`#716 <https://github.com/agronholm/anyio/issues/716>`_)
 - Fixed erroneous ``TypedAttributeLookupError`` if a typed attribute getter raises
   ``KeyError``
 - Fixed the asyncio backend not respecting the ``PYTHONASYNCIODEBUG`` environment
   variable when setting the ``debug`` flag in ``anyio.run()``
 - Fixed ``SocketStream.receive()`` not detecting EOF on asyncio if there is also data in
   the read buffer (`#701 <https://github.com/agronholm/anyio/issues/701>`_)
+- Emit a ``ResourceWarning`` for ``MemoryObjectReceiveStream`` and
+  ``MemoryObjectSendStream`` that were garbage collected without being closed (PR by
+  Andrey Kazantcev)
 
 **4.3.0**
 

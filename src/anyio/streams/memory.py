@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from types import TracebackType
@@ -164,6 +165,14 @@ class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
     ) -> None:
         self.close()
 
+    def __del__(self) -> None:
+        if not self._closed:
+            warnings.warn(
+                f"Unclosed <{self.__class__.__name__}>",
+                ResourceWarning,
+                source=self,
+            )
+
 
 @dataclass(eq=False)
 class MemoryObjectSendStream(Generic[T_contra], ObjectSendStream[T_contra]):
@@ -281,3 +290,11 @@ class MemoryObjectSendStream(Generic[T_contra], ObjectSendStream[T_contra]):
         exc_tb: TracebackType | None,
     ) -> None:
         self.close()
+
+    def __del__(self) -> None:
+        if not self._closed:
+            warnings.warn(
+                f"Unclosed <{self.__class__.__name__}>",
+                ResourceWarning,
+                source=self,
+            )

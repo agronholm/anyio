@@ -488,7 +488,7 @@ class CancelScope(BaseCancelScope):
             if task is not current and (task is self._host_task or _task_started(task)):
                 waiter = task._fut_waiter  # type: ignore[attr-defined]
                 if not isinstance(waiter, asyncio.Future) or not waiter.done():
-                    self._cancel_calls += 1
+                    origin._cancel_calls += 1
                     if sys.version_info >= (3, 9):
                         task.cancel(f"Cancelled by cancel scope {id(origin):x}")
                     else:
@@ -1891,13 +1891,13 @@ class TestRunner(abc.TestRunner):
                     "Multiple exceptions occurred in asynchronous callbacks", exceptions
                 )
 
-    @staticmethod
     async def _run_tests_and_fixtures(
+        self,
         receive_stream: MemoryObjectReceiveStream[
             tuple[Awaitable[T_Retval], asyncio.Future[T_Retval]]
         ],
     ) -> None:
-        with receive_stream:
+        with receive_stream, self._send_stream:
             async for coro, future in receive_stream:
                 try:
                     retval = await coro
