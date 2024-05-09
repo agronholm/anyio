@@ -393,6 +393,7 @@ class CancelScope(BaseCancelScope):
         if self._cancel_called:
             self._deliver_cancellation(self)
 
+        print(f"entered cancel scope {id(self):x}")
         return self
 
     def __exit__(
@@ -401,6 +402,7 @@ class CancelScope(BaseCancelScope):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> bool | None:
+        print(f"exiting cancel scope {id(self):x} with {exc_type}")
         if not self._active:
             raise RuntimeError("This cancel scope is not active")
         if current_task() is not self._host_task:
@@ -467,7 +469,7 @@ class CancelScope(BaseCancelScope):
             else:
                 self._timeout_handle = loop.call_at(self._deadline, self._timeout)
 
-    def _deliver_cancellation(self, origin: CancelScope) -> bool:
+    def _deliver_cancellation(self, origin: CancelScope, indent: str = "") -> bool:
         """
         Deliver cancellation to directly contained tasks and nested cancel scopes.
 
@@ -478,10 +480,14 @@ class CancelScope(BaseCancelScope):
         :return: ``True`` if the delivery needs to be retried on the next cycle
 
         """
+        print(f"{indent}scope {id(self):x}:")
+        indent += "  "
         should_retry = False
         current = current_task()
         for task in self._tasks:
+            print(f"{indent}task {task.get_name()}: ", end="")
             if task._must_cancel:  # type: ignore[attr-defined]
+                print("must_cancel flag already set")
                 continue
 
             # The task is eligible for cancellation if it has started
@@ -490,24 +496,37 @@ class CancelScope(BaseCancelScope):
                 waiter = task._fut_waiter  # type: ignore[attr-defined]
                 if not isinstance(waiter, asyncio.Future) or not waiter.done():
                     origin._cancel_calls += 1
+                    print("cancelling")
                     if sys.version_info >= (3, 9):
                         task.cancel(f"Cancelled by cancel scope {id(origin):x}")
                     else:
                         task.cancel()
+                else:
+                    print("waiter is not a future or waiter is done")
+            else:
+                if task is current:
+                    print("is the current task")
+                else:
+                    assert task is not self._host_task and not _task_started(task)
+                    print("is not the host task, and has not started")
 
         # Deliver cancellation to child scopes that aren't shielded or running their own
         # cancellation callbacks
         for scope in self._child_scopes:
             if not scope._shield and not scope.cancel_called:
-                should_retry = scope._deliver_cancellation(origin) or should_retry
+                should_retry = (
+                    scope._deliver_cancellation(origin, indent) or should_retry
+                )
 
         # Schedule another callback if there are still tasks left
         if origin is self:
             if should_retry:
+                print("scheduling a retry")
                 self._cancel_handle = get_running_loop().call_soon(
                     self._deliver_cancellation, origin
                 )
             else:
+                print("stopping cancellation")
                 self._cancel_handle = None
 
         return should_retry
@@ -658,24 +677,28 @@ class TaskGroup(abc.TaskGroup):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> bool | None:
-        ignore_exception = self.cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         if exc_val is not None:
             self.cancel_scope.cancel()
             if not isinstance(exc_val, CancelledError):
                 self._exceptions.append(exc_val)
 
         cancelled_exc_while_waiting_tasks: CancelledError | None = None
-        while self._tasks:
-            try:
-                await asyncio.wait(self._tasks)
-            except CancelledError as exc:
-                # This task was cancelled natively; reraise the CancelledError later
-                # unless this task was already interrupted by another exception
-                self.cancel_scope.cancel()
-                if cancelled_exc_while_waiting_tasks is None:
-                    cancelled_exc_while_waiting_tasks = exc
+        with CancelScope(shield=True) as scope:
+            print(
+                f"task group {id(self):x} waiting for tasks to finish in cancel scope {id(scope):x}"
+            )
+            while self._tasks:
+                try:
+                    await asyncio.wait(self._tasks)
+                except CancelledError as exc:
+                    # This task was cancelled natively; reraise the CancelledError later
+                    # unless this task was already interrupted by another exception
+                    self.cancel_scope.cancel()
+                    if cancelled_exc_while_waiting_tasks is None:
+                        cancelled_exc_while_waiting_tasks = exc
 
         self._active = False
+        ignore_exception = self.cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         if self._exceptions:
             raise BaseExceptionGroup(
                 "unhandled errors in a TaskGroup", self._exceptions

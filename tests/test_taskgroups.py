@@ -797,12 +797,15 @@ async def test_exception_cancels_siblings() -> None:
 async def test_cancel_cascade() -> None:
     async def do_something() -> NoReturn:
         async with create_task_group() as tg2:
-            tg2.start_soon(sleep, 1)
+            print(f"tg2 ({id(tg2):x}) cancel scope: {id(tg2.cancel_scope):x}\n")
+            tg2.start_soon(sleep, 1, name="sleep")
 
+        print("exited task group tg2")
         raise Exception("foo")
 
     async with create_task_group() as tg:
-        tg.start_soon(do_something)
+        print(f"tg ({id(tg):x}) cancel scope: {id(tg.cancel_scope):x}")
+        tg.start_soon(do_something, name="do_something")
         await wait_all_tasks_blocked()
         tg.cancel_scope.cancel()
 
