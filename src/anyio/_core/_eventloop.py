@@ -155,10 +155,13 @@ def get_async_backend(asynclib_name: str | None = None) -> type[AsyncBackend]:
     if asynclib_name is None:
         asynclib_name = sniffio.current_async_library()
 
+    # We use our own dict instead of sys.modules to get the already imported back-end
+    # class because the appropriate modules in sys.modules could potentially be only
+    # partially initialized
     modulename = "anyio._backends._" + asynclib_name
     try:
-        return loaded_backends[modulename]
+        return loaded_backends[asynclib_name]
     except KeyError:
         module = import_module(modulename)
-        backend_class = loaded_backends[modulename] = getattr(module, "backend_class")
-        return backend_class
+        loaded_backends[asynclib_name] = module.backend_class
+        return module.backend_class
