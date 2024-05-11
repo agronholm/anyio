@@ -8,7 +8,7 @@ Fixes #. <!-- Provide issue number if exists -->
 ### Checklist
 
 If this is a user-facing code change, like a bugfix or a new feature, please ensure that
-the you've fulfilled the following conditions (where applicable):
+you've fulfilled the following conditions (where applicable):
 
 - [ ] You've added tests (in `tests/`) added which would fail without your patch
 - [ ] You've updated the documentation (in `docs/`, in case of behavior changes or new
