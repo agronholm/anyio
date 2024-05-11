@@ -209,6 +209,25 @@ class TestEvent:
         assert setter_started
         assert waiter_woke
 
+    async def test_event_wait_before_cancel_before_set(self) -> None:
+        setter_started = waiter_woke = False
+
+        async def setter() -> None:
+            nonlocal setter_started
+            setter_started = True
+            assert not event.is_set()
+            tg.cancel_scope.cancel()
+            event.set()
+
+        event = Event()
+        async with create_task_group() as tg:
+            tg.start_soon(setter)
+            await event.wait()
+            waiter_woke = True
+
+        assert setter_started
+        assert not waiter_woke
+
     async def test_statistics(self) -> None:
         async def waiter() -> None:
             await event.wait()

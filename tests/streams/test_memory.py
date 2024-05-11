@@ -17,7 +17,7 @@ from anyio import (
     fail_after,
     wait_all_tasks_blocked,
 )
-from anyio.abc import ObjectReceiveStream, ObjectSendStream
+from anyio.abc import ObjectReceiveStream, ObjectSendStream, TaskStatus
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 if sys.version_info < (3, 11):
@@ -298,34 +298,130 @@ async def test_send_when_cancelled() -> None:
     receive.close()
 
 
-async def test_cancel_during_receive() -> None:
+async def test_cancel_during_receive_after_send_nowait() -> None:
     """
-    Test that cancelling a pending receive() operation does not cause an item in the
-    stream to be lost.
+    Test that cancelling a pending receive() operation immediately after an item has
+    been sent to that receiver does not cause the item to be lost.
 
     """
-    receiver_scope = None
 
-    async def scoped_receiver() -> None:
-        nonlocal receiver_scope
+    async def scoped_receiver(task_status: TaskStatus[CancelScope]) -> None:
         with CancelScope() as receiver_scope:
+            task_status.started(receiver_scope)
             received.append(await receive.receive())
 
         assert receiver_scope.cancel_called
 
     received: list[str] = []
     send, receive = create_memory_object_stream[str]()
-    async with create_task_group() as tg:
-        tg.start_soon(scoped_receiver)
-        await wait_all_tasks_blocked()
-        send.send_nowait("hello")
-        assert receiver_scope is not None
-        receiver_scope.cancel()
+    with send, receive:
+        async with create_task_group() as tg:
+            receiver_scope = await tg.start(scoped_receiver)
+            await wait_all_tasks_blocked()
+            send.send_nowait("hello")
+            receiver_scope.cancel()
 
-    assert received == ["hello"]
+        assert received == ["hello"]
 
-    send.close()
-    receive.close()
+
+async def test_cancel_during_receive_before_send_nowait() -> None:
+    """
+    Test that cancelling a pending receive() operation immediately before an item is
+    sent to that receiver does not cause the item to be lost.
+
+    Note: AnyIO's memory stream behavior here currently differs slightly from Trio's
+    memory channel behavior. Neither will lose items in this case, but Trio's memory
+    channels use abort_fn to have an extra stage during cancellation delivery, so with a
+    Trio memory channel send_nowait() will raise WouldBlock even if the receive()
+    operation has not raised Cancelled yet. This test is intended only as a regression
+    test for the bug where AnyIO dropped items in this situation; addressing the
+    (possible) issue where AnyIO behaves slightly differently from Trio in this
+    situation (in terms of when cancellation is delivered) will involve modifying this
+    test. See #728.
+
+    """
+
+    async def scoped_receiver(task_status: TaskStatus[CancelScope]) -> None:
+        with CancelScope() as receiver_scope:
+            task_status.started(receiver_scope)
+            received.append(await receive.receive())
+
+        assert receiver_scope.cancel_called
+
+    received: list[str] = []
+    send, receive = create_memory_object_stream[str]()
+    with send, receive:
+        async with create_task_group() as tg:
+            receiver_scope = await tg.start(scoped_receiver)
+            await wait_all_tasks_blocked()
+            receiver_scope.cancel()
+            send.send_nowait("hello")
+
+        assert received == ["hello"]
+
+
+async def test_cancel_during_send_after_receive_nowait() -> None:
+    """
+    Test that cancelling a pending send() operation immediately after its item has been
+    received does not cause send() to raise cancelled after successfully sending the
+    item.
+
+    """
+    sender_woke = False
+
+    async def scoped_sender(task_status: TaskStatus[CancelScope]) -> None:
+        nonlocal sender_woke
+        with CancelScope() as sender_scope:
+            task_status.started(sender_scope)
+            await send.send("hello")
+            sender_woke = True
+
+    send, receive = create_memory_object_stream[str]()
+    with send, receive:
+        async with create_task_group() as tg:
+            sender_scope = await tg.start(scoped_sender)
+            await wait_all_tasks_blocked()
+            assert receive.receive_nowait() == "hello"
+            sender_scope.cancel()
+
+        assert sender_woke
+
+
+async def test_cancel_during_send_before_receive_nowait() -> None:
+    """
+    Test that cancelling a pending send() operation immediately before its item is
+    received does not cause send() to raise cancelled after successfully sending the
+    item.
+
+    Note: AnyIO's memory stream behavior here currently differs slightly from Trio's
+    memory channel behavior. Neither will allow send() to successfully send an item but
+    still raise cancelled after, but Trio's memory channels use abort_fn to have an
+    extra stage during cancellation delivery, so with a Trio memory channel
+    receive_nowait() will raise WouldBlock even if the send() operation has not raised
+    Cancelled yet. This test is intended only as a regression test for the bug where
+    send() incorrectly raised cancelled in this situation; addressing the (possible)
+    issue where AnyIO behaves slightly differently from Trio in this situation (in terms
+    of when cancellation is delivered) will involve modifying this test. See #728.
+
+    """
+    sender_woke = False
+
+    async def scoped_sender(task_status: TaskStatus[CancelScope]) -> None:
+        nonlocal sender_woke
+        with CancelScope() as sender_scope:
+            task_status.started(sender_scope)
+            await send.send("hello")
+            sender_woke = True
+
+    send, receive = create_memory_object_stream[str]()
+    with send, receive:
+        async with create_task_group() as tg:
+            sender_scope = await tg.start(scoped_sender)
+            await wait_all_tasks_blocked()
+            sender_scope.cancel()
+            assert receive.receive_nowait() == "hello"
+
+        assert sender_woke
 
 
 async def test_close_receive_after_send() -> None:
