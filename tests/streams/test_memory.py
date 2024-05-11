@@ -224,10 +224,11 @@ async def test_close_send_while_receiving() -> None:
 
 
 async def test_close_receive_while_sending() -> None:
-    send, receive = create_memory_object_stream[str](0)
+    # We send None here as a regression test for #731
+    send, receive = create_memory_object_stream[None](0)
     with pytest.raises(ExceptionGroup) as exc:
         async with create_task_group() as tg:
-            tg.start_soon(send.send, "hello")
+            tg.start_soon(send.send, None)
             await wait_all_tasks_blocked()
             await receive.aclose()
 
