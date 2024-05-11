@@ -28,6 +28,20 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Emit a ``ResourceWarning`` for ``MemoryObjectReceiveStream`` and
   ``MemoryObjectSendStream`` that were garbage collected without being closed (PR by
   Andrey Kazantcev)
+- Fixed memory object stream operations incorrectly raising cancelled under certain
+  conditions where it is too late to do so:
+
+  - Fixed memory object streams dropping items when
+    ``MemoryObjectSendStream.send_nowait()`` was called immediately after cancelling the
+    scope of an ``await MemoryObjectReceiveStream.receive()`` call (`#728
+    <https://github.com/agronholm/anyio/issues/728>`_)
+
+  - Fixed ``MemoryObjectSendStream.send()`` raising cancelled despite succeeding when
+    ``MemoryObjectReceiveStream.receive_nowait()`` is called immediately after
+    cancelling the scope of the ``MemoryObjectSendStream.send()`` call (`#729
+    <https://github.com/agronholm/anyio/issues/729>`_)
+
+  (PR by Ganden Schaffner)
 
 **4.3.0**
 
