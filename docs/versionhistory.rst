@@ -28,6 +28,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Emit a ``ResourceWarning`` for ``MemoryObjectReceiveStream`` and
   ``MemoryObjectSendStream`` that were garbage collected without being closed (PR by
   Andrey Kazantcev)
+- Added ``__slots__`` to ``AsyncResource`` so that child classes can use ``__slots__``
+  (PR by Justin Su)
 
 **4.3.0**
 
