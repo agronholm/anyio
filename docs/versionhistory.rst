@@ -29,7 +29,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``MemoryObjectSendStream`` that were garbage collected without being closed (PR by
   Andrey Kazantcev)
 - Added ``__slots__`` to ``AsyncResource`` so that child classes can use ``__slots__``
-  (PR by Justin Su)
+  (`#733 <https://github.com/agronholm/anyio/pull/733>`_; PR by Justin Su)
 
 **4.3.0**
 
