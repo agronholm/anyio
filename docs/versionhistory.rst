@@ -12,6 +12,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added the ``BlockingPortalProvider`` class to aid with constructing synchronous
   counterparts to asynchronous interfaces that would otherwise require multiple blocking
   portals
+- Added ``__slots__`` to ``AsyncResource`` so that child classes can use ``__slots__``
+  (`#733 <https://github.com/agronholm/anyio/pull/733>`_; PR by Justin Su)
 - Fixed erroneous ``RuntimeError: called 'started' twice on the same task status``
   when cancelling a task in a TaskGroup created with the ``start()`` method before
   the first checkpoint is reached after calling ``task_status.started()``
