@@ -376,7 +376,7 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    def get_running_tasks(cls) -> list[TaskInfo]:
+    def get_running_tasks(cls) -> Sequence[TaskInfo]:
         pass
 
     @classmethod

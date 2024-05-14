@@ -25,6 +25,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   variable when setting the ``debug`` flag in ``anyio.run()``
 - Fixed ``SocketStream.receive()`` not detecting EOF on asyncio if there is also data in
   the read buffer (`#701 <https://github.com/agronholm/anyio/issues/701>`_)
+- Fixed ``MemoryObjectStream`` dropping an item if the item is delivered to a recipient
+  that is waiting to receive an item but has a cancellation pending
+  (`#728 <https://github.com/agronholm/anyio/issues/728>`_)
 - Emit a ``ResourceWarning`` for ``MemoryObjectReceiveStream`` and
   ``MemoryObjectSendStream`` that were garbage collected without being closed (PR by
   Andrey Kazantcev)
