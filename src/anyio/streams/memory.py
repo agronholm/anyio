@@ -45,7 +45,7 @@ class MemoryObjectStreamState(Generic[T_Item]):
     buffer: deque[T_Item] = field(init=False, default_factory=deque)
     open_send_channels: int = field(init=False, default=0)
     open_receive_channels: int = field(init=False, default=0)
-    waiting_receivers: OrderedDict[Event, MemoryObjectItemReceiver] = field(
+    waiting_receivers: OrderedDict[Event, MemoryObjectItemReceiver[T_Item]] = field(
         init=False, default_factory=OrderedDict
     )
     waiting_senders: OrderedDict[Event, T_Item] = field(
