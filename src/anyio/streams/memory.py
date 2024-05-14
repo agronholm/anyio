@@ -244,7 +244,8 @@ class MemoryObjectSendStream(Generic[T_contra], ObjectSendStream[T_contra]):
                 self._state.waiting_senders.pop(send_event, None)
                 raise
 
-            if self._state.waiting_senders.pop(send_event, None):
+            if send_event in self._state.waiting_senders:
+                del self._state.waiting_senders[send_event]
                 raise BrokenResourceError from None
 
     def clone(self) -> MemoryObjectSendStream[T_contra]:
