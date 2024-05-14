@@ -46,6 +46,10 @@ class TaskInfo:
         return f"{self.__class__.__name__}(id={self.id!r}, name={self.name!r})"
 
     def has_pending_cancellation(self) -> bool:
+        """
+        Return ``True`` if the task has a cancellation pending, ``False`` otherwise.
+
+        """
         return False
 
 
