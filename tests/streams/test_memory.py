@@ -476,3 +476,25 @@ async def test_not_closed_warning() -> None:
     with pytest.warns(ResourceWarning, match="Unclosed <MemoryObjectReceiveStream>"):
         del receive
         gc.collect()
+
+
+@pytest.mark.parametrize("anyio_backend", ["asyncio"], indirect=True)
+async def test_send_to_natively_cancelled_receiver() -> None:
+    """
+    Test that if a task waiting on receive.receive() is cancelled and then another
+    task sends an item, said item is not delivered to the task with a pending
+    cancellation, but rather to the next one in line.
+
+    """
+    from asyncio import CancelledError, create_task
+
+    send, receive = create_memory_object_stream[str](1)
+    with send, receive:
+        receive_task = create_task(receive.receive())
+        await wait_all_tasks_blocked()  # ensure that the task is waiting to receive
+        receive_task.cancel()
+        send.send_nowait("hello")
+        with pytest.raises(CancelledError):
+            await receive_task
+
+        assert receive.receive_nowait() == "hello"
