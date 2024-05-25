@@ -1847,7 +1847,10 @@ class AsyncIOTaskInfo(TaskInfo):
         if sys.version_info >= (3, 11):
             if task.cancelling():
                 return True
-        elif task._must_cancel:
+        elif (
+            isinstance(task._fut_waiter, asyncio.Future)
+            and task._fut_waiter.cancelled()
+        ):
             return True
 
         if task_state := _task_states.get(task):
