@@ -96,7 +96,7 @@ async def test_get_running_tasks() -> None:
     for task, expected_name in zip(task_infos, expected_names):
         assert task.parent_id == host_task.id
         assert task.name == expected_name
-        assert repr(task) == f"TaskInfo(id={task.id}, name={expected_name!r})"
+        assert repr(task).endswith(f"TaskInfo(id={task.id}, name={expected_name!r})")
 
 
 @pytest.mark.skipif(

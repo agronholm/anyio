@@ -7,6 +7,7 @@ import math
 import socket
 import sys
 import threading
+import weakref
 from asyncio import (
     AbstractEventLoop,
     CancelledError,
@@ -596,14 +597,14 @@ class TaskState:
     itself because there are no guarantees about its implementation.
     """
 
-    __slots__ = "parent_id", "cancel_scope"
+    __slots__ = "parent_id", "cancel_scope", "__weakref__"
 
     def __init__(self, parent_id: int | None, cancel_scope: CancelScope | None):
         self.parent_id = parent_id
         self.cancel_scope = cancel_scope
 
 
-_task_states = WeakKeyDictionary()  # type: WeakKeyDictionary[asyncio.Task, TaskState]
+_task_states: WeakKeyDictionary[asyncio.Task, TaskState] = WeakKeyDictionary()
 
 
 #
@@ -1833,14 +1834,36 @@ class _SignalReceiver:
 #
 
 
-def _create_task_info(task: asyncio.Task) -> TaskInfo:
-    task_state = _task_states.get(task)
-    if task_state is None:
-        parent_id = None
-    else:
-        parent_id = task_state.parent_id
+class AsyncIOTaskInfo(TaskInfo):
+    def __init__(self, task: asyncio.Task):
+        task_state = _task_states.get(task)
+        if task_state is None:
+            parent_id = None
+        else:
+            parent_id = task_state.parent_id
 
-    return TaskInfo(id(task), parent_id, task.get_name(), task.get_coro())
+        super().__init__(id(task), parent_id, task.get_name(), task.get_coro())
+        self._task = weakref.ref(task)
+
+    def has_pending_cancellation(self) -> bool:
+        if not (task := self._task()):
+            # If the task isn't around anymore, it won't have a pending cancellation
+            return False
+
+        if sys.version_info >= (3, 11):
+            if task.cancelling():
+                return True
+        elif (
+            isinstance(task._fut_waiter, asyncio.Future)
+            and task._fut_waiter.cancelled()
+        ):
+            return True
+
+        if task_state := _task_states.get(task):
+            if cancel_scope := task_state.cancel_scope:
+                return cancel_scope.cancel_called or cancel_scope._parent_cancelled()
+
+        return False
 
 
 class TestRunner(abc.TestRunner):
@@ -2458,11 +2481,11 @@ class AsyncIOBackend(AsyncBackend):
 
     @classmethod
     def get_current_task(cls) -> TaskInfo:
-        return _create_task_info(current_task())  # type: ignore[arg-type]
+        return AsyncIOTaskInfo(current_task())  # type: ignore[arg-type]
 
     @classmethod
-    def get_running_tasks(cls) -> list[TaskInfo]:
-        return [_create_task_info(task) for task in all_tasks() if not task.done()]
+    def get_running_tasks(cls) -> Sequence[TaskInfo]:
+        return [AsyncIOTaskInfo(task) for task in all_tasks() if not task.done()]
 
     @classmethod
     async def wait_all_tasks_blocked(cls) -> None:

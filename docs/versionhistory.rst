@@ -10,6 +10,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   portals
 - Added ``__slots__`` to ``AsyncResource`` so that child classes can use ``__slots__``
   (`#733 <https://github.com/agronholm/anyio/pull/733>`_; PR by Justin Su)
+- Added the ``TaskInfo.has_pending_cancellation()`` method
+- Fixed erroneous ``RuntimeError: called 'started' twice on the same task status``
+  when cancelling a task in a TaskGroup created with the ``start()`` method before
+  the first checkpoint is reached after calling ``task_status.started()``
+  (`#706 <https://github.com/agronholm/anyio/issues/706>`_; PR by Dominik Schwabe)
 - Fixed two bugs with ``TaskGroup.start()`` on asyncio:
 
   * Fixed erroneous ``RuntimeError: called 'started' twice on the same task status``
@@ -32,6 +37,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   variable when setting the ``debug`` flag in ``anyio.run()``
 - Fixed ``SocketStream.receive()`` not detecting EOF on asyncio if there is also data in
   the read buffer (`#701 <https://github.com/agronholm/anyio/issues/701>`_)
+- Fixed ``MemoryObjectStream`` dropping an item if the item is delivered to a recipient
+  that is waiting to receive an item but has a cancellation pending
+  (`#728 <https://github.com/agronholm/anyio/issues/728>`_)
 - Emit a ``ResourceWarning`` for ``MemoryObjectReceiveStream`` and
   ``MemoryObjectSendStream`` that were garbage collected without being closed (PR by
   Andrey Kazantcev)
