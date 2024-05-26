@@ -5,15 +5,15 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
-- Fixed a race condition that caused crashes when multiple event loops of the same
-  backend were running in separate threads and simultaneously attempted to use AnyIO for
-  their first time (`#425 <https://github.com/agronholm/anyio/issues/425>`_; PR by David
-  Jiricek and Ganden Schaffner)
 - Added the ``BlockingPortalProvider`` class to aid with constructing synchronous
   counterparts to asynchronous interfaces that would otherwise require multiple blocking
   portals
 - Added ``__slots__`` to ``AsyncResource`` so that child classes can use ``__slots__``
   (`#733 <https://github.com/agronholm/anyio/pull/733>`_; PR by Justin Su)
+- Fixed a race condition that caused crashes when multiple event loops of the same
+  backend were running in separate threads and simultaneously attempted to use AnyIO for
+  their first time (`#425 <https://github.com/agronholm/anyio/issues/425>`_; PR by David
+  Jiricek and Ganden Schaffner)
 - Fixed erroneous ``RuntimeError: called 'started' twice on the same task status``
   when cancelling a task in a TaskGroup created with the ``start()`` method before
   the first checkpoint is reached after calling ``task_status.started()``
