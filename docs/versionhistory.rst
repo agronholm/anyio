@@ -5,9 +5,15 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed a race condition that caused crashes when multiple event loops of the same
+  backend were running in separate threads and simultaneously attempted to use AnyIO for
+  their first time (`#425 <https://github.com/agronholm/anyio/issues/425>`_; PR by David
+  Jiricek and Ganden Schaffner)
 - Added the ``BlockingPortalProvider`` class to aid with constructing synchronous
   counterparts to asynchronous interfaces that would otherwise require multiple blocking
   portals
+- Added ``__slots__`` to ``AsyncResource`` so that child classes can use ``__slots__``
+  (`#733 <https://github.com/agronholm/anyio/pull/733>`_; PR by Justin Su)
 - Fixed two bugs with ``TaskGroup.start()`` on asyncio:
 
   * Fixed erroneous ``RuntimeError: called 'started' twice on the same task status``
@@ -29,6 +35,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Emit a ``ResourceWarning`` for ``MemoryObjectReceiveStream`` and
   ``MemoryObjectSendStream`` that were garbage collected without being closed (PR by
   Andrey Kazantcev)
+- Fixed ``MemoryObjectSendStream.send()`` not raising ``BrokenResourceError`` when the
+  last corresponding ``MemoryObjectReceiveStream`` is closed while waiting to send a
+  falsey item (`#731 <https://github.com/agronholm/anyio/issues/731>`_; PR by Ganden
+  Schaffner)
 
 **4.3.0**
 
