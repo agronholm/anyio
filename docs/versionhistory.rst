@@ -5,10 +5,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
-- Fixed a race condition that caused crashes when multiple event loops of the same
-  backend were running in separate threads and simultaneously attempted to use AnyIO for
-  their first time (`#425 <https://github.com/agronholm/anyio/issues/425>`_; PR by David
-  Jiricek and Ganden Schaffner)
 - Added the ``BlockingPortalProvider`` class to aid with constructing synchronous
   counterparts to asynchronous interfaces that would otherwise require multiple blocking
   portals
@@ -23,6 +19,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * Fixed the entire task group being cancelled if a ``TaskGroup.start()`` call gets
     cancelled (`#685 <https://github.com/agronholm/anyio/issues/685>`_,
     `#710 <https://github.com/agronholm/anyio/issues/710>`_)
+- Fixed a race condition that caused crashes when multiple event loops of the same
+  backend were running in separate threads and simultaneously attempted to use AnyIO for
+  their first time (`#425 <https://github.com/agronholm/anyio/issues/425>`_; PR by David
+  Jiricek and Ganden Schaffner)
 - Fixed cancellation delivery on asyncio incrementing the wrong cancel scope's
   cancellation counter when cascading a cancel operation to a child scope, thus failing
   to uncancel the host task (`#716 <https://github.com/agronholm/anyio/issues/716>`_)
