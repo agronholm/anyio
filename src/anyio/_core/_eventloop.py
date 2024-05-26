@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import os
 import sys
 import threading
 from collections.abc import Awaitable, Callable, Generator
@@ -26,6 +27,10 @@ PosArgsT = TypeVarTuple("PosArgsT")
 
 threadlocals = threading.local()
 loaded_backends: dict[str, type[AsyncBackend]] = {}
+lock_detected_backend = os.getenv(
+    "ANYIO_LOCK_DETECTED_BACKEND", "0"
+) == "1" and not os.getenv("PYTEST_CURRENT_TEST")
+locked_backend: type[AsyncBackend]
 
 
 def run(
@@ -152,7 +157,15 @@ def claim_worker_thread(
 
 
 def get_async_backend(asynclib_name: str | None = None) -> type[AsyncBackend]:
+    global locked_backend
+
     if asynclib_name is None:
+        if lock_detected_backend:
+            try:
+                return locked_backend
+            except NameError:
+                pass
+
         asynclib_name = sniffio.current_async_library()
 
     # We use our own dict instead of sys.modules to get the already imported back-end
@@ -163,4 +176,7 @@ def get_async_backend(asynclib_name: str | None = None) -> type[AsyncBackend]:
     except KeyError:
         module = import_module(f"anyio._backends._{asynclib_name}")
         loaded_backends[asynclib_name] = module.backend_class
+        if lock_detected_backend:
+            locked_backend = module.backend_class
+
         return module.backend_class

@@ -5,6 +5,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added an opt-in performance optimization that decreases AnyIO's overhead (compared to
+  native calls on the selected async backend) by locking in the first automatically
+  detected async backend, thus always assuming the same backend for future calls by
+  setting the ``ANYIO_LOCK_DETECTED_BACKEND`` environment variable to ``1``
 - Added the ``BlockingPortalProvider`` class to aid with constructing synchronous
   counterparts to asynchronous interfaces that would otherwise require multiple blocking
   portals

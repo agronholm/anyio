@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from _pytest.logging import LogCaptureFixture
+from _pytest.monkeypatch import MonkeyPatch
 from _pytest.pytester import Pytester
 
 from anyio import get_all_backends
@@ -418,3 +419,27 @@ def test_hypothesis_function_mark(testdir: Pytester) -> None:
     result.assert_outcomes(
         passed=2 * len(get_all_backends()), xfailed=2 * len(get_all_backends())
     )
+
+
+def test_lock_backend(testdir: Pytester, monkeypatch: MonkeyPatch) -> None:
+    testdir.makepyfile(
+        """
+        import os
+        import sys
+
+        import pytest
+
+        pytestmark = pytest.mark.anyio
+
+        os.environ["ANYIO_LOCK_DETECTED_BACKEND"] = "1"
+        del sys.modules['anyio._core._eventloop']
+        del sys.modules['anyio']
+        import anyio
+
+        async def test_sleep():
+            await anyio.sleep(0)
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=len(get_all_backends()))
