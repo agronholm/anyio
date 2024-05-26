@@ -714,7 +714,9 @@ class TaskGroup(abc.TaskGroup):
                 exc = e
 
             if exc is not None:
-                # The future can only be cancelled if the host task was cancelled
+                # The future can only be in the cancelled state if the host task was
+                # cancelled, so return immediately instead of adding one more
+                # CancelledError to the exceptions list
                 if task_status_future is not None and task_status_future.cancelled():
                     return
 
