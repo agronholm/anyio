@@ -10,14 +10,19 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   portals
 - Added ``__slots__`` to ``AsyncResource`` so that child classes can use ``__slots__``
   (`#733 <https://github.com/agronholm/anyio/pull/733>`_; PR by Justin Su)
+- Fixed two bugs with ``TaskGroup.start()`` on asyncio:
+
+  * Fixed erroneous ``RuntimeError: called 'started' twice on the same task status``
+    when cancelling a task in a TaskGroup created with the ``start()`` method before
+    the first checkpoint is reached after calling ``task_status.started()``
+    (`#706 <https://github.com/agronholm/anyio/issues/706>`_; PR by Dominik Schwabe)
+  * Fixed the entire task group being cancelled if a ``TaskGroup.start()`` call gets
+    cancelled (`#685 <https://github.com/agronholm/anyio/issues/685>`_,
+    `#710 <https://github.com/agronholm/anyio/issues/710>`_)
 - Fixed a race condition that caused crashes when multiple event loops of the same
   backend were running in separate threads and simultaneously attempted to use AnyIO for
   their first time (`#425 <https://github.com/agronholm/anyio/issues/425>`_; PR by David
   Jiricek and Ganden Schaffner)
-- Fixed erroneous ``RuntimeError: called 'started' twice on the same task status``
-  when cancelling a task in a TaskGroup created with the ``start()`` method before
-  the first checkpoint is reached after calling ``task_status.started()``
-  (`#706 <https://github.com/agronholm/anyio/issues/706>`_; PR by Dominik Schwabe)
 - Fixed cancellation delivery on asyncio incrementing the wrong cancel scope's
   cancellation counter when cascading a cancel operation to a child scope, thus failing
   to uncancel the host task (`#716 <https://github.com/agronholm/anyio/issues/716>`_)
