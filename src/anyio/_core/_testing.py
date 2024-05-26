@@ -67,7 +67,7 @@ def get_running_tasks() -> list[TaskInfo]:
     """
     Return a list of running tasks in the current event loop.
 
-    :return: a sequence of task info objects
+    :return: a list of task info objects
 
     """
     return cast("list[TaskInfo]", get_async_backend().get_running_tasks())
