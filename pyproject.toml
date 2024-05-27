@@ -51,7 +51,7 @@ test = [
     "pytest >= 7.0",
     "pytest-mock >= 3.6.1",
     "trustme",
-    "uvloop >= 0.17; platform_python_implementation == 'CPython' and platform_system != 'Windows'",
+    "uvloop >= 0.17; platform_python_implementation == 'CPython' and platform_system != 'Windows' and python_version < '3.13'",
 ]
 doc = [
     "packaging",
@@ -87,7 +87,7 @@ extend-select = [
 "required-imports" = ["from __future__ import annotations"]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.13"
 strict = true
 ignore_missing_imports = true
 disallow_any_generics = false
