@@ -68,6 +68,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``Process.stderr.aclose()`` not including a checkpoint on asyncio (PR by Ganden
   Schaffner)
 - Fixed documentation on how to provide your own typed attributes
+- Adjusted tests to expect a ``DeprecationWarning`` from
+  ``pathlib.PurePath.is_reserved()`` on Python 3.13 and later
 
 **4.2.0**
 
