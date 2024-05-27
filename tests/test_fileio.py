@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import os
 import pathlib
 import platform
@@ -271,7 +272,14 @@ class TestPath:
 
     def test_is_reserved(self) -> None:
         expected_result = platform.system() == "Windows"
-        assert Path("nul").is_reserved() == expected_result
+        with (
+            contextlib.nullcontext()
+            if sys.version_info < (3, 13)
+            else pytest.warns(
+                DeprecationWarning, match=r"is_reserved\(\) is deprecated "
+            )
+        ):
+            assert Path("nul").is_reserved() == expected_result
 
     @pytest.mark.skipif(
         platform.system() == "Windows",
