@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Added support for the ``from_uri()``, ``full_match()``, ``parser`` methods/properties
+  in ``anyio.Path``, newly added in Python 3.13
+
 **4.4.0**
 
 - Added the ``BlockingPortalProvider`` class to aid with constructing synchronous
