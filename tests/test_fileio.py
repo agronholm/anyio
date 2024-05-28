@@ -186,6 +186,15 @@ class TestPath:
         else:
             assert Path("/foo/bar").as_uri() == "file:///foo/bar"
 
+    @pytest.mark.skipif(
+        sys.version_info < (3, 13),
+        reason="Path.from_uri() is only available on Python 3.13+",
+    )
+    def test_from_uri(self) -> None:
+        path = Path.from_uri("file:///foo/bar")
+        assert isinstance(path, Path)
+        assert path.as_uri() == "file:///foo/bar"
+
     async def test_cwd(self) -> None:
         result = await Path.cwd()
         assert isinstance(result, Path)
@@ -269,6 +278,7 @@ class TestPath:
         assert not await Path("/gfobj4ewiotj").is_mount()
         assert await Path("/").is_mount()
 
+    @pytest.mark.filterwarnings("ignore::DeprecationWarning")
     def test_is_reserved(self) -> None:
         expected_result = platform.system() == "Windows"
         assert Path("nul").is_reserved() == expected_result
@@ -338,6 +348,14 @@ class TestPath:
     def test_joinpath(self) -> None:
         path = Path("/foo").joinpath("bar")
         assert path == Path("/foo/bar")
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 13),
+        reason="Path.full_match() is only available on Python 3.13+",
+    )
+    def test_fullmatch(self) -> None:
+        assert Path("/foo/bar").full_match("/foo/*")
+        assert not Path("/foo/bar").full_match("/baz/*")
 
     def test_match(self) -> None:
         assert Path("/foo/bar").match("/foo/*")
