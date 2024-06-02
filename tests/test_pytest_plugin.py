@@ -421,25 +421,39 @@ def test_hypothesis_function_mark(testdir: Pytester) -> None:
     )
 
 
-def test_lock_backend(testdir: Pytester, monkeypatch: MonkeyPatch) -> None:
-    testdir.makepyfile(
+@pytest.mark.parametrize("backend_name", get_all_backends())
+def test_lock_backend(
+    backend_name: str, testdir: Pytester, monkeypatch: MonkeyPatch
+) -> None:
+    testdir.makeconftest(
+        f"""
+        import os
+        import sys
+
+        pytest_plugins = ["anyio"]
+
+        os.environ["ANYIO_BACKEND"] = "{backend_name}"
+        del sys.modules['anyio._core._eventloop']
+        del sys.modules['anyio.pytest_plugin']
+        del sys.modules['anyio']
         """
+    )
+    testdir.makepyfile(
+        f"""
         import os
         import sys
 
         import pytest
+        import anyio
 
         pytestmark = pytest.mark.anyio
 
-        os.environ["ANYIO_LOCK_DETECTED_BACKEND"] = "1"
-        del sys.modules['anyio._core._eventloop']
-        del sys.modules['anyio']
-        import anyio
-
-        async def test_sleep():
+        async def test_sleep(anyio_backend_name):
+            assert anyio.get_all_backends() == (anyio_backend_name,)
+            assert anyio_backend_name == {backend_name!r}
             await anyio.sleep(0)
         """
     )
 
-    result = testdir.runpytest(*pytest_args)
-    result.assert_outcomes(passed=len(get_all_backends()))
+    result = testdir.runpytest("-p", "no:anyio")
+    result.assert_outcomes(passed=1)

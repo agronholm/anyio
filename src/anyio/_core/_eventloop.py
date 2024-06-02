@@ -27,22 +27,25 @@ PosArgsT = TypeVarTuple("PosArgsT")
 
 threadlocals = threading.local()
 loaded_backends: dict[str, type[AsyncBackend]] = {}
-lock_detected_backend = os.getenv(
-    "ANYIO_LOCK_DETECTED_BACKEND", "0"
-) == "1" and not os.getenv("PYTEST_CURRENT_TEST")
-locked_backend: type[AsyncBackend]
+forced_backend_name = os.getenv("ANYIO_BACKEND")
+forced_backend: type[AsyncBackend]
 
 
 def run(
     func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
     *args: Unpack[PosArgsT],
-    backend: str = "asyncio",
+    backend: str | None = None,
     backend_options: dict[str, Any] | None = None,
 ) -> T_Retval:
     """
     Run the given coroutine function in an asynchronous event loop.
 
     The current thread must not be already running an event loop.
+
+    The backend will be chosen using the following priority list:
+    * the ``backend`` argument, if not ``None``
+    * the ``ANYIO_BACKEND`` environment variable
+    * ``asyncio``
 
     :param func: a coroutine function
     :param args: positional arguments to ``func``
@@ -63,6 +66,7 @@ def run(
     else:
         raise RuntimeError(f"Already running {asynclib_name} in this thread")
 
+    backend = backend or os.getenv("ANYIO_BACKEND") or "asyncio"
     try:
         async_backend = get_async_backend(backend)
     except ImportError as exc:
@@ -129,7 +133,16 @@ def current_time() -> float:
 
 
 def get_all_backends() -> tuple[str, ...]:
-    """Return a tuple of the names of all built-in backends."""
+    """
+    Return a tuple of the names of all built-in backends.
+
+    If the ``ANYIO_BACKEND`` environment variable was set, then the returned tuple will
+    only contain that backend.
+
+    """
+    if forced_backend_name:
+        return (forced_backend_name,)
+
     return BACKENDS
 
 
@@ -157,16 +170,16 @@ def claim_worker_thread(
 
 
 def get_async_backend(asynclib_name: str | None = None) -> type[AsyncBackend]:
-    global locked_backend
+    global forced_backend
 
     if asynclib_name is None:
-        if lock_detected_backend:
+        if os.getenv("PYTEST_CURRENT_TEST"):
             try:
-                return locked_backend
+                return forced_backend
             except NameError:
                 pass
 
-        asynclib_name = sniffio.current_async_library()
+        asynclib_name = forced_backend_name or sniffio.current_async_library()
 
     # We use our own dict instead of sys.modules to get the already imported back-end
     # class because the appropriate modules in sys.modules could potentially be only
@@ -176,7 +189,7 @@ def get_async_backend(asynclib_name: str | None = None) -> type[AsyncBackend]:
     except KeyError:
         module = import_module(f"anyio._backends._{asynclib_name}")
         loaded_backends[asynclib_name] = module.backend_class
-        if lock_detected_backend:
-            locked_backend = module.backend_class
+        if asynclib_name == forced_backend_name:
+            forced_backend = module.backend_class
 
         return module.backend_class
