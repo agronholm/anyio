@@ -425,19 +425,6 @@ def test_hypothesis_function_mark(testdir: Pytester) -> None:
 def test_lock_backend(
     backend_name: str, testdir: Pytester, monkeypatch: MonkeyPatch
 ) -> None:
-    testdir.makeconftest(
-        f"""
-        import os
-        import sys
-
-        pytest_plugins = ["anyio"]
-
-        os.environ["ANYIO_BACKEND"] = "{backend_name}"
-        del sys.modules['anyio._core._eventloop']
-        del sys.modules['anyio.pytest_plugin']
-        del sys.modules['anyio']
-        """
-    )
     testdir.makepyfile(
         f"""
         import os
@@ -455,5 +442,6 @@ def test_lock_backend(
         """
     )
 
-    result = testdir.runpytest("-p", "no:anyio")
+    monkeypatch.setenv("ANYIO_BACKEND", backend_name)
+    result = testdir.runpytest_subprocess(*pytest_args)
     result.assert_outcomes(passed=1)
