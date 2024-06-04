@@ -8,6 +8,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added an opt-in performance optimization that decreases AnyIO's overhead (compared to
   native calls on the selected async backend), used by setting the ``ANYIO_BACKEND``
   environment variable to ``auto``, ``asyncio`` or ``trio``
+- Added support for the ``from_uri()``, ``full_match()``, ``parser`` methods/properties
+  in ``anyio.Path``, newly added in Python 3.13
 
 **4.4.0**
 
