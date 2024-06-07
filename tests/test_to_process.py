@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import platform
 import sys
 import time
 from functools import partial
@@ -118,9 +117,6 @@ async def test_exec_while_pruning() -> None:
         workers.discard(fake_idle_process)
 
 
-@pytest.mark.skipif(
-    platform.system() != "Windows", reason="This test fails only on Windows"
-)
 async def test_nonexistent_main_module(
     monkeypatch: MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -129,6 +125,7 @@ async def test_nonexistent_main_module(
     module doesn't exist. Regression test for #696.
     """
 
-    script_path = tmp_path / "nonexistent"
-    monkeypatch.setattr("__main__.__file__", str(script_path))
+    script_path = tmp_path / "badscript"
+    script_path.touch()
+    monkeypatch.setattr("__main__.__file__", str(script_path / "__main__.py"))
     await to_process.run_sync(os.getpid)
