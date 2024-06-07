@@ -223,24 +223,17 @@ def process_worker() -> None:
                 main_module_path: str | None
                 sys.path, main_module_path = args
                 del sys.modules["__main__"]
-                with open("/tmp/output", "w") as f:
-                    print("main module path:", main_module_path, file=f)
-                    if main_module_path:
-                        # Load the parent's main module but as __mp_main__ instead of
-                        # __main__ (like multiprocessing does) to avoid infinite recursion
-                        try:
-                            spec = spec_from_file_location(
-                                "__mp_main__", main_module_path
-                            )
-                            print(f"{spec=}", file=f)
-                            if spec and spec.loader:
-                                print(f"{spec.loader=}", file=f)
-                                main = module_from_spec(spec)
-                                spec.loader.exec_module(main)
-                                sys.modules["__main__"] = main
-                                print("loaded", main_module_path, file=f)
-                        except BaseException as exc:
-                            exception = exc
+                if main_module_path:
+                    # Load the parent's main module but as __mp_main__ instead of
+                    # __main__ (like multiprocessing does) to avoid infinite recursion
+                    try:
+                        spec = spec_from_file_location("__mp_main__", main_module_path)
+                        if spec and spec.loader:
+                            main = module_from_spec(spec)
+                            spec.loader.exec_module(main)
+                            sys.modules["__main__"] = main
+                    except BaseException as exc:
+                        exception = exc
         try:
             if exception is not None:
                 status = b"EXCEPTION"
