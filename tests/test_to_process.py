@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import os
+import platform
 import sys
 import time
 from functools import partial
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+from pytest import MonkeyPatch
 
 from anyio import (
     CancelScope,
@@ -113,3 +116,19 @@ async def test_exec_while_pruning() -> None:
         assert idle_workers[0][0] is real_worker
     finally:
         workers.discard(fake_idle_process)
+
+
+@pytest.mark.skipif(
+    platform.system() != "Windows", reason="This test fails only on Windows"
+)
+async def test_nonexistent_main_module(
+    monkeypatch: MonkeyPatch, tmp_path: Path
+) -> None:
+    """
+    Test that worker process creation won't fail if the detected path to the `__main__`
+    module doesn't exist. Regression test for #696.
+    """
+
+    script_path = tmp_path / "nonexistent"
+    monkeypatch.setattr("__main__.__file__", str(script_path))
+    await to_process.run_sync(os.getpid)
