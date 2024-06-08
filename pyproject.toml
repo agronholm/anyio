@@ -103,7 +103,6 @@ xfail_strict = true
 # Ignore resource warnings due to a CPython/Windows bug (https://bugs.python.org/issue44428)
 filterwarnings = [
     "error",
-    "ignore:unclosed <socket.socket.*:ResourceWarning",
     "ignore:unclosed transport <_ProactorSocketTransport.*:ResourceWarning",
     "ignore:ast.Str is deprecated:DeprecationWarning",
     "ignore:Attribute s is deprecated:DeprecationWarning",
