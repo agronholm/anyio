@@ -469,11 +469,15 @@ async def test_deprecated_item_type_parameter() -> None:
 async def test_not_closed_warning() -> None:
     send, receive = create_memory_object_stream[int]()
 
-    with pytest.warns(ResourceWarning, match="Unclosed <MemoryObjectSendStream>"):
+    with pytest.warns(
+        ResourceWarning, match="Unclosed <MemoryObjectSendStream at [0-9a-f]+>"
+    ):
         del send
         gc.collect()
 
-    with pytest.warns(ResourceWarning, match="Unclosed <MemoryObjectReceiveStream>"):
+    with pytest.warns(
+        ResourceWarning, match="Unclosed <MemoryObjectReceiveStream at [0-9a-f]+>"
+    ):
         del receive
         gc.collect()
 

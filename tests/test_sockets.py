@@ -491,26 +491,27 @@ class TestTCPStream:
         def serve() -> None:
             sock, addr = server_sock.accept()
             event.wait(3)
+            sock.close()
             del sock
             gc.collect()
 
-        server_sock = socket.socket(family, socket.SOCK_STREAM)
-        server_sock.settimeout(1)
-        server_sock.bind(("localhost", 0))
-        server_sock.listen()
-        server_addr = server_sock.getsockname()[:2]
-        event = threading.Event()
-        thread = Thread(target=serve)
-        thread.start()
-        async with await connect_tcp(*server_addr) as stream:
-            await stream.send(b"GET")
-            event.set()
-            with pytest.raises(BrokenResourceError):
-                await stream.receive()
+        with socket.socket(family, socket.SOCK_STREAM) as server_sock:
+            server_sock.settimeout(1)
+            server_sock.bind(("localhost", 0))
+            server_sock.listen()
+            server_addr = server_sock.getsockname()[:2]
+            event = threading.Event()
+            thread = Thread(target=serve)
+            thread.start()
+            async with await connect_tcp(*server_addr) as stream:
+                await stream.send(b"GET")
+                event.set()
+                with pytest.raises(BrokenResourceError):
+                    await stream.receive()
 
-        thread.join()
-        gc.collect()
-        assert not caplog.text
+            thread.join()
+            gc.collect()
+            assert not caplog.text
 
 
 @pytest.mark.network
@@ -1042,12 +1043,12 @@ class TestUNIXStream:
     )
     async def test_connecting_with_non_utf8(self, socket_path: Path) -> None:
         actual_path = str(socket_path).encode() + b"\xf0"
-        server = socket.socket(socket.AF_UNIX)
-        server.bind(actual_path)
-        server.listen(1)
+        with socket.socket(socket.AF_UNIX) as server:
+            server.bind(actual_path)
+            server.listen(1)
 
-        async with await connect_unix(actual_path):
-            pass
+            async with await connect_unix(actual_path):
+                pass
 
 
 @pytest.mark.skipif(
