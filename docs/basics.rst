@@ -55,18 +55,17 @@ native ``run()`` function of the backend library::
     trio.run(main)
 
 Unless you're using trio-asyncio_, you will probably want to reduce the overhead caused
-by dynamic backend detection by setting the ``ANYIO_LOCK_DETECTED_BACKEND`` environment
-variable to ``1``. This makes AnyIO assume that whichever backend is detected on the
-first AnyIO call will always be used going forward. This will not adversely affect the
-pytest plugin, as AnyIO detects its presence and then disables backend locking.
+by dynamic backend detection by setting the ``ANYIO_BACKEND`` environment variable to
+either ``asyncio`` or ``trio``, depending on your backend of choice. This will enable
+AnyIO to avoid checking which flavor of async event loop you're running when you call
+one of AnyIO's functions – a check that typically involves at least one system call.
 
 .. versionchanged:: 4.0.0
     On the ``asyncio`` backend, ``anyio.run()`` now uses a back-ported version of
     :class:`asyncio.Runner` on Pythons older than 3.11.
 
 .. versionchanged:: 4.4.0
-    Added support for locking in the first detected backend via
-    ``ANYIO_LOCK_DETECTED_BACKEND``
+    Added support for forcing a specific backend via ``ANYIO_BACKEND``
 
 .. _trio-asyncio: https://github.com/python-trio/trio-asyncio
 
