@@ -7,6 +7,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added support for the ``from_uri()``, ``full_match()``, ``parser`` methods/properties
   in ``anyio.Path``, newly added in Python 3.13
+  (`#737 <https://github.com/agronholm/anyio/issues/737>`_)
 - Changed the ``ResourceWarning`` from an unclosed memory object stream to include its
   address for easier identification
 - Fixed ``to_process.run_sync()`` failing to initialize if ``__main__.__file__`` pointed
