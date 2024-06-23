@@ -233,8 +233,28 @@ async def test_process_aexit_cancellation_closes_standard_streams(
 @pytest.mark.parametrize(
     "argname, argvalue_factory",
     [
-        pytest.param("user", lambda: os.getuid(), id="user"),
-        pytest.param("group", lambda: os.getgid(), id="group"),
+        pytest.param(
+            "user",
+            lambda: os.getuid(),
+            id="user",
+            marks=[
+                pytest.mark.skipif(
+                    platform.system() == "Windows",
+                    reason="os.getuid() is not available on Windows",
+                )
+            ],
+        ),
+        pytest.param(
+            "group",
+            lambda: os.getgid(),
+            id="user",
+            marks=[
+                pytest.mark.skipif(
+                    platform.system() == "Windows",
+                    reason="os.getgid() is not available on Windows",
+                )
+            ],
+        ),
         pytest.param("extra_groups", list, id="extra_groups"),
         pytest.param("umask", lambda: 0, id="umask"),
     ],
