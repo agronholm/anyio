@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import platform
 import sys
+from collections.abc import Callable
 from contextlib import ExitStack
 from pathlib import Path
 from subprocess import CalledProcessError
@@ -230,17 +231,17 @@ async def test_process_aexit_cancellation_closes_standard_streams(
 
 
 @pytest.mark.parametrize(
-    "argname, argvalue",
+    "argname, argvalue_factory",
     [
-        pytest.param("user", os.getuid(), id="user"),
-        pytest.param("group", os.getgid(), id="group"),
-        pytest.param("extra_groups", [], id="extra_groups"),
-        pytest.param("umask", 0, id="umask"),
+        pytest.param("user", lambda: os.getuid(), id="user"),
+        pytest.param("group", lambda: os.getgid(), id="group"),
+        pytest.param("extra_groups", list, id="extra_groups"),
+        pytest.param("umask", lambda: 0, id="umask"),
     ],
 )
 async def test_py39_arguments(
     argname: str,
-    argvalue: Any,
+    argvalue_factory: Callable[[], Any],
     anyio_backend_name: str,
     anyio_backend_options: dict[str, Any],
 ) -> None:
@@ -255,7 +256,8 @@ async def test_py39_arguments(
 
         try:
             await run_process(
-                [sys.executable, "-c", "print('hello')"], **{argname: argvalue}
+                [sys.executable, "-c", "print('hello')"],
+                **{argname: argvalue_factory()},
             )
         except TypeError as exc:
             if (
