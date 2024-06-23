@@ -34,7 +34,7 @@ from anyio.from_thread import BlockingPortal, start_blocking_portal
 from anyio.lowlevel import checkpoint
 
 if sys.version_info < (3, 11):
-    from exceptiongroup import BaseExceptionGroup, ExceptionGroup
+    from exceptiongroup import ExceptionGroup
 
 pytestmark = pytest.mark.anyio
 
@@ -615,17 +615,11 @@ class TestBlockingPortal:
         async def raise_baseexception() -> None:
             raise BaseException("fatal error")
 
-        with pytest.raises(BaseExceptionGroup) as outer_exc:
-            with start_blocking_portal(
-                anyio_backend_name, anyio_backend_options
-            ) as portal:
-                with pytest.raises(BaseException, match="fatal error") as exc:
-                    portal.call(raise_baseexception)
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            with pytest.raises(BaseException, match="fatal error") as exc:
+                portal.call(raise_baseexception)
 
-                assert exc.value.__context__ is None
-
-        assert len(outer_exc.value.exceptions) == 1
-        assert str(outer_exc.value.exceptions[0]) == "fatal error"
+            assert exc.value.__context__ is None
 
     @pytest.mark.parametrize("portal_backend_name", get_all_backends())
     async def test_from_async(
