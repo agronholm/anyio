@@ -233,7 +233,7 @@ async def test_process_aexit_cancellation_closes_standard_streams(
     "argname, argvalue",
     [
         pytest.param("user", os.getuid(), id="user"),
-        pytest.param("group", os.getuid(), id="group"),
+        pytest.param("group", os.getgid(), id="group"),
         pytest.param("extra_groups", [], id="extra_groups"),
         pytest.param("umask", 0, id="umask"),
     ],
