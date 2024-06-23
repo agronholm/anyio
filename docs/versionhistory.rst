@@ -11,6 +11,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added support for more keyword arguments for ``run_process()`` and ``open_process()``:
   ``preexec_fn``, ``startupinfo``, ``creationflags``, ``user``, ``group``,
   ``extra_groups`` and ``umask``
+  (`#742 <https://github.com/agronholm/anyio/issues/742>`_)
 - Improved the type annotations in ``run_process()`` and ``open_process()`` to allow for
   path-like arguments, just like ``subprocess.Popen``
 - Changed the ``ResourceWarning`` from an unclosed memory object stream to include its
