@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import AsyncIterable, Callable, Iterable, Mapping, Sequence
+from collections.abc import AsyncIterable, Iterable, Mapping, Sequence
 from io import BytesIO
-from os import PathLike
 from subprocess import DEVNULL, PIPE, CalledProcessError, CompletedProcess
 from typing import IO, Any, cast
 
@@ -21,7 +20,6 @@ async def run_process(
     input: bytes | None = None,
     stdout: int | IO[Any] | None = PIPE,
     stderr: int | IO[Any] | None = PIPE,
-    preexec_fn: Callable[[], Any] | None = None,
     check: bool = True,
     cwd: StrOrBytesPath | None = None,
     env: Mapping[str, str] | None = None,
@@ -45,8 +43,6 @@ async def run_process(
         a file-like object, or `None`
     :param stderr: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
         :data:`subprocess.STDOUT`, a file-like object, or `None`
-    :param preexec_fn: a callable that is called in the child process just before the
-        actual command is executed
     :param check: if ``True``, raise :exc:`~subprocess.CalledProcessError` if the
         process terminates with a return code other than 0
     :param cwd: If not ``None``, change the working directory to this before running the
@@ -83,7 +79,6 @@ async def run_process(
         stdin=PIPE if input else DEVNULL,
         stdout=stdout,
         stderr=stderr,
-        preexec_fn=preexec_fn,
         cwd=cwd,
         env=env,
         startupinfo=startupinfo,
@@ -121,7 +116,6 @@ async def open_process(
     stdin: int | IO[Any] | None = PIPE,
     stdout: int | IO[Any] | None = PIPE,
     stderr: int | IO[Any] | None = PIPE,
-    preexec_fn: Callable[[], Any] | None = None,
     cwd: StrOrBytesPath | None = None,
     env: Mapping[str, str] | None = None,
     startupinfo: Any = None,
@@ -145,8 +139,6 @@ async def open_process(
         a file-like object, or ``None``
     :param stderr: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
         :data:`subprocess.STDOUT`, a file-like object, or ``None``
-    :param preexec_fn: a callable that is called in the child process just before the
-        actual command is executed
     :param cwd: If not ``None``, the working directory is changed before executing
     :param env: If env is not ``None``, it must be a mapping that defines the
         environment variables for the new process
@@ -190,31 +182,15 @@ async def open_process(
 
         kwargs["umask"] = umask
 
-    if isinstance(command, (str, bytes, PathLike)):
-        return await get_async_backend().open_process(
-            command,
-            stdin=stdin,
-            stdout=stdout,
-            stderr=stderr,
-            preexec_fn=preexec_fn,
-            cwd=cwd,
-            env=env,
-            startupinfo=startupinfo,
-            creationflags=creationflags,
-            start_new_session=start_new_session,
-            **kwargs,
-        )
-    else:
-        return await get_async_backend().open_process(
-            command,
-            stdin=stdin,
-            stdout=stdout,
-            stderr=stderr,
-            preexec_fn=preexec_fn,
-            cwd=cwd,
-            env=env,
-            startupinfo=startupinfo,
-            creationflags=creationflags,
-            start_new_session=start_new_session,
-            **kwargs,
-        )
+    return await get_async_backend().open_process(
+        command,
+        stdin=stdin,
+        stdout=stdout,
+        stderr=stderr,
+        cwd=cwd,
+        env=env,
+        startupinfo=startupinfo,
+        creationflags=creationflags,
+        start_new_session=start_new_session,
+        **kwargs,
+    )
