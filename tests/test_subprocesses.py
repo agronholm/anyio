@@ -225,3 +225,15 @@ async def test_process_aexit_cancellation_closes_standard_streams(
 
     with pytest.raises(ClosedResourceError):
         await process.stderr.receive(1)
+
+
+async def test_close_early() -> None:
+    """Regression test for #490."""
+    code = dedent("""\
+    import sys
+    for _ in range(100):
+        sys.stdout.buffer.write(bytes(range(256)))
+    """)
+
+    async with await open_process([sys.executable, "-c", code]):
+        pass
