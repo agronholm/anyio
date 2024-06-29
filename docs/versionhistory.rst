@@ -13,6 +13,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``to_process.run_sync()`` failing to initialize if ``__main__.__file__`` pointed
   to a file in a nonexistent directory
   (`#696 <https://github.com/agronholm/anyio/issues/696>`_)
+- Fixed ``AssertionError: feed_data after feed_eof`` on asyncio when a subprocess is
+  closed early, before its output has been read
+  (`#490 <https://github.com/agronholm/anyio/issues/490>`_)
 
 **4.4.0**
 
