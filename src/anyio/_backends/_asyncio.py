@@ -1684,7 +1684,12 @@ class Lock(BaseLock):
         if self._owner_task is None and not self._waiters:
             await AsyncIOBackend.checkpoint_if_cancelled()
             self._owner_task = current_task()
-            await AsyncIOBackend.cancel_shielded_checkpoint()
+            try:
+                await AsyncIOBackend.cancel_shielded_checkpoint()
+            except CancelledError:
+                self.release()
+                raise
+
             return
 
         task = cast(asyncio.Task, current_task())
@@ -1695,6 +1700,8 @@ class Lock(BaseLock):
             await fut
         finally:
             self._waiters.remove(item)
+
+        self._owner_task = task
 
     def acquire_nowait(self) -> None:
         if self._owner_task is None and not self._waiters:
@@ -1709,7 +1716,7 @@ class Lock(BaseLock):
     def release(self) -> None:
         for task, fut in self._waiters:
             if not fut.cancelled():
-                self._owner_task = task
+                # self._owner_task = task
                 fut.set_result(None)
                 return
 
