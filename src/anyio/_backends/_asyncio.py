@@ -1701,8 +1701,6 @@ class Lock(BaseLock):
         finally:
             self._waiters.remove(item)
 
-        self._owner_task = task
-
     def acquire_nowait(self) -> None:
         if self._owner_task is None and not self._waiters:
             self._owner_task = current_task()
@@ -1714,9 +1712,12 @@ class Lock(BaseLock):
         return self._owner_task is not None
 
     def release(self) -> None:
+        if self._owner_task != current_task():
+            raise RuntimeError("The current task is not holding this lock")
+
         for task, fut in self._waiters:
             if not fut.cancelled():
-                # self._owner_task = task
+                self._owner_task = task
                 fut.set_result(None)
                 return
 

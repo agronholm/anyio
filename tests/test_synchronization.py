@@ -158,6 +158,27 @@ class TestLock:
 
         run(use_lock, backend=anyio_backend_name, backend_options=anyio_backend_options)
 
+    async def test_owner_after_release(self) -> None:
+        async def taskfunc1() -> None:
+            await lock.acquire()
+            owner = lock.statistics().owner
+            assert owner
+            assert owner.name == "task1"
+            await event.wait()
+            lock.release()
+            owner = lock.statistics().owner
+            assert owner
+            assert owner.name == "task2"
+
+        event = Event()
+        lock = Lock()
+        async with create_task_group() as tg:
+            tg.start_soon(taskfunc1, name="task1")
+            await wait_all_tasks_blocked()
+            tg.start_soon(lock.acquire, name="task2")
+            await wait_all_tasks_blocked()
+            event.set()
+
 
 class TestEvent:
     async def test_event(self) -> None:
