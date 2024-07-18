@@ -28,7 +28,7 @@ PosArgsT = TypeVarTuple("PosArgsT")
 threadlocals = threading.local()
 loaded_backends: dict[str, type[AsyncBackend]] = {}
 forced_backend_name = os.getenv("ANYIO_BACKEND")
-forced_backend: type[AsyncBackend]
+forced_backend: type[AsyncBackend] | None = None
 
 
 def run(
@@ -172,18 +172,15 @@ def claim_worker_thread(
 def get_async_backend(asynclib_name: str | None = None) -> type[AsyncBackend]:
     global forced_backend
 
-    if asynclib_name is None:
-        if os.getenv("PYTEST_CURRENT_TEST"):
-            try:
-                return forced_backend
-            except NameError:
-                pass
-
-        asynclib_name = forced_backend_name or sniffio.current_async_library()
+    if forced_backend is not None:
+        return forced_backend
 
     # We use our own dict instead of sys.modules to get the already imported back-end
     # class because the appropriate modules in sys.modules could potentially be only
     # partially initialized
+    asynclib_name = (
+        asynclib_name or forced_backend_name or sniffio.current_async_library()
+    )
     try:
         return loaded_backends[asynclib_name]
     except KeyError:
