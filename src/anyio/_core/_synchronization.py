@@ -137,10 +137,11 @@ class EventAdapter(Event):
 
 
 class Lock:
-    _owner_task: TaskInfo | None = None
-
-    def __init__(self) -> None:
-        self._waiters: deque[tuple[TaskInfo, Event]] = deque()
+    def __new__(cls) -> Lock:
+        try:
+            return get_async_backend().create_lock()
+        except AsyncLibraryNotFoundError:
+            return LockAdapter()
 
     async def __aenter__(self) -> None:
         await self.acquire()
@@ -155,31 +156,7 @@ class Lock:
 
     async def acquire(self) -> None:
         """Acquire the lock."""
-        await checkpoint_if_cancelled()
-        try:
-            self.acquire_nowait()
-        except WouldBlock:
-            task = get_current_task()
-            event = Event()
-            token = task, event
-            self._waiters.append(token)
-            try:
-                await event.wait()
-            except BaseException:
-                if not event.is_set():
-                    self._waiters.remove(token)
-                elif self._owner_task == task:
-                    self.release()
-
-                raise
-
-            assert self._owner_task == task
-        else:
-            try:
-                await cancel_shielded_checkpoint()
-            except BaseException:
-                self.release()
-                raise
+        raise NotImplementedError
 
     def acquire_nowait(self) -> None:
         """
@@ -188,29 +165,15 @@ class Lock:
         :raises ~anyio.WouldBlock: if the operation would block
 
         """
-        task = get_current_task()
-        if self._owner_task == task:
-            raise RuntimeError("Attempted to acquire an already held Lock")
-
-        if self._owner_task is not None:
-            raise WouldBlock
-
-        self._owner_task = task
+        raise NotImplementedError
 
     def release(self) -> None:
         """Release the lock."""
-        if self._owner_task != get_current_task():
-            raise RuntimeError("The current task is not holding this lock")
-
-        if self._waiters:
-            self._owner_task, event = self._waiters.popleft()
-            event.set()
-        else:
-            del self._owner_task
+        raise NotImplementedError
 
     def locked(self) -> bool:
         """Return True if the lock is currently held."""
-        return self._owner_task is not None
+        raise NotImplementedError
 
     def statistics(self) -> LockStatistics:
         """
@@ -218,7 +181,66 @@ class Lock:
 
         .. versionadded:: 3.0
         """
-        return LockStatistics(self.locked(), self._owner_task, len(self._waiters))
+        raise NotImplementedError
+
+
+class LockAdapter(Lock):
+    _internal_lock: Lock | None = None
+
+    def __new__(cls) -> LockAdapter:
+        return object.__new__(cls)
+
+    @property
+    def _lock(self) -> Lock:
+        if self._internal_lock is None:
+            self._internal_lock = get_async_backend().create_lock()
+
+        return self._internal_lock
+
+    async def __aenter__(self) -> None:
+        await self._lock.acquire()
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        if self._internal_lock is not None:
+            self._internal_lock.release()
+
+    async def acquire(self) -> None:
+        """Acquire the lock."""
+        await self._lock.acquire()
+
+    def acquire_nowait(self) -> None:
+        """
+        Acquire the lock, without blocking.
+
+        :raises ~anyio.WouldBlock: if the operation would block
+
+        """
+        self._lock.acquire_nowait()
+
+    def release(self) -> None:
+        """Release the lock."""
+        self._lock.release()
+
+    def locked(self) -> bool:
+        """Return True if the lock is currently held."""
+        return self._lock.locked()
+
+    def statistics(self) -> LockStatistics:
+        """
+        Return statistics about the current state of this lock.
+
+        .. versionadded:: 3.0
+
+        """
+        if self._internal_lock is None:
+            return LockStatistics(False, None, 0)
+
+        return self._internal_lock.statistics()
 
 
 class Condition:

@@ -45,7 +45,14 @@ from trio.lowlevel import (
 from trio.socket import SocketType as TrioSocketType
 from trio.to_thread import run_sync
 
-from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
+from .. import (
+    CapacityLimiterStatistics,
+    EventStatistics,
+    LockStatistics,
+    TaskInfo,
+    WouldBlock,
+    abc,
+)
 from .._core._eventloop import claim_worker_thread
 from .._core._exceptions import (
     BrokenResourceError,
@@ -57,6 +64,7 @@ from .._core._sockets import convert_ipv6_sockaddr
 from .._core._streams import create_memory_object_stream
 from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
 from .._core._synchronization import Event as BaseEvent
+from .._core._synchronization import Lock as BaseLock
 from .._core._synchronization import ResourceGuard
 from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
@@ -637,6 +645,47 @@ class Event(BaseEvent):
         self.__original.set()
 
 
+class Lock(BaseLock):
+    def __new__(cls) -> Lock:
+        return object.__new__(cls)
+
+    def __init__(self) -> None:
+        self.__original = trio.Lock()
+
+    async def __aenter__(self) -> None:
+        await self.__original.__aenter__()
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        await self.__original.__aexit__(exc_type, exc_val, exc_tb)
+
+    async def acquire(self) -> None:
+        await self.__original.acquire()
+
+    def acquire_nowait(self) -> None:
+        try:
+            self.__original.acquire_nowait()
+        except trio.WouldBlock:
+            raise WouldBlock from None
+
+    def locked(self) -> bool:
+        return self.__original.locked()
+
+    def release(self) -> None:
+        self.__original.release()
+
+    def statistics(self) -> LockStatistics:
+        orig_statistics = self.__original.statistics()
+        owner = TrioTaskInfo(orig_statistics.owner) if orig_statistics.owner else None
+        return LockStatistics(
+            orig_statistics.locked, owner, orig_statistics.tasks_waiting
+        )
+
+
 class CapacityLimiter(BaseCapacityLimiter):
     def __new__(
         cls,
@@ -914,6 +963,10 @@ class TrioBackend(AsyncBackend):
     @classmethod
     def create_event(cls) -> abc.Event:
         return Event()
+
+    @classmethod
+    def create_lock(cls) -> Lock:
+        return Lock()
 
     @classmethod
     def create_capacity_limiter(cls, total_tokens: float) -> CapacityLimiter:

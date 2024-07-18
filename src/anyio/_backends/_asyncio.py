@@ -58,7 +58,13 @@ from weakref import WeakKeyDictionary
 
 import sniffio
 
-from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
+from .. import (
+    CapacityLimiterStatistics,
+    EventStatistics,
+    LockStatistics,
+    TaskInfo,
+    abc,
+)
 from .._core._eventloop import claim_worker_thread, threadlocals
 from .._core._exceptions import (
     BrokenResourceError,
@@ -71,6 +77,7 @@ from .._core._sockets import convert_ipv6_sockaddr
 from .._core._streams import create_memory_object_stream
 from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
 from .._core._synchronization import Event as BaseEvent
+from .._core._synchronization import Lock as BaseLock
 from .._core._synchronization import ResourceGuard
 from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import (
@@ -1665,6 +1672,54 @@ class Event(BaseEvent):
         return EventStatistics(len(self._event._waiters))
 
 
+class Lock(BaseLock):
+    def __new__(cls) -> Lock:
+        return object.__new__(cls)
+
+    def __init__(self) -> None:
+        self._owner_task: asyncio.Task | None = None
+        self._waiters: deque[tuple[asyncio.Task, asyncio.Future]] = deque()
+
+    async def acquire(self) -> None:
+        if self._owner_task is None and not self._waiters:
+            await AsyncIOBackend.checkpoint_if_cancelled()
+            self._owner_task = current_task()
+            await AsyncIOBackend.cancel_shielded_checkpoint()
+            return
+
+        task = cast(asyncio.Task, current_task())
+        fut: asyncio.Future[None] = asyncio.Future()
+        item = task, fut
+        self._waiters.append(item)
+        try:
+            await fut
+        finally:
+            self._waiters.remove(item)
+
+    def acquire_nowait(self) -> None:
+        if self._owner_task is None and not self._waiters:
+            self._owner_task = current_task()
+            return
+
+        raise WouldBlock
+
+    def locked(self) -> bool:
+        return self._owner_task is not None
+
+    def release(self) -> None:
+        for task, fut in self._waiters:
+            if not fut.cancelled():
+                self._owner_task = task
+                fut.set_result(None)
+                return
+
+        self._owner_task = None
+
+    def statistics(self) -> LockStatistics:
+        task_info = AsyncIOTaskInfo(self._owner_task) if self._owner_task else None
+        return LockStatistics(self.locked(), task_info, len(self._waiters))
+
+
 class CapacityLimiter(BaseCapacityLimiter):
     _total_tokens: float = 0
 
@@ -2112,6 +2167,10 @@ class AsyncIOBackend(AsyncBackend):
     @classmethod
     def create_event(cls) -> abc.Event:
         return Event()
+
+    @classmethod
+    def create_lock(cls) -> abc.Lock:
+        return Lock()
 
     @classmethod
     def create_capacity_limiter(cls, total_tokens: float) -> abc.CapacityLimiter:
