@@ -29,7 +29,6 @@ from inspect import (
     CORO_RUNNING,
     CORO_SUSPENDED,
     getcoroutinestate,
-    iscoroutine,
 )
 from io import IOBase
 from os import PathLike
@@ -749,13 +748,6 @@ class TaskGroup(abc.TaskGroup):
             parent_id = id(self.cancel_scope._host_task)
 
         coro = func(*args, **kwargs)
-        if not iscoroutine(coro):
-            prefix = f"{func.__module__}." if hasattr(func, "__module__") else ""
-            raise TypeError(
-                f"Expected {prefix}{func.__qualname__}() to return a coroutine, but "
-                f"the return value ({coro!r}) is not a coroutine object"
-            )
-
         name = get_callable_name(func) if name is None else str(name)
         task = create_task(coro, name=name)
         task.add_done_callback(task_done)

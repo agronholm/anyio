@@ -264,7 +264,7 @@ async def test_start_exception_delivery(anyio_backend_name: str) -> None:
     if anyio_backend_name == "trio":
         pattern = "appears to be synchronous"
     else:
-        pattern = "is not a coroutine object"
+        pattern = "a coroutine was expected"
 
     async with anyio.create_task_group() as tg:
         with pytest.raises(TypeError, match=pattern):
