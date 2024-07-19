@@ -1013,24 +1013,15 @@ def test_cancel_generator_based_task() -> None:
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_schedule_old_style_coroutine_func() -> None:
     """
-    Test that we give a sensible error when a user tries to spawn a task from a
-    generator-style coroutine function.
+    Test that a task can be spawned from a generator-style coroutine function.
     """
 
     @asyncio.coroutine  # type: ignore[attr-defined]
     def corofunc() -> Generator[Any, Any, None]:
-        yield from asyncio.sleep(1)  # type: ignore[misc]
+        yield from asyncio.sleep(0.1)  # type: ignore[misc]
 
     async with create_task_group() as tg:
-        funcname = (
-            f"{__name__}.test_schedule_old_style_coroutine_func.<locals>.corofunc"
-        )
-        with pytest.raises(
-            TypeError,
-            match=f"Expected {funcname}\\(\\) to return a coroutine, but the return "
-            f"value \\(<generator .+>\\) is not a coroutine object",
-        ):
-            tg.start_soon(corofunc)
+        tg.start_soon(corofunc)
 
 
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
