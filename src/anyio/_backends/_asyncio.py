@@ -747,7 +747,7 @@ class TaskGroup(abc.TaskGroup):
         else:
             parent_id = id(self.cancel_scope._host_task)
 
-        coro = func(*args, **kwargs)
+        coro = cast(Coroutine, func(*args, **kwargs))
         name = get_callable_name(func) if name is None else str(name)
         task = create_task(coro, name=name)
         task.add_done_callback(task_done)
