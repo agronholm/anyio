@@ -5,7 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
-- Improved the performance of ``anyio.Lock`` on asyncio (even up to 50 %)
+- Improved the performance of ``anyio.Lock`` and ``anyio.Semaphore`` on asyncio (even up
+  to 50 %)
 - Added support for the ``from_uri()``, ``full_match()``, ``parser`` methods/properties
   in ``anyio.Path``, newly added in Python 3.13
   (`#737 <https://github.com/agronholm/anyio/issues/737>`_)
