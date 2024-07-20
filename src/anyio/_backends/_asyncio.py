@@ -75,10 +75,16 @@ from .._core._exceptions import (
 )
 from .._core._sockets import convert_ipv6_sockaddr
 from .._core._streams import create_memory_object_stream
-from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
+from .._core._synchronization import (
+    CapacityLimiter as BaseCapacityLimiter,
+)
 from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import Lock as BaseLock
-from .._core._synchronization import ResourceGuard
+from .._core._synchronization import (
+    ResourceGuard,
+    SemaphoreStatistics,
+)
+from .._core._synchronization import Semaphore as BaseSemaphore
 from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import (
     AsyncBackend,
@@ -1698,8 +1704,14 @@ class Lock(BaseLock):
         self._waiters.append(item)
         try:
             await fut
-        finally:
+        except CancelledError:
             self._waiters.remove(item)
+            if self._owner_task is task:
+                self.release()
+
+            raise
+
+        self._waiters.remove(item)
 
     def acquire_nowait(self) -> None:
         if self._owner_task is None and not self._waiters:
@@ -1726,6 +1738,70 @@ class Lock(BaseLock):
     def statistics(self) -> LockStatistics:
         task_info = AsyncIOTaskInfo(self._owner_task) if self._owner_task else None
         return LockStatistics(self.locked(), task_info, len(self._waiters))
+
+
+class Semaphore(BaseSemaphore):
+    def __new__(cls, initial_value: int, *, max_value: int | None = None) -> Semaphore:
+        return object.__new__(cls)
+
+    def __init__(self, initial_value: int, *, max_value: int | None = None):
+        super().__init__(initial_value, max_value=max_value)
+        self._value = initial_value
+        self._max_value = max_value
+        self._waiters: deque[asyncio.Future[None]] = deque()
+
+    async def acquire(self) -> None:
+        if self._value > 0 and not self._waiters:
+            await AsyncIOBackend.checkpoint_if_cancelled()
+            self._value -= 1
+            try:
+                await AsyncIOBackend.cancel_shielded_checkpoint()
+            except CancelledError:
+                self.release()
+                raise
+
+            return
+
+        fut: asyncio.Future[None] = asyncio.Future()
+        self._waiters.append(fut)
+        try:
+            await fut
+        except CancelledError:
+            try:
+                self._waiters.remove(fut)
+            except ValueError:
+                self.release()
+
+            raise
+
+    def acquire_nowait(self) -> None:
+        if self._value == 0:
+            raise WouldBlock
+
+        self._value -= 1
+
+    def release(self) -> None:
+        if self._max_value is not None and self._value == self._max_value:
+            raise ValueError("semaphore released too many times")
+
+        for fut in self._waiters:
+            if not fut.cancelled():
+                fut.set_result(None)
+                self._waiters.remove(fut)
+                return
+
+        self._value += 1
+
+    @property
+    def value(self) -> int:
+        return self._value
+
+    @property
+    def max_value(self) -> int | None:
+        return self._max_value
+
+    def statistics(self) -> SemaphoreStatistics:
+        return SemaphoreStatistics(len(self._waiters))
 
 
 class CapacityLimiter(BaseCapacityLimiter):
@@ -2179,6 +2255,12 @@ class AsyncIOBackend(AsyncBackend):
     @classmethod
     def create_lock(cls) -> abc.Lock:
         return Lock()
+
+    @classmethod
+    def create_semaphore(
+        cls, initial_value: int, *, max_value: int | None = None
+    ) -> abc.Semaphore:
+        return Semaphore(initial_value, max_value=max_value)
 
     @classmethod
     def create_capacity_limiter(cls, total_tokens: float) -> abc.CapacityLimiter:

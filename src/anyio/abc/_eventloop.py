@@ -26,7 +26,7 @@ else:
 if TYPE_CHECKING:
     from typing import Literal
 
-    from .._core._synchronization import CapacityLimiter, Event, Lock
+    from .._core._synchronization import CapacityLimiter, Event, Lock, Semaphore
     from .._core._tasks import CancelScope
     from .._core._testing import TaskInfo
     from ..from_thread import BlockingPortal
@@ -170,6 +170,13 @@ class AsyncBackend(metaclass=ABCMeta):
     @classmethod
     @abstractmethod
     def create_lock(cls) -> Lock:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def create_semaphore(
+        cls, initial_value: int, *, max_value: int | None = None
+    ) -> Semaphore:
         pass
 
     @classmethod

@@ -7,9 +7,9 @@ from types import TracebackType
 
 from sniffio import AsyncLibraryNotFoundError
 
-from ..lowlevel import cancel_shielded_checkpoint, checkpoint, checkpoint_if_cancelled
+from ..lowlevel import checkpoint
 from ._eventloop import get_async_backend
-from ._exceptions import BusyResourceError, WouldBlock
+from ._exceptions import BusyResourceError
 from ._tasks import CancelScope
 from ._testing import TaskInfo, get_current_task
 
@@ -334,6 +334,14 @@ class Condition:
 
 
 class Semaphore:
+    def __new__(cls, initial_value: int, *, max_value: int | None = None) -> Semaphore:
+        try:
+            return get_async_backend().create_semaphore(
+                initial_value, max_value=max_value
+            )
+        except AsyncLibraryNotFoundError:
+            return SemaphoreAdapter(initial_value, max_value=max_value)
+
     def __init__(self, initial_value: int, *, max_value: int | None = None):
         if not isinstance(initial_value, int):
             raise TypeError("initial_value must be an integer")
@@ -346,10 +354,6 @@ class Semaphore:
                 raise ValueError(
                     "max_value must be equal to or higher than initial_value"
                 )
-
-        self._value = initial_value
-        self._max_value = max_value
-        self._waiters: deque[Event] = deque()
 
     async def __aenter__(self) -> Semaphore:
         await self.acquire()
@@ -365,27 +369,7 @@ class Semaphore:
 
     async def acquire(self) -> None:
         """Decrement the semaphore value, blocking if necessary."""
-        await checkpoint_if_cancelled()
-        try:
-            self.acquire_nowait()
-        except WouldBlock:
-            event = Event()
-            self._waiters.append(event)
-            try:
-                await event.wait()
-            except BaseException:
-                if not event.is_set():
-                    self._waiters.remove(event)
-                else:
-                    self.release()
-
-                raise
-        else:
-            try:
-                await cancel_shielded_checkpoint()
-            except BaseException:
-                self.release()
-                raise
+        raise NotImplementedError
 
     def acquire_nowait(self) -> None:
         """
@@ -394,30 +378,21 @@ class Semaphore:
         :raises ~anyio.WouldBlock: if the operation would block
 
         """
-        if self._value == 0:
-            raise WouldBlock
-
-        self._value -= 1
+        raise NotImplementedError
 
     def release(self) -> None:
         """Increment the semaphore value."""
-        if self._max_value is not None and self._value == self._max_value:
-            raise ValueError("semaphore released too many times")
-
-        if self._waiters:
-            self._waiters.popleft().set()
-        else:
-            self._value += 1
+        raise NotImplementedError
 
     @property
     def value(self) -> int:
         """The current value of the semaphore."""
-        return self._value
+        raise NotImplementedError
 
     @property
     def max_value(self) -> int | None:
         """The maximum value of the semaphore."""
-        return self._max_value
+        raise NotImplementedError
 
     def statistics(self) -> SemaphoreStatistics:
         """
@@ -425,7 +400,55 @@ class Semaphore:
 
         .. versionadded:: 3.0
         """
-        return SemaphoreStatistics(len(self._waiters))
+        raise NotImplementedError
+
+
+class SemaphoreAdapter(Semaphore):
+    _internal_semaphore: Semaphore | None = None
+
+    def __new__(
+        cls, initial_value: int, *, max_value: int | None = None
+    ) -> SemaphoreAdapter:
+        return object.__new__(cls)
+
+    def __init__(self, initial_value: int, *, max_value: int | None = None) -> None:
+        self._initial_value = initial_value
+        self._max_value = max_value
+
+    @property
+    def _semaphore(self) -> Semaphore:
+        if self._internal_semaphore is None:
+            self._internal_semaphore = get_async_backend().create_semaphore(
+                self._initial_value, max_value=self._max_value
+            )
+
+        return self._internal_semaphore
+
+    async def acquire(self) -> None:
+        await self._semaphore.acquire()
+
+    def acquire_nowait(self) -> None:
+        self._semaphore.acquire_nowait()
+
+    def release(self) -> None:
+        self._semaphore.release()
+
+    @property
+    def value(self) -> int:
+        if self._internal_semaphore is None:
+            return self._initial_value
+
+        return self._semaphore.value
+
+    @property
+    def max_value(self) -> int | None:
+        return self._max_value
+
+    def statistics(self) -> SemaphoreStatistics:
+        if self._internal_semaphore is None:
+            return SemaphoreStatistics(tasks_waiting=0)
+
+        return self._semaphore.statistics()
 
 
 class CapacityLimiter:
