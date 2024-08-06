@@ -42,7 +42,7 @@ Changelog = "https://anyio.readthedocs.io/en/stable/versionhistory.html"
 "Issue tracker" = "https://github.com/agronholm/anyio/issues"
 
 [project.optional-dependencies]
-trio = ["trio @ git+https://github.com/python-trio/trio.git"]
+trio = ["trio >= 0.26.1"]
 test = [
     "anyio[trio]",
     "cffi >= 1.17.0rc1; python_version >= '3.13'",
