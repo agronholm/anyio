@@ -4,6 +4,7 @@ import array
 import asyncio
 import concurrent.futures
 import math
+import pathlib
 import socket
 import sys
 import threading
@@ -47,7 +48,6 @@ from typing import (
     Collection,
     ContextManager,
     Coroutine,
-    Mapping,
     Optional,
     Sequence,
     Tuple,
@@ -80,6 +80,7 @@ from ..abc import (
     UDPPacketType,
     UNIXDatagramPacketType,
 )
+from ..abc._eventloop import StrOrBytesPath
 from ..lowlevel import RunVar
 from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
@@ -2245,26 +2246,24 @@ class AsyncIOBackend(AsyncBackend):
     @classmethod
     async def open_process(
         cls,
-        command: str | bytes | Sequence[str | bytes],
+        command: StrOrBytesPath | Sequence[StrOrBytesPath],
         *,
-        shell: bool,
         stdin: int | IO[Any] | None,
         stdout: int | IO[Any] | None,
         stderr: int | IO[Any] | None,
-        cwd: str | bytes | PathLike | None = None,
-        env: Mapping[str, str] | None = None,
-        start_new_session: bool = False,
+        **kwargs: Any,
     ) -> Process:
         await cls.checkpoint()
-        if shell:
+        if isinstance(command, PathLike):
+            command = str(pathlib.Path(command))
+
+        if isinstance(command, (str, bytes)):
             process = await asyncio.create_subprocess_shell(
-                cast("str | bytes", command),
+                command,
                 stdin=stdin,
                 stdout=stdout,
                 stderr=stderr,
-                cwd=cwd,
-                env=env,
-                start_new_session=start_new_session,
+                **kwargs,
             )
         else:
             process = await asyncio.create_subprocess_exec(
@@ -2272,9 +2271,7 @@ class AsyncIOBackend(AsyncBackend):
                 stdin=stdin,
                 stdout=stdout,
                 stderr=stderr,
-                cwd=cwd,
-                env=env,
-                start_new_session=start_new_session,
+                **kwargs,
             )
 
         stdin_stream = StreamWriterWrapper(process.stdin) if process.stdin else None

@@ -25,7 +25,6 @@ from typing import (
     ContextManager,
     Coroutine,
     Generic,
-    Mapping,
     NoReturn,
     Sequence,
     TypeVar,
@@ -60,7 +59,7 @@ from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import ResourceGuard
 from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
-from ..abc._eventloop import AsyncBackend
+from ..abc._eventloop import AsyncBackend, StrOrBytesPath
 from ..streams.memory import MemoryObjectSendStream
 
 if sys.version_info >= (3, 10):
@@ -967,26 +966,32 @@ class TrioBackend(AsyncBackend):
     @classmethod
     async def open_process(
         cls,
-        command: str | bytes | Sequence[str | bytes],
+        command: StrOrBytesPath | Sequence[StrOrBytesPath],
         *,
-        shell: bool,
         stdin: int | IO[Any] | None,
         stdout: int | IO[Any] | None,
         stderr: int | IO[Any] | None,
-        cwd: str | bytes | PathLike | None = None,
-        env: Mapping[str, str] | None = None,
-        start_new_session: bool = False,
+        **kwargs: Any,
     ) -> Process:
-        process = await trio.lowlevel.open_process(  # type: ignore[misc]
-            command,  # type: ignore[arg-type]
-            stdin=stdin,
-            stdout=stdout,
-            stderr=stderr,
-            shell=shell,
-            cwd=cwd,
-            env=env,
-            start_new_session=start_new_session,
-        )
+        if isinstance(command, (str, bytes, PathLike)):
+            process = await trio.lowlevel.open_process(
+                command,
+                stdin=stdin,
+                stdout=stdout,
+                stderr=stderr,
+                shell=True,
+                **kwargs,
+            )
+        else:
+            process = await trio.lowlevel.open_process(
+                command,
+                stdin=stdin,
+                stdout=stdout,
+                stderr=stderr,
+                shell=False,
+                **kwargs,
+            )
+
         stdin_stream = SendStreamWrapper(process.stdin) if process.stdin else None
         stdout_stream = ReceiveStreamWrapper(process.stdout) if process.stdout else None
         stderr_stream = ReceiveStreamWrapper(process.stderr) if process.stderr else None
