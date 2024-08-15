@@ -19,8 +19,8 @@ from anyio import (
 )
 from anyio.abc import ObjectReceiveStream, ObjectSendStream, TaskStatus
 from anyio.streams.memory import (
-    MemoryObjectItemReceiver, 
-    MemoryObjectReceiveStream, 
+    MemoryObjectItemReceiver,
+    MemoryObjectReceiveStream,
     MemoryObjectSendStream,
 )
 
