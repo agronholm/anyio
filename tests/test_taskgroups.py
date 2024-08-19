@@ -321,7 +321,7 @@ async def test_level_cancellation() -> None:
         nonlocal marker
         marker = 1
         # At this point the task has been cancelled so sleep() will raise an exception
-        await sleep(0)
+        await asyncio.lowlevel.checkpoint()
         # Execution should never get this far
         marker = 2
 
@@ -382,7 +382,7 @@ async def test_cancel_scope_in_another_task() -> None:
     async with create_task_group() as tg:
         tg.start_soon(child)
         while local_scope is None:
-            await sleep(0)
+            await asyncio.lowlevel.checkpoint()
 
         local_scope.cancel()
 
@@ -398,7 +398,7 @@ async def test_cancel_propagation() -> None:
 
     async with create_task_group() as tg:
         tg.start_soon(g)
-        await sleep(0)
+        await asyncio.lowlevel.checkpoint()
         tg.cancel_scope.cancel()
 
 
@@ -492,14 +492,14 @@ async def test_exception_group_host() -> None:
 async def test_escaping_cancelled_exception() -> None:
     async with create_task_group() as tg:
         tg.cancel_scope.cancel()
-        await sleep(0)
+        await asyncio.lowlevel.checkpoint()
 
 
 async def test_cancel_scope_cleared() -> None:
     with move_on_after(0.1):
         await sleep(1)
 
-    await sleep(0)
+    await asyncio.lowlevel.checkpoint()
 
 
 @pytest.mark.parametrize("delay", [0, 0.1], ids=["instant", "delayed"])
@@ -555,7 +555,7 @@ async def test_fail_after_scope_cancelled_before_timeout() -> None:
     with fail_after(0.1) as scope:
         scope.cancel()
         time.sleep(0.11)  # noqa: ASYNC251
-        await sleep(0)
+        await asyncio.lowlevel.checkpoint()
 
 
 @pytest.mark.parametrize("delay", [0, 0.1], ids=["instant", "delayed"])
@@ -645,7 +645,7 @@ async def test_cancel_shielded_scope() -> None:
         assert current_effective_deadline() == -math.inf
 
         with pytest.raises(get_cancelled_exc_class()):
-            await sleep(0)
+            await asyncio.lowlevel.checkpoint()
 
 
 async def test_cancelled_not_caught() -> None:
@@ -668,10 +668,10 @@ async def test_cancel_host_asyncgen() -> None:
                 tg.cancel_scope.cancel()
 
             with pytest.raises(get_cancelled_exc_class()):
-                await sleep(0)
+                await asyncio.lowlevel.checkpoint()
 
             with pytest.raises(get_cancelled_exc_class()):
-                await sleep(0)
+                await asyncio.lowlevel.checkpoint()
 
             done = True
 
@@ -810,7 +810,7 @@ async def test_shielded_deadline() -> None:
 
 async def test_deadline_reached_on_start() -> None:
     with move_on_after(0):
-        await sleep(0)
+        await asyncio.lowlevel.checkpoint()
         pytest.fail("Execution should not reach this point")
 
 
@@ -1273,7 +1273,7 @@ class TestUncancel:
         task = cast(asyncio.Task, asyncio.current_task())
         with pytest.raises(asyncio.CancelledError), CancelScope():
             task.cancel()
-            await anyio.sleep(0)
+            await asyncio.lowlevel.checkpoint()
 
         assert task.cancelling() == 1
         task.uncancel()
@@ -1282,7 +1282,7 @@ class TestUncancel:
         task = cast(asyncio.Task, asyncio.current_task())
         with CancelScope() as scope:
             scope.cancel()
-            await anyio.sleep(0)
+            await asyncio.lowlevel.checkpoint()
 
         assert task.cancelling() == 0
 
@@ -1291,7 +1291,7 @@ class TestUncancel:
         with pytest.raises(asyncio.CancelledError), CancelScope() as scope:
             scope.cancel()
             task.cancel()
-            await anyio.sleep(0)
+            await asyncio.lowlevel.checkpoint()
 
         assert task.cancelling() == 1
         task.uncancel()
@@ -1301,13 +1301,13 @@ class TestUncancel:
         assert task
         try:
             task.cancel()
-            await anyio.sleep(0)
+            await asyncio.lowlevel.checkpoint()
         except asyncio.CancelledError:
             try:
                 with CancelScope() as scope:
                     scope.cancel()
                     try:
-                        await anyio.sleep(0)
+                        await asyncio.lowlevel.checkpoint()
                     except asyncio.CancelledError:
                         raise asyncio.CancelledError
             except asyncio.CancelledError:
