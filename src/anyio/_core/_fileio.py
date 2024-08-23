@@ -359,18 +359,16 @@ class Path:
         return self._path.as_uri()
 
     if sys.version_info >= (3, 13):
-        parser = pathlib.Path.parser  # type: ignore[attr-defined]
+        parser = pathlib.Path.parser
 
         @classmethod
         def from_uri(cls, uri: str) -> Path:
-            return Path(pathlib.Path.from_uri(uri))  # type: ignore[attr-defined]
+            return Path(pathlib.Path.from_uri(uri))
 
         def full_match(
             self, path_pattern: str, *, case_sensitive: bool | None = None
         ) -> bool:
-            return self._path.full_match(  # type: ignore[attr-defined]
-                path_pattern, case_sensitive=case_sensitive
-            )
+            return self._path.full_match(path_pattern, case_sensitive=case_sensitive)
 
         def match(
             self, path_pattern: str, *, case_sensitive: bool | None = None
