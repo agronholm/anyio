@@ -44,7 +44,6 @@ from anyio import (
     getaddrinfo,
     getnameinfo,
     move_on_after,
-    sleep,
     wait_all_tasks_blocked,
 )
 from anyio.abc import (
@@ -54,6 +53,7 @@ from anyio.abc import (
     SocketListener,
     SocketStream,
 )
+from anyio.lowlevel import checkpoint
 from anyio.streams.stapled import MultiListener
 
 if sys.version_info < (3, 11):
@@ -676,7 +676,7 @@ class TestTCPListener:
                         try:
                             message = client.recv(10)
                         except BlockingIOError:
-                            await sleep(0)
+                            await checkpoint()
                         else:
                             assert message == b"Hello\n"
                             break
@@ -1139,7 +1139,7 @@ class TestUNIXListener:
                         try:
                             message = client.recv(10)
                         except BlockingIOError:
-                            await sleep(0)
+                            await checkpoint()
                         else:
                             assert message == b"Hello\n"
                             break
