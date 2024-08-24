@@ -70,3 +70,5 @@ from ._core._typedattr import typed_attribute as typed_attribute
 for __value in list(locals().values()):
     if getattr(__value, "__module__", "").startswith("anyio."):
         __value.__module__ = __name__
+
+del __value
