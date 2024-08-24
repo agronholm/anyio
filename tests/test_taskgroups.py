@@ -263,20 +263,56 @@ async def test_cancel_with_nested_shielded_scope(mocker: MockerFixture) -> None:
     """Regression test for #695."""
 
     async def shield_task() -> None:
-        with CancelScope(shield=True):
+        with CancelScope(shield=True) as scope:
+            shielded_cancel_spy = mocker.spy(scope, "_deliver_cancellation")
+            print(f"innermost cancel scope: {id(scope):x}")
             await sleep(0.5)
 
+            # At this point, the outermost cancel scope was delivered cancellation once
+            # (when tg.cancel_scope.cancel() was called), and the shielded scope wasn't
+            # since it's shielded
+            assert len(outer_cancel_spy.call_args_list) == 2
+            shielded_cancel_spy.assert_not_called()
+
     async def middle_task() -> None:
-        async with create_task_group() as tg:
-            tg.start_soon(shield_task, name="shield task")
+        try:
+            async with create_task_group() as tg:
+                middle_cancel_spy = mocker.spy(tg.cancel_scope, "_deliver_cancellation")
+                print(
+                    f"middle cancel scope: {id(tg.cancel_scope):x} task group: {id(tg):x}"
+                )
+                tg.start_soon(shield_task, name="shield task")
+        finally:
+            # Cancellation is delivered to the the middle task groups's cancel scope:
+            # - When the outermost task group's.cancel_scope is cancelled
+            # - When the shielded innermost cancel scope is exited
+            # - When the middle task's task group's temporary shielded cancel scope is
+            #   exited
+            assert len(middle_cancel_spy.call_args_list) == 6
+            assert len(outer_cancel_spy.call_args_list) == 6
+            print(
+                "exited middle task group, outer cancel scope now cancelled",
+                len(outer_cancel_spy.call_args_list),
+                "times",
+            )
 
     async with create_task_group() as tg:
-        spy = mocker.spy(tg.cancel_scope, "_deliver_cancellation")
+        print(
+            f"outermost cancel scope: {id(tg.cancel_scope):x}  task group: {id(tg):x}"
+        )
+        outer_cancel_spy = mocker.spy(tg.cancel_scope, "_deliver_cancellation")
         tg.start_soon(middle_task, name="middle task")
         await wait_all_tasks_blocked()
+        print("cancellation should start now")
         tg.cancel_scope.cancel()
 
-    assert len(spy.call_args_list) < 3
+    # Cancellation is delivered to the outermost cancel scope:
+    # - When tg.cancel_scope.cancel() is called
+    # - When the shielded innermost cancel scope is exited
+    # - When the middle task's task group's temporary shielded cancel scope is exited
+    # -
+    # -
+    assert len(outer_cancel_spy.call_args_list) == 9
 
 
 async def test_start_exception_delivery(anyio_backend_name: str) -> None:

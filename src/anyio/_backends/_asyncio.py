@@ -393,7 +393,7 @@ class CancelScope(BaseCancelScope):
         if self._cancel_called:
             self._deliver_cancellation(self)
 
-        print(f"entered cancel scope {id(self):x}")
+        # print(f"entered cancel scope {id(self):x}")
         return self
 
     def __exit__(
@@ -469,7 +469,9 @@ class CancelScope(BaseCancelScope):
             else:
                 self._timeout_handle = loop.call_at(self._deadline, self._timeout)
 
-    def _deliver_cancellation(self, origin: CancelScope, indent: str = "") -> bool:
+    def _deliver_cancellation(
+        self, origin: CancelScope, indent: str = "", attempt: int = 1
+    ) -> bool:
         """
         Deliver cancellation to directly contained tasks and nested cancel scopes.
 
@@ -480,18 +482,20 @@ class CancelScope(BaseCancelScope):
         :return: ``True`` if the delivery needs to be retried on the next cycle
 
         """
-        print(f"{indent}scope {id(self):x}:")
+        print(
+            f"{indent}delivering cancellation to scope {id(self):x} (attempt {attempt}):"
+        )
         indent += "  "
         should_retry = False
         current = current_task()
         for task in self._tasks:
+            should_retry = True
             print(f"{indent}task {task.get_name()}: ", end="")
             if task._must_cancel:  # type: ignore[attr-defined]
-                print("must_cancel flag already set")
+                print(f"{indent}must_cancel flag already set")
                 continue
 
             # The task is eligible for cancellation if it has started
-            should_retry = True
             if task is not current and (task is self._host_task or _task_started(task)):
                 waiter = task._fut_waiter  # type: ignore[attr-defined]
                 if not isinstance(waiter, asyncio.Future) or not waiter.done():
@@ -515,20 +519,21 @@ class CancelScope(BaseCancelScope):
         for scope in self._child_scopes:
             if not scope._shield and not scope.cancel_called:
                 should_retry = (
-                    scope._deliver_cancellation(origin, indent) or should_retry
+                    scope._deliver_cancellation(origin, indent, attempt) or should_retry
                 )
 
         # Schedule another callback if there are still tasks left
         if origin is self:
             if should_retry:
-                print("scheduling a retry")
+                print(f"{indent}scheduling a retry")
                 self._cancel_handle = get_running_loop().call_soon(
-                    self._deliver_cancellation, origin
+                    self._deliver_cancellation, origin, indent, attempt + 1
                 )
             else:
-                print("stopping cancellation")
+                print(f"{indent}stopping cancellation")
                 self._cancel_handle = None
 
+        print(f"{indent}{should_retry=}")
         return should_retry
 
     def _restart_cancellation_in_parent(self) -> None:
@@ -540,6 +545,7 @@ class CancelScope(BaseCancelScope):
         while scope is not None:
             if scope._cancel_called:
                 if scope._cancel_handle is None:
+                    print(f"restarting cancellation in parent scope ({id(scope):x})")
                     scope._deliver_cancellation(scope)
 
                 break
@@ -693,6 +699,7 @@ class TaskGroup(abc.TaskGroup):
                 except CancelledError as exc:
                     # This task was cancelled natively; reraise the CancelledError later
                     # unless this task was already interrupted by another exception
+                    print("received native cancel")
                     self.cancel_scope.cancel()
                     if cancelled_exc_while_waiting_tasks is None:
                         cancelled_exc_while_waiting_tasks = exc
@@ -708,6 +715,7 @@ class TaskGroup(abc.TaskGroup):
         # unless the context manager itself was previously exited with another
         # exception, or if any of the  child tasks raised an exception other than
         # CancelledError
+        print("cancelled_exc_while_waiting_tasks =", cancelled_exc_while_waiting_tasks)
         if cancelled_exc_while_waiting_tasks:
             if exc_val is None or ignore_exception:
                 raise cancelled_exc_while_waiting_tasks
