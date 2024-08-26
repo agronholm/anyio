@@ -402,7 +402,7 @@ class CancelScope(BaseCancelScope):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> bool | None:
-        print(f"exiting cancel scope {id(self):x} with {exc_type}")
+        print(f"exiting cancel scope {id(self):x} with {exc_val!r}")
         if not self._active:
             raise RuntimeError("This cancel scope is not active")
         if current_task() is not self._host_task:
@@ -431,20 +431,29 @@ class CancelScope(BaseCancelScope):
 
         host_task_state.cancel_scope = self._parent_scope
 
+        # We allow immediately raising CancelledError in the following cases:
+        # * exc_val is None (no exceptions were raised within this scope)
+        # * we caught and swallowed a CancelledError meant for this scope, and there are
+        #   no other exceptions being raised
+        not_swallowed_exceptions = 0
+        if exc_val is not None:
+            for exc in iterate_exceptions(exc_val):
+                if self._cancel_called and isinstance(exc, CancelledError):
+                    self._cancelled_caught = self._uncancel(exc)
+                    if not self._cancelled_caught:
+                        not_swallowed_exceptions += 1
+                    # print(f"cancelled_caught in {id(self):x} is {self._cancelled_caught}")
+                else:
+                    not_swallowed_exceptions += 1
+
         # Restart the cancellation effort in the closest directly cancelled parent
         # scope if this one was shielded
-        self._restart_cancellation_in_parent()
-
-        if self._cancel_called and exc_val is not None:
-            for exc in iterate_exceptions(exc_val):
-                if isinstance(exc, CancelledError):
-                    self._cancelled_caught = self._uncancel(exc)
-                    if self._cancelled_caught:
-                        break
-
-            return self._cancelled_caught
-
-        return None
+        # print(f"{not_swallowed_exceptions=}")
+        self._restart_cancellation_in_parent(immediate=not not_swallowed_exceptions)
+        print(
+            f"returning {self._cancelled_caught and not not_swallowed_exceptions} from CancelScope.__exit__; {exc_val=}"
+        )
+        return self._cancelled_caught and not not_swallowed_exceptions
 
     def _uncancel(self, cancelled_exc: CancelledError) -> bool:
         if sys.version_info < (3, 9) or self._host_task is None:
@@ -452,6 +461,7 @@ class CancelScope(BaseCancelScope):
             return True
 
         # Undo all cancellations done by this scope
+        print(f"uncancelling scope {id(self):x} with exception {cancelled_exc!r}")
         if self._cancelling is not None:
             while self._cancel_calls:
                 self._cancel_calls -= 1
@@ -482,17 +492,17 @@ class CancelScope(BaseCancelScope):
         :return: ``True`` if the delivery needs to be retried on the next cycle
 
         """
-        print(
-            f"{indent}delivering cancellation to scope {id(self):x} (attempt {attempt}):"
-        )
+        # print(
+        #     f"{indent}delivering cancellation to scope {id(self):x} (attempt {attempt}):"
+        # )
         indent += "  "
         should_retry = False
         current = current_task()
         for task in self._tasks:
             should_retry = True
-            print(f"{indent}task {task.get_name()}: ", end="")
+            # print(f"{indent}task {task.get_name()}: ", end="")
             if task._must_cancel:  # type: ignore[attr-defined]
-                print(f"{indent}must_cancel flag already set")
+                # print(f"{indent}must_cancel flag already set")
                 continue
 
             # The task is eligible for cancellation if it has started
@@ -500,19 +510,19 @@ class CancelScope(BaseCancelScope):
                 waiter = task._fut_waiter  # type: ignore[attr-defined]
                 if not isinstance(waiter, asyncio.Future) or not waiter.done():
                     origin._cancel_calls += 1
-                    print("cancelling")
+                    # print("cancelling")
                     if sys.version_info >= (3, 9):
                         task.cancel(f"Cancelled by cancel scope {id(origin):x}")
                     else:
                         task.cancel()
-                else:
-                    print("waiter is not a future or waiter is done")
-            else:
-                if task is current:
-                    print("is the current task")
-                else:
-                    assert task is not self._host_task and not _task_started(task)
-                    print("is not the host task, and has not started")
+                # else:
+                #     print("waiter is not a future or waiter is done")
+            # else:
+            #     if task is current:
+            #         print("is the current task")
+            #     else:
+            #         assert task is not self._host_task and not _task_started(task)
+            #         print("is not the host task, and has not started")
 
         # Deliver cancellation to child scopes that aren't shielded or running their own
         # cancellation callbacks
@@ -525,18 +535,18 @@ class CancelScope(BaseCancelScope):
         # Schedule another callback if there are still tasks left
         if origin is self:
             if should_retry:
-                print(f"{indent}scheduling a retry")
+                # print(f"{indent}scheduling a retry")
                 self._cancel_handle = get_running_loop().call_soon(
                     self._deliver_cancellation, origin, indent, attempt + 1
                 )
             else:
-                print(f"{indent}stopping cancellation")
+                # print(f"{indent}stopping cancellation")
                 self._cancel_handle = None
 
-        print(f"{indent}{should_retry=}")
+        # print(f"{indent}{should_retry=}")
         return should_retry
 
-    def _restart_cancellation_in_parent(self) -> None:
+    def _restart_cancellation_in_parent(self, immediate: bool = False) -> None:
         """
         Restart the cancellation effort in the closest directly cancelled parent scope.
 
@@ -545,8 +555,15 @@ class CancelScope(BaseCancelScope):
         while scope is not None:
             if scope._cancel_called:
                 if scope._cancel_handle is None:
-                    print(f"restarting cancellation in parent scope ({id(scope):x})")
-                    scope._deliver_cancellation(scope)
+                    # print(f"restarting cancellation in parent scope ({id(scope):x}, {immediate=})")
+                    if scope._deliver_cancellation(scope) and immediate:
+                        # print("  explicitly raising CancellationError")
+                        if sys.version_info >= (3, 9):
+                            raise CancelledError(
+                                f"Cancelled by cancel scope {id(scope):x}"
+                            )
+                        else:
+                            raise CancelledError()
 
                 break
 
@@ -573,6 +590,7 @@ class CancelScope(BaseCancelScope):
                 self._timeout_handle.cancel()
                 self._timeout_handle = None
 
+            print(f"cancel scope {id(self):x} was directly cancelled")
             self._cancel_called = True
             if self._host_task is not None:
                 self._deliver_cancellation(self)
@@ -683,44 +701,68 @@ class TaskGroup(abc.TaskGroup):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> bool | None:
+        print(f"exiting task group {id(self):x} with {exc_val!r}")
         if exc_val is not None:
             self.cancel_scope.cancel()
             if not isinstance(exc_val, CancelledError):
                 self._exceptions.append(exc_val)
 
-        cancelled_exc_while_waiting_tasks: CancelledError | None = None
-        with CancelScope(shield=True) as scope:
-            print(
-                f"task group {id(self):x} waiting for tasks to finish in cancel scope {id(scope):x}"
-            )
-            while self._tasks:
-                try:
-                    await asyncio.wait(self._tasks)
-                except CancelledError as exc:
-                    # This task was cancelled natively; reraise the CancelledError later
-                    # unless this task was already interrupted by another exception
-                    print("received native cancel")
-                    self.cancel_scope.cancel()
-                    if cancelled_exc_while_waiting_tasks is None:
-                        cancelled_exc_while_waiting_tasks = exc
+        try:
+            # Wait for child tasks to finish in a shielded scope, to prevent the
+            # enclosing cancel scope from hammering this task with cancellation attempts
+            # (#695)
+            with CancelScope(shield=True) as scope:
+                print(
+                    f"task group {id(self):x} waiting for tasks to finish in cancel scope {id(scope):x}"
+                )
+                while self._tasks:
+                    try:
+                        await asyncio.wait(self._tasks)
+                    except CancelledError as exc:
+                        # This task was cancelled natively; reraise the CancelledError later
+                        # unless this task was already interrupted by another exception
+                        print("received native cancel")
+                        self.cancel_scope.cancel()
+                        if exc_val is None:
+                            exc_val = exc
 
-        self._active = False
-        ignore_exception = self.cancel_scope.__exit__(exc_type, exc_val, exc_tb)
-        if self._exceptions:
-            raise BaseExceptionGroup(
-                "unhandled errors in a TaskGroup", self._exceptions
+                self._active = False
+                if self._exceptions:
+                    print(f"raising exception group ({self._exceptions=})")
+                    raise BaseExceptionGroup(
+                        "unhandled errors in a TaskGroup", self._exceptions
+                    )
+                elif exc_val:
+                    print("no exceptions, raising native CancelledError")
+                    raise exc_val
+        except BaseException as exc:
+            print(
+                f"task group {id(self):x}: got exception while waiting for tasks to finish; {exc=}, {self._exceptions=}"
             )
+            if self.cancel_scope.__exit__(type(exc), exc, exc.__traceback__):
+                print(
+                    f"  cancel scope {id(self.cancel_scope):x} swallowed the exception"
+                )
+                return True
+
+            print("  re-raising exception")
+            raise
+        else:
+            print(f"passing {exc_type} to cancel_scope.__exit__")
+            return self.cancel_scope.__exit__(exc_type, exc_val, exc_tb)
 
         # Raise the CancelledError received while waiting for child tasks to exit,
         # unless the context manager itself was previously exited with another
         # exception, or if any of the  child tasks raised an exception other than
         # CancelledError
-        print("cancelled_exc_while_waiting_tasks =", cancelled_exc_while_waiting_tasks)
-        if cancelled_exc_while_waiting_tasks:
-            if exc_val is None or ignore_exception:
-                raise cancelled_exc_while_waiting_tasks
-
-        return ignore_exception
+        # print(f"exiting {id(self):x}")
+        # print(f"{cancelled_exc_while_waiting_tasks=}")
+        # print(f"{ignore_exception=}")
+        # if cancelled_exc_while_waiting_tasks:
+        #     if exc_val is None or ignore_exception:
+        #         raise cancelled_exc_while_waiting_tasks
+        #
+        # return ignore_exception
 
     def _spawn(
         self,

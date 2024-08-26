@@ -452,7 +452,7 @@ async def test_cancel_propagation() -> None:
         async with create_task_group():
             await sleep(1)
 
-        assert False
+        pytest.fail("Execution should not reach this point")
 
     async with create_task_group() as tg:
         tg.start_soon(g)
@@ -720,10 +720,8 @@ async def test_cancel_host_asyncgen() -> None:
 
     async def host_task() -> None:
         nonlocal done
-        async with create_task_group() as tg:
-            with CancelScope(shield=True) as inner_scope:
-                assert inner_scope.shield
-                tg.cancel_scope.cancel()
+        with CancelScope() as inner_scope:
+            inner_scope.cancel()
 
             with pytest.raises(get_cancelled_exc_class()):
                 await sleep(0)
@@ -1020,14 +1018,17 @@ async def test_exception_group_filtering() -> None:
 async def test_cancel_propagation_with_inner_spawn() -> None:
     async def g() -> NoReturn:
         async with anyio.create_task_group() as tg2:
+            print(f"tg2 = {id(tg2):x} cancel scope = {id(tg2.cancel_scope):x}")
             tg2.start_soon(anyio.sleep, 10)
             await anyio.sleep(1)
 
-        assert False
+        pytest.fail("Execution should not have reached this line")
 
     async with anyio.create_task_group() as tg:
+        print(f"tg = {id(tg):x}n cancel scope = {id(tg.cancel_scope):x}")
         tg.start_soon(g)
         await wait_all_tasks_blocked()
+        print("cancelling scope", hex(id(tg.cancel_scope)))
         tg.cancel_scope.cancel()
 
 
@@ -1247,6 +1248,7 @@ def test_unhandled_exception_group(caplog: pytest.LogCaptureFixture) -> None:
 
     async def main() -> NoReturn:
         async with anyio.create_task_group() as tg:
+            print(f"tg cancel scope = {id(tg.cancel_scope):x}")
             tg.start_soon(nested)
             await wait_all_tasks_blocked()
             asyncio.get_running_loop().call_soon(crash)
