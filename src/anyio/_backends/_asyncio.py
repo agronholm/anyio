@@ -2362,7 +2362,7 @@ class AsyncIOBackend(AsyncBackend):
             name="AnyIO process pool shutdown task",
         )
         find_root_task().add_done_callback(
-            partial(_forcibly_shutdown_process_pool_on_exit, workers)
+            partial(_forcibly_shutdown_process_pool_on_exit, workers)  # type:ignore[arg-type]
         )
 
     @classmethod
