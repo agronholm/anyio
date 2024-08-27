@@ -5,6 +5,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Dropped support for Python 3.8
 - Fixed ``__repr__()`` of ``MemoryObjectItemReceiver``, when ``item`` is not defined
   (`#767 <https://github.com/agronholm/anyio/pulls/767>`_; PR by @Danipulok)
 - Added support for the ``from_uri()``, ``full_match()``, ``parser`` methods/properties

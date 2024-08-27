@@ -19,9 +19,20 @@ from asyncio import (
 )
 from asyncio.base_events import _run_until_complete_cb  # type: ignore[attr-defined]
 from collections import OrderedDict, deque
-from collections.abc import AsyncIterator, Generator, Iterable
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Collection,
+    Coroutine,
+    Generator,
+    Iterable,
+    Mapping,
+    Sequence,
+)
 from concurrent.futures import Future
-from contextlib import suppress
+from contextlib import AbstractContextManager, suppress
 from contextvars import Context, copy_context
 from dataclasses import dataclass
 from functools import partial, wraps
@@ -41,16 +52,7 @@ from types import TracebackType
 from typing import (
     IO,
     Any,
-    AsyncGenerator,
-    Awaitable,
-    Callable,
-    Collection,
-    ContextManager,
-    Coroutine,
-    Mapping,
     Optional,
-    Sequence,
-    Tuple,
     TypeVar,
     cast,
 )
@@ -402,7 +404,6 @@ class CancelScope(BaseCancelScope):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> bool | None:
-        print(f"exiting cancel scope {id(self):x} with {exc_val!r}")
         if not self._active:
             raise RuntimeError("This cancel scope is not active")
         if current_task() is not self._host_task:
@@ -450,18 +451,14 @@ class CancelScope(BaseCancelScope):
         # scope if this one was shielded
         # print(f"{not_swallowed_exceptions=}")
         self._restart_cancellation_in_parent(immediate=not not_swallowed_exceptions)
-        print(
-            f"returning {self._cancelled_caught and not not_swallowed_exceptions} from CancelScope.__exit__; {exc_val=}"
-        )
         return self._cancelled_caught and not not_swallowed_exceptions
 
     def _uncancel(self, cancelled_exc: CancelledError) -> bool:
-        if sys.version_info < (3, 9) or self._host_task is None:
+        if self._host_task is None:
             self._cancel_calls = 0
             return True
 
         # Undo all cancellations done by this scope
-        print(f"uncancelling scope {id(self):x} with exception {cancelled_exc!r}")
         if self._cancelling is not None:
             while self._cancel_calls:
                 self._cancel_calls -= 1
@@ -479,9 +476,7 @@ class CancelScope(BaseCancelScope):
             else:
                 self._timeout_handle = loop.call_at(self._deadline, self._timeout)
 
-    def _deliver_cancellation(
-        self, origin: CancelScope, indent: str = "", attempt: int = 1
-    ) -> bool:
+    def _deliver_cancellation(self, origin: CancelScope) -> bool:
         """
         Deliver cancellation to directly contained tasks and nested cancel scopes.
 
@@ -492,17 +487,11 @@ class CancelScope(BaseCancelScope):
         :return: ``True`` if the delivery needs to be retried on the next cycle
 
         """
-        # print(
-        #     f"{indent}delivering cancellation to scope {id(self):x} (attempt {attempt}):"
-        # )
-        indent += "  "
         should_retry = False
         current = current_task()
         for task in self._tasks:
             should_retry = True
-            # print(f"{indent}task {task.get_name()}: ", end="")
             if task._must_cancel:  # type: ignore[attr-defined]
-                # print(f"{indent}must_cancel flag already set")
                 continue
 
             # The task is eligible for cancellation if it has started
@@ -510,40 +499,23 @@ class CancelScope(BaseCancelScope):
                 waiter = task._fut_waiter  # type: ignore[attr-defined]
                 if not isinstance(waiter, asyncio.Future) or not waiter.done():
                     origin._cancel_calls += 1
-                    # print("cancelling")
-                    if sys.version_info >= (3, 9):
-                        task.cancel(f"Cancelled by cancel scope {id(origin):x}")
-                    else:
-                        task.cancel()
-                # else:
-                #     print("waiter is not a future or waiter is done")
-            # else:
-            #     if task is current:
-            #         print("is the current task")
-            #     else:
-            #         assert task is not self._host_task and not _task_started(task)
-            #         print("is not the host task, and has not started")
+                    task.cancel(f"Cancelled by cancel scope {id(origin):x}")
 
         # Deliver cancellation to child scopes that aren't shielded or running their own
         # cancellation callbacks
         for scope in self._child_scopes:
             if not scope._shield and not scope.cancel_called:
-                should_retry = (
-                    scope._deliver_cancellation(origin, indent, attempt) or should_retry
-                )
+                should_retry = scope._deliver_cancellation(origin) or should_retry
 
         # Schedule another callback if there are still tasks left
         if origin is self:
             if should_retry:
-                # print(f"{indent}scheduling a retry")
                 self._cancel_handle = get_running_loop().call_soon(
-                    self._deliver_cancellation, origin, indent, attempt + 1
+                    self._deliver_cancellation, origin
                 )
             else:
-                # print(f"{indent}stopping cancellation")
                 self._cancel_handle = None
 
-        # print(f"{indent}{should_retry=}")
         return should_retry
 
     def _restart_cancellation_in_parent(self, immediate: bool = False) -> None:
@@ -555,15 +527,8 @@ class CancelScope(BaseCancelScope):
         while scope is not None:
             if scope._cancel_called:
                 if scope._cancel_handle is None:
-                    # print(f"restarting cancellation in parent scope ({id(scope):x}, {immediate=})")
                     if scope._deliver_cancellation(scope) and immediate:
-                        # print("  explicitly raising CancellationError")
-                        if sys.version_info >= (3, 9):
-                            raise CancelledError(
-                                f"Cancelled by cancel scope {id(scope):x}"
-                            )
-                        else:
-                            raise CancelledError()
+                        raise CancelledError(f"Cancelled by cancel scope {id(scope):x}")
 
                 break
 
@@ -590,7 +555,6 @@ class CancelScope(BaseCancelScope):
                 self._timeout_handle.cancel()
                 self._timeout_handle = None
 
-            print(f"cancel scope {id(self):x} was directly cancelled")
             self._cancel_called = True
             if self._host_task is not None:
                 self._deliver_cancellation(self)
@@ -701,7 +665,6 @@ class TaskGroup(abc.TaskGroup):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> bool | None:
-        print(f"exiting task group {id(self):x} with {exc_val!r}")
         if exc_val is not None:
             self.cancel_scope.cancel()
             if not isinstance(exc_val, CancelledError):
@@ -711,44 +674,30 @@ class TaskGroup(abc.TaskGroup):
             # Wait for child tasks to finish in a shielded scope, to prevent the
             # enclosing cancel scope from hammering this task with cancellation attempts
             # (#695)
-            with CancelScope(shield=True) as scope:
-                print(
-                    f"task group {id(self):x} waiting for tasks to finish in cancel scope {id(scope):x}"
-                )
+            with CancelScope(shield=True):
                 while self._tasks:
                     try:
                         await asyncio.wait(self._tasks)
                     except CancelledError as exc:
                         # This task was cancelled natively; reraise the CancelledError later
                         # unless this task was already interrupted by another exception
-                        print("received native cancel")
                         self.cancel_scope.cancel()
                         if exc_val is None:
                             exc_val = exc
 
                 self._active = False
                 if self._exceptions:
-                    print(f"raising exception group ({self._exceptions=})")
                     raise BaseExceptionGroup(
                         "unhandled errors in a TaskGroup", self._exceptions
                     )
                 elif exc_val:
-                    print("no exceptions, raising native CancelledError")
                     raise exc_val
         except BaseException as exc:
-            print(
-                f"task group {id(self):x}: got exception while waiting for tasks to finish; {exc=}, {self._exceptions=}"
-            )
             if self.cancel_scope.__exit__(type(exc), exc, exc.__traceback__):
-                print(
-                    f"  cancel scope {id(self.cancel_scope):x} swallowed the exception"
-                )
                 return True
 
-            print("  re-raising exception")
             raise
         else:
-            print(f"passing {exc_type} to cancel_scope.__exit__")
             return self.cancel_scope.__exit__(exc_type, exc_val, exc_tb)
 
         # Raise the CancelledError received while waiting for child tasks to exit,
@@ -874,7 +823,7 @@ class TaskGroup(abc.TaskGroup):
 # Threads
 #
 
-_Retval_Queue_Type = Tuple[Optional[T_Retval], Optional[BaseException]]
+_Retval_Queue_Type = tuple[Optional[T_Retval], Optional[BaseException]]
 
 
 class WorkerThread(Thread):
@@ -2018,7 +1967,7 @@ class TestRunner(abc.TestRunner):
     ) -> T_Retval:
         if not self._runner_task:
             self._send_stream, receive_stream = create_memory_object_stream[
-                Tuple[Awaitable[Any], asyncio.Future]
+                tuple[Awaitable[Any], asyncio.Future]
             ](1)
             self._runner_task = self.get_loop().create_task(
                 self._run_tests_and_fixtures(receive_stream)
@@ -2370,7 +2319,7 @@ class AsyncIOBackend(AsyncBackend):
         cls, host: str, port: int, local_address: IPSockAddrType | None = None
     ) -> abc.SocketStream:
         transport, protocol = cast(
-            Tuple[asyncio.Transport, StreamProtocol],
+            tuple[asyncio.Transport, StreamProtocol],
             await get_running_loop().create_connection(
                 StreamProtocol, host, port, local_addr=local_address
             ),
@@ -2549,7 +2498,7 @@ class AsyncIOBackend(AsyncBackend):
     @classmethod
     def open_signal_receiver(
         cls, *signals: Signals
-    ) -> ContextManager[AsyncIterator[Signals]]:
+    ) -> AbstractContextManager[AsyncIterator[Signals]]:
         return _SignalReceiver(signals)
 
     @classmethod
