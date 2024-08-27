@@ -128,7 +128,7 @@ show_missing = true
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = pre-commit, py38, py39, py310, py311, py312, pypy3
+envlist = pre-commit, py38, py39, py310, py311, py312, py313, pypy3
 skip_missing_interpreters = true
 minversion = 4.0.0
 
