@@ -972,7 +972,7 @@ class Process(abc.Process):
     _stderr: StreamReaderWrapper | None
 
     async def aclose(self) -> None:
-        with CancelScope(shield=True):
+        with CancelScope(shield=True) as scope:
             if self._stdin:
                 await self._stdin.aclose()
             if self._stdout:
@@ -980,14 +980,14 @@ class Process(abc.Process):
             if self._stderr:
                 await self._stderr.aclose()
 
-        try:
-            await self.wait()
-        except BaseException:
-            self.kill()
-            with CancelScope(shield=True):
+            scope.shield = False
+            try:
                 await self.wait()
-
-            raise
+            except BaseException:
+                scope.shield = True
+                self.kill()
+                await self.wait()
+                raise
 
     async def wait(self) -> int:
         return await self._process.wait()
