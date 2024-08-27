@@ -2,18 +2,19 @@ from __future__ import annotations
 
 import sys
 import threading
-from collections.abc import Awaitable, Callable, Generator
+from collections.abc import Awaitable, Callable, Generator, Iterable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
-from contextlib import AbstractContextManager, contextmanager
+from contextlib import (
+    AbstractAsyncContextManager,
+    AbstractContextManager,
+    contextmanager,
+)
 from dataclasses import dataclass, field
 from inspect import isawaitable
 from types import TracebackType
 from typing import (
     Any,
-    AsyncContextManager,
-    ContextManager,
     Generic,
-    Iterable,
     TypeVar,
     cast,
     overload,
@@ -88,7 +89,9 @@ class _BlockingAsyncContextManager(Generic[T_co], AbstractContextManager):
         type[BaseException] | None, BaseException | None, TracebackType | None
     ] = (None, None, None)
 
-    def __init__(self, async_cm: AsyncContextManager[T_co], portal: BlockingPortal):
+    def __init__(
+        self, async_cm: AbstractAsyncContextManager[T_co], portal: BlockingPortal
+    ):
         self._async_cm = async_cm
         self._portal = portal
 
@@ -375,8 +378,8 @@ class BlockingPortal:
         return f, task_status_future.result()
 
     def wrap_async_context_manager(
-        self, cm: AsyncContextManager[T_co]
-    ) -> ContextManager[T_co]:
+        self, cm: AbstractAsyncContextManager[T_co]
+    ) -> AbstractContextManager[T_co]:
         """
         Wrap an async context manager as a synchronous context manager via this portal.
 

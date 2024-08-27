@@ -265,7 +265,6 @@ async def test_cancel_with_nested_shielded_scope(mocker: MockerFixture) -> None:
     async def shield_task() -> None:
         with CancelScope(shield=True) as scope:
             shielded_cancel_spy = mocker.spy(scope, "_deliver_cancellation")
-            print(f"innermost cancel scope: {id(scope):x}")
             await sleep(0.5)
 
             # At this point, the outermost cancel scope was delivered cancellation once
@@ -278,9 +277,6 @@ async def test_cancel_with_nested_shielded_scope(mocker: MockerFixture) -> None:
         try:
             async with create_task_group() as tg:
                 middle_cancel_spy = mocker.spy(tg.cancel_scope, "_deliver_cancellation")
-                print(
-                    f"middle cancel scope: {id(tg.cancel_scope):x} task group: {id(tg):x}"
-                )
                 tg.start_soon(shield_task, name="shield task")
         finally:
             # Cancellation is delivered to the the middle task groups's cancel scope:
@@ -290,20 +286,11 @@ async def test_cancel_with_nested_shielded_scope(mocker: MockerFixture) -> None:
             #   exited
             assert len(middle_cancel_spy.call_args_list) == 6
             assert len(outer_cancel_spy.call_args_list) == 6
-            print(
-                "exited middle task group, outer cancel scope now cancelled",
-                len(outer_cancel_spy.call_args_list),
-                "times",
-            )
 
     async with create_task_group() as tg:
-        print(
-            f"outermost cancel scope: {id(tg.cancel_scope):x}  task group: {id(tg):x}"
-        )
         outer_cancel_spy = mocker.spy(tg.cancel_scope, "_deliver_cancellation")
         tg.start_soon(middle_task, name="middle task")
         await wait_all_tasks_blocked()
-        print("cancellation should start now")
         tg.cancel_scope.cancel()
 
     # Cancellation is delivered to the outermost cancel scope:
@@ -832,14 +819,11 @@ async def test_exception_cancels_siblings() -> None:
 async def test_cancel_cascade() -> None:
     async def do_something() -> NoReturn:
         async with create_task_group() as tg2:
-            print(f"tg2 ({id(tg2):x}) cancel scope: {id(tg2.cancel_scope):x}\n")
             tg2.start_soon(sleep, 1, name="sleep")
 
-        print("exited task group tg2")
         raise Exception("foo")
 
     async with create_task_group() as tg:
-        print(f"tg ({id(tg):x}) cancel scope: {id(tg.cancel_scope):x}")
         tg.start_soon(do_something, name="do_something")
         await wait_all_tasks_blocked()
         tg.cancel_scope.cancel()
@@ -1022,17 +1006,14 @@ async def test_exception_group_filtering() -> None:
 async def test_cancel_propagation_with_inner_spawn() -> None:
     async def g() -> NoReturn:
         async with anyio.create_task_group() as tg2:
-            print(f"tg2 = {id(tg2):x} cancel scope = {id(tg2.cancel_scope):x}")
             tg2.start_soon(anyio.sleep, 10)
             await anyio.sleep(1)
 
         pytest.fail("Execution should not have reached this line")
 
     async with anyio.create_task_group() as tg:
-        print(f"tg = {id(tg):x}n cancel scope = {id(tg.cancel_scope):x}")
         tg.start_soon(g)
         await wait_all_tasks_blocked()
-        print("cancelling scope", hex(id(tg.cancel_scope)))
         tg.cancel_scope.cancel()
 
 
@@ -1252,7 +1233,6 @@ def test_unhandled_exception_group(caplog: pytest.LogCaptureFixture) -> None:
 
     async def main() -> NoReturn:
         async with anyio.create_task_group() as tg:
-            print(f"tg cancel scope = {id(tg.cancel_scope):x}")
             tg.start_soon(nested)
             await wait_all_tasks_blocked()
             asyncio.get_running_loop().call_soon(crash)

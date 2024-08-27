@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import socket
 import ssl
-from contextlib import ExitStack
+from contextlib import AbstractContextManager, ExitStack
 from threading import Thread
-from typing import ContextManager, NoReturn
+from typing import NoReturn
 
 import pytest
 from pytest_mock import MockerFixture
@@ -210,7 +210,7 @@ class TestTLSStream:
             finally:
                 conn.close()
 
-        client_cm: ContextManager = ExitStack()
+        client_cm: AbstractContextManager = ExitStack()
         if client_compatible and not server_compatible:
             client_cm = pytest.raises(BrokenResourceError)
 

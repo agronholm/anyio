@@ -126,9 +126,11 @@ async def test_run_process_connect_to_file(tmp_path: Path) -> None:
     stdinfile.write_text("Hello, process!\n")
     stdoutfile = tmp_path / "stdout"
     stderrfile = tmp_path / "stderr"
-    with stdinfile.open("rb") as fin, stdoutfile.open("wb") as fout, stderrfile.open(
-        "wb"
-    ) as ferr:
+    with (
+        stdinfile.open("rb") as fin,
+        stdoutfile.open("wb") as fout,
+        stderrfile.open("wb") as ferr,
+    ):
         async with await open_process(
             [
                 sys.executable,

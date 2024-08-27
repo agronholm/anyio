@@ -10,12 +10,13 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Generator, Iterable, Iterator
 from contextlib import suppress
 from pathlib import Path
 from socket import AddressFamily
 from ssl import SSLContext, SSLError
 from threading import Thread
-from typing import Any, Generator, Iterable, Iterator, NoReturn, TypeVar, cast
+from typing import Any, NoReturn, TypeVar, cast
 
 import psutil
 import pytest
@@ -1124,9 +1125,10 @@ class TestUNIXListener:
             async with stream:
                 await stream.send(b"Hello\n")
 
-        async with await create_unix_listener(
-            socket_path
-        ) as listener, create_task_group() as tg:
+        async with (
+            await create_unix_listener(socket_path) as listener,
+            create_task_group() as tg,
+        ):
             tg.start_soon(listener.serve, handle)
             await wait_all_tasks_blocked()
 
