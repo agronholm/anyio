@@ -364,7 +364,6 @@ class CancelScope(BaseCancelScope):
         self._tasks: set[asyncio.Task] = set()
         self._host_task: asyncio.Task | None = None
         self._cancel_calls: int = 0
-        self._cancelling: int | None = None
 
     def __enter__(self) -> CancelScope:
         if self._active:
@@ -388,8 +387,6 @@ class CancelScope(BaseCancelScope):
 
         self._timeout()
         self._active = True
-        if sys.version_info >= (3, 11):
-            self._cancelling = self._host_task.cancelling()
 
         # Start cancelling the host task if the scope was cancelled before entering
         if self._cancel_called:
@@ -443,13 +440,11 @@ class CancelScope(BaseCancelScope):
                     self._cancelled_caught = self._uncancel(exc)
                     if not self._cancelled_caught:
                         not_swallowed_exceptions += 1
-                    # print(f"cancelled_caught in {id(self):x} is {self._cancelled_caught}")
                 else:
                     not_swallowed_exceptions += 1
 
         # Restart the cancellation effort in the closest directly cancelled parent
         # scope if this one was shielded
-        # print(f"{not_swallowed_exceptions=}")
         self._restart_cancellation_in_parent(immediate=not not_swallowed_exceptions)
         return self._cancelled_caught and not not_swallowed_exceptions
 
@@ -459,13 +454,12 @@ class CancelScope(BaseCancelScope):
             return True
 
         # Undo all cancellations done by this scope
-        if self._cancelling is not None:
+        if sys.version_info >= (3, 11):
             while self._cancel_calls:
                 self._cancel_calls -= 1
-                if self._host_task.uncancel() <= self._cancelling:
+                if not self._host_task.uncancel():
                     return True
 
-        self._cancel_calls = 0
         return f"Cancelled by cancel scope {id(self):x}" in cancelled_exc.args
 
     def _timeout(self) -> None:
