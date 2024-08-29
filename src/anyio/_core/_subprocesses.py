@@ -16,7 +16,7 @@ if sys.version_info >= (3, 10):
 else:
     from typing_extensions import TypeAlias
 
-StrOrBytesPath: TypeAlias = Union[str, bytes, "PathLike[str]"]
+StrOrBytesPath: TypeAlias = Union[str, bytes, "PathLike[str]", "PathLike[bytes]"]
 
 
 async def run_process(

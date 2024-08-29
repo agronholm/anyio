@@ -50,7 +50,7 @@ if TYPE_CHECKING:
 
 T_Retval = TypeVar("T_Retval")
 PosArgsT = TypeVarTuple("PosArgsT")
-StrOrBytesPath: TypeAlias = Union[str, bytes, "PathLike[str]"]
+StrOrBytesPath: TypeAlias = Union[str, bytes, "PathLike[str]", "PathLike[bytes]"]
 
 
 class AsyncBackend(metaclass=ABCMeta):

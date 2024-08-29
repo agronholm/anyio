@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import array
 import math
+import os
 import socket
 import sys
 import types
@@ -973,9 +974,16 @@ class TrioBackend(AsyncBackend):
         stderr: int | IO[Any] | None,
         **kwargs: Any,
     ) -> Process:
+        def convert_item(item: StrOrBytesPath) -> str:
+            str_or_bytes = os.fspath(item)
+            if isinstance(str_or_bytes, str):
+                return str_or_bytes
+            else:
+                return os.fsdecode(str_or_bytes)
+
         if isinstance(command, (str, bytes, PathLike)):
             process = await trio.lowlevel.open_process(
-                command,
+                convert_item(command),
                 stdin=stdin,
                 stdout=stdout,
                 stderr=stderr,
@@ -984,7 +992,7 @@ class TrioBackend(AsyncBackend):
             )
         else:
             process = await trio.lowlevel.open_process(
-                command,
+                [convert_item(item) for item in command],
                 stdin=stdin,
                 stdout=stdout,
                 stderr=stderr,

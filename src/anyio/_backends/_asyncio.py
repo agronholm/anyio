@@ -4,7 +4,7 @@ import array
 import asyncio
 import concurrent.futures
 import math
-import pathlib
+import os
 import socket
 import sys
 import threading
@@ -2255,7 +2255,7 @@ class AsyncIOBackend(AsyncBackend):
     ) -> Process:
         await cls.checkpoint()
         if isinstance(command, PathLike):
-            command = str(pathlib.Path(command))
+            command = os.fspath(command)
 
         if isinstance(command, (str, bytes)):
             process = await asyncio.create_subprocess_shell(
