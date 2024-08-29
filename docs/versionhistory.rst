@@ -17,6 +17,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``to_process.run_sync()`` failing to initialize if ``__main__.__file__`` pointed
   to a file in a nonexistent directory
   (`#696 <https://github.com/agronholm/anyio/issues/696>`_)
+- Fixed 100% CPU use on asyncio while waiting for an exiting task group to finish while
+  said task group is within a cancelled cancel scope
+  (`#695 <https://github.com/agronholm/anyio/issues/695>`_)
+- Fixed cancel scopes on asyncio not reraising ``CancelledError`` on exit while the
+  enclosing cancel scope has been effectively cancelled
+  (`#698 <https://github.com/agronholm/anyio/issues/698>`_)
 
 **4.4.0**
 
