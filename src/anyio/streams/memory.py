@@ -38,6 +38,12 @@ class MemoryObjectItemReceiver(Generic[T_Item]):
     task_info: TaskInfo = field(init=False, default_factory=get_current_task)
     item: T_Item = field(init=False)
 
+    def __repr__(self) -> str:
+        # When item is not defined, we get following error with default __repr__:
+        # AttributeError: 'MemoryObjectItemReceiver' object has no attribute 'item'
+        item = getattr(self, "item", None)
+        return f"{self.__class__.__name__}(task_info={self.task_info}, item={item!r})"
+
 
 @dataclass(eq=False)
 class MemoryObjectStreamState(Generic[T_Item]):
