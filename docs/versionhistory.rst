@@ -11,7 +11,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   in ``anyio.Path``, newly added in Python 3.13
   (`#737 <https://github.com/agronholm/anyio/issues/737>`_)
 - Added support for more keyword arguments for ``run_process()`` and ``open_process()``:
-  ``startupinfo``, ``creationflags``, ``user``, ``group``, ``extra_groups`` and ``umask``
+  ``startupinfo``, ``creationflags``, ``pass_fds``, ``user``, ``group``,
+  ``extra_groups`` and ``umask``
   (`#742 <https://github.com/agronholm/anyio/issues/742>`_)
 - Improved the type annotations in ``run_process()`` and ``open_process()`` to allow for
   path-like arguments, just like ``subprocess.Popen``

@@ -126,6 +126,7 @@ async def open_process(
     startupinfo: Any = None,
     creationflags: int = 0,
     start_new_session: bool = False,
+    pass_fds: Sequence[int] = (),
     user: str | int | None = None,
     group: str | int | None = None,
     extra_groups: Iterable[str | int] | None = None,
@@ -153,6 +154,8 @@ async def open_process(
         to specify process startup parameters (Windows only)
     :param start_new_session: if ``true`` the setsid() system call will be made in the
         child process prior to the execution of the subprocess. (POSIX only)
+    :param pass_fds: sequence of file descriptors to keep open between the parent and
+        child processes. (POSIX only)
     :param user: effective user to run the process as (Python >= 3.9; POSIX only)
     :param group: effective group to run the process as (Python >= 3.9; POSIX only)
     :param extra_groups: supplementary groups to set in the subprocess (Python >= 3.9;
@@ -197,5 +200,6 @@ async def open_process(
         startupinfo=startupinfo,
         creationflags=creationflags,
         start_new_session=start_new_session,
+        pass_fds=pass_fds,
         **kwargs,
     )
