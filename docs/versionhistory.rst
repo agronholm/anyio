@@ -23,6 +23,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed cancel scopes on asyncio not reraising ``CancelledError`` on exit while the
   enclosing cancel scope has been effectively cancelled
   (`#698 <https://github.com/agronholm/anyio/issues/698>`_)
+- Fixed ``TaskInfo.has_pending_cancellation()`` on asyncio not respecting shielded
+  scopes (`#771 <https://github.com/agronholm/anyio/issues/771>`_; PR by @gschaffner)
 
 **4.4.0**
 
