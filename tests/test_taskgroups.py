@@ -628,9 +628,11 @@ async def test_cancel_from_shielded_scope() -> None:
             assert inner_scope.shield
             tg.cancel_scope.cancel()
             assert current_effective_deadline() == math.inf
+            assert not get_current_task().has_pending_cancellation()
             await checkpoint()
 
         assert current_effective_deadline() == -math.inf
+        assert get_current_task().has_pending_cancellation()
 
         with pytest.raises(get_cancelled_exc_class()):
             await sleep(0.01)
@@ -644,6 +646,7 @@ async def test_cancel_shielded_scope() -> None:
         assert cancel_scope.shield
         cancel_scope.cancel()
         assert current_effective_deadline() == -math.inf
+        assert get_current_task().has_pending_cancellation()
 
         with pytest.raises(get_cancelled_exc_class()):
             await checkpoint()

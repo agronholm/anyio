@@ -21,6 +21,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``to_process.run_sync()`` failing to initialize if ``__main__.__file__`` pointed
   to a file in a nonexistent directory
   (`#696 <https://github.com/agronholm/anyio/issues/696>`_)
+- Fixed ``TaskInfo.has_pending_cancellation()`` on asyncio not respecting shielded
+  scopes (`#771 <https://github.com/agronholm/anyio/issues/771>`_; PR by @gschaffner)
 
 **4.4.0**
 
