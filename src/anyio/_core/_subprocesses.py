@@ -16,8 +16,6 @@ if sys.version_info >= (3, 10):
 else:
     from typing_extensions import TypeAlias
 
-PY39_ARGS = frozenset(["user", "group", "extra_groups", "umask"])
-
 StrOrBytesPath: TypeAlias = Union[str, bytes, "PathLike[str]"]
 
 
