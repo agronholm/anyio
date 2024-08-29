@@ -7,14 +7,19 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Improved the performance of ``anyio.Lock`` and ``anyio.Semaphore`` on asyncio (even up
   to 50 %)
+- Fixed ``__repr__()`` of ``MemoryObjectItemReceiver``, when ``item`` is not defined
+  (`#767 <https://github.com/agronholm/anyio/pulls/767>`_; PR by @Danipulok)
 - Added support for the ``from_uri()``, ``full_match()``, ``parser`` methods/properties
   in ``anyio.Path``, newly added in Python 3.13
   (`#737 <https://github.com/agronholm/anyio/issues/737>`_)
 - Changed the ``ResourceWarning`` from an unclosed memory object stream to include its
   address for easier identification
+- Bumped minimum version of Trio to v0.26.1
 - Fixed ``to_process.run_sync()`` failing to initialize if ``__main__.__file__`` pointed
   to a file in a nonexistent directory
   (`#696 <https://github.com/agronholm/anyio/issues/696>`_)
+- Fixed ``TaskInfo.has_pending_cancellation()`` on asyncio not respecting shielded
+  scopes (`#771 <https://github.com/agronholm/anyio/issues/771>`_; PR by @gschaffner)
 
 **4.4.0**
 

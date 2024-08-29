@@ -14,20 +14,20 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: 3.x
-    - name: Install dependencies
-      run: pip install build
-    - name: Create packages
-      run: python -m build
-    - name: Archive packages
-      uses: actions/upload-artifact@v4
-      with:
-        name: dist
-        path: dist
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+      - name: Install dependencies
+        run: pip install build
+      - name: Create packages
+        run: python -m build
+      - name: Archive packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
 
   publish:
     name: Publish build artifacts to the PyPI
@@ -37,10 +37,10 @@ jobs:
     permissions:
       id-token: write
     steps:
-    - name: Retrieve packages
-      uses: actions/download-artifact@v4
-    - name: Upload packages
-      uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Retrieve packages
+        uses: actions/download-artifact@v4
+      - name: Upload packages
+        uses: pypa/gh-action-pypi-publish@release/v1
 
   release:
     name: Create a GitHub release
@@ -49,11 +49,11 @@ jobs:
     permissions:
       contents: write
     steps:
-    - uses: actions/checkout@v4
-    - id: changelog
-      uses: agronholm/release-notes@v1
-      with:
-        path: docs/versionhistory.rst
-    - uses: ncipollo/release-action@v1
-      with:
-        body: ${{ steps.changelog.outputs.changelog }}
+      - uses: actions/checkout@v4
+      - id: changelog
+        uses: agronholm/release-notes@v1
+        with:
+          path: docs/versionhistory.rst
+      - uses: ncipollo/release-action@v1
+        with:
+          body: ${{ steps.changelog.outputs.changelog }}

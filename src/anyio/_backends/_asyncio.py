@@ -2000,7 +2000,9 @@ class AsyncIOTaskInfo(TaskInfo):
 
         if task_state := _task_states.get(task):
             if cancel_scope := task_state.cancel_scope:
-                return cancel_scope.cancel_called or cancel_scope._parent_cancelled()
+                return cancel_scope.cancel_called or (
+                    not cancel_scope.shield and cancel_scope._parent_cancelled()
+                )
 
         return False
 
@@ -2438,7 +2440,7 @@ class AsyncIOBackend(AsyncBackend):
             name="AnyIO process pool shutdown task",
         )
         find_root_task().add_done_callback(
-            partial(_forcibly_shutdown_process_pool_on_exit, workers)
+            partial(_forcibly_shutdown_process_pool_on_exit, workers)  # type:ignore[arg-type]
         )
 
     @classmethod
