@@ -364,6 +364,7 @@ class CancelScope(BaseCancelScope):
         self._tasks: set[asyncio.Task] = set()
         self._host_task: asyncio.Task | None = None
         self._cancel_calls: int = 0
+        self._cancelling: int | None = None
 
     def __enter__(self) -> CancelScope:
         if self._active:
@@ -387,12 +388,13 @@ class CancelScope(BaseCancelScope):
 
         self._timeout()
         self._active = True
+        if sys.version_info >= (3, 11):
+            self._cancelling = self._host_task.cancelling()
 
         # Start cancelling the host task if the scope was cancelled before entering
         if self._cancel_called:
             self._deliver_cancellation(self)
 
-        # print(f"entered cancel scope {id(self):x}")
         return self
 
     def __exit__(
@@ -454,13 +456,25 @@ class CancelScope(BaseCancelScope):
             return True
 
         # Undo all cancellations done by this scope
-        if sys.version_info >= (3, 11):
+        if self._cancelling is not None:
             while self._cancel_calls:
                 self._cancel_calls -= 1
-                if not self._host_task.uncancel():
-                    return True
+                if self._host_task.uncancel() <= self._cancelling:
+                    break
 
-        return f"Cancelled by cancel scope {id(self):x}" in cancelled_exc.args
+        # Sometimes third party frameworks catch a CancelledError and raise a new one,
+        # so as a workaround we have to look at the previous ones in __context__ too
+        # for a matching cancel message
+        expected_cancel_message = f"Cancelled by cancel scope {id(self):x}"
+        while True:
+            if expected_cancel_message in cancelled_exc.args:
+                return True
+
+            if isinstance(cancelled_exc.__context__, CancelledError):
+                cancelled_exc = cancelled_exc.__context__
+                continue
+
+            return False
 
     def _timeout(self) -> None:
         if self._deadline != math.inf:
@@ -691,21 +705,8 @@ class TaskGroup(abc.TaskGroup):
                 return True
 
             raise
-        else:
-            return self.cancel_scope.__exit__(exc_type, exc_val, exc_tb)
 
-        # Raise the CancelledError received while waiting for child tasks to exit,
-        # unless the context manager itself was previously exited with another
-        # exception, or if any of the  child tasks raised an exception other than
-        # CancelledError
-        # print(f"exiting {id(self):x}")
-        # print(f"{cancelled_exc_while_waiting_tasks=}")
-        # print(f"{ignore_exception=}")
-        # if cancelled_exc_while_waiting_tasks:
-        #     if exc_val is None or ignore_exception:
-        #         raise cancelled_exc_while_waiting_tasks
-        #
-        # return ignore_exception
+        return self.cancel_scope.__exit__(exc_type, exc_val, exc_tb)
 
     def _spawn(
         self,
