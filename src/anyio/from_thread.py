@@ -485,23 +485,19 @@ def start_blocking_portal(
     thread = Thread(target=run_blocking_portal, daemon=True)
     thread.start()
     try:
+        cancel_remaining_tasks = False
         portal = future.result()
-    except BaseException:
-        thread.join()
-        raise
-
-    cancel_remaining_tasks = False
-    try:
-        yield portal
-    except BaseException:
-        cancel_remaining_tasks = True
-        raise
-    finally:
         try:
-            portal.call(portal.stop, cancel_remaining_tasks)
-        except RuntimeError:
-            pass
-
+            yield portal
+        except BaseException:
+            cancel_remaining_tasks = True
+            raise
+        finally:
+            try:
+                portal.call(portal.stop, cancel_remaining_tasks)
+            except RuntimeError:
+                pass
+    finally:
         thread.join()
 
 
