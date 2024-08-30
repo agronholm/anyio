@@ -609,10 +609,10 @@ class TestBlockingPortal:
         """
         Test that when a task raises a BaseException, it does not trigger additional
         exceptions when trying to close the portal.
-
         """
 
         async def raise_baseexception() -> None:
+            assert threading.current_thread().daemon
             raise BaseException("fatal error")
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
