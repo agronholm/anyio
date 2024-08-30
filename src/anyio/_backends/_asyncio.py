@@ -1073,6 +1073,10 @@ class StreamProtocol(asyncio.Protocol):
         self.write_event.set()
 
     def data_received(self, data: bytes) -> None:
+        # ProactorEventloop sometimes sends bytearray instead of bytes
+        if type(data) is bytearray:
+            data = bytes(data)
+
         self.read_queue.append(data)
         self.read_event.set()
 
