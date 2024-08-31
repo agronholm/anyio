@@ -420,13 +420,16 @@ def test_hypothesis_function_mark(testdir: Pytester) -> None:
     )
 
 
-def test_debugger_exit_in_taskgroup(testdir: Pytester) -> None:
+@pytest.mark.parametrize("anyio_backend", get_all_backends(), indirect=True)
+def test_debugger_exit_in_taskgroup(testdir: Pytester, anyio_backend_name: str) -> None:
     testdir.makepyfile(
-        """
+        f"""
         import pytest
         from _pytest.outcomes import Exit
         from anyio import create_task_group
 
+        def anyio_backend():
+            return {anyio_backend_name!r}
 
         @pytest.mark.anyio
         async def test_anyio_mark_first():
