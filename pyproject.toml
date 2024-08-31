@@ -24,6 +24,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 requires-python = ">= 3.8"
 dependencies = [
@@ -41,7 +42,7 @@ Changelog = "https://anyio.readthedocs.io/en/stable/versionhistory.html"
 "Issue tracker" = "https://github.com/agronholm/anyio/issues"
 
 [project.optional-dependencies]
-trio = ["trio >= 0.23"]
+trio = ["trio >= 0.26.1"]
 test = [
     "anyio[trio]",
     "coverage[toml] >= 7",
@@ -51,7 +52,10 @@ test = [
     "pytest >= 7.0",
     "pytest-mock >= 3.6.1",
     "trustme",
-    "uvloop >= 0.17; platform_python_implementation == 'CPython' and platform_system != 'Windows'",
+    """\
+    uvloop >= 0.17; platform_python_implementation == 'CPython' \
+    and platform_system != 'Windows' and python_version < '3.13'\
+    """
 ]
 doc = [
     "packaging",
@@ -124,7 +128,7 @@ show_missing = true
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = pre-commit, py38, py39, py310, py311, py312, pypy3
+envlist = pre-commit, py38, py39, py310, py311, py312, py313, pypy3
 skip_missing_interpreters = true
 minversion = 4.0.0
 
