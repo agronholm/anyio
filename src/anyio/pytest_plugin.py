@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
 from inspect import isasyncgenfunction, iscoroutinefunction
@@ -8,11 +9,13 @@ from typing import Any, Dict, Tuple, cast
 import pytest
 import sniffio
 from _pytest.outcomes import Exit
-from exceptiongroup import ExceptionGroup
 
 from ._core._eventloop import get_all_backends, get_async_backend
 from ._core._exceptions import iterate_exceptions
 from .abc import TestRunner
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 _current_runner: TestRunner | None = None
 _runner_stack: ExitStack | None = None
