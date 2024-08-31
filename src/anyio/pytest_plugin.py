@@ -7,8 +7,11 @@ from typing import Any, Dict, Tuple, cast
 
 import pytest
 import sniffio
+from _pytest.outcomes import Exit
+from exceptiongroup import ExceptionGroup
 
 from ._core._eventloop import get_all_backends, get_async_backend
+from ._core._exceptions import iterate_exceptions
 from .abc import TestRunner
 
 _current_runner: TestRunner | None = None
@@ -121,7 +124,12 @@ def pytest_pyfunc_call(pyfuncitem: Any) -> bool | None:
             funcargs = pyfuncitem.funcargs
             testargs = {arg: funcargs[arg] for arg in pyfuncitem._fixtureinfo.argnames}
             with get_runner(backend_name, backend_options) as runner:
-                runner.run_test(pyfuncitem.obj, testargs)
+                try:
+                    runner.run_test(pyfuncitem.obj, testargs)
+                except ExceptionGroup as excgrp:
+                    for exc in iterate_exceptions(excgrp):
+                        if isinstance(exc, (Exit, KeyboardInterrupt, SystemExit)):
+                            raise exc from excgrp
 
             return True
 

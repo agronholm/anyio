@@ -418,3 +418,22 @@ def test_hypothesis_function_mark(testdir: Pytester) -> None:
     result.assert_outcomes(
         passed=2 * len(get_all_backends()), xfailed=2 * len(get_all_backends())
     )
+
+
+def test_debugger_exit_in_taskgroup(testdir: Pytester) -> None:
+    testdir.makepyfile(
+        """
+        import pytest
+        from _pytest.outcomes import Exit
+        from anyio import create_task_group
+
+
+        @pytest.mark.anyio
+        async def test_anyio_mark_first():
+            async with create_task_group() as tg:
+                raise Exit('Quitting debugger')
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes()
