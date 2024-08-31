@@ -13,7 +13,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#737 <https://github.com/agronholm/anyio/issues/737>`_)
 - Changed the ``ResourceWarning`` from an unclosed memory object stream to include its
   address for easier identification
-- Bumped minimum version of Trio to v0.26.1
+- Changed ``start_blocking_portal()`` to always use daemonic threads, to accommodate the
+  "loitering event loop" use case
+- Bumped the minimum version of Trio to v0.26.1
 - Fixed ``to_process.run_sync()`` failing to initialize if ``__main__.__file__`` pointed
   to a file in a nonexistent directory
   (`#696 <https://github.com/agronholm/anyio/issues/696>`_)
