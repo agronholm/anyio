@@ -1671,10 +1671,11 @@ class Event(BaseEvent):
 
 
 class Lock(BaseLock):
-    def __new__(cls) -> Lock:
+    def __new__(cls, *, fast_acquire: bool = False) -> Lock:
         return object.__new__(cls)
 
-    def __init__(self) -> None:
+    def __init__(self, *, fast_acquire: bool = False) -> None:
+        self._fast_acquire = fast_acquire
         self._owner_task: asyncio.Task | None = None
         self._waiters: deque[tuple[asyncio.Task, asyncio.Future]] = deque()
 
@@ -1682,11 +1683,15 @@ class Lock(BaseLock):
         if self._owner_task is None and not self._waiters:
             await AsyncIOBackend.checkpoint_if_cancelled()
             self._owner_task = current_task()
-            try:
-                await AsyncIOBackend.cancel_shielded_checkpoint()
-            except CancelledError:
-                self.release()
-                raise
+
+            # Unless on the "fast path", yield control of the event loop so that other
+            # tasks can run too
+            if not self._fast_acquire:
+                try:
+                    await AsyncIOBackend.cancel_shielded_checkpoint()
+                except CancelledError:
+                    self.release()
+                    raise
 
             return
 
@@ -1733,24 +1738,41 @@ class Lock(BaseLock):
 
 
 class Semaphore(BaseSemaphore):
-    def __new__(cls, initial_value: int, *, max_value: int | None = None) -> Semaphore:
+    def __new__(
+        cls,
+        initial_value: int,
+        *,
+        max_value: int | None = None,
+        fast_acquire: bool = False,
+    ) -> Semaphore:
         return object.__new__(cls)
 
-    def __init__(self, initial_value: int, *, max_value: int | None = None):
+    def __init__(
+        self,
+        initial_value: int,
+        *,
+        max_value: int | None = None,
+        fast_acquire: bool = False,
+    ):
         super().__init__(initial_value, max_value=max_value)
         self._value = initial_value
         self._max_value = max_value
+        self._fast_acquire = fast_acquire
         self._waiters: deque[asyncio.Future[None]] = deque()
 
     async def acquire(self) -> None:
         if self._value > 0 and not self._waiters:
             await AsyncIOBackend.checkpoint_if_cancelled()
             self._value -= 1
-            try:
-                await AsyncIOBackend.cancel_shielded_checkpoint()
-            except CancelledError:
-                self.release()
-                raise
+
+            # Unless on the "fast path", yield control of the event loop so that other
+            # tasks can run too
+            if not self._fast_acquire:
+                try:
+                    await AsyncIOBackend.cancel_shielded_checkpoint()
+                except CancelledError:
+                    self.release()
+                    raise
 
             return
 
@@ -2247,14 +2269,18 @@ class AsyncIOBackend(AsyncBackend):
         return Event()
 
     @classmethod
-    def create_lock(cls) -> abc.Lock:
-        return Lock()
+    def create_lock(cls, *, fast_acquire: bool) -> abc.Lock:
+        return Lock(fast_acquire=fast_acquire)
 
     @classmethod
     def create_semaphore(
-        cls, initial_value: int, *, max_value: int | None = None
+        cls,
+        initial_value: int,
+        *,
+        max_value: int | None = None,
+        fast_acquire: bool = False,
     ) -> abc.Semaphore:
-        return Semaphore(initial_value, max_value=max_value)
+        return Semaphore(initial_value, max_value=max_value, fast_acquire=fast_acquire)
 
     @classmethod
     def create_capacity_limiter(cls, total_tokens: float) -> abc.CapacityLimiter:
