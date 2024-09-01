@@ -23,6 +23,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#490 <https://github.com/agronholm/anyio/issues/490>`_)
 - Fixed ``TaskInfo.has_pending_cancellation()`` on asyncio not respecting shielded
   scopes (`#771 <https://github.com/agronholm/anyio/issues/771>`_; PR by @gschaffner)
+- Fixed quitting the debugger in a pytest test session while in an active task group
+  failing the test instead of exiting the test session (because the exit exception
+  arrives in an exception group)
 
 **4.4.0**
 
