@@ -20,6 +20,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#696 <https://github.com/agronholm/anyio/issues/696>`_)
 - Fixed ``TaskInfo.has_pending_cancellation()`` on asyncio not respecting shielded
   scopes (`#771 <https://github.com/agronholm/anyio/issues/771>`_; PR by @gschaffner)
+- Fixed ``KeyboardInterrupt`` (ctrl+c) hanging the asyncio pytest runner
 
 **4.4.0**
 

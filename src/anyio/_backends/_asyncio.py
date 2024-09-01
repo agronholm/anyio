@@ -1932,9 +1932,16 @@ class TestRunner(abc.TestRunner):
             async for coro, future in receive_stream:
                 try:
                     retval = await coro
+                except CancelledError:
+                    if not future.cancelled():
+                        future.cancel()
+
+                    raise
                 except BaseException as exc:
                     if not future.cancelled():
                         future.set_exception(exc)
+
+                    raise
                 else:
                     if not future.cancelled():
                         future.set_result(retval)
