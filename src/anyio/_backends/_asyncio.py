@@ -26,7 +26,6 @@ from collections.abc import (
     Callable,
     Collection,
     Coroutine,
-    Generator,
     Iterable,
     Mapping,
     Sequence,
