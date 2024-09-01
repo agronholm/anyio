@@ -169,13 +169,17 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    def create_lock(cls) -> Lock:
+    def create_lock(cls, *, fast_acquire: bool) -> Lock:
         pass
 
     @classmethod
     @abstractmethod
     def create_semaphore(
-        cls, initial_value: int, *, max_value: int | None = None
+        cls,
+        initial_value: int,
+        *,
+        max_value: int | None = None,
+        fast_acquire: bool = False,
     ) -> Semaphore:
         pass
 

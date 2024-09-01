@@ -7,6 +7,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Improved the performance of ``anyio.Lock`` and ``anyio.Semaphore`` on asyncio (even up
   to 50 %)
+- Added the ``fast_acquire`` parameter to ``anyio.Lock`` and ``anyio.Semaphore`` to
+  further boost performance at the expense of safety (``acquire()`` will not yield
+  control back if there is no contention)
 - Fixed ``__repr__()`` of ``MemoryObjectItemReceiver``, when ``item`` is not defined
   (`#767 <https://github.com/agronholm/anyio/pulls/767>`_; PR by @Danipulok)
 - Added support for the ``from_uri()``, ``full_match()``, ``parser`` methods/properties

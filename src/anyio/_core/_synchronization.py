@@ -137,11 +137,11 @@ class EventAdapter(Event):
 
 
 class Lock:
-    def __new__(cls) -> Lock:
+    def __new__(cls, *, fast_acquire: bool = False) -> Lock:
         try:
-            return get_async_backend().create_lock()
+            return get_async_backend().create_lock(fast_acquire=fast_acquire)
         except AsyncLibraryNotFoundError:
-            return LockAdapter()
+            return LockAdapter(fast_acquire=fast_acquire)
 
     async def __aenter__(self) -> None:
         await self.acquire()
@@ -187,13 +187,18 @@ class Lock:
 class LockAdapter(Lock):
     _internal_lock: Lock | None = None
 
-    def __new__(cls) -> LockAdapter:
+    def __new__(cls, *, fast_acquire: bool = False) -> LockAdapter:
         return object.__new__(cls)
+
+    def __init__(self, *, fast_acquire: bool = False):
+        self._fast_acquire = fast_acquire
 
     @property
     def _lock(self) -> Lock:
         if self._internal_lock is None:
-            self._internal_lock = get_async_backend().create_lock()
+            self._internal_lock = get_async_backend().create_lock(
+                fast_acquire=self._fast_acquire
+            )
 
         return self._internal_lock
 
@@ -334,15 +339,27 @@ class Condition:
 
 
 class Semaphore:
-    def __new__(cls, initial_value: int, *, max_value: int | None = None) -> Semaphore:
+    def __new__(
+        cls,
+        initial_value: int,
+        *,
+        max_value: int | None = None,
+        fast_acquire: bool = False,
+    ) -> Semaphore:
         try:
             return get_async_backend().create_semaphore(
-                initial_value, max_value=max_value
+                initial_value, max_value=max_value, fast_acquire=fast_acquire
             )
         except AsyncLibraryNotFoundError:
             return SemaphoreAdapter(initial_value, max_value=max_value)
 
-    def __init__(self, initial_value: int, *, max_value: int | None = None):
+    def __init__(
+        self,
+        initial_value: int,
+        *,
+        max_value: int | None = None,
+        fast_acquire: bool = False,
+    ):
         if not isinstance(initial_value, int):
             raise TypeError("initial_value must be an integer")
         if initial_value < 0:
@@ -354,6 +371,8 @@ class Semaphore:
                 raise ValueError(
                     "max_value must be equal to or higher than initial_value"
                 )
+
+        self._fast_acquire = fast_acquire
 
     async def __aenter__(self) -> Semaphore:
         await self.acquire()
@@ -407,11 +426,22 @@ class SemaphoreAdapter(Semaphore):
     _internal_semaphore: Semaphore | None = None
 
     def __new__(
-        cls, initial_value: int, *, max_value: int | None = None
+        cls,
+        initial_value: int,
+        *,
+        max_value: int | None = None,
+        fast_acquire: bool = False,
     ) -> SemaphoreAdapter:
         return object.__new__(cls)
 
-    def __init__(self, initial_value: int, *, max_value: int | None = None) -> None:
+    def __init__(
+        self,
+        initial_value: int,
+        *,
+        max_value: int | None = None,
+        fast_acquire: bool = False,
+    ) -> None:
+        super().__init__(initial_value, max_value=max_value, fast_acquire=fast_acquire)
         self._initial_value = initial_value
         self._max_value = max_value
 
