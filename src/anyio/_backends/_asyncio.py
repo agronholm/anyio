@@ -19,7 +19,7 @@ from asyncio import (
 )
 from asyncio.base_events import _run_until_complete_cb  # type: ignore[attr-defined]
 from collections import OrderedDict, deque
-from collections.abc import AsyncIterator, Generator, Iterable
+from collections.abc import AsyncIterator, Iterable
 from concurrent.futures import Future
 from contextlib import suppress
 from contextvars import Context, copy_context
@@ -72,6 +72,7 @@ from .._core._exceptions import (
     ClosedResourceError,
     EndOfStream,
     WouldBlock,
+    iterate_exceptions,
 )
 from .._core._sockets import convert_ipv6_sockaddr
 from .._core._streams import create_memory_object_stream
@@ -641,16 +642,6 @@ class _AsyncioTaskStatus(abc.TaskStatus):
 
         task = cast(asyncio.Task, current_task())
         _task_states[task].parent_id = self._parent_id
-
-
-def iterate_exceptions(
-    exception: BaseException,
-) -> Generator[BaseException, None, None]:
-    if isinstance(exception, BaseExceptionGroup):
-        for exc in exception.exceptions:
-            yield from iterate_exceptions(exc)
-    else:
-        yield exception
 
 
 class TaskGroup(abc.TaskGroup):
