@@ -203,7 +203,9 @@ class TestTCPStream:
             thread.start()
             response = b""
             while len(response) < len(buffer):
-                response += await stream.receive()
+                chunk = await stream.receive()
+                assert isinstance(chunk, bytes)
+                response += chunk
 
         thread.join()
         assert response == buffer
