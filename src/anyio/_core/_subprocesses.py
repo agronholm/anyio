@@ -4,14 +4,12 @@ import sys
 from collections.abc import AsyncIterable, Iterable, Mapping, Sequence
 from io import BytesIO
 from subprocess import DEVNULL, PIPE, CalledProcessError, CompletedProcess
-from typing import IO, TYPE_CHECKING, Any, cast
+from typing import IO, Any, cast
 
 from ..abc import Process
+from ..abc._eventloop import StrOrBytesPath
 from ._eventloop import get_async_backend
 from ._tasks import create_task_group
-
-if TYPE_CHECKING:
-    from _typeshed import StrOrBytesPath
 
 
 async def run_process(

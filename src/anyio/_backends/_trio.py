@@ -18,7 +18,6 @@ from socket import AddressFamily, SocketKind
 from types import TracebackType
 from typing import (
     IO,
-    TYPE_CHECKING,
     Any,
     AsyncGenerator,
     Awaitable,
@@ -61,7 +60,7 @@ from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import ResourceGuard
 from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
-from ..abc._eventloop import AsyncBackend
+from ..abc._eventloop import AsyncBackend, StrOrBytesPath
 from ..streams.memory import MemoryObjectSendStream
 
 if sys.version_info >= (3, 10):
@@ -74,9 +73,6 @@ if sys.version_info >= (3, 11):
 else:
     from exceptiongroup import BaseExceptionGroup
     from typing_extensions import TypeVarTuple, Unpack
-
-if TYPE_CHECKING:
-    from _typeshed import StrOrBytesPath
 
 T = TypeVar("T")
 T_Retval = TypeVar("T_Retval")
