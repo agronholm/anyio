@@ -428,6 +428,7 @@ def test_debugger_exit_in_taskgroup(testdir: Pytester, anyio_backend_name: str) 
         from _pytest.outcomes import Exit
         from anyio import create_task_group
 
+        @pytest.fixture
         def anyio_backend():
             return {anyio_backend_name!r}
 
