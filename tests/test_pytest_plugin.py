@@ -418,3 +418,26 @@ def test_hypothesis_function_mark(testdir: Pytester) -> None:
     result.assert_outcomes(
         passed=2 * len(get_all_backends()), xfailed=2 * len(get_all_backends())
     )
+
+
+@pytest.mark.parametrize("anyio_backend", get_all_backends(), indirect=True)
+def test_debugger_exit_in_taskgroup(testdir: Pytester, anyio_backend_name: str) -> None:
+    testdir.makepyfile(
+        f"""
+        import pytest
+        from _pytest.outcomes import Exit
+        from anyio import create_task_group
+
+        @pytest.fixture
+        def anyio_backend():
+            return {anyio_backend_name!r}
+
+        @pytest.mark.anyio
+        async def test_debugger_exit():
+            async with create_task_group() as tg:
+                raise Exit('Quitting debugger')
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes()
