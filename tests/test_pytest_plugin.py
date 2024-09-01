@@ -433,7 +433,7 @@ def test_debugger_exit_in_taskgroup(testdir: Pytester, anyio_backend_name: str) 
             return {anyio_backend_name!r}
 
         @pytest.mark.anyio
-        async def test_anyio_mark_first():
+        async def test_debugger_exit():
             async with create_task_group() as tg:
                 raise Exit('Quitting debugger')
         """
