@@ -41,6 +41,7 @@ from threading import Thread
 from types import TracebackType
 from typing import (
     IO,
+    TYPE_CHECKING,
     Any,
     AsyncGenerator,
     Awaitable,
@@ -80,7 +81,6 @@ from ..abc import (
     UDPPacketType,
     UNIXDatagramPacketType,
 )
-from ..abc._eventloop import StrOrBytesPath
 from ..lowlevel import RunVar
 from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
@@ -276,6 +276,10 @@ else:
             await future
         finally:
             thread.join()
+
+
+if TYPE_CHECKING:
+    from _typeshed import StrOrBytesPath
 
 
 T_Retval = TypeVar("T_Retval")

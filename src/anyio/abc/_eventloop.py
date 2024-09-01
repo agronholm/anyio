@@ -4,7 +4,6 @@ import math
 import sys
 from abc import ABCMeta, abstractmethod
 from collections.abc import AsyncIterator, Awaitable
-from os import PathLike
 from signal import Signals
 from socket import AddressFamily, SocketKind, socket
 from typing import (
@@ -15,7 +14,6 @@ from typing import (
     ContextManager,
     Sequence,
     TypeVar,
-    Union,
     overload,
 )
 
@@ -24,12 +22,9 @@ if sys.version_info >= (3, 11):
 else:
     from typing_extensions import TypeVarTuple, Unpack
 
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-else:
-    from typing_extensions import TypeAlias
-
 if TYPE_CHECKING:
+    from _typeshed import StrOrBytesPath
+
     from .._core._synchronization import CapacityLimiter, Event
     from .._core._tasks import CancelScope
     from .._core._testing import TaskInfo
@@ -50,7 +45,6 @@ if TYPE_CHECKING:
 
 T_Retval = TypeVar("T_Retval")
 PosArgsT = TypeVarTuple("PosArgsT")
-StrOrBytesPath: TypeAlias = Union[str, bytes, "PathLike[str]", "PathLike[bytes]"]
 
 
 class AsyncBackend(metaclass=ABCMeta):

@@ -3,20 +3,15 @@ from __future__ import annotations
 import sys
 from collections.abc import AsyncIterable, Iterable, Mapping, Sequence
 from io import BytesIO
-from os import PathLike
 from subprocess import DEVNULL, PIPE, CalledProcessError, CompletedProcess
-from typing import IO, Any, Union, cast
+from typing import IO, TYPE_CHECKING, Any, cast
 
 from ..abc import Process
 from ._eventloop import get_async_backend
 from ._tasks import create_task_group
 
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-else:
-    from typing_extensions import TypeAlias
-
-StrOrBytesPath: TypeAlias = Union[str, bytes, "PathLike[str]", "PathLike[bytes]"]
+if TYPE_CHECKING:
+    from _typeshed import StrOrBytesPath
 
 
 async def run_process(
