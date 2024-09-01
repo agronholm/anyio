@@ -23,6 +23,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``SocketStream.receive()`` returning ``bytearray`` instead of ``bytes`` when
   using asyncio with ``ProactorEventLoop`` (Windows)
   (`#776 <https://github.com/agronholm/anyio/issues/776>`_)
+- Fixed quitting the debugger in a pytest test session while in an active task group
+  failing the test instead of exiting the test session (because the exit exception
+  arrives in an exception group)
 
 **4.4.0**
 
