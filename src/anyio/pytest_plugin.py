@@ -134,6 +134,8 @@ def pytest_pyfunc_call(pyfuncitem: Any) -> bool | None:
                         if isinstance(exc, (Exit, KeyboardInterrupt, SystemExit)):
                             raise exc from excgrp
 
+                    raise
+
             return True
 
     return None
