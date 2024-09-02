@@ -667,7 +667,7 @@ class Lock(BaseLock):
         # This is the "fast path" where we don't let other tasks run
         await trio.lowlevel.checkpoint_if_cancelled()
         try:
-            self.acquire_nowait()
+            self.__original.acquire_nowait()
         except trio.WouldBlock:
             await self.__original._lot.park()
 
@@ -719,7 +719,7 @@ class Semaphore(BaseSemaphore):
         # This is the "fast path" where we don't let other tasks run
         await trio.lowlevel.checkpoint_if_cancelled()
         try:
-            self.acquire_nowait()
+            self.__original.acquire_nowait()
         except trio.WouldBlock:
             await self.__original._lot.park()
 
