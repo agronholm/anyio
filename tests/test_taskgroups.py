@@ -259,7 +259,7 @@ async def test_propagate_native_cancellation_from_taskgroup() -> None:
 
 
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
-async def test_cancel_with_nested_shielded_scope(mocker: MockerFixture) -> None:
+async def test_cancel_with_nested_task_groups(mocker: MockerFixture) -> None:
     """Regression test for #695."""
 
     async def shield_task() -> None:
@@ -300,6 +300,21 @@ async def test_cancel_with_nested_shielded_scope(mocker: MockerFixture) -> None:
     # -
     # -
     assert len(outer_cancel_spy.call_args_list) == 9
+
+
+async def test_cancel_with_nested_cancel_scopes() -> None:
+    with CancelScope() as outer_scope:
+        with CancelScope() as inner_scope:
+            await checkpoint()
+            inner_scope.cancel()
+            try:
+                await checkpoint()
+            finally:
+                outer_scope.cancel()
+
+            pytest.fail("Execution should not reach this point")
+
+        pytest.fail("Execution should not reach this point")
 
 
 async def test_start_exception_delivery(anyio_backend_name: str) -> None:
