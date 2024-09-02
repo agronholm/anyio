@@ -14,8 +14,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``startupinfo``, ``creationflags``, ``pass_fds``, ``user``, ``group``,
   ``extra_groups`` and ``umask``
   (`#742 <https://github.com/agronholm/anyio/issues/742>`_)
-- Improved the type annotations in ``run_process()`` and ``open_process()`` to allow for
-  path-like arguments, just like ``subprocess.Popen``
+- Improved the type annotations and support for ``PathLike`` in ``run_process()`` and
+  ``open_process()`` to allow for path-like arguments, just like ``subprocess.Popen``
 - Changed the ``ResourceWarning`` from an unclosed memory object stream to include its
   address for easier identification
 - Changed ``start_blocking_portal()`` to always use daemonic threads, to accommodate the
