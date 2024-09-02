@@ -70,8 +70,8 @@ Example::
    ``fast_acquire=True`` to :class:`Semaphore`. This has the effect of skipping the
    :func:`~.lowlevel.cancel_shielded_checkpoint` call in :meth:`Semaphore.acquire` if
    there is no contention (acquisition succeeds immediately). This could, in some cases,
-   lead to the task never yielding control back to to the event loop if you have a loop
-   that does not have other yield points.
+   lead to the task never yielding control back to to the event loop if you use the
+   semaphore in a loop that does not have other yield points.
 
 Locks
 -----
@@ -103,8 +103,8 @@ Example::
    ``fast_acquire=True`` to :class:`Lock`. This has the effect of skipping the
    :func:`~.lowlevel.cancel_shielded_checkpoint` call in :meth:`Lock.acquire` if there
    is no contention (acquisition succeeds immediately). This could, in some cases, lead
-   to the task never yielding control back to to the event loop if you have a loop that
-   does not have other yield points.
+   to the task never yielding control back to to the event loop if use the lock in a
+   loop that does not have other yield points.
 
 Conditions
 ----------

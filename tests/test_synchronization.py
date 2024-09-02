@@ -64,6 +64,24 @@ class TestLock:
         assert not lock.locked()
         assert results == ["1", "2"]
 
+    async def test_fast_acquire(self) -> None:
+        """
+        Test that fast_acquire=True does not yield back control to the event loop when
+        there is no contention.
+
+        """
+        other_task_called = False
+
+        async def other_task() -> None:
+            nonlocal other_task_called
+            other_task_called = True
+
+        lock = Lock(fast_acquire=True)
+        async with create_task_group() as tg:
+            tg.start_soon(other_task)
+            async with lock:
+                assert not other_task_called
+
     async def test_acquire_nowait(self) -> None:
         lock = Lock()
         lock.acquire_nowait()
@@ -433,6 +451,24 @@ class TestSemaphore:
             tg.start_soon(acquire, name="task 2")
 
         assert semaphore.value == 2
+
+    async def test_fast_acquire(self) -> None:
+        """
+        Test that fast_acquire=True does not yield back control to the event loop when
+        there is no contention.
+
+        """
+        other_task_called = False
+
+        async def other_task() -> None:
+            nonlocal other_task_called
+            other_task_called = True
+
+        semaphore = Semaphore(1, fast_acquire=True)
+        async with create_task_group() as tg:
+            tg.start_soon(other_task)
+            async with semaphore:
+                assert not other_task_called
 
     async def test_acquire_nowait(self) -> None:
         semaphore = Semaphore(1)
