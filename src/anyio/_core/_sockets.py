@@ -683,16 +683,30 @@ async def setup_unix_local_socket(
     path_str: str | bytes | None
     if path is not None:
         path_str = os.fspath(path)
+        is_abstract = (
+            path_str.startswith(b"\0")
+            if isinstance(path_str, bytes)
+            else path_str.startswith("\0")
+        )
 
-        # Copied from pathlib...
-        try:
-            stat_result = os.stat(path)
-        except OSError as e:
-            if e.errno not in (errno.ENOENT, errno.ENOTDIR, errno.EBADF, errno.ELOOP):
-                raise
+        if is_abstract:
+            # Unix abstract namespace socket. No file backing so skip stat call
+            pass
         else:
-            if stat.S_ISSOCK(stat_result.st_mode):
-                os.unlink(path)
+            # Copied from pathlib...
+            try:
+                stat_result = os.stat(path)
+            except OSError as e:
+                if e.errno not in (
+                    errno.ENOENT,
+                    errno.ENOTDIR,
+                    errno.EBADF,
+                    errno.ELOOP,
+                ):
+                    raise
+            else:
+                if stat.S_ISSOCK(stat_result.st_mode):
+                    os.unlink(path)
     else:
         path_str = None
 
