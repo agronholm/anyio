@@ -10,6 +10,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added support for the ``from_uri()``, ``full_match()``, ``parser`` methods/properties
   in ``anyio.Path``, newly added in Python 3.13
   (`#737 <https://github.com/agronholm/anyio/issues/737>`_)
+- Added support for more keyword arguments for ``run_process()`` and ``open_process()``:
+  ``startupinfo``, ``creationflags``, ``pass_fds``, ``user``, ``group``,
+  ``extra_groups`` and ``umask``
+  (`#742 <https://github.com/agronholm/anyio/issues/742>`_)
+- Improved the type annotations and support for ``PathLike`` in ``run_process()`` and
+  ``open_process()`` to allow for path-like arguments, just like ``subprocess.Popen``
 - Changed the ``ResourceWarning`` from an unclosed memory object stream to include its
   address for easier identification
 - Changed ``start_blocking_portal()`` to always use daemonic threads, to accommodate the
@@ -23,6 +29,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#490 <https://github.com/agronholm/anyio/issues/490>`_)
 - Fixed ``TaskInfo.has_pending_cancellation()`` on asyncio not respecting shielded
   scopes (`#771 <https://github.com/agronholm/anyio/issues/771>`_; PR by @gschaffner)
+- Fixed ``SocketStream.receive()`` returning ``bytearray`` instead of ``bytes`` when
+  using asyncio with ``ProactorEventLoop`` (Windows)
+  (`#776 <https://github.com/agronholm/anyio/issues/776>`_)
 - Fixed quitting the debugger in a pytest test session while in an active task group
   failing the test instead of exiting the test session (because the exit exception
   arrives in an exception group)
