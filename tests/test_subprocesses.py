@@ -311,9 +311,9 @@ async def test_close_early() -> None:
 
 async def test_close_while_reading() -> None:
     code = dedent("""\
-    import sys
-    for _ in range(100):
-        sys.stdout.buffer.write(bytes(range(256)))
+    import time
+
+    time.sleep(3)
     """)
 
     async with await open_process(
@@ -323,3 +323,5 @@ async def test_close_while_reading() -> None:
         tg.start_soon(process.stdout.aclose)
         with pytest.raises(ClosedResourceError):
             await process.stdout.receive()
+
+        process.terminate()

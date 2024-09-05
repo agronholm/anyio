@@ -24,7 +24,7 @@ from collections.abc import AsyncIterator, Iterable
 from concurrent.futures import Future
 from contextlib import suppress
 from contextvars import Context, copy_context
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import partial, wraps
 from inspect import (
     CORO_RUNNING,
@@ -908,12 +908,8 @@ class BlockingPortal(abc.BlockingPortal):
 @dataclass(eq=False)
 class StreamReaderWrapper(abc.ByteReceiveStream):
     _stream: asyncio.StreamReader
-    _closed: bool = field(init=False, default=False)
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
-        if self._closed:
-            raise ClosedResourceError
-
         data = await self._stream.read(max_bytes)
         if data:
             return data
@@ -921,7 +917,7 @@ class StreamReaderWrapper(abc.ByteReceiveStream):
             raise EndOfStream
 
     async def aclose(self) -> None:
-        self._closed = True
+        self._stream.set_exception(ClosedResourceError())
         await AsyncIOBackend.checkpoint()
 
 
