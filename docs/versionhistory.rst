@@ -5,6 +5,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Improved the performance of ``anyio.Lock`` and ``anyio.Semaphore`` on asyncio (even up
+  to 50 %)
+- Added the ``fast_acquire`` parameter to ``anyio.Lock`` and ``anyio.Semaphore`` to
+  further boost performance at the expense of safety (``acquire()`` will not yield
+  control back if there is no contention)
 - Fixed ``__repr__()`` of ``MemoryObjectItemReceiver``, when ``item`` is not defined
   (`#767 <https://github.com/agronholm/anyio/pulls/767>`_; PR by @Danipulok)
 - Added support for the ``from_uri()``, ``full_match()``, ``parser`` methods/properties
@@ -35,6 +40,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed quitting the debugger in a pytest test session while in an active task group
   failing the test instead of exiting the test session (because the exit exception
   arrives in an exception group)
+- Fixed support for Linux abstract namespaces in UNIX sockets that was broken in v4.2
+  (#781 <https://github.com/agronholm/anyio/issues/781>_; PR by @tapetersen)
 
 **4.4.0**
 

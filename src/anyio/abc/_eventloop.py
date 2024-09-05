@@ -30,7 +30,7 @@ else:
     from typing_extensions import TypeAlias
 
 if TYPE_CHECKING:
-    from .._core._synchronization import CapacityLimiter, Event
+    from .._core._synchronization import CapacityLimiter, Event, Lock, Semaphore
     from .._core._tasks import CancelScope
     from .._core._testing import TaskInfo
     from ..from_thread import BlockingPortal
@@ -170,6 +170,22 @@ class AsyncBackend(metaclass=ABCMeta):
     @classmethod
     @abstractmethod
     def create_event(cls) -> Event:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def create_lock(cls, *, fast_acquire: bool) -> Lock:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def create_semaphore(
+        cls,
+        initial_value: int,
+        *,
+        max_value: int | None = None,
+        fast_acquire: bool = False,
+    ) -> Semaphore:
         pass
 
     @classmethod

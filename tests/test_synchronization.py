@@ -64,6 +64,24 @@ class TestLock:
         assert not lock.locked()
         assert results == ["1", "2"]
 
+    async def test_fast_acquire(self) -> None:
+        """
+        Test that fast_acquire=True does not yield back control to the event loop when
+        there is no contention.
+
+        """
+        other_task_called = False
+
+        async def other_task() -> None:
+            nonlocal other_task_called
+            other_task_called = True
+
+        lock = Lock(fast_acquire=True)
+        async with create_task_group() as tg:
+            tg.start_soon(other_task)
+            async with lock:
+                assert not other_task_called
+
     async def test_acquire_nowait(self) -> None:
         lock = Lock()
         lock.acquire_nowait()
@@ -143,6 +161,38 @@ class TestLock:
         task1.cancel()
         await asyncio.wait_for(task2, 1)
 
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_cancel_after_release(self) -> None:
+        """
+        Test that a native asyncio cancellation will not cause a lock ownership
+        to get lost between a release() and the resumption of acquire().
+
+        """
+        # Create the lock and acquire it right away so that any task acquiring it will
+        # block
+        lock = Lock()
+        lock.acquire_nowait()
+
+        # Start a task that gets blocked on trying to acquire the semaphore
+        loop = asyncio.get_running_loop()
+        task1 = loop.create_task(lock.acquire(), name="task1")
+        await asyncio.sleep(0)
+
+        # Trigger the aqcuiring task to be rescheduled, but also cancel it right away
+        lock.release()
+        task1.cancel()
+        statistics = lock.statistics()
+        assert statistics.owner
+        assert statistics.owner.name == "task1"
+        await asyncio.wait([task1], timeout=1)
+
+        # The acquire() method should've released the semaphore because acquisition
+        # failed due to cancellation
+        statistics = lock.statistics()
+        assert statistics.owner is None
+        assert statistics.tasks_waiting == 0
+        lock.acquire_nowait()
+
     def test_instantiate_outside_event_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
@@ -157,6 +207,27 @@ class TestLock:
         assert statistics.tasks_waiting == 0
 
         run(use_lock, backend=anyio_backend_name, backend_options=anyio_backend_options)
+
+    async def test_owner_after_release(self) -> None:
+        async def taskfunc1() -> None:
+            await lock.acquire()
+            owner = lock.statistics().owner
+            assert owner
+            assert owner.name == "task1"
+            await event.wait()
+            lock.release()
+            owner = lock.statistics().owner
+            assert owner
+            assert owner.name == "task2"
+
+        event = Event()
+        lock = Lock()
+        async with create_task_group() as tg:
+            tg.start_soon(taskfunc1, name="task1")
+            await wait_all_tasks_blocked()
+            tg.start_soon(lock.acquire, name="task2")
+            await wait_all_tasks_blocked()
+            event.set()
 
 
 class TestEvent:
@@ -381,6 +452,24 @@ class TestSemaphore:
 
         assert semaphore.value == 2
 
+    async def test_fast_acquire(self) -> None:
+        """
+        Test that fast_acquire=True does not yield back control to the event loop when
+        there is no contention.
+
+        """
+        other_task_called = False
+
+        async def other_task() -> None:
+            nonlocal other_task_called
+            other_task_called = True
+
+        semaphore = Semaphore(1, fast_acquire=True)
+        async with create_task_group() as tg:
+            tg.start_soon(other_task)
+            async with semaphore:
+                assert not other_task_called
+
     async def test_acquire_nowait(self) -> None:
         semaphore = Semaphore(1)
         semaphore.acquire_nowait()
@@ -474,6 +563,33 @@ class TestSemaphore:
         task1.cancel()
         await asyncio.wait_for(task2, 1)
 
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_cancel_after_release(self) -> None:
+        """
+        Test that a native asyncio cancellation will not cause a semaphore ownership
+        to get lost between a release() and the resumption of acquire().
+
+        """
+        # Create the semaphore in such a way that any task acquiring it will block
+        semaphore = Semaphore(0, max_value=1)
+
+        # Start a task that gets blocked on trying to acquire the semaphore
+        loop = asyncio.get_running_loop()
+        task1 = loop.create_task(semaphore.acquire())
+        await asyncio.sleep(0)
+
+        # Trigger the aqcuiring task to be rescheduled, but also cancel it right away
+        semaphore.release()
+        task1.cancel()
+        assert semaphore.value == 0
+        await asyncio.wait([task1], timeout=1)
+
+        # The acquire() method should've released the semaphore because acquisition
+        # failed due to cancellation
+        assert semaphore.value == 1
+        assert semaphore.statistics().tasks_waiting == 0
+        semaphore.acquire_nowait()
+
     def test_instantiate_outside_event_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
@@ -481,7 +597,9 @@ class TestSemaphore:
             async with semaphore:
                 pass
 
-        semaphore = Semaphore(1)
+        semaphore = Semaphore(1, max_value=3)
+        assert semaphore.value == 1
+        assert semaphore.max_value == 3
         assert semaphore.statistics().tasks_waiting == 0
 
         run(

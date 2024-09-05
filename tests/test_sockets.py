@@ -83,6 +83,10 @@ if socket.has_ipv6:
         has_ipv6 = True
 
 skip_ipv6_mark = pytest.mark.skipif(not has_ipv6, reason="IPv6 is not available")
+skip_unix_abstract_mark = pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="Abstract namespace sockets is a Linux only feature",
+)
 
 
 @pytest.fixture
@@ -735,12 +739,20 @@ class TestTCPListener:
     sys.platform == "win32", reason="UNIX sockets are not available on Windows"
 )
 class TestUNIXStream:
-    @pytest.fixture
-    def socket_path(self) -> Generator[Path, None, None]:
+    @pytest.fixture(
+        params=[
+            "path",
+            pytest.param("abstract", marks=[skip_unix_abstract_mark]),
+        ]
+    )
+    def socket_path(self, request: SubRequest) -> Generator[Path, None, None]:
         # Use stdlib tempdir generation
         # Fixes `OSError: AF_UNIX path too long` from pytest generated temp_path
         with tempfile.TemporaryDirectory() as path:
-            yield Path(path) / "socket"
+            if request.param == "path":
+                yield Path(path) / "socket"
+            else:
+                yield Path(f"\0{path}") / "socket"
 
     @pytest.fixture(params=[False, True], ids=["str", "path"])
     def socket_path_or_str(self, request: SubRequest, socket_path: Path) -> Path | str:
@@ -764,7 +776,15 @@ class TestUNIXStream:
             assert (
                 stream.extra(SocketAttribute.local_address) == raw_socket.getsockname()
             )
-            assert stream.extra(SocketAttribute.remote_address) == str(socket_path)
+            remote_addr = stream.extra(SocketAttribute.remote_address)
+            if isinstance(remote_addr, str):
+                assert stream.extra(SocketAttribute.remote_address) == str(socket_path)
+            else:
+                assert isinstance(remote_addr, bytes)
+                assert stream.extra(SocketAttribute.remote_address) == bytes(
+                    socket_path
+                )
+
             pytest.raises(
                 TypedAttributeLookupError, stream.extra, SocketAttribute.local_port
             )
@@ -1031,8 +1051,12 @@ class TestUNIXStream:
             await stream.send(b"foo")
 
     async def test_cannot_connect(self, socket_path: Path) -> None:
-        with pytest.raises(FileNotFoundError):
-            await connect_unix(socket_path)
+        if str(socket_path).startswith("\0"):
+            with pytest.raises(ConnectionRefusedError):
+                await connect_unix(socket_path)
+        else:
+            with pytest.raises(FileNotFoundError):
+                await connect_unix(socket_path)
 
     async def test_connecting_using_bytes(
         self, server_sock: socket.socket, socket_path: Path
@@ -1057,12 +1081,20 @@ class TestUNIXStream:
     sys.platform == "win32", reason="UNIX sockets are not available on Windows"
 )
 class TestUNIXListener:
-    @pytest.fixture
-    def socket_path(self) -> Generator[Path, None, None]:
+    @pytest.fixture(
+        params=[
+            "path",
+            pytest.param("abstract", marks=[skip_unix_abstract_mark]),
+        ]
+    )
+    def socket_path(self, request: SubRequest) -> Generator[Path, None, None]:
         # Use stdlib tempdir generation
         # Fixes `OSError: AF_UNIX path too long` from pytest generated temp_path
         with tempfile.TemporaryDirectory() as path:
-            yield Path(path) / "socket"
+            if request.param == "path":
+                yield Path(path) / "socket"
+            else:
+                yield Path(f"\0{path}") / "socket"
 
     @pytest.fixture(params=[False, True], ids=["str", "path"])
     def socket_path_or_str(self, request: SubRequest, socket_path: Path) -> Path | str:
@@ -1461,12 +1493,20 @@ class TestConnectedUDPSocket:
     sys.platform == "win32", reason="UNIX sockets are not available on Windows"
 )
 class TestUNIXDatagramSocket:
-    @pytest.fixture
-    def socket_path(self) -> Generator[Path, None, None]:
+    @pytest.fixture(
+        params=[
+            "path",
+            pytest.param("abstract", marks=[skip_unix_abstract_mark]),
+        ]
+    )
+    def socket_path(self, request: SubRequest) -> Generator[Path, None, None]:
         # Use stdlib tempdir generation
         # Fixes `OSError: AF_UNIX path too long` from pytest generated temp_path
         with tempfile.TemporaryDirectory() as path:
-            yield Path(path) / "socket"
+            if request.param == "path":
+                yield Path(path) / "socket"
+            else:
+                yield Path(f"\0{path}") / "socket"
 
     @pytest.fixture(params=[False, True], ids=["str", "path"])
     def socket_path_or_str(self, request: SubRequest, socket_path: Path) -> Path | str:
@@ -1506,12 +1546,18 @@ class TestUNIXDatagramSocket:
             await sock.sendto(b"blah", path)
             request, addr = await sock.receive()
             assert request == b"blah"
-            assert addr == path
+            if isinstance(addr, bytes):
+                assert addr == path.encode()
+            else:
+                assert addr == path
 
             await sock.sendto(b"halb", path)
             response, addr = await sock.receive()
             assert response == b"halb"
-            assert addr == path
+            if isinstance(addr, bytes):
+                assert addr == path.encode()
+            else:
+                assert addr == path
 
     async def test_iterate(self, peer_socket_path: Path, socket_path: Path) -> None:
         async def serve() -> None:
@@ -1589,18 +1635,33 @@ class TestUNIXDatagramSocket:
     sys.platform == "win32", reason="UNIX sockets are not available on Windows"
 )
 class TestConnectedUNIXDatagramSocket:
-    @pytest.fixture
-    def socket_path(self) -> Generator[Path, None, None]:
+    @pytest.fixture(
+        params=[
+            "path",
+            pytest.param("abstract", marks=[skip_unix_abstract_mark]),
+        ]
+    )
+    def socket_path(self, request: SubRequest) -> Generator[Path, None, None]:
         # Use stdlib tempdir generation
         # Fixes `OSError: AF_UNIX path too long` from pytest generated temp_path
         with tempfile.TemporaryDirectory() as path:
-            yield Path(path) / "socket"
+            if request.param == "path":
+                yield Path(path) / "socket"
+            else:
+                yield Path(f"\0{path}") / "socket"
 
     @pytest.fixture(params=[False, True], ids=["str", "path"])
     def socket_path_or_str(self, request: SubRequest, socket_path: Path) -> Path | str:
         return socket_path if request.param else str(socket_path)
 
-    @pytest.fixture
+    @pytest.fixture(
+        params=[
+            pytest.param("path", id="path-peer"),
+            pytest.param(
+                "abstract", marks=[skip_unix_abstract_mark], id="abstract-peer"
+            ),
+        ]
+    )
     def peer_socket_path(self) -> Generator[Path, None, None]:
         # Use stdlib tempdir generation
         # Fixes `OSError: AF_UNIX path too long` from pytest generated temp_path
@@ -1634,10 +1695,12 @@ class TestConnectedUNIXDatagramSocket:
             raw_socket = unix_dg.extra(SocketAttribute.raw_socket)
             assert raw_socket is not None
             assert unix_dg.extra(SocketAttribute.family) == AddressFamily.AF_UNIX
-            assert unix_dg.extra(SocketAttribute.local_address) == str(socket_path)
-            assert unix_dg.extra(SocketAttribute.remote_address) == str(
-                peer_socket_path
-            )
+            assert os.fsencode(
+                cast(os.PathLike, unix_dg.extra(SocketAttribute.local_address))
+            ) == os.fsencode(socket_path)
+            assert os.fsencode(
+                cast(os.PathLike, unix_dg.extra(SocketAttribute.remote_address))
+            ) == os.fsencode(peer_socket_path)
             pytest.raises(
                 TypedAttributeLookupError, unix_dg.extra, SocketAttribute.local_port
             )
@@ -1657,11 +1720,11 @@ class TestConnectedUNIXDatagramSocket:
                 peer_socket_path_or_str,
                 local_path=socket_path_or_str,
             ) as unix_dg2:
-                socket_path = str(socket_path_or_str)
+                socket_path = os.fsdecode(socket_path_or_str)
 
                 await unix_dg2.send(b"blah")
-                request = await unix_dg1.receive()
-                assert request == (b"blah", socket_path)
+                data, remote_addr = await unix_dg1.receive()
+                assert (data, os.fsdecode(remote_addr)) == (b"blah", socket_path)
 
                 await unix_dg1.sendto(b"halb", socket_path)
                 response = await unix_dg2.receive()
@@ -1682,13 +1745,15 @@ class TestConnectedUNIXDatagramSocket:
             async with await create_connected_unix_datagram_socket(
                 peer_socket_path, local_path=socket_path
             ) as unix_dg2:
-                path = str(socket_path)
+                path = os.fsdecode(socket_path)
                 async with create_task_group() as tg:
                     tg.start_soon(serve)
                     await unix_dg1.sendto(b"FOOBAR", path)
-                    assert await unix_dg1.receive() == (b"RABOOF", path)
+                    data, addr = await unix_dg1.receive()
+                    assert (data, os.fsdecode(addr)) == (b"RABOOF", path)
                     await unix_dg1.sendto(b"123456", path)
-                    assert await unix_dg1.receive() == (b"654321", path)
+                    data, addr = await unix_dg1.receive()
+                    assert (data, os.fsdecode(addr)) == (b"654321", path)
                     tg.cancel_scope.cancel()
 
     async def test_concurrent_receive(
