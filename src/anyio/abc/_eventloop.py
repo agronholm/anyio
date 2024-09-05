@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import sys
 from abc import ABCMeta, abstractmethod
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from contextlib import AbstractContextManager
 from os import PathLike
 from signal import Signals
@@ -13,6 +13,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     TypeVar,
+    Union,
     overload,
 )
 
@@ -21,10 +22,13 @@ if sys.version_info >= (3, 11):
 else:
     from typing_extensions import TypeVarTuple, Unpack
 
-if TYPE_CHECKING:
-    from typing import Literal
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
+else:
+    from typing_extensions import TypeAlias
 
-    from .._core._synchronization import CapacityLimiter, Event
+if TYPE_CHECKING:
+    from .._core._synchronization import CapacityLimiter, Event, Lock, Semaphore
     from .._core._tasks import CancelScope
     from .._core._testing import TaskInfo
     from ..from_thread import BlockingPortal
@@ -44,6 +48,7 @@ if TYPE_CHECKING:
 
 T_Retval = TypeVar("T_Retval")
 PosArgsT = TypeVarTuple("PosArgsT")
+StrOrBytesPath: TypeAlias = Union[str, bytes, "PathLike[str]", "PathLike[bytes]"]
 
 
 class AsyncBackend(metaclass=ABCMeta):
@@ -167,6 +172,22 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
+    def create_lock(cls, *, fast_acquire: bool) -> Lock:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def create_semaphore(
+        cls,
+        initial_value: int,
+        *,
+        max_value: int | None = None,
+        fast_acquire: bool = False,
+    ) -> Semaphore:
+        pass
+
+    @classmethod
+    @abstractmethod
     def create_capacity_limiter(cls, total_tokens: float) -> CapacityLimiter:
         pass
 
@@ -212,50 +233,15 @@ class AsyncBackend(metaclass=ABCMeta):
         pass
 
     @classmethod
-    @overload
-    async def open_process(
-        cls,
-        command: str | bytes,
-        *,
-        shell: Literal[True],
-        stdin: int | IO[Any] | None,
-        stdout: int | IO[Any] | None,
-        stderr: int | IO[Any] | None,
-        cwd: str | bytes | PathLike[str] | None = None,
-        env: Mapping[str, str] | None = None,
-        start_new_session: bool = False,
-    ) -> Process:
-        pass
-
-    @classmethod
-    @overload
-    async def open_process(
-        cls,
-        command: Sequence[str | bytes],
-        *,
-        shell: Literal[False],
-        stdin: int | IO[Any] | None,
-        stdout: int | IO[Any] | None,
-        stderr: int | IO[Any] | None,
-        cwd: str | bytes | PathLike[str] | None = None,
-        env: Mapping[str, str] | None = None,
-        start_new_session: bool = False,
-    ) -> Process:
-        pass
-
-    @classmethod
     @abstractmethod
     async def open_process(
         cls,
-        command: str | bytes | Sequence[str | bytes],
+        command: StrOrBytesPath | Sequence[StrOrBytesPath],
         *,
-        shell: bool,
         stdin: int | IO[Any] | None,
         stdout: int | IO[Any] | None,
         stderr: int | IO[Any] | None,
-        cwd: str | bytes | PathLike[str] | None = None,
-        env: Mapping[str, str] | None = None,
-        start_new_session: bool = False,
+        **kwargs: Any,
     ) -> Process:
         pass
 
