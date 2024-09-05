@@ -37,8 +37,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed quitting the debugger in a pytest test session while in an active task group
   failing the test instead of exiting the test session (because the exit exception
   arrives in an exception group)
-- Re-add support for linux abstract namespace sockets (#781
-  <https://github.com/agronholm/anyio/issues/781>_; PR by @tapetersen)
+- Fixed support for Linux abstract namespaces in UNIX sockets that was broken in v4.2
+  (#781 <https://github.com/agronholm/anyio/issues/781>_; PR by @tapetersen)
 
 **4.4.0**
 
