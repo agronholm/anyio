@@ -13,7 +13,13 @@ from typing import Any
 import pytest
 from pytest import FixtureRequest
 
-from anyio import CancelScope, ClosedResourceError, open_process, run_process
+from anyio import (
+    CancelScope,
+    ClosedResourceError,
+    create_task_group,
+    open_process,
+    run_process,
+)
 from anyio.streams.buffered import BufferedByteReceiveStream
 
 pytestmark = pytest.mark.anyio
@@ -289,3 +295,33 @@ async def test_py39_arguments(
                 pytest.skip(f"the {argname!r} argument is not supported by uvloop yet")
 
             raise
+
+
+async def test_close_early() -> None:
+    """Regression test for #490."""
+    code = dedent("""\
+    import sys
+    for _ in range(100):
+        sys.stdout.buffer.write(bytes(range(256)))
+    """)
+
+    async with await open_process([sys.executable, "-c", code]):
+        pass
+
+
+async def test_close_while_reading() -> None:
+    code = dedent("""\
+    import time
+
+    time.sleep(3)
+    """)
+
+    async with await open_process(
+        [sys.executable, "-c", code]
+    ) as process, create_task_group() as tg:
+        assert process.stdout
+        tg.start_soon(process.stdout.aclose)
+        with pytest.raises(ClosedResourceError):
+            await process.stdout.receive()
+
+        process.terminate()

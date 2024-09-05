@@ -930,7 +930,7 @@ class StreamReaderWrapper(abc.ByteReceiveStream):
             raise EndOfStream
 
     async def aclose(self) -> None:
-        self._stream.feed_eof()
+        self._stream.set_exception(ClosedResourceError())
         await AsyncIOBackend.checkpoint()
 
 
