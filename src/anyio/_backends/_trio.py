@@ -45,7 +45,14 @@ from trio.lowlevel import (
 from trio.socket import SocketType as TrioSocketType
 from trio.to_thread import run_sync
 
-from .. import CapacityLimiterStatistics, EventStatistics, TaskInfo, abc
+from .. import (
+    CapacityLimiterStatistics,
+    EventStatistics,
+    LockStatistics,
+    TaskInfo,
+    WouldBlock,
+    abc,
+)
 from .._core._eventloop import claim_worker_thread
 from .._core._exceptions import (
     BrokenResourceError,
@@ -55,9 +62,16 @@ from .._core._exceptions import (
 )
 from .._core._sockets import convert_ipv6_sockaddr
 from .._core._streams import create_memory_object_stream
-from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
+from .._core._synchronization import (
+    CapacityLimiter as BaseCapacityLimiter,
+)
 from .._core._synchronization import Event as BaseEvent
-from .._core._synchronization import ResourceGuard
+from .._core._synchronization import Lock as BaseLock
+from .._core._synchronization import (
+    ResourceGuard,
+    SemaphoreStatistics,
+)
+from .._core._synchronization import Semaphore as BaseSemaphore
 from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend, StrOrBytesPath
@@ -637,6 +651,100 @@ class Event(BaseEvent):
         self.__original.set()
 
 
+class Lock(BaseLock):
+    def __new__(cls, *, fast_acquire: bool = False) -> Lock:
+        return object.__new__(cls)
+
+    def __init__(self, *, fast_acquire: bool = False) -> None:
+        self._fast_acquire = fast_acquire
+        self.__original = trio.Lock()
+
+    async def acquire(self) -> None:
+        if not self._fast_acquire:
+            await self.__original.acquire()
+            return
+
+        # This is the "fast path" where we don't let other tasks run
+        await trio.lowlevel.checkpoint_if_cancelled()
+        try:
+            self.__original.acquire_nowait()
+        except trio.WouldBlock:
+            await self.__original._lot.park()
+
+    def acquire_nowait(self) -> None:
+        try:
+            self.__original.acquire_nowait()
+        except trio.WouldBlock:
+            raise WouldBlock from None
+
+    def locked(self) -> bool:
+        return self.__original.locked()
+
+    def release(self) -> None:
+        self.__original.release()
+
+    def statistics(self) -> LockStatistics:
+        orig_statistics = self.__original.statistics()
+        owner = TrioTaskInfo(orig_statistics.owner) if orig_statistics.owner else None
+        return LockStatistics(
+            orig_statistics.locked, owner, orig_statistics.tasks_waiting
+        )
+
+
+class Semaphore(BaseSemaphore):
+    def __new__(
+        cls,
+        initial_value: int,
+        *,
+        max_value: int | None = None,
+        fast_acquire: bool = False,
+    ) -> Semaphore:
+        return object.__new__(cls)
+
+    def __init__(
+        self,
+        initial_value: int,
+        *,
+        max_value: int | None = None,
+        fast_acquire: bool = False,
+    ) -> None:
+        super().__init__(initial_value, max_value=max_value, fast_acquire=fast_acquire)
+        self.__original = trio.Semaphore(initial_value, max_value=max_value)
+
+    async def acquire(self) -> None:
+        if not self._fast_acquire:
+            await self.__original.acquire()
+            return
+
+        # This is the "fast path" where we don't let other tasks run
+        await trio.lowlevel.checkpoint_if_cancelled()
+        try:
+            self.__original.acquire_nowait()
+        except trio.WouldBlock:
+            await self.__original._lot.park()
+
+    def acquire_nowait(self) -> None:
+        try:
+            self.__original.acquire_nowait()
+        except trio.WouldBlock:
+            raise WouldBlock from None
+
+    @property
+    def max_value(self) -> int | None:
+        return self.__original.max_value
+
+    @property
+    def value(self) -> int:
+        return self.__original.value
+
+    def release(self) -> None:
+        self.__original.release()
+
+    def statistics(self) -> SemaphoreStatistics:
+        orig_statistics = self.__original.statistics()
+        return SemaphoreStatistics(orig_statistics.tasks_waiting)
+
+
 class CapacityLimiter(BaseCapacityLimiter):
     def __new__(
         cls,
@@ -914,6 +1022,20 @@ class TrioBackend(AsyncBackend):
     @classmethod
     def create_event(cls) -> abc.Event:
         return Event()
+
+    @classmethod
+    def create_lock(cls, *, fast_acquire: bool) -> Lock:
+        return Lock(fast_acquire=fast_acquire)
+
+    @classmethod
+    def create_semaphore(
+        cls,
+        initial_value: int,
+        *,
+        max_value: int | None = None,
+        fast_acquire: bool = False,
+    ) -> abc.Semaphore:
+        return Semaphore(initial_value, max_value=max_value, fast_acquire=fast_acquire)
 
     @classmethod
     def create_capacity_limiter(cls, total_tokens: float) -> CapacityLimiter:
