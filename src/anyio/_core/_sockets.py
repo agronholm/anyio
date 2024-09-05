@@ -680,19 +680,12 @@ async def setup_unix_local_socket(
     :param socktype: socket.SOCK_STREAM or socket.SOCK_DGRAM
 
     """
-    path_str: str | bytes | None
+    path_str: str | None
     if path is not None:
-        path_str = os.fspath(path)
-        is_abstract = (
-            path_str.startswith(b"\0")
-            if isinstance(path_str, bytes)
-            else path_str.startswith("\0")
-        )
+        path_str = os.fsdecode(path)
 
-        if is_abstract:
-            # Unix abstract namespace socket. No file backing so skip stat call
-            pass
-        else:
+        # Linux abstract namespace sockets aren't backed by a concrete file so skip stat call
+        if not path_str.startswith("\0"):
             # Copied from pathlib...
             try:
                 stat_result = os.stat(path)
