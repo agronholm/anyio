@@ -2082,6 +2082,8 @@ class TestRunner(abc.TestRunner):
             tuple[Awaitable[T_Retval], asyncio.Future[T_Retval]]
         ],
     ) -> None:
+        from _pytest.outcomes import OutcomeException
+
         with receive_stream, self._send_stream:
             async for coro, future in receive_stream:
                 try:
@@ -2095,7 +2097,8 @@ class TestRunner(abc.TestRunner):
                     if not future.cancelled():
                         future.set_exception(exc)
 
-                    raise
+                    if not isinstance(exc, (Exception, OutcomeException)):
+                        raise
                 else:
                     if not future.cancelled():
                         future.set_result(retval)
