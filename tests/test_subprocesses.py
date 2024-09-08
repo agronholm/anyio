@@ -277,9 +277,9 @@ async def test_py39_arguments(
             [sys.executable, "-c", "print('hello')"],
             **{argname: argvalue_factory()},
         )
-    except TypeError as exc:
+    except ValueError as exc:
         if (
-            "unexpected keyword argument" in str(exc)
+            "unexpected kwargs" in str(exc)
             and anyio_backend_name == "asyncio"
             and anyio_backend_options["loop_factory"]
             and anyio_backend_options["loop_factory"].__module__ == "uvloop"

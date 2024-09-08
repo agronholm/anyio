@@ -52,8 +52,8 @@ test = [
     "pytest-mock >= 3.6.1",
     "trustme",
     """\
-    uvloop >= 0.17; platform_python_implementation == 'CPython' \
-    and platform_system != 'Windows' and python_version < '3.13'\
+    uvloop >= 0.21.0b1; platform_python_implementation == 'CPython' \
+    and platform_system != 'Windows'\
     """
 ]
 doc = [
