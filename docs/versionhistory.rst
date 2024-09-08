@@ -5,11 +5,22 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Improved the performance of ``anyio.Lock`` and ``anyio.Semaphore`` on asyncio (even up
+  to 50 %)
+- Added the ``fast_acquire`` parameter to ``anyio.Lock`` and ``anyio.Semaphore`` to
+  further boost performance at the expense of safety (``acquire()`` will not yield
+  control back if there is no contention)
 - Fixed ``__repr__()`` of ``MemoryObjectItemReceiver``, when ``item`` is not defined
   (`#767 <https://github.com/agronholm/anyio/pulls/767>`_; PR by @Danipulok)
 - Added support for the ``from_uri()``, ``full_match()``, ``parser`` methods/properties
   in ``anyio.Path``, newly added in Python 3.13
   (`#737 <https://github.com/agronholm/anyio/issues/737>`_)
+- Added support for more keyword arguments for ``run_process()`` and ``open_process()``:
+  ``startupinfo``, ``creationflags``, ``pass_fds``, ``user``, ``group``,
+  ``extra_groups`` and ``umask``
+  (`#742 <https://github.com/agronholm/anyio/issues/742>`_)
+- Improved the type annotations and support for ``PathLike`` in ``run_process()`` and
+  ``open_process()`` to allow for path-like arguments, just like ``subprocess.Popen``
 - Changed the ``ResourceWarning`` from an unclosed memory object stream to include its
   address for easier identification
 - Changed ``start_blocking_portal()`` to always use daemonic threads, to accommodate the
@@ -18,8 +29,19 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``to_process.run_sync()`` failing to initialize if ``__main__.__file__`` pointed
   to a file in a nonexistent directory
   (`#696 <https://github.com/agronholm/anyio/issues/696>`_)
+- Fixed ``AssertionError: feed_data after feed_eof`` on asyncio when a subprocess is
+  closed early, before its output has been read
+  (`#490 <https://github.com/agronholm/anyio/issues/490>`_)
 - Fixed ``TaskInfo.has_pending_cancellation()`` on asyncio not respecting shielded
   scopes (`#771 <https://github.com/agronholm/anyio/issues/771>`_; PR by @gschaffner)
+- Fixed ``SocketStream.receive()`` returning ``bytearray`` instead of ``bytes`` when
+  using asyncio with ``ProactorEventLoop`` (Windows)
+  (`#776 <https://github.com/agronholm/anyio/issues/776>`_)
+- Fixed quitting the debugger in a pytest test session while in an active task group
+  failing the test instead of exiting the test session (because the exit exception
+  arrives in an exception group)
+- Fixed support for Linux abstract namespaces in UNIX sockets that was broken in v4.2
+  (#781 <https://github.com/agronholm/anyio/issues/781>_; PR by @tapetersen)
 - Fixed ``KeyboardInterrupt`` (ctrl+c) hanging the asyncio pytest runner
 
 **4.4.0**

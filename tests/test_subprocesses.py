@@ -3,14 +3,23 @@ from __future__ import annotations
 import os
 import platform
 import sys
+from collections.abc import Callable
+from contextlib import ExitStack
 from pathlib import Path
 from subprocess import CalledProcessError
 from textwrap import dedent
+from typing import Any
 
 import pytest
-from _pytest.fixtures import FixtureRequest
+from pytest import FixtureRequest
 
-from anyio import CancelScope, ClosedResourceError, open_process, run_process
+from anyio import (
+    CancelScope,
+    ClosedResourceError,
+    create_task_group,
+    open_process,
+    run_process,
+)
 from anyio.streams.buffered import BufferedByteReceiveStream
 
 pytestmark = pytest.mark.anyio
@@ -225,3 +234,94 @@ async def test_process_aexit_cancellation_closes_standard_streams(
 
     with pytest.raises(ClosedResourceError):
         await process.stderr.receive(1)
+
+
+@pytest.mark.parametrize(
+    "argname, argvalue_factory",
+    [
+        pytest.param(
+            "user",
+            lambda: os.getuid(),
+            id="user",
+            marks=[
+                pytest.mark.skipif(
+                    platform.system() == "Windows",
+                    reason="os.getuid() is not available on Windows",
+                )
+            ],
+        ),
+        pytest.param(
+            "group",
+            lambda: os.getgid(),
+            id="user",
+            marks=[
+                pytest.mark.skipif(
+                    platform.system() == "Windows",
+                    reason="os.getgid() is not available on Windows",
+                )
+            ],
+        ),
+        pytest.param("extra_groups", list, id="extra_groups"),
+        pytest.param("umask", lambda: 0, id="umask"),
+    ],
+)
+async def test_py39_arguments(
+    argname: str,
+    argvalue_factory: Callable[[], Any],
+    anyio_backend_name: str,
+    anyio_backend_options: dict[str, Any],
+) -> None:
+    with ExitStack() as stack:
+        if sys.version_info < (3, 9):
+            stack.enter_context(
+                pytest.raises(
+                    TypeError,
+                    match=rf"the {argname!r} argument requires Python 3.9 or later",
+                )
+            )
+
+        try:
+            await run_process(
+                [sys.executable, "-c", "print('hello')"],
+                **{argname: argvalue_factory()},
+            )
+        except TypeError as exc:
+            if (
+                "unexpected keyword argument" in str(exc)
+                and anyio_backend_name == "asyncio"
+                and anyio_backend_options["loop_factory"]
+                and anyio_backend_options["loop_factory"].__module__ == "uvloop"
+            ):
+                pytest.skip(f"the {argname!r} argument is not supported by uvloop yet")
+
+            raise
+
+
+async def test_close_early() -> None:
+    """Regression test for #490."""
+    code = dedent("""\
+    import sys
+    for _ in range(100):
+        sys.stdout.buffer.write(bytes(range(256)))
+    """)
+
+    async with await open_process([sys.executable, "-c", code]):
+        pass
+
+
+async def test_close_while_reading() -> None:
+    code = dedent("""\
+    import time
+
+    time.sleep(3)
+    """)
+
+    async with await open_process(
+        [sys.executable, "-c", code]
+    ) as process, create_task_group() as tg:
+        assert process.stdout
+        tg.start_soon(process.stdout.aclose)
+        with pytest.raises(ClosedResourceError):
+            await process.stdout.receive()
+
+        process.terminate()
