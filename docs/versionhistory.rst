@@ -42,6 +42,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   arrives in an exception group)
 - Fixed support for Linux abstract namespaces in UNIX sockets that was broken in v4.2
   (#781 <https://github.com/agronholm/anyio/issues/781>_; PR by @tapetersen)
+- Fixed ``KeyboardInterrupt`` (ctrl+c) hanging the asyncio pytest runner
 
 **4.4.0**
 

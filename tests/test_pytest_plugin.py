@@ -441,3 +441,30 @@ def test_debugger_exit_in_taskgroup(testdir: Pytester, anyio_backend_name: str) 
 
     result = testdir.runpytest(*pytest_args)
     result.assert_outcomes()
+
+
+@pytest.mark.parametrize("anyio_backend", get_all_backends(), indirect=True)
+def test_keyboardinterrupt_during_test(
+    testdir: Pytester, anyio_backend_name: str
+) -> None:
+    testdir.makepyfile(
+        f"""
+        import pytest
+        from anyio import create_task_group, sleep
+
+        @pytest.fixture
+        def anyio_backend():
+            return {anyio_backend_name!r}
+
+        async def send_keyboardinterrupt():
+            raise KeyboardInterrupt
+
+        @pytest.mark.anyio
+        async def test_anyio_mark_first():
+            async with create_task_group() as tg:
+                tg.start_soon(send_keyboardinterrupt)
+                await sleep(10)
+        """
+    )
+
+    testdir.runpytest_subprocess(*pytest_args, timeout=3)
