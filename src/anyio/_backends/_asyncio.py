@@ -551,8 +551,9 @@ class CancelScope(BaseCancelScope):
             if task is not current and (task is self._host_task or _task_started(task)):
                 waiter = task._fut_waiter  # type: ignore[attr-defined]
                 if not isinstance(waiter, asyncio.Future) or not waiter.done():
-                    origin._cancel_calls += 1
                     task.cancel(f"Cancelled by cancel scope {id(origin):x}")
+                    if task is self._host_task:
+                        origin._cancel_calls += 1
 
         # Deliver cancellation to child scopes that aren't shielded or running their own
         # cancellation callbacks

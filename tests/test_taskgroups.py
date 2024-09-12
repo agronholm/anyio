@@ -4,6 +4,7 @@ import asyncio
 import math
 import sys
 import time
+from asyncio import CancelledError
 from collections.abc import AsyncGenerator, Coroutine, Generator
 from typing import Any, NoReturn, cast
 
@@ -1426,6 +1427,23 @@ class TestUncancel:
                         raise asyncio.CancelledError
             except asyncio.CancelledError:
                 pytest.fail("Should have swallowed the CancelledError")
+
+    async def test_uncancel_after_taskgroup_cancelled(self) -> None:
+        """
+        Test that a cancel scope only uncancels the host task as many times as it has
+        cancelled that specific task, and won't count child task cancellations towards
+        that amount.
+
+        """
+        task = asyncio.current_task()
+        assert task
+        with pytest.raises(CancelledError):
+            async with create_task_group() as tg:
+                tg.start_soon(sleep, 3)
+                await wait_all_tasks_blocked()
+                task.cancel()
+
+        assert task.cancelling() == 1
 
 
 async def test_cancel_before_entering_task_group() -> None:

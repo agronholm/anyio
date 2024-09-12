@@ -52,6 +52,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``KeyboardInterrupt`` (ctrl+c) hanging the asyncio pytest runner
 - Fixed asyncio task groups not yielding control to the event loop at exit if there were
   no child tasks to wait on
+- Fixed inconsistent task uncancellation with asyncio cancel scopes belonging to a
+  task group when said task group has child tasks running
 
 **4.4.0**
 
