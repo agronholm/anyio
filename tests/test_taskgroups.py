@@ -1445,6 +1445,35 @@ class TestUncancel:
 
         assert task.cancelling() == 1
 
+    async def test_uncancel_after_group_aexit_native_cancel(self) -> None:
+        """Closely related to #695."""
+        done = anyio.Event()
+
+        async def shield_task() -> None:
+            with CancelScope(shield=True):
+                await done.wait()
+
+        async def middle_task() -> None:
+            async with create_task_group() as tg:
+                tg.start_soon(shield_task)
+
+        task = asyncio.get_running_loop().create_task(middle_task())
+        try:
+            await wait_all_tasks_blocked()
+            task.cancel("native 1")
+            await sleep(0.1)
+            task.cancel("native 2")
+        finally:
+            done.set()
+
+        with pytest.raises(asyncio.CancelledError) as exc:
+            await task
+
+        # Neither native cancellation should have been uncancelled, and the latest
+        # cancellation message should be the one coming out of the task group.
+        assert task.cancelling() == 2
+        assert str(exc.value) == "native 2"
+
 
 async def test_cancel_before_entering_task_group() -> None:
     with CancelScope() as scope:

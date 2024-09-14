@@ -359,6 +359,14 @@ def _task_started(task: asyncio.Task) -> bool:
 #
 
 
+def is_anyio_cancellation(exc: CancelledError) -> bool:
+    return (
+        bool(exc.args)
+        and isinstance(exc.args[0], str)
+        and exc.args[0].startswith("Cancelled by cancel scope ")
+    )
+
+
 class CancelScope(BaseCancelScope):
     def __new__(
         cls, *, deadline: float = math.inf, shield: bool = False
@@ -498,11 +506,7 @@ class CancelScope(BaseCancelScope):
                     break
 
         while True:
-            if (
-                cancelled_exc.args
-                and isinstance(cancelled_exc.args[0], str)
-                and cancelled_exc.args[0].startswith("Cancelled by cancel scope ")
-            ):
+            if is_anyio_cancellation(cancelled_exc):
                 # Only swallow the cancellation exception if it's an AnyIO cancel
                 # exception and there are no other cancel scopes down the line pending
                 # cancellation
@@ -713,7 +717,14 @@ class TaskGroup(abc.TaskGroup):
                             # as they're not productive (#695)
                             wait_scope.shield = True
                             self.cancel_scope.cancel()
-                            if exc_val is None:
+
+                            # Set exc_val from the cancellation exception if it was
+                            # previously unset. However, we should not replace a native
+                            # cancellation exception with one raise by a cancel scope.
+                            if exc_val is None or (
+                                isinstance(exc_val, CancelledError)
+                                and not is_anyio_cancellation(exc)
+                            ):
                                 exc_val = exc
             else:
                 # If there are no child tasks to wait on, run at least one checkpoint
