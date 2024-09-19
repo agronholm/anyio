@@ -3,9 +3,24 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**4.5.0**
+**UNRELEASED**
 
 - Dropped support for Python 3.8
+  (as `#698 <https://github.com/agronholm/anyio/issues/698>`_) cannot be resolved
+  without cancel message support)
+- Fixed 100% CPU use on asyncio while waiting for an exiting task group to finish while
+  said task group is within a cancelled cancel scope
+  (`#695 <https://github.com/agronholm/anyio/issues/695>`_)
+- Fixed cancel scopes on asyncio not reraising ``CancelledError`` on exit while the
+  enclosing cancel scope has been effectively cancelled
+  (`#698 <https://github.com/agronholm/anyio/issues/698>`_)
+- Fixed asyncio task groups not yielding control to the event loop at exit if there were
+  no child tasks to wait on
+- Fixed inconsistent task uncancellation with asyncio cancel scopes belonging to a
+  task group when said task group has child tasks running
+
+**4.5.0**
+
 - Improved the performance of ``anyio.Lock`` and ``anyio.Semaphore`` on asyncio (even up
   to 50 %)
 - Added the ``fast_acquire`` parameter to ``anyio.Lock`` and ``anyio.Semaphore`` to
@@ -30,12 +45,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``to_process.run_sync()`` failing to initialize if ``__main__.__file__`` pointed
   to a file in a nonexistent directory
   (`#696 <https://github.com/agronholm/anyio/issues/696>`_)
-- Fixed 100% CPU use on asyncio while waiting for an exiting task group to finish while
-  said task group is within a cancelled cancel scope
-  (`#695 <https://github.com/agronholm/anyio/issues/695>`_)
-- Fixed cancel scopes on asyncio not reraising ``CancelledError`` on exit while the
-  enclosing cancel scope has been effectively cancelled
-  (`#698 <https://github.com/agronholm/anyio/issues/698>`_)
 - Fixed ``AssertionError: feed_data after feed_eof`` on asyncio when a subprocess is
   closed early, before its output has been read
   (`#490 <https://github.com/agronholm/anyio/issues/490>`_)
@@ -50,10 +59,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed support for Linux abstract namespaces in UNIX sockets that was broken in v4.2
   (#781 <https://github.com/agronholm/anyio/issues/781>_; PR by @tapetersen)
 - Fixed ``KeyboardInterrupt`` (ctrl+c) hanging the asyncio pytest runner
-- Fixed asyncio task groups not yielding control to the event loop at exit if there were
-  no child tasks to wait on
-- Fixed inconsistent task uncancellation with asyncio cancel scopes belonging to a
-  task group when said task group has child tasks running
 
 **4.4.0**
 
