@@ -453,6 +453,13 @@ class CancelScope(BaseCancelScope):
 
         host_task_state.cancel_scope = self._parent_scope
 
+        # Undo all cancellations done by this scope
+        if self._cancelling is not None:
+            while self._cancel_calls:
+                self._cancel_calls -= 1
+                if self._host_task.uncancel() <= self._cancelling:
+                    break
+
         # We only swallow the exception iff it was an AnyIO CancelledError, either
         # directly as exc_val or inside an exception group and there are no cancelled
         # parent cancel scopes visible to us here
@@ -497,13 +504,6 @@ class CancelScope(BaseCancelScope):
         if self._host_task is None:
             self._cancel_calls = 0
             return True
-
-        # Undo all cancellations done by this scope
-        if self._cancelling is not None:
-            while self._cancel_calls:
-                self._cancel_calls -= 1
-                if self._host_task.uncancel() <= self._cancelling:
-                    break
 
         while True:
             if is_anyio_cancellation(cancelled_exc):

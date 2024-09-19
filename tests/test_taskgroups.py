@@ -1474,6 +1474,18 @@ class TestUncancel:
         assert task.cancelling() == 2
         assert str(exc.value) == "native 2"
 
+    async def test_uncancel_after_child_task_failed(self) -> None:
+        async def taskfunc() -> None:
+            raise Exception("dummy error")
+
+        with pytest.raises(ExceptionGroup) as exc_info:
+            async with create_task_group() as tg:
+                tg.start_soon(taskfunc)
+
+        assert len(exc_info.value.exceptions) == 1
+        assert str(exc_info.value.exceptions[0]) == "dummy error"
+        assert not cast(asyncio.Task, asyncio.current_task()).cancelling()
+
 
 async def test_cancel_before_entering_task_group() -> None:
     with CancelScope() as scope:
