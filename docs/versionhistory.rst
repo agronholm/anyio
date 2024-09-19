@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**4.5.0**
 
 - Dropped support for Python 3.8
 - Improved the performance of ``anyio.Lock`` and ``anyio.Semaphore`` on asyncio (even up
@@ -11,8 +11,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added the ``fast_acquire`` parameter to ``anyio.Lock`` and ``anyio.Semaphore`` to
   further boost performance at the expense of safety (``acquire()`` will not yield
   control back if there is no contention)
-- Fixed ``__repr__()`` of ``MemoryObjectItemReceiver``, when ``item`` is not defined
-  (`#767 <https://github.com/agronholm/anyio/pulls/767>`_; PR by @Danipulok)
 - Added support for the ``from_uri()``, ``full_match()``, ``parser`` methods/properties
   in ``anyio.Path``, newly added in Python 3.13
   (`#737 <https://github.com/agronholm/anyio/issues/737>`_)
@@ -27,6 +25,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Changed ``start_blocking_portal()`` to always use daemonic threads, to accommodate the
   "loitering event loop" use case
 - Bumped the minimum version of Trio to v0.26.1
+- Fixed ``__repr__()`` of ``MemoryObjectItemReceiver``, when ``item`` is not defined
+  (`#767 <https://github.com/agronholm/anyio/pulls/767>`_; PR by @Danipulok)
 - Fixed ``to_process.run_sync()`` failing to initialize if ``__main__.__file__`` pointed
   to a file in a nonexistent directory
   (`#696 <https://github.com/agronholm/anyio/issues/696>`_)
