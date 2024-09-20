@@ -6,7 +6,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **UNRELEASED**
 
 - Dropped support for Python 3.8
-  (as `#698 <https://github.com/agronholm/anyio/issues/698>`_) cannot be resolved
+  (as `#698 <https://github.com/agronholm/anyio/issues/698>`_ cannot be resolved
   without cancel message support)
 - Fixed 100% CPU use on asyncio while waiting for an exiting task group to finish while
   said task group is within a cancelled cancel scope
