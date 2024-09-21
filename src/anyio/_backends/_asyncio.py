@@ -482,11 +482,8 @@ class CancelScope(BaseCancelScope):
             cannot_swallow_exc_val = False
             if exc_val is not None:
                 for exc in iterate_exceptions(exc_val):
-                    if isinstance(exc, CancelledError):
-                        if is_anyio_cancellation(exc):
-                            self._cancelled_caught = True
-                        else:
-                            cannot_swallow_exc_val = True
+                    if isinstance(exc, CancelledError) and is_anyio_cancellation(exc):
+                        self._cancelled_caught = True
                     else:
                         cannot_swallow_exc_val = True
 
@@ -498,6 +495,7 @@ class CancelScope(BaseCancelScope):
                 self._parent_scope._pending_uncancellations += (
                     self._pending_uncancellations
                 )
+                self._pending_uncancellations = 0
 
             return False
 
