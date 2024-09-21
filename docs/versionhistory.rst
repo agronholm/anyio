@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed ``CancelScope`` on asyncio calling ``asyncio.Task.uncancel`` too early in some
+  cases (`#790 <https://github.com/agronholm/anyio/pull/790>`_; PR by @gschaffner)
+
 **4.6.0**
 
 - Dropped support for Python 3.8
