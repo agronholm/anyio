@@ -408,6 +408,11 @@ class CancelScope(BaseCancelScope):
         self._cancel_handle: asyncio.Handle | None = None
         self._tasks: set[asyncio.Task] = set()
         self._host_task: asyncio.Task | None = None
+        self._pending_uncancellations: int | None
+        if sys.version_info >= (3, 11):
+            self._pending_uncancellations = 0
+        else:
+            self._pending_uncancellations = None
 
     def __enter__(self) -> CancelScope:
         if self._active:
@@ -486,9 +491,9 @@ class CancelScope(BaseCancelScope):
             # parent cancel scopes visible to us here
             if self._cancel_called and not self._parent_cancellation_is_visible_to_us:
                 # For each level-cancel() call made on the host task, call uncancel()
-                while host_task_state.pending_uncancellations:
+                while self._pending_uncancellations:
                     self._host_task.uncancel()
-                    host_task_state.pending_uncancellations -= 1
+                    self._pending_uncancellations -= 1
 
                 # Update cancelled_caught and check for exceptions we must not swallow
                 cannot_swallow_exc_val = False
@@ -503,6 +508,14 @@ class CancelScope(BaseCancelScope):
 
                 return self._cancelled_caught and not cannot_swallow_exc_val
             else:
+                if self._pending_uncancellations:
+                    assert self._parent_scope is not None
+                    assert self._parent_scope._pending_uncancellations is not None
+                    self._parent_scope._pending_uncancellations += (
+                        self._pending_uncancellations
+                    )
+                    self._pending_uncancellations = 0
+
                 return False
         finally:
             self._host_task = None
@@ -561,10 +574,11 @@ class CancelScope(BaseCancelScope):
                 waiter = task._fut_waiter  # type: ignore[attr-defined]
                 if not isinstance(waiter, asyncio.Future) or not waiter.done():
                     task.cancel(f"Cancelled by cancel scope {id(origin):x}")
-                    if task is origin._host_task:
-                        host_task_state = _task_states[task]
-                        if host_task_state.pending_uncancellations is not None:
-                            host_task_state.pending_uncancellations += 1
+                    if (
+                        task is origin._host_task
+                        and origin._pending_uncancellations is not None
+                    ):
+                        origin._pending_uncancellations += 1
 
         # Deliver cancellation to child scopes that aren't shielded or running their own
         # cancellation callbacks
@@ -657,16 +671,11 @@ class TaskState:
     itself because there are no guarantees about its implementation.
     """
 
-    __slots__ = "parent_id", "cancel_scope", "pending_uncancellations", "__weakref__"
+    __slots__ = "parent_id", "cancel_scope", "__weakref__"
 
     def __init__(self, parent_id: int | None, cancel_scope: CancelScope | None):
         self.parent_id = parent_id
         self.cancel_scope = cancel_scope
-        self.pending_uncancellations: int | None
-        if sys.version_info >= (3, 11):
-            self.pending_uncancellations = 0
-        else:
-            self.pending_uncancellations = None
 
 
 class TaskStateStore(MutableMapping["Awaitable[Any] | asyncio.Task", TaskState]):
