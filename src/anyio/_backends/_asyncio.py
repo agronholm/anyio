@@ -372,11 +372,22 @@ def _task_started(task: asyncio.Task) -> bool:
 
 
 def is_anyio_cancellation(exc: CancelledError) -> bool:
-    return (
-        bool(exc.args)
-        and isinstance(exc.args[0], str)
-        and exc.args[0].startswith("Cancelled by cancel scope ")
-    )
+    # Sometimes third party frameworks catch a CancelledError and raise a new one, so as
+    # a workaround we have to look at the previous ones in __context__ too for a
+    # matching cancel message
+    while True:
+        if (
+            bool(exc.args)
+            and isinstance(exc.args[0], str)
+            and exc.args[0].startswith("Cancelled by cancel scope ")
+        ):
+            return True
+
+        if isinstance(exc.__context__, CancelledError):
+            exc = exc.__context__
+            continue
+
+        return False
 
 
 class CancelScope(BaseCancelScope):
@@ -466,31 +477,33 @@ class CancelScope(BaseCancelScope):
 
             host_task_state.cancel_scope = self._parent_scope
 
-            if (
-                self._effectively_cancelled
-                and not self._parent_cancellation_is_visible_to_us
-            ):
-                while host_task_state.pending_uncancellations:
-                    self._host_task.uncancel()
-                    host_task_state.pending_uncancellations -= 1
+            # Restart the cancellation effort in the closest visible, cancelled parent
+            # scope if necessary
+            self._restart_cancellation_in_parent()
 
             # We only swallow the exception iff it was an AnyIO CancelledError, either
             # directly as exc_val or inside an exception group and there are no cancelled
             # parent cancel scopes visible to us here
-            not_swallowed_exceptions = 0
-            swallow_exception = False
-            if exc_val is not None:
-                for exc in iterate_exceptions(exc_val):
-                    if self._cancel_called and isinstance(exc, CancelledError):
-                        if not (swallow_exception := self._uncancel(exc)):
-                            not_swallowed_exceptions += 1
-                    else:
-                        not_swallowed_exceptions += 1
+            if self._cancel_called and not self._parent_cancellation_is_visible_to_us:
+                # For each level-cancel() call made on the host task, call uncancel()
+                while host_task_state.pending_uncancellations:
+                    self._host_task.uncancel()
+                    host_task_state.pending_uncancellations -= 1
 
-            # Restart the cancellation effort in the closest visible, cancelled parent
-            # scope if necessary
-            self._restart_cancellation_in_parent()
-            return swallow_exception and not not_swallowed_exceptions
+                # Update cancelled_caught and check for exceptions we must not swallow
+                cannot_swallow_exc_val = False
+                if exc_val is not None:
+                    for exc in iterate_exceptions(exc_val):
+                        if isinstance(exc, CancelledError) and is_anyio_cancellation(
+                            exc
+                        ):
+                            self._cancelled_caught = True
+                        else:
+                            cannot_swallow_exc_val = True
+
+                return self._cancelled_caught and not cannot_swallow_exc_val
+            else:
+                return False
         finally:
             self._host_task = None
             del exc_val
@@ -516,30 +529,6 @@ class CancelScope(BaseCancelScope):
             and not self.shield
             and self._parent_scope._effectively_cancelled
         )
-
-    def _uncancel(self, cancelled_exc: CancelledError) -> bool:
-        if self._host_task is None:
-            return True
-
-        while True:
-            if is_anyio_cancellation(cancelled_exc):
-                # Only swallow the cancellation exception if it's an AnyIO cancel
-                # exception and there are no other cancel scopes down the line pending
-                # cancellation
-                self._cancelled_caught = (
-                    self._effectively_cancelled
-                    and not self._parent_cancellation_is_visible_to_us
-                )
-                return self._cancelled_caught
-
-            # Sometimes third party frameworks catch a CancelledError and raise a new
-            # one, so as a workaround we have to look at the previous ones in
-            # __context__ too for a matching cancel message
-            if isinstance(cancelled_exc.__context__, CancelledError):
-                cancelled_exc = cancelled_exc.__context__
-                continue
-
-            return False
 
     def _timeout(self) -> None:
         if self._deadline != math.inf:
