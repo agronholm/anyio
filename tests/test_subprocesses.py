@@ -4,7 +4,6 @@ import os
 import platform
 import sys
 from collections.abc import Callable
-from contextlib import ExitStack
 from pathlib import Path
 from subprocess import CalledProcessError
 from textwrap import dedent
@@ -135,9 +134,11 @@ async def test_run_process_connect_to_file(tmp_path: Path) -> None:
     stdinfile.write_text("Hello, process!\n")
     stdoutfile = tmp_path / "stdout"
     stderrfile = tmp_path / "stderr"
-    with stdinfile.open("rb") as fin, stdoutfile.open("wb") as fout, stderrfile.open(
-        "wb"
-    ) as ferr:
+    with (
+        stdinfile.open("rb") as fin,
+        stdoutfile.open("wb") as fout,
+        stderrfile.open("wb") as ferr,
+    ):
         async with await open_process(
             [
                 sys.executable,
@@ -271,30 +272,21 @@ async def test_py39_arguments(
     anyio_backend_name: str,
     anyio_backend_options: dict[str, Any],
 ) -> None:
-    with ExitStack() as stack:
-        if sys.version_info < (3, 9):
-            stack.enter_context(
-                pytest.raises(
-                    TypeError,
-                    match=rf"the {argname!r} argument requires Python 3.9 or later",
-                )
-            )
+    try:
+        await run_process(
+            [sys.executable, "-c", "print('hello')"],
+            **{argname: argvalue_factory()},
+        )
+    except ValueError as exc:
+        if (
+            "unexpected kwargs" in str(exc)
+            and anyio_backend_name == "asyncio"
+            and anyio_backend_options["loop_factory"]
+            and anyio_backend_options["loop_factory"].__module__ == "uvloop"
+        ):
+            pytest.skip(f"the {argname!r} argument is not supported by uvloop yet")
 
-        try:
-            await run_process(
-                [sys.executable, "-c", "print('hello')"],
-                **{argname: argvalue_factory()},
-            )
-        except ValueError as exc:
-            if (
-                "unexpected kwargs" in str(exc)
-                and anyio_backend_name == "asyncio"
-                and anyio_backend_options["loop_factory"]
-                and anyio_backend_options["loop_factory"].__module__ == "uvloop"
-            ):
-                pytest.skip(f"the {argname!r} argument is not supported by uvloop yet")
-
-            raise
+        raise
 
 
 async def test_close_early() -> None:
@@ -316,9 +308,10 @@ async def test_close_while_reading() -> None:
     time.sleep(3)
     """)
 
-    async with await open_process(
-        [sys.executable, "-c", code]
-    ) as process, create_task_group() as tg:
+    async with (
+        await open_process([sys.executable, "-c", code]) as process,
+        create_task_group() as tg,
+    ):
         assert process.stdout
         tg.start_soon(process.stdout.aclose)
         with pytest.raises(ClosedResourceError):

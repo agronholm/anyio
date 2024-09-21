@@ -4,12 +4,12 @@ import math
 import sys
 import threading
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from concurrent import futures
 from concurrent.futures import CancelledError, Future
 from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
-from typing import Any, AsyncGenerator, Literal, NoReturn, TypeVar
+from typing import Any, Literal, NoReturn, TypeVar
 
 import pytest
 import sniffio
