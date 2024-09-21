@@ -684,7 +684,7 @@ async def test_cancelled_scope_based_checkpoint() -> None:
     with CancelScope() as outer_scope:
         outer_scope.cancel()
 
-        # The following two lines are a way to implement a checkpoint function.
+        # The following three lines are a way to implement a checkpoint function.
         # See also https://github.com/python-trio/trio/issues/860.
         with CancelScope() as inner_scope:
             inner_scope.cancel()
