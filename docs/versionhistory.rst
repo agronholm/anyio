@@ -41,7 +41,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   "loitering event loop" use case
 - Bumped the minimum version of Trio to v0.26.1
 - Fixed ``__repr__()`` of ``MemoryObjectItemReceiver``, when ``item`` is not defined
-  (`#767 <https://github.com/agronholm/anyio/pulls/767>`_; PR by @Danipulok)
+  (`#767 <https://github.com/agronholm/anyio/pull/767>`_; PR by @Danipulok)
 - Fixed ``to_process.run_sync()`` failing to initialize if ``__main__.__file__`` pointed
   to a file in a nonexistent directory
   (`#696 <https://github.com/agronholm/anyio/issues/696>`_)
@@ -57,7 +57,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   failing the test instead of exiting the test session (because the exit exception
   arrives in an exception group)
 - Fixed support for Linux abstract namespaces in UNIX sockets that was broken in v4.2
-  (#781 <https://github.com/agronholm/anyio/issues/781>_; PR by @tapetersen)
+  (`#781 <https://github.com/agronholm/anyio/issues/781>`_; PR by @tapetersen)
 - Fixed ``KeyboardInterrupt`` (ctrl+c) hanging the asyncio pytest runner
 
 **4.4.0**
