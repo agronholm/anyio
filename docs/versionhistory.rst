@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed acquring a lock twice in the same task on asyncio hanging instead of raising a
+  ``RuntimeError`` (`#798 <https://github.com/agronholm/anyio/issues/798>`_)
+
 **4.6.0**
 
 - Dropped support for Python 3.8
