@@ -3,6 +3,12 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Corrected documentation on ``anyio.Path`` regarding the limitations imposed by the
+  current Python version on several of its methods, and made the ``is_junction`` method
+  unavailable on Python versions earlier than 3.12
+
 **4.6.0**
 
 - Dropped support for Python 3.8
