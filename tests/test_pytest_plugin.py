@@ -468,3 +468,44 @@ def test_keyboardinterrupt_during_test(
     )
 
     testdir.runpytest_subprocess(*pytest_args, timeout=3)
+
+
+def test_bound_methods(testdir: Pytester) -> None:
+    testdir.makepyfile(
+        """
+        import pytest
+
+        class TestFoo:
+            @pytest.fixture(autouse=True)
+            async def fixt(self):
+                self.is_same_instance = 1
+
+            @pytest.mark.anyio
+            async def test_fixt(self):
+                assert self.is_same_instance == 1
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=2)
+
+
+def test_bound_async_gen_methods(testdir: Pytester) -> None:
+    testdir.makepyfile(
+        """
+        import pytest
+
+        class TestFoo:
+            @pytest.fixture(autouse=True)
+            async def fixt(self):
+                self.is_same_instance = 1
+                yield
+
+            @pytest.mark.anyio
+            async def test_fixt(self):
+                assert self.is_same_instance == 1
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=2)

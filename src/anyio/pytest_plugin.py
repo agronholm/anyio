@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from contextlib import ExitStack, contextmanager
 from inspect import isasyncgenfunction, iscoroutinefunction
 from typing import Any, cast
@@ -70,7 +70,41 @@ def pytest_configure(config: Any) -> None:
     )
 
 
-def pytest_fixture_setup(fixturedef: Any, request: Any) -> None:
+def _getimfunc(func: Any) -> Any:
+    try:
+        return func.__func__
+    except AttributeError:
+        return func
+
+
+def _resolve_fixture_function(fixturedef: Any, request: Any) -> Any:
+    """
+    Get the actual callable that can be called to obtain the fixture
+    value.
+
+    copied from _pytest.fixtures.resolve_fixture_function
+    """
+    fixturefunc = fixturedef.func
+    # The fixture function needs to be bound to the actual
+    # request.instance so that code working with "fixturedef" behaves
+    # as expected.
+    instance = request.instance
+    if instance is not None:
+        # Handle the case where fixture is defined not in a test class, but some other class
+        # (for example a plugin class with a fixture), see #2270.
+        if hasattr(fixturefunc, "__self__") and not isinstance(
+            instance,
+            fixturefunc.__self__.__class__,
+        ):
+            return fixturefunc
+        fixturefunc = _getimfunc(fixturedef.func)
+        if fixturefunc != fixturedef.func:
+            fixturefunc = fixturefunc.__get__(instance)
+    return fixturefunc
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_fixture_setup(fixturedef: Any, request: Any) -> Generator[Any, None, None]:
     def wrapper(*args, anyio_backend, **kwargs):  # type: ignore[no-untyped-def]
         backend_name, backend_options = extract_backend_and_options(anyio_backend)
         if has_backend_arg:
@@ -82,15 +116,23 @@ def pytest_fixture_setup(fixturedef: Any, request: Any) -> None:
             else:
                 yield runner.run_fixture(func, kwargs)
 
-    # Only apply this to coroutine functions and async generator functions in requests
-    # that involve the anyio_backend fixture
-    func = fixturedef.func
-    if isasyncgenfunction(func) or iscoroutinefunction(func):
-        if "anyio_backend" in request.fixturenames:
-            has_backend_arg = "anyio_backend" in fixturedef.argnames
-            fixturedef.func = wrapper
-            if not has_backend_arg:
-                fixturedef.argnames += ("anyio_backend",)
+    with ExitStack() as stack:
+        # Only apply this to coroutine functions and async generator functions in requests
+        # that involve the anyio_backend fixture
+        func = _resolve_fixture_function(fixturedef, request)
+        if isasyncgenfunction(func) or iscoroutinefunction(func):
+            if "anyio_backend" in request.fixturenames:
+                has_backend_arg = "anyio_backend" in fixturedef.argnames
+                original_func = fixturedef.func
+                fixturedef.func = wrapper
+                stack.callback(setattr, fixturedef, 'func', original_func)
+
+                if not has_backend_arg:
+                    original_argnames = fixturedef.argnames
+                    fixturedef.argnames = original_argnames + ("anyio_backend",)
+                    stack.callback(setattr, fixturedef, 'argnames', original_argnames)
+
+        return (yield)
 
 
 @pytest.hookimpl(tryfirst=True)
