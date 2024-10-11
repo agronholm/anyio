@@ -125,12 +125,12 @@ def pytest_fixture_setup(fixturedef: Any, request: Any) -> Generator[Any, None, 
                 has_backend_arg = "anyio_backend" in fixturedef.argnames
                 original_func = fixturedef.func
                 fixturedef.func = wrapper
-                stack.callback(setattr, fixturedef, 'func', original_func)
+                stack.callback(setattr, fixturedef, "func", original_func)
 
                 if not has_backend_arg:
                     original_argnames = fixturedef.argnames
                     fixturedef.argnames = original_argnames + ("anyio_backend",)
-                    stack.callback(setattr, fixturedef, 'argnames', original_argnames)
+                    stack.callback(setattr, fixturedef, "argnames", original_argnames)
 
         return (yield)
 
