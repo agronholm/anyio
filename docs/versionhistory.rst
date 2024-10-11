@@ -2,6 +2,10 @@ Version history
 ===============
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
+**UNRELEASED**
+
+- Fixed fixture methods run with different self than the test method
+  (`#633 <https://github.com/agronholm/anyio/issues/633>`_)
 
 **4.6.0**
 
