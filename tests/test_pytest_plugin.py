@@ -509,3 +509,27 @@ def test_bound_async_gen_methods(testdir: Pytester) -> None:
 
     result = testdir.runpytest(*pytest_args)
     result.assert_outcomes(passed=2)
+
+
+def test_anyio_fixture_adoption_does_not_persist(testdir: Pytester) -> None:
+    testdir.makepyfile(
+        """
+        import inspect
+        import pytest
+
+        @pytest.fixture
+        async def fixt():
+            return 1
+
+        @pytest.mark.anyio
+        async def test_fixt(fixt):
+            assert fixt == 1
+
+        def test_no_mark(fixt):
+            assert inspect.iscoroutine(fixt)
+            fixt.close()
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=3)
