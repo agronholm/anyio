@@ -1585,7 +1585,7 @@ class TestRefcycles:
         assert gc.get_referrers(exc) == no_other_refs()
 
     async def test_exception_refcycles_errors(self) -> None:
-        """Test that TaskGroup deletes self._errors, and __aexit__ args"""
+        """Test that TaskGroup deletes self._exceptions, and __aexit__ args"""
         tg = create_task_group()
         exc = None
 
@@ -1602,7 +1602,7 @@ class TestRefcycles:
         assert gc.get_referrers(exc) == no_other_refs()
 
     async def test_exception_refcycles_parent_task(self) -> None:
-        """Test that TaskGroup deletes self._parent_task"""
+        """Test that TaskGroup's cancel_scope deletes self._host_task"""
         tg = create_task_group()
         exc = None
 
@@ -1623,7 +1623,7 @@ class TestRefcycles:
         assert gc.get_referrers(exc) == no_other_refs()
 
     async def test_exception_refcycles_propagate_cancellation_error(self) -> None:
-        """Test that TaskGroup deletes propagate_cancellation_error"""
+        """Test that TaskGroup deletes cancelled_exc"""
         tg = anyio.create_task_group()
         exc = None
 
@@ -1640,7 +1640,12 @@ class TestRefcycles:
         assert gc.get_referrers(exc) == no_other_refs()
 
     async def test_exception_refcycles_base_error(self) -> None:
-        """Test that TaskGroup deletes self._base_error"""
+        """
+        Test for BaseExceptions.
+
+        anyio doesn't treat these differently so this test is redundant
+        but copied from CPython's asyncio.TaskGroup tests for completion.
+        """
 
         class MyKeyboardInterrupt(KeyboardInterrupt):
             pass
