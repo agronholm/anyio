@@ -1770,7 +1770,7 @@ class Lock(BaseLock):
             self._owner_task = task
             return
 
-        if self._owner_task == task:
+        if self._owner_task is task:
             raise RuntimeError("Attempted to acquire an already held Lock")
 
         raise WouldBlock
