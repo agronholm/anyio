@@ -66,11 +66,11 @@ jobs:
         - os: macos-latest
           python-version: "3.9"
         - os: macos-latest
-          python-version: "3.12"
+          python-version: "3.13"
         - os: windows-latest
           python-version: "3.9"
         - os: windows-latest
-          python-version: "3.12"
+          python-version: "3.13"
     runs-on: ${{ matrix.os }}
     needs: changed-files
     if: |
