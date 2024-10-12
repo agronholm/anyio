@@ -8,7 +8,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed acquring a lock twice in the same task on asyncio hanging instead of raising a
   ``RuntimeError`` (`#798 <https://github.com/agronholm/anyio/issues/798>`_)
 - Fixed an async fixture's ``self`` being different than the test's ``self`` in
-  unittest-style tests (`#633 <https://github.com/agronholm/anyio/issues/633>`_)
+  class-based tests (`#633 <https://github.com/agronholm/anyio/issues/633>`_)
   (PR by @agronholm and @graingert)
 
 **4.6.0**
