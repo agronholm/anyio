@@ -10,7 +10,6 @@ import pytest
 import sniffio
 from _pytest.fixtures import SubRequest
 from _pytest.outcomes import Exit
-from pytest import FixtureDef, FixtureRequest
 
 from ._core._eventloop import get_all_backends, get_async_backend
 from ._core._exceptions import iterate_exceptions
@@ -73,9 +72,7 @@ def pytest_configure(config: Any) -> None:
 
 
 @pytest.hookimpl(hookwrapper=True)
-def pytest_fixture_setup(
-    fixturedef: FixtureDef, request: FixtureRequest
-) -> Generator[Any]:
+def pytest_fixture_setup(fixturedef: Any, request: Any) -> Generator[Any]:
     def wrapper(
         *args: Any, anyio_backend: Any, request: SubRequest, **kwargs: Any
     ) -> Any:
@@ -107,20 +104,20 @@ def pytest_fixture_setup(
     func = fixturedef.func
     if isasyncgenfunction(func) or iscoroutinefunction(func):
         if "anyio_backend" in request.fixturenames:
-            fixturedef.func = wrapper  # type: ignore[misc]
+            fixturedef.func = wrapper
             original_argname = fixturedef.argnames
 
             if not (has_backend_arg := "anyio_backend" in fixturedef.argnames):
-                fixturedef.argnames += ("anyio_backend",)  # type: ignore[misc]
+                fixturedef.argnames += ("anyio_backend",)
 
             if not (has_request_arg := "request" in fixturedef.argnames):
-                fixturedef.argnames += ("request",)  # type: ignore[misc]
+                fixturedef.argnames += ("request",)
 
             try:
                 return (yield)
             finally:
-                fixturedef.func = func  # type: ignore[misc]
-                fixturedef.argnames = original_argname  # type: ignore[misc]
+                fixturedef.func = func
+                fixturedef.argnames = original_argname
 
     yield
 
