@@ -391,6 +391,7 @@ class TestTLSStream:
     async def test_truststore_ssl(
         self, request: pytest.FixtureRequest, server_context: ssl.SSLContext
     ) -> None:
+        # This test is only expected to fail on Windows without the associated patch
         def serve_sync() -> None:
             with server_sock, pytest.raises(ssl.SSLEOFError):
                 server_sock.accept()
