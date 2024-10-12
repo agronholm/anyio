@@ -689,8 +689,7 @@ class _AsyncioTaskStatus(abc.TaskStatus):
 
 async def _wait(tasks: Iterable[asyncio.Task[object]]) -> None:
     tasks = set(tasks)
-    loop = get_running_loop()
-    waiter = loop.create_future()
+    waiter = get_running_loop().create_future()
 
     def on_completion(task: asyncio.Task[object]) -> None:
         tasks.discard(task)
