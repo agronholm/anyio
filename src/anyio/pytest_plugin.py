@@ -119,7 +119,7 @@ def pytest_fixture_setup(fixturedef: Any, request: Any) -> Generator[Any]:
                 fixturedef.func = func
                 fixturedef.argnames = original_argname
 
-    yield
+    return (yield)
 
 
 @pytest.hookimpl(tryfirst=True)
