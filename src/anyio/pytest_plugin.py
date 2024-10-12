@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from contextlib import ExitStack, contextmanager
 from inspect import isasyncgenfunction, iscoroutinefunction, ismethod
 from typing import Any, cast
@@ -72,7 +72,10 @@ def pytest_configure(config: Any) -> None:
     )
 
 
-def pytest_fixture_setup(fixturedef: FixtureDef, request: FixtureRequest) -> None:
+@pytest.hookimpl(hookwrapper=True)
+def pytest_fixture_setup(
+    fixturedef: FixtureDef, request: FixtureRequest
+) -> Generator[Any]:
     def wrapper(
         *args: Any, anyio_backend: Any, request: SubRequest, **kwargs: Any
     ) -> Any:
@@ -105,12 +108,21 @@ def pytest_fixture_setup(fixturedef: FixtureDef, request: FixtureRequest) -> Non
     if isasyncgenfunction(func) or iscoroutinefunction(func):
         if "anyio_backend" in request.fixturenames:
             fixturedef.func = wrapper  # type: ignore[misc]
+            original_argname = fixturedef.argnames
 
             if not (has_backend_arg := "anyio_backend" in fixturedef.argnames):
                 fixturedef.argnames += ("anyio_backend",)  # type: ignore[misc]
 
             if not (has_request_arg := "request" in fixturedef.argnames):
                 fixturedef.argnames += ("request",)  # type: ignore[misc]
+
+            try:
+                return (yield)
+            finally:
+                fixturedef.func = func  # type: ignore[misc]
+                fixturedef.argnames = original_argname  # type: ignore[misc]
+
+    yield
 
 
 @pytest.hookimpl(tryfirst=True)
