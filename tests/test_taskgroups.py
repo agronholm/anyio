@@ -1549,6 +1549,16 @@ async def test_start_cancels_parent_scope() -> None:
     assert not tg.cancel_scope.cancel_called
 
 
+if sys.version_info <= (3, 11):
+
+    def no_other_refs() -> list[object]:
+        return [sys._getframe(1)]
+else:
+
+    def no_other_refs() -> list[object]:
+        return []
+
+
 async def test_exception_refcycles_direct() -> None:
     """Test that TaskGroup doesn't keep a reference to the raised ExceptionGroup"""
     tg = create_task_group()
@@ -1564,7 +1574,7 @@ async def test_exception_refcycles_direct() -> None:
         exc = e
 
     assert exc is not None
-    assert gc.get_referrers(exc) == []
+    assert gc.get_referrers(exc) == no_other_refs()
 
 
 async def test_exception_refcycles_errors() -> None:
@@ -1582,7 +1592,7 @@ async def test_exception_refcycles_errors() -> None:
         exc = excs.exceptions[0]
 
     assert isinstance(exc, _Done)
-    assert gc.get_referrers(exc) == []
+    assert gc.get_referrers(exc) == no_other_refs()
 
 
 async def test_exception_refcycles_parent_task() -> None:
@@ -1604,7 +1614,7 @@ async def test_exception_refcycles_parent_task() -> None:
         exc = excs.exceptions[0].exceptions[0]
 
     assert isinstance(exc, _Done)
-    assert gc.get_referrers(exc) == []
+    assert gc.get_referrers(exc) == no_other_refs()
 
 
 async def test_exception_refcycles_propagate_cancellation_error() -> None:
@@ -1622,7 +1632,7 @@ async def test_exception_refcycles_propagate_cancellation_error() -> None:
             raise
 
     assert isinstance(exc, get_cancelled_exc_class())
-    assert gc.get_referrers(exc) == []
+    assert gc.get_referrers(exc) == no_other_refs()
 
 
 async def test_exception_refcycles_base_error() -> None:
@@ -1641,7 +1651,7 @@ async def test_exception_refcycles_base_error() -> None:
         exc = excs.exceptions[0]
 
     assert isinstance(exc, MyKeyboardInterrupt)
-    assert gc.get_referrers(exc) == []
+    assert gc.get_referrers(exc) == no_other_refs()
 
 
 class TestTaskStatusTyping:
