@@ -419,6 +419,7 @@ class TestBlockingPortal:
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         cancelled = False
+        done_event = threading.Event()
 
         async def event_waiter() -> None:
             nonlocal cancelled
@@ -426,10 +427,13 @@ class TestBlockingPortal:
                 await sleep(3)
             except get_cancelled_exc_class():
                 cancelled = True
+            finally:
+                done_event.set()
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
             future = portal.start_task_soon(event_waiter)
             future.cancel()
+            done_event.wait(10)
 
         assert cancelled
 
