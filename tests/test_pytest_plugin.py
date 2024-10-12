@@ -468,3 +468,76 @@ def test_keyboardinterrupt_during_test(
     )
 
     testdir.runpytest_subprocess(*pytest_args, timeout=3)
+
+
+def test_async_fixture_in_test_class(testdir: Pytester) -> None:
+    # Regression test for #633
+    testdir.makepyfile(
+        """
+        import pytest
+
+
+        class TestAsyncFixtureMethod:
+            is_same_instance = False
+
+            @pytest.fixture(autouse=True)
+            async def async_fixture_method(self):
+                self.is_same_instance = True
+
+            @pytest.mark.anyio
+            async def test_async_fixture_method(self):
+                assert self.is_same_instance
+        """
+    )
+
+    result = testdir.runpytest_subprocess(*pytest_args)
+    result.assert_outcomes(passed=len(get_all_backends()))
+
+
+def test_asyncgen_fixture_in_test_class(testdir: Pytester) -> None:
+    # Regression test for #633
+    testdir.makepyfile(
+        """
+        import pytest
+
+
+        class TestAsyncFixtureMethod:
+            is_same_instance = False
+
+            @pytest.fixture(autouse=True)
+            async def async_fixture_method(self):
+                self.is_same_instance = True
+                yield
+
+            @pytest.mark.anyio
+            async def test_async_fixture_method(self):
+                assert self.is_same_instance
+        """
+    )
+
+    result = testdir.runpytest_subprocess(*pytest_args)
+    result.assert_outcomes(passed=len(get_all_backends()))
+
+
+def test_anyio_fixture_adoption_does_not_persist(testdir: Pytester) -> None:
+    testdir.makepyfile(
+        """
+        import inspect
+        import pytest
+
+        @pytest.fixture
+        async def fixt():
+            return 1
+
+        @pytest.mark.anyio
+        async def test_fixt(fixt):
+            assert fixt == 1
+
+        def test_no_mark(fixt):
+            assert inspect.iscoroutine(fixt)
+            fixt.close()
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=len(get_all_backends()) + 1)
