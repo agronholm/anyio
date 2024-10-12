@@ -1559,99 +1559,103 @@ else:
         return []
 
 
-async def test_exception_refcycles_direct() -> None:
-    """Test that TaskGroup doesn't keep a reference to the raised ExceptionGroup"""
-    tg = create_task_group()
-    exc = None
+@pytest.mark.skipif(
+    sys.implementation.name == "pypy",
+    reason=(
+        "gc.get_referrers is broken on PyPy see "
+        "https://github.com/pypy/pypy/issues/5075"
+    ),
+)
+class TestRefcycles:
+    async def test_exception_refcycles_direct(self) -> None:
+        """Test that TaskGroup doesn't keep a reference to the raised ExceptionGroup"""
+        tg = create_task_group()
+        exc = None
 
-    class _Done(Exception):
-        pass
+        class _Done(Exception):
+            pass
 
-    try:
-        async with tg:
-            raise _Done
-    except ExceptionGroup as e:
-        exc = e
-
-    assert exc is not None
-    assert gc.get_referrers(exc) == no_other_refs()
-
-
-async def test_exception_refcycles_errors() -> None:
-    """Test that TaskGroup deletes self._errors, and __aexit__ args"""
-    tg = create_task_group()
-    exc = None
-
-    class _Done(Exception):
-        pass
-
-    try:
-        async with tg:
-            raise _Done
-    except ExceptionGroup as excs:
-        exc = excs.exceptions[0]
-
-    assert isinstance(exc, _Done)
-    assert gc.get_referrers(exc) == no_other_refs()
-
-
-async def test_exception_refcycles_parent_task() -> None:
-    """Test that TaskGroup deletes self._parent_task"""
-    tg = create_task_group()
-    exc = None
-
-    class _Done(Exception):
-        pass
-
-    async def coro_fn() -> None:
-        async with tg:
-            raise _Done
-
-    try:
-        async with anyio.create_task_group() as tg2:
-            tg2.start_soon(coro_fn)
-    except ExceptionGroup as excs:
-        exc = excs.exceptions[0].exceptions[0]
-
-    assert isinstance(exc, _Done)
-    assert gc.get_referrers(exc) == no_other_refs()
-
-
-async def test_exception_refcycles_propagate_cancellation_error() -> None:
-    """Test that TaskGroup deletes propagate_cancellation_error"""
-    tg = anyio.create_task_group()
-    exc = None
-
-    with CancelScope() as cs:
-        cs.cancel()
         try:
             async with tg:
-                await checkpoint()
-        except get_cancelled_exc_class() as e:
+                raise _Done
+        except ExceptionGroup as e:
             exc = e
-            raise
 
-    assert isinstance(exc, get_cancelled_exc_class())
-    assert gc.get_referrers(exc) == no_other_refs()
+        assert exc is not None
+        assert gc.get_referrers(exc) == no_other_refs()
 
+    async def test_exception_refcycles_errors(self) -> None:
+        """Test that TaskGroup deletes self._errors, and __aexit__ args"""
+        tg = create_task_group()
+        exc = None
 
-async def test_exception_refcycles_base_error() -> None:
-    """Test that TaskGroup deletes self._base_error"""
+        class _Done(Exception):
+            pass
 
-    class MyKeyboardInterrupt(KeyboardInterrupt):
-        pass
+        try:
+            async with tg:
+                raise _Done
+        except ExceptionGroup as excs:
+            exc = excs.exceptions[0]
 
-    tg = create_task_group()
-    exc = None
+        assert isinstance(exc, _Done)
+        assert gc.get_referrers(exc) == no_other_refs()
 
-    try:
-        async with tg:
-            raise MyKeyboardInterrupt
-    except BaseExceptionGroup as excs:
-        exc = excs.exceptions[0]
+    async def test_exception_refcycles_parent_task(self) -> None:
+        """Test that TaskGroup deletes self._parent_task"""
+        tg = create_task_group()
+        exc = None
 
-    assert isinstance(exc, MyKeyboardInterrupt)
-    assert gc.get_referrers(exc) == no_other_refs()
+        class _Done(Exception):
+            pass
+
+        async def coro_fn() -> None:
+            async with tg:
+                raise _Done
+
+        try:
+            async with anyio.create_task_group() as tg2:
+                tg2.start_soon(coro_fn)
+        except ExceptionGroup as excs:
+            exc = excs.exceptions[0].exceptions[0]
+
+        assert isinstance(exc, _Done)
+        assert gc.get_referrers(exc) == no_other_refs()
+
+    async def test_exception_refcycles_propagate_cancellation_error(self) -> None:
+        """Test that TaskGroup deletes propagate_cancellation_error"""
+        tg = anyio.create_task_group()
+        exc = None
+
+        with CancelScope() as cs:
+            cs.cancel()
+            try:
+                async with tg:
+                    await checkpoint()
+            except get_cancelled_exc_class() as e:
+                exc = e
+                raise
+
+        assert isinstance(exc, get_cancelled_exc_class())
+        assert gc.get_referrers(exc) == no_other_refs()
+
+    async def test_exception_refcycles_base_error(self) -> None:
+        """Test that TaskGroup deletes self._base_error"""
+
+        class MyKeyboardInterrupt(KeyboardInterrupt):
+            pass
+
+        tg = create_task_group()
+        exc = None
+
+        try:
+            async with tg:
+                raise MyKeyboardInterrupt
+        except BaseExceptionGroup as excs:
+            exc = excs.exceptions[0]
+
+        assert isinstance(exc, MyKeyboardInterrupt)
+        assert gc.get_referrers(exc) == no_other_refs()
 
 
 class TestTaskStatusTyping:
