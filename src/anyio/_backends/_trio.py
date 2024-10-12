@@ -659,9 +659,19 @@ class Lock(BaseLock):
         self._fast_acquire = fast_acquire
         self.__original = trio.Lock()
 
+    @staticmethod
+    def _convert_runtime_error_msg(exc: RuntimeError) -> None:
+        if exc.args == ("attempt to re-acquire an already held Lock",):
+            exc.args = ("Attempted to acquire an already held Lock",)
+
     async def acquire(self) -> None:
         if not self._fast_acquire:
-            await self.__original.acquire()
+            try:
+                await self.__original.acquire()
+            except RuntimeError as exc:
+                self._convert_runtime_error_msg(exc)
+                raise
+
             return
 
         # This is the "fast path" where we don't let other tasks run
@@ -670,12 +680,18 @@ class Lock(BaseLock):
             self.__original.acquire_nowait()
         except trio.WouldBlock:
             await self.__original._lot.park()
+        except RuntimeError as exc:
+            self._convert_runtime_error_msg(exc)
+            raise
 
     def acquire_nowait(self) -> None:
         try:
             self.__original.acquire_nowait()
         except trio.WouldBlock:
             raise WouldBlock from None
+        except RuntimeError as exc:
+            self._convert_runtime_error_msg(exc)
+            raise
 
     def locked(self) -> bool:
         return self.__original.locked()

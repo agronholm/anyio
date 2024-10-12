@@ -1681,9 +1681,10 @@ class Lock(BaseLock):
         self._waiters: deque[tuple[asyncio.Task, asyncio.Future]] = deque()
 
     async def acquire(self) -> None:
+        task = cast(asyncio.Task, current_task())
         if self._owner_task is None and not self._waiters:
             await AsyncIOBackend.checkpoint_if_cancelled()
-            self._owner_task = current_task()
+            self._owner_task = task
 
             # Unless on the "fast path", yield control of the event loop so that other
             # tasks can run too
@@ -1696,7 +1697,9 @@ class Lock(BaseLock):
 
             return
 
-        task = cast(asyncio.Task, current_task())
+        if self._owner_task == task:
+            raise RuntimeError("Attempted to acquire an already held Lock")
+
         fut: asyncio.Future[None] = asyncio.Future()
         item = task, fut
         self._waiters.append(item)
@@ -1712,9 +1715,13 @@ class Lock(BaseLock):
         self._waiters.remove(item)
 
     def acquire_nowait(self) -> None:
+        task = cast(asyncio.Task, current_task())
         if self._owner_task is None and not self._waiters:
-            self._owner_task = current_task()
+            self._owner_task = task
             return
+
+        if self._owner_task is task:
+            raise RuntimeError("Attempted to acquire an already held Lock")
 
         raise WouldBlock
 
