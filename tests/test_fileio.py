@@ -93,6 +93,7 @@ class TestPath:
         stdlib_properties.discard("__class_getitem__")
         stdlib_properties.discard("__enter__")
         stdlib_properties.discard("__exit__")
+        stdlib_properties.discard("__firstlineno__")
 
         async_path = Path(path)
         anyio_properties = {
