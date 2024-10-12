@@ -96,6 +96,23 @@ class TestLock:
             assert lock.locked()
             tg.start_soon(try_lock)
 
+    @pytest.mark.parametrize("fast_acquire", [True, False])
+    async def test_acquire_twice_async(self, fast_acquire: bool) -> None:
+        lock = Lock(fast_acquire=fast_acquire)
+        await lock.acquire()
+        with pytest.raises(
+            RuntimeError, match="Attempted to acquire an already held Lock"
+        ):
+            await lock.acquire()
+
+    async def test_acquire_twice_sync(self) -> None:
+        lock = Lock()
+        lock.acquire_nowait()
+        with pytest.raises(
+            RuntimeError, match="Attempted to acquire an already held Lock"
+        ):
+            lock.acquire_nowait()
+
     @pytest.mark.parametrize(
         "release_first",
         [pytest.param(False, id="releaselast"), pytest.param(True, id="releasefirst")],

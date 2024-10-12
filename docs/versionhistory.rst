@@ -7,6 +7,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed fixture methods run with different self than the test method
   (`#633 <https://github.com/agronholm/anyio/issues/633>`_)
 
+**UNRELEASED**
+
+- Fixed acquring a lock twice in the same task on asyncio hanging instead of raising a
+  ``RuntimeError`` (`#798 <https://github.com/agronholm/anyio/issues/798>`_)
+
 **4.6.0**
 
 - Dropped support for Python 3.8
