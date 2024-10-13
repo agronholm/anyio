@@ -481,7 +481,8 @@ class CancelScope(BaseCancelScope):
             self._restart_cancellation_in_parent()
             return swallow_exception and not not_swallowed_exceptions
         finally:
-            del self._host_task, exc_val
+            self._host_task = None
+            del exc_val
 
     @property
     def _effectively_cancelled(self) -> bool:
