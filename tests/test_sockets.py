@@ -329,10 +329,11 @@ class TestTCPStream:
         """
         Test derived from https://github.com/python/cpython/pull/124859
         """
-        port = ephemeral_port_reserve.reserve()
+        ip = "127.0.0.1"
+        port = ephemeral_port_reserve.reserve(ip=ip)
         exc = None
         try:
-            async with await connect_tcp("localhost", port):
+            async with await connect_tcp(ip, port):
                 pass
         except OSError as e:
             exc = e.__cause__
