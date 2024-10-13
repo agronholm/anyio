@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed regression caused by (`#807 <https://github.com/agronholm/anyio/pull/807>`_)
+  that prevented the use of parametrized async fixtures
+
 **4.6.1**
 
 This release contains all the changes from both v4.5.1 and v4.6.0, plus:

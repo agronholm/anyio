@@ -91,7 +91,7 @@ def pytest_fixture_setup(fixturedef: Any, request: Any) -> Generator[Any]:
             kwargs["anyio_backend"] = anyio_backend
 
         if has_request_arg:
-            kwargs["request"] = anyio_backend
+            kwargs["request"] = request
 
         with get_runner(backend_name, backend_options) as runner:
             if isasyncgenfunction(local_func):
