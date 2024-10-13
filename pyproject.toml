@@ -126,34 +126,27 @@ relative_files = true
 show_missing = true
 
 [tool.tox]
-legacy_tox_ini = """
-[tox]
-envlist = pre-commit, py39, py310, py311, py312, py313, pypy3
+env_list = ["pre-commit", "py39", "py310", "py311", "py312", "py313", "pypy3"]
 skip_missing_interpreters = true
-minversion = 4.0.0
 
-[testenv]
-depends = pre-commit
-package = editable
-commands = coverage run -m pytest {posargs}
-extras = test
+[tool.tox.env_run_base]
+depends = ["pre-commit"]
+package = "editable"
+commands = [["coverage", "run", "-m", "pytest", { replace = "posargs", extend = true }]]
+extras = ["test"]
 
-[testenv:pypy3]
-commands = pytest {posargs}
+[tool.tox.env.pypy3]
+commands = [["pytest", { replace = "posargs", extend = true }]]
 
-[testenv:pre-commit]
-depends =
-basepython = python3
-package = skip
-deps = pre-commit
-commands = pre-commit run --all-files
+[tool.tox.env.pre-commit]
+commands = [["pre-commit", "run", "--all-files"]]
+package = "skip"
 
-[testenv:pyright]
-deps = pyright
-commands = pyright --verifytypes anyio
+[tool.tox.env.pyright]
+deps = ["pyright"]
+commands = [["pyright", "--verifytypes", "anyio"]]
 
-[testenv:docs]
-depends =
-extras = doc
-commands = sphinx-build -W docs build/sphinx
-"""
+[tool.tox.env.docs]
+depends = []
+extras = ["doc"]
+commands = [["sphinx-build", "-W", "docs", "build/sphinx"]]
