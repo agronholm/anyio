@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**4.6.2**
 
 - Fixed regression caused by (`#807 <https://github.com/agronholm/anyio/pull/807>`_)
   that prevented the use of parametrized async fixtures
@@ -35,7 +35,7 @@ contain the changes from v4.5.1.
 - Fixed inconsistent task uncancellation with asyncio cancel scopes belonging to a
   task group when said task group has child tasks running
 
-**UNRELEASED**
+**4.5.2**
 
 - Fixed regression caused by (`#807 <https://github.com/agronholm/anyio/pull/807>`_)
   that prevented the use of parametrized async fixtures
