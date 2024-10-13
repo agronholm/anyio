@@ -141,6 +141,8 @@ commands = [["pytest", { replace = "posargs", extend = true }]]
 
 [tool.tox.env.pre-commit]
 commands = [["pre-commit", "run", "--all-files"]]
+depends = []
+allowlist_externals = ["pre-commit"]
 package = "skip"
 
 [tool.tox.env.pyright]
