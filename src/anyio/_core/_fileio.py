@@ -222,6 +222,7 @@ class Path:
 
     * :meth:`~pathlib.Path.from_uri` (available on Python 3.13 or later)
     * :meth:`~pathlib.Path.full_match` (available on Python 3.13 or later)
+    * :meth:`~pathlib.Path.is_junction` (available on Python 3.12 or later)
     * :meth:`~pathlib.Path.match` (the ``case_sensitive`` paramater is only available on
       Python 3.13 or later)
     * :meth:`~pathlib.Path.relative_to` (the ``walk_up`` parameter is only available on
