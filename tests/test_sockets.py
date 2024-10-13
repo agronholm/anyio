@@ -18,6 +18,7 @@ from ssl import SSLContext, SSLError
 from threading import Thread
 from typing import Any, NoReturn, TypeVar, cast
 
+import ephemeral_port_reserve
 import psutil
 import pytest
 from _pytest.fixtures import SubRequest
@@ -123,6 +124,16 @@ def check_asyncio_bug(anyio_backend_name: str, family: AnyIPAddressFamily) -> No
         policy = asyncio.get_event_loop_policy()
         if policy.__class__.__name__ == "WindowsProactorEventLoopPolicy":
             pytest.skip("Does not work due to a known bug (39148)")
+
+
+if sys.version_info <= (3, 11):
+
+    def no_other_refs() -> list[object]:
+        return [sys._getframe(1)]
+else:
+
+    def no_other_refs() -> list[object]:
+        return []
 
 
 _T = TypeVar("_T")
@@ -306,6 +317,28 @@ class TestTCPStream:
         thread.join()
         server_sock.close()
         assert client_addr[0] == expected_client_addr
+
+    @pytest.mark.skipif(
+        sys.implementation.name == "pypy",
+        reason=(
+            "gc.get_referrers is broken on PyPy see "
+            "https://github.com/pypy/pypy/issues/5075"
+        ),
+    )
+    async def test_happy_eyeballs_refcycles(self) -> None:
+        """
+        Test derived from https://github.com/python/cpython/pull/124859
+        """
+        port = ephemeral_port_reserve.reserve()
+        exc = None
+        try:
+            async with await connect_tcp("localhost", port):
+                pass
+        except OSError as e:
+            exc = e.__cause__
+
+        assert isinstance(exc, OSError)
+        assert gc.get_referrers(exc) == no_other_refs()
 
     @pytest.mark.parametrize(
         "target, exception_class",

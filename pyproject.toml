@@ -55,7 +55,8 @@ test = [
     """\
     uvloop >= 0.21.0b1; platform_python_implementation == 'CPython' \
     and platform_system != 'Windows'\
-    """
+    """,
+    "ephemeral-port-reserve >= 1.1.4",
 ]
 doc = [
     "packaging",
