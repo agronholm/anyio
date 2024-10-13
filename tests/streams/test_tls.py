@@ -388,6 +388,34 @@ class TestTLSStream:
         send1.close()
         receive1.close()
 
+    async def test_truststore_ssl(
+        self, request: pytest.FixtureRequest, server_context: ssl.SSLContext
+    ) -> None:
+        # This test is only expected to fail on Windows without the associated patch
+        def serve_sync() -> None:
+            with server_sock, pytest.raises(ssl.SSLEOFError):
+                server_sock.accept()
+
+        # We deliberately skip making the client context trust the server context
+        truststore = pytest.importorskip("truststore")
+        client_context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+
+        server_sock = server_context.wrap_socket(
+            socket.socket(), server_side=True, suppress_ragged_eofs=True
+        )
+        server_sock.settimeout(1)
+        server_sock.bind(("127.0.0.1", 0))
+        server_sock.listen()
+        server_thread = Thread(target=serve_sync, daemon=True)
+        server_thread.start()
+        request.addfinalizer(server_thread.join)
+
+        async with await connect_tcp(*server_sock.getsockname()) as stream:
+            with pytest.raises(ssl.SSLCertVerificationError):
+                await TLSStream.wrap(
+                    stream, hostname="localhost", ssl_context=client_context
+                )
+
 
 class TestTLSListener:
     async def test_handshake_fail(
