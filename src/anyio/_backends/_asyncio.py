@@ -435,15 +435,15 @@ class CancelScope(BaseCancelScope):
                 "entered in"
             )
 
-        try:
-            assert self._host_task is not None
-            host_task_state = _task_states.get(self._host_task)
-            if host_task_state is None or host_task_state.cancel_scope is not self:
-                raise RuntimeError(
-                    "Attempted to exit a cancel scope that isn't the current tasks's "
-                    "current cancel scope"
-                )
+        assert self._host_task is not None
+        host_task_state = _task_states.get(self._host_task)
+        if host_task_state is None or host_task_state.cancel_scope is not self:
+            raise RuntimeError(
+                "Attempted to exit a cancel scope that isn't the current tasks's "
+                "current cancel scope"
+            )
 
+        try:
             self._active = False
             if self._timeout_handle:
                 self._timeout_handle.cancel()
