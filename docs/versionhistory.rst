@@ -10,6 +10,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed an async fixture's ``self`` being different than the test's ``self`` in
   class-based tests (`#633 <https://github.com/agronholm/anyio/issues/633>`_)
   (PR by @agronholm and @graingert)
+- Fixed ``TypeError`` with ``TLSStream`` on Windows when a certificate verification
+  error occurs when using a `truststore <https://github.com/sethmlarson/truststore>`_
+  SSL certificate (`#795 <https://github.com/agronholm/anyio/issues/795>`_)
 
 **4.6.0**
 

@@ -52,6 +52,7 @@ test = [
     "pytest >= 7.0",
     "pytest-mock >= 3.6.1",
     "trustme",
+    "truststore >= 0.9.1; python_version >= '3.10'",
     """\
     uvloop >= 0.21.0b1; platform_python_implementation == 'CPython' \
     and platform_system != 'Windows'\
