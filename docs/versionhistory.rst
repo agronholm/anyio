@@ -3,6 +3,19 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed regression caused by (`#807 <https://github.com/agronholm/anyio/pull/807>`_)
+  that prevented the use of parametrized async fixtures
+
+**4.6.1**
+
+This release contains all the changes from both v4.5.1 and v4.6.0, plus:
+
+- Fixed TaskGroup and CancelScope producing cyclic references in tracebacks
+  when raising exceptions (`#806 <https://github.com/agronholm/anyio/pull/806>`_)
+  (PR by @graingert)
+
 **4.6.0**
 
 This release is the successor to v4.5.0 with Python 3.8 support dropped, and does not
@@ -21,6 +34,11 @@ contain the changes from v4.5.1.
   no child tasks to wait on
 - Fixed inconsistent task uncancellation with asyncio cancel scopes belonging to a
   task group when said task group has child tasks running
+
+**UNRELEASED**
+
+- Fixed regression caused by (`#807 <https://github.com/agronholm/anyio/pull/807>`_)
+  that prevented the use of parametrized async fixtures
 
 **4.5.1**
 
