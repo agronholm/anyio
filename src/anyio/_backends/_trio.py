@@ -183,17 +183,15 @@ class TaskGroup(abc.TaskGroup):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> bool | None:
-        rest = None
         try:
             return await self._nursery_manager.__aexit__(exc_type, exc_val, exc_tb)
         except BaseExceptionGroup as exc:
-            rest = exc.split(trio.Cancelled)[1]
-            if not rest:
+            if not exc.split(trio.Cancelled)[1]:
                 raise trio.Cancelled._create() from exc
 
             raise
         finally:
-            del exc_val, exc_tb, rest
+            del exc_val, exc_tb
             self._active = False
 
     def start_soon(
