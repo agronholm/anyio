@@ -426,15 +426,16 @@ class CancelScope(BaseCancelScope):
         exc_tb: TracebackType | None,
     ) -> bool | None:
         del exc_tb
-        try:
-            if not self._active:
-                raise RuntimeError("This cancel scope is not active")
-            if current_task() is not self._host_task:
-                raise RuntimeError(
-                    "Attempted to exit cancel scope in a different task than it was "
-                    "entered in"
-                )
 
+        if not self._active:
+            raise RuntimeError("This cancel scope is not active")
+        if current_task() is not self._host_task:
+            raise RuntimeError(
+                "Attempted to exit cancel scope in a different task than it was "
+                "entered in"
+            )
+
+        try:
             assert self._host_task is not None
             host_task_state = _task_states.get(self._host_task)
             if host_task_state is None or host_task_state.cancel_scope is not self:
