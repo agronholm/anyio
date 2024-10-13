@@ -20,6 +20,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   current Python version on several of its methods, and made the ``is_junction`` method
   unavailable on Python versions earlier than 3.12
   (`#794 <https://github.com/agronholm/anyio/issues/794>`_)
+- Fixed connect_tcp producing cyclic references in tracebacks
+  when raising exceptions (`#809 <https://github.com/agronholm/anyio/pull/809>`_)
+  (PR by @graingert)
+
 
 **4.6.0**
 
