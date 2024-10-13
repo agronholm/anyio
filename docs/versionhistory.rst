@@ -5,6 +5,14 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed acquring a lock twice in the same task on asyncio hanging instead of raising a
+  ``RuntimeError`` (`#798 <https://github.com/agronholm/anyio/issues/798>`_)
+- Fixed an async fixture's ``self`` being different than the test's ``self`` in
+  class-based tests (`#633 <https://github.com/agronholm/anyio/issues/633>`_)
+  (PR by @agronholm and @graingert)
+- Fixed TaskGroup and CancelScope producing cyclic references in tracebacks
+  when raising exceptions (`#806 <https://github.com/agronholm/anyio/pull/806>`_)
+  (PR by @graingert)
 - Corrected documentation on ``anyio.Path`` regarding the limitations imposed by the
   current Python version on several of its methods, and made the ``is_junction`` method
   unavailable on Python versions earlier than 3.12

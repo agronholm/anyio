@@ -93,6 +93,7 @@ class TestPath:
         stdlib_properties.discard("__class_getitem__")
         stdlib_properties.discard("__enter__")
         stdlib_properties.discard("__exit__")
+        stdlib_properties.discard("__firstlineno__")
 
         async_path = Path(path)
         anyio_properties = {
@@ -191,9 +192,14 @@ class TestPath:
         reason="Path.from_uri() is only available on Python 3.13+",
     )
     def test_from_uri(self) -> None:
-        path = Path.from_uri("file:///foo/bar")
+        if platform.system() == "Windows":
+            uri = "file:///C:/foo/bar"
+        else:
+            uri = "file:///foo/bar"
+
+        path = Path.from_uri(uri)
         assert isinstance(path, Path)
-        assert path.as_uri() == "file:///foo/bar"
+        assert path.as_uri() == uri
 
     async def test_cwd(self) -> None:
         result = await Path.cwd()
@@ -381,6 +387,9 @@ class TestPath:
         assert path.stat().st_nlink == 2
         assert target.stat().st_nlink == 2
 
+    @pytest.mark.skipif(
+        platform.system() == "Windows", reason="lchmod() does not work on Windows"
+    )
     @pytest.mark.skipif(
         not hasattr(os, "lchmod"), reason="os.lchmod() is not available"
     )

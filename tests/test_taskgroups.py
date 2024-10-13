@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import math
 import sys
 import time
@@ -9,7 +10,7 @@ from collections.abc import AsyncGenerator, Coroutine, Generator
 from typing import Any, NoReturn, cast
 
 import pytest
-from exceptiongroup import catch
+from exceptiongroup import ExceptionGroup, catch
 from pytest_mock import MockerFixture
 
 import anyio
@@ -1546,6 +1547,125 @@ async def test_start_cancels_parent_scope() -> None:
 
     assert started
     assert not tg.cancel_scope.cancel_called
+
+
+if sys.version_info <= (3, 11):
+
+    def no_other_refs() -> list[object]:
+        return [sys._getframe(1)]
+else:
+
+    def no_other_refs() -> list[object]:
+        return []
+
+
+@pytest.mark.skipif(
+    sys.implementation.name == "pypy",
+    reason=(
+        "gc.get_referrers is broken on PyPy see "
+        "https://github.com/pypy/pypy/issues/5075"
+    ),
+)
+class TestRefcycles:
+    async def test_exception_refcycles_direct(self) -> None:
+        """
+        Test that TaskGroup doesn't keep a reference to the raised ExceptionGroup
+
+        Note: This test never failed on anyio, but keeping this test to align
+        with the tests from cpython.
+        """
+        tg = create_task_group()
+        exc = None
+
+        class _Done(Exception):
+            pass
+
+        try:
+            async with tg:
+                raise _Done
+        except ExceptionGroup as e:
+            exc = e
+
+        assert exc is not None
+        assert gc.get_referrers(exc) == no_other_refs()
+
+    async def test_exception_refcycles_errors(self) -> None:
+        """Test that TaskGroup deletes self._exceptions, and __aexit__ args"""
+        tg = create_task_group()
+        exc = None
+
+        class _Done(Exception):
+            pass
+
+        try:
+            async with tg:
+                raise _Done
+        except ExceptionGroup as excs:
+            exc = excs.exceptions[0]
+
+        assert isinstance(exc, _Done)
+        assert gc.get_referrers(exc) == no_other_refs()
+
+    async def test_exception_refcycles_parent_task(self) -> None:
+        """Test that TaskGroup's cancel_scope deletes self._host_task"""
+        tg = create_task_group()
+        exc = None
+
+        class _Done(Exception):
+            pass
+
+        async def coro_fn() -> None:
+            async with tg:
+                raise _Done
+
+        try:
+            async with anyio.create_task_group() as tg2:
+                tg2.start_soon(coro_fn)
+        except ExceptionGroup as excs:
+            exc = excs.exceptions[0].exceptions[0]
+
+        assert isinstance(exc, _Done)
+        assert gc.get_referrers(exc) == no_other_refs()
+
+    async def test_exception_refcycles_propagate_cancellation_error(self) -> None:
+        """Test that TaskGroup deletes cancelled_exc"""
+        tg = anyio.create_task_group()
+        exc = None
+
+        with CancelScope() as cs:
+            cs.cancel()
+            try:
+                async with tg:
+                    await checkpoint()
+            except get_cancelled_exc_class() as e:
+                exc = e
+                raise
+
+        assert isinstance(exc, get_cancelled_exc_class())
+        assert gc.get_referrers(exc) == no_other_refs()
+
+    async def test_exception_refcycles_base_error(self) -> None:
+        """
+        Test for BaseExceptions.
+
+        anyio doesn't treat these differently so this test is redundant
+        but copied from CPython's asyncio.TaskGroup tests for completion.
+        """
+
+        class MyKeyboardInterrupt(KeyboardInterrupt):
+            pass
+
+        tg = create_task_group()
+        exc = None
+
+        try:
+            async with tg:
+                raise MyKeyboardInterrupt
+        except BaseExceptionGroup as excs:
+            exc = excs.exceptions[0]
+
+        assert isinstance(exc, MyKeyboardInterrupt)
+        assert gc.get_referrers(exc) == no_other_refs()
 
 
 class TestTaskStatusTyping:
