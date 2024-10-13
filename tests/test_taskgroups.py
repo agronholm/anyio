@@ -1568,7 +1568,12 @@ else:
 )
 class TestRefcycles:
     async def test_exception_refcycles_direct(self) -> None:
-        """Test that TaskGroup doesn't keep a reference to the raised ExceptionGroup"""
+        """
+        Test that TaskGroup doesn't keep a reference to the raised ExceptionGroup
+
+        Note: This test never failed on anyio, but keeping this test to align
+        with the tests from cpython.
+        """
         tg = create_task_group()
         exc = None
 
