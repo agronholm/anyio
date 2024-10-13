@@ -13,9 +13,13 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed TaskGroup and CancelScope producing cyclic references in tracebacks
   when raising exceptions (`#806 <https://github.com/agronholm/anyio/pull/806>`_)
   (PR by @graingert)
+- Fixed ``TypeError`` with ``TLSStream`` on Windows when a certificate verification
+  error occurs when using a `truststore <https://github.com/sethmlarson/truststore>`_
+  SSL certificate (`#795 <https://github.com/agronholm/anyio/issues/795>`_)
 - Corrected documentation on ``anyio.Path`` regarding the limitations imposed by the
   current Python version on several of its methods, and made the ``is_junction`` method
   unavailable on Python versions earlier than 3.12
+  (`#794 <https://github.com/agronholm/anyio/issues/794>`_)
 
 **4.6.0**
 
