@@ -5,7 +5,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
-- Switched backend loading to use 
+- Switched backend loading to use
   `import entrypoints <https://setuptools.pypa.io/en/latest/userguide/entry_point.html>`_.
 
 **4.6.2**
