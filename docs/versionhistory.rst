@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Switched backend loading to use 
+  `import entrypoints <https://setuptools.pypa.io/en/latest/userguide/entry_point.html>`_.
+
 **4.6.2**
 
 - Fixed regression caused by (`#807 <https://github.com/agronholm/anyio/pull/807>`_)
