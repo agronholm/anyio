@@ -67,6 +67,10 @@ doc = [
 [project.entry-points]
 pytest11 = {anyio = "anyio.pytest_plugin"}
 
+[project.entry-points."anyio.backends"]
+trio = "anyio._backends._trio:backend_class"
+asyncio = "anyio._backends._asyncio:backend_class"
+
 [tool.setuptools_scm]
 version_scheme = "post-release"
 local_scheme = "dirty-tag"

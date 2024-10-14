@@ -5,7 +5,7 @@ import sys
 import threading
 from collections.abc import Awaitable, Callable, Generator
 from contextlib import contextmanager
-from importlib import import_module
+from importlib.metadata import EntryPoint, entry_points
 from typing import TYPE_CHECKING, Any, TypeVar
 
 import sniffio
@@ -18,6 +18,30 @@ else:
 if TYPE_CHECKING:
     from ..abc import AsyncBackend
 
+
+def find_backends() -> dict[str, EntryPoint]:
+    """
+    Loads the available backends from setuptools entrypoints.
+    """
+
+    backends: dict[str, EntryPoint]
+
+    # for some reason, in 3.12 and above, EntryPoints.__getitem__ was changed to return a
+    # *single* entrypoint, rather than a list.
+
+    if sys.version_info < (3, 12):
+        eps = entry_points()
+        found_backends = eps["anyio.backends"]
+        backends = {ep.name: ep for ep in found_backends}
+    else:
+        eps = entry_points(group="anyio.backends")
+        backends = {}
+        for ep in eps:
+            backends[ep.name] = ep
+
+    return backends
+
+
 # This must be updated when new backends are introduced
 BACKENDS = "asyncio", "trio"
 
@@ -25,6 +49,7 @@ T_Retval = TypeVar("T_Retval")
 PosArgsT = TypeVarTuple("PosArgsT")
 
 threadlocals = threading.local()
+available_backends: dict[str, EntryPoint] = find_backends()
 loaded_backends: dict[str, type[AsyncBackend]] = {}
 
 
@@ -60,7 +85,7 @@ def run(
 
     try:
         async_backend = get_async_backend(backend)
-    except ImportError as exc:
+    except (ImportError, KeyError) as exc:
         raise LookupError(f"No such backend: {backend}") from exc
 
     token = None
@@ -124,8 +149,8 @@ def current_time() -> float:
 
 
 def get_all_backends() -> tuple[str, ...]:
-    """Return a tuple of the names of all built-in backends."""
-    return BACKENDS
+    """Return a tuple of the names of all available backends."""
+    return tuple(available_backends.keys())
 
 
 def get_cancelled_exc_class() -> type[BaseException]:
@@ -161,6 +186,6 @@ def get_async_backend(asynclib_name: str | None = None) -> type[AsyncBackend]:
     try:
         return loaded_backends[asynclib_name]
     except KeyError:
-        module = import_module(f"anyio._backends._{asynclib_name}")
-        loaded_backends[asynclib_name] = module.backend_class
-        return module.backend_class
+        loaded_backend: type[AsyncBackend] = available_backends[asynclib_name].load()
+        loaded_backends[asynclib_name] = loaded_backend
+        return loaded_backend

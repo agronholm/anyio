@@ -9,7 +9,7 @@ import pytest
 from pytest import MonkeyPatch
 from pytest_mock.plugin import MockerFixture
 
-from anyio import run, sleep_forever, sleep_until
+from anyio import get_all_backends, run, sleep_forever, sleep_until
 
 pytestmark = pytest.mark.anyio
 fake_current_time = 1620581544.0
@@ -46,6 +46,13 @@ def test_run_task() -> None:
 
     result = run(asyncio.create_task, async_add(1, 2), backend="asyncio")
     assert result == 3
+
+
+def test_find_builtin_backends() -> None:
+    backends = get_all_backends()
+    assert len(backends) >= 2
+    assert any(x == "trio" for x in backends)
+    assert any(x == "asyncio" for x in backends)
 
 
 class TestAsyncioOptions:
