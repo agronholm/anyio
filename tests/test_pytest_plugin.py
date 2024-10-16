@@ -541,3 +541,23 @@ def test_anyio_fixture_adoption_does_not_persist(testdir: Pytester) -> None:
 
     result = testdir.runpytest(*pytest_args)
     result.assert_outcomes(passed=len(get_all_backends()) + 1)
+
+
+def test_async_fixture_params(testdir: Pytester) -> None:
+    testdir.makepyfile(
+        """
+        import inspect
+        import pytest
+
+        @pytest.fixture(params=[1, 2])
+        async def fixt(request):
+            return request.param
+
+        @pytest.mark.anyio
+        async def test_params(fixt):
+            assert fixt in (1, 2)
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=len(get_all_backends()) * 2)

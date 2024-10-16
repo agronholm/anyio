@@ -3,25 +3,23 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**4.6.2**
 
-- Fixed acquring a lock twice in the same task on asyncio hanging instead of raising a
-  ``RuntimeError`` (`#798 <https://github.com/agronholm/anyio/issues/798>`_)
-- Fixed an async fixture's ``self`` being different than the test's ``self`` in
-  class-based tests (`#633 <https://github.com/agronholm/anyio/issues/633>`_)
-  (PR by @agronholm and @graingert)
+- Fixed regression caused by (`#807 <https://github.com/agronholm/anyio/pull/807>`_)
+  that prevented the use of parametrized async fixtures
+
+**4.6.1**
+
+This release contains all the changes from both v4.5.1 and v4.6.0, plus:
+
 - Fixed TaskGroup and CancelScope producing cyclic references in tracebacks
   when raising exceptions (`#806 <https://github.com/agronholm/anyio/pull/806>`_)
   (PR by @graingert)
-- Fixed ``TypeError`` with ``TLSStream`` on Windows when a certificate verification
-  error occurs when using a `truststore <https://github.com/sethmlarson/truststore>`_
-  SSL certificate (`#795 <https://github.com/agronholm/anyio/issues/795>`_)
-- Corrected documentation on ``anyio.Path`` regarding the limitations imposed by the
-  current Python version on several of its methods, and made the ``is_junction`` method
-  unavailable on Python versions earlier than 3.12
-  (`#794 <https://github.com/agronholm/anyio/issues/794>`_)
 
 **4.6.0**
+
+This release is the successor to v4.5.0 with Python 3.8 support dropped, and does not
+contain the changes from v4.5.1.
 
 - Dropped support for Python 3.8
   (as `#698 <https://github.com/agronholm/anyio/issues/698>`_ cannot be resolved
@@ -36,6 +34,24 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   no child tasks to wait on
 - Fixed inconsistent task uncancellation with asyncio cancel scopes belonging to a
   task group when said task group has child tasks running
+
+**4.5.1**
+
+As Python 3.8 support was dropped in v4.6.0, this interim release was created to bring a
+regression fix to Python 3.8, and adds a few other fixes also present in v4.6.1.
+
+- Fixed acquring a lock twice in the same task on asyncio hanging instead of raising a
+  ``RuntimeError`` (`#798 <https://github.com/agronholm/anyio/issues/798>`_)
+- Fixed an async fixture's ``self`` being different than the test's ``self`` in
+  class-based tests (`#633 <https://github.com/agronholm/anyio/issues/633>`_)
+  (PR by @agronholm and @graingert)
+- Fixed ``TypeError`` with ``TLSStream`` on Windows when a certificate verification
+  error occurs when using a `truststore <https://github.com/sethmlarson/truststore>`_
+  SSL certificate (`#795 <https://github.com/agronholm/anyio/issues/795>`_)
+- Corrected documentation on ``anyio.Path`` regarding the limitations imposed by the
+  current Python version on several of its methods, and made the ``is_junction`` method
+  unavailable on Python versions earlier than 3.12
+  (`#794 <https://github.com/agronholm/anyio/issues/794>`_)
 
 **4.5.0**
 
