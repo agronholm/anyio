@@ -188,8 +188,6 @@ async def connect_tcp(
     except ValueError:
         addr_obj = None
 
-    target_addrs: list[tuple[socket.AddressFamily, str]]
-
     if addr_obj is not None:
         if isinstance(addr_obj, IPv6Address):
             target_addrs = [(socket.AF_INET6, addr_obj.compressed)]
