@@ -3,6 +3,12 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+** UNRELEASED **
+
+- Fixed a misleading ``ValueError`` in the context of DNS failures.
+  (`#580 <https://github.com/agronholm/anyio/discussions/580>`_)
+  (PR by @graingert)
+
 **4.6.2**
 
 - Fixed regression caused by (`#807 <https://github.com/agronholm/anyio/pull/807>`_)
