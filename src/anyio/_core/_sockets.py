@@ -186,6 +186,17 @@ async def connect_tcp(
     try:
         addr_obj = ip_address(remote_host)
     except ValueError:
+        addr_obj = None
+
+    target_addrs: list[tuple[socket.AddressFamily, str]]
+
+    if addr_obj is not None:
+        if isinstance(addr_obj, IPv6Address):
+            target_addrs = [(socket.AF_INET6, addr_obj.compressed)]
+        else:
+            target_addrs = [(socket.AF_INET, addr_obj.compressed)]
+
+    else:
         # getaddrinfo() will raise an exception if name resolution fails
         gai_res = await getaddrinfo(
             target_host, remote_port, family=family, type=socket.SOCK_STREAM
@@ -194,7 +205,7 @@ async def connect_tcp(
         # Organize the list so that the first address is an IPv6 address (if available)
         # and the second one is an IPv4 addresses. The rest can be in whatever order.
         v6_found = v4_found = False
-        target_addrs: list[tuple[socket.AddressFamily, str]] = []
+        target_addrs = []
         for af, *rest, sa in gai_res:
             if af == socket.AF_INET6 and not v6_found:
                 v6_found = True
@@ -204,11 +215,6 @@ async def connect_tcp(
                 target_addrs.insert(1, (af, sa[0]))
             else:
                 target_addrs.append((af, sa[0]))
-    else:
-        if isinstance(addr_obj, IPv6Address):
-            target_addrs = [(socket.AF_INET6, addr_obj.compressed)]
-        else:
-            target_addrs = [(socket.AF_INET, addr_obj.compressed)]
 
     oserrors: list[OSError] = []
     async with create_task_group() as tg:
