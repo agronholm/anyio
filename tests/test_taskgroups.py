@@ -8,10 +8,10 @@ import time
 from asyncio import CancelledError
 from collections.abc import AsyncGenerator, Coroutine, Generator
 from typing import Any, NoReturn, cast
+from unittest import mock
 
 import pytest
 from exceptiongroup import ExceptionGroup, catch
-from pytest_mock import MockerFixture
 
 import anyio
 from anyio import (
@@ -261,31 +261,43 @@ async def test_propagate_native_cancellation_from_taskgroup() -> None:
 
 
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
-async def test_cancel_with_nested_task_groups(mocker: MockerFixture) -> None:
+async def test_cancel_with_nested_task_groups() -> None:
     """Regression test for #695."""
 
     async def shield_task() -> None:
         with CancelScope(shield=True) as scope:
-            shielded_cancel_spy = mocker.spy(scope, "_deliver_cancellation")
-            await sleep(0.5)
+            with mock.patch.object(
+                scope,
+                "_deliver_cancellation",
+                wraps=getattr(scope, "_deliver_cancellation"),
+            ) as shielded_cancel_spy:
+                await sleep(0.5)
 
-            assert len(outer_cancel_spy.call_args_list) < 10
-            shielded_cancel_spy.assert_not_called()
+                assert len(outer_cancel_spy.call_args_list) < 10
+                shielded_cancel_spy.assert_not_called()
 
     async def middle_task() -> None:
         try:
             async with create_task_group() as tg:
-                middle_cancel_spy = mocker.spy(tg.cancel_scope, "_deliver_cancellation")
-                tg.start_soon(shield_task, name="shield task")
+                with mock.patch.object(
+                    tg.cancel_scope,
+                    "_deliver_cancellation",
+                    wraps=getattr(tg.cancel_scope, "_deliver_cancellation"),
+                ) as middle_cancel_spy:
+                    tg.start_soon(shield_task, name="shield task")
         finally:
             assert len(middle_cancel_spy.call_args_list) < 10
             assert len(outer_cancel_spy.call_args_list) < 10
 
     async with create_task_group() as tg:
-        outer_cancel_spy = mocker.spy(tg.cancel_scope, "_deliver_cancellation")
-        tg.start_soon(middle_task, name="middle task")
-        await wait_all_tasks_blocked()
-        tg.cancel_scope.cancel()
+        with mock.patch.object(
+            tg.cancel_scope,
+            "_deliver_cancellation",
+            wraps=getattr(tg.cancel_scope, "_deliver_cancellation"),
+        ) as outer_cancel_spy:
+            tg.start_soon(middle_task, name="middle task")
+            await wait_all_tasks_blocked()
+            tg.cancel_scope.cancel()
 
     assert len(outer_cancel_spy.call_args_list) < 10
 
