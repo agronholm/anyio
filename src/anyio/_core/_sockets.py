@@ -193,7 +193,6 @@ async def connect_tcp(
             target_addrs = [(socket.AF_INET6, addr_obj.compressed)]
         else:
             target_addrs = [(socket.AF_INET, addr_obj.compressed)]
-
     else:
         # getaddrinfo() will raise an exception if name resolution fails
         gai_res = await getaddrinfo(
