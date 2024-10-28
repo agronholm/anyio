@@ -1838,3 +1838,14 @@ async def test_getnameinfo() -> None:
     expected_result = socket.getnameinfo(("127.0.0.1", 6666), 0)
     result = await getnameinfo(("127.0.0.1", 6666))
     assert result == expected_result
+
+
+async def test_connect_tcp_getaddrinfo_context() -> None:
+    """
+    See https://github.com/agronholm/anyio/issues/815
+    """
+    with pytest.raises(socket.gaierror) as exc_info:
+        async with await connect_tcp("anyio.invalid", 6666):
+            pass
+
+    assert exc_info.value.__context__ is None
