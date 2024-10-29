@@ -234,7 +234,7 @@ If you're building a synchronous API that needs to start a blocking portal on de
 you might need a more efficient solution than just starting a blocking portal for each
 call. To that end, you can use :class:`BlockingPortalProvider`::
 
-    from anyio.to_thread import BlockingPortalProvider
+    from anyio.from_thread import BlockingPortalProvider
 
     class MyAPI:
         def __init__(self, async_obj) -> None:
