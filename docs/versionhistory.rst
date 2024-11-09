@@ -7,6 +7,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Fixed a misleading ``ValueError`` in the context of DNS failures
   (`#815 <https://github.com/agronholm/anyio/issues/815>`_; PR by @graingert)
+- Ported ``ThreadSelectorEventLoop`` from Tornado to allow
+  ``anyio.wait_socket_readable(sock)`` to work on Windows with a ``ProactorEventLoop``.
 
 **4.6.2**
 

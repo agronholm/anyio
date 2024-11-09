@@ -99,6 +99,44 @@ from ..abc._eventloop import StrOrBytesPath
 from ..lowlevel import RunVar
 from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
+# registry of asyncio loop : selector thread
+_selectors: WeakKeyDictionary = WeakKeyDictionary()
+
+
+def _get_selector_windows(
+    asyncio_loop: AbstractEventLoop,
+) -> AbstractEventLoop:
+    """Get selector-compatible loop.
+
+    Sets ``add_reader`` family of methods on the asyncio loop.
+
+    Workaround Windows proactor removal of *reader methods.
+    """
+
+    if asyncio_loop in _selectors:
+        return _selectors[asyncio_loop]
+
+    from ._selector_thread import AddThreadSelectorEventLoop
+
+    selector_loop = _selectors[asyncio_loop] = AddThreadSelectorEventLoop(  # type: ignore[abstract]
+        asyncio_loop
+    )
+
+    # patch loop.close to also close the selector thread
+    loop_close = asyncio_loop.close
+
+    def _close_selector_and_loop() -> None:
+        # restore original before calling selector.close,
+        # which in turn calls eventloop.close!
+        asyncio_loop.close = loop_close  # type: ignore[method-assign]
+        _selectors.pop(asyncio_loop, None)
+        selector_loop.close()
+
+    asyncio_loop.close = _close_selector_and_loop  # type: ignore[method-assign]
+
+    return selector_loop
+
+
 if sys.version_info >= (3, 10):
     from typing import ParamSpec
 else:
@@ -2683,6 +2721,12 @@ class AsyncIOBackend(AsyncBackend):
             raise BusyResourceError("reading from") from None
 
         loop = get_running_loop()
+        if (
+            sys.platform == "win32"
+            and asyncio.get_event_loop_policy().__class__.__name__
+            == "WindowsProactorEventLoopPolicy"
+        ):
+            loop = _get_selector_windows(loop)
         event = read_events[sock] = asyncio.Event()
         loop.add_reader(sock, event.set)
         try:

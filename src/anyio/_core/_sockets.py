@@ -595,9 +595,6 @@ def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
     """
     Wait until the given socket has data to be read.
 
-    This does **NOT** work on Windows when using the asyncio backend with a proactor
-    event loop (default on py3.8+).
-
     .. warning:: Only use this on raw sockets that have not been wrapped by any higher
         level constructs like socket streams!
 

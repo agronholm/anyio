@@ -46,6 +46,7 @@ from anyio import (
     getnameinfo,
     move_on_after,
     wait_all_tasks_blocked,
+    wait_socket_readable,
 )
 from anyio.abc import (
     IPSockAddrType,
@@ -1849,3 +1850,25 @@ async def test_connect_tcp_getaddrinfo_context() -> None:
             pass
 
     assert exc_info.value.__context__ is None
+
+
+async def test_wait_socket_readable() -> None:
+    def client(port: int) -> None:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.connect(("127.0.0.1", port))
+            sock.sendall(b"Hello, world")
+
+    with move_on_after(0.1):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+            sock.listen()
+            thread = Thread(target=client, args=(port,), daemon=True)
+            thread.start()
+            conn, addr = sock.accept()
+            with conn:
+                await wait_socket_readable(conn)
+                socket_readable = True
+
+    assert socket_readable
+    thread.join()
