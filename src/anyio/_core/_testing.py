@@ -24,14 +24,14 @@ class TaskInfo:
         id: int,
         parent_id: int | None,
         name: str | None,
-        coro: Generator[Any, Any, Any] | Awaitable[Any],
+        coro: Generator[Any, Any, Any] | Awaitable[Any] | None,
     ):
         func = get_current_task
         self._name = f"{func.__module__}.{func.__qualname__}"
         self.id: int = id
         self.parent_id: int | None = parent_id
         self.name: str | None = name
-        self.coro: Generator[Any, Any, Any] | Awaitable[Any] = coro
+        self.coro: Generator[Any, Any, Any] | Awaitable[Any] | None = coro
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, TaskInfo):

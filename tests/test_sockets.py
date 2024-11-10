@@ -144,7 +144,7 @@ _ignore_win32_resource_warnings = (
 )
 
 
-@_ignore_win32_resource_warnings  # type: ignore[operator]
+@_ignore_win32_resource_warnings
 class TestTCPStream:
     @pytest.fixture
     def server_sock(self, family: AnyIPAddressFamily) -> Iterator[socket.socket]:

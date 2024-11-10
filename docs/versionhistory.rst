@@ -5,6 +5,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added support for asyncio's eager task factories:
+
+  * Updated the annotation of ``TaskInfo.coro`` to allow it to be ``None``
+  * Updated ``TaskGroup`` to work with asyncio eager task factories
+
+  (`#764 <https://github.com/agronholm/anyio/issues/764>`_)
 - Fixed a misleading ``ValueError`` in the context of DNS failures
   (`#815 <https://github.com/agronholm/anyio/issues/815>`_; PR by @graingert)
 

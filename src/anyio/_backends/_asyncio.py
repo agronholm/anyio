@@ -347,8 +347,12 @@ _run_vars: WeakKeyDictionary[asyncio.AbstractEventLoop, Any] = WeakKeyDictionary
 
 def _task_started(task: asyncio.Task) -> bool:
     """Return ``True`` if the task has been started and has not finished."""
+    # The task coro should never be None here, as we never add finished tasks to the
+    # task list
+    coro = task.get_coro()
+    assert coro is not None
     try:
-        return getcoroutinestate(task.get_coro()) in (CORO_RUNNING, CORO_SUSPENDED)
+        return getcoroutinestate(coro) in (CORO_RUNNING, CORO_SUSPENDED)
     except AttributeError:
         # task coro is async_genenerator_asend https://bugs.python.org/issue37771
         raise Exception(f"Cannot determine if task {task} has started or not") from None
@@ -842,7 +846,6 @@ class TaskGroup(abc.TaskGroup):
 
         name = get_callable_name(func) if name is None else str(name)
         task = create_task(coro, name=name)
-        task.add_done_callback(task_done)
 
         # Make the spawned task inherit the task group's cancel scope
         _task_states[task] = TaskState(
@@ -850,6 +853,7 @@ class TaskGroup(abc.TaskGroup):
         )
         self.cancel_scope._tasks.add(task)
         self._tasks.add(task)
+        task.add_done_callback(task_done)
         return task
 
     def start_soon(
