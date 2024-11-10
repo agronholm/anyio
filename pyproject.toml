@@ -104,13 +104,10 @@ show_error_codes = true
 addopts = "-rsfE --tb=short --strict-config --strict-markers -p anyio -p no:asyncio -p no:trio"
 testpaths = ["tests"]
 xfail_strict = true
-# Ignore resource warnings due to a CPython/Windows bug (https://bugs.python.org/issue44428)
 filterwarnings = [
     "error",
+    # Ignore resource warnings due to a CPython/Windows bug (https://bugs.python.org/issue44428)
     "ignore:unclosed transport <_ProactorSocketTransport.*:ResourceWarning",
-    "ignore:ast.Str is deprecated:DeprecationWarning",
-    "ignore:Attribute s is deprecated:DeprecationWarning",
-    "ignore:ast.NameConstant is deprecated:DeprecationWarning",
     # Workaround for Python 3.9.7 (see https://bugs.python.org/issue45097)
     "ignore:The loop argument is deprecated since Python 3\\.8, and scheduled for removal in Python 3\\.10\\.:DeprecationWarning:asyncio",
 ]
