@@ -1707,11 +1707,11 @@ class TestTaskStatusTyping:
         task_status.started(1)
 
 
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
 @pytest.mark.skipif(
     sys.version_info < (3, 12),
     reason="Eager task factories require Python 3.12",
 )
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_eager_task_factory(request: FixtureRequest) -> None:
     async def sync_coro() -> None:
         pass
