@@ -1724,4 +1724,3 @@ async def test_eager_task_factory(request: FixtureRequest) -> None:
     async with create_task_group() as tg:
         tg.start_soon(sync_coro)
         tg.cancel_scope.cancel()
-        await checkpoint()
