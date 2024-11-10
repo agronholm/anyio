@@ -853,7 +853,13 @@ class TaskGroup(abc.TaskGroup):
         )
         self.cancel_scope._tasks.add(task)
         self._tasks.add(task)
-        task.add_done_callback(task_done)
+
+        if task.done():
+            # This can happen with eager task factories
+            task_done(task)
+        else:
+            task.add_done_callback(task_done)
+
         return task
 
     def start_soon(
