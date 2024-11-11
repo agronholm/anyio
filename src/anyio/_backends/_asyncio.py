@@ -2671,7 +2671,7 @@ class AsyncIOBackend(AsyncBackend):
         return await get_running_loop().getnameinfo(sockaddr, flags)
 
     @classmethod
-    async def wait_socket_readable(cls, sock: socket.socket) -> None:
+    async def wait_socket_readable(cls, sock: socket.socket | int) -> None:
         await cls.checkpoint()
         try:
             read_events = _read_events.get()
@@ -2698,7 +2698,7 @@ class AsyncIOBackend(AsyncBackend):
             raise ClosedResourceError
 
     @classmethod
-    async def wait_socket_writable(cls, sock: socket.socket) -> None:
+    async def wait_socket_writable(cls, sock: socket.socket | int) -> None:
         await cls.checkpoint()
         try:
             write_events = _write_events.get()
@@ -2711,7 +2711,7 @@ class AsyncIOBackend(AsyncBackend):
 
         loop = get_running_loop()
         event = write_events[sock] = asyncio.Event()
-        loop.add_writer(sock.fileno(), event.set)
+        loop.add_writer(sock, event.set)
         try:
             await event.wait()
         finally:

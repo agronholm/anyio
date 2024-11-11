@@ -591,7 +591,7 @@ def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Awaitable[tuple[str
     return get_async_backend().getnameinfo(sockaddr, flags)
 
 
-def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
+def wait_socket_readable(sock: socket.socket | int) -> Awaitable[None]:
     """
     Wait until the given socket has data to be read.
 
@@ -601,7 +601,7 @@ def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
     .. warning:: Only use this on raw sockets that have not been wrapped by any higher
         level constructs like socket streams!
 
-    :param sock: a socket object
+    :param sock: a socket object or its file descriptor
     :raises ~anyio.ClosedResourceError: if the socket was closed while waiting for the
         socket to become readable
     :raises ~anyio.BusyResourceError: if another task is already waiting for the socket
@@ -611,7 +611,7 @@ def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
     return get_async_backend().wait_socket_readable(sock)
 
 
-def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
+def wait_socket_writable(sock: socket.socket | int) -> Awaitable[None]:
     """
     Wait until the given socket can be written to.
 
@@ -621,7 +621,7 @@ def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
     .. warning:: Only use this on raw sockets that have not been wrapped by any higher
         level constructs like socket streams!
 
-    :param sock: a socket object
+    :param sock: a socket object or its file descriptor
     :raises ~anyio.ClosedResourceError: if the socket was closed while waiting for the
         socket to become writable
     :raises ~anyio.BusyResourceError: if another task is already waiting for the socket

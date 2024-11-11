@@ -46,6 +46,8 @@ from anyio import (
     getnameinfo,
     move_on_after,
     wait_all_tasks_blocked,
+    wait_socket_readable,
+    wait_socket_writable,
 )
 from anyio.abc import (
     IPSockAddrType,
@@ -1849,3 +1851,38 @@ async def test_connect_tcp_getaddrinfo_context() -> None:
             pass
 
     assert exc_info.value.__context__ is None
+
+
+@pytest.mark.parametrize("use_fd", [False, True])
+@pytest.mark.parametrize("event", ["readable", "writable"])
+async def test_wait_socket(anyio_backend_name: str, event: str, use_fd: bool) -> None:
+    if anyio_backend_name == "asyncio" and sys.platform == "win32":
+        import asyncio
+
+        policy = asyncio.get_event_loop_policy()
+        if policy.__class__.__name__ == "WindowsProactorEventLoopPolicy":
+            pytest.skip("Does not work on asyncio/Windows/ProactorEventLoop")
+
+    wait_socket = wait_socket_readable if event == "readable" else wait_socket_writable
+
+    def client(port: int) -> None:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.connect(("127.0.0.1", port))
+            sock.sendall(b"Hello, world")
+
+    with move_on_after(0.1):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+            sock.listen()
+            thread = Thread(target=client, args=(port,), daemon=True)
+            thread.start()
+            conn, addr = sock.accept()
+            with conn:
+                sock_or_fd = conn.fileno() if use_fd else conn
+                assert type(sock_or_fd) in (int, socket.socket)
+                await wait_socket(sock_or_fd)
+                socket_ready = True
+
+    assert socket_ready
+    thread.join()

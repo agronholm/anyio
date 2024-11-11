@@ -1260,7 +1260,7 @@ class TrioBackend(AsyncBackend):
         return await trio.socket.getnameinfo(sockaddr, flags)
 
     @classmethod
-    async def wait_socket_readable(cls, sock: socket.socket) -> None:
+    async def wait_socket_readable(cls, sock: socket.socket | int) -> None:
         try:
             await wait_readable(sock)
         except trio.ClosedResourceError as exc:
@@ -1269,7 +1269,7 @@ class TrioBackend(AsyncBackend):
             raise BusyResourceError("reading from") from None
 
     @classmethod
-    async def wait_socket_writable(cls, sock: socket.socket) -> None:
+    async def wait_socket_writable(cls, sock: socket.socket | int) -> None:
         try:
             await wait_writable(sock)
         except trio.ClosedResourceError as exc:

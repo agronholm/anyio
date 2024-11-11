@@ -333,12 +333,12 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    async def wait_socket_readable(cls, sock: socket) -> None:
+    async def wait_socket_readable(cls, sock: socket | int) -> None:
         pass
 
     @classmethod
     @abstractmethod
-    async def wait_socket_writable(cls, sock: socket) -> None:
+    async def wait_socket_writable(cls, sock: socket | int) -> None:
         pass
 
     @classmethod

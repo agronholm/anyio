@@ -7,6 +7,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Fixed a misleading ``ValueError`` in the context of DNS failures
   (`#815 <https://github.com/agronholm/anyio/issues/815>`_; PR by @graingert)
+- Allowed ``wait_socket_readable`` and ``wait_socket_writable`` to accept a socket
+  file descriptor
 
 **4.6.2**
 
