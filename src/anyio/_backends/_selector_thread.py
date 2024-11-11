@@ -19,6 +19,7 @@ from typing import (
     Callable,
     Union,
 )
+from weakref import WeakKeyDictionary
 
 if typing.TYPE_CHECKING:
     from typing_extensions import Protocol
@@ -29,6 +30,9 @@ if typing.TYPE_CHECKING:
 
     _FileDescriptorLike = Union[int, _HasFileno]
 
+
+# registry of asyncio loop : selector thread
+_selectors: WeakKeyDictionary = WeakKeyDictionary()
 
 # Collection of selector thread event loops to shut down on exit.
 _selector_loops: set[SelectorThread] = set()
@@ -281,61 +285,31 @@ class SelectorThread:
         return True
 
 
-# AddThreadSelectorEventLoop: unmodified from tornado 6.4.0
-class AddThreadSelectorEventLoop(asyncio.AbstractEventLoop):
-    """Wrap an event loop to add implementations of the ``add_reader`` method family.
+def _get_selector_windows(
+    asyncio_loop: asyncio.AbstractEventLoop,
+) -> SelectorThread:
+    """Get selector-compatible loop.
 
-    Instances of this class start a second thread to run a selector.
-    This thread is completely hidden from the user; all callbacks are
-    run on the wrapped event loop's thread.
+    Sets ``add_reader`` family of methods on the asyncio loop.
 
-    This class is used automatically by Tornado; applications should not need
-    to refer to it directly.
-
-    It is safe to wrap any event loop with this class, although it only makes sense
-    for event loops that do not implement the ``add_reader`` family of methods
-    themselves (i.e. ``WindowsProactorEventLoop``)
-
-    Closing the ``AddThreadSelectorEventLoop`` also closes the wrapped event loop.
+    Workaround Windows proactor removal of *reader methods.
     """
 
-    # This class is a __getattribute__-based proxy. All attributes other than those
-    # in this set are proxied through to the underlying loop.
-    MY_ATTRIBUTES = {
-        "_real_loop",
-        "_selector",
-        "add_reader",
-        "add_writer",
-        "close",
-        "remove_reader",
-        "remove_writer",
-    }
+    if asyncio_loop in _selectors:
+        return _selectors[asyncio_loop]
 
-    def __getattribute__(self, name: str) -> Any:
-        if name in AddThreadSelectorEventLoop.MY_ATTRIBUTES:
-            return super().__getattribute__(name)
-        return getattr(self._real_loop, name)
+    selector_thread = _selectors[asyncio_loop] = SelectorThread(asyncio_loop)
 
-    def __init__(self, real_loop: asyncio.AbstractEventLoop) -> None:
-        self._real_loop = real_loop
-        self._selector = SelectorThread(real_loop)
+    # patch loop.close to also close the selector thread
+    loop_close = asyncio_loop.close
 
-    def close(self) -> None:
-        self._selector.close()
-        self._real_loop.close()
+    def _close_selector_and_loop() -> None:
+        # restore original before calling selector.close,
+        # which in turn calls eventloop.close!
+        asyncio_loop.close = loop_close  # type: ignore[method-assign]
+        _selectors.pop(asyncio_loop, None)
+        selector_thread.close()
 
-    def add_reader(  # type: ignore[override]
-        self, fd: _FileDescriptorLike, callback: Callable[..., None], *args: Any
-    ) -> None:
-        return self._selector.add_reader(fd, callback, *args)
+    asyncio_loop.close = _close_selector_and_loop  # type: ignore[method-assign]
 
-    def add_writer(  # type: ignore[override]
-        self, fd: _FileDescriptorLike, callback: Callable[..., None], *args: Any
-    ) -> None:
-        return self._selector.add_writer(fd, callback, *args)
-
-    def remove_reader(self, fd: _FileDescriptorLike) -> bool:
-        return self._selector.remove_reader(fd)
-
-    def remove_writer(self, fd: _FileDescriptorLike) -> bool:
-        return self._selector.remove_writer(fd)
+    return selector_thread

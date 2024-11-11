@@ -98,44 +98,7 @@ from ..abc import (
 from ..abc._eventloop import StrOrBytesPath
 from ..lowlevel import RunVar
 from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
-
-# registry of asyncio loop : selector thread
-_selectors: WeakKeyDictionary = WeakKeyDictionary()
-
-
-def _get_selector_windows(
-    asyncio_loop: AbstractEventLoop,
-) -> AbstractEventLoop:
-    """Get selector-compatible loop.
-
-    Sets ``add_reader`` family of methods on the asyncio loop.
-
-    Workaround Windows proactor removal of *reader methods.
-    """
-
-    if asyncio_loop in _selectors:
-        return _selectors[asyncio_loop]
-
-    from ._selector_thread import AddThreadSelectorEventLoop
-
-    selector_loop = _selectors[asyncio_loop] = AddThreadSelectorEventLoop(  # type: ignore[abstract]
-        asyncio_loop
-    )
-
-    # patch loop.close to also close the selector thread
-    loop_close = asyncio_loop.close
-
-    def _close_selector_and_loop() -> None:
-        # restore original before calling selector.close,
-        # which in turn calls eventloop.close!
-        asyncio_loop.close = loop_close  # type: ignore[method-assign]
-        _selectors.pop(asyncio_loop, None)
-        selector_loop.close()
-
-    asyncio_loop.close = _close_selector_and_loop  # type: ignore[method-assign]
-
-    return selector_loop
-
+from ._selector_thread import _get_selector_windows
 
 if sys.version_info >= (3, 10):
     from typing import ParamSpec
@@ -2726,14 +2689,19 @@ class AsyncIOBackend(AsyncBackend):
             and asyncio.get_event_loop_policy().__class__.__name__
             == "WindowsProactorEventLoopPolicy"
         ):
-            loop = _get_selector_windows(loop)
+            selector = _get_selector_windows(loop)
+            add_reader = selector.add_reader
+            remove_reader = selector.remove_reader
+        else:
+            add_reader = loop.add_reader
+            remove_reader = loop.remove_reader
         event = read_events[sock] = asyncio.Event()
-        loop.add_reader(sock, event.set)
+        add_reader(sock, event.set)
         try:
             await event.wait()
         finally:
             if read_events.pop(sock, None) is not None:
-                loop.remove_reader(sock)
+                remove_reader(sock)
                 readable = True
             else:
                 readable = False
