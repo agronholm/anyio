@@ -28,6 +28,8 @@ from collections.abc import (
     Collection,
     Coroutine,
     Iterable,
+    Iterator,
+    MutableMapping,
     Sequence,
 )
 from concurrent.futures import Future
@@ -667,7 +669,49 @@ class TaskState:
         self.cancel_scope = cancel_scope
 
 
-_task_states: WeakKeyDictionary[asyncio.Task, TaskState] = WeakKeyDictionary()
+class TaskStateStore(MutableMapping["Awaitable[Any] | asyncio.Task | None", TaskState]):
+    def __init__(self) -> None:
+        self._task_states = WeakKeyDictionary[asyncio.Task, TaskState]()
+        self._preliminary_task_states: dict[Awaitable[Any], TaskState] = {}
+
+    def __getitem__(self, key: Awaitable[Any] | asyncio.Task | None, /) -> TaskState:
+        assert isinstance(key, asyncio.Task)
+        try:
+            return self._task_states[key]
+        except KeyError:
+            if coro := key.get_coro():
+                if state := self._preliminary_task_states.get(coro):
+                    return state
+
+        raise KeyError(key)
+
+    def __setitem__(
+        self, key: asyncio.Task | Awaitable[Any] | None, value: TaskState, /
+    ) -> None:
+        if isinstance(key, asyncio.Task):
+            self._task_states[key] = value
+        elif key is None:
+            raise ValueError("cannot insert None")
+        else:
+            self._preliminary_task_states[key] = value
+
+    def __delitem__(self, key: asyncio.Task | Awaitable[Any] | None, /) -> None:
+        if isinstance(key, asyncio.Task):
+            del self._task_states[key]
+        elif key is None:
+            raise KeyError(key)
+        else:
+            del self._preliminary_task_states[key]
+
+    def __len__(self) -> int:
+        return len(self._task_states) + len(self._preliminary_task_states)
+
+    def __iter__(self) -> Iterator[Awaitable[Any] | asyncio.Task]:
+        yield from self._task_states
+        yield from self._preliminary_task_states
+
+
+_task_states = TaskStateStore()
 
 
 #
@@ -787,7 +831,7 @@ class TaskGroup(abc.TaskGroup):
         task_status_future: asyncio.Future | None = None,
     ) -> asyncio.Task:
         def task_done(_task: asyncio.Task) -> None:
-            task_state = _task_states[_task]
+            # task_state = _task_states[_task]
             assert task_state.cancel_scope is not None
             assert _task in task_state.cancel_scope._tasks
             task_state.cancel_scope._tasks.remove(_task)
@@ -844,16 +888,22 @@ class TaskGroup(abc.TaskGroup):
                 f"the return value ({coro!r}) is not a coroutine object"
             )
 
-        name = get_callable_name(func) if name is None else str(name)
-        task = create_task(coro, name=name)
-
         # Make the spawned task inherit the task group's cancel scope
-        _task_states[task] = TaskState(
+        _task_states[coro] = task_state = TaskState(
             parent_id=parent_id, cancel_scope=self.cancel_scope
         )
+        name = get_callable_name(func) if name is None else str(name)
+        try:
+            task = create_task(coro, name=name)
+        except BaseException:
+            del _task_states[coro]
+            raise
+
         self.cancel_scope._tasks.add(task)
         self._tasks.add(task)
 
+        del _task_states[coro]
+        _task_states[task] = task_state
         if task.done():
             # This can happen with eager task factories
             task_done(task)
@@ -2346,9 +2396,7 @@ class AsyncIOBackend(AsyncBackend):
     @classmethod
     def current_effective_deadline(cls) -> float:
         try:
-            cancel_scope = _task_states[
-                current_task()  # type: ignore[index]
-            ].cancel_scope
+            cancel_scope = _task_states[current_task()].cancel_scope
         except KeyError:
             return math.inf
 
