@@ -1873,20 +1873,15 @@ async def test_wait_socket(
             sock.connect(("127.0.0.1", port))
             sock.sendall(b"Hello, world")
 
-    with move_on_after(0.1):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.bind(("127.0.0.1", 0))
-            port = sock.getsockname()[1]
-            sock.listen()
-            thread = Thread(target=client, args=(port,), daemon=True)
-            thread.start()
-            conn, addr = sock.accept()
-            with conn:
-                sock_or_fd: HasFileno | int = (
-                    conn.fileno() if socket_type == "fd" else conn
-                )
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+        sock.listen()
+        thread = Thread(target=client, args=(port,), daemon=True)
+        thread.start()
+        thread.join()
+        conn, addr = sock.accept()
+        with conn:
+            sock_or_fd: HasFileno | int = conn.fileno() if socket_type == "fd" else conn
+            with fail_after(10):
                 await wait_socket(sock_or_fd)
-                socket_ready = True
-
-    assert socket_ready
-    thread.join()
