@@ -1879,8 +1879,7 @@ async def test_wait_socket(anyio_backend_name: str, event: str, use_fd: bool) ->
             thread.start()
             conn, addr = sock.accept()
             with conn:
-                sock_or_fd = conn.fileno() if use_fd else conn
-                assert type(sock_or_fd) in (int, socket.socket)
+                sock_or_fd: socket.socket | int = conn.fileno() if use_fd else conn
                 await wait_socket(sock_or_fd)
                 socket_ready = True
 
