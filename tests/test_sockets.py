@@ -1853,9 +1853,6 @@ async def test_connect_tcp_getaddrinfo_context() -> None:
 
 
 async def test_wait_socket_readable(anyio_backend_name: str) -> None:
-    if anyio_backend_name == "trio" and platform.system() == "Windows":
-        pytest.skip("Internal error in Trio")
-
     def client(port: int) -> None:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.connect(("127.0.0.1", port))

@@ -309,6 +309,7 @@ def _get_selector_windows(
         asyncio_loop.close = loop_close  # type: ignore[method-assign]
         _selectors.pop(asyncio_loop, None)
         selector_thread.close()
+        asyncio_loop.close()
 
     asyncio_loop.close = _close_selector_and_loop  # type: ignore[method-assign]
 
