@@ -16,7 +16,7 @@ from pathlib import Path
 from socket import AddressFamily
 from ssl import SSLContext, SSLError
 from threading import Thread
-from typing import Any, NoReturn, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Literal, NoReturn, TypeVar, cast
 
 import psutil
 import pytest
@@ -62,7 +62,8 @@ from anyio.streams.stapled import MultiListener
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
-from typing import Literal
+if TYPE_CHECKING:
+    from _typeshed import HasFileno
 
 AnyIPAddressFamily = Literal[
     AddressFamily.AF_UNSPEC, AddressFamily.AF_INET, AddressFamily.AF_INET6
@@ -1853,9 +1854,11 @@ async def test_connect_tcp_getaddrinfo_context() -> None:
     assert exc_info.value.__context__ is None
 
 
-@pytest.mark.parametrize("use_fd", [False, True])
+@pytest.mark.parametrize("socket_type", ["socket", "fd"])
 @pytest.mark.parametrize("event", ["readable", "writable"])
-async def test_wait_socket(anyio_backend_name: str, event: str, use_fd: bool) -> None:
+async def test_wait_socket(
+    anyio_backend_name: str, event: str, socket_type: str
+) -> None:
     if anyio_backend_name == "asyncio" and sys.platform == "win32":
         import asyncio
 
@@ -1879,7 +1882,9 @@ async def test_wait_socket(anyio_backend_name: str, event: str, use_fd: bool) ->
             thread.start()
             conn, addr = sock.accept()
             with conn:
-                sock_or_fd: socket.socket | int = conn.fileno() if use_fd else conn
+                sock_or_fd: HasFileno | int = (
+                    conn.fileno() if socket_type == "fd" else conn
+                )
                 await wait_socket(sock_or_fd)
                 socket_ready = True
 

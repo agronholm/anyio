@@ -10,7 +10,7 @@ from collections.abc import Awaitable
 from ipaddress import IPv6Address, ip_address
 from os import PathLike, chmod
 from socket import AddressFamily, SocketKind
-from typing import Any, Literal, cast, overload
+from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
 from .. import to_thread
 from ..abc import (
@@ -30,6 +30,11 @@ from ._eventloop import get_async_backend
 from ._resources import aclose_forcefully
 from ._synchronization import Event
 from ._tasks import create_task_group, move_on_after
+
+if TYPE_CHECKING:
+    from _typeshed import HasFileno
+else:
+    HasFileno = object
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -591,7 +596,7 @@ def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Awaitable[tuple[str
     return get_async_backend().getnameinfo(sockaddr, flags)
 
 
-def wait_socket_readable(sock: socket.socket | int) -> Awaitable[None]:
+def wait_socket_readable(sock: HasFileno | int) -> Awaitable[None]:
     """
     Wait until the given socket has data to be read.
 
@@ -611,7 +616,7 @@ def wait_socket_readable(sock: socket.socket | int) -> Awaitable[None]:
     return get_async_backend().wait_socket_readable(sock)
 
 
-def wait_socket_writable(sock: socket.socket | int) -> Awaitable[None]:
+def wait_socket_writable(sock: HasFileno | int) -> Awaitable[None]:
     """
     Wait until the given socket can be written to.
 

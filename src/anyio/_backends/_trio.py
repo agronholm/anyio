@@ -28,6 +28,7 @@ from socket import AddressFamily, SocketKind
 from types import TracebackType
 from typing import (
     IO,
+    TYPE_CHECKING,
     Any,
     Generic,
     NoReturn,
@@ -79,6 +80,9 @@ from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend, StrOrBytesPath
 from ..streams.memory import MemoryObjectSendStream
+
+if TYPE_CHECKING:
+    from _typeshed import HasFileno
 
 if sys.version_info >= (3, 10):
     from typing import ParamSpec
@@ -1260,7 +1264,7 @@ class TrioBackend(AsyncBackend):
         return await trio.socket.getnameinfo(sockaddr, flags)
 
     @classmethod
-    async def wait_socket_readable(cls, sock: socket.socket | int) -> None:
+    async def wait_socket_readable(cls, sock: HasFileno | int) -> None:
         try:
             await wait_readable(sock)
         except trio.ClosedResourceError as exc:
@@ -1269,7 +1273,7 @@ class TrioBackend(AsyncBackend):
             raise BusyResourceError("reading from") from None
 
     @classmethod
-    async def wait_socket_writable(cls, sock: socket.socket | int) -> None:
+    async def wait_socket_writable(cls, sock: HasFileno | int) -> None:
         try:
             await wait_writable(sock)
         except trio.ClosedResourceError as exc:
