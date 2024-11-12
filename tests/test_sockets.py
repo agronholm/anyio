@@ -1858,17 +1858,14 @@ async def test_wait_socket_readable(anyio_backend_name: str) -> None:
             sock.connect(("127.0.0.1", port))
             sock.sendall(b"Hello, world")
 
-    with move_on_after(0.1):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.bind(("127.0.0.1", 0))
-            port = sock.getsockname()[1]
-            sock.listen()
-            thread = Thread(target=client, args=(port,), daemon=True)
-            thread.start()
-            conn, addr = sock.accept()
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+        sock.listen()
+        thread = Thread(target=client, args=(port,))
+        thread.start()
+        thread.join()
+        conn, addr = sock.accept()
+        with fail_after(5):
             with conn:
                 await wait_socket_readable(conn)
-                socket_readable = True
-
-    assert socket_readable
-    thread.join()

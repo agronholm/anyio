@@ -7,7 +7,6 @@ Redistributed under license Apache-2.0
 from __future__ import annotations
 
 import asyncio
-import atexit
 import errno
 import functools
 import select
@@ -20,6 +19,8 @@ from typing import (
     Union,
 )
 from weakref import WeakKeyDictionary
+
+from ._asyncio import find_root_task
 
 if typing.TYPE_CHECKING:
     from typing_extensions import Protocol
@@ -38,7 +39,7 @@ _selectors: WeakKeyDictionary = WeakKeyDictionary()
 _selector_loops: set[SelectorThread] = set()
 
 
-def _atexit_callback() -> None:
+def _at_loop_close_callback(future: asyncio.Future) -> None:
     for loop in _selector_loops:
         with loop._select_cond:
             loop._closing_selector = True
@@ -56,12 +57,7 @@ def _atexit_callback() -> None:
     _selector_loops.clear()
 
 
-atexit.register(_atexit_callback)
-
-
 # SelectorThread from tornado 6.4.0
-
-
 class SelectorThread:
     """Define ``add_reader`` methods to be called in a background select thread.
 
@@ -84,19 +80,6 @@ class SelectorThread:
         ) = None
         self._closing_selector = False
         self._thread: threading.Thread | None = None
-        self._thread_manager_handle = self._thread_manager()
-
-        async def thread_manager_anext() -> None:
-            # the anext builtin wasn't added until 3.10. We just need to iterate
-            # this generator one step.
-            await self._thread_manager_handle.__anext__()
-
-        # When the loop starts, start the thread. Not too soon because we can't
-        # clean up if we get to this point but the event loop is closed without
-        # starting.
-        self._real_loop.call_soon(
-            lambda: self._real_loop.create_task(thread_manager_anext())
-        )
 
         self._readers: dict[_FileDescriptorLike, Callable] = {}
         self._writers: dict[_FileDescriptorLike, Callable] = {}
@@ -108,6 +91,7 @@ class SelectorThread:
         self._waker_w.setblocking(False)
         _selector_loops.add(self)
         self.add_reader(self._waker_r, self._consume_waker)
+        self._thread_manager()
 
     def close(self) -> None:
         if self._closed:
@@ -124,30 +108,19 @@ class SelectorThread:
         self._waker_w.close()
         self._closed = True
 
-    async def _thread_manager(self) -> typing.AsyncGenerator[None, None]:
+    def _thread_manager(self) -> None:
         # Create a thread to run the select system call. We manage this thread
-        # manually so we can trigger a clean shutdown from an atexit hook. Note
+        # manually so we can trigger a clean shutdown at loop teardown. Note
         # that due to the order of operations at shutdown, only daemon threads
         # can be shut down in this way (non-daemon threads would require the
         # introduction of a new hook: https://bugs.python.org/issue41962)
         self._thread = threading.Thread(
-            name="Tornado selector",
+            name="AnyIO selector",
             daemon=True,
             target=self._run_select,
         )
         self._thread.start()
         self._start_select()
-        try:
-            # The presense of this yield statement means that this coroutine
-            # is actually an asynchronous generator, which has a special
-            # shutdown protocol. We wait at this yield point until the
-            # event loop's shutdown_asyncgens method is called, at which point
-            # we will get a GeneratorExit exception and can shut down the
-            # selector thread.
-            yield
-        except GeneratorExit:
-            self.close()
-            raise
 
     def _wake_selector(self) -> None:
         if self._closed:
@@ -298,6 +271,7 @@ def _get_selector_windows(
     if asyncio_loop in _selectors:
         return _selectors[asyncio_loop]
 
+    find_root_task().add_done_callback(_at_loop_close_callback)
     selector_thread = _selectors[asyncio_loop] = SelectorThread(asyncio_loop)
 
     # patch loop.close to also close the selector thread
