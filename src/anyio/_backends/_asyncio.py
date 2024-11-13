@@ -895,15 +895,13 @@ class TaskGroup(abc.TaskGroup):
         name = get_callable_name(func) if name is None else str(name)
         try:
             task = create_task(coro, name=name)
-        except BaseException:
+        finally:
             del _task_states[coro]
-            raise
 
+        _task_states[task] = task_state
         self.cancel_scope._tasks.add(task)
         self._tasks.add(task)
 
-        del _task_states[coro]
-        _task_states[task] = task_state
         if task.done():
             # This can happen with eager task factories
             task_done(task)
