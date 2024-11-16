@@ -10,7 +10,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added ``wait_readable`` and ``wait_writable`` functions that accept an object with a
   ``.fileno()`` method or an integer handle, and deprecated ``wait_socket_readable``
   and ``wait_socket_writable``.
-  (`#824 <https://github.com/agronholm/anyio/pull/824>`_) (PR by @davidbrochart)
+  (`#824 <https://github.com/agronholm/anyio/pull/824>`_; PR by @davidbrochart)
 
 **4.6.2**
 
