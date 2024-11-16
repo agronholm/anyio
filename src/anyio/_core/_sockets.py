@@ -604,7 +604,8 @@ def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Awaitable[tuple[str
 @deprecated("This function is deprecated; use `wait_readable` instead")
 def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
     """
-    Deprecated, use `wait_readable` instead.
+    .. deprecated:: 4.7.0
+       Use :func:`wait_readable` instead.
 
     Wait until the given socket has data to be read.
 
