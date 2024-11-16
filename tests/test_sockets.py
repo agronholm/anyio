@@ -1870,28 +1870,24 @@ async def test_wait_socket(
 
     wait = wait_readable if event == "readable" else wait_writable
 
-    def client(port: int) -> None:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.connect(("127.0.0.1", port))
-            sock.sendall(b"Hello, world")
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_sock:
+        server_sock.bind(("127.0.0.1", 0))
+        port = server_sock.getsockname()[1]
+        server_sock.listen()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_sock:
+            client_sock.connect(("127.0.0.1", port))
+            client_sock.sendall(b"Hello, world")
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("127.0.0.1", 0))
-        port = sock.getsockname()[1]
-        sock.listen()
-        thread = Thread(target=client, args=(port,), daemon=True)
-        thread.start()
-        conn, addr = sock.accept()
+        conn, addr = server_sock.accept()
         with conn:
             sock_or_fd: HasFileno | int = conn.fileno() if socket_type == "fd" else conn
             with fail_after(10):
                 await wait(sock_or_fd)
                 assert conn.recv(1024) == b"Hello, world"
-        thread.join()
 
 
 async def test_deprecated_wait_socket(anyio_backend_name: str) -> None:
-    if anyio_backend_name == "asyncio" and sys.platform == "win32":
+    if anyio_backend_name == "asyncio" and platform.system() == "Windows":
         import asyncio
 
         policy = asyncio.get_event_loop_policy()
@@ -1905,6 +1901,7 @@ async def test_deprecated_wait_socket(anyio_backend_name: str) -> None:
         ):
             with move_on_after(0.1):
                 await wait_socket_readable(sock)
+
         with pytest.warns(
             DeprecationWarning,
             match="This function is deprecated; use `wait_writable` instead",

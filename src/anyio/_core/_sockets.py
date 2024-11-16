@@ -669,7 +669,7 @@ def wait_readable(obj: HasFileno | int) -> Awaitable[None]:
     .. warning:: Only use this on raw sockets that have not been wrapped by any higher
         level constructs like socket streams!
 
-    :param obj: an object with a ``.fileno()`` method or an integer handle.
+    :param obj: an object with a ``.fileno()`` method or an integer handle
     :raises ~anyio.ClosedResourceError: if the object was closed while waiting for the
         object to become readable
     :raises ~anyio.BusyResourceError: if another task is already waiting for the object
@@ -683,15 +683,15 @@ def wait_writable(obj: HasFileno | int) -> Awaitable[None]:
     """
     Wait until the given object can be written to.
 
-    See `wait_readable` for the definition of ``obj``.
-
     This does **NOT** work on Windows when using the asyncio backend with a proactor
     event loop (default on py3.8+).
+
+    .. seealso:: See the documentation of :func:`wait_readable` for the definition of ``obj``.
 
     .. warning:: Only use this on raw sockets that have not been wrapped by any higher
         level constructs like socket streams!
 
-    :param obj: an object with a ``.fileno()`` method or an integer handle.
+    :param obj: an object with a ``.fileno()`` method or an integer handle
     :raises ~anyio.ClosedResourceError: if the object was closed while waiting for the
         object to become writable
     :raises ~anyio.BusyResourceError: if another task is already waiting for the object
