@@ -46,8 +46,10 @@ from anyio import (
     getnameinfo,
     move_on_after,
     wait_all_tasks_blocked,
+    wait_readable,
     wait_socket_readable,
     wait_socket_writable,
+    wait_writable,
 )
 from anyio.abc import (
     IPSockAddrType,
@@ -1866,7 +1868,7 @@ async def test_wait_socket(
         if policy.__class__.__name__ == "WindowsProactorEventLoopPolicy":
             pytest.skip("Does not work on asyncio/Windows/ProactorEventLoop")
 
-    wait_socket = wait_socket_readable if event == "readable" else wait_socket_writable
+    wait = wait_readable if event == "readable" else wait_writable
 
     def client(port: int) -> None:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -1884,4 +1886,27 @@ async def test_wait_socket(
         with conn:
             sock_or_fd: HasFileno | int = conn.fileno() if socket_type == "fd" else conn
             with fail_after(10):
-                await wait_socket(sock_or_fd)
+                await wait(sock_or_fd)
+
+
+async def test_deprecated_wait_socket(anyio_backend_name: str) -> None:
+    if anyio_backend_name == "asyncio" and sys.platform == "win32":
+        import asyncio
+
+        policy = asyncio.get_event_loop_policy()
+        if policy.__class__.__name__ == "WindowsProactorEventLoopPolicy":
+            pytest.skip("Does not work on asyncio/Windows/ProactorEventLoop")
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        with pytest.warns(
+            DeprecationWarning,
+            match="This function is deprecated; use `wait_readable` instead",
+        ):
+            with move_on_after(0.1):
+                await wait_socket_readable(sock)
+        with pytest.warns(
+            DeprecationWarning,
+            match="This function is deprecated; use `wait_writable` instead",
+        ):
+            with move_on_after(0.1):
+                await wait_socket_writable(sock)

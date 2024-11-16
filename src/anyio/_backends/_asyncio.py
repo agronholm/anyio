@@ -1722,8 +1722,8 @@ class ConnectedUNIXDatagramSocket(_RawSocketMixin, abc.ConnectedUNIXDatagramSock
                     return
 
 
-_read_events: RunVar[dict[int, asyncio.Event]] = RunVar("read_events")
-_write_events: RunVar[dict[int, asyncio.Event]] = RunVar("write_events")
+_read_events: RunVar[dict[socket.socket | int, asyncio.Event]] = RunVar("read_events")
+_write_events: RunVar[dict[socket.socket | int, asyncio.Event]] = RunVar("write_events")
 
 
 #
@@ -2675,16 +2675,13 @@ class AsyncIOBackend(AsyncBackend):
         return await get_running_loop().getnameinfo(sockaddr, flags)
 
     @classmethod
-    async def wait_socket_readable(cls, sock: HasFileno | int) -> None:
+    async def wait_socket_readable(cls, sock: socket.socket) -> None:
         await cls.checkpoint()
         try:
             read_events = _read_events.get()
         except LookupError:
             read_events = {}
             _read_events.set(read_events)
-
-        if not isinstance(sock, int):
-            sock = sock.fileno()
 
         if read_events.get(sock):
             raise BusyResourceError("reading from") from None
@@ -2705,7 +2702,7 @@ class AsyncIOBackend(AsyncBackend):
             raise ClosedResourceError
 
     @classmethod
-    async def wait_socket_writable(cls, sock: HasFileno | int) -> None:
+    async def wait_socket_writable(cls, sock: socket.socket) -> None:
         await cls.checkpoint()
         try:
             write_events = _write_events.get()
@@ -2713,20 +2710,77 @@ class AsyncIOBackend(AsyncBackend):
             write_events = {}
             _write_events.set(write_events)
 
-        if not isinstance(sock, int):
-            sock = sock.fileno()
-
         if write_events.get(sock):
             raise BusyResourceError("writing to") from None
 
         loop = get_running_loop()
         event = write_events[sock] = asyncio.Event()
-        loop.add_writer(sock, event.set)
+        loop.add_writer(sock.fileno(), event.set)
         try:
             await event.wait()
         finally:
             if write_events.pop(sock, None) is not None:
                 loop.remove_writer(sock)
+                writable = True
+            else:
+                writable = False
+
+        if not writable:
+            raise ClosedResourceError
+
+    @classmethod
+    async def wait_readable(cls, obj: HasFileno | int) -> None:
+        await cls.checkpoint()
+        try:
+            read_events = _read_events.get()
+        except LookupError:
+            read_events = {}
+            _read_events.set(read_events)
+
+        if not isinstance(obj, int):
+            obj = obj.fileno()
+
+        if read_events.get(obj):
+            raise BusyResourceError("reading from") from None
+
+        loop = get_running_loop()
+        event = read_events[obj] = asyncio.Event()
+        loop.add_reader(obj, event.set)
+        try:
+            await event.wait()
+        finally:
+            if read_events.pop(obj, None) is not None:
+                loop.remove_reader(obj)
+                readable = True
+            else:
+                readable = False
+
+        if not readable:
+            raise ClosedResourceError
+
+    @classmethod
+    async def wait_writable(cls, obj: HasFileno | int) -> None:
+        await cls.checkpoint()
+        try:
+            write_events = _write_events.get()
+        except LookupError:
+            write_events = {}
+            _write_events.set(write_events)
+
+        if not isinstance(obj, int):
+            obj = obj.fileno()
+
+        if write_events.get(obj):
+            raise BusyResourceError("writing to") from None
+
+        loop = get_running_loop()
+        event = write_events[obj] = asyncio.Event()
+        loop.add_writer(obj, event.set)
+        try:
+            await event.wait()
+        finally:
+            if write_events.pop(obj, None) is not None:
+                loop.remove_writer(obj)
                 writable = True
             else:
                 writable = False

@@ -11,6 +11,7 @@ from ipaddress import IPv6Address, ip_address
 from os import PathLike, chmod
 from socket import AddressFamily, SocketKind
 from typing import TYPE_CHECKING, Any, Literal, cast, overload
+from warnings import warn
 
 from .. import to_thread
 from ..abc import (
@@ -596,8 +597,10 @@ def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Awaitable[tuple[str
     return get_async_backend().getnameinfo(sockaddr, flags)
 
 
-def wait_socket_readable(sock: HasFileno | int) -> Awaitable[None]:
+def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
     """
+    Deprecated, use `wait_readable` instead.
+
     Wait until the given socket has data to be read.
 
     This does **NOT** work on Windows when using the asyncio backend with a proactor
@@ -606,18 +609,25 @@ def wait_socket_readable(sock: HasFileno | int) -> Awaitable[None]:
     .. warning:: Only use this on raw sockets that have not been wrapped by any higher
         level constructs like socket streams!
 
-    :param sock: a socket object or its file descriptor
+    :param sock: a socket object
     :raises ~anyio.ClosedResourceError: if the socket was closed while waiting for the
         socket to become readable
     :raises ~anyio.BusyResourceError: if another task is already waiting for the socket
         to become readable
 
     """
+    warn(
+        "This function is deprecated; use `wait_readable` instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return get_async_backend().wait_socket_readable(sock)
 
 
-def wait_socket_writable(sock: HasFileno | int) -> Awaitable[None]:
+def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
     """
+    Deprecated, use `wait_writable` instead.
+
     Wait until the given socket can be written to.
 
     This does **NOT** work on Windows when using the asyncio backend with a proactor
@@ -626,14 +636,71 @@ def wait_socket_writable(sock: HasFileno | int) -> Awaitable[None]:
     .. warning:: Only use this on raw sockets that have not been wrapped by any higher
         level constructs like socket streams!
 
-    :param sock: a socket object or its file descriptor
+    :param sock: a socket object
     :raises ~anyio.ClosedResourceError: if the socket was closed while waiting for the
         socket to become writable
     :raises ~anyio.BusyResourceError: if another task is already waiting for the socket
         to become writable
 
     """
+    warn(
+        "This function is deprecated; use `wait_writable` instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return get_async_backend().wait_socket_writable(sock)
+
+
+def wait_readable(obj: HasFileno | int) -> Awaitable[None]:
+    """
+    Wait until the given object has data to be read.
+
+    On Unix systems, ``obj`` must either be an integer file descriptor, or else an
+    object with a ``.fileno()`` method which returns an integer file descriptor. Any
+    kind of file descriptor can be passed, though the exact semantics will depend on
+    your kernel. For example, this probably won't do anything useful for on-disk files.
+
+    On Windows systems, ``obj`` must either be an integer ``SOCKET`` handle, or else an
+    object with a ``.fileno()`` method which returns an integer ``SOCKET`` handle. File
+    descriptors aren't supported, and neither are handles that refer to anything besides
+    a ``SOCKET``.
+
+    This does **NOT** work on Windows when using the asyncio backend with a proactor
+    event loop (default on py3.8+).
+
+    .. warning:: Only use this on raw sockets that have not been wrapped by any higher
+        level constructs like socket streams!
+
+    :param obj: an object with a ``.fileno()`` method or an integer handle.
+    :raises ~anyio.ClosedResourceError: if the object was closed while waiting for the
+        object to become readable
+    :raises ~anyio.BusyResourceError: if another task is already waiting for the object
+        to become readable
+
+    """
+    return get_async_backend().wait_readable(obj)
+
+
+def wait_writable(obj: HasFileno | int) -> Awaitable[None]:
+    """
+    Wait until the given object can be written to.
+
+    See `wait_readable` for the definition of ``obj``.
+
+    This does **NOT** work on Windows when using the asyncio backend with a proactor
+    event loop (default on py3.8+).
+
+    .. warning:: Only use this on raw sockets that have not been wrapped by any higher
+        level constructs like socket streams!
+
+    :param obj: an object with a ``.fileno()`` method or an integer handle.
+    :raises ~anyio.ClosedResourceError: if the object was closed while waiting for the
+        object to become writable
+    :raises ~anyio.BusyResourceError: if another task is already waiting for the object
+        to become writable
+
+    """
+    return get_async_backend().wait_writable(obj)
 
 
 #
