@@ -10,7 +10,7 @@ from collections.abc import Awaitable
 from ipaddress import IPv6Address, ip_address
 from os import PathLike, chmod
 from socket import AddressFamily, SocketKind
-from typing import Any, Literal, cast, overload
+from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
 from .. import to_thread
 from ..abc import (
@@ -31,8 +31,18 @@ from ._resources import aclose_forcefully
 from ._synchronization import Event
 from ._tasks import create_task_group, move_on_after
 
+if TYPE_CHECKING:
+    from _typeshed import HasFileno
+else:
+    HasFileno = object
+
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
+
+if sys.version_info < (3, 13):
+    from typing_extensions import deprecated
+else:
+    from warnings import deprecated
 
 IPPROTO_IPV6 = getattr(socket, "IPPROTO_IPV6", 41)  # https://bugs.python.org/issue29515
 
@@ -591,8 +601,12 @@ def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Awaitable[tuple[str
     return get_async_backend().getnameinfo(sockaddr, flags)
 
 
+@deprecated("This function is deprecated; use `wait_readable` instead")
 def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
     """
+    .. deprecated:: 4.7.0
+       Use :func:`wait_readable` instead.
+
     Wait until the given socket has data to be read.
 
     .. warning:: Only use this on raw sockets that have not been wrapped by any higher
@@ -605,11 +619,15 @@ def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
         to become readable
 
     """
-    return get_async_backend().wait_socket_readable(sock)
+    return get_async_backend().wait_readable(sock.fileno())
 
 
+@deprecated("This function is deprecated; use `wait_writable` instead")
 def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
     """
+    .. deprecated:: 4.7.0
+       Use :func:`wait_writable` instead.
+
     Wait until the given socket can be written to.
 
     This does **NOT** work on Windows when using the asyncio backend with a proactor
@@ -625,7 +643,60 @@ def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
         to become writable
 
     """
-    return get_async_backend().wait_socket_writable(sock)
+    return get_async_backend().wait_writable(sock.fileno())
+
+
+def wait_readable(obj: HasFileno | int) -> Awaitable[None]:
+    """
+    Wait until the given object has data to be read.
+
+    On Unix systems, ``obj`` must either be an integer file descriptor, or else an
+    object with a ``.fileno()`` method which returns an integer file descriptor. Any
+    kind of file descriptor can be passed, though the exact semantics will depend on
+    your kernel. For example, this probably won't do anything useful for on-disk files.
+
+    On Windows systems, ``obj`` must either be an integer ``SOCKET`` handle, or else an
+    object with a ``.fileno()`` method which returns an integer ``SOCKET`` handle. File
+    descriptors aren't supported, and neither are handles that refer to anything besides
+    a ``SOCKET``.
+
+    This does **NOT** work on Windows when using the asyncio backend with a proactor
+    event loop (default on py3.8+).
+
+    .. warning:: Only use this on raw sockets that have not been wrapped by any higher
+        level constructs like socket streams!
+
+    :param obj: an object with a ``.fileno()`` method or an integer handle
+    :raises ~anyio.ClosedResourceError: if the object was closed while waiting for the
+        object to become readable
+    :raises ~anyio.BusyResourceError: if another task is already waiting for the object
+        to become readable
+
+    """
+    return get_async_backend().wait_readable(obj)
+
+
+def wait_writable(obj: HasFileno | int) -> Awaitable[None]:
+    """
+    Wait until the given object can be written to.
+
+    This does **NOT** work on Windows when using the asyncio backend with a proactor
+    event loop (default on py3.8+).
+
+    .. seealso:: See the documentation of :func:`wait_readable` for the definition of
+       ``obj``.
+
+    .. warning:: Only use this on raw sockets that have not been wrapped by any higher
+        level constructs like socket streams!
+
+    :param obj: an object with a ``.fileno()`` method or an integer handle
+    :raises ~anyio.ClosedResourceError: if the object was closed while waiting for the
+        object to become writable
+    :raises ~anyio.BusyResourceError: if another task is already waiting for the object
+        to become writable
+
+    """
+    return get_async_backend().wait_writable(obj)
 
 
 #

@@ -50,6 +50,7 @@ from threading import Thread
 from types import TracebackType
 from typing import (
     IO,
+    TYPE_CHECKING,
     Any,
     Optional,
     TypeVar,
@@ -98,6 +99,9 @@ from ..abc import (
 from ..abc._eventloop import StrOrBytesPath
 from ..lowlevel import RunVar
 from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+
+if TYPE_CHECKING:
+    from _typeshed import HasFileno
 
 if sys.version_info >= (3, 10):
     from typing import ParamSpec
@@ -1718,8 +1722,8 @@ class ConnectedUNIXDatagramSocket(_RawSocketMixin, abc.ConnectedUNIXDatagramSock
                     return
 
 
-_read_events: RunVar[dict[Any, asyncio.Event]] = RunVar("read_events")
-_write_events: RunVar[dict[Any, asyncio.Event]] = RunVar("write_events")
+_read_events: RunVar[dict[int, asyncio.Event]] = RunVar("read_events")
+_write_events: RunVar[dict[int, asyncio.Event]] = RunVar("write_events")
 
 
 #
@@ -2671,7 +2675,7 @@ class AsyncIOBackend(AsyncBackend):
         return await get_running_loop().getnameinfo(sockaddr, flags)
 
     @classmethod
-    async def wait_socket_readable(cls, sock: socket.socket) -> None:
+    async def wait_readable(cls, obj: HasFileno | int) -> None:
         await cls.checkpoint()
         try:
             read_events = _read_events.get()
@@ -2679,14 +2683,16 @@ class AsyncIOBackend(AsyncBackend):
             read_events = {}
             _read_events.set(read_events)
 
-        if read_events.get(sock):
+        if not isinstance(obj, int):
+            obj = obj.fileno()
+
+        if read_events.get(obj):
             raise BusyResourceError("reading from") from None
 
         loop = get_running_loop()
-        add_reader = loop.add_reader
         event = read_events[sock] = asyncio.Event()
         try:
-            add_reader(sock, event.set)
+            loop.add_reader(sock, event.set)
         except NotImplementedError:
             # Proactor on Windows does not yet implement add/remove reader
             from ._selector_thread import _get_selector_windows
@@ -2696,6 +2702,7 @@ class AsyncIOBackend(AsyncBackend):
             remove_reader = selector.remove_reader
         else:
             remove_reader = loop.remove_reader
+
         try:
             await event.wait()
         finally:
@@ -2709,7 +2716,7 @@ class AsyncIOBackend(AsyncBackend):
             raise ClosedResourceError
 
     @classmethod
-    async def wait_socket_writable(cls, sock: socket.socket) -> None:
+    async def wait_writable(cls, obj: HasFileno | int) -> None:
         await cls.checkpoint()
         try:
             write_events = _write_events.get()
@@ -2717,14 +2724,16 @@ class AsyncIOBackend(AsyncBackend):
             write_events = {}
             _write_events.set(write_events)
 
-        if write_events.get(sock):
+        if not isinstance(obj, int):
+            obj = obj.fileno()
+
+        if write_events.get(obj):
             raise BusyResourceError("writing to") from None
 
         loop = get_running_loop()
-        add_writer = loop.add_writer
         event = write_events[sock] = asyncio.Event()
         try:
-            add_writer(sock.fileno(), event.set)
+            loop.add_writer(sock.fileno(), event.set)
         except NotImplementedError:
             # Proactor on Windows does not yet implement add/remove writer
             from ._selector_thread import _get_selector_windows
@@ -2734,6 +2743,7 @@ class AsyncIOBackend(AsyncBackend):
             remove_writer = selector.remove_writer
         else:
             remove_writer = loop.remove_writer
+
         try:
             await event.wait()
         finally:
