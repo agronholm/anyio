@@ -1881,12 +1881,13 @@ async def test_wait_socket(
         sock.listen()
         thread = Thread(target=client, args=(port,), daemon=True)
         thread.start()
-        thread.join()
         conn, addr = sock.accept()
         with conn:
             sock_or_fd: HasFileno | int = conn.fileno() if socket_type == "fd" else conn
             with fail_after(10):
                 await wait(sock_or_fd)
+                assert conn.recv(1024) == b"Hello, world"
+        thread.join()
 
 
 async def test_deprecated_wait_socket(anyio_backend_name: str) -> None:
