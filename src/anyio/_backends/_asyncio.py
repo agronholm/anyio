@@ -1722,8 +1722,8 @@ class ConnectedUNIXDatagramSocket(_RawSocketMixin, abc.ConnectedUNIXDatagramSock
                     return
 
 
-_read_events: RunVar[dict[socket.socket | int, asyncio.Event]] = RunVar("read_events")
-_write_events: RunVar[dict[socket.socket | int, asyncio.Event]] = RunVar("write_events")
+_read_events: RunVar[dict[int, asyncio.Event]] = RunVar("read_events")
+_write_events: RunVar[dict[int, asyncio.Event]] = RunVar("write_events")
 
 
 #
@@ -2683,17 +2683,18 @@ class AsyncIOBackend(AsyncBackend):
             read_events = {}
             _read_events.set(read_events)
 
-        if read_events.get(sock):
+        sock_fileno = sock.fileno()
+        if read_events.get(sock_fileno):
             raise BusyResourceError("reading from") from None
 
         loop = get_running_loop()
-        event = read_events[sock] = asyncio.Event()
-        loop.add_reader(sock, event.set)
+        event = read_events[sock_fileno] = asyncio.Event()
+        loop.add_reader(sock_fileno, event.set)
         try:
             await event.wait()
         finally:
-            if read_events.pop(sock, None) is not None:
-                loop.remove_reader(sock)
+            if read_events.pop(sock_fileno, None) is not None:
+                loop.remove_reader(sock_fileno)
                 readable = True
             else:
                 readable = False
@@ -2710,17 +2711,18 @@ class AsyncIOBackend(AsyncBackend):
             write_events = {}
             _write_events.set(write_events)
 
-        if write_events.get(sock):
+        sock_fileno = sock.fileno()
+        if write_events.get(sock_fileno):
             raise BusyResourceError("writing to") from None
 
         loop = get_running_loop()
-        event = write_events[sock] = asyncio.Event()
-        loop.add_writer(sock.fileno(), event.set)
+        event = write_events[sock_fileno] = asyncio.Event()
+        loop.add_writer(sock_fileno, event.set)
         try:
             await event.wait()
         finally:
-            if write_events.pop(sock, None) is not None:
-                loop.remove_writer(sock)
+            if write_events.pop(sock_fileno, None) is not None:
+                loop.remove_writer(sock_fileno)
                 writable = True
             else:
                 writable = False

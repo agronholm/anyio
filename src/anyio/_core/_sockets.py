@@ -11,7 +11,6 @@ from ipaddress import IPv6Address, ip_address
 from os import PathLike, chmod
 from socket import AddressFamily, SocketKind
 from typing import TYPE_CHECKING, Any, Literal, cast, overload
-from warnings import warn
 
 from .. import to_thread
 from ..abc import (
@@ -39,6 +38,11 @@ else:
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
+
+if sys.version_info < (3, 13):
+    from typing_extensions import deprecated
+else:
+    from warnings import deprecated
 
 IPPROTO_IPV6 = getattr(socket, "IPPROTO_IPV6", 41)  # https://bugs.python.org/issue29515
 
@@ -597,6 +601,7 @@ def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Awaitable[tuple[str
     return get_async_backend().getnameinfo(sockaddr, flags)
 
 
+@deprecated("This function is deprecated; use `wait_readable` instead", stacklevel=2)
 def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
     """
     Deprecated, use `wait_readable` instead.
@@ -616,14 +621,10 @@ def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
         to become readable
 
     """
-    warn(
-        "This function is deprecated; use `wait_readable` instead",
-        DeprecationWarning,
-        stacklevel=2,
-    )
     return get_async_backend().wait_socket_readable(sock)
 
 
+@deprecated("This function is deprecated; use `wait_writable` instead", stacklevel=2)
 def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
     """
     Deprecated, use `wait_writable` instead.
@@ -643,11 +644,6 @@ def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
         to become writable
 
     """
-    warn(
-        "This function is deprecated; use `wait_writable` instead",
-        DeprecationWarning,
-        stacklevel=2,
-    )
     return get_async_backend().wait_socket_writable(sock)
 
 
