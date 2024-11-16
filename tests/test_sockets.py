@@ -1861,7 +1861,7 @@ async def test_connect_tcp_getaddrinfo_context() -> None:
 async def test_wait_socket(
     anyio_backend_name: str, event: str, socket_type: str
 ) -> None:
-    if anyio_backend_name == "asyncio" and sys.platform == "win32":
+    if anyio_backend_name == "asyncio" and platform.system() == "Windows":
         import asyncio
 
         policy = asyncio.get_event_loop_policy()
