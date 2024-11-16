@@ -686,7 +686,8 @@ def wait_writable(obj: HasFileno | int) -> Awaitable[None]:
     This does **NOT** work on Windows when using the asyncio backend with a proactor
     event loop (default on py3.8+).
 
-    .. seealso:: See the documentation of :func:`wait_readable` for the definition of ``obj``.
+    .. seealso:: See the documentation of :func:`wait_readable` for the definition of
+       ``obj``.
 
     .. warning:: Only use this on raw sockets that have not been wrapped by any higher
         level constructs like socket streams!
