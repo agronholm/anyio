@@ -628,7 +628,8 @@ def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
 @deprecated("This function is deprecated; use `wait_writable` instead")
 def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
     """
-    Deprecated, use `wait_writable` instead.
+    .. deprecated:: 4.7.0
+       Use :func:`wait_writable` instead.
 
     Wait until the given socket can be written to.
 
