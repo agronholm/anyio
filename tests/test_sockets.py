@@ -1902,6 +1902,7 @@ async def test_deprecated_wait_socket(anyio_backend_name: str) -> None:
             with move_on_after(0.1):
                 await wait_socket_readable(sock)
 
+
         with pytest.warns(
             DeprecationWarning,
             match="This function is deprecated; use `wait_writable` instead",
