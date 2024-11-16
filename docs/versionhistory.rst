@@ -7,10 +7,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Fixed a misleading ``ValueError`` in the context of DNS failures
   (`#815 <https://github.com/agronholm/anyio/issues/815>`_; PR by @graingert)
-- Added ``wait_readable`` and ``wait_writable`` functions that accept an object with a
-  ``.fileno()`` method or an integer handle, and deprecated ``wait_socket_readable``
-  and ``wait_socket_writable``.
-  (`#824 <https://github.com/agronholm/anyio/pull/824>`_; PR by @davidbrochart)
+- Added the ``wait_readable()`` and ``wait_writable()`` functions which will accept
+  an object with a ``.fileno()`` method or an integer handle, and deprecated
+  their now obsolete versions (``wait_socket_readable()`` and
+  ``wait_socket_writable()`` (PR by @davidbrochart)
 
 **4.6.2**
 
