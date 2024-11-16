@@ -2675,62 +2675,6 @@ class AsyncIOBackend(AsyncBackend):
         return await get_running_loop().getnameinfo(sockaddr, flags)
 
     @classmethod
-    async def wait_socket_readable(cls, sock: socket.socket) -> None:
-        await cls.checkpoint()
-        try:
-            read_events = _read_events.get()
-        except LookupError:
-            read_events = {}
-            _read_events.set(read_events)
-
-        sock_fileno = sock.fileno()
-        if read_events.get(sock_fileno):
-            raise BusyResourceError("reading from") from None
-
-        loop = get_running_loop()
-        event = read_events[sock_fileno] = asyncio.Event()
-        loop.add_reader(sock_fileno, event.set)
-        try:
-            await event.wait()
-        finally:
-            if read_events.pop(sock_fileno, None) is not None:
-                loop.remove_reader(sock_fileno)
-                readable = True
-            else:
-                readable = False
-
-        if not readable:
-            raise ClosedResourceError
-
-    @classmethod
-    async def wait_socket_writable(cls, sock: socket.socket) -> None:
-        await cls.checkpoint()
-        try:
-            write_events = _write_events.get()
-        except LookupError:
-            write_events = {}
-            _write_events.set(write_events)
-
-        sock_fileno = sock.fileno()
-        if write_events.get(sock_fileno):
-            raise BusyResourceError("writing to") from None
-
-        loop = get_running_loop()
-        event = write_events[sock_fileno] = asyncio.Event()
-        loop.add_writer(sock_fileno, event.set)
-        try:
-            await event.wait()
-        finally:
-            if write_events.pop(sock_fileno, None) is not None:
-                loop.remove_writer(sock_fileno)
-                writable = True
-            else:
-                writable = False
-
-        if not writable:
-            raise ClosedResourceError
-
-    @classmethod
     async def wait_readable(cls, obj: HasFileno | int) -> None:
         await cls.checkpoint()
         try:

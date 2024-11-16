@@ -601,7 +601,7 @@ def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Awaitable[tuple[str
     return get_async_backend().getnameinfo(sockaddr, flags)
 
 
-@deprecated("This function is deprecated; use `wait_readable` instead", stacklevel=2)
+@deprecated("This function is deprecated; use `wait_readable` instead")
 def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
     """
     Deprecated, use `wait_readable` instead.
@@ -621,10 +621,10 @@ def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
         to become readable
 
     """
-    return get_async_backend().wait_socket_readable(sock)
+    return get_async_backend().wait_readable(sock.fileno())
 
 
-@deprecated("This function is deprecated; use `wait_writable` instead", stacklevel=2)
+@deprecated("This function is deprecated; use `wait_writable` instead")
 def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
     """
     Deprecated, use `wait_writable` instead.
@@ -644,7 +644,7 @@ def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
         to become writable
 
     """
-    return get_async_backend().wait_socket_writable(sock)
+    return get_async_backend().wait_writable(sock.fileno())
 
 
 def wait_readable(obj: HasFileno | int) -> Awaitable[None]:

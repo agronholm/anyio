@@ -335,16 +335,6 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    async def wait_socket_readable(cls, sock: socket) -> None:
-        pass
-
-    @classmethod
-    @abstractmethod
-    async def wait_socket_writable(cls, sock: socket) -> None:
-        pass
-
-    @classmethod
-    @abstractmethod
     async def wait_readable(cls, obj: HasFileno | int) -> None:
         pass
 

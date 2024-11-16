@@ -1264,24 +1264,6 @@ class TrioBackend(AsyncBackend):
         return await trio.socket.getnameinfo(sockaddr, flags)
 
     @classmethod
-    async def wait_socket_readable(cls, sock: socket.socket) -> None:
-        try:
-            await wait_readable(sock)
-        except trio.ClosedResourceError as exc:
-            raise ClosedResourceError().with_traceback(exc.__traceback__) from None
-        except trio.BusyResourceError:
-            raise BusyResourceError("reading from") from None
-
-    @classmethod
-    async def wait_socket_writable(cls, sock: socket.socket) -> None:
-        try:
-            await wait_writable(sock)
-        except trio.ClosedResourceError as exc:
-            raise ClosedResourceError().with_traceback(exc.__traceback__) from None
-        except trio.BusyResourceError:
-            raise BusyResourceError("writing to") from None
-
-    @classmethod
     async def wait_readable(cls, obj: HasFileno | int) -> None:
         try:
             await wait_readable(obj)
