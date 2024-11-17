@@ -1861,13 +1861,6 @@ async def test_connect_tcp_getaddrinfo_context() -> None:
 async def test_wait_socket(
     anyio_backend_name: str, event: str, socket_type: str
 ) -> None:
-    if anyio_backend_name == "asyncio" and platform.system() == "Windows":
-        import asyncio
-
-        policy = asyncio.get_event_loop_policy()
-        if policy.__class__.__name__ == "WindowsProactorEventLoopPolicy":
-            pytest.skip("Does not work on asyncio/Windows/ProactorEventLoop")
-
     wait = wait_readable if event == "readable" else wait_writable
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_sock:

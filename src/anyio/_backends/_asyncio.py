@@ -2690,15 +2690,15 @@ class AsyncIOBackend(AsyncBackend):
             raise BusyResourceError("reading from") from None
 
         loop = get_running_loop()
-        event = read_events[sock] = asyncio.Event()
+        event = read_events[obj] = asyncio.Event()
         try:
-            loop.add_reader(sock, event.set)
+            loop.add_reader(obj, event.set)
         except NotImplementedError:
             # Proactor on Windows does not yet implement add/remove reader
             from ._selector_thread import _get_selector_windows
 
             selector = _get_selector_windows(loop)
-            selector.add_reader(sock, event.set)
+            selector.add_reader(obj, event.set)
             remove_reader = selector.remove_reader
         else:
             remove_reader = loop.remove_reader
@@ -2706,8 +2706,8 @@ class AsyncIOBackend(AsyncBackend):
         try:
             await event.wait()
         finally:
-            if read_events.pop(sock, None) is not None:
-                remove_reader(sock)
+            if read_events.pop(obj, None) is not None:
+                remove_reader(obj)
                 readable = True
             else:
                 readable = False
@@ -2731,15 +2731,15 @@ class AsyncIOBackend(AsyncBackend):
             raise BusyResourceError("writing to") from None
 
         loop = get_running_loop()
-        event = write_events[sock] = asyncio.Event()
+        event = write_events[obj] = asyncio.Event()
         try:
-            loop.add_writer(sock.fileno(), event.set)
+            loop.add_writer(obj, event.set)
         except NotImplementedError:
             # Proactor on Windows does not yet implement add/remove writer
             from ._selector_thread import _get_selector_windows
 
             selector = _get_selector_windows(loop)
-            selector.add_writer(sock, event.set)
+            selector.add_writer(obj, event.set)
             remove_writer = selector.remove_writer
         else:
             remove_writer = loop.remove_writer
@@ -2747,8 +2747,8 @@ class AsyncIOBackend(AsyncBackend):
         try:
             await event.wait()
         finally:
-            if write_events.pop(sock, None) is not None:
-                remove_writer(sock)
+            if write_events.pop(obj, None) is not None:
+                remove_writer(obj)
                 writable = True
             else:
                 writable = False
