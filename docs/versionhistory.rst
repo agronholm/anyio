@@ -11,6 +11,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   an object with a ``.fileno()`` method or an integer handle, and deprecated
   their now obsolete versions (``wait_socket_readable()`` and
   ``wait_socket_writable()`` (PR by @davidbrochart)
+- Fixed the return type annotations of ``readinto()`` and ``readinto1()`` methods in the
+  ``anyio.AsyncFile`` class
+  (`#825 <https://github.com/agronholm/anyio/issues/825>`_)
 
 **4.6.2**
 
