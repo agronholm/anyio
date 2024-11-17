@@ -1858,9 +1858,7 @@ async def test_connect_tcp_getaddrinfo_context() -> None:
 
 @pytest.mark.parametrize("socket_type", ["socket", "fd"])
 @pytest.mark.parametrize("event", ["readable", "writable"])
-async def test_wait_socket(
-    anyio_backend_name: str, event: str, socket_type: str
-) -> None:
+async def test_wait_socket(event: str, socket_type: str) -> None:
     wait = wait_readable if event == "readable" else wait_writable
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_sock:
