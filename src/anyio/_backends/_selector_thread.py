@@ -12,12 +12,10 @@ import functools
 import select
 import socket
 import threading
-import typing
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Union,
 )
 from weakref import WeakKeyDictionary
 
