@@ -14,6 +14,7 @@ import socket
 import threading
 import typing
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Union,
@@ -22,14 +23,10 @@ from weakref import WeakKeyDictionary
 
 from ._asyncio import find_root_task
 
-if typing.TYPE_CHECKING:
-    from typing_extensions import Protocol
+if TYPE_CHECKING:
+    from _typeshed import HasFileno
 
-    class _HasFileno(Protocol):
-        def fileno(self) -> int:
-            pass
-
-    _FileDescriptorLike = Union[int, _HasFileno]
+    _FileDescriptorLike = HasFileno | int
 
 
 # registry of asyncio loop : selector thread
