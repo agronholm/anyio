@@ -1714,7 +1714,9 @@ class TestTaskStatusTyping:
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_eager_task_factory(request: FixtureRequest) -> None:
     async def sync_coro() -> None:
-        pass
+        # This should trigger fetching the task state
+        with CancelScope():  # noqa: ASYNC100
+            pass
 
     loop = asyncio.get_running_loop()
     old_task_factory = loop.get_task_factory()
