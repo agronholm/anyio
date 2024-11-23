@@ -16,7 +16,7 @@ from pathlib import Path
 from socket import AddressFamily
 from ssl import SSLContext, SSLError
 from threading import Thread
-from typing import Any, NoReturn, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Literal, NoReturn, TypeVar, cast
 
 import psutil
 import pytest
@@ -46,6 +46,10 @@ from anyio import (
     getnameinfo,
     move_on_after,
     wait_all_tasks_blocked,
+    wait_readable,
+    wait_socket_readable,
+    wait_socket_writable,
+    wait_writable,
 )
 from anyio.abc import (
     IPSockAddrType,
@@ -60,7 +64,8 @@ from anyio.streams.stapled import MultiListener
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
-from typing import Literal
+if TYPE_CHECKING:
+    from _typeshed import HasFileno
 
 AnyIPAddressFamily = Literal[
     AddressFamily.AF_UNSPEC, AddressFamily.AF_INET, AddressFamily.AF_INET6
@@ -1849,3 +1854,57 @@ async def test_connect_tcp_getaddrinfo_context() -> None:
             pass
 
     assert exc_info.value.__context__ is None
+
+
+@pytest.mark.parametrize("socket_type", ["socket", "fd"])
+@pytest.mark.parametrize("event", ["readable", "writable"])
+async def test_wait_socket(
+    anyio_backend_name: str, event: str, socket_type: str
+) -> None:
+    if anyio_backend_name == "asyncio" and platform.system() == "Windows":
+        import asyncio
+
+        policy = asyncio.get_event_loop_policy()
+        if policy.__class__.__name__ == "WindowsProactorEventLoopPolicy":
+            pytest.skip("Does not work on asyncio/Windows/ProactorEventLoop")
+
+    wait = wait_readable if event == "readable" else wait_writable
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_sock:
+        server_sock.bind(("127.0.0.1", 0))
+        port = server_sock.getsockname()[1]
+        server_sock.listen()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_sock:
+            client_sock.connect(("127.0.0.1", port))
+            client_sock.sendall(b"Hello, world")
+
+        conn, addr = server_sock.accept()
+        with conn:
+            sock_or_fd: HasFileno | int = conn.fileno() if socket_type == "fd" else conn
+            with fail_after(10):
+                await wait(sock_or_fd)
+                assert conn.recv(1024) == b"Hello, world"
+
+
+async def test_deprecated_wait_socket(anyio_backend_name: str) -> None:
+    if anyio_backend_name == "asyncio" and platform.system() == "Windows":
+        import asyncio
+
+        policy = asyncio.get_event_loop_policy()
+        if policy.__class__.__name__ == "WindowsProactorEventLoopPolicy":
+            pytest.skip("Does not work on asyncio/Windows/ProactorEventLoop")
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        with pytest.warns(
+            DeprecationWarning,
+            match="This function is deprecated; use `wait_readable` instead",
+        ):
+            with move_on_after(0.1):
+                await wait_socket_readable(sock)
+
+        with pytest.warns(
+            DeprecationWarning,
+            match="This function is deprecated; use `wait_writable` instead",
+        ):
+            with move_on_after(0.1):
+                await wait_socket_writable(sock)
