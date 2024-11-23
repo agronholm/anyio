@@ -86,7 +86,7 @@ This is done by using :func:`.to_process.run_sync`::
         result = await to_process.run_sync(cpu_intensive_function, 'Hello, ', 'world!')
         print(result)
 
-    # This check is important when the application uses run_sync_in_process()
+    # This check is important when the application uses to_process.run_sync()
     if __name__ == '__main__':
         run(main)
 
