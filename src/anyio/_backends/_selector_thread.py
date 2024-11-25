@@ -6,12 +6,12 @@ Redistributed under license Apache-2.0
 
 from __future__ import annotations
 
-import asyncio
 import errno
-import functools
-import select
-import socket
-import threading
+from asyncio import AbstractEventLoop, Future
+from functools import partial
+from select import select
+from socket import socketpair
+from threading import Condition, Thread
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -27,29 +27,16 @@ if TYPE_CHECKING:
     _FileDescriptorLike = HasFileno | int
 
 
-# registry of asyncio loop : selector thread
+# Registry of asyncio loop : selector thread
 _selectors: WeakKeyDictionary = WeakKeyDictionary()
 
-# Collection of selector thread event loops to shut down on exit.
-_selector_loops: set[SelectorThread] = set()
+# Collection of selector threads to shut down on exit
+_selector_threads: set[SelectorThread] = set()
 
 
-def _at_loop_close_callback(future: asyncio.Future) -> None:
-    for loop in _selector_loops:
-        with loop._select_cond:
-            loop._closing_selector = True
-            loop._select_cond.notify()
-        try:
-            loop._waker_w.send(b"a")
-        except BlockingIOError:
-            pass
-        # If we don't join our (daemon) thread here, we may get a deadlock
-        # during interpreter shutdown. I don't really understand why. This
-        # deadlock happens every time in CI (both travis and appveyor) but
-        # I've never been able to reproduce locally.
-        assert loop._thread is not None
-        loop._thread.join()
-    _selector_loops.clear()
+def _loop_close_callback(asyncio_loop: AbstractEventLoop, future: Future) -> None:
+    selector_thread = _selectors.pop(asyncio_loop)
+    selector_thread.close()
 
 
 # SelectorThread from tornado 6.4.0
@@ -66,25 +53,25 @@ class SelectorThread:
 
     _closed = False
 
-    def __init__(self, real_loop: asyncio.AbstractEventLoop) -> None:
+    def __init__(self, real_loop: AbstractEventLoop) -> None:
         self._real_loop = real_loop
 
-        self._select_cond = threading.Condition()
+        self._select_cond = Condition()
         self._select_args: (
             tuple[list[_FileDescriptorLike], list[_FileDescriptorLike]] | None
         ) = None
         self._closing_selector = False
-        self._thread: threading.Thread | None = None
+        self._thread: Thread | None = None
 
         self._readers: dict[_FileDescriptorLike, Callable] = {}
         self._writers: dict[_FileDescriptorLike, Callable] = {}
 
         # Writing to _waker_w will wake up the selector thread, which
         # watches for _waker_r to be readable.
-        self._waker_r, self._waker_w = socket.socketpair()
+        self._waker_r, self._waker_w = socketpair()
         self._waker_r.setblocking(False)
         self._waker_w.setblocking(False)
-        _selector_loops.add(self)
+        _selector_threads.add(self)
         self.add_reader(self._waker_r, self._consume_waker)
         self._thread_manager()
 
@@ -97,7 +84,7 @@ class SelectorThread:
         self._wake_selector()
         if self._thread is not None:
             self._thread.join()
-        _selector_loops.discard(self)
+        _selector_threads.discard(self)
         self.remove_reader(self._waker_r)
         self._waker_r.close()
         self._waker_w.close()
@@ -109,7 +96,7 @@ class SelectorThread:
         # that due to the order of operations at shutdown, only daemon threads
         # can be shut down in this way (non-daemon threads would require the
         # introduction of a new hook: https://bugs.python.org/issue41962)
-        self._thread = threading.Thread(
+        self._thread = Thread(
             name="AnyIO selector",
             daemon=True,
             target=self._run_select,
@@ -166,7 +153,7 @@ class SelectorThread:
                 #
                 # This pattern is also used in
                 # https://github.com/python/cpython/blob/v3.8.0/Lib/selectors.py#L312-L317
-                rs, ws, xs = select.select(to_read, to_write, to_write)
+                rs, ws, xs = select(to_read, to_write, to_write)
                 ws = ws + xs
             except OSError as e:
                 # After remove_reader or remove_writer is called, the file
@@ -181,7 +168,7 @@ class SelectorThread:
                 # descriptors on the next iteration. Otherwise, raise the
                 # original error.
                 if e.errno == getattr(errno, "WSAENOTSOCK", errno.EBADF):
-                    rs, _, _ = select.select([self._waker_r.fileno()], [], [], 0)
+                    rs, _, _ = select([self._waker_r.fileno()], [], [], 0)
                     if rs:
                         ws = []
                     else:
@@ -227,13 +214,13 @@ class SelectorThread:
     def add_reader(
         self, fd: _FileDescriptorLike, callback: Callable[..., None], *args: Any
     ) -> None:
-        self._readers[fd] = functools.partial(callback, *args)
+        self._readers[fd] = partial(callback, *args)
         self._wake_selector()
 
     def add_writer(
         self, fd: _FileDescriptorLike, callback: Callable[..., None], *args: Any
     ) -> None:
-        self._writers[fd] = functools.partial(callback, *args)
+        self._writers[fd] = partial(callback, *args)
         self._wake_selector()
 
     def remove_reader(self, fd: _FileDescriptorLike) -> bool:
@@ -254,7 +241,7 @@ class SelectorThread:
 
 
 def _get_selector_windows(
-    asyncio_loop: asyncio.AbstractEventLoop,
+    asyncio_loop: AbstractEventLoop,
 ) -> SelectorThread:
     """Get selector-compatible loop.
 
@@ -262,24 +249,9 @@ def _get_selector_windows(
 
     Workaround Windows proactor removal of *reader methods.
     """
-
     if asyncio_loop in _selectors:
         return _selectors[asyncio_loop]
 
-    find_root_task().add_done_callback(_at_loop_close_callback)
+    find_root_task().add_done_callback(partial(_loop_close_callback, asyncio_loop))
     selector_thread = _selectors[asyncio_loop] = SelectorThread(asyncio_loop)
-
-    # patch loop.close to also close the selector thread
-    loop_close = asyncio_loop.close
-
-    def _close_selector_and_loop() -> None:
-        # restore original before calling selector.close,
-        # which in turn calls eventloop.close!
-        asyncio_loop.close = loop_close  # type: ignore[method-assign]
-        _selectors.pop(asyncio_loop, None)
-        selector_thread.close()
-        asyncio_loop.close()
-
-    asyncio_loop.close = _close_selector_and_loop  # type: ignore[method-assign]
-
     return selector_thread
