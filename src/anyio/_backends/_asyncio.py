@@ -415,8 +415,10 @@ class CancelScope(BaseCancelScope):
             self._parent_scope = task_state.cancel_scope
             task_state.cancel_scope = self
             if self._parent_scope is not None:
+                # If using an eager task factory, the parent scope may not even contain
+                # the host task
                 self._parent_scope._child_scopes.add(self)
-                self._parent_scope._tasks.remove(host_task)
+                self._parent_scope._tasks.discard(host_task)
 
         self._timeout()
         self._active = True
