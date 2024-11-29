@@ -5,7 +5,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
-- Added support for asyncio's eager task factories:
+- Improved compatibility with asyncio's eager task factories:
 
   * Updated the annotation of ``TaskInfo.coro`` to allow it to be ``None``
   * Updated ``TaskGroup`` to work with asyncio eager task factories
