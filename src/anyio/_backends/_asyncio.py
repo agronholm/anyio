@@ -675,12 +675,12 @@ class TaskState:
         self.cancel_scope = cancel_scope
 
 
-class TaskStateStore(MutableMapping["Awaitable[Any] | asyncio.Task | None", TaskState]):
+class TaskStateStore(MutableMapping["Awaitable[Any] | asyncio.Task", TaskState]):
     def __init__(self) -> None:
         self._task_states = WeakKeyDictionary[asyncio.Task, TaskState]()
         self._preliminary_task_states: dict[Awaitable[Any], TaskState] = {}
 
-    def __getitem__(self, key: Awaitable[Any] | asyncio.Task | None, /) -> TaskState:
+    def __getitem__(self, key: Awaitable[Any] | asyncio.Task, /) -> TaskState:
         assert isinstance(key, asyncio.Task)
         try:
             return self._task_states[key]
@@ -692,20 +692,16 @@ class TaskStateStore(MutableMapping["Awaitable[Any] | asyncio.Task | None", Task
         raise KeyError(key)
 
     def __setitem__(
-        self, key: asyncio.Task | Awaitable[Any] | None, value: TaskState, /
+        self, key: asyncio.Task | Awaitable[Any], value: TaskState, /
     ) -> None:
         if isinstance(key, asyncio.Task):
             self._task_states[key] = value
-        elif key is None:
-            raise ValueError("cannot insert None")
         else:
             self._preliminary_task_states[key] = value
 
-    def __delitem__(self, key: asyncio.Task | Awaitable[Any] | None, /) -> None:
+    def __delitem__(self, key: asyncio.Task | Awaitable[Any], /) -> None:
         if isinstance(key, asyncio.Task):
             del self._task_states[key]
-        elif key is None:
-            raise KeyError(key)
         else:
             del self._preliminary_task_states[key]
 
@@ -2399,8 +2395,11 @@ class AsyncIOBackend(AsyncBackend):
 
     @classmethod
     def current_effective_deadline(cls) -> float:
+        if (task := current_task()) is None:
+            return math.inf
+
         try:
-            cancel_scope = _task_states[current_task()].cancel_scope
+            cancel_scope = _task_states[task].cancel_scope
         except KeyError:
             return math.inf
 
