@@ -2142,7 +2142,9 @@ class AsyncIOTaskInfo(TaskInfo):
         else:
             parent_id = task_state.parent_id
 
-        super().__init__(id(task), parent_id, task.get_name(), task.get_coro())
+        coro = task.get_coro()
+        assert coro is not None, "created TaskInfo from a completed Task"
+        super().__init__(id(task), parent_id, task.get_name(), coro)
         self._task = weakref.ref(task)
 
     def has_pending_cancellation(self) -> bool:
