@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.10", "3.12"]
+        python-version: ["3.9", "3.13"]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,7 +37,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.10", "3.12"]
+        python-version: ["3.9", "3.13"]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,7 +63,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.11"]
+        python-version: ["3.9", "3.13"]
+    env:
+      UV_SYSTEM_PYTHON: 1
     steps:
       - uses: actions/checkout@v4
         with:
@@ -71,17 +73,22 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "${{ matrix.python-version }}"
-          allow-prereleases: true
-          cache: pip
-          cache-dependency-path: |
-            requirements-tests.txt
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.4.15"
+          enable-cache: true
+          cache-dependency-glob: |
+            requirements**.txt
             pyproject.toml
       - name: Install dependencies
         run: |
-          pip install -r requirements-tests.txt
-          pip install anyio[trio]@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
+          uv pip install -r requirements-tests.txt
+          uv pip install anyio[trio]@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
       - name: Run tests
-        run: bash scripts/test.sh
+        run: pytest -W ignore::ResourceWarning
+        env:
+          PYTHONPATH: ./docs_src
 
   litestar:
     name: "Litestar on Python ${{ matrix.python-version }}"
@@ -89,21 +96,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.10", "3.12"]
+        python-version: ["3.9", "3.12"]
     steps:
       - uses: actions/checkout@v4
         with:
           repository: litestar-org/litestar
-      - uses: pdm-project/setup-pdm@v3
-        name: Set up PDM
+      - name: Set up python ${{ inputs.python-version }}
+        uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-          allow-python-prereleases: false
-          cache: true
-          cache-dependency-path: pdm.lock
+          python-version: ${{ inputs.python-version }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "0.5.4"
+          enable-cache: true
       - name: Install dependencies
         run: |
-          pdm install -G:all
-          pdm add --no-lock --update-reuse-installed anyio[trio]@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
+          uv sync
+          uv pip install anyio[trio]@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
       - name: Test
-        run: pdm run pytest docs/examples tests -n auto
+        run: uv run pytest docs/examples tests -n auto
