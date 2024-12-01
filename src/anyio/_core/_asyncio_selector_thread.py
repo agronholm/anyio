@@ -97,6 +97,7 @@ class Selector:
         while True:
             for key, events in self._selector.select():
                 if key is self._notify_key:
+                    self._selector.unregister(key.fd)
                     self._receive.close()
                     return
 
