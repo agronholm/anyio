@@ -107,7 +107,7 @@ class Selector:
                     continue
 
                 if events & EVENT_READ:
-                    loop, callback = key.data
+                    loop, callback = key.data[EVENT_READ]
                     self.remove_reader(key.fd)
                     try:
                         loop.call_soon_threadsafe(callback)
@@ -115,7 +115,7 @@ class Selector:
                         pass  # the loop was already closed
 
                 if events & EVENT_WRITE:
-                    loop, callback = key.data
+                    loop, callback = key.data[EVENT_WRITE]
                     self.remove_writer(key.fd)
                     try:
                         loop.call_soon_threadsafe(callback)
