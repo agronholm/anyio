@@ -68,7 +68,7 @@ class Selector:
 
             key.data[EVENT_WRITE] = callback
             self._selector.modify(fd, key.events | EVENT_WRITE, key.data)
-         
+
         self._send.send(b"\x00")
 
     def remove_reader(self, fd: FileDescriptorLike) -> bool:
