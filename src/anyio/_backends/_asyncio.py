@@ -98,7 +98,6 @@ from ..abc import (
 from ..abc._eventloop import StrOrBytesPath
 from ..lowlevel import RunVar
 from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
-from ._selector_thread import _get_selector_windows
 
 if sys.version_info >= (3, 10):
     from typing import ParamSpec
@@ -2684,19 +2683,17 @@ class AsyncIOBackend(AsyncBackend):
             raise BusyResourceError("reading from") from None
 
         loop = get_running_loop()
-        if (
-            sys.platform == "win32"
-            and asyncio.get_event_loop_policy().__class__.__name__
-            == "WindowsProactorEventLoopPolicy"
-        ):
-            selector = _get_selector_windows(loop)
-            add_reader = selector.add_reader
-            remove_reader = selector.remove_reader
-        else:
-            add_reader = loop.add_reader
-            remove_reader = loop.remove_reader
         event = read_events[sock] = asyncio.Event()
-        add_reader(sock, event.set)
+        try:
+            loop.add_reader(sock, event.set)
+            remove_reader = loop.remove_reader
+        except NotImplementedError:
+            from anyio._core._asyncio_selector_thread import get_selector
+
+            selector = get_selector(loop)
+            selector.add_reader(sock, event.set)
+            remove_reader = selector.remove_reader
+
         try:
             await event.wait()
         finally:
@@ -2723,12 +2720,21 @@ class AsyncIOBackend(AsyncBackend):
 
         loop = get_running_loop()
         event = write_events[sock] = asyncio.Event()
-        loop.add_writer(sock.fileno(), event.set)
+        try:
+            loop.add_writer(sock, event.set)
+            remove_writer = loop.remove_writer
+        except NotImplementedError:
+            from anyio._core._asyncio_selector_thread import get_selector
+
+            selector = get_selector(loop)
+            selector.add_writer(sock, event.set)
+            remove_writer = selector.remove_writer
+
         try:
             await event.wait()
         finally:
             if write_events.pop(sock, None) is not None:
-                loop.remove_writer(sock)
+                remove_writer(sock)
                 writable = True
             else:
                 writable = False
