@@ -10,7 +10,8 @@ from collections.abc import AsyncGenerator, Coroutine, Generator
 from typing import Any, NoReturn, cast
 
 import pytest
-from exceptiongroup import ExceptionGroup, catch
+from exceptiongroup import catch
+from pytest import FixtureRequest
 from pytest_mock import MockerFixture
 
 import anyio
@@ -783,7 +784,7 @@ async def test_cancel_host_asyncgen() -> None:
     host_agen = host_agen_fn()
     try:
         loop = asyncio.get_running_loop()
-        await loop.create_task(host_agen.__anext__())  # type: ignore[arg-type]
+        await loop.create_task(host_agen.__anext__())
     finally:
         await host_agen.aclose()
 
@@ -1704,3 +1705,24 @@ class TestTaskStatusTyping:
         task_status: TaskStatus[int] = TASK_STATUS_IGNORED,
     ) -> None:
         task_status.started(1)
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 12),
+    reason="Eager task factories require Python 3.12",
+)
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_eager_task_factory(request: FixtureRequest) -> None:
+    async def sync_coro() -> None:
+        # This should trigger fetching the task state
+        with CancelScope():  # noqa: ASYNC100
+            pass
+
+    loop = asyncio.get_running_loop()
+    old_task_factory = loop.get_task_factory()
+    loop.set_task_factory(asyncio.eager_task_factory)
+    request.addfinalizer(lambda: loop.set_task_factory(old_task_factory))
+
+    async with create_task_group() as tg:
+        tg.start_soon(sync_coro)
+        tg.cancel_scope.cancel()

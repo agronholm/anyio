@@ -127,8 +127,10 @@ Sockets and networking
 .. autofunction:: anyio.create_connected_udp_socket
 .. autofunction:: anyio.getaddrinfo
 .. autofunction:: anyio.getnameinfo
+.. autofunction:: anyio.wait_readable
 .. autofunction:: anyio.wait_socket_readable
 .. autofunction:: anyio.wait_socket_writable
+.. autofunction:: anyio.wait_writable
 
 .. autoclass:: anyio.abc.SocketAttribute
 .. autoclass:: anyio.abc.SocketStream()

@@ -107,7 +107,7 @@ In some specific cases, you might only want to catch the cancellation exception.
 tricky because each async framework has its own exception class for that and AnyIO
 cannot control which exception is raised in the task when it's cancelled. To work around
 that, AnyIO provides a way to retrieve the exception class specific to the currently
-running async framework, using:func:`~get_cancelled_exc_class`::
+running async framework, using :func:`~get_cancelled_exc_class`::
 
     from anyio import get_cancelled_exc_class
 

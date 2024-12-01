@@ -39,6 +39,18 @@ class TestAsyncFile:
         assert f.closed
         assert data == testdata
 
+    async def test_readinto(self, testdatafile: pathlib.Path, testdata: bytes) -> None:
+        buffer = bytearray(100)
+        async with await open_file(testdatafile, "rb") as f:
+            assert await f.readinto(buffer) == 100
+            assert bytes(buffer) == testdata[:100]
+
+    async def test_readinto1(self, testdatafile: pathlib.Path, testdata: bytes) -> None:
+        buffer = bytearray(100)
+        async with await open_file(testdatafile, "rb") as f:
+            assert await f.readinto1(buffer) == 100
+            assert bytes(buffer) == testdata[:100]
+
     async def test_write(self, testdatafile: pathlib.Path, testdata: bytes) -> None:
         async with await open_file(testdatafile, "ab") as f:
             await f.write(b"f" * 1000)

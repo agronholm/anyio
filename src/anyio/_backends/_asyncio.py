@@ -28,6 +28,8 @@ from collections.abc import (
     Collection,
     Coroutine,
     Iterable,
+    Iterator,
+    MutableMapping,
     Sequence,
 )
 from concurrent.futures import Future
@@ -50,6 +52,7 @@ from threading import Thread
 from types import TracebackType
 from typing import (
     IO,
+    TYPE_CHECKING,
     Any,
     Optional,
     TypeVar,
@@ -98,6 +101,11 @@ from ..abc import (
 from ..abc._eventloop import StrOrBytesPath
 from ..lowlevel import RunVar
 from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+
+if TYPE_CHECKING:
+    from _typeshed import FileDescriptorLike
+else:
+    FileDescriptorLike = object
 
 if sys.version_info >= (3, 10):
     from typing import ParamSpec
@@ -347,8 +355,12 @@ _run_vars: WeakKeyDictionary[asyncio.AbstractEventLoop, Any] = WeakKeyDictionary
 
 def _task_started(task: asyncio.Task) -> bool:
     """Return ``True`` if the task has been started and has not finished."""
+    # The task coro should never be None here, as we never add finished tasks to the
+    # task list
+    coro = task.get_coro()
+    assert coro is not None
     try:
-        return getcoroutinestate(task.get_coro()) in (CORO_RUNNING, CORO_SUSPENDED)
+        return getcoroutinestate(coro) in (CORO_RUNNING, CORO_SUSPENDED)
     except AttributeError:
         # task coro is async_genenerator_asend https://bugs.python.org/issue37771
         raise Exception(f"Cannot determine if task {task} has started or not") from None
@@ -405,8 +417,10 @@ class CancelScope(BaseCancelScope):
             self._parent_scope = task_state.cancel_scope
             task_state.cancel_scope = self
             if self._parent_scope is not None:
+                # If using an eager task factory, the parent scope may not even contain
+                # the host task
                 self._parent_scope._child_scopes.add(self)
-                self._parent_scope._tasks.remove(host_task)
+                self._parent_scope._tasks.discard(host_task)
 
         self._timeout()
         self._active = True
@@ -663,7 +677,45 @@ class TaskState:
         self.cancel_scope = cancel_scope
 
 
-_task_states: WeakKeyDictionary[asyncio.Task, TaskState] = WeakKeyDictionary()
+class TaskStateStore(MutableMapping["Awaitable[Any] | asyncio.Task", TaskState]):
+    def __init__(self) -> None:
+        self._task_states = WeakKeyDictionary[asyncio.Task, TaskState]()
+        self._preliminary_task_states: dict[Awaitable[Any], TaskState] = {}
+
+    def __getitem__(self, key: Awaitable[Any] | asyncio.Task, /) -> TaskState:
+        assert isinstance(key, asyncio.Task)
+        try:
+            return self._task_states[key]
+        except KeyError:
+            if coro := key.get_coro():
+                if state := self._preliminary_task_states.get(coro):
+                    return state
+
+        raise KeyError(key)
+
+    def __setitem__(
+        self, key: asyncio.Task | Awaitable[Any], value: TaskState, /
+    ) -> None:
+        if isinstance(key, asyncio.Task):
+            self._task_states[key] = value
+        else:
+            self._preliminary_task_states[key] = value
+
+    def __delitem__(self, key: asyncio.Task | Awaitable[Any], /) -> None:
+        if isinstance(key, asyncio.Task):
+            del self._task_states[key]
+        else:
+            del self._preliminary_task_states[key]
+
+    def __len__(self) -> int:
+        return len(self._task_states) + len(self._preliminary_task_states)
+
+    def __iter__(self) -> Iterator[Awaitable[Any] | asyncio.Task]:
+        yield from self._task_states
+        yield from self._preliminary_task_states
+
+
+_task_states = TaskStateStore()
 
 
 #
@@ -783,7 +835,7 @@ class TaskGroup(abc.TaskGroup):
         task_status_future: asyncio.Future | None = None,
     ) -> asyncio.Task:
         def task_done(_task: asyncio.Task) -> None:
-            task_state = _task_states[_task]
+            # task_state = _task_states[_task]
             assert task_state.cancel_scope is not None
             assert _task in task_state.cancel_scope._tasks
             task_state.cancel_scope._tasks.remove(_task)
@@ -840,16 +892,26 @@ class TaskGroup(abc.TaskGroup):
                 f"the return value ({coro!r}) is not a coroutine object"
             )
 
-        name = get_callable_name(func) if name is None else str(name)
-        task = create_task(coro, name=name)
-        task.add_done_callback(task_done)
-
         # Make the spawned task inherit the task group's cancel scope
-        _task_states[task] = TaskState(
+        _task_states[coro] = task_state = TaskState(
             parent_id=parent_id, cancel_scope=self.cancel_scope
         )
+        name = get_callable_name(func) if name is None else str(name)
+        try:
+            task = create_task(coro, name=name)
+        finally:
+            del _task_states[coro]
+
+        _task_states[task] = task_state
         self.cancel_scope._tasks.add(task)
         self._tasks.add(task)
+
+        if task.done():
+            # This can happen with eager task factories
+            task_done(task)
+        else:
+            task.add_done_callback(task_done)
+
         return task
 
     def start_soon(
@@ -1718,8 +1780,8 @@ class ConnectedUNIXDatagramSocket(_RawSocketMixin, abc.ConnectedUNIXDatagramSock
                     return
 
 
-_read_events: RunVar[dict[Any, asyncio.Event]] = RunVar("read_events")
-_write_events: RunVar[dict[Any, asyncio.Event]] = RunVar("write_events")
+_read_events: RunVar[dict[int, asyncio.Event]] = RunVar("read_events")
+_write_events: RunVar[dict[int, asyncio.Event]] = RunVar("write_events")
 
 
 #
@@ -2082,7 +2144,9 @@ class AsyncIOTaskInfo(TaskInfo):
         else:
             parent_id = task_state.parent_id
 
-        super().__init__(id(task), parent_id, task.get_name(), task.get_coro())
+        coro = task.get_coro()
+        assert coro is not None, "created TaskInfo from a completed Task"
+        super().__init__(id(task), parent_id, task.get_name(), coro)
         self._task = weakref.ref(task)
 
     def has_pending_cancellation(self) -> bool:
@@ -2335,10 +2399,11 @@ class AsyncIOBackend(AsyncBackend):
 
     @classmethod
     def current_effective_deadline(cls) -> float:
+        if (task := current_task()) is None:
+            return math.inf
+
         try:
-            cancel_scope = _task_states[
-                current_task()  # type: ignore[index]
-            ].cancel_scope
+            cancel_scope = _task_states[task].cancel_scope
         except KeyError:
             return math.inf
 
@@ -2671,7 +2736,7 @@ class AsyncIOBackend(AsyncBackend):
         return await get_running_loop().getnameinfo(sockaddr, flags)
 
     @classmethod
-    async def wait_socket_readable(cls, sock: socket.socket) -> None:
+    async def wait_readable(cls, obj: FileDescriptorLike) -> None:
         await cls.checkpoint()
         try:
             read_events = _read_events.get()
@@ -2679,26 +2744,29 @@ class AsyncIOBackend(AsyncBackend):
             read_events = {}
             _read_events.set(read_events)
 
-        if read_events.get(sock):
+        if not isinstance(obj, int):
+            obj = obj.fileno()
+
+        if read_events.get(obj):
             raise BusyResourceError("reading from") from None
 
         loop = get_running_loop()
-        event = read_events[sock] = asyncio.Event()
+        event = read_events[obj] = asyncio.Event()
         try:
-            loop.add_reader(sock, event.set)
+            loop.add_reader(obj, event.set)
             remove_reader = loop.remove_reader
         except NotImplementedError:
             from anyio._core._asyncio_selector_thread import get_selector
 
             selector = get_selector(loop)
-            selector.add_reader(sock, event.set)
+            selector.add_reader(obj, event.set)
             remove_reader = selector.remove_reader
 
         try:
             await event.wait()
         finally:
-            if read_events.pop(sock, None) is not None:
-                remove_reader(sock)
+            if read_events.pop(obj, None) is not None:
+                remove_reader(obj)
                 readable = True
             else:
                 readable = False
@@ -2707,7 +2775,7 @@ class AsyncIOBackend(AsyncBackend):
             raise ClosedResourceError
 
     @classmethod
-    async def wait_socket_writable(cls, sock: socket.socket) -> None:
+    async def wait_writable(cls, obj: FileDescriptorLike) -> None:
         await cls.checkpoint()
         try:
             write_events = _write_events.get()
@@ -2715,26 +2783,29 @@ class AsyncIOBackend(AsyncBackend):
             write_events = {}
             _write_events.set(write_events)
 
-        if write_events.get(sock):
+        if not isinstance(obj, int):
+            obj = obj.fileno()
+
+        if write_events.get(obj):
             raise BusyResourceError("writing to") from None
 
         loop = get_running_loop()
-        event = write_events[sock] = asyncio.Event()
+        event = write_events[obj] = asyncio.Event()
         try:
-            loop.add_writer(sock, event.set)
+            loop.add_writer(obj, event.set)
             remove_writer = loop.remove_writer
         except NotImplementedError:
             from anyio._core._asyncio_selector_thread import get_selector
 
             selector = get_selector(loop)
-            selector.add_writer(sock, event.set)
+            selector.add_writer(obj, event.set)
             remove_writer = selector.remove_writer
 
         try:
             await event.wait()
         finally:
-            if write_events.pop(sock, None) is not None:
-                remove_writer(sock)
+            if write_events.pop(obj, None) is not None:
+                remove_writer(obj)
                 writable = True
             else:
                 writable = False
