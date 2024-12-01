@@ -1874,7 +1874,7 @@ async def test_wait_socket(event: str, socket_type: str) -> None:
             sock_or_fd: FileDescriptorLike = (
                 conn.fileno() if socket_type == "fd" else conn
             )
-            with fail_after(10):
+            with fail_after(3):
                 await wait(sock_or_fd)
                 assert conn.recv(1024) == b"Hello, world"
 

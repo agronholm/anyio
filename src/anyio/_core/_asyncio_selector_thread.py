@@ -21,6 +21,7 @@ class Selector:
         self._selector = DefaultSelector()
         self._send, self._receive = socket.socketpair()
         self._notify_key = self._selector.register(self._receive, EVENT_READ)
+        self._closed = False
 
     def start(self) -> None:
         from anyio._backends._asyncio import find_root_task
@@ -29,6 +30,7 @@ class Selector:
         self._thread.start()
 
     def _stop(self) -> None:
+        self._closed = True
         self._send.send(b"\x00")
         self._send.close()
         self._thread.join()
@@ -51,6 +53,8 @@ class Selector:
             key.data[EVENT_READ] = callback
             self._selector.modify(fd, key.events | EVENT_READ, key.data)
 
+        self._send.send(b"\x00")
+
     def add_writer(self, fd: FileDescriptorLike, callback: Callable[[], Any]) -> None:
         try:
             key = self._selector.get_key(fd)
@@ -64,6 +68,8 @@ class Selector:
 
             key.data[EVENT_WRITE] = callback
             self._selector.modify(fd, key.events | EVENT_WRITE, key.data)
+         
+        self._send.send(b"\x00")
 
     def remove_reader(self, fd: FileDescriptorLike) -> bool:
         try:
@@ -94,18 +100,22 @@ class Selector:
         return True
 
     def run(self) -> None:
-        while True:
+        while not self._closed:
             for key, events in self._selector.select():
                 if key is self._notify_key:
-                    self._selector.unregister(key.fd)
-                    self._receive.close()
-                    return
+                    key.fileobj.recv(10240)
+                    continue
 
                 if events & EVENT_READ and (callback := key.data.get(EVENT_READ)):
+                    self.remove_reader(key.fd)
                     self._loop.call_soon_threadsafe(callback)
 
                 if events & EVENT_WRITE and (callback := key.data.get(EVENT_WRITE)):
+                    self.remove_writer(key.fd)
                     self._loop.call_soon_threadsafe(callback)
+
+        self._selector.unregister(self._receive)
+        self._receive.close()
 
 
 def get_selector(loop: asyncio.AbstractEventLoop) -> Selector:
