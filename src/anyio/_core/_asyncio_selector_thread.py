@@ -20,7 +20,7 @@ class Selector:
         self._thread = threading.Thread(target=self.run)
         self._selector = DefaultSelector()
         self._send, self._receive = socket.socketpair()
-        self._notify_key = self._selector.register(self._receive, EVENT_READ)
+        self._selector.register(self._receive, EVENT_READ)
         self._closed = False
 
     def start(self) -> None:
@@ -102,8 +102,8 @@ class Selector:
     def run(self) -> None:
         while not self._closed:
             for key, events in self._selector.select():
-                if key is self._notify_key:
-                    key.fileobj.recv(10240)
+                if key.fileobj is self._receive:
+                    self._receive.recv(10240)
                     continue
 
                 if events & EVENT_READ and (callback := key.data.get(EVENT_READ)):
