@@ -2748,11 +2748,10 @@ class AsyncIOBackend(AsyncBackend):
             obj = obj.fileno()
 
         if read_events.get(obj):
-            raise BusyResourceError("reading from") from None
+            raise BusyResourceError("reading from")
 
         loop = get_running_loop()
         event = read_events[obj] = asyncio.Event()
-        remove_reader: Callable[[FileDescriptorLike], bool] | None = None
         try:
             loop.add_reader(obj, event.set)
             remove_reader = loop.remove_reader
@@ -2761,20 +2760,12 @@ class AsyncIOBackend(AsyncBackend):
 
             selector = get_selector()
             selector.add_reader(obj, event.set)
+            remove_reader = selector.remove_reader
 
         try:
             await event.wait()
         finally:
-            if read_events.pop(obj, None) is not None:
-                if remove_reader is not None:
-                    remove_reader(obj)
-
-                readable = True
-            else:
-                readable = False
-
-        if not readable:
-            raise ClosedResourceError
+            remove_reader(obj)
 
     @classmethod
     async def wait_writable(cls, obj: FileDescriptorLike) -> None:
@@ -2789,11 +2780,10 @@ class AsyncIOBackend(AsyncBackend):
             obj = obj.fileno()
 
         if write_events.get(obj):
-            raise BusyResourceError("writing to") from None
+            raise BusyResourceError("writing to")
 
         loop = get_running_loop()
         event = write_events[obj] = asyncio.Event()
-        remove_writer: Callable[[FileDescriptorLike], bool] | None = None
         try:
             loop.add_writer(obj, event.set)
             remove_writer = loop.remove_writer
@@ -2802,20 +2792,12 @@ class AsyncIOBackend(AsyncBackend):
 
             selector = get_selector()
             selector.add_writer(obj, event.set)
+            remove_writer = selector.remove_writer
 
         try:
             await event.wait()
         finally:
-            if write_events.pop(obj, None) is not None:
-                if remove_writer is not None:
-                    remove_writer(obj)
-
-                writable = True
-            else:
-                writable = False
-
-        if not writable:
-            raise ClosedResourceError
+            remove_writer(obj)
 
     @classmethod
     def current_default_thread_limiter(cls) -> CapacityLimiter:
