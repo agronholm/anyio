@@ -127,9 +127,11 @@ class Selector:
 
 
 def get_selector() -> Selector:
+    global _selector
+
     with _selector_lock:
         if _selector is None:
-            selector = Selector()
-            selector.start()
+            _selector = Selector()
+            _selector.start()
 
-        return selector
+        return _selector
