@@ -16,7 +16,7 @@ _selector: Selector | None = None
 
 class Selector:
     def __init__(self) -> None:
-        self._thread = threading.Thread(target=self.run)
+        self._thread = threading.Thread(target=self.run, name="AnyIO socket selector")
         self._selector = DefaultSelector()
         self._send, self._receive = socket.socketpair()
         self._selector.register(self._receive, EVENT_READ)
@@ -79,7 +79,7 @@ class Selector:
 
         if new_events := key.events ^ EVENT_READ:
             del key.data[EVENT_READ]
-            self._selector.modify(fd, new_events)
+            self._selector.modify(fd, new_events, key.data)
         else:
             self._selector.unregister(fd)
 
@@ -93,7 +93,7 @@ class Selector:
 
         if new_events := key.events ^ EVENT_WRITE:
             del key.data[EVENT_WRITE]
-            self._selector.modify(fd, new_events)
+            self._selector.modify(fd, new_events, key.data)
         else:
             self._selector.unregister(fd)
 
