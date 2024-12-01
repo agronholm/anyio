@@ -65,7 +65,7 @@ if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
 if TYPE_CHECKING:
-    from _typeshed import HasFileno
+    from _typeshed import FileDescriptorLike
 
 AnyIPAddressFamily = Literal[
     AddressFamily.AF_UNSPEC, AddressFamily.AF_INET, AddressFamily.AF_INET6
@@ -1871,7 +1871,9 @@ async def test_wait_socket(event: str, socket_type: str) -> None:
 
         conn, addr = server_sock.accept()
         with conn:
-            sock_or_fd: HasFileno | int = conn.fileno() if socket_type == "fd" else conn
+            sock_or_fd: FileDescriptorLike = (
+                conn.fileno() if socket_type == "fd" else conn
+            )
             with fail_after(10):
                 await wait(sock_or_fd)
                 assert conn.recv(1024) == b"Hello, world"
