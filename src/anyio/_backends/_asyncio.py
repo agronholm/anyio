@@ -2752,21 +2752,23 @@ class AsyncIOBackend(AsyncBackend):
 
         loop = get_running_loop()
         event = read_events[obj] = asyncio.Event()
+        remove_reader: Callable[[FileDescriptorLike], bool] | None = None
         try:
             loop.add_reader(obj, event.set)
             remove_reader = loop.remove_reader
         except NotImplementedError:
             from anyio._core._asyncio_selector_thread import get_selector
 
-            selector = get_selector(loop)
+            selector = get_selector()
             selector.add_reader(obj, event.set)
-            remove_reader = selector.remove_reader
 
         try:
             await event.wait()
         finally:
             if read_events.pop(obj, None) is not None:
-                remove_reader(obj)
+                if remove_reader is not None:
+                    remove_reader(obj)
+
                 readable = True
             else:
                 readable = False
@@ -2791,21 +2793,23 @@ class AsyncIOBackend(AsyncBackend):
 
         loop = get_running_loop()
         event = write_events[obj] = asyncio.Event()
+        remove_writer: Callable[[FileDescriptorLike], bool] | None = None
         try:
             loop.add_writer(obj, event.set)
             remove_writer = loop.remove_writer
         except NotImplementedError:
             from anyio._core._asyncio_selector_thread import get_selector
 
-            selector = get_selector(loop)
+            selector = get_selector()
             selector.add_writer(obj, event.set)
-            remove_writer = selector.remove_writer
 
         try:
             await event.wait()
         finally:
             if write_events.pop(obj, None) is not None:
-                remove_writer(obj)
+                if remove_writer is not None:
+                    remove_writer(obj)
+
                 writable = True
             else:
                 writable = False

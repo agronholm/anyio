@@ -6,17 +6,16 @@ import threading
 from collections.abc import Callable
 from selectors import EVENT_READ, EVENT_WRITE, DefaultSelector
 from typing import TYPE_CHECKING, Any
-from weakref import WeakKeyDictionary
 
 if TYPE_CHECKING:
     from _typeshed import FileDescriptorLike
 
-_selectors: WeakKeyDictionary[asyncio.AbstractEventLoop, Selector] = WeakKeyDictionary()
+_selector_lock = threading.Lock()
+_selector: Selector | None = None
 
 
 class Selector:
-    def __init__(self, loop: asyncio.AbstractEventLoop):
-        self._loop = loop
+    def __init__(self) -> None:
         self._thread = threading.Thread(target=self.run)
         self._selector = DefaultSelector()
         self._send, self._receive = socket.socketpair()
@@ -24,49 +23,50 @@ class Selector:
         self._closed = False
 
     def start(self) -> None:
-        from anyio._backends._asyncio import find_root_task
-
-        find_root_task().add_done_callback(lambda task: self._stop())
         self._thread.start()
+        threading._register_atexit(self._stop)  # type: ignore[attr-defined]
 
     def _stop(self) -> None:
+        global _selector
         self._closed = True
         self._send.send(b"\x00")
         self._send.close()
         self._thread.join()
-        del _selectors[self._loop]
+        _selector = None
         assert (
             not self._selector.get_map()
         ), "selector still has registered file descriptors after shutdown"
 
     def add_reader(self, fd: FileDescriptorLike, callback: Callable[[], Any]) -> None:
+        loop = asyncio.get_running_loop()
         try:
             key = self._selector.get_key(fd)
         except KeyError:
-            self._selector.register(fd, EVENT_READ, {EVENT_READ: callback})
+            self._selector.register(fd, EVENT_READ, {EVENT_READ: (loop, callback)})
         else:
             if EVENT_READ in key.data:
                 raise ValueError(
                     "this file descriptor is already registered for reading"
                 )
 
-            key.data[EVENT_READ] = callback
+            key.data[EVENT_READ] = loop, callback
             self._selector.modify(fd, key.events | EVENT_READ, key.data)
 
         self._send.send(b"\x00")
 
     def add_writer(self, fd: FileDescriptorLike, callback: Callable[[], Any]) -> None:
+        loop = asyncio.get_running_loop()
         try:
             key = self._selector.get_key(fd)
         except KeyError:
-            self._selector.register(fd, EVENT_WRITE, {EVENT_WRITE: callback})
+            self._selector.register(fd, EVENT_WRITE, {EVENT_WRITE: (loop, callback)})
         else:
             if EVENT_WRITE in key.data:
                 raise ValueError(
                     "this file descriptor is already registered for writing"
                 )
 
-            key.data[EVENT_WRITE] = callback
+            key.data[EVENT_WRITE] = loop, callback
             self._selector.modify(fd, key.events | EVENT_WRITE, key.data)
 
         self._send.send(b"\x00")
@@ -106,22 +106,30 @@ class Selector:
                     self._receive.recv(10240)
                     continue
 
-                if events & EVENT_READ and (callback := key.data.get(EVENT_READ)):
+                if events & EVENT_READ:
+                    loop, callback = key.data
                     self.remove_reader(key.fd)
-                    self._loop.call_soon_threadsafe(callback)
+                    try:
+                        loop.call_soon_threadsafe(callback)
+                    except RuntimeError:
+                        pass  # the loop was already closed
 
-                if events & EVENT_WRITE and (callback := key.data.get(EVENT_WRITE)):
+                if events & EVENT_WRITE:
+                    loop, callback = key.data
                     self.remove_writer(key.fd)
-                    self._loop.call_soon_threadsafe(callback)
+                    try:
+                        loop.call_soon_threadsafe(callback)
+                    except RuntimeError:
+                        pass  # the loop was already closed
 
         self._selector.unregister(self._receive)
         self._receive.close()
 
 
-def get_selector(loop: asyncio.AbstractEventLoop) -> Selector:
-    try:
-        return _selectors[loop]
-    except KeyError:
-        _selectors[loop] = selector = Selector(asyncio.get_running_loop())
-        selector.start()
+def get_selector() -> Selector:
+    with _selector_lock:
+        if _selector is None:
+            selector = Selector()
+            selector.start()
+
         return selector
