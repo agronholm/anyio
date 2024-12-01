@@ -110,7 +110,7 @@ class Selector:
 def get_selector(loop: asyncio.AbstractEventLoop) -> Selector:
     try:
         return _selectors[loop]
-    except AttributeError:
+    except KeyError:
         _selectors[loop] = selector = Selector(asyncio.get_running_loop())
         selector.start()
         return selector
