@@ -2751,7 +2751,7 @@ class AsyncIOBackend(AsyncBackend):
             raise BusyResourceError("reading from")
 
         loop = get_running_loop()
-        event = read_events[obj] = asyncio.Event()
+        event = asyncio.Event()
         try:
             loop.add_reader(obj, event.set)
             remove_reader = loop.remove_reader
@@ -2762,10 +2762,12 @@ class AsyncIOBackend(AsyncBackend):
             selector.add_reader(obj, event.set)
             remove_reader = selector.remove_reader
 
+        read_events[obj] = event
         try:
             await event.wait()
         finally:
             remove_reader(obj)
+            del read_events[obj]
 
     @classmethod
     async def wait_writable(cls, obj: FileDescriptorLike) -> None:
@@ -2783,7 +2785,7 @@ class AsyncIOBackend(AsyncBackend):
             raise BusyResourceError("writing to")
 
         loop = get_running_loop()
-        event = write_events[obj] = asyncio.Event()
+        event = asyncio.Event()
         try:
             loop.add_writer(obj, event.set)
             remove_writer = loop.remove_writer
@@ -2794,9 +2796,11 @@ class AsyncIOBackend(AsyncBackend):
             selector.add_writer(obj, event.set)
             remove_writer = selector.remove_writer
 
+        write_events[obj] = event
         try:
             await event.wait()
         finally:
+            del write_events[obj]
             remove_writer(obj)
 
     @classmethod
