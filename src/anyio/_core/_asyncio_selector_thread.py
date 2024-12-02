@@ -19,6 +19,8 @@ class Selector:
         self._thread = threading.Thread(target=self.run, name="AnyIO socket selector")
         self._selector = DefaultSelector()
         self._send, self._receive = socket.socketpair()
+        self._send.setblocking(False)
+        self._receive.setblocking(False)
         self._selector.register(self._receive, EVENT_READ)
         self._closed = False
 
@@ -29,13 +31,22 @@ class Selector:
     def _stop(self) -> None:
         global _selector
         self._closed = True
-        self._send.send(b"\x00")
+        self._notify_self()
         self._send.close()
         self._thread.join()
+        self._selector.unregister(self._receive)
+        self._receive.close()
+        self._selector.close()
         _selector = None
         assert (
             not self._selector.get_map()
         ), "selector still has registered file descriptors after shutdown"
+
+    def _notify_self(self) -> None:
+        try:
+            self._send.send(b"\x00")
+        except BlockingIOError:
+            pass
 
     def add_reader(self, fd: FileDescriptorLike, callback: Callable[[], Any]) -> None:
         loop = asyncio.get_running_loop()
@@ -52,7 +63,7 @@ class Selector:
             key.data[EVENT_READ] = loop, callback
             self._selector.modify(fd, key.events | EVENT_READ, key.data)
 
-        self._send.send(b"\x00")
+        self._notify_self()
 
     def add_writer(self, fd: FileDescriptorLike, callback: Callable[[], Any]) -> None:
         loop = asyncio.get_running_loop()
@@ -69,7 +80,7 @@ class Selector:
             key.data[EVENT_WRITE] = loop, callback
             self._selector.modify(fd, key.events | EVENT_WRITE, key.data)
 
-        self._send.send(b"\x00")
+        self._notify_self()
 
     def remove_reader(self, fd: FileDescriptorLike) -> bool:
         try:
@@ -103,7 +114,7 @@ class Selector:
         while not self._closed:
             for key, events in self._selector.select():
                 if key.fileobj is self._receive:
-                    self._receive.recv(10240)
+                    self._receive.recv(4096)
                     continue
 
                 if events & EVENT_READ:
@@ -121,9 +132,6 @@ class Selector:
                         loop.call_soon_threadsafe(callback)
                     except RuntimeError:
                         pass  # the loop was already closed
-
-        self._selector.unregister(self._receive)
-        self._receive.close()
 
 
 def get_selector() -> Selector:
