@@ -2754,13 +2754,14 @@ class AsyncIOBackend(AsyncBackend):
         event = asyncio.Event()
         try:
             loop.add_reader(obj, event.set)
-            remove_reader = loop.remove_reader
         except NotImplementedError:
             from anyio._core._asyncio_selector_thread import get_selector
 
             selector = get_selector()
             selector.add_reader(obj, event.set)
             remove_reader = selector.remove_reader
+        else:
+            remove_reader = loop.remove_reader
 
         read_events[obj] = event
         try:
@@ -2788,13 +2789,14 @@ class AsyncIOBackend(AsyncBackend):
         event = asyncio.Event()
         try:
             loop.add_writer(obj, event.set)
-            remove_writer = loop.remove_writer
         except NotImplementedError:
             from anyio._core._asyncio_selector_thread import get_selector
 
             selector = get_selector()
             selector.add_writer(obj, event.set)
             remove_writer = selector.remove_writer
+        else:
+            remove_writer = loop.remove_writer
 
         write_events[obj] = event
         try:
