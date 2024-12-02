@@ -1880,13 +1880,6 @@ async def test_wait_socket(event: str, socket_type: str) -> None:
 
 
 async def test_deprecated_wait_socket(anyio_backend_name: str) -> None:
-    if anyio_backend_name == "asyncio" and platform.system() == "Windows":
-        import asyncio
-
-        policy = asyncio.get_event_loop_policy()
-        if policy.__class__.__name__ == "WindowsProactorEventLoopPolicy":
-            pytest.skip("Does not work on asyncio/Windows/ProactorEventLoop")
-
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         with pytest.warns(
             DeprecationWarning,
