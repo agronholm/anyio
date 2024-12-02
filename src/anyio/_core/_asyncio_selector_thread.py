@@ -114,7 +114,12 @@ class Selector:
         while not self._closed:
             for key, events in self._selector.select():
                 if key.fileobj is self._receive:
-                    self._receive.recv(4096)
+                    while True:
+                        try:
+                            self._receive.recv(4096)
+                        except BlockingIOError:
+                            break
+
                     continue
 
                 if events & EVENT_READ:
