@@ -661,9 +661,8 @@ def wait_readable(obj: FileDescriptorLike) -> Awaitable[None]:
     a ``SOCKET``.
 
     On backends where this functionality is not natively provided (asyncio
-    ``ProactorEventLoop`` on Windows) Additionally, on asyncio, this functionality is
-    provided using a separate selector thread which is set to shut down when the
-    interpreter shuts down.
+    ``ProactorEventLoop`` on Windows), it is provided using a separate selector thread
+    which is set to shut down when the interpreter shuts down.
 
     .. warning:: Don't use this on raw sockets that have been wrapped by any higher
         level constructs like socket streams!
