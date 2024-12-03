@@ -660,6 +660,11 @@ def wait_readable(obj: FileDescriptorLike) -> Awaitable[None]:
     descriptors aren't supported, and neither are handles that refer to anything besides
     a ``SOCKET``.
 
+    On backends where this functionality is not natively provided (asyncio
+    ``ProactorEventLoop`` on Windows) Additionally, on asyncio, this functionality is
+    provided using a separate selector thread which is set to shut down when the
+    interpreter shuts down.
+
     .. warning:: Don't use this on raw sockets that have been wrapped by any higher
         level constructs like socket streams!
 
@@ -684,7 +689,7 @@ def wait_writable(obj: FileDescriptorLike) -> Awaitable[None]:
         to become writable
 
     .. seealso:: See the documentation of :func:`wait_readable` for the definition of
-       ``obj``.
+       ``obj`` and notes on backend compatibility.
 
     .. warning:: Don't use this on raw sockets that have been wrapped by any higher
         level constructs like socket streams!
