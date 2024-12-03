@@ -12,7 +12,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added the ``wait_readable()`` and ``wait_writable()`` functions which will accept
   an object with a ``.fileno()`` method or an integer handle, and deprecated
   their now obsolete versions (``wait_socket_readable()`` and
-  ``wait_socket_writable()`` (PR by @davidbrochart)
+  ``wait_socket_writable()``) (PR by @davidbrochart)
+- Added support for ``wait_readable()`` and ``wait_writable()`` on ``ProactorEventLoop``
+  (used on asyncio + Windows by default)
 - Fixed the return type annotations of ``readinto()`` and ``readinto1()`` methods in the
   ``anyio.AsyncFile`` class
   (`#825 <https://github.com/agronholm/anyio/issues/825>`_)

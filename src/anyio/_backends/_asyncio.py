@@ -103,7 +103,9 @@ from ..lowlevel import RunVar
 from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 if TYPE_CHECKING:
-    from _typeshed import HasFileno
+    from _typeshed import FileDescriptorLike
+else:
+    FileDescriptorLike = object
 
 if sys.version_info >= (3, 10):
     from typing import ParamSpec
@@ -2734,7 +2736,7 @@ class AsyncIOBackend(AsyncBackend):
         return await get_running_loop().getnameinfo(sockaddr, flags)
 
     @classmethod
-    async def wait_readable(cls, obj: HasFileno | int) -> None:
+    async def wait_readable(cls, obj: FileDescriptorLike) -> None:
         await cls.checkpoint()
         try:
             read_events = _read_events.get()
@@ -2746,25 +2748,30 @@ class AsyncIOBackend(AsyncBackend):
             obj = obj.fileno()
 
         if read_events.get(obj):
-            raise BusyResourceError("reading from") from None
+            raise BusyResourceError("reading from")
 
         loop = get_running_loop()
-        event = read_events[obj] = asyncio.Event()
-        loop.add_reader(obj, event.set)
+        event = asyncio.Event()
+        try:
+            loop.add_reader(obj, event.set)
+        except NotImplementedError:
+            from anyio._core._asyncio_selector_thread import get_selector
+
+            selector = get_selector()
+            selector.add_reader(obj, event.set)
+            remove_reader = selector.remove_reader
+        else:
+            remove_reader = loop.remove_reader
+
+        read_events[obj] = event
         try:
             await event.wait()
         finally:
-            if read_events.pop(obj, None) is not None:
-                loop.remove_reader(obj)
-                readable = True
-            else:
-                readable = False
-
-        if not readable:
-            raise ClosedResourceError
+            remove_reader(obj)
+            del read_events[obj]
 
     @classmethod
-    async def wait_writable(cls, obj: HasFileno | int) -> None:
+    async def wait_writable(cls, obj: FileDescriptorLike) -> None:
         await cls.checkpoint()
         try:
             write_events = _write_events.get()
@@ -2776,22 +2783,27 @@ class AsyncIOBackend(AsyncBackend):
             obj = obj.fileno()
 
         if write_events.get(obj):
-            raise BusyResourceError("writing to") from None
+            raise BusyResourceError("writing to")
 
         loop = get_running_loop()
-        event = write_events[obj] = asyncio.Event()
-        loop.add_writer(obj, event.set)
+        event = asyncio.Event()
+        try:
+            loop.add_writer(obj, event.set)
+        except NotImplementedError:
+            from anyio._core._asyncio_selector_thread import get_selector
+
+            selector = get_selector()
+            selector.add_writer(obj, event.set)
+            remove_writer = selector.remove_writer
+        else:
+            remove_writer = loop.remove_writer
+
+        write_events[obj] = event
         try:
             await event.wait()
         finally:
-            if write_events.pop(obj, None) is not None:
-                loop.remove_writer(obj)
-                writable = True
-            else:
-                writable = False
-
-        if not writable:
-            raise ClosedResourceError
+            del write_events[obj]
+            remove_writer(obj)
 
     @classmethod
     def current_default_thread_limiter(cls) -> CapacityLimiter:

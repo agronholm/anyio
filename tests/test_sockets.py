@@ -65,7 +65,7 @@ if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
 if TYPE_CHECKING:
-    from _typeshed import HasFileno
+    from _typeshed import FileDescriptorLike
 
 AnyIPAddressFamily = Literal[
     AddressFamily.AF_UNSPEC, AddressFamily.AF_INET, AddressFamily.AF_INET6
@@ -1858,16 +1858,7 @@ async def test_connect_tcp_getaddrinfo_context() -> None:
 
 @pytest.mark.parametrize("socket_type", ["socket", "fd"])
 @pytest.mark.parametrize("event", ["readable", "writable"])
-async def test_wait_socket(
-    anyio_backend_name: str, event: str, socket_type: str
-) -> None:
-    if anyio_backend_name == "asyncio" and platform.system() == "Windows":
-        import asyncio
-
-        policy = asyncio.get_event_loop_policy()
-        if policy.__class__.__name__ == "WindowsProactorEventLoopPolicy":
-            pytest.skip("Does not work on asyncio/Windows/ProactorEventLoop")
-
+async def test_wait_socket(event: str, socket_type: str) -> None:
     wait = wait_readable if event == "readable" else wait_writable
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_sock:
@@ -1880,20 +1871,15 @@ async def test_wait_socket(
 
         conn, addr = server_sock.accept()
         with conn:
-            sock_or_fd: HasFileno | int = conn.fileno() if socket_type == "fd" else conn
-            with fail_after(10):
+            sock_or_fd: FileDescriptorLike = (
+                conn.fileno() if socket_type == "fd" else conn
+            )
+            with fail_after(3):
                 await wait(sock_or_fd)
                 assert conn.recv(1024) == b"Hello, world"
 
 
 async def test_deprecated_wait_socket(anyio_backend_name: str) -> None:
-    if anyio_backend_name == "asyncio" and platform.system() == "Windows":
-        import asyncio
-
-        policy = asyncio.get_event_loop_policy()
-        if policy.__class__.__name__ == "WindowsProactorEventLoopPolicy":
-            pytest.skip("Does not work on asyncio/Windows/ProactorEventLoop")
-
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         with pytest.warns(
             DeprecationWarning,

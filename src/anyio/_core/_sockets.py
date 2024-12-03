@@ -32,9 +32,9 @@ from ._synchronization import Event
 from ._tasks import create_task_group, move_on_after
 
 if TYPE_CHECKING:
-    from _typeshed import HasFileno
+    from _typeshed import FileDescriptorLike
 else:
-    HasFileno = object
+    FileDescriptorLike = object
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -609,9 +609,6 @@ def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
 
     Wait until the given socket has data to be read.
 
-    This does **NOT** work on Windows when using the asyncio backend with a proactor
-    event loop (default on py3.8+).
-
     .. warning:: Only use this on raw sockets that have not been wrapped by any higher
         level constructs like socket streams!
 
@@ -649,7 +646,7 @@ def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
     return get_async_backend().wait_writable(sock.fileno())
 
 
-def wait_readable(obj: HasFileno | int) -> Awaitable[None]:
+def wait_readable(obj: FileDescriptorLike) -> Awaitable[None]:
     """
     Wait until the given object has data to be read.
 
@@ -663,10 +660,11 @@ def wait_readable(obj: HasFileno | int) -> Awaitable[None]:
     descriptors aren't supported, and neither are handles that refer to anything besides
     a ``SOCKET``.
 
-    This does **NOT** work on Windows when using the asyncio backend with a proactor
-    event loop (default on py3.8+).
+    On backends where this functionality is not natively provided (asyncio
+    ``ProactorEventLoop`` on Windows), it is provided using a separate selector thread
+    which is set to shut down when the interpreter shuts down.
 
-    .. warning:: Only use this on raw sockets that have not been wrapped by any higher
+    .. warning:: Don't use this on raw sockets that have been wrapped by any higher
         level constructs like socket streams!
 
     :param obj: an object with a ``.fileno()`` method or an integer handle
@@ -679,24 +677,21 @@ def wait_readable(obj: HasFileno | int) -> Awaitable[None]:
     return get_async_backend().wait_readable(obj)
 
 
-def wait_writable(obj: HasFileno | int) -> Awaitable[None]:
+def wait_writable(obj: FileDescriptorLike) -> Awaitable[None]:
     """
     Wait until the given object can be written to.
-
-    This does **NOT** work on Windows when using the asyncio backend with a proactor
-    event loop (default on py3.8+).
-
-    .. seealso:: See the documentation of :func:`wait_readable` for the definition of
-       ``obj``.
-
-    .. warning:: Only use this on raw sockets that have not been wrapped by any higher
-        level constructs like socket streams!
 
     :param obj: an object with a ``.fileno()`` method or an integer handle
     :raises ~anyio.ClosedResourceError: if the object was closed while waiting for the
         object to become writable
     :raises ~anyio.BusyResourceError: if another task is already waiting for the object
         to become writable
+
+    .. seealso:: See the documentation of :func:`wait_readable` for the definition of
+       ``obj`` and notes on backend compatibility.
+
+    .. warning:: Don't use this on raw sockets that have been wrapped by any higher
+        level constructs like socket streams!
 
     """
     return get_async_backend().wait_writable(obj)
