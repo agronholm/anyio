@@ -673,6 +673,38 @@ async def test_cancel_shielded_scope() -> None:
             await checkpoint()
 
 
+async def test_shielded_cleanup_after_cancel() -> None:
+    """Regression test for #832."""
+    with CancelScope() as outer_scope:
+        outer_scope.cancel()
+        try:
+            await checkpoint()
+        finally:
+            assert current_effective_deadline() == -math.inf
+            assert get_current_task().has_pending_cancellation()
+
+            with CancelScope(shield=True):  # noqa: ASYNC100
+                assert current_effective_deadline() == math.inf
+                assert not get_current_task().has_pending_cancellation()
+
+            assert current_effective_deadline() == -math.inf
+            assert get_current_task().has_pending_cancellation()
+
+
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_cleanup_after_native_cancel() -> None:
+    """Regression test for #832."""
+    # See also https://github.com/python/cpython/pull/102815.
+    task = asyncio.current_task()
+    assert task
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        try:
+            await checkpoint()
+        finally:
+            assert not get_current_task().has_pending_cancellation()
+
+
 async def test_cancelled_not_caught() -> None:
     with CancelScope() as scope:  # noqa:  ASYNC100
         scope.cancel()
