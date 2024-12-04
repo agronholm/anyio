@@ -2154,12 +2154,11 @@ class AsyncIOTaskInfo(TaskInfo):
             # If the task isn't around anymore, it won't have a pending cancellation
             return False
 
-        if sys.version_info >= (3, 11):
-            if task.cancelling():
-                return True
+        if task._must_cancel:  # type: ignore[attr-defined]
+            return True
         elif (
-            isinstance(task._fut_waiter, asyncio.Future)
-            and task._fut_waiter.cancelled()
+            isinstance(task._fut_waiter, asyncio.Future)  # type: ignore[attr-defined]
+            and task._fut_waiter.cancelled()  # type: ignore[attr-defined]
         ):
             return True
 

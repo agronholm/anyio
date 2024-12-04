@@ -18,6 +18,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed the return type annotations of ``readinto()`` and ``readinto1()`` methods in the
   ``anyio.AsyncFile`` class
   (`#825 <https://github.com/agronholm/anyio/issues/825>`_)
+- Fixed ``TaskInfo.has_pending_cancellation()`` on asyncio returning false positives in
+  cleanup code on Python >= 3.11
+  (`#832 <https://github.com/agronholm/anyio/issues/832>`_; PR by @gschaffner)
 
 **4.6.2**
 
