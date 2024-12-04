@@ -21,7 +21,7 @@ these instructions.
 ### Updating the changelog
 
 If there are no entries after the last release, use `**UNRELEASED**` as the version.
-If, say, your patch fixes issue #123, the entry should look like this:
+If, say, your patch fixes issue <span>#</span>123, the entry should look like this:
 
 ```
 - Fix big bad boo-boo in task groups
