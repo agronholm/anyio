@@ -408,9 +408,8 @@ class CancelScope(BaseCancelScope):
         self._cancel_handle: asyncio.Handle | None = None
         self._tasks: set[asyncio.Task] = set()
         self._host_task: asyncio.Task | None = None
-        self._pending_uncancellations: int | None
         if sys.version_info >= (3, 11):
-            self._pending_uncancellations = 0
+            self._pending_uncancellations: int | None = 0
         else:
             self._pending_uncancellations = None
 
