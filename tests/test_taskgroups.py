@@ -673,6 +673,38 @@ async def test_cancel_shielded_scope() -> None:
             await checkpoint()
 
 
+async def test_shielded_cleanup_after_cancel() -> None:
+    """Regression test for #832."""
+    with CancelScope() as outer_scope:
+        outer_scope.cancel()
+        try:
+            await checkpoint()
+        finally:
+            assert current_effective_deadline() == -math.inf
+            assert get_current_task().has_pending_cancellation()
+
+            with CancelScope(shield=True):  # noqa: ASYNC100
+                assert current_effective_deadline() == math.inf
+                assert not get_current_task().has_pending_cancellation()
+
+            assert current_effective_deadline() == -math.inf
+            assert get_current_task().has_pending_cancellation()
+
+
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_cleanup_after_native_cancel() -> None:
+    """Regression test for #832."""
+    # See also https://github.com/python/cpython/pull/102815.
+    task = asyncio.current_task()
+    assert task
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        try:
+            await checkpoint()
+        finally:
+            assert not get_current_task().has_pending_cancellation()
+
+
 async def test_cancelled_not_caught() -> None:
     with CancelScope() as scope:  # noqa:  ASYNC100
         scope.cancel()
@@ -1487,6 +1519,26 @@ class TestUncancel:
         assert len(exc_info.value.exceptions) == 1
         assert str(exc_info.value.exceptions[0]) == "dummy error"
         assert not cast(asyncio.Task, asyncio.current_task()).cancelling()
+
+    async def test_uncancel_cancelled_scope_based_checkpoint(self) -> None:
+        """See also test_cancelled_scope_based_checkpoint."""
+        task = asyncio.current_task()
+        assert task
+
+        with CancelScope() as outer_scope:
+            outer_scope.cancel()
+
+            try:
+                # The following three lines are a way to implement a checkpoint
+                # function. See also https://github.com/python-trio/trio/issues/860.
+                with CancelScope() as inner_scope:
+                    inner_scope.cancel()
+                    await sleep_forever()
+            finally:
+                assert isinstance(sys.exc_info()[1], asyncio.CancelledError)
+                assert task.cancelling()
+
+        assert not task.cancelling()
 
 
 async def test_cancel_before_entering_task_group() -> None:
