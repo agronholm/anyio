@@ -3,6 +3,31 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**4.7.0**
+
+- Updated ``TaskGroup`` to work with asyncio's eager task factories
+  (`#764 <https://github.com/agronholm/anyio/issues/764>`_)
+- Added the ``wait_readable()`` and ``wait_writable()`` functions which will accept
+  an object with a ``.fileno()`` method or an integer handle, and deprecated
+  their now obsolete versions (``wait_socket_readable()`` and
+  ``wait_socket_writable()``) (PR by @davidbrochart)
+- Changed ``EventAdapter`` (an ``Event`` with no bound async backend) to allow ``set()``
+  to work even before an async backend is bound to it
+  (`#819 <https://github.com/agronholm/anyio/issues/819>`_)
+- Added support for ``wait_readable()`` and ``wait_writable()`` on ``ProactorEventLoop``
+  (used on asyncio + Windows by default)
+- Fixed a misleading ``ValueError`` in the context of DNS failures
+  (`#815 <https://github.com/agronholm/anyio/issues/815>`_; PR by @graingert)
+- Fixed the return type annotations of ``readinto()`` and ``readinto1()`` methods in the
+  ``anyio.AsyncFile`` class
+  (`#825 <https://github.com/agronholm/anyio/issues/825>`_)
+- Fixed ``TaskInfo.has_pending_cancellation()`` on asyncio returning false positives in
+  cleanup code on Python >= 3.11
+  (`#832 <https://github.com/agronholm/anyio/issues/832>`_; PR by @gschaffner)
+- Fixed cancelled cancel scopes on asyncio calling ``asyncio.Task.uncancel`` when
+  propagating a ``CancelledError`` on exit to a cancelled parent scope
+  (`#790 <https://github.com/agronholm/anyio/pull/790>`_; PR by @gschaffner)
+
 **4.6.2**
 
 - Fixed regression caused by (`#807 <https://github.com/agronholm/anyio/pull/807>`_)
