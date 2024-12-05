@@ -7,8 +7,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Updated ``TaskGroup`` to work with asyncio's eager task factories
   (`#764 <https://github.com/agronholm/anyio/issues/764>`_)
-- Fixed a misleading ``ValueError`` in the context of DNS failures
-  (`#815 <https://github.com/agronholm/anyio/issues/815>`_; PR by @graingert)
 - Added the ``wait_readable()`` and ``wait_writable()`` functions which will accept
   an object with a ``.fileno()`` method or an integer handle, and deprecated
   their now obsolete versions (``wait_socket_readable()`` and
@@ -18,6 +16,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#819 <https://github.com/agronholm/anyio/issues/819>`_)
 - Added support for ``wait_readable()`` and ``wait_writable()`` on ``ProactorEventLoop``
   (used on asyncio + Windows by default)
+- Fixed a misleading ``ValueError`` in the context of DNS failures
+  (`#815 <https://github.com/agronholm/anyio/issues/815>`_; PR by @graingert)
 - Fixed the return type annotations of ``readinto()`` and ``readinto1()`` methods in the
   ``anyio.AsyncFile`` class
   (`#825 <https://github.com/agronholm/anyio/issues/825>`_)
