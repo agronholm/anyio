@@ -7,10 +7,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Updated ``TaskGroup`` to work with asyncio's eager task factories
   (`#764 <https://github.com/agronholm/anyio/issues/764>`_)
-- Added the ``wait_readable()`` and ``wait_writable()`` functions which will accept
-  an object with a ``.fileno()`` method or an integer handle, and deprecated
-  their now obsolete versions (``wait_socket_readable()`` and
-  ``wait_socket_writable()``) (PR by @davidbrochart)
 - Changed ``EventAdapter`` (an ``Event`` with no bound async backend) to allow ``set()``
   to work even before an async backend is bound to it
   (`#819 <https://github.com/agronholm/anyio/issues/819>`_)
