@@ -377,7 +377,7 @@ def is_anyio_cancellation(exc: CancelledError) -> bool:
     # matching cancel message
     while True:
         if (
-            bool(exc.args)
+            exc.args
             and isinstance(exc.args[0], str)
             and exc.args[0].startswith("Cancelled by cancel scope ")
         ):
