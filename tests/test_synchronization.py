@@ -316,16 +316,17 @@ class TestEvent:
     def test_instantiate_outside_event_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
-        async def use_event() -> None:
-            event.set()
-            await event.wait()
-
         event = Event()
         assert not event.is_set()
         assert event.statistics().tasks_waiting == 0
 
+        event.set()
+        assert event.is_set()
+
         run(
-            use_event, backend=anyio_backend_name, backend_options=anyio_backend_options
+            event.wait,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
         )
 
 
