@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Added support for the ``copy()``, ``copy_into()``, ``move()`` and ``move_into()``
+  methods in ``anyio.Path``, available in Python 3.14
+
 **4.7.0**
 
 - Updated ``TaskGroup`` to work with asyncio's eager task factories

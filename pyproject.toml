@@ -53,7 +53,8 @@ test = [
     "truststore >= 0.9.1; python_version >= '3.10'",
     """\
     uvloop >= 0.21; platform_python_implementation == 'CPython' \
-    and platform_system != 'Windows' and python_version <= '3.14a0'\
+    and platform_system != 'Windows' \
+    and python_version < '3.14'\
     """
 ]
 doc = [
