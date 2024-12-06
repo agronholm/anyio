@@ -226,11 +226,15 @@ class Path:
     Some methods may be unavailable or have limited functionality, based on the Python
     version:
 
+    * :meth:`~pathlib.Path.copy` (available on Python 3.14 or later)
+    * :meth:`~pathlib.Path.copy_into` (available on Python 3.14 or later)
     * :meth:`~pathlib.Path.from_uri` (available on Python 3.13 or later)
     * :meth:`~pathlib.Path.full_match` (available on Python 3.13 or later)
     * :meth:`~pathlib.Path.is_junction` (available on Python 3.12 or later)
     * :meth:`~pathlib.Path.match` (the ``case_sensitive`` paramater is only available on
       Python 3.13 or later)
+    * :meth:`~pathlib.Path.move` (available on Python 3.14 or later)
+    * :meth:`~pathlib.Path.move_into` (available on Python 3.14 or later)
     * :meth:`~pathlib.Path.relative_to` (the ``walk_up`` parameter is only available on
       Python 3.12 or later)
     * :meth:`~pathlib.Path.walk` (available on Python 3.12 or later)
