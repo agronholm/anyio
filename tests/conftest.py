@@ -26,7 +26,7 @@ else:
             pytest.mark.skip(reason="uvloop is missing shutdown_default_executor()")
         )
 
-pytest_plugins = ["pytester", "pytest_mock"]
+pytest_plugins = ["pytester"]
 
 
 @pytest.fixture(

@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 import math
 from asyncio import get_running_loop
+from collections.abc import Generator
+from unittest import mock
 from unittest.mock import AsyncMock
 
 import pytest
 from pytest import MonkeyPatch
-from pytest_mock.plugin import MockerFixture
 
 from anyio import run, sleep_forever, sleep_until
 
@@ -16,9 +17,12 @@ fake_current_time = 1620581544.0
 
 
 @pytest.fixture
-def fake_sleep(mocker: MockerFixture) -> AsyncMock:
-    mocker.patch("anyio._core._eventloop.current_time", return_value=fake_current_time)
-    return mocker.patch("anyio._core._eventloop.sleep", AsyncMock())
+def fake_sleep() -> Generator[AsyncMock, None, None]:
+    with mock.patch(
+        "anyio._core._eventloop.current_time", return_value=fake_current_time
+    ):
+        with mock.patch("anyio._core._eventloop.sleep", AsyncMock()) as v:
+            yield v
 
 
 async def test_sleep_until(fake_sleep: AsyncMock) -> None:
