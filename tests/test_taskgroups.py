@@ -1609,7 +1609,6 @@ async def test_cancel_shielding_start() -> None:
     a shielded cancel scope in the child task will shield it from cancellation.
 
     Regression test for #837.
-
     """
 
     async def taskfunc(*, task_status: TaskStatus[None]) -> None:
@@ -1624,17 +1623,12 @@ async def test_cancel_shielding_start() -> None:
         # The cancellation should be triggered here, and not any earlier
         await checkpoint()
 
-    async def start_inner_task() -> None:
-        await inner_tg.start(taskfunc)
-
     entered_inner_scope = Event()
-    async with (
-        create_task_group() as tg,
-        create_task_group() as inner_tg,
-    ):
-        tg.start_soon(start_inner_task)
-        await entered_inner_scope.wait()
-        tg.cancel_scope.cancel()
+    with CancelScope() as outer_scope:
+        async with create_task_group() as tg:
+            tg.start_soon(tg.start, taskfunc)
+            await entered_inner_scope.wait()
+            outer_scope.cancel()
 
 
 if sys.version_info <= (3, 11):
