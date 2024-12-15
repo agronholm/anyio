@@ -679,15 +679,16 @@ class TaskState:
 
 class TaskStateStore(MutableMapping["Awaitable[Any] | asyncio.Task", TaskState]):
     def __init__(self) -> None:
-        self._task_states = WeakKeyDictionary[asyncio.Task, TaskState]()
+        self._task_states = WeakKeyDictionary[
+            "asyncio.Task | Awaitable[Any]", TaskState
+        ]()
         self._preliminary_task_states: dict[Awaitable[Any], TaskState] = {}
 
     def __getitem__(self, key: Awaitable[Any] | asyncio.Task, /) -> TaskState:
-        assert isinstance(key, asyncio.Task)
         try:
             return self._task_states[key]
         except KeyError:
-            if coro := key.get_coro():
+            if coro := cast(asyncio.Task, key).get_coro():
                 if state := self._preliminary_task_states.get(coro):
                     return state
 
@@ -696,16 +697,16 @@ class TaskStateStore(MutableMapping["Awaitable[Any] | asyncio.Task", TaskState])
     def __setitem__(
         self, key: asyncio.Task | Awaitable[Any], value: TaskState, /
     ) -> None:
-        if isinstance(key, asyncio.Task):
-            self._task_states[key] = value
-        else:
+        if isinstance(key, Coroutine):
             self._preliminary_task_states[key] = value
+        else:
+            self._task_states[key] = value
 
     def __delitem__(self, key: asyncio.Task | Awaitable[Any], /) -> None:
-        if isinstance(key, asyncio.Task):
-            del self._task_states[key]
-        else:
+        if isinstance(key, Coroutine):
             del self._preliminary_task_states[key]
+        else:
+            del self._task_states[key]
 
     def __len__(self) -> int:
         return len(self._task_states) + len(self._preliminary_task_states)
