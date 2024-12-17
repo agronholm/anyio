@@ -11,7 +11,7 @@ from typing import Any, NoReturn, cast
 
 import pytest
 from exceptiongroup import catch
-from pytest import FixtureRequest
+from pytest import FixtureRequest, MonkeyPatch
 from pytest_mock import MockerFixture
 
 import anyio
@@ -1778,3 +1778,14 @@ async def test_eager_task_factory(request: FixtureRequest) -> None:
     async with create_task_group() as tg:
         tg.start_soon(sync_coro)
         tg.cancel_scope.cancel()
+
+
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_patched_asyncio_task(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        asyncio,
+        "Task",
+        asyncio.tasks._PyTask,  # type: ignore[attr-defined]
+    )
+    async with create_task_group() as tg:
+        tg.start_soon(sleep, 0)
