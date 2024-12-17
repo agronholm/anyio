@@ -56,7 +56,8 @@ from typing import (
     Any,
     Optional,
     TypeVar,
-    cast, Union,
+    Union,
+    cast,
 )
 from weakref import WeakKeyDictionary
 
@@ -692,9 +693,7 @@ class TaskStateStore(MutableMapping["Awaitable[Any] | asyncio.Task", TaskState])
                 if asyncio.iscoroutine(coro):
                     return coro
             except Exception as exc:
-                raise RuntimeError(
-                    "The task's coroutine was not available"
-                ) from exc
+                raise RuntimeError("The task's coroutine was not available") from exc
         return None
 
     def __getitem__(self, key: TaskLike) -> TaskState:

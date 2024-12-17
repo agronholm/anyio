@@ -1796,7 +1796,7 @@ async def test_nest_asyncio_applied():
     nest_asyncio.apply()
 
     async def coro_task():
-        await sleep(0)
+        await asyncio.lowlevel.checkpoint()
 
     async with create_task_group() as tg:
         tg.start_soon(coro_task)
@@ -1849,7 +1849,7 @@ async def test_custom_task_like_object(monkeypatch: MonkeyPatch):
     original_task = asyncio.Task
 
     async def sample_coro():
-        await sleep(0)
+        await asyncio.lowlevel.checkpoint()
 
     async def task_factory(loop, coro):
         return CustomTask(coro)
