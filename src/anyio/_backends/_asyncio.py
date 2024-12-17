@@ -56,7 +56,7 @@ from typing import (
     Any,
     Optional,
     TypeVar,
-    cast,
+    cast, Union,
 )
 from weakref import WeakKeyDictionary
 
@@ -307,6 +307,8 @@ PosArgsT = TypeVarTuple("PosArgsT")
 P = ParamSpec("P")
 
 _root_task: RunVar[asyncio.Task | None] = RunVar("_root_task")
+
+TaskLike = Union[asyncio.Task, Coroutine[Any, Any, Any]]
 
 
 def find_root_task() -> asyncio.Task:
@@ -679,19 +681,40 @@ class TaskState:
 
 class TaskStateStore(MutableMapping["Awaitable[Any] | asyncio.Task", TaskState]):
     def __init__(self) -> None:
-        self._task_states = WeakKeyDictionary[asyncio.Task, TaskState]()
-        self._preliminary_task_states: dict[Awaitable[Any], TaskState] = {}
+        self._task_states: WeakKeyDictionary = WeakKeyDictionary[Any, TaskState]()
+        self._preliminary_task_states: dict[Coroutine[Any, Any, Any], TaskState] = {}
 
-    def __getitem__(self, key: Awaitable[Any] | asyncio.Task, /) -> TaskState:
-        assert isinstance(key, asyncio.Task)
-        try:
-            return self._task_states[key]
-        except KeyError:
-            if coro := key.get_coro():
+    def _extract_coro_from_task(self, key: Any) -> Coroutine[Any, Any, Any] | None:
+        coro_getter = getattr(key, "get_coro", None)
+        if callable(coro_getter):
+            try:
+                coro = coro_getter()
+                if asyncio.iscoroutine(coro):
+                    return coro
+            except Exception as exc:
+                raise RuntimeError(
+                    "The task's coroutine was not available"
+                ) from exc
+        return None
+
+    def __getitem__(self, key: TaskLike) -> TaskState:
+        coro = self._extract_coro_from_task(key)
+        if coro is not None:
+            try:
+                return self._task_states[key]
+            except KeyError:
                 if state := self._preliminary_task_states.get(coro):
                     return state
-
-        raise KeyError(key)
+            raise KeyError(key)
+        else:
+            if asyncio.iscoroutine(key):
+                if state := self._preliminary_task_states.get(key):
+                    return state
+                raise KeyError(key)
+            else:
+                raise TypeError(
+                    f"Unsupported key type {type(key)!r}: must be a Task-like or coroutine."
+                )
 
     def __setitem__(
         self, key: asyncio.Task | Awaitable[Any], value: TaskState, /
@@ -701,18 +724,30 @@ class TaskStateStore(MutableMapping["Awaitable[Any] | asyncio.Task", TaskState])
         else:
             self._preliminary_task_states[key] = value
 
-    def __delitem__(self, key: asyncio.Task | Awaitable[Any], /) -> None:
-        if isinstance(key, asyncio.Task):
-            del self._task_states[key]
+    def __delitem__(self, key: TaskLike) -> None:
+        coro: Coroutine | None = self._extract_coro_from_task(key)
+        if coro is not None:
+            if key in self._task_states:
+                del self._task_states[key]
+            elif coro in self._preliminary_task_states:
+                del self._preliminary_task_states[coro]
+            else:
+                raise KeyError(key)
         else:
-            del self._preliminary_task_states[key]
+            if asyncio.iscoroutine(key):
+                if key in self._preliminary_task_states:
+                    del self._preliminary_task_states[key]
+                else:
+                    raise KeyError(key)
+            else:
+                raise KeyError(key)
 
     def __len__(self) -> int:
         return len(self._task_states) + len(self._preliminary_task_states)
 
-    def __iter__(self) -> Iterator[Awaitable[Any] | asyncio.Task]:
-        yield from self._task_states
-        yield from self._preliminary_task_states
+    def __iter__(self) -> Iterator[TaskLike]:
+        yield from self._task_states.keys()
+        yield from self._preliminary_task_states.keys()
 
 
 _task_states = TaskStateStore()
