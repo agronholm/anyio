@@ -9,7 +9,9 @@ from asyncio import CancelledError
 from collections.abc import AsyncGenerator, Coroutine, Generator
 from typing import Any, NoReturn, cast
 
+import nest_asyncio
 import pytest
+from _pytest.monkeypatch import MonkeyPatch
 from exceptiongroup import catch
 from pytest import FixtureRequest
 from pytest_mock import MockerFixture
@@ -1778,3 +1780,88 @@ async def test_eager_task_factory(request: FixtureRequest) -> None:
     async with create_task_group() as tg:
         tg.start_soon(sync_coro)
         tg.cancel_scope.cancel()
+
+
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_normal_taskgroup_behavior():
+    async def simple_task():
+        await sleep(0.1)
+
+    async with create_task_group() as tg:
+        tg.start_soon(simple_task)
+
+
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_nest_asyncio_applied():
+    nest_asyncio.apply()
+
+    async def coro_task():
+        await sleep(0)
+
+    async with create_task_group() as tg:
+        tg.start_soon(coro_task)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Requires Python 3.12+")
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_eager_task_factory(request: FixtureRequest):
+    if not hasattr(asyncio, "eager_task_factory"):
+        pytest.skip("eager_task_factory is not available in this environment.")
+
+    async def sync_coro():
+        with CancelScope():
+            pass
+
+    loop = asyncio.get_running_loop()
+    old_task_factory = loop.get_task_factory()
+    loop.set_task_factory(asyncio.eager_task_factory)
+    request.addfinalizer(lambda: loop.set_task_factory(old_task_factory))
+
+    async with create_task_group() as tg:
+        tg.start_soon(sync_coro)
+        tg.cancel_scope.cancel()
+
+
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_patched_asyncio_task(monkeypatch: MonkeyPatch):
+    if not hasattr(asyncio.tasks, "_PyTask"):
+        pytest.skip("This environment does not have _PyTask.")
+
+    monkeypatch.setattr(
+        asyncio,
+        "Task",
+        asyncio.tasks._PyTask,  # type: ignore[attr-defined]
+    )
+
+    async with create_task_group() as tg:
+        tg.start_soon(sleep, 0)
+
+
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_custom_task_like_object(monkeypatch: MonkeyPatch):
+    class CustomTask:
+        def __init__(self, coro):
+            self._coro = coro
+
+        def get_coro(self):
+            return self._coro
+
+    original_task = asyncio.Task
+
+    async def sample_coro():
+        await sleep(0)
+
+    async def task_factory(loop, coro):
+        return CustomTask(coro)
+
+    loop = asyncio.get_running_loop()
+    old_task_factory = loop.get_task_factory()
+    loop.set_task_factory(task_factory)
+
+    def restore_factory():
+        loop.set_task_factory(old_task_factory)
+
+    monkeypatch.addfinalizer(restore_factory)
+
+    async with create_task_group() as tg:
+        tg.start_soon(sample_coro)
