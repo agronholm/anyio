@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added **experimental** support for running functions in subinterpreters on Python
+  3.13 and later
 - Configure ``SO_RCVBUF``, ``SO_SNDBUF`` and ``TCP_NODELAY`` on the selector
   thread waker socket pair. This should improve the performance of ``wait_readable()``
   and ``wait_writable()`` when using the ``ProactorEventLoop``
