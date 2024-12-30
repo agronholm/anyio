@@ -449,7 +449,7 @@ class CancelScope(BaseCancelScope):
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool | None:
+    ) -> bool:
         del exc_tb
 
         if not self._active:
@@ -2116,7 +2116,7 @@ class _SignalReceiver:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool | None:
+    ) -> None:
         for sig in self._handled_signals:
             self._loop.remove_signal_handler(sig)
         return None
