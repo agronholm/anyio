@@ -730,4 +730,3 @@ class ResourceGuard:
         exc_tb: TracebackType | None,
     ) -> None:
         self._guarded = False
-        return None

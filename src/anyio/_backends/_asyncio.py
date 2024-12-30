@@ -2119,7 +2119,6 @@ class _SignalReceiver:
     ) -> None:
         for sig in self._handled_signals:
             self._loop.remove_signal_handler(sig)
-        return None
 
     def __aiter__(self) -> _SignalReceiver:
         return self
