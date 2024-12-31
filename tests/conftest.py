@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import ssl
+import sys
 from collections.abc import Generator
 from ssl import SSLContext
 from typing import Any
@@ -28,6 +29,26 @@ else:
 
 pytest_plugins = ["pytester", "pytest_mock"]
 
+if sys.version_info < (3, 13):
+    if sys.platform == "win32":
+        EventLoop = asyncio.ProactorEventLoop
+    else:
+        EventLoop = asyncio.SelectorEventLoop
+else:
+    EventLoop = asyncio.EventLoop
+
+if sys.version_info >= (3, 12):
+
+    def eager_task_loop_factory() -> EventLoop:
+        loop = EventLoop()
+        loop.set_task_factory(asyncio.eager_task_factory)
+        return loop
+
+    eager_marks: list[pytest.MarkDecorator] = []
+else:
+    eager_task_loop_factory = EventLoop
+    eager_marks = [pytest.mark.skip(reason="eager tasks not supported yet")]
+
 
 @pytest.fixture(
     params=[
@@ -39,6 +60,11 @@ pytest_plugins = ["pytester", "pytest_mock"]
             ("asyncio", {"debug": True, "loop_factory": uvloop.new_event_loop}),
             marks=uvloop_marks,
             id="asyncio+uvloop",
+        ),
+        pytest.param(
+            ("asyncio", {"debug": True, "loop_factory": eager_task_loop_factory}),
+            marks=eager_marks,
+            id="asyncio+eager",
         ),
         pytest.param("trio"),
     ]

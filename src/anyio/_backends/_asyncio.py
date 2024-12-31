@@ -28,8 +28,6 @@ from collections.abc import (
     Collection,
     Coroutine,
     Iterable,
-    Iterator,
-    MutableMapping,
     Sequence,
 )
 from concurrent.futures import Future
@@ -54,6 +52,7 @@ from typing import (
     IO,
     TYPE_CHECKING,
     Any,
+    Literal,
     Optional,
     TypeVar,
     cast,
@@ -357,6 +356,9 @@ def _task_started(task: asyncio.Task) -> bool:
     """Return ``True`` if the task has been started and has not finished."""
     # The task coro should never be None here, as we never add finished tasks to the
     # task list
+    if task.done():
+        return False
+
     coro = task.get_coro()
     assert coro is not None
     try:
@@ -677,44 +679,59 @@ class TaskState:
         self.cancel_scope = cancel_scope
 
 
-class TaskStateStore(
-    MutableMapping["Coroutine[Any, Any, Any] | asyncio.Task", TaskState]
-):
+class TaskStateStore:
     def __init__(self) -> None:
         self._task_states = WeakKeyDictionary[asyncio.Task, TaskState]()
         self._preliminary_task_states: dict[Coroutine[Any, Any, Any], TaskState] = {}
 
-    def __getitem__(self, key: Coroutine[Any, Any, Any] | asyncio.Task, /) -> TaskState:
-        task = cast(asyncio.Task, key)
+    def __getitem__(self, key: asyncio.Task, /) -> TaskState:
         try:
-            return self._task_states[task]
+            return self._task_states[key]
         except KeyError:
-            if coro := task.get_coro():
-                if state := self._preliminary_task_states.get(coro):
-                    return state
+            pass
+
+        coro = key.get_coro()
+        if coro is None:
+            raise KeyError(key)
+
+        try:
+            state = self._preliminary_task_states.pop(coro)
+        except KeyError:
+            pass
+        else:
+            self._task_states[key] = state
+            return state
 
         raise KeyError(key)
+
+    def get(self, key: asyncio.Task, /) -> TaskState | None:
+        try:
+            return self[key]
+        except KeyError:
+            return None
 
     def __setitem__(
         self, key: asyncio.Task | Coroutine[Any, Any, Any], value: TaskState, /
     ) -> None:
         if isinstance(key, Coroutine):
             self._preliminary_task_states[key] = value
-        else:
-            self._task_states[key] = value
+            return
+
+        self._task_states[key] = value
+        coro = key.get_coro()
+        if coro is None:
+            return
+
+        try:
+            del self._preliminary_task_states[coro]
+        except KeyError:
+            pass
 
     def __delitem__(self, key: asyncio.Task | Coroutine[Any, Any, Any], /) -> None:
         if isinstance(key, Coroutine):
             del self._preliminary_task_states[key]
         else:
             del self._task_states[key]
-
-    def __len__(self) -> int:
-        return len(self._task_states) + len(self._preliminary_task_states)
-
-    def __iter__(self) -> Iterator[Coroutine[Any, Any, Any] | asyncio.Task]:
-        yield from self._task_states
-        yield from self._preliminary_task_states
 
 
 _task_states = TaskStateStore()
@@ -745,6 +762,10 @@ class _AsyncioTaskStatus(abc.TaskStatus):
 
 async def _wait(tasks: Iterable[asyncio.Task[object]]) -> None:
     tasks = set(tasks)
+    if not tasks:
+        await sleep(0)
+        return
+
     waiter = get_running_loop().create_future()
 
     def on_completion(task: asyncio.Task[object]) -> None:
@@ -763,12 +784,199 @@ async def _wait(tasks: Iterable[asyncio.Task[object]]) -> None:
             tasks.pop().remove_done_callback(on_completion)
 
 
+_TF_IS_EAGER_MAP: WeakKeyDictionary[Callable, bool] = WeakKeyDictionary()
+
+
+class _ShimEventLoop(asyncio.AbstractEventLoop):
+    def get_debug(self) -> bool:
+        return False
+
+    def is_running(self) -> bool:
+        return True
+
+    def call_exception_handler(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def add_reader(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def add_writer(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def add_signal_handler(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def call_at(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def call_later(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def call_soon(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def call_soon_threadsafe(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def close(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def connect_read_pipe(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def connect_write_pipe(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def create_connection(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def create_datagram_endpoint(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def create_future(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def create_task(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def create_server(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def default_exception_handler(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def get_exception_handler(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def get_task_factory(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def getaddrinfo(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def getnameinfo(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def is_closed(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def remove_reader(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def remove_writer(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def remove_signal_handler(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def run_forever(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def run_in_executor(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def sendfile(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def set_debug(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def run_until_complete(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def set_default_executor(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def set_exception_handler(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def set_task_factory(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def shutdown_asyncgens(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def shutdown_default_executor(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def sock_accept(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def sock_connect(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def sock_recv(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def sock_recv_into(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def sock_recvfrom(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def sock_recvfrom_into(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def sock_sendall(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def sock_sendfile(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def sock_sendto(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def start_tls(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def stop(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def subprocess_exec(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def subprocess_shell(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+    def time(self, *args: object, **kwargs: object) -> Any:
+        pass
+
+
+if sys.version_info >= (3, 12):
+
+    def is_eager(tf: Callable[..., Any] | None) -> bool:
+        if tf is None:
+            return False
+        try:
+            return _TF_IS_EAGER_MAP[tf]
+        except KeyError:
+            pass
+
+        ran = False
+
+        async def corofn() -> None:
+            nonlocal ran
+            ran = True
+
+        tf(_ShimEventLoop(), corofn()).cancel()
+        _TF_IS_EAGER_MAP[tf] = ran
+        return ran
+else:
+
+    def is_eager(tf: object) -> Literal[False]:
+        return False
+
+
+_pending_eager_tasks: RunVar[int] = RunVar("_pending_eager_tasks", 0)
+
+
 class TaskGroup(abc.TaskGroup):
     def __init__(self) -> None:
         self.cancel_scope: CancelScope = CancelScope()
         self._active = False
         self._exceptions: list[BaseException] = []
         self._tasks: set[asyncio.Task] = set()
+        self._pending_eager_tasks = 0
 
     async def __aenter__(self) -> TaskGroup:
         self.cancel_scope.__enter__()
@@ -788,9 +996,9 @@ class TaskGroup(abc.TaskGroup):
                     self._exceptions.append(exc_val)
 
             try:
-                if self._tasks:
+                if self._pending_eager_tasks or self._tasks:
                     with CancelScope() as wait_scope:
-                        while self._tasks:
+                        while self._pending_eager_tasks or self._tasks:
                             try:
                                 await _wait(self._tasks)
                             except CancelledError as exc:
@@ -835,14 +1043,16 @@ class TaskGroup(abc.TaskGroup):
         args: tuple[Unpack[PosArgsT]],
         name: object,
         task_status_future: asyncio.Future | None = None,
-    ) -> asyncio.Task:
+    ) -> Callable[[], Coroutine[Any, Any, Any]]:
         def task_done(_task: asyncio.Task) -> None:
             # task_state = _task_states[_task]
             assert task_state.cancel_scope is not None
-            assert _task in task_state.cancel_scope._tasks
-            task_state.cancel_scope._tasks.remove(_task)
-            self._tasks.remove(task)
-            del _task_states[_task]
+            task_state.cancel_scope._tasks.discard(_task)
+            self._tasks.discard(_task)
+            try:
+                del _task_states[_task]
+            except KeyError:
+                pass
 
             try:
                 exc = _task.exception()
@@ -886,7 +1096,7 @@ class TaskGroup(abc.TaskGroup):
         else:
             parent_id = id(self.cancel_scope._host_task)
 
-        coro = func(*args, **kwargs)
+        coro: Coroutine[Any, Any, Any] = func(*args, **kwargs)  # type: ignore[assignment]
         if not iscoroutine(coro):
             prefix = f"{func.__module__}." if hasattr(func, "__module__") else ""
             raise TypeError(
@@ -894,27 +1104,71 @@ class TaskGroup(abc.TaskGroup):
                 f"the return value ({coro!r}) is not a coroutine object"
             )
 
-        # Make the spawned task inherit the task group's cancel scope
-        _task_states[coro] = task_state = TaskState(
-            parent_id=parent_id, cancel_scope=self.cancel_scope
-        )
         name = get_callable_name(func) if name is None else str(name)
-        try:
-            task = create_task(coro, name=name)
-        finally:
-            del _task_states[coro]
+        loop = asyncio.get_running_loop()
 
-        _task_states[task] = task_state
-        self.cancel_scope._tasks.add(task)
-        self._tasks.add(task)
+        task_state = TaskState(parent_id=parent_id, cancel_scope=self.cancel_scope)
 
-        if task.done():
-            # This can happen with eager task factories
-            task_done(task)
+        task: asyncio.Task | None = None
+
+        def create() -> None:
+            assert task_factory is not None
+            nonlocal task
+            self._pending_eager_tasks -= 1
+            _pending_eager_tasks.set(_pending_eager_tasks.get() - 1)
+            _task_states[coro] = task_state
+            try:
+                task = task_factory(loop, coro, name=name)  # type: ignore[assignment, call-arg]
+            except BaseException:
+                del _task_states[coro]
+                raise
+
+            assert task is not None
+            if task.done():
+                try:
+                    del _task_states[coro]
+                except KeyError:
+                    pass
+                task_done(task)
+            else:
+                # the task state could have changed if the task entered a new CS
+                new_task_state = _task_states[task]
+                assert new_task_state.cancel_scope is not None
+                # Make the spawned task inherit the cancel scope it's in
+                new_task_state.cancel_scope._tasks.add(task)
+                self._tasks.add(task)
+                task.add_done_callback(task_done)
+
+        async def await_task_cancel_and_wait() -> None:
+            try:
+                await sleep(0)
+            finally:
+                assert task is not None
+                task.cancel()
+                await task
+
+        async def cancel_and_wait() -> None:
+            assert task is not None
+            task.cancel()
+            await task
+
+        task_factory = loop.get_task_factory()
+        if is_eager(task_factory):
+            self._pending_eager_tasks += 1
+            _pending_eager_tasks.set(_pending_eager_tasks.get() + 1)
+            loop.call_soon(create)
+            return await_task_cancel_and_wait
         else:
+            task = loop.create_task(coro, name=name)
+            _task_states[task] = task_state
+
+            # Make the spawned task inherit the task group's cancel scope
+            self.cancel_scope._tasks.add(task)
+            self._tasks.add(task)
+
             task.add_done_callback(task_done)
 
-        return task
+            return cancel_and_wait
 
     def start_soon(
         self,
@@ -928,7 +1182,7 @@ class TaskGroup(abc.TaskGroup):
         self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
     ) -> Any:
         future: asyncio.Future = asyncio.Future()
-        task = self._spawn(func, args, name, future)
+        cancel_and_wait = self._spawn(func, args, name, future)
 
         # If the task raises an exception after sending a start value without a switch
         # point between, the task group is cancelled and this method never proceeds to
@@ -938,9 +1192,8 @@ class TaskGroup(abc.TaskGroup):
             return await future
         except CancelledError:
             # Cancel the task and wait for it to exit before returning
-            task.cancel()
             with CancelScope(shield=True), suppress(CancelledError):
-                await task
+                await cancel_and_wait()
 
             raise
 
@@ -2834,6 +3087,9 @@ class AsyncIOBackend(AsyncBackend):
         await cls.checkpoint()
         this_task = current_task()
         while True:
+            if _pending_eager_tasks.get():
+                await cls.checkpoint()
+
             for task in all_tasks():
                 if task is this_task:
                     continue
