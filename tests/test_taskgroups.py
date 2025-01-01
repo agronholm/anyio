@@ -33,7 +33,7 @@ from anyio import (
 from anyio.abc import TaskGroup, TaskStatus
 from anyio.lowlevel import checkpoint
 
-from .conftest import EventLoop, asyncio_params
+from .conftest import asyncio_params
 
 if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup, ExceptionGroup
@@ -1782,9 +1782,9 @@ if sys.version_info >= (3, 12):
 
     def task_factory_loop_factory_factory(
         task_factory: Callable[..., Any],
-    ) -> Callable[[], EventLoop]:
-        def factory() -> EventLoop:
-            loop = EventLoop()
+    ) -> Callable[[], asyncio.AbstractEventLoop]:
+        def factory() -> asyncio.AbstractEventLoop:
+            loop = asyncio.new_event_loop()
             loop.set_task_factory(task_factory)
             return loop
 
