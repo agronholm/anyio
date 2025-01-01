@@ -132,7 +132,7 @@ class CancelScope(BaseCancelScope):
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool:
+    ) -> bool | None:
         return self.__original.__exit__(exc_type, exc_val, exc_tb)
 
     def cancel(self) -> None:
@@ -187,7 +187,8 @@ class TaskGroup(abc.TaskGroup):
         exc_tb: TracebackType | None,
     ) -> bool:
         try:
-            return await self._nursery_manager.__aexit__(exc_type, exc_val, exc_tb)
+            # trio.Nursery.__exit__ returns bool; .open_nursery has wrong type
+            return await self._nursery_manager.__aexit__(exc_type, exc_val, exc_tb)  # type: ignore[return-value]
         except BaseExceptionGroup as exc:
             if not exc.split(trio.Cancelled)[1]:
                 raise trio.Cancelled._create() from exc

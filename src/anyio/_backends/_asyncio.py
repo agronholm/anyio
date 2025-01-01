@@ -449,7 +449,7 @@ class CancelScope(BaseCancelScope):
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool:
+    ) -> bool | None:
         del exc_tb
 
         if not self._active:
@@ -485,7 +485,7 @@ class CancelScope(BaseCancelScope):
             # scope if necessary
             self._restart_cancellation_in_parent()
 
-            # We only swallow the exception iff it was an AnyIO CancelledError, either
+            # We only swallow the exception if it was an AnyIO CancelledError, either
             # directly as exc_val or inside an exception group and there are no cancelled
             # parent cancel scopes visible to us here
             if self._cancel_called and not self._parent_cancellation_is_visible_to_us:
