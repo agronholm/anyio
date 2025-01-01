@@ -24,6 +24,8 @@ from anyio.streams.memory import (
     MemoryObjectSendStream,
 )
 
+from ..conftest import asyncio_params
+
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
@@ -486,7 +488,7 @@ async def test_not_closed_warning() -> None:
         gc.collect()
 
 
-@pytest.mark.parametrize("anyio_backend", ["asyncio"], indirect=True)
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_send_to_natively_cancelled_receiver() -> None:
     """
     Test that if a task waiting on receive.receive() is cancelled and then another

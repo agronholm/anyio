@@ -33,6 +33,8 @@ from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
 from anyio.lowlevel import checkpoint
 
+from .conftest import asyncio_params
+
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
@@ -595,7 +597,7 @@ class TestBlockingPortal:
 
         assert propagated_value == 6
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_asyncio_run_sync_called(self, caplog: LogCaptureFixture) -> None:
         """Regression test for #357."""
 

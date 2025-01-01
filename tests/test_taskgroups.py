@@ -32,6 +32,8 @@ from anyio import (
 from anyio.abc import TaskGroup, TaskStatus
 from anyio.lowlevel import checkpoint
 
+from .conftest import asyncio_params
+
 if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup, ExceptionGroup
 
@@ -200,7 +202,7 @@ async def test_start_cancelled() -> None:
     assert not finished
 
 
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_start_native_host_cancelled() -> None:
     started = finished = False
 
@@ -224,7 +226,7 @@ async def test_start_native_host_cancelled() -> None:
     assert not finished
 
 
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_start_native_child_cancelled() -> None:
     task = None
     finished = False
@@ -248,7 +250,7 @@ async def test_start_native_child_cancelled() -> None:
     assert not finished
 
 
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_propagate_native_cancellation_from_taskgroup() -> None:
     async def taskfunc() -> None:
         async with create_task_group() as tg:
@@ -261,7 +263,7 @@ async def test_propagate_native_cancellation_from_taskgroup() -> None:
         await task
 
 
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_cancel_with_nested_task_groups(mocker: MockerFixture) -> None:
     """Regression test for #695."""
 
@@ -691,7 +693,7 @@ async def test_shielded_cleanup_after_cancel() -> None:
             assert get_current_task().has_pending_cancellation()
 
 
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_cleanup_after_native_cancel() -> None:
     """Regression test for #832."""
     # See also https://github.com/python/cpython/pull/102815.
@@ -791,7 +793,7 @@ async def test_empty_taskgroup_contains_yield_point() -> None:
         assert outer_task_ran
 
 
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_cancel_host_asyncgen() -> None:
     done = False
 
@@ -1146,7 +1148,7 @@ def test_cancel_generator_based_task() -> None:
 @pytest.mark.filterwarnings(
     'ignore:"@coroutine" decorator is deprecated:DeprecationWarning'
 )
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_schedule_old_style_coroutine_func() -> None:
     """
     Test that we give a sensible error when a user tries to spawn a task from a
@@ -1169,7 +1171,7 @@ async def test_schedule_old_style_coroutine_func() -> None:
             tg.start_soon(corofunc)
 
 
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_cancel_native_future_tasks() -> None:
     async def wait_native_future() -> None:
         loop = asyncio.get_running_loop()
@@ -1180,7 +1182,7 @@ async def test_cancel_native_future_tasks() -> None:
         tg.cancel_scope.cancel()
 
 
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_cancel_native_future_tasks_cancel_scope() -> None:
     async def wait_native_future() -> None:
         with anyio.CancelScope():
@@ -1192,7 +1194,7 @@ async def test_cancel_native_future_tasks_cancel_scope() -> None:
         tg.cancel_scope.cancel()
 
 
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_cancel_completed_task() -> None:
     loop = asyncio.get_running_loop()
     old_exception_handler = loop.get_exception_handler()
@@ -1288,7 +1290,7 @@ async def test_cancelscope_exit_before_enter() -> None:
 
 
 @pytest.mark.parametrize(
-    "anyio_backend", ["asyncio"]
+    "anyio_backend", asyncio_params
 )  # trio does not check for this yet
 async def test_cancelscope_exit_in_wrong_task() -> None:
     async def enter_scope(scope: CancelScope) -> None:
@@ -1403,7 +1405,7 @@ async def test_start_parent_id() -> None:
     sys.version_info < (3, 11),
     reason="Task uncancelling is only supported on Python 3.11",
 )
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 class TestUncancel:
     async def test_uncancel_after_native_cancel(self) -> None:
         task = cast(asyncio.Task, asyncio.current_task())
@@ -1759,28 +1761,18 @@ class TestTaskStatusTyping:
         task_status.started(1)
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 12),
-    reason="Eager task factories require Python 3.12",
-)
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_eager_task_factory(request: FixtureRequest) -> None:
     async def sync_coro() -> None:
         # This should trigger fetching the task state
         with CancelScope():  # noqa: ASYNC100
             pass
 
-    loop = asyncio.get_running_loop()
-    old_task_factory = loop.get_task_factory()
-    loop.set_task_factory(asyncio.eager_task_factory)
-    request.addfinalizer(lambda: loop.set_task_factory(old_task_factory))
-
     async with create_task_group() as tg:
         tg.start_soon(sync_coro)
         tg.cancel_scope.cancel()
 
 
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_patched_asyncio_task(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr(
         asyncio,

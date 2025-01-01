@@ -61,6 +61,8 @@ from anyio.abc import (
 from anyio.lowlevel import checkpoint
 from anyio.streams.stapled import MultiListener
 
+from .conftest import asyncio_params
+
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
@@ -488,7 +490,7 @@ class TestTCPStream:
         thread.join()
         assert thread_exception is None
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_unretrieved_future_exception_server_crash(
         self, family: AnyIPAddressFamily, caplog: LogCaptureFixture
     ) -> None:

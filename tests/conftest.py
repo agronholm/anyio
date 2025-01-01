@@ -49,26 +49,25 @@ else:
     eager_task_loop_factory = EventLoop
     eager_marks = [pytest.mark.skip(reason="eager tasks not supported yet")]
 
+asyncio_params = [
+    pytest.param(
+        ("asyncio", {"debug": True, "loop_factory": None}),
+        id="asyncio",
+    ),
+    pytest.param(
+        ("asyncio", {"debug": True, "loop_factory": uvloop.new_event_loop}),
+        marks=uvloop_marks,
+        id="asyncio+uvloop",
+    ),
+    pytest.param(
+        ("asyncio", {"debug": True, "loop_factory": eager_task_loop_factory}),
+        marks=eager_marks,
+        id="asyncio+eager",
+    ),
+]
 
-@pytest.fixture(
-    params=[
-        pytest.param(
-            ("asyncio", {"debug": True, "loop_factory": None}),
-            id="asyncio",
-        ),
-        pytest.param(
-            ("asyncio", {"debug": True, "loop_factory": uvloop.new_event_loop}),
-            marks=uvloop_marks,
-            id="asyncio+uvloop",
-        ),
-        pytest.param(
-            ("asyncio", {"debug": True, "loop_factory": eager_task_loop_factory}),
-            marks=eager_marks,
-            id="asyncio+eager",
-        ),
-        pytest.param("trio"),
-    ]
-)
+
+@pytest.fixture(params=[*asyncio_params, pytest.param("trio")])
 def anyio_backend(request: SubRequest) -> tuple[str, dict[str, Any]]:
     return request.param
 
