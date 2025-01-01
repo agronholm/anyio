@@ -784,9 +784,6 @@ async def _wait(tasks: Iterable[asyncio.Task[object]]) -> None:
             tasks.pop().remove_done_callback(on_completion)
 
 
-_TF_IS_EAGER_MAP: WeakKeyDictionary[Callable, bool] = WeakKeyDictionary()
-
-
 class _ShimEventLoop(asyncio.AbstractEventLoop):
     def get_debug(self) -> bool:
         return False
@@ -943,6 +940,10 @@ class _ShimEventLoop(asyncio.AbstractEventLoop):
 
 
 if sys.version_info >= (3, 12):
+    _TF_IS_EAGER_MAP: WeakKeyDictionary[Callable, bool] = WeakKeyDictionary()
+    _TF_IS_EAGER_MAP[asyncio.eager_task_factory] = True
+
+    _TF_CODE = asyncio.eager_task_factory.__code__
 
     def is_eager(tf: Callable[..., Any] | None) -> bool:
         if tf is None:
@@ -951,6 +952,10 @@ if sys.version_info >= (3, 12):
             return _TF_IS_EAGER_MAP[tf]
         except KeyError:
             pass
+
+        if getattr(tf, "__code__", object()) is _TF_CODE:
+            _TF_IS_EAGER_MAP[tf] = True
+            return True
 
         ran = False
 

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import gc
 import math
 import sys
 import time
 from asyncio import CancelledError
-from collections.abc import AsyncGenerator, Coroutine, Generator
+from collections.abc import AsyncGenerator, Callable, Coroutine, Generator
 from typing import Any, NoReturn, cast
 
 import pytest
@@ -32,7 +33,7 @@ from anyio import (
 from anyio.abc import TaskGroup, TaskStatus
 from anyio.lowlevel import checkpoint
 
-from .conftest import asyncio_params
+from .conftest import EventLoop, asyncio_params
 
 if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup, ExceptionGroup
@@ -1762,13 +1763,93 @@ class TestTaskStatusTyping:
 
 
 async def test_eager_task_factory(request: FixtureRequest) -> None:
+    ran = False
+
     async def sync_coro() -> None:
+        nonlocal ran
+        ran = True
         # This should trigger fetching the task state
         with CancelScope():  # noqa: ASYNC100
             pass
 
     async with create_task_group() as tg:
         tg.start_soon(sync_coro)
+        assert not ran
+        tg.cancel_scope.cancel()
+
+
+if sys.version_info >= (3, 12):
+
+    def task_factory_loop_factory_factory(
+        task_factory: Callable[..., Any],
+    ) -> Callable[[], EventLoop]:
+        def factory() -> EventLoop:
+            loop = EventLoop()
+            loop.set_task_factory(task_factory)
+            return loop
+
+        return factory
+
+    def create_eager_task_factory(
+        custom_task_constructor: Callable[..., Any],
+    ) -> Callable[..., Any]:
+        def factory(
+            loop: Any,
+            coro: Any,
+            *,
+            name: str | None = None,
+            context: contextvars.Context | None = None,
+        ) -> Any:
+            return custom_task_constructor(
+                coro, loop=loop, name=name, context=context, eager_start=True
+            )
+
+        return factory
+
+    custom_params = [
+        pytest.param(
+            (
+                "asyncio",
+                {
+                    "debug": True,
+                    "loop_factory": task_factory_loop_factory_factory(
+                        asyncio.create_eager_task_factory(asyncio.Task)
+                    ),
+                },
+            ),
+            id="asyncio+stdlib-custom-eager",
+        ),
+        pytest.param(
+            (
+                "asyncio",
+                {
+                    "debug": True,
+                    "loop_factory": task_factory_loop_factory_factory(
+                        create_eager_task_factory(asyncio.Task)
+                    ),
+                },
+            ),
+            id="asyncio+my-custom-eager",
+        ),
+    ]
+else:
+    custom_params = []
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params + custom_params)
+async def test_various_custom_task_factories(request: FixtureRequest) -> None:
+    ran = False
+
+    async def sync_coro() -> None:
+        nonlocal ran
+        ran = True
+        # This should trigger fetching the task state
+        with CancelScope():  # noqa: ASYNC100
+            pass
+
+    async with create_task_group() as tg:
+        tg.start_soon(sync_coro)
+        assert not ran
         tg.cancel_scope.cancel()
 
 
