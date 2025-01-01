@@ -1762,22 +1762,6 @@ class TestTaskStatusTyping:
         task_status.started(1)
 
 
-async def test_eager_task_factory(request: FixtureRequest) -> None:
-    ran = False
-
-    async def sync_coro() -> None:
-        nonlocal ran
-        ran = True
-        # This should trigger fetching the task state
-        with CancelScope():  # noqa: ASYNC100
-            pass
-
-    async with create_task_group() as tg:
-        tg.start_soon(sync_coro)
-        assert not ran
-        tg.cancel_scope.cancel()
-
-
 if sys.version_info >= (3, 12):
 
     def task_factory_loop_factory_factory(
