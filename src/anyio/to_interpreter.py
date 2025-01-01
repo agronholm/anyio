@@ -27,7 +27,6 @@ DEFAULT_CPU_COUNT = 8  # this is just an arbitrarily selected value
 T_Retval = TypeVar("T_Retval")
 PosArgsT = TypeVarTuple("PosArgsT")
 
-_workers = RunVar[set["Worker"]]("_workers")
 _idle_workers = RunVar[deque["Worker"]]("_available_workers")
 _default_interpreter_limiter = RunVar[CapacityLimiter]("_default_interpreter_limiter")
 
@@ -127,7 +126,7 @@ class Worker:
         return result
 
 
-def _stop_workers(workers: set[Worker]) -> None:
+def _stop_workers(workers: deque[Worker]) -> None:
     for worker in workers:
         worker.destroy()
 
@@ -176,9 +175,7 @@ async def run_sync(
     except LookupError:
         idle_workers = deque()
         _idle_workers.set(idle_workers)
-        workers = set()
-        _workers.set(workers)
-        atexit.register(_stop_workers, workers)
+        atexit.register(_stop_workers, idle_workers)
 
     async with limiter:
         try:

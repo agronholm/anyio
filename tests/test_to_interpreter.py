@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import AsyncGenerator
 
 import pytest
+from pytest import fixture
 
 from anyio import to_interpreter
 
@@ -10,6 +12,16 @@ pytestmark = [
     pytest.mark.anyio,
     pytest.mark.skipif(sys.version_info < (3, 13), reason="requires Python 3.13+"),
 ]
+
+
+@fixture(autouse=True)
+async def destroy_workers() -> AsyncGenerator[None]:
+    yield
+    idle_workers = to_interpreter._idle_workers.get()
+    for worker in idle_workers:
+        worker.destroy()
+
+    idle_workers.clear()
 
 
 async def test_run_sync() -> None:
