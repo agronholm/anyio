@@ -1045,7 +1045,7 @@ class TaskGroup(abc.TaskGroup):
         name: object,
         task_status_future: asyncio.Future | None = None,
     ) -> Callable[[], Coroutine[Any, Any, Any]]:
-        def get_exception(_task: asyncio.Task) -> BaseException:
+        def get_exception(_task: asyncio.Task) -> BaseException | None:
             try:
                 return _task.exception()
             except CancelledError as e:
