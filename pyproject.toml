@@ -49,12 +49,12 @@ test = [
     "hypothesis >= 4.0",
     "psutil >= 5.9",
     "pytest >= 7.0",
-    "pytest-mock >= 3.6.1",
     "trustme",
     "truststore >= 0.9.1; python_version >= '3.10'",
     """\
     uvloop >= 0.21; platform_python_implementation == 'CPython' \
-    and platform_system != 'Windows'\
+    and platform_system != 'Windows' \
+    and python_version < '3.14'\
     """
 ]
 doc = [
@@ -93,12 +93,9 @@ extend-select = [
 [tool.mypy]
 python_version = "3.13"
 strict = true
-ignore_missing_imports = true
 disallow_any_generics = false
 warn_return_any = false
 disallow_untyped_decorators = false
-disallow_subclassing_any = false
-show_error_codes = true
 
 [tool.pytest.ini_options]
 addopts = "-rsfE --tb=short --strict-config --strict-markers -p anyio -p no:asyncio -p no:trio"
