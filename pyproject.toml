@@ -49,12 +49,12 @@ test = [
     "hypothesis >= 4.0",
     "psutil >= 5.9",
     "pytest >= 7.0",
-    "pytest-mock >= 3.6.1",
     "trustme",
     "truststore >= 0.9.1; python_version >= '3.10'",
     """\
     uvloop >= 0.21; platform_python_implementation == 'CPython' \
-    and platform_system != 'Windows'\
+    and platform_system != 'Windows' \
+    and python_version < '3.14'\
     """
 ]
 doc = [

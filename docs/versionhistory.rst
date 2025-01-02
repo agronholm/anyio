@@ -7,6 +7,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added **experimental** support for running functions in subinterpreters on Python
   3.13 and later
+- Added support for the ``copy()``, ``copy_into()``, ``move()`` and ``move_into()``
+  methods in ``anyio.Path``, available in Python 3.14
 - Configure ``SO_RCVBUF``, ``SO_SNDBUF`` and ``TCP_NODELAY`` on the selector
   thread waker socket pair. This should improve the performance of ``wait_readable()``
   and ``wait_writable()`` when using the ``ProactorEventLoop``
