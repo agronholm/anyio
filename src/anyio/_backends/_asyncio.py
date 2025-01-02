@@ -972,16 +972,12 @@ else:
         return False
 
 
-_pending_eager_tasks: RunVar[int] = RunVar("_pending_eager_tasks", 0)
-
-
 class TaskGroup(abc.TaskGroup):
     def __init__(self) -> None:
         self.cancel_scope: CancelScope = CancelScope()
         self._active = False
         self._exceptions: list[BaseException] = []
         self._tasks: set[asyncio.Task] = set()
-        self._pending_eager_tasks = 0
 
     async def __aenter__(self) -> TaskGroup:
         self.cancel_scope.__enter__()
@@ -1001,9 +997,9 @@ class TaskGroup(abc.TaskGroup):
                     self._exceptions.append(exc_val)
 
             try:
-                if self._pending_eager_tasks or self._tasks:
+                if self._tasks:
                     with CancelScope() as wait_scope:
-                        while self._pending_eager_tasks or self._tasks:
+                        while self._tasks:
                             try:
                                 await _wait(self._tasks)
                             except CancelledError as exc:
@@ -1049,39 +1045,53 @@ class TaskGroup(abc.TaskGroup):
         name: object,
         task_status_future: asyncio.Future | None = None,
     ) -> Callable[[], Coroutine[Any, Any, Any]]:
+        def get_exception(_task: asyncio.Task) -> BaseException:
+            try:
+                return _task.exception()
+            except CancelledError as e:
+                while isinstance(e.__context__, CancelledError):
+                    e = e.__context__
+
+                return e
+
+        def process_exception(exc: BaseException) -> None:
+            # The future can only be in the cancelled state if the host task was
+            # cancelled, so return immediately instead of adding one more
+            # CancelledError to the exceptions list
+            if task_status_future is not None and task_status_future.cancelled():
+                return
+
+            if task_status_future is None or task_status_future.done():
+                if not isinstance(exc, CancelledError):
+                    self._exceptions.append(exc)
+
+                if not self.cancel_scope._effectively_cancelled:
+                    self.cancel_scope.cancel()
+            else:
+                task_status_future.set_exception(exc)
+
+
+        def simple_task_done(_task: asyncio.Task) -> None:
+            self._tasks.discard(_task)
+            exc = get_exception(_task)
+
+            if exc is not None:
+                process_exception(exc)
+
         def task_done(_task: asyncio.Task) -> None:
-            # task_state = _task_states[_task]
+            self._tasks.discard(_task)
             assert task_state.cancel_scope is not None
             task_state.cancel_scope._tasks.discard(_task)
-            self._tasks.discard(_task)
+
             try:
                 del _task_states[_task]
             except KeyError:
                 pass
 
-            try:
-                exc = _task.exception()
-            except CancelledError as e:
-                while isinstance(e.__context__, CancelledError):
-                    e = e.__context__
-
-                exc = e
+            exc = get_exception(_task)
 
             if exc is not None:
-                # The future can only be in the cancelled state if the host task was
-                # cancelled, so return immediately instead of adding one more
-                # CancelledError to the exceptions list
-                if task_status_future is not None and task_status_future.cancelled():
-                    return
-
-                if task_status_future is None or task_status_future.done():
-                    if not isinstance(exc, CancelledError):
-                        self._exceptions.append(exc)
-
-                    if not self.cancel_scope._effectively_cancelled:
-                        self.cancel_scope.cancel()
-                else:
-                    task_status_future.set_exception(exc)
+                process_exception(exc)
             elif task_status_future is not None and not task_status_future.done():
                 task_status_future.set_exception(
                     RuntimeError("Child exited without calling task_status.started()")
@@ -1116,11 +1126,10 @@ class TaskGroup(abc.TaskGroup):
 
         task: asyncio.Task | None = None
 
-        def create() -> None:
+        async def create() -> None:
+            await sleep(0)
             assert task_factory is not None
             nonlocal task
-            self._pending_eager_tasks -= 1
-            _pending_eager_tasks.set(_pending_eager_tasks.get() - 1)
             _task_states[coro] = task_state
             try:
                 task = task_factory(loop, coro, name=name)  # type: ignore[assignment, call-arg]
@@ -1135,14 +1144,15 @@ class TaskGroup(abc.TaskGroup):
                 except KeyError:
                     pass
                 task_done(task)
-            else:
-                # the task state could have changed if the task entered a new CS
-                new_task_state = _task_states[task]
-                assert new_task_state.cancel_scope is not None
-                # Make the spawned task inherit the cancel scope it's in
-                new_task_state.cancel_scope._tasks.add(task)
-                self._tasks.add(task)
-                task.add_done_callback(task_done)
+                return
+
+            # the task state could have changed if the task entered a new CS
+            new_task_state = _task_states[task]
+            assert new_task_state.cancel_scope is not None
+            # Make the spawned task inherit the cancel scope it's in
+            new_task_state.cancel_scope._tasks.add(task)
+            self._tasks.add(task)
+            task.add_done_callback(task_done)
 
         async def await_task_cancel_and_wait() -> None:
             try:
@@ -1159,9 +1169,9 @@ class TaskGroup(abc.TaskGroup):
 
         task_factory = loop.get_task_factory()
         if is_eager(task_factory):
-            self._pending_eager_tasks += 1
-            _pending_eager_tasks.set(_pending_eager_tasks.get() + 1)
-            loop.call_soon(create)
+            spawn_task: asyncio.Task = task_factory(loop, create(), name=f"spawn {name}")  # type: ignore[assignment, misc, call-arg]
+            self._tasks.add(spawn_task)
+            spawn_task.add_done_callback(simple_task_done)
             return await_task_cancel_and_wait
         else:
             task = loop.create_task(coro, name=name)
@@ -3092,9 +3102,6 @@ class AsyncIOBackend(AsyncBackend):
         await cls.checkpoint()
         this_task = current_task()
         while True:
-            if _pending_eager_tasks.get():
-                await cls.checkpoint()
-
             for task in all_tasks():
                 if task is this_task:
                     continue
