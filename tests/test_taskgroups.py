@@ -9,11 +9,11 @@ import time
 from asyncio import CancelledError
 from collections.abc import AsyncGenerator, Callable, Coroutine, Generator
 from typing import Any, NoReturn, cast
+from unittest import mock
 
 import pytest
 from exceptiongroup import catch
 from pytest import FixtureRequest, MonkeyPatch
-from pytest_mock import MockerFixture
 
 import anyio
 from anyio import (
@@ -265,31 +265,43 @@ async def test_propagate_native_cancellation_from_taskgroup() -> None:
 
 
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
-async def test_cancel_with_nested_task_groups(mocker: MockerFixture) -> None:
+async def test_cancel_with_nested_task_groups() -> None:
     """Regression test for #695."""
 
     async def shield_task() -> None:
         with CancelScope(shield=True) as scope:
-            shielded_cancel_spy = mocker.spy(scope, "_deliver_cancellation")
-            await sleep(0.5)
+            with mock.patch.object(
+                scope,
+                "_deliver_cancellation",
+                wraps=getattr(scope, "_deliver_cancellation"),
+            ) as shielded_cancel_spy:
+                await sleep(0.5)
 
-            assert len(outer_cancel_spy.call_args_list) < 10
-            shielded_cancel_spy.assert_not_called()
+                assert len(outer_cancel_spy.call_args_list) < 10
+                shielded_cancel_spy.assert_not_called()
 
     async def middle_task() -> None:
         try:
             async with create_task_group() as tg:
-                middle_cancel_spy = mocker.spy(tg.cancel_scope, "_deliver_cancellation")
-                tg.start_soon(shield_task, name="shield task")
+                with mock.patch.object(
+                    tg.cancel_scope,
+                    "_deliver_cancellation",
+                    wraps=getattr(tg.cancel_scope, "_deliver_cancellation"),
+                ) as middle_cancel_spy:
+                    tg.start_soon(shield_task, name="shield task")
         finally:
             assert len(middle_cancel_spy.call_args_list) < 10
             assert len(outer_cancel_spy.call_args_list) < 10
 
     async with create_task_group() as tg:
-        outer_cancel_spy = mocker.spy(tg.cancel_scope, "_deliver_cancellation")
-        tg.start_soon(middle_task, name="middle task")
-        await wait_all_tasks_blocked()
-        tg.cancel_scope.cancel()
+        with mock.patch.object(
+            tg.cancel_scope,
+            "_deliver_cancellation",
+            wraps=getattr(tg.cancel_scope, "_deliver_cancellation"),
+        ) as outer_cancel_spy:
+            tg.start_soon(middle_task, name="middle task")
+            await wait_all_tasks_blocked()
+            tg.cancel_scope.cancel()
 
     assert len(outer_cancel_spy.call_args_list) < 10
 
@@ -856,7 +868,8 @@ async def test_shielding_mutate() -> None:
             completed = True
             scope.shield = False
             await sleep(1)
-            pytest.fail("Execution should not reach this point")
+
+        pytest.fail("Execution should not reach this point")
 
     async with create_task_group() as tg:
         await tg.start(task)
@@ -1605,14 +1618,29 @@ async def test_start_cancels_parent_scope() -> None:
     assert not tg.cancel_scope.cancel_called
 
 
-if sys.version_info <= (3, 11):
+if sys.version_info >= (3, 14):
 
-    def no_other_refs() -> list[object]:
-        return [sys._getframe(1)]
+    async def no_other_refs() -> list[object]:
+        frame = sys._getframe(1)
+        coro = get_current_task().coro
+
+        async def get_coro_for_frame(*, task_status: TaskStatus[object]) -> None:
+            my_coro = coro
+            while my_coro.cr_frame is not frame:
+                my_coro = my_coro.cr_await
+            task_status.started(my_coro)
+
+        async with create_task_group() as tg:
+            return [await tg.start(get_coro_for_frame)]
+
+elif sys.version_info >= (3, 11):
+
+    async def no_other_refs() -> list[object]:
+        return []
 else:
 
-    def no_other_refs() -> list[object]:
-        return []
+    async def no_other_refs() -> list[object]:
+        return [sys._getframe(1)]
 
 
 @pytest.mark.skipif(
@@ -1643,7 +1671,7 @@ class TestRefcycles:
             exc = e
 
         assert exc is not None
-        assert gc.get_referrers(exc) == no_other_refs()
+        assert gc.get_referrers(exc) == await no_other_refs()
 
     async def test_exception_refcycles_errors(self) -> None:
         """Test that TaskGroup deletes self._exceptions, and __aexit__ args"""
@@ -1660,7 +1688,7 @@ class TestRefcycles:
             exc = excs.exceptions[0]
 
         assert isinstance(exc, _Done)
-        assert gc.get_referrers(exc) == no_other_refs()
+        assert gc.get_referrers(exc) == await no_other_refs()
 
     async def test_exception_refcycles_parent_task(self) -> None:
         """Test that TaskGroup's cancel_scope deletes self._host_task"""
@@ -1681,7 +1709,7 @@ class TestRefcycles:
             exc = excs.exceptions[0].exceptions[0]
 
         assert isinstance(exc, _Done)
-        assert gc.get_referrers(exc) == no_other_refs()
+        assert gc.get_referrers(exc) == await no_other_refs()
 
     async def test_exception_refcycles_propagate_cancellation_error(self) -> None:
         """Test that TaskGroup deletes cancelled_exc"""
@@ -1698,7 +1726,7 @@ class TestRefcycles:
                 raise
 
         assert isinstance(exc, get_cancelled_exc_class())
-        assert gc.get_referrers(exc) == no_other_refs()
+        assert gc.get_referrers(exc) == await no_other_refs()
 
     async def test_exception_refcycles_base_error(self) -> None:
         """
@@ -1721,7 +1749,7 @@ class TestRefcycles:
             exc = excs.exceptions[0]
 
         assert isinstance(exc, MyKeyboardInterrupt)
-        assert gc.get_referrers(exc) == no_other_refs()
+        assert gc.get_referrers(exc) == await no_other_refs()
 
 
 class TestTaskStatusTyping:
