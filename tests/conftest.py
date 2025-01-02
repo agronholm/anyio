@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import ssl
+import sys
 from collections.abc import Generator
 from ssl import SSLContext
 from typing import Any
@@ -28,21 +29,30 @@ else:
 
 pytest_plugins = ["pytester"]
 
+asyncio_params = [
+    pytest.param(("asyncio", {"debug": True}), id="asyncio"),
+    pytest.param(
+        ("asyncio", {"debug": True, "loop_factory": uvloop.new_event_loop}),
+        marks=uvloop_marks,
+        id="asyncio+uvloop",
+    ),
+]
+if sys.version_info >= (3, 12):
 
-@pytest.fixture(
-    params=[
+    def eager_task_loop_factory() -> asyncio.AbstractEventLoop:
+        loop = asyncio.new_event_loop()
+        loop.set_task_factory(asyncio.eager_task_factory)
+        return loop
+
+    asyncio_params.append(
         pytest.param(
-            ("asyncio", {"debug": True, "loop_factory": None}),
-            id="asyncio",
+            ("asyncio", {"debug": True, "loop_factory": eager_task_loop_factory}),
+            id="asyncio+eager",
         ),
-        pytest.param(
-            ("asyncio", {"debug": True, "loop_factory": uvloop.new_event_loop}),
-            marks=uvloop_marks,
-            id="asyncio+uvloop",
-        ),
-        pytest.param("trio"),
-    ]
-)
+    )
+
+
+@pytest.fixture(params=[*asyncio_params, pytest.param("trio")])
 def anyio_backend(request: SubRequest) -> tuple[str, dict[str, Any]]:
     return request.param
 
