@@ -42,7 +42,7 @@ class Worker:
         try:
             func, args, kwargs = loads(item)
             retval = func(*args, **kwargs)
-        except Exception as exc:
+        except BaseException as exc:
             is_exception = True
             retval = exc
         else:
