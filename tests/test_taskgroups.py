@@ -13,7 +13,6 @@ from unittest import mock
 import pytest
 from exceptiongroup import catch
 from pytest import FixtureRequest, MonkeyPatch
-from pytest_mock import MockerFixture
 
 import anyio
 from anyio import (
