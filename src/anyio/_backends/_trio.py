@@ -132,7 +132,7 @@ class CancelScope(BaseCancelScope):
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool | None:
+    ) -> bool:
         return self.__original.__exit__(exc_type, exc_val, exc_tb)
 
     def cancel(self) -> None:
