@@ -7,7 +7,7 @@ import sys
 from collections import deque
 from collections.abc import Callable, Mapping
 from textwrap import dedent
-from typing import Any, TypeVar
+from typing import Any, Final, TypeVar
 
 from . import to_thread
 from ._core._exceptions import BrokenWorkerIntepreter
@@ -19,10 +19,10 @@ if sys.version_info >= (3, 11):
 else:
     from typing_extensions import TypeVarTuple, Unpack
 
-UNBOUND = 2  # I have no clue how this works, but it was used in the stdlib
-FMT_UNPICKLED = 0
-FMT_PICKLED = 1
-DEFAULT_CPU_COUNT = 8  # this is just an arbitrarily selected value
+UNBOUND: Final = 2  # I have no clue how this works, but it was used in the stdlib
+FMT_UNPICKLED: Final = 0
+FMT_PICKLED: Final = 1
+DEFAULT_CPU_COUNT: Final = 8  # this is just an arbitrarily selected value
 
 T_Retval = TypeVar("T_Retval")
 PosArgsT = TypeVarTuple("PosArgsT")
