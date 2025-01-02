@@ -1070,7 +1070,6 @@ class TaskGroup(abc.TaskGroup):
             else:
                 task_status_future.set_exception(exc)
 
-
         def simple_task_done(_task: asyncio.Task) -> None:
             self._tasks.discard(_task)
             exc = get_exception(_task)
@@ -1169,7 +1168,9 @@ class TaskGroup(abc.TaskGroup):
 
         task_factory = loop.get_task_factory()
         if is_eager(task_factory):
-            spawn_task: asyncio.Task = task_factory(loop, create(), name=f"spawn {name}")  # type: ignore[assignment, misc, call-arg]
+            spawn_task: asyncio.Task = task_factory(
+                loop, create(), name=f"spawn {name}"
+            )  # type: ignore[assignment, misc, call-arg]
             self._tasks.add(spawn_task)
             spawn_task.add_done_callback(simple_task_done)
             return await_task_cancel_and_wait
