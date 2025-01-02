@@ -762,10 +762,6 @@ class _AsyncioTaskStatus(abc.TaskStatus):
 
 async def _wait(tasks: Iterable[asyncio.Task[object]]) -> None:
     tasks = set(tasks)
-    if not tasks:
-        await sleep(0)
-        return
-
     waiter = get_running_loop().create_future()
 
     def on_completion(task: asyncio.Task[object]) -> None:
