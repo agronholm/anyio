@@ -149,6 +149,11 @@ _ignore_win32_resource_warnings = (
 )
 
 
+@pytest.fixture
+def gc_collect() -> None:
+    gc.collect()
+
+
 @_ignore_win32_resource_warnings
 class TestTCPStream:
     @pytest.fixture
@@ -490,7 +495,7 @@ class TestTCPStream:
 
     @pytest.mark.parametrize("anyio_backend", ["asyncio"])
     async def test_unretrieved_future_exception_server_crash(
-        self, family: AnyIPAddressFamily, caplog: LogCaptureFixture
+        self, family: AnyIPAddressFamily, caplog: LogCaptureFixture, gc_collect: None
     ) -> None:
         """
         Test that there won't be any leftover Futures that don't get their exceptions
