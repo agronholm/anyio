@@ -49,12 +49,12 @@ class BrokenWorkerIntepreter(Exception):
         else:
             return dedent(
                 f"""
-    {super().__str__()}
+                {super().__str__()}
 
-    Uncaught in the interpreter:
+                Uncaught in the interpreter:
 
-    {formatted}
-                    """.strip()
+                {formatted}
+                """.strip()
             )
 
 
