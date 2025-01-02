@@ -449,7 +449,7 @@ class CancelScope(BaseCancelScope):
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool | None:
+    ) -> bool:
         del exc_tb
 
         if not self._active:
@@ -2116,10 +2116,9 @@ class _SignalReceiver:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool | None:
+    ) -> None:
         for sig in self._handled_signals:
             self._loop.remove_signal_handler(sig)
-        return None
 
     def __aiter__(self) -> _SignalReceiver:
         return self
@@ -2448,7 +2447,7 @@ class AsyncIOBackend(AsyncBackend):
         return CapacityLimiter(total_tokens)
 
     @classmethod
-    async def run_sync_in_worker_thread(
+    async def run_sync_in_worker_thread(  # type: ignore[return]
         cls,
         func: Callable[[Unpack[PosArgsT]], T_Retval],
         args: tuple[Unpack[PosArgsT]],
@@ -2470,7 +2469,7 @@ class AsyncIOBackend(AsyncBackend):
 
         async with limiter or cls.current_default_thread_limiter():
             with CancelScope(shield=not abandon_on_cancel) as scope:
-                future: asyncio.Future = asyncio.Future()
+                future = asyncio.Future[T_Retval]()
                 root_task = find_root_task()
                 if not idle_workers:
                     worker = WorkerThread(root_task, workers, idle_workers)
