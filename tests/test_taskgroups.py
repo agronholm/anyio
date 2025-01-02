@@ -853,7 +853,8 @@ async def test_shielding_mutate() -> None:
             completed = True
             scope.shield = False
             await sleep(1)
-            pytest.fail("Execution should not reach this point")
+
+        pytest.fail("Execution should not reach this point")
 
     async with create_task_group() as tg:
         await tg.start(task)
