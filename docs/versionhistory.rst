@@ -7,6 +7,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added support for the ``copy()``, ``copy_into()``, ``move()`` and ``move_into()``
   methods in ``anyio.Path``, available in Python 3.14
+- Configure ``SO_RCVBUF``, ``SO_SNDBUF`` and ``TCP_NODELAY`` on the selector
+  thread waker socket pair. This should improve the performance of ``wait_readable()``
+  and ``wait_writable()`` when using the ``ProactorEventLoop``
+  (`#836 <https://github.com/agronholm/anyio/pull/836>`_; PR by @graingert)
+- Fixed ``AssertionError`` when using ``nest-asyncio``
+  (`#840 <https://github.com/agronholm/anyio/issues/840>`_)
 
 **4.7.0**
 
