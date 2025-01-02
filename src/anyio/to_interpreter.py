@@ -58,15 +58,17 @@ class Worker:
         "exec",
     )
 
+    _initialized: bool = False
     _interpreter_id: int
     _queue_id: int
 
-    async def initialize(self) -> None:
+    def initialize(self) -> None:
         import _interpqueues as queues
         import _interpreters as interpreters
 
         self._interpreter_id = interpreters.create()
         self._queue_id = queues.create(2, FMT_UNPICKLED, UNBOUND)  # type: ignore[call-arg]
+        self._initialized = True
         interpreters.set___main___attrs(
             self._interpreter_id,
             {
@@ -81,14 +83,18 @@ class Worker:
         import _interpqueues as queues
         import _interpreters as interpreters
 
-        interpreters.destroy(self._interpreter_id)
-        queues.destroy(self._queue_id)
+        if self._initialized:
+            interpreters.destroy(self._interpreter_id)
+            queues.destroy(self._queue_id)
 
     def _call(
         self, func: Callable[..., T_Retval], args: tuple[Any], kwargs: dict[str, Any]
     ) -> tuple[Any, bool]:
         import _interpqueues as queues
         import _interpreters as interpreters
+
+        if not self._initialized:
+            self.initialize()
 
         payload = pickle.dumps((func, args, kwargs), pickle.HIGHEST_PROTOCOL)
         queues.put(self._queue_id, payload, FMT_PICKLED, UNBOUND)  # type: ignore[call-arg]
@@ -182,7 +188,6 @@ async def run_sync(
             worker = idle_workers.pop()
         except IndexError:
             worker = Worker()
-            await worker.initialize()
 
     try:
         return await worker.call(func, args, kwargs or {}, abandon_on_cancel, limiter)
