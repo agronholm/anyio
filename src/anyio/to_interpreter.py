@@ -115,7 +115,6 @@ class Worker:
         func: Callable[..., T_Retval],
         args: tuple[Any],
         kwargs: dict[str, Any],
-        abandon_on_cancel: bool,
         limiter: CapacityLimiter,
     ) -> T_Retval:
         result, is_exception = await to_thread.run_sync(
@@ -123,7 +122,6 @@ class Worker:
             func,
             args,
             kwargs,
-            abandon_on_cancel=abandon_on_cancel,
             limiter=limiter,
         )
         if is_exception:
@@ -143,7 +141,6 @@ async def run_sync(
     func: Callable[[Unpack[PosArgsT]], T_Retval],
     *args: Unpack[PosArgsT],
     kwargs: Mapping[str, Any] | None = None,
-    abandon_on_cancel: bool = False,
     limiter: CapacityLimiter | None = None,
 ) -> T_Retval:
     """
@@ -160,10 +157,6 @@ async def run_sync(
     :param func: a callable
     :param args: positional arguments for the callable
     :param kwargs: keyword arguments for the callable
-    :param abandon_on_cancel: ``True`` to abandon the call (leaving it to run
-        unchecked on its own) if the host task is cancelled, ``False`` to ignore
-        cancellations in the host task until the operation has completed in the
-        subinterpreter
     :param limiter: capacity limiter to use to limit the total amount of subinterpreters
         running (if omitted, the default limiter is used)
     :return: the result of the call
@@ -190,7 +183,7 @@ async def run_sync(
             worker = Worker()
 
     try:
-        return await worker.call(func, args, kwargs or {}, abandon_on_cancel, limiter)
+        return await worker.call(func, args, kwargs or {}, limiter)
     finally:
         idle_workers.append(worker)
 
