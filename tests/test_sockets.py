@@ -491,13 +491,9 @@ class TestTCPStream:
         thread.join()
         assert thread_exception is None
 
-    @pytest.fixture
-    def gc_collect(self) -> None:
-        gc.collect()
-
     @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_unretrieved_future_exception_server_crash(
-        self, family: AnyIPAddressFamily, caplog: LogCaptureFixture, gc_collect: None
+        self, family: AnyIPAddressFamily, caplog: LogCaptureFixture
     ) -> None:
         """
         Test that there won't be any leftover Futures that don't get their exceptions
