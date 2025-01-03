@@ -23,6 +23,8 @@ from anyio import (
 )
 from anyio.from_thread import BlockingPortalProvider
 
+from .conftest import asyncio_params
+
 pytestmark = pytest.mark.anyio
 
 
@@ -159,7 +161,7 @@ async def test_asynclib_detection() -> None:
         await to_thread.run_sync(sniffio.current_async_library)
 
 
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_asyncio_cancel_native_task() -> None:
     task: asyncio.Task[None] | None = None
 

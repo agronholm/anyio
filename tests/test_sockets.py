@@ -5,6 +5,7 @@ import gc
 import io
 import os
 import platform
+import re
 import socket
 import sys
 import tempfile
@@ -60,6 +61,8 @@ from anyio.abc import (
 )
 from anyio.lowlevel import checkpoint
 from anyio.streams.stapled import MultiListener
+
+from .conftest import asyncio_params
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -488,7 +491,7 @@ class TestTCPStream:
         thread.join()
         assert thread_exception is None
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_unretrieved_future_exception_server_crash(
         self, family: AnyIPAddressFamily, caplog: LogCaptureFixture
     ) -> None:
@@ -497,7 +500,6 @@ class TestTCPStream:
         retrieved.
 
         See https://github.com/encode/httpcore/issues/382 for details.
-
         """
 
         def serve() -> None:
@@ -523,7 +525,12 @@ class TestTCPStream:
 
             thread.join()
             gc.collect()
-            assert not caplog.text
+            caplog_text = "\n".join(
+                msg
+                for msg in caplog.messages
+                if not re.search("took [0-9.]+ seconds", msg)
+            )
+            assert not caplog_text
 
 
 @pytest.mark.network

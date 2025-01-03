@@ -28,8 +28,6 @@ from collections.abc import (
     Collection,
     Coroutine,
     Iterable,
-    Iterator,
-    MutableMapping,
     Sequence,
 )
 from concurrent.futures import Future
@@ -49,7 +47,7 @@ from queue import Queue
 from signal import Signals
 from socket import AddressFamily, SocketKind
 from threading import Thread
-from types import TracebackType
+from types import CodeType, TracebackType
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -677,47 +675,7 @@ class TaskState:
         self.cancel_scope = cancel_scope
 
 
-class TaskStateStore(
-    MutableMapping["Coroutine[Any, Any, Any] | asyncio.Task", TaskState]
-):
-    def __init__(self) -> None:
-        self._task_states = WeakKeyDictionary[asyncio.Task, TaskState]()
-        self._preliminary_task_states: dict[Coroutine[Any, Any, Any], TaskState] = {}
-
-    def __getitem__(self, key: Coroutine[Any, Any, Any] | asyncio.Task, /) -> TaskState:
-        task = cast(asyncio.Task, key)
-        try:
-            return self._task_states[task]
-        except KeyError:
-            if coro := task.get_coro():
-                if state := self._preliminary_task_states.get(coro):
-                    return state
-
-        raise KeyError(key)
-
-    def __setitem__(
-        self, key: asyncio.Task | Coroutine[Any, Any, Any], value: TaskState, /
-    ) -> None:
-        if isinstance(key, Coroutine):
-            self._preliminary_task_states[key] = value
-        else:
-            self._task_states[key] = value
-
-    def __delitem__(self, key: asyncio.Task | Coroutine[Any, Any, Any], /) -> None:
-        if isinstance(key, Coroutine):
-            del self._preliminary_task_states[key]
-        else:
-            del self._task_states[key]
-
-    def __len__(self) -> int:
-        return len(self._task_states) + len(self._preliminary_task_states)
-
-    def __iter__(self) -> Iterator[Coroutine[Any, Any, Any] | asyncio.Task]:
-        yield from self._task_states
-        yield from self._preliminary_task_states
-
-
-_task_states = TaskStateStore()
+_task_states: WeakKeyDictionary[asyncio.Task, TaskState] = WeakKeyDictionary()
 
 
 #
@@ -761,6 +719,12 @@ async def _wait(tasks: Iterable[asyncio.Task[object]]) -> None:
     finally:
         while tasks:
             tasks.pop().remove_done_callback(on_completion)
+
+
+if sys.version_info >= (3, 12):
+    _eager_task_factory_code: CodeType | None = asyncio.eager_task_factory.__code__
+else:
+    _eager_task_factory_code = None
 
 
 class TaskGroup(abc.TaskGroup):
@@ -837,7 +801,7 @@ class TaskGroup(abc.TaskGroup):
         task_status_future: asyncio.Future | None = None,
     ) -> asyncio.Task:
         def task_done(_task: asyncio.Task) -> None:
-            # task_state = _task_states[_task]
+            task_state = _task_states[_task]
             assert task_state.cancel_scope is not None
             assert _task in task_state.cancel_scope._tasks
             task_state.cancel_scope._tasks.remove(_task)
@@ -894,26 +858,25 @@ class TaskGroup(abc.TaskGroup):
                 f"the return value ({coro!r}) is not a coroutine object"
             )
 
+        name = get_callable_name(func) if name is None else str(name)
+        loop = asyncio.get_running_loop()
+        if (
+            (factory := loop.get_task_factory())
+            and getattr(factory, "__code__", None) is _eager_task_factory_code
+            and (closure := getattr(factory, "__closure__", None))
+        ):
+            custom_task_constructor = closure[0].cell_contents
+            task = custom_task_constructor(coro, loop=loop, name=name)
+        else:
+            task = create_task(coro, name=name)
+
         # Make the spawned task inherit the task group's cancel scope
-        _task_states[coro] = task_state = TaskState(
+        _task_states[task] = TaskState(
             parent_id=parent_id, cancel_scope=self.cancel_scope
         )
-        name = get_callable_name(func) if name is None else str(name)
-        try:
-            task = create_task(coro, name=name)
-        finally:
-            del _task_states[coro]
-
-        _task_states[task] = task_state
         self.cancel_scope._tasks.add(task)
         self._tasks.add(task)
-
-        if task.done():
-            # This can happen with eager task factories
-            task_done(task)
-        else:
-            task.add_done_callback(task_done)
-
+        task.add_done_callback(task_done)
         return task
 
     def start_soon(
