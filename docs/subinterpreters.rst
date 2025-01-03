@@ -21,7 +21,7 @@ Running functions in a worker interpreter makes sense when:
 * The code is either pure Python code, or extension code that does not release the
   Global Interpreter Lock (GIL)
 
-If the code you'try trying to run only does blocking network I/O, or file I/O, then
+If the code you're trying to run only does blocking network I/O, or file I/O, then
 you're better off using :doc:`worker thread <threads>` instead.
 
 This is done by using :func:`.interpreter.run_sync`::
