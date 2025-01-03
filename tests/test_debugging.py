@@ -19,6 +19,8 @@ from anyio import (
 )
 from anyio.abc import TaskStatus
 
+from .conftest import asyncio_params
+
 pytestmark = pytest.mark.anyio
 
 
@@ -127,7 +129,7 @@ def test_wait_generator_based_task_blocked(
     asyncio_event_loop.run_until_complete(native_coro_part())
 
 
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_wait_all_tasks_blocked_asend(anyio_backend: str) -> None:
     """Test that wait_all_tasks_blocked() does not crash on an `asend()` object."""
 

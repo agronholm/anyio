@@ -20,6 +20,8 @@ from anyio import (
 )
 from anyio.abc import CapacityLimiter, TaskStatus
 
+from .conftest import asyncio_params
+
 pytestmark = pytest.mark.anyio
 
 
@@ -162,7 +164,7 @@ class TestLock:
         assert not lock.statistics().locked
         assert lock.statistics().tasks_waiting == 0
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_asyncio_deadlock(self) -> None:
         """Regression test for #398."""
         lock = Lock()
@@ -178,7 +180,7 @@ class TestLock:
         task1.cancel()
         await asyncio.wait_for(task2, 1)
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_cancel_after_release(self) -> None:
         """
         Test that a native asyncio cancellation will not cause a lock ownership
@@ -565,7 +567,7 @@ class TestSemaphore:
             semaphore.release()
             pytest.raises(WouldBlock, semaphore.acquire_nowait)
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_asyncio_deadlock(self) -> None:
         """Regression test for #398."""
         semaphore = Semaphore(1)
@@ -581,7 +583,7 @@ class TestSemaphore:
         task1.cancel()
         await asyncio.wait_for(task2, 1)
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_cancel_after_release(self) -> None:
         """
         Test that a native asyncio cancellation will not cause a semaphore ownership
@@ -731,7 +733,7 @@ class TestCapacityLimiter:
         assert limiter.statistics().tasks_waiting == 0
         assert limiter.statistics().borrowed_tokens == 0
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_asyncio_deadlock(self) -> None:
         """Regression test for #398."""
         limiter = CapacityLimiter(1)
