@@ -9,7 +9,7 @@ from collections.abc import Callable, Mapping
 from textwrap import dedent
 from typing import Any, Final, TypeVar
 
-from . import to_thread
+from . import current_time, to_thread
 from ._core._exceptions import BrokenWorkerIntepreter
 from ._core._synchronization import CapacityLimiter
 from .lowlevel import RunVar
@@ -23,6 +23,9 @@ UNBOUND: Final = 2  # I have no clue how this works, but it was used in the stdl
 FMT_UNPICKLED: Final = 0
 FMT_PICKLED: Final = 1
 DEFAULT_CPU_COUNT: Final = 8  # this is just an arbitrarily selected value
+MAX_WORKER_IDLE_TIME = (
+    30  # seconds a subinterpreter can be idle before becoming eligible for pruning
+)
 
 T_Retval = TypeVar("T_Retval")
 PosArgsT = TypeVarTuple("PosArgsT")
@@ -57,6 +60,8 @@ class Worker:
         "<string>",
         "exec",
     )
+
+    last_used: float = 0
 
     _initialized: bool = False
     _interpreter_id: int
@@ -185,6 +190,15 @@ async def run_sync(
     try:
         return await worker.call(func, args, kwargs or {}, limiter)
     finally:
+        # Prune workers that have been idle for too long
+        now = current_time()
+        while idle_workers:
+            if now - idle_workers[0].last_used <= MAX_WORKER_IDLE_TIME:
+                break
+
+            await to_thread.run_sync(idle_workers.popleft().destroy, limiter=limiter)
+
+        worker.last_used = current_time()
         idle_workers.append(worker)
 
 
