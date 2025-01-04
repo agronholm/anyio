@@ -739,6 +739,7 @@ class TaskGroup(abc.TaskGroup):
                         while self._tasks:
                             if self._on_completed_fut is None:
                                 self._on_completed_fut = loop.create_future()
+
                             try:
                                 await self._on_completed_fut
                             except CancelledError as exc:
@@ -755,6 +756,7 @@ class TaskGroup(abc.TaskGroup):
                                     and not is_anyio_cancellation(exc)
                                 ):
                                     exc_val = exc
+
                             self._on_completed_fut = None
                 else:
                     # If there are no child tasks to wait on, run at least one checkpoint
