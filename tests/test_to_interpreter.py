@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import AsyncGenerator
+from functools import partial
 
 import pytest
 from pytest import fixture
@@ -41,7 +42,7 @@ async def test_run_sync() -> None:
 
 async def test_args_kwargs() -> None:
     """Test that partial() can be used to pass keyword arguments."""
-    result = await to_interpreter.run_sync(sorted, ["a", "b"], kwargs={"reverse": True})
+    result = await to_interpreter.run_sync(partial(sorted, reverse=True), ["a", "b"])
     assert result == ["b", "a"]
 
 

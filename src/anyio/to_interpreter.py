@@ -5,7 +5,7 @@ import os
 import pickle
 import sys
 from collections import deque
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from textwrap import dedent
 from typing import Any, Final, TypeVar
 
@@ -43,8 +43,8 @@ class Worker:
 
         item = queues.get(queue_id)[0]
         try:
-            func, args, kwargs = loads(item)
-            retval = func(*args, **kwargs)
+            func, args = loads(item)
+            retval = func(*args)
         except BaseException as exc:
             is_exception = True
             retval = exc
@@ -93,7 +93,9 @@ class Worker:
             queues.destroy(self._queue_id)
 
     def _call(
-        self, func: Callable[..., T_Retval], args: tuple[Any], kwargs: dict[str, Any]
+        self,
+        func: Callable[..., T_Retval],
+        args: tuple[Any],
     ) -> tuple[Any, bool]:
         import _interpqueues as queues
         import _interpreters as interpreters
@@ -101,7 +103,7 @@ class Worker:
         if not self._initialized:
             self.initialize()
 
-        payload = pickle.dumps((func, args, kwargs), pickle.HIGHEST_PROTOCOL)
+        payload = pickle.dumps((func, args), pickle.HIGHEST_PROTOCOL)
         queues.put(self._queue_id, payload, FMT_PICKLED, UNBOUND)  # type: ignore[call-arg]
 
         res: Any
@@ -119,14 +121,12 @@ class Worker:
         self,
         func: Callable[..., T_Retval],
         args: tuple[Any],
-        kwargs: dict[str, Any],
         limiter: CapacityLimiter,
     ) -> T_Retval:
         result, is_exception = await to_thread.run_sync(
             self._call,
             func,
             args,
-            kwargs,
             limiter=limiter,
         )
         if is_exception:
@@ -145,7 +145,6 @@ def _stop_workers(workers: deque[Worker]) -> None:
 async def run_sync(
     func: Callable[[Unpack[PosArgsT]], T_Retval],
     *args: Unpack[PosArgsT],
-    kwargs: Mapping[str, Any] | None = None,
     limiter: CapacityLimiter | None = None,
 ) -> T_Retval:
     """
@@ -161,7 +160,6 @@ async def run_sync(
 
     :param func: a callable
     :param args: positional arguments for the callable
-    :param kwargs: keyword arguments for the callable
     :param limiter: capacity limiter to use to limit the total amount of subinterpreters
         running (if omitted, the default limiter is used)
     :return: the result of the call
@@ -188,7 +186,7 @@ async def run_sync(
             worker = Worker()
 
     try:
-        return await worker.call(func, args, kwargs or {}, limiter)
+        return await worker.call(func, args, limiter)
     finally:
         # Prune workers that have been idle for too long
         now = current_time()
