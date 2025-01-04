@@ -737,8 +737,7 @@ class TaskGroup(abc.TaskGroup):
                 if self._tasks:
                     with CancelScope() as wait_scope:
                         while self._tasks:
-                            if self._on_completed_fut is None:
-                                self._on_completed_fut = loop.create_future()
+                            self._on_completed_fut = loop.create_future()
 
                             try:
                                 await self._on_completed_fut
