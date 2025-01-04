@@ -795,8 +795,10 @@ class TaskGroup(abc.TaskGroup):
             del _task_states[_task]
 
             if self._on_completed_fut is not None and not self._tasks:
-                if not self._on_completed_fut.done():
+                try:
                     self._on_completed_fut.set_result(None)
+                except asyncio.InvalidStateError:
+                    pass
 
             try:
                 exc = _task.exception()
