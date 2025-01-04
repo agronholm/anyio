@@ -18,8 +18,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#840 <https://github.com/agronholm/anyio/issues/840>`_)
 - Fixed return type annotation of various context managers' ``__exit__`` method
   (`#847 <https://github.com/agronholm/anyio/issues/847>`_; PR by @Enegg)
-- Refactored TaskGroup task waiting on the asyncio backend
-  (`#854 <https://github.com/agronholm/anyio/pull/854>`_; PR by @graingert)
 
 **4.7.0**
 
