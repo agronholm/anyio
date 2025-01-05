@@ -248,7 +248,7 @@ class BlockingPortal:
         """
         Spawn a new task using the given callable.
 
-        Implementors must ensure that the future is resolved when the task finishes.
+        Implementers must ensure that the future is resolved when the task finishes.
 
         :param func: a callable
         :param args: positional arguments to be passed to the callable

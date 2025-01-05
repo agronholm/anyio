@@ -112,6 +112,9 @@ markers = [
     "network: marks tests as requiring Internet access",
 ]
 
+[tool.codespell]
+ignore-words-list = "asend,daa,hel"
+
 [tool.coverage.run]
 source = ["anyio"]
 relative_files = true
