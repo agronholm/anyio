@@ -50,6 +50,12 @@ Running code in worker threads
 .. autofunction:: anyio.to_thread.run_sync
 .. autofunction:: anyio.to_thread.current_default_thread_limiter
 
+Running code in subinterpreters
+-------------------------------
+
+.. autofunction:: anyio.to_interpreter.run_sync
+.. autofunction:: anyio.to_interpreter.current_default_interpreter_limiter
+
 Running code in worker processes
 --------------------------------
 
@@ -189,6 +195,8 @@ Exceptions
 ----------
 
 .. autoexception:: anyio.BrokenResourceError
+.. autoexception:: anyio.BrokenWorkerIntepreter
+.. autoexception:: anyio.BrokenWorkerProcess
 .. autoexception:: anyio.BusyResourceError
 .. autoexception:: anyio.ClosedResourceError
 .. autoexception:: anyio.DelimiterNotFound

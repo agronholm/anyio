@@ -61,13 +61,16 @@ Running functions in worker processes
 -------------------------------------
 
 When you need to run CPU intensive code, worker processes are better than threads
-because current implementations of Python cannot run Python code in multiple threads at
+because, with the exception of the experimental free-threaded builds of Python 3.13 and
+later, current implementations of Python cannot run Python code in multiple threads at
 once.
 
 Exceptions to this rule are:
 
 #. Blocking I/O operations
 #. C extension code that explicitly releases the Global Interpreter Lock
+#. :doc:`Subinterpreter workers <subinterpreters>`
+   (experimental; available on Python 3.13 and later)
 
 If the code you wish to run does not belong in this category, it's best to use worker
 processes instead in order to take advantage of multiple CPU cores.

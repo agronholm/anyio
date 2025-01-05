@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added **experimental** support for running functions in subinterpreters on Python
+  3.13 and later
 - Added support for the ``copy()``, ``copy_into()``, ``move()`` and ``move_into()``
   methods in ``anyio.Path``, available in Python 3.14
 - Changed ``TaskGroup`` on asyncio to always spawn tasks non-eagerly, even if using a
