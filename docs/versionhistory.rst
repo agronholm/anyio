@@ -83,7 +83,7 @@ contain the changes from v4.5.1.
 As Python 3.8 support was dropped in v4.6.0, this interim release was created to bring a
 regression fix to Python 3.8, and adds a few other fixes also present in v4.6.1.
 
-- Fixed acquring a lock twice in the same task on asyncio hanging instead of raising a
+- Fixed acquiring a lock twice in the same task on asyncio hanging instead of raising a
   ``RuntimeError`` (`#798 <https://github.com/agronholm/anyio/issues/798>`_)
 - Fixed an async fixture's ``self`` being different than the test's ``self`` in
   class-based tests (`#633 <https://github.com/agronholm/anyio/issues/633>`_)

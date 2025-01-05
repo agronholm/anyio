@@ -197,7 +197,7 @@ class TestLock:
         task1 = loop.create_task(lock.acquire(), name="task1")
         await asyncio.sleep(0)
 
-        # Trigger the aqcuiring task to be rescheduled, but also cancel it right away
+        # Trigger the acquiring task to be rescheduled, but also cancel it right away
         lock.release()
         task1.cancel()
         statistics = lock.statistics()
@@ -598,7 +598,7 @@ class TestSemaphore:
         task1 = loop.create_task(semaphore.acquire())
         await asyncio.sleep(0)
 
-        # Trigger the aqcuiring task to be rescheduled, but also cancel it right away
+        # Trigger the acquiring task to be rescheduled, but also cancel it right away
         semaphore.release()
         task1.cancel()
         assert semaphore.value == 0

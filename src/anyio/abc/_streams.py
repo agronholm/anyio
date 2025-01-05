@@ -137,7 +137,7 @@ class ByteReceiveStream(AsyncResource, TypedAttributeProvider):
         """
         Receive at most ``max_bytes`` bytes from the peer.
 
-        .. note:: Implementors of this interface should not return an empty
+        .. note:: Implementers of this interface should not return an empty
             :class:`bytes` object, and users should ignore them.
 
         :param max_bytes: maximum number of bytes to receive
