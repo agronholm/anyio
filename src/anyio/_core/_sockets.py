@@ -240,7 +240,7 @@ async def connect_tcp(
             )
             raise OSError("All connection attempts failed") from cause
     finally:
-        del oserrors
+        oserrors = []
 
     if tls or tls_hostname or ssl_context:
         try:

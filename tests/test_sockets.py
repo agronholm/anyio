@@ -44,6 +44,7 @@ from anyio import (
     create_unix_datagram_socket,
     create_unix_listener,
     fail_after,
+    get_current_task,
     getaddrinfo,
     getnameinfo,
     move_on_after,
@@ -59,6 +60,7 @@ from anyio.abc import (
     SocketAttribute,
     SocketListener,
     SocketStream,
+    TaskStatus,
 )
 from anyio.lowlevel import checkpoint
 from anyio.streams.stapled import MultiListener
@@ -134,14 +136,29 @@ def check_asyncio_bug(anyio_backend_name: str, family: AnyIPAddressFamily) -> No
             pytest.skip("Does not work due to a known bug (39148)")
 
 
-if sys.version_info <= (3, 11):
+if sys.version_info >= (3, 14):
 
-    def no_other_refs() -> list[object]:
-        return [sys._getframe(1)]
+    async def no_other_refs() -> list[object]:
+        frame = sys._getframe(1)
+        coro = get_current_task().coro
+
+        async def get_coro_for_frame(*, task_status: TaskStatus[object]) -> None:
+            my_coro = coro
+            while my_coro.cr_frame is not frame:
+                my_coro = my_coro.cr_await
+            task_status.started(my_coro)
+
+        async with create_task_group() as tg:
+            return [await tg.start(get_coro_for_frame)]
+
+elif sys.version_info >= (3, 11):
+
+    async def no_other_refs() -> list[object]:
+        return []
 else:
 
-    def no_other_refs() -> list[object]:
-        return []
+    async def no_other_refs() -> list[object]:
+        return [sys._getframe(1)]
 
 
 _T = TypeVar("_T")
@@ -347,7 +364,7 @@ class TestTCPStream:
             exc = e.__cause__
 
         assert isinstance(exc, OSError)
-        assert gc.get_referrers(exc) == no_other_refs()
+        assert gc.get_referrers(exc) == await no_other_refs()
 
     @pytest.mark.parametrize(
         "target, exception_class",
