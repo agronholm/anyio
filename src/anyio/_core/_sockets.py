@@ -237,12 +237,12 @@ async def connect_tcp(
                 oserrors[0]
                 if len(oserrors) == 1
                 else ExceptionGroup(
-                    "multiple connection attempts failed", oserrors.copy()
+                    "multiple connection attempts failed", oserrors
                 )
             )
             raise OSError("All connection attempts failed") from cause
     finally:
-        oserrors.clear()
+        del oserrors
 
     if tls or tls_hostname or ssl_context:
         try:
