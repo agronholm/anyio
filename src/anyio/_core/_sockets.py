@@ -236,9 +236,7 @@ async def connect_tcp(
             cause = (
                 oserrors[0]
                 if len(oserrors) == 1
-                else ExceptionGroup(
-                    "multiple connection attempts failed", oserrors
-                )
+                else ExceptionGroup("multiple connection attempts failed", oserrors)
             )
             raise OSError("All connection attempts failed") from cause
     finally:
