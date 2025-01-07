@@ -11,10 +11,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     generates unused TCP port numbers
   * ``free_udp_port_factory``: session scoped fixture returning a callable that
     generates unused UDP port numbers
-  * ``free_tcp_port``: function level fixture that invokes the ``free_tcp_port_factory``
-    fixture to generate a free TCP port number
-  * ``free_udp_port``: function level fixture that invokes the ``free_udp_port_factory``
-    fixture to generate a free UDP port number
+  * ``free_tcp_port``: function scoped fixture that invokes the
+    ``free_tcp_port_factory`` fixture to generate a free TCP port number
+  * ``free_udp_port``: function scoped fixture that invokes the
+    ``free_udp_port_factory`` fixture to generate a free UDP port number
 
 **4.8.0**
 
