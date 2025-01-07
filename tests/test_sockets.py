@@ -350,10 +350,15 @@ class TestTCPStream:
             "https://github.com/pypy/pypy/issues/5075"
         ),
     )
-    async def test_happy_eyeballs_refcycles(self) -> None:
+    async def test_happy_eyeballs_refcycles(self, anyio_backend_name: str) -> None:
         """
         Test derived from https://github.com/python/cpython/pull/124859
         """
+        if anyio_backend_name == "asyncio" and sys.version_info < (3, 9):
+            pytest.skip(
+                "asyncio.BaseEventLoop.create_connection creates refcycles on"
+                " py 3.9"
+            )
         ip = "127.0.0.1"
         port = ephemeral_port_reserve.reserve(ip=ip)
         exc = None
