@@ -561,3 +561,45 @@ def test_async_fixture_params(testdir: Pytester) -> None:
 
     result = testdir.runpytest(*pytest_args)
     result.assert_outcomes(passed=len(get_all_backends()) * 2)
+
+
+def test_free_port_factories(testdir: Pytester) -> None:
+    testdir.makepyfile(
+        """
+        import pytest
+
+        @pytest.mark.anyio
+        async def test_tcp_factory(free_tcp_port_factory):
+            generated_ports = {free_tcp_port_factory() for _ in range(5)}
+            assert all(isinstance(port, int) for port in generated_ports)
+            assert len(generated_ports) == 5
+
+        @pytest.mark.anyio
+        async def test_udp_factory(free_udp_port_factory):
+            generated_ports = {free_udp_port_factory() for _ in range(5)}
+            assert all(isinstance(port, int) for port in generated_ports)
+            assert len(generated_ports) == 5
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=len(get_all_backends()) * 2)
+
+
+def test_free_ports(testdir: Pytester) -> None:
+    testdir.makepyfile(
+        """
+        import pytest
+
+        @pytest.mark.anyio
+        async def test_free_tcp_port(free_tcp_port):
+            assert isinstance(free_tcp_port, int)
+
+        @pytest.mark.anyio
+        async def test_free_udp_port(free_udp_port):
+            assert isinstance(free_udp_port, int)
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=len(get_all_backends()) * 2)

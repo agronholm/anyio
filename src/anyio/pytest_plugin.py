@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import socket
 import sys
-from collections.abc import Generator, Iterator
+from collections.abc import Callable, Generator, Iterator
 from contextlib import ExitStack, contextmanager
+from functools import partial
 from inspect import isasyncgenfunction, iscoroutinefunction, ismethod
 from typing import Any, cast
 
@@ -189,3 +191,36 @@ def anyio_backend_options(anyio_backend: Any) -> dict[str, Any]:
         return {}
     else:
         return anyio_backend[1]
+
+
+def _port_generator(kind: socket.SocketKind, generated: set[int]) -> int:
+    while True:
+        with socket.socket(socket.AF_INET, kind) as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+
+        if port not in generated:
+            generated.add(port)
+            return port
+
+
+@pytest.fixture(scope="session")
+def free_tcp_port_factory() -> Callable[[], int]:
+    generated = set[int]()
+    return partial(_port_generator, socket.SOCK_STREAM, generated)
+
+
+@pytest.fixture(scope="session")
+def free_udp_port_factory() -> Callable[[], int]:
+    generated = set[int]()
+    return partial(_port_generator, socket.SOCK_DGRAM, generated)
+
+
+@pytest.fixture
+def free_tcp_port(free_tcp_port_factory: Callable[[], int]) -> int:
+    return free_tcp_port_factory()
+
+
+@pytest.fixture
+def free_udp_port(free_udp_port_factory: Callable[[], int]) -> int:
+    return free_udp_port_factory()
