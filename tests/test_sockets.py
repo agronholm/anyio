@@ -354,7 +354,7 @@ class TestTCPStream:
         """
         Test derived from https://github.com/python/cpython/pull/124859
         """
-        if anyio_backend_name == "asyncio" and sys.version_info < (3, 9):
+        if anyio_backend_name == "asyncio" and sys.version_info < (3, 10):
             pytest.skip(
                 "asyncio.BaseEventLoop.create_connection creates refcycles on py 3.9"
             )
