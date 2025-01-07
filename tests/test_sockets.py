@@ -356,8 +356,7 @@ class TestTCPStream:
         """
         if anyio_backend_name == "asyncio" and sys.version_info < (3, 9):
             pytest.skip(
-                "asyncio.BaseEventLoop.create_connection creates refcycles on"
-                " py 3.9"
+                "asyncio.BaseEventLoop.create_connection creates refcycles on" " py 3.9"
             )
         ip = "127.0.0.1"
         port = ephemeral_port_reserve.reserve(ip=ip)
