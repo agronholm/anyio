@@ -19,7 +19,6 @@ from ssl import SSLContext, SSLError
 from threading import Thread
 from typing import TYPE_CHECKING, Any, Literal, NoReturn, TypeVar, cast
 
-import ephemeral_port_reserve
 import psutil
 import pytest
 from _pytest.fixtures import SubRequest
@@ -359,10 +358,13 @@ class TestTCPStream:
                 "asyncio.BaseEventLoop.create_connection creates refcycles on py 3.9"
             )
         ip = "127.0.0.1"
-        port = ephemeral_port_reserve.reserve(ip=ip)
+        with socket.socket(AddressFamily.AF_INET6) as dummy_socket:
+            dummy_socket.bind(("::", 0))
+            free_port = dummy_socket.getsockname()[1]
+
         exc = None
         try:
-            async with await connect_tcp(ip, port):
+            async with await connect_tcp(ip, free_port):
                 pass
         except OSError as e:
             exc = e.__cause__
@@ -385,10 +387,9 @@ class TestTCPStream:
         exception_class: type[ExceptionGroup] | type[ConnectionRefusedError],
         fake_localhost_dns: None,
     ) -> None:
-        dummy_socket = socket.socket(AddressFamily.AF_INET6)
-        dummy_socket.bind(("::", 0))
-        free_port = dummy_socket.getsockname()[1]
-        dummy_socket.close()
+        with socket.socket(AddressFamily.AF_INET6) as dummy_socket:
+            dummy_socket.bind(("::", 0))
+            free_port = dummy_socket.getsockname()[1]
 
         with pytest.raises(OSError) as exc:
             await connect_tcp(target, free_port)
