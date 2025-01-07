@@ -3,29 +3,66 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**4.8.0**
 
-- Fixed acquring a lock twice in the same task on asyncio hanging instead of raising a
-  ``RuntimeError`` (`#798 <https://github.com/agronholm/anyio/issues/798>`_)
-- Fixed an async fixture's ``self`` being different than the test's ``self`` in
-  class-based tests (`#633 <https://github.com/agronholm/anyio/issues/633>`_)
-  (PR by @agronholm and @graingert)
+- Added **experimental** support for running functions in subinterpreters on Python
+  3.13 and later
+- Added support for the ``copy()``, ``copy_into()``, ``move()`` and ``move_into()``
+  methods in ``anyio.Path``, available in Python 3.14
+- Changed ``TaskGroup`` on asyncio to always spawn tasks non-eagerly, even if using a
+  task factory created via ``asyncio.create_eager_task_factory()``, to preserve expected
+  Trio-like task scheduling semantics (PR by @agronholm and @graingert)
+- Configure ``SO_RCVBUF``, ``SO_SNDBUF`` and ``TCP_NODELAY`` on the selector
+  thread waker socket pair (this should improve the performance of ``wait_readable()``)
+  and ``wait_writable()`` when using the ``ProactorEventLoop``
+  (`#836 <https://github.com/agronholm/anyio/pull/836>`_; PR by @graingert)
+- Fixed ``AssertionError`` when using ``nest-asyncio``
+  (`#840 <https://github.com/agronholm/anyio/issues/840>`_)
+- Fixed return type annotation of various context managers' ``__exit__`` method
+  (`#847 <https://github.com/agronholm/anyio/issues/847>`_; PR by @Enegg)
+
+**4.7.0**
+
+- Updated ``TaskGroup`` to work with asyncio's eager task factories
+  (`#764 <https://github.com/agronholm/anyio/issues/764>`_)
+- Added the ``wait_readable()`` and ``wait_writable()`` functions which will accept
+  an object with a ``.fileno()`` method or an integer handle, and deprecated
+  their now obsolete versions (``wait_socket_readable()`` and
+  ``wait_socket_writable()``) (PR by @davidbrochart)
+- Changed ``EventAdapter`` (an ``Event`` with no bound async backend) to allow ``set()``
+  to work even before an async backend is bound to it
+  (`#819 <https://github.com/agronholm/anyio/issues/819>`_)
+- Added support for ``wait_readable()`` and ``wait_writable()`` on ``ProactorEventLoop``
+  (used on asyncio + Windows by default)
+- Fixed a misleading ``ValueError`` in the context of DNS failures
+  (`#815 <https://github.com/agronholm/anyio/issues/815>`_; PR by @graingert)
+- Fixed the return type annotations of ``readinto()`` and ``readinto1()`` methods in the
+  ``anyio.AsyncFile`` class
+  (`#825 <https://github.com/agronholm/anyio/issues/825>`_)
+- Fixed ``TaskInfo.has_pending_cancellation()`` on asyncio returning false positives in
+  cleanup code on Python >= 3.11
+  (`#832 <https://github.com/agronholm/anyio/issues/832>`_; PR by @gschaffner)
+- Fixed cancelled cancel scopes on asyncio calling ``asyncio.Task.uncancel`` when
+  propagating a ``CancelledError`` on exit to a cancelled parent scope
+  (`#790 <https://github.com/agronholm/anyio/pull/790>`_; PR by @gschaffner)
+
+**4.6.2**
+
+- Fixed regression caused by (`#807 <https://github.com/agronholm/anyio/pull/807>`_)
+  that prevented the use of parametrized async fixtures
+
+**4.6.1**
+
+This release contains all the changes from both v4.5.1 and v4.6.0, plus:
+
 - Fixed TaskGroup and CancelScope producing cyclic references in tracebacks
   when raising exceptions (`#806 <https://github.com/agronholm/anyio/pull/806>`_)
   (PR by @graingert)
-- Fixed ``TypeError`` with ``TLSStream`` on Windows when a certificate verification
-  error occurs when using a `truststore <https://github.com/sethmlarson/truststore>`_
-  SSL certificate (`#795 <https://github.com/agronholm/anyio/issues/795>`_)
-- Corrected documentation on ``anyio.Path`` regarding the limitations imposed by the
-  current Python version on several of its methods, and made the ``is_junction`` method
-  unavailable on Python versions earlier than 3.12
-  (`#794 <https://github.com/agronholm/anyio/issues/794>`_)
-- Fixed connect_tcp producing cyclic references in tracebacks
-  when raising exceptions (`#809 <https://github.com/agronholm/anyio/pull/809>`_)
-  (PR by @graingert)
-
 
 **4.6.0**
+
+This release is the successor to v4.5.0 with Python 3.8 support dropped, and does not
+contain the changes from v4.5.1.
 
 - Dropped support for Python 3.8
   (as `#698 <https://github.com/agronholm/anyio/issues/698>`_ cannot be resolved
@@ -40,6 +77,24 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   no child tasks to wait on
 - Fixed inconsistent task uncancellation with asyncio cancel scopes belonging to a
   task group when said task group has child tasks running
+
+**4.5.1**
+
+As Python 3.8 support was dropped in v4.6.0, this interim release was created to bring a
+regression fix to Python 3.8, and adds a few other fixes also present in v4.6.1.
+
+- Fixed acquiring a lock twice in the same task on asyncio hanging instead of raising a
+  ``RuntimeError`` (`#798 <https://github.com/agronholm/anyio/issues/798>`_)
+- Fixed an async fixture's ``self`` being different than the test's ``self`` in
+  class-based tests (`#633 <https://github.com/agronholm/anyio/issues/633>`_)
+  (PR by @agronholm and @graingert)
+- Fixed ``TypeError`` with ``TLSStream`` on Windows when a certificate verification
+  error occurs when using a `truststore <https://github.com/sethmlarson/truststore>`_
+  SSL certificate (`#795 <https://github.com/agronholm/anyio/issues/795>`_)
+- Corrected documentation on ``anyio.Path`` regarding the limitations imposed by the
+  current Python version on several of its methods, and made the ``is_junction`` method
+  unavailable on Python versions earlier than 3.12
+  (`#794 <https://github.com/agronholm/anyio/issues/794>`_)
 
 **4.5.0**
 

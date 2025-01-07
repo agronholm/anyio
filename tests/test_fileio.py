@@ -39,6 +39,18 @@ class TestAsyncFile:
         assert f.closed
         assert data == testdata
 
+    async def test_readinto(self, testdatafile: pathlib.Path, testdata: bytes) -> None:
+        buffer = bytearray(100)
+        async with await open_file(testdatafile, "rb") as f:
+            assert await f.readinto(buffer) == 100
+            assert bytes(buffer) == testdata[:100]
+
+    async def test_readinto1(self, testdatafile: pathlib.Path, testdata: bytes) -> None:
+        buffer = bytearray(100)
+        async with await open_file(testdatafile, "rb") as f:
+            assert await f.readinto1(buffer) == 100
+            assert bytes(buffer) == testdata[:100]
+
     async def test_write(self, testdatafile: pathlib.Path, testdata: bytes) -> None:
         async with await open_file(testdatafile, "ab") as f:
             await f.write(b"f" * 1000)
@@ -313,6 +325,54 @@ class TestPath:
     @pytest.mark.parametrize("arg, result", [("/xyz/abc", True), ("/xyz/baz", False)])
     def test_is_relative_to(self, arg: str, result: bool) -> None:
         assert Path("/xyz/abc/foo").is_relative_to(arg) == result
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 14),
+        reason="Path.copy() is only available on Python 3.14+",
+    )
+    async def test_copy(self, tmp_path: pathlib.Path) -> None:
+        source_path = Path(tmp_path) / "source"
+        destination_path = Path(tmp_path) / "destination"
+        await source_path.write_text("hello")
+        result = await source_path.copy(destination_path)  # type: ignore[attr-defined]
+        assert await result.read_text() == "hello"
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 14),
+        reason="Path.copy() is only available on Python 3.14+",
+    )
+    async def test_copy_into(self, tmp_path: pathlib.Path) -> None:
+        source_path = Path(tmp_path) / "source"
+        destination_path = Path(tmp_path) / "destination"
+        await destination_path.mkdir()
+        await source_path.write_text("hello")
+        result = await source_path.copy_into(destination_path)  # type: ignore[attr-defined]
+        assert await result.read_text() == "hello"
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 14),
+        reason="Path.copy() is only available on Python 3.14+",
+    )
+    async def test_move(self, tmp_path: pathlib.Path) -> None:
+        source_path = Path(tmp_path) / "source"
+        destination_path = Path(tmp_path) / "destination"
+        await source_path.write_text("hello")
+        result = await source_path.move(destination_path)  # type: ignore[attr-defined]
+        assert await result.read_text() == "hello"
+        assert not await source_path.exists()
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 14),
+        reason="Path.copy() is only available on Python 3.14+",
+    )
+    async def test_move_into(self, tmp_path: pathlib.Path) -> None:
+        source_path = Path(tmp_path) / "source"
+        destination_path = Path(tmp_path) / "destination"
+        await destination_path.mkdir()
+        await source_path.write_text("hello")
+        result = await source_path.move_into(destination_path)  # type: ignore[attr-defined]
+        assert await result.read_text() == "hello"
+        assert not await source_path.exists()
 
     async def test_glob(self, populated_tmpdir: pathlib.Path) -> None:
         all_paths = []

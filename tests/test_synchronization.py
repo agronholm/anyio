@@ -20,6 +20,8 @@ from anyio import (
 )
 from anyio.abc import CapacityLimiter, TaskStatus
 
+from .conftest import asyncio_params
+
 pytestmark = pytest.mark.anyio
 
 
@@ -162,7 +164,7 @@ class TestLock:
         assert not lock.statistics().locked
         assert lock.statistics().tasks_waiting == 0
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_asyncio_deadlock(self) -> None:
         """Regression test for #398."""
         lock = Lock()
@@ -178,7 +180,7 @@ class TestLock:
         task1.cancel()
         await asyncio.wait_for(task2, 1)
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_cancel_after_release(self) -> None:
         """
         Test that a native asyncio cancellation will not cause a lock ownership
@@ -195,7 +197,7 @@ class TestLock:
         task1 = loop.create_task(lock.acquire(), name="task1")
         await asyncio.sleep(0)
 
-        # Trigger the aqcuiring task to be rescheduled, but also cancel it right away
+        # Trigger the acquiring task to be rescheduled, but also cancel it right away
         lock.release()
         task1.cancel()
         statistics = lock.statistics()
@@ -316,16 +318,17 @@ class TestEvent:
     def test_instantiate_outside_event_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
-        async def use_event() -> None:
-            event.set()
-            await event.wait()
-
         event = Event()
         assert not event.is_set()
         assert event.statistics().tasks_waiting == 0
 
+        event.set()
+        assert event.is_set()
+
         run(
-            use_event, backend=anyio_backend_name, backend_options=anyio_backend_options
+            event.wait,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
         )
 
 
@@ -564,7 +567,7 @@ class TestSemaphore:
             semaphore.release()
             pytest.raises(WouldBlock, semaphore.acquire_nowait)
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_asyncio_deadlock(self) -> None:
         """Regression test for #398."""
         semaphore = Semaphore(1)
@@ -580,7 +583,7 @@ class TestSemaphore:
         task1.cancel()
         await asyncio.wait_for(task2, 1)
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_cancel_after_release(self) -> None:
         """
         Test that a native asyncio cancellation will not cause a semaphore ownership
@@ -595,7 +598,7 @@ class TestSemaphore:
         task1 = loop.create_task(semaphore.acquire())
         await asyncio.sleep(0)
 
-        # Trigger the aqcuiring task to be rescheduled, but also cancel it right away
+        # Trigger the acquiring task to be rescheduled, but also cancel it right away
         semaphore.release()
         task1.cancel()
         assert semaphore.value == 0
@@ -730,7 +733,7 @@ class TestCapacityLimiter:
         assert limiter.statistics().tasks_waiting == 0
         assert limiter.statistics().borrowed_tokens == 0
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_asyncio_deadlock(self) -> None:
         """Regression test for #398."""
         limiter = CapacityLimiter(1)

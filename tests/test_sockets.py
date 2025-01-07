@@ -5,6 +5,7 @@ import gc
 import io
 import os
 import platform
+import re
 import socket
 import sys
 import tempfile
@@ -16,7 +17,7 @@ from pathlib import Path
 from socket import AddressFamily
 from ssl import SSLContext, SSLError
 from threading import Thread
-from typing import Any, NoReturn, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Literal, NoReturn, TypeVar, cast
 
 import ephemeral_port_reserve
 import psutil
@@ -47,6 +48,10 @@ from anyio import (
     getnameinfo,
     move_on_after,
     wait_all_tasks_blocked,
+    wait_readable,
+    wait_socket_readable,
+    wait_socket_writable,
+    wait_writable,
 )
 from anyio.abc import (
     IPSockAddrType,
@@ -58,10 +63,13 @@ from anyio.abc import (
 from anyio.lowlevel import checkpoint
 from anyio.streams.stapled import MultiListener
 
+from .conftest import asyncio_params
+
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
-from typing import Literal
+if TYPE_CHECKING:
+    from _typeshed import FileDescriptorLike
 
 AnyIPAddressFamily = Literal[
     AddressFamily.AF_UNSPEC, AddressFamily.AF_INET, AddressFamily.AF_INET6
@@ -155,7 +163,7 @@ _ignore_win32_resource_warnings = (
 )
 
 
-@_ignore_win32_resource_warnings  # type: ignore[operator]
+@_ignore_win32_resource_warnings
 class TestTCPStream:
     @pytest.fixture
     def server_sock(self, family: AnyIPAddressFamily) -> Iterator[socket.socket]:
@@ -517,7 +525,7 @@ class TestTCPStream:
         thread.join()
         assert thread_exception is None
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_unretrieved_future_exception_server_crash(
         self, family: AnyIPAddressFamily, caplog: LogCaptureFixture
     ) -> None:
@@ -526,7 +534,6 @@ class TestTCPStream:
         retrieved.
 
         See https://github.com/encode/httpcore/issues/382 for details.
-
         """
 
         def serve() -> None:
@@ -552,7 +559,12 @@ class TestTCPStream:
 
             thread.join()
             gc.collect()
-            assert not caplog.text
+            caplog_text = "\n".join(
+                msg
+                for msg in caplog.messages
+                if not re.search("took [0-9.]+ seconds", msg)
+            )
+            assert not caplog_text
 
 
 @pytest.mark.network
@@ -1872,3 +1884,54 @@ async def test_getnameinfo() -> None:
     expected_result = socket.getnameinfo(("127.0.0.1", 6666), 0)
     result = await getnameinfo(("127.0.0.1", 6666))
     assert result == expected_result
+
+
+async def test_connect_tcp_getaddrinfo_context() -> None:
+    """
+    See https://github.com/agronholm/anyio/issues/815
+    """
+    with pytest.raises(socket.gaierror) as exc_info:
+        async with await connect_tcp("anyio.invalid", 6666):
+            pass
+
+    assert exc_info.value.__context__ is None
+
+
+@pytest.mark.parametrize("socket_type", ["socket", "fd"])
+@pytest.mark.parametrize("event", ["readable", "writable"])
+async def test_wait_socket(event: str, socket_type: str) -> None:
+    wait = wait_readable if event == "readable" else wait_writable
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_sock:
+        server_sock.bind(("127.0.0.1", 0))
+        port = server_sock.getsockname()[1]
+        server_sock.listen()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_sock:
+            client_sock.connect(("127.0.0.1", port))
+            client_sock.sendall(b"Hello, world")
+
+        conn, addr = server_sock.accept()
+        with conn:
+            sock_or_fd: FileDescriptorLike = (
+                conn.fileno() if socket_type == "fd" else conn
+            )
+            with fail_after(3):
+                await wait(sock_or_fd)
+                assert conn.recv(1024) == b"Hello, world"
+
+
+async def test_deprecated_wait_socket(anyio_backend_name: str) -> None:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        with pytest.warns(
+            DeprecationWarning,
+            match="This function is deprecated; use `wait_readable` instead",
+        ):
+            with move_on_after(0.1):
+                await wait_socket_readable(sock)
+
+        with pytest.warns(
+            DeprecationWarning,
+            match="This function is deprecated; use `wait_writable` instead",
+        ):
+            with move_on_after(0.1):
+                await wait_socket_writable(sock)

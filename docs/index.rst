@@ -18,6 +18,7 @@ The manual
    networking
    threads
    subprocesses
+   subinterpreters
    fileio
    signals
    testing
