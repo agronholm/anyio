@@ -23,6 +23,7 @@ async def run_process(
     command: StrOrBytesPath | Sequence[StrOrBytesPath],
     *,
     input: bytes | None = None,
+    stdin: int | IO[Any] | None = None,
     stdout: int | IO[Any] | None = PIPE,
     stderr: int | IO[Any] | None = PIPE,
     check: bool = True,
@@ -45,6 +46,8 @@ async def run_process(
     :param command: either a string to pass to the shell, or an iterable of strings
         containing the executable name or path and its arguments
     :param input: bytes passed to the standard input of the subprocess
+    :param stdin: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
+        a file-like object, or `None`; ``input`` overrides this
     :param stdout: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
         a file-like object, or `None`
     :param stderr: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
@@ -84,7 +87,7 @@ async def run_process(
 
     async with await open_process(
         command,
-        stdin=PIPE if input else DEVNULL,
+        stdin=(input and PIPE) or stdin or DEVNULL,
         stdout=stdout,
         stderr=stderr,
         cwd=cwd,
