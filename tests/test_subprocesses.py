@@ -129,7 +129,7 @@ async def test_process_new_session_sid() -> None:
     assert result.stdout.decode().strip() != str(sid)
 
 
-async def test_run_process_connect_to_file(tmp_path: Path) -> None:
+async def test_open_process_connect_to_file(tmp_path: Path) -> None:
     stdinfile = tmp_path / "stdin"
     stdinfile.write_text("Hello, process!\n")
     stdoutfile = tmp_path / "stdout"
@@ -153,6 +153,38 @@ async def test_run_process_connect_to_file(tmp_path: Path) -> None:
             stderr=ferr,
         ) as p:
             assert await p.wait() == 0
+
+    assert (
+        stdoutfile.read_text() == "stdin says 'Hello, process!' and stdout says YES!\n"
+    )
+    assert (
+        stderrfile.read_text() == "stdin says 'Hello, process!' but stderr says NO!\n"
+    )
+
+
+async def test_run_process_connect_to_file(tmp_path: Path) -> None:
+    stdinfile = tmp_path / "stdin"
+    stdinfile.write_text("Hello, process!\n")
+    stdoutfile = tmp_path / "stdout"
+    stderrfile = tmp_path / "stderr"
+    with (
+        stdinfile.open("rb") as fin,
+        stdoutfile.open("wb") as fout,
+        stderrfile.open("wb") as ferr,
+    ):
+        await run_process(
+            [
+                sys.executable,
+                "-c",
+                "import sys; txt = sys.stdin.read().strip(); "
+                'print("stdin says", repr(txt), "but stderr says NO!", '
+                "file=sys.stderr); "
+                'print("stdin says", repr(txt), "and stdout says YES!")',
+            ],
+            stdin=fin,
+            stdout=fout,
+            stderr=ferr,
+        )
 
     assert (
         stdoutfile.read_text() == "stdin says 'Hello, process!' and stdout says YES!\n"
