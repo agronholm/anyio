@@ -194,10 +194,22 @@ def anyio_backend_options(anyio_backend: Any) -> dict[str, Any]:
 
 
 def _port_generator(kind: socket.SocketKind, generated: set[int]) -> int:
+    families = [socket.AF_INET]
+    if socket.has_ipv6:
+        families.append(socket.AF_INET6)
+
     while True:
-        with socket.socket(socket.AF_INET, kind) as sock:
-            sock.bind(("127.0.0.1", 0))
-            port = sock.getsockname()[1]
+        port = 0
+        for family in families:
+            with socket.socket(family, kind) as sock:
+                addr = "::1" if family == socket.AF_INET6 else "127.0.0.1"
+                try:
+                    sock.bind((addr, port))
+                except OSError:
+                    continue
+
+                if not port:
+                    port = sock.getsockname()[1]
 
         if port not in generated:
             generated.add(port)
