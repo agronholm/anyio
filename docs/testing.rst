@@ -145,10 +145,10 @@ Built-in utility fixtures
 
 Some useful pytest fixtures are provided to make testing network services easier:
 
-* ``free_tcp_port_factory``: session scoped fixture returning a callable that
-  generates unused TCP port numbers
-* ``free_udp_port_factory``: session scoped fixture returning a callable that
-  generates unused UDP port numbers
+* ``free_tcp_port_factory``: session scoped fixture returning a callable
+  (:class:`~pytest_plugin.FreePortFactory`) that generates unused TCP port numbers
+* ``free_udp_port_factory``: session scoped fixture returning a callable
+  (:class:`~pytest_plugin.FreePortFactory`) that generates unused UDP port numbers
 * ``free_tcp_port``: function level fixture that invokes the ``free_tcp_port_factory``
   fixture to generate a free TCP port number
 * ``free_udp_port``: function level fixture that invokes the ``free_udp_port_factory``

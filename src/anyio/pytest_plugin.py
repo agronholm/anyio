@@ -4,7 +4,6 @@ import socket
 import sys
 from collections.abc import Callable, Generator, Iterator
 from contextlib import ExitStack, contextmanager
-from functools import partial
 from inspect import isasyncgenfunction, iscoroutinefunction, ismethod
 from typing import Any, cast
 
@@ -193,39 +192,86 @@ def anyio_backend_options(anyio_backend: Any) -> dict[str, Any]:
         return anyio_backend[1]
 
 
-def _port_generator(kind: socket.SocketKind, generated: set[int]) -> int:
-    families = [socket.AF_INET]
-    if socket.has_ipv6:
-        families.append(socket.AF_INET6)
+class FreePortFactory:
+    """
+    Manages port generation based on specified socket kind, ensuring no duplicate
+    ports are generated.
 
-    while True:
-        port = 0
-        for family in families:
-            with socket.socket(family, kind) as sock:
-                addr = "::1" if family == socket.AF_INET6 else "127.0.0.1"
-                try:
-                    sock.bind((addr, port))
-                except OSError:
-                    continue
+    This class provides functionality for generating available free ports on the
+    system. It is initialized with a specific socket kind and can generate ports
+    for given address families while avoiding reuse of previously generated ports.
 
-                if not port:
-                    port = sock.getsockname()[1]
+    Users should not instantiate this class directly, but use the
+    ``free_tcp_port_factory`` and ``free_udp_port_factory`` fixtures instead. For simple
+    uses cases, ``free_tcp_port`` and ``free_udp_port`` can be used instead.
+    """
 
-        if port not in generated:
-            generated.add(port)
-            return port
+    def __init__(self, kind: socket.SocketKind) -> None:
+        self._kind = kind
+        self._generated = set[int]()
+
+    @property
+    def kind(self) -> socket.SocketKind:
+        """
+        The type of socket connection (e.g., :data:`~socket.SOCK_STREAM` or
+        :data:`~socket.SOCK_DGRAM`) used to bind for checking port availability
+
+        """
+        return self._kind
+
+    def __call__(self, family: socket.AddressFamily | None = None) -> int:
+        """
+        Return an unbound port for the given address family.
+
+        :param family: if omitted, both IPv4 and IPv6 addresses will be tried
+        :return: a port number
+
+        """
+        if family is not None:
+            families = [family]
+        elif socket.has_dualstack_ipv6():
+            families = [socket.AF_INET6]
+        else:
+            families = [socket.AF_INET]
+            if socket.has_ipv6:
+                families.append(socket.AF_INET6)
+
+        while True:
+            port = 0
+            with ExitStack() as stack:
+                for family in families:
+                    sock = stack.enter_context(socket.socket(family, self._kind))
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+                    addr = "::1" if family == socket.AF_INET6 else "127.0.0.1"
+                    try:
+                        sock.bind((addr, port))
+                    except OSError:
+                        break
+
+                    if not port:
+                        port = sock.getsockname()[1]
+
+                    if self._kind == socket.SOCK_STREAM:
+                        # Place the socket in TIME_WAIT state so its port won't be
+                        # allocated as an ephemeral port
+                        sock.listen(1)
+                        with socket.socket(family, self._kind) as client_sock:
+                            client_sock.connect((addr, port))
+                else:
+                    if port not in self._generated:
+                        self._generated.add(port)
+                        return port
 
 
 @pytest.fixture(scope="session")
-def free_tcp_port_factory() -> Callable[[], int]:
-    generated = set[int]()
-    return partial(_port_generator, socket.SOCK_STREAM, generated)
+def free_tcp_port_factory() -> FreePortFactory:
+    return FreePortFactory(socket.SOCK_STREAM)
 
 
 @pytest.fixture(scope="session")
-def free_udp_port_factory() -> Callable[[], int]:
-    generated = set[int]()
-    return partial(_port_generator, socket.SOCK_DGRAM, generated)
+def free_udp_port_factory() -> FreePortFactory:
+    return FreePortFactory(socket.SOCK_DGRAM)
 
 
 @pytest.fixture
