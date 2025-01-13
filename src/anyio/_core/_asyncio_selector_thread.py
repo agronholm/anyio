@@ -55,9 +55,9 @@ class Selector:
         self._receive.close()
         self._selector.close()
         _selector = None
-        assert (
-            not self._selector.get_map()
-        ), "selector still has registered file descriptors after shutdown"
+        assert not self._selector.get_map(), (
+            "selector still has registered file descriptors after shutdown"
+        )
 
     def _notify_self(self) -> None:
         try:
