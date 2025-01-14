@@ -167,8 +167,7 @@ async def test_run_process_inherit_stdout(capfd: pytest.CaptureFixture[str]) -> 
         [
             sys.executable,
             "-c",
-            'import sys; print("stderr-text", file=sys.stderr); '
-            'print("stdout-text")',
+            'import sys; print("stderr-text", file=sys.stderr); print("stdout-text")',
         ],
         check=True,
         stdout=None,
