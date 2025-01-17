@@ -3,6 +3,12 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed ``connect_tcp()`` producing cyclic references in tracebacks
+  when raising exceptions (`#809 <https://github.com/agronholm/anyio/pull/809>`_)
+  (PR by @graingert)
+
 **4.8.0**
 
 - Added **experimental** support for running functions in subinterpreters on Python

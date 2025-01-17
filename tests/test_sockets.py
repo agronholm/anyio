@@ -43,6 +43,7 @@ from anyio import (
     create_unix_datagram_socket,
     create_unix_listener,
     fail_after,
+    get_current_task,
     getaddrinfo,
     getnameinfo,
     move_on_after,
@@ -58,6 +59,7 @@ from anyio.abc import (
     SocketAttribute,
     SocketListener,
     SocketStream,
+    TaskStatus,
 )
 from anyio.lowlevel import checkpoint
 from anyio.streams.stapled import MultiListener
@@ -131,6 +133,31 @@ def check_asyncio_bug(anyio_backend_name: str, family: AnyIPAddressFamily) -> No
         policy = asyncio.get_event_loop_policy()
         if policy.__class__.__name__ == "WindowsProactorEventLoopPolicy":
             pytest.skip("Does not work due to a known bug (39148)")
+
+
+if sys.version_info >= (3, 14):
+
+    async def no_other_refs() -> list[object]:
+        frame = sys._getframe(1)
+        coro = get_current_task().coro
+
+        async def get_coro_for_frame(*, task_status: TaskStatus[object]) -> None:
+            my_coro = coro
+            while my_coro.cr_frame is not frame:
+                my_coro = my_coro.cr_await
+            task_status.started(my_coro)
+
+        async with create_task_group() as tg:
+            return [await tg.start(get_coro_for_frame)]
+
+elif sys.version_info >= (3, 11):
+
+    async def no_other_refs() -> list[object]:
+        return []
+else:
+
+    async def no_other_refs() -> list[object]:
+        return [sys._getframe(1)]
 
 
 _T = TypeVar("_T")
@@ -315,6 +342,36 @@ class TestTCPStream:
         server_sock.close()
         assert client_addr[0] == expected_client_addr
 
+    @pytest.mark.skipif(
+        sys.implementation.name == "pypy",
+        reason=(
+            "gc.get_referrers is broken on PyPy see "
+            "https://github.com/pypy/pypy/issues/5075"
+        ),
+    )
+    async def test_happy_eyeballs_refcycles(self, anyio_backend_name: str) -> None:
+        """
+        Test derived from https://github.com/python/cpython/pull/124859
+        """
+        if anyio_backend_name == "asyncio" and sys.version_info < (3, 10):
+            pytest.skip(
+                "asyncio.BaseEventLoop.create_connection creates refcycles on py 3.9"
+            )
+        ip = "127.0.0.1"
+        with socket.socket(AddressFamily.AF_INET) as dummy_socket:
+            dummy_socket.bind(("0.0.0.0", 0))
+            free_port = dummy_socket.getsockname()[1]
+
+        exc = None
+        try:
+            async with await connect_tcp(ip, free_port):
+                pass
+        except OSError as e:
+            exc = e.__cause__
+
+        assert isinstance(exc, OSError)
+        assert gc.get_referrers(exc) == await no_other_refs()
+
     @pytest.mark.parametrize(
         "target, exception_class",
         [
@@ -330,10 +387,9 @@ class TestTCPStream:
         exception_class: type[ExceptionGroup] | type[ConnectionRefusedError],
         fake_localhost_dns: None,
     ) -> None:
-        dummy_socket = socket.socket(AddressFamily.AF_INET6)
-        dummy_socket.bind(("::", 0))
-        free_port = dummy_socket.getsockname()[1]
-        dummy_socket.close()
+        with socket.socket(AddressFamily.AF_INET6) as dummy_socket:
+            dummy_socket.bind(("::", 0))
+            free_port = dummy_socket.getsockname()[1]
 
         with pytest.raises(OSError) as exc:
             await connect_tcp(target, free_port)
