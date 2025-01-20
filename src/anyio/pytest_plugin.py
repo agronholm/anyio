@@ -67,8 +67,7 @@ def get_runner(
 def pytest_configure(config: Any) -> None:
     config.addinivalue_line(
         "markers",
-        "anyio: mark the (coroutine function) test to be run "
-        "asynchronously via anyio.",
+        "anyio: mark the (coroutine function) test to be run asynchronously via anyio.",
     )
 
 

@@ -1980,8 +1980,7 @@ class CapacityLimiter(BaseCapacityLimiter):
     def acquire_on_behalf_of_nowait(self, borrower: object) -> None:
         if borrower in self._borrowers:
             raise RuntimeError(
-                "this borrower is already holding one of this CapacityLimiter's "
-                "tokens"
+                "this borrower is already holding one of this CapacityLimiter's tokens"
             )
 
         if self._wait_queue or len(self._borrowers) >= self._total_tokens:
