@@ -84,7 +84,7 @@ def client_context(ca: CA) -> SSLContext:
 
 @pytest.fixture
 def asyncio_event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
-    loop = asyncio.DefaultEventLoopPolicy().new_event_loop()
+    loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     yield loop
     asyncio.set_event_loop(None)
