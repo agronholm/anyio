@@ -1837,3 +1837,14 @@ async def test_patched_asyncio_task(monkeypatch: MonkeyPatch) -> None:
     )
     async with create_task_group() as tg:
         tg.start_soon(sleep, 0)
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_exception_groups_suppresses_exc_context() -> None:
+    with pytest.raises(
+        cast(type[ExceptionGroup[Exception]], ExceptionGroup)
+    ) as exc_info:
+        async with create_task_group():
+            raise Exception("Error")
+
+    assert exc_info.value.__suppress_context__
