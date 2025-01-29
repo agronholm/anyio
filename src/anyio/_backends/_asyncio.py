@@ -772,7 +772,7 @@ class TaskGroup(abc.TaskGroup):
                         "unhandled errors in a TaskGroup", self._exceptions
                     ) from None
                 elif exc_val:
-                    raise exc_val from None
+                    raise exc_val
             except BaseException as exc:
                 if self.cancel_scope.__exit__(type(exc), exc, exc.__traceback__):
                     return True
