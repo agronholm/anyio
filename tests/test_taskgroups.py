@@ -1839,7 +1839,6 @@ async def test_patched_asyncio_task(monkeypatch: MonkeyPatch) -> None:
         tg.start_soon(sleep, 0)
 
 
-@pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_exception_groups_suppresses_exc_context() -> None:
     with pytest.raises(
         cast(type[ExceptionGroup[Exception]], ExceptionGroup)
