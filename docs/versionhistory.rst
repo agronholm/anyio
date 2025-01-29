@@ -8,6 +8,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added ``stdin`` argument to ``anyio.run_process()`` akin to what
   ``anyio.open_process()``, ``asyncio.create_subprocess_…()``, ``trio.run_process()``,
   and ``subprocess.run()`` already accept (PR by @jmehnle)
+- Fixed traceback formatting growing quadratically with level of ``TaskGroup``
+  nesting on asyncio due to exception chaining when raising ``ExceptionGroups``
+  in ``TaskGroup.__aexit__``
+  (`#863 <https://github.com/agronholm/anyio/issues/863>`_; PR by @tapetersen)
 
 **4.8.0**
 
