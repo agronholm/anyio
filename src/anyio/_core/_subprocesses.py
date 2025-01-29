@@ -4,7 +4,7 @@ import sys
 from collections.abc import AsyncIterable, Iterable, Mapping, Sequence
 from io import BytesIO
 from os import PathLike
-from subprocess import DEVNULL, PIPE, CalledProcessError, CompletedProcess
+from subprocess import PIPE, CalledProcessError, CompletedProcess
 from typing import IO, Any, Union, cast
 
 from ..abc import Process
@@ -85,9 +85,12 @@ async def run_process(
 
         stream_contents[index] = buffer.getvalue()
 
+    if stdin is not None and input is not None:
+        raise ValueError("only one of stdin and input is allowed")
+
     async with await open_process(
         command,
-        stdin=(input and PIPE) or stdin or DEVNULL,
+        stdin=PIPE if input else stdin,
         stdout=stdout,
         stderr=stderr,
         cwd=cwd,
