@@ -18,6 +18,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     AnyStr,
+    ClassVar,
     Final,
     Generic,
     overload,
@@ -27,6 +28,8 @@ from .. import to_thread
 from ..abc import AsyncResource
 
 if TYPE_CHECKING:
+    from types import ModuleType
+
     from _typeshed import OpenBinaryMode, OpenTextMode, ReadableBuffer, WriteableBuffer
 else:
     ReadableBuffer = OpenBinaryMode = OpenTextMode = WriteableBuffer = object
@@ -386,7 +389,7 @@ class Path:
         return self._path.as_uri()
 
     if sys.version_info >= (3, 13):
-        parser = pathlib.Path.parser
+        parser: ClassVar[ModuleType] = pathlib.Path.parser
 
         @classmethod
         def from_uri(cls, uri: str) -> Path:
