@@ -123,7 +123,7 @@ relative_files = true
 show_missing = true
 
 [tool.tox]
-env_list = ["pre-commit", "py39", "py310", "py311", "py312", "py313", "pypy3"]
+env_list = ["pre-commit", "py39", "py310", "py311", "py312", "py313", "py314", "pypy3"]
 skip_missing_interpreters = true
 
 [tool.tox.env_run_base]

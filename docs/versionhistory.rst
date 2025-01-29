@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+ **UNRELEASED**
 
 - Added 4 new fixtures for the AnyIO ``pytest`` plugin:
 
@@ -15,6 +15,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     ``free_tcp_port_factory`` fixture to generate a free TCP port number
   * ``free_udp_port``: function scoped fixture that invokes the
     ``free_udp_port_factory`` fixture to generate a free UDP port number
+- Fixed traceback formatting growing quadratically with level of ``TaskGroup``
+  nesting on asyncio due to exception chaining when raising ``ExceptionGroups``
+  in ``TaskGroup.__aexit__``
+  (`#863 <https://github.com/agronholm/anyio/issues/863>`_; PR by @tapetersen)
 
 **4.8.0**
 
