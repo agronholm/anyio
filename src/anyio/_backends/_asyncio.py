@@ -764,9 +764,13 @@ class TaskGroup(abc.TaskGroup):
 
                 self._active = False
                 if self._exceptions:
+                    # The exception that got us here should already have been
+                    # added to self._exceptions so it's ok to break exception
+                    # chaining and avoid adding a "During handling of above..."
+                    # for each nesting level.
                     raise BaseExceptionGroup(
                         "unhandled errors in a TaskGroup", self._exceptions
-                    )
+                    ) from None
                 elif exc_val:
                     raise exc_val
             except BaseException as exc:
