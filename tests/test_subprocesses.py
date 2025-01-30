@@ -194,6 +194,13 @@ async def test_run_process_connect_to_file(tmp_path: Path) -> None:
     )
 
 
+async def test_stdin_input_both_passed(tmp_path: Path) -> None:
+    stdinfile = tmp_path / "stdin"
+    stdinfile.write_text("Hello, process!\n")
+    with pytest.raises(ValueError, match="only one of"), stdinfile.open("rb") as fin:
+        await run_process([sys.executable, "--version"], input=b"abc", stdin=fin)
+
+
 async def test_run_process_inherit_stdout(capfd: pytest.CaptureFixture[str]) -> None:
     await run_process(
         [
