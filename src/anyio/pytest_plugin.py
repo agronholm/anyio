@@ -240,8 +240,6 @@ class FreePortFactory:
             with ExitStack() as stack:
                 for family in families:
                     sock = stack.enter_context(socket.socket(family, self._kind))
-                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
                     addr = "::1" if family == socket.AF_INET6 else "127.0.0.1"
                     try:
                         sock.bind((addr, port))
@@ -250,13 +248,6 @@ class FreePortFactory:
 
                     if not port:
                         port = sock.getsockname()[1]
-
-                    if self._kind == socket.SOCK_STREAM:
-                        # Place the socket in TIME_WAIT state so its port won't be
-                        # allocated as an ephemeral port
-                        sock.listen(1)
-                        with socket.socket(family, self._kind) as client_sock:
-                            client_sock.connect((addr, port))
                 else:
                     if port not in self._generated:
                         self._generated.add(port)

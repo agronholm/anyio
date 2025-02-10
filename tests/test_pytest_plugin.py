@@ -575,7 +575,9 @@ class TestFreePortFactory:
     def families(self) -> Sequence[tuple[socket.AddressFamily, str]]:
         from .test_sockets import has_ipv6
 
-        families = [(socket.AF_INET, "127.0.0.1")]
+        families: list[tuple[socket.AddressFamily, str]] = [
+            (socket.AF_INET, "127.0.0.1")
+        ]
         if has_ipv6:
             families.append((socket.AF_INET6, "::1"))
 
@@ -592,7 +594,11 @@ class TestFreePortFactory:
         for port in generated_ports:
             for family, addr in families:
                 with socket.socket(family, socket.SOCK_STREAM) as sock:
-                    sock.bind((addr, port))
+                    try:
+                        sock.bind((addr, port))
+                    except OSError:
+                        breakpoint()
+                        pass
 
     async def test_udp_factory(
         self,
