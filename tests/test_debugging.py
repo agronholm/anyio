@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from collections.abc import AsyncGenerator, Coroutine, Generator
+from collections.abc import AsyncGenerator, Generator
+from types import CoroutineType, GeneratorType
 from typing import Any, cast
 
 import pytest
@@ -113,9 +114,9 @@ def test_wait_generator_based_task_blocked(
 ) -> None:
     async def native_coro_part() -> None:
         await wait_all_tasks_blocked()
-        gen = cast(Generator, get_coro(gen_task))
+        gen = cast(GeneratorType, get_coro(gen_task))
         assert not gen.gi_running
-        coro = cast(Coroutine, gen.gi_yieldfrom)
+        coro = cast(CoroutineType, gen.gi_yieldfrom)
         assert coro.cr_code.co_name == "wait"
 
         event.set()
@@ -139,7 +140,7 @@ async def test_wait_all_tasks_blocked_asend(anyio_backend: str) -> None:
     agen = agen_func()
     coro = agen.asend(None)
     loop = asyncio.get_running_loop()
-    task = loop.create_task(cast("Coroutine[Any, Any, Any]", coro))
+    task = loop.create_task(cast("CoroutineType[Any, Any, Any]", coro))
     await wait_all_tasks_blocked()
     await task
     await agen.aclose()

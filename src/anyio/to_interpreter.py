@@ -72,7 +72,7 @@ class Worker:
         import _interpreters as interpreters
 
         self._interpreter_id = interpreters.create()
-        self._queue_id = queues.create(2, FMT_UNPICKLED, UNBOUND)  # type: ignore[call-arg]
+        self._queue_id = queues.create(2, FMT_UNPICKLED, UNBOUND)
         self._initialized = True
         interpreters.set___main___attrs(
             self._interpreter_id,
@@ -104,11 +104,11 @@ class Worker:
             self.initialize()
 
         payload = pickle.dumps((func, args), pickle.HIGHEST_PROTOCOL)
-        queues.put(self._queue_id, payload, FMT_PICKLED, UNBOUND)  # type: ignore[call-arg]
+        queues.put(self._queue_id, payload, FMT_PICKLED, UNBOUND)
 
         res: Any
         is_exception: bool
-        if exc_info := interpreters.exec(self._interpreter_id, self._run_func):  # type: ignore[func-returns-value,arg-type]
+        if exc_info := interpreters.exec(self._interpreter_id, self._run_func):
             raise BrokenWorkerIntepreter(exc_info)
 
         (res, is_exception), fmt = queues.get(self._queue_id)[:2]
