@@ -34,7 +34,7 @@ class TemporaryFile(Generic[AnyStr]):
 
         self._async_file: AsyncFile | None = None
 
-    async def __aenter__(self) -> AsyncFile:
+    async def __aenter__(self) -> AsyncFile[AnyStr]:
         fp = await to_thread.run_sync(
             lambda: tempfile.TemporaryFile(
                 self.mode,
@@ -105,7 +105,6 @@ class NamedTemporaryFile(Generic[AnyStr]):
             params["delete_on_close"] = self.delete_on_close
 
         fp = await to_thread.run_sync(lambda: tempfile.NamedTemporaryFile(**params))
-
         self._async_file = AsyncFile(fp)
         return self._async_file
 
@@ -146,7 +145,9 @@ class SpooledTemporaryFile(Generic[AnyStr]):
 
         self._async_file: AsyncFile | None = None
 
-    async def __aenter__(self) -> SpooledTemporaryFile:
+    async def __aenter__(
+        self: SpooledTemporaryFile[AnyStr],
+    ) -> SpooledTemporaryFile[AnyStr]:
         fp = await to_thread.run_sync(
             partial(
                 tempfile.SpooledTemporaryFile,
@@ -167,6 +168,7 @@ class SpooledTemporaryFile(Generic[AnyStr]):
     async def rollover(self) -> None:
         if self._async_file is None:
             raise RuntimeError("Internal file is not initialized.")
+
         await to_thread.run_sync(cast(Callable[[], None], self._async_file.rollover))
 
     @property
@@ -184,6 +186,7 @@ class SpooledTemporaryFile(Generic[AnyStr]):
     def __getattr__(self, attr: str) -> Any:
         if self._async_file is not None:
             return getattr(self._async_file, attr)
+
         raise AttributeError(f"{self.__class__.__name__} has no attribute {attr}")
 
     async def __aexit__(
@@ -223,6 +226,7 @@ class TemporaryDirectory(Generic[AnyStr]):
         }
         if sys.version_info >= (3, 10):
             params["ignore_cleanup_errors"] = self.ignore_cleanup_errors
+
         if sys.version_info >= (3, 12):
             params["delete"] = self.delete
 

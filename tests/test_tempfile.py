@@ -16,7 +16,6 @@ from anyio import (
     gettempdirb,
     mkdtemp,
     mkstemp,
-    to_thread,
 )
 
 pytestmark = pytest.mark.anyio
@@ -31,7 +30,6 @@ class TestTemporaryFile:
             result = await af.read()
 
         assert result == data
-
         assert af.closed
 
 
@@ -47,7 +45,6 @@ class TestNamedTemporaryFile:
             result = await af.read()
 
         assert result == data
-
         assert not os.path.exists(filename)
 
     async def test_exception_handling(self) -> None:
@@ -149,13 +146,12 @@ async def test_mkstemp() -> None:
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write("mkstemp")
 
-    content = await to_thread.run_sync(
-        lambda: pathlib.Path(path).read_text(encoding="utf-8")
-    )
+    with open(path, encoding="utf-8") as f:
+        content = f.read()
 
     assert content == "mkstemp"
 
-    await to_thread.run_sync(lambda: os.remove(path))
+    os.remove(path)
 
 
 async def test_mkdtemp() -> None:
