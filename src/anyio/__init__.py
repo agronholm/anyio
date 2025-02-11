@@ -67,8 +67,6 @@ from ._core._tempfile import TemporaryDirectory as TemporaryDirectory
 from ._core._tempfile import TemporaryFile as TemporaryFile
 from ._core._tempfile import gettempdir as gettempdir
 from ._core._tempfile import gettempdirb as gettempdirb
-from ._core._tempfile import gettempprefix as gettempprefix
-from ._core._tempfile import gettempprefixb as gettempprefixb
 from ._core._tempfile import mkdtemp as mkdtemp
 from ._core._tempfile import mkstemp as mkstemp
 from ._core._testing import TaskInfo as TaskInfo

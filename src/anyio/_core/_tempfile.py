@@ -3,11 +3,11 @@ from __future__ import annotations
 import sys
 import tempfile
 from functools import partial
-from os import PathLike
 from types import TracebackType
 from typing import Any, AnyStr, Callable, Generic, cast
 
-from .. import AsyncFile, to_thread
+from .. import to_thread
+from .._core._fileio import AsyncFile
 
 
 class TemporaryFile(Generic[AnyStr]):
@@ -68,9 +68,9 @@ class NamedTemporaryFile(Generic[AnyStr]):
         buffering: int = -1,
         encoding: str | None = None,
         newline: str | None = None,
-        suffix: (str | bytes) | None = None,
-        prefix: (str | bytes) | None = None,
-        dir: (str | bytes | PathLike[str]) | None = None,
+        suffix: AnyStr | None = None,
+        prefix: AnyStr | None = None,
+        dir: AnyStr | None = None,
         delete: bool = True,
         *,
         errors: str | None = None,
@@ -80,9 +80,9 @@ class NamedTemporaryFile(Generic[AnyStr]):
         self.buffering = buffering
         self.encoding = encoding
         self.newline = newline
-        self.suffix = suffix
-        self.prefix = prefix
-        self.dir = dir
+        self.suffix: AnyStr | None = suffix
+        self.prefix: AnyStr | None = prefix
+        self.dir: AnyStr | None = dir
         self.delete = delete
         self.errors = errors
         self.delete_on_close = delete_on_close
@@ -262,14 +262,6 @@ async def mkdtemp(
     dir: AnyStr | None = None,
 ) -> str | bytes:
     return await to_thread.run_sync(lambda: tempfile.mkdtemp(suffix, prefix, dir))
-
-
-async def gettempprefix() -> str:
-    return await to_thread.run_sync(tempfile.gettempprefix)
-
-
-async def gettempprefixb() -> bytes:
-    return await to_thread.run_sync(tempfile.gettempprefixb)
 
 
 async def gettempdir() -> str:
