@@ -142,8 +142,8 @@ class SpooledTemporaryFile(Generic[AnyStr]):
         self.prefix: AnyStr | None = prefix
         self.dir: AnyStr | None = dir
         self.errors = errors
-
         self._async_file: AsyncFile | None = None
+        self._fp: Any = None
 
     async def __aenter__(
         self: SpooledTemporaryFile[AnyStr],
@@ -162,32 +162,54 @@ class SpooledTemporaryFile(Generic[AnyStr]):
                 errors=self.errors,
             )
         )
+        self._fp = fp
         self._async_file = AsyncFile(fp)
         return self
 
     async def rollover(self) -> None:
-        if self._async_file is None:
-            raise RuntimeError("Internal file is not initialized.")
+        if self._fp is None:
+            raise RuntimeError("Underlying file is not initialized.")
 
-        await to_thread.run_sync(cast(Callable[[], None], self._async_file.rollover))
+        await to_thread.run_sync(cast(Callable[[], None], self._fp.rollover))
 
     @property
     def closed(self) -> bool:
-        if self._async_file is not None:
-            try:
-                return bool(self._async_file.closed)
-            except AttributeError:
-                f = getattr(self._async_file, "_f", None)
-                if f is None:
-                    return True
-                return bool(f.closed)
-        return True
+        if self._fp is None:
+            return True
+
+        return bool(self._fp.closed)
 
     def __getattr__(self, attr: str) -> Any:
         if self._async_file is not None:
             return getattr(self._async_file, attr)
 
         raise AttributeError(f"{self.__class__.__name__} has no attribute {attr}")
+
+    async def write(self, s: Any) -> int:
+        if self._fp is None:
+            raise RuntimeError("Underlying file is not initialized.")
+
+        if not getattr(self._fp, "_rolled", True):
+            result = self._fp.write(s)
+            if self._fp._max_size and self._fp.tell() > self._fp._max_size:
+                self._fp.rollover()
+
+            return result
+        else:
+            return await to_thread.run_sync(self._fp.write, s)
+
+    async def writelines(self, lines: Any) -> None:
+        if self._fp is None:
+            raise RuntimeError("Underlying file is not initialized.")
+
+        if not getattr(self._fp, "_rolled", True):
+            result = self._fp.writelines(lines)
+            if self._fp._max_size and self._fp.tell() > self._fp._max_size:
+                self._fp.rollover()
+
+            return result
+        else:
+            return await to_thread.run_sync(self._fp.writelines, lines)
 
     async def __aexit__(
         self,

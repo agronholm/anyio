@@ -97,6 +97,47 @@ class TestSpooledTemporaryFile:
 
             assert result == b"1234567890more data"
 
+    async def test_write_without_rolled(self) -> None:
+        async with SpooledTemporaryFile[bytes](max_size=10) as stf:
+            stf._fp._rolled = False
+            stf._fp._max_size = 10
+            rollover_called = False
+            original_rollover = stf._fp.rollover
+
+            def fake_rollover() -> None:
+                nonlocal rollover_called
+                rollover_called = True
+                return original_rollover()
+
+            stf._fp.rollover = fake_rollover
+            n1 = await stf.write(b"12345")
+            assert n1 == 5
+            assert not rollover_called
+            await stf.write(b"67890X")
+            assert rollover_called
+
+    async def test_writelines_without_rolled(self) -> None:
+        async with SpooledTemporaryFile[bytes](max_size=20) as stf:
+            stf._fp._rolled = False
+            stf._fp._max_size = 20
+            rollover_called = False
+            original_rollover = stf._fp.rollover
+
+            def fake_rollover() -> None:
+                nonlocal rollover_called
+                rollover_called = True
+                return original_rollover()
+
+            stf._fp.rollover = fake_rollover
+            await stf.writelines([b"hello", b"world"])
+            await stf.seek(0)
+
+            content = await stf.read()
+            assert content == b"helloworld"
+
+            await stf.writelines([b"1234567890123456"])
+            assert rollover_called
+
     async def test_closed_state(self) -> None:
         async with SpooledTemporaryFile[bytes](max_size=10) as stf:
             assert not stf.closed
