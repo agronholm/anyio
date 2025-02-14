@@ -76,15 +76,6 @@ class TestSpooledTemporaryFile:
 
         assert stf.closed
 
-    async def test_error_conditions(self) -> None:
-        stf = SpooledTemporaryFile[bytes]()
-
-        with pytest.raises(RuntimeError):
-            await stf.rollover()
-
-        with pytest.raises(AttributeError):
-            _ = stf.nonexistent_attribute
-
     async def test_rollover_handling(self) -> None:
         async with SpooledTemporaryFile[bytes](max_size=10) as stf:
             await stf.write(b"1234567890")

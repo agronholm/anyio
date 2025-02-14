@@ -4,7 +4,7 @@ import sys
 import tempfile
 from functools import partial
 from types import TracebackType
-from typing import Any, AnyStr, Callable, Generic, cast
+from typing import Any, AnyStr, Callable, Generic, cast, overload
 
 from .. import to_thread
 from .._core._fileio import AsyncFile
@@ -273,6 +273,24 @@ class TemporaryDirectory(Generic[AnyStr]):
             await to_thread.run_sync(self._tempdir.cleanup)
 
 
+@overload
+async def mkstemp(
+    suffix: str | None = None,
+    prefix: str | None = None,
+    dir: str | None = None,
+    text: bool = False,
+) -> tuple[int, str]: ...
+
+
+@overload
+async def mkstemp(
+    suffix: bytes | None = None,
+    prefix: bytes | None = None,
+    dir: bytes | None = None,
+    text: bool = False,
+) -> tuple[int, bytes]: ...
+
+
 async def mkstemp(
     suffix: AnyStr | None = None,
     prefix: AnyStr | None = None,
@@ -280,6 +298,22 @@ async def mkstemp(
     text: bool = False,
 ) -> tuple[int, str | bytes]:
     return await to_thread.run_sync(lambda: tempfile.mkstemp(suffix, prefix, dir, text))
+
+
+@overload
+async def mkdtemp(
+    suffix: str | None = None,
+    prefix: str | None = None,
+    dir: str | None = None,
+) -> str: ...
+
+
+@overload
+async def mkdtemp(
+    suffix: bytes | None = None,
+    prefix: bytes | None = None,
+    dir: bytes | None = None,
+) -> bytes: ...
 
 
 async def mkdtemp(

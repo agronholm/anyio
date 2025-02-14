@@ -241,6 +241,9 @@ class Path:
     * :meth:`~pathlib.Path.relative_to` (the ``walk_up`` parameter is only available on
       Python 3.12 or later)
     * :meth:`~pathlib.Path.walk` (available on Python 3.12 or later)
+    * ``__open_rb__`` (available on Python 3.14 or later)
+    * ``__open_wb__`` (available on Python 3.14 or later)
+    * ``info`` (available on Python 3.14 or later)
 
     Any methods that do disk I/O need to be awaited on. These methods are:
 
@@ -377,6 +380,20 @@ class Path:
     @property
     def stem(self) -> str:
         return self._path.stem
+
+    if sys.version_info >= (3, 14):
+
+        @property
+        def __open_rb__(self) -> Any:
+            return self._path.__open_rb__
+
+        @property
+        def __open_wb__(self) -> Any:
+            return self._path.__open_wb__
+
+        @property
+        def info(self) -> Any:
+            return self._path.info
 
     async def absolute(self) -> Path:
         path = await to_thread.run_sync(self._path.absolute)
