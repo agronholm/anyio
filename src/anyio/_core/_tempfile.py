@@ -208,8 +208,8 @@ class SpooledTemporaryFile(Generic[AnyStr]):
                 self._fp.rollover()
 
             return result
-        else:
-            return await to_thread.run_sync(self._fp.writelines, lines)
+
+        return await to_thread.run_sync(self._fp.writelines, lines)
 
     async def __aexit__(
         self,
