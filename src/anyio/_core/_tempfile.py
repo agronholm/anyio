@@ -195,8 +195,8 @@ class SpooledTemporaryFile(Generic[AnyStr]):
                 self._fp.rollover()
 
             return result
-        else:
-            return await to_thread.run_sync(self._fp.write, s)
+
+        return await to_thread.run_sync(self._fp.write, s)
 
     async def writelines(self, lines: Any) -> None:
         if self._fp is None:
