@@ -232,14 +232,15 @@ class Path:
     * :meth:`~pathlib.Path.copy` (available on Python 3.14 or later)
     * :meth:`~pathlib.Path.copy_into` (available on Python 3.14 or later)
     * :meth:`~pathlib.Path.from_uri` (available on Python 3.13 or later)
-    * :meth:`~pathlib.Path.full_match` (available on Python 3.13 or later)
+    * :meth:`~pathlib.PurePath.full_match` (available on Python 3.13 or later)
+    * :attr:`~pathlib.Path.info` (available on Python 3.14 or later)
     * :meth:`~pathlib.Path.is_junction` (available on Python 3.12 or later)
-    * :meth:`~pathlib.Path.match` (the ``case_sensitive`` parameter is only available on
-      Python 3.13 or later)
+    * :meth:`~pathlib.PurePath.match` (the ``case_sensitive`` parameter is only
+      available on Python 3.13 or later)
     * :meth:`~pathlib.Path.move` (available on Python 3.14 or later)
     * :meth:`~pathlib.Path.move_into` (available on Python 3.14 or later)
-    * :meth:`~pathlib.Path.relative_to` (the ``walk_up`` parameter is only available on
-      Python 3.12 or later)
+    * :meth:`~pathlib.PurePath.relative_to` (the ``walk_up`` parameter is only available
+      on Python 3.12 or later)
     * :meth:`~pathlib.Path.walk` (available on Python 3.12 or later)
 
     Any methods that do disk I/O need to be awaited on. These methods are:
@@ -410,6 +411,10 @@ class Path:
             return self._path.match(path_pattern)
 
     if sys.version_info >= (3, 14):
+
+        @property
+        def info(self) -> Any:  # TODO: add return type annotation when Typeshed gets it
+            return self._path.info
 
         async def copy(
             self,
