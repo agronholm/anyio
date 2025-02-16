@@ -37,7 +37,7 @@ class TestNamedTemporaryFile:
     async def test_named_temporary_file(self) -> None:
         data = b"named temporary file data"
         async with NamedTemporaryFile[bytes]() as af:
-            filename = str(af.name)
+            filename = af.name
             assert os.path.exists(filename)
 
             await af.write(data)
