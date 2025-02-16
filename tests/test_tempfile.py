@@ -42,9 +42,8 @@ class TestNamedTemporaryFile:
 
             await af.write(data)
             await af.seek(0)
-            result = await af.read()
+            assert await af.read() == data
 
-        assert result == data
         assert not os.path.exists(filename)
 
     async def test_exception_handling(self) -> None:
