@@ -82,6 +82,23 @@ Async file I/O
 .. autoclass:: anyio.AsyncFile
 .. autoclass:: anyio.Path
 
+Temporary files and directories
+-------------------------------
+
+.. autofunction:: anyio.mkstemp
+.. autofunction:: anyio.mkdtemp
+.. autofunction:: anyio.gettempdir
+.. autofunction:: anyio.gettempdirb
+
+.. autoclass:: anyio.TemporaryFile
+
+.. autoclass:: anyio.NamedTemporaryFile
+
+.. autoclass:: anyio.SpooledTemporaryFile
+
+.. autoclass:: anyio.TemporaryDirectory
+
+
 Streams and stream wrappers
 ---------------------------
 

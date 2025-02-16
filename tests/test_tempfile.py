@@ -4,6 +4,7 @@ import os
 import pathlib
 import shutil
 import tempfile
+from typing import AnyStr
 
 import pytest
 
@@ -38,20 +39,20 @@ class TestNamedTemporaryFile:
         data = b"named temporary file data"
         async with NamedTemporaryFile[bytes]() as af:
             filename = af.name
-            assert os.path.exists(filename)
+            assert os.path.exists(filename)  # type: ignore[arg-type]
 
             await af.write(data)
             await af.seek(0)
             assert await af.read() == data
 
-        assert not os.path.exists(filename)
+        assert not os.path.exists(filename)  # type: ignore[arg-type]
 
     async def test_exception_handling(self) -> None:
         async with NamedTemporaryFile[bytes]() as af:
             filename = af.name
-            assert os.path.exists(filename)
+            assert os.path.exists(filename)  # type: ignore[arg-type]
 
-        assert not os.path.exists(filename)
+        assert not os.path.exists(filename)  # type: ignore[arg-type]
 
         with pytest.raises(ValueError):
             await af.write(b"should fail")
@@ -165,24 +166,46 @@ class TestTemporaryDirectory:
             (td_path / "nonexistent.txt").write_text("should fail", encoding="utf-8")
 
 
-async def test_mkstemp() -> None:
-    fd, path = await mkstemp(suffix=".txt", prefix="mkstemp_", text=True)
+@pytest.mark.parametrize(
+    "suffix, prefix, text, content",
+    [
+        (".txt", "mkstemp_", True, "mkstemp"),
+        (b".txt", b"mkstemp_", False, b"mkstemp"),
+    ],
+)
+async def test_mkstemp(
+    suffix: AnyStr,
+    prefix: AnyStr,
+    text: bool,
+    content: AnyStr,
+) -> None:
+    fd, path = await mkstemp(suffix=suffix, prefix=prefix, text=text)
+
     assert isinstance(fd, int)
-    assert isinstance(path, str)
+    if text:
+        assert isinstance(path, str)
+    else:
+        assert isinstance(path, bytes)
 
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        f.write("mkstemp")
+    if text:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        with open(path, encoding="utf-8") as f:
+            read_content = f.read()
+    else:
+        with os.fdopen(fd, "wb") as f:
+            f.write(content)
+        with open(os.fsdecode(path), "rb") as f:
+            read_content = f.read()
 
-    with open(path, encoding="utf-8") as f:
-        content = f.read()
-
-    assert content == "mkstemp"
+    assert read_content == content
 
     os.remove(path)
 
 
-async def test_mkdtemp() -> None:
-    d = await mkdtemp(prefix="mkdtemp_")
+@pytest.mark.parametrize("prefix", [b"mkdtemp_", "mkdtemp_"])
+async def test_mkdtemp(prefix: AnyStr) -> None:
+    d = await mkdtemp(prefix=prefix)
 
     if isinstance(d, bytes):
         dp = pathlib.Path(os.fsdecode(d))

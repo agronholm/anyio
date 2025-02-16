@@ -11,6 +11,23 @@ from .._core._fileio import AsyncFile
 
 
 class TemporaryFile(Generic[AnyStr]):
+    """
+    An asynchronous temporary file that is automatically created and cleaned up.
+
+    This class provides an asynchronous context manager interface to a temporary file.
+    The file is created using Python's standard `tempfile.TemporaryFile` function in a
+    background thread, and is wrapped as an asynchronous file using `AsyncFile`.
+
+    :param mode: The mode in which the file is opened. Defaults to "w+b".
+    :param buffering: The buffering policy (-1 means the default buffering).
+    :param encoding: The encoding used to decode or encode the file. Only applicable in text mode.
+    :param newline: Controls how universal newlines mode works (only applicable in text mode).
+    :param suffix: The suffix for the temporary file name.
+    :param prefix: The prefix for the temporary file name.
+    :param dir: The directory in which the temporary file is created.
+    :param errors: The error handling scheme used for encoding/decoding errors.
+    """
+
     def __init__(
         self,
         mode: str = "w+b",
@@ -62,6 +79,25 @@ class TemporaryFile(Generic[AnyStr]):
 
 
 class NamedTemporaryFile(Generic[AnyStr]):
+    """
+    An asynchronous named temporary file that is automatically created and cleaned up.
+
+    This class provides an asynchronous context manager for a temporary file with a
+    visible name in the file system. It uses Python's standard `tempfile.NamedTemporaryFile`
+    function and wraps the file object with `AsyncFile` for asynchronous operations.
+
+    :param mode: The mode in which the file is opened. Defaults to "w+b".
+    :param buffering: The buffering policy (-1 means the default buffering).
+    :param encoding: The encoding used to decode or encode the file. Only applicable in text mode.
+    :param newline: Controls how universal newlines mode works (only applicable in text mode).
+    :param suffix: The suffix for the temporary file name.
+    :param prefix: The prefix for the temporary file name.
+    :param dir: The directory in which the temporary file is created.
+    :param delete: Whether to delete the file when it is closed.
+    :param errors: The error handling scheme used for encoding/decoding errors.
+    :param delete_on_close: (Python 3.12+) Whether to delete the file on close.
+    """
+
     def __init__(
         self,
         mode: str = "w+b",
@@ -120,6 +156,24 @@ class NamedTemporaryFile(Generic[AnyStr]):
 
 
 class SpooledTemporaryFile(Generic[AnyStr]):
+    """
+    An asynchronous spooled temporary file that starts in memory and is spooled to disk.
+
+    This class provides an asynchronous interface to a spooled temporary file using
+    Python's standard `tempfile.SpooledTemporaryFile`. It supports asynchronous write
+    operations and provides a method to force a rollover to disk.
+
+    :param max_size: Maximum size in bytes before the file is rolled over to disk.
+    :param mode: The mode in which the file is opened. Defaults to "w+b".
+    :param buffering: The buffering policy (-1 means the default buffering).
+    :param encoding: The encoding used to decode or encode the file (text mode only).
+    :param newline: Controls how universal newlines mode works (text mode only).
+    :param suffix: The suffix for the temporary file name.
+    :param prefix: The prefix for the temporary file name.
+    :param dir: The directory in which the temporary file is created.
+    :param errors: The error handling scheme used for encoding/decoding errors.
+    """
+
     def __init__(
         self,
         max_size: int = 0,
@@ -186,6 +240,16 @@ class SpooledTemporaryFile(Generic[AnyStr]):
         raise AttributeError(f"{self.__class__.__name__} has no attribute {attr}")
 
     async def write(self, s: Any) -> int:
+        """
+        Asynchronously write data to the spooled temporary file.
+
+        If the file has not yet been rolled over, the data is written synchronously,
+        and a rollover is triggered if the size exceeds the maximum size.
+
+        :param s: The data to write.
+        :return: The number of bytes written.
+        :raises RuntimeError: If the underlying file is not initialized.
+        """
         if self._fp is None:
             raise RuntimeError("Underlying file is not initialized.")
 
@@ -199,6 +263,15 @@ class SpooledTemporaryFile(Generic[AnyStr]):
         return await to_thread.run_sync(self._fp.write, s)
 
     async def writelines(self, lines: Any) -> None:
+        """
+        Asynchronously write a list of lines to the spooled temporary file.
+
+        If the file has not yet been rolled over, the lines are written synchronously,
+        and a rollover is triggered if the size exceeds the maximum size.
+
+        :param lines: An iterable of lines to write.
+        :raises RuntimeError: If the underlying file is not initialized.
+        """
         if self._fp is None:
             raise RuntimeError("Underlying file is not initialized.")
 
@@ -223,6 +296,20 @@ class SpooledTemporaryFile(Generic[AnyStr]):
 
 
 class TemporaryDirectory(Generic[AnyStr]):
+    """
+    An asynchronous temporary directory that is created and cleaned up automatically.
+
+    This class provides an asynchronous context manager for creating a temporary directory.
+    It wraps Python's standard `tempfile.TemporaryDirectory` to perform directory creation
+    and cleanup operations in a background thread.
+
+    :param suffix: Suffix to be added to the temporary directory name.
+    :param prefix: Prefix to be added to the temporary directory name.
+    :param dir: The parent directory where the temporary directory is created.
+    :param ignore_cleanup_errors: Whether to ignore errors during cleanup (Python 3.10+).
+    :param delete: Whether to delete the directory upon closing (Python 3.12+).
+    """
+
     def __init__(
         self,
         suffix: AnyStr | None = None,
@@ -297,6 +384,17 @@ async def mkstemp(
     dir: AnyStr | None = None,
     text: bool = False,
 ) -> tuple[int, str | bytes]:
+    """
+    Asynchronously create a temporary file and return an OS-level handle and the file name.
+
+    This function wraps `tempfile.mkstemp` and executes it in a background thread.
+
+    :param suffix: Suffix to be added to the file name.
+    :param prefix: Prefix to be added to the file name.
+    :param dir: Directory in which the temporary file is created.
+    :param text: Whether the file is opened in text mode.
+    :return: A tuple containing the file descriptor and the file name.
+    """
     return await to_thread.run_sync(tempfile.mkstemp, suffix, prefix, dir, text)
 
 
@@ -321,12 +419,36 @@ async def mkdtemp(
     prefix: AnyStr | None = None,
     dir: AnyStr | None = None,
 ) -> str | bytes:
+    """
+    Asynchronously create a temporary directory and return its path.
+
+    This function wraps `tempfile.mkdtemp` and executes it in a background thread.
+
+    :param suffix: Suffix to be added to the directory name.
+    :param prefix: Prefix to be added to the directory name.
+    :param dir: Parent directory where the temporary directory is created.
+    :return: The path of the created temporary directory.
+    """
     return await to_thread.run_sync(tempfile.mkdtemp, suffix, prefix, dir)
 
 
 async def gettempdir() -> str:
+    """
+    Asynchronously return the name of the directory used for temporary files.
+
+    This function wraps `tempfile.gettempdir` and executes it in a background thread.
+
+    :return: The path of the temporary directory as a string.
+    """
     return await to_thread.run_sync(tempfile.gettempdir)
 
 
 async def gettempdirb() -> bytes:
+    """
+    Asynchronously return the name of the directory used for temporary files in bytes.
+
+    This function wraps `tempfile.gettempdirb` and executes it in a background thread.
+
+    :return: The path of the temporary directory as bytes.
+    """
     return await to_thread.run_sync(tempfile.gettempdirb)
