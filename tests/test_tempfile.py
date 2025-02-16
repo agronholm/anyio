@@ -98,8 +98,7 @@ class TestSpooledTemporaryFile:
                 return original_rollover()
 
             stf._fp.rollover = fake_rollover
-            n1 = await stf.write(b"12345")
-            assert n1 == 5
+            assert await stf.write(b"12345") == 5
             assert not rollover_called
             await stf.write(b"67890X")
             assert rollover_called
