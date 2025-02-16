@@ -120,8 +120,7 @@ class TestSpooledTemporaryFile:
             await stf.writelines([b"hello", b"world"])
             await stf.seek(0)
 
-            content = await stf.read()
-            assert content == b"helloworld"
+            assert await stf.read() == b"helloworld"
 
             await stf.writelines([b"1234567890123456"])
             assert rollover_called
