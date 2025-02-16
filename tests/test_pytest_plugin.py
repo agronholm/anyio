@@ -597,7 +597,6 @@ class TestFreePortFactory:
                     try:
                         sock.bind((addr, port))
                     except OSError:
-                        breakpoint()
                         pass
 
     async def test_udp_factory(

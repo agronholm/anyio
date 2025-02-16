@@ -228,8 +228,6 @@ class FreePortFactory:
         """
         if family is not None:
             families = [family]
-        elif socket.has_dualstack_ipv6():
-            families = [socket.AF_INET6]
         else:
             families = [socket.AF_INET]
             if socket.has_ipv6:
