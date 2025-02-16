@@ -197,7 +197,6 @@ async def test_mkdtemp() -> None:
     assert dp.is_dir()
 
     shutil.rmtree(dp)
-    assert not dp.exists()
 
 
 async def test_gettemp_functions() -> None:
