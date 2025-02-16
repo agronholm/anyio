@@ -321,7 +321,7 @@ async def mkdtemp(
     prefix: AnyStr | None = None,
     dir: AnyStr | None = None,
 ) -> str | bytes:
-    return await to_thread.run_sync(lambda: tempfile.mkdtemp(suffix, prefix, dir))
+    return await to_thread.run_sync(tempfile.mkdtemp, suffix, prefix, dir)
 
 
 async def gettempdir() -> str:
