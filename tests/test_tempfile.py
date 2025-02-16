@@ -194,7 +194,7 @@ async def test_mkdtemp() -> None:
     else:
         dp = pathlib.Path(d)
 
-    assert dp.exists() and dp.is_dir()
+    assert dp.is_dir()
 
     shutil.rmtree(dp)
     assert not dp.exists()
