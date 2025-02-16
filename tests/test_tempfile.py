@@ -63,9 +63,7 @@ class TestSpooledTemporaryFile:
         async with SpooledTemporaryFile[bytes](max_size=10) as stf:
             await stf.write(data)
             await stf.seek(0)
-            result = await stf.read()
-
-            assert result == data
+            assert await stf.read() == data
 
             pos = await stf.tell()
             assert isinstance(pos, int)
