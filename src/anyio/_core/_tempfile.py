@@ -297,7 +297,7 @@ async def mkstemp(
     dir: AnyStr | None = None,
     text: bool = False,
 ) -> tuple[int, str | bytes]:
-    return await to_thread.run_sync(lambda: tempfile.mkstemp(suffix, prefix, dir, text))
+    return await to_thread.run_sync(tempfile.mkstemp, suffix, prefix, dir, text)
 
 
 @overload
