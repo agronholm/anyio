@@ -48,7 +48,7 @@ class TestNamedTemporaryFile:
 
     async def test_exception_handling(self) -> None:
         async with NamedTemporaryFile[bytes]() as af:
-            filename = str(af.name)
+            filename = af.name
             assert os.path.exists(filename)
 
         assert not os.path.exists(filename)
