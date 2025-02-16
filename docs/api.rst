@@ -91,13 +91,9 @@ Temporary files and directories
 .. autofunction:: anyio.gettempdirb
 
 .. autoclass:: anyio.TemporaryFile
-
 .. autoclass:: anyio.NamedTemporaryFile
-
 .. autoclass:: anyio.SpooledTemporaryFile
-
 .. autoclass:: anyio.TemporaryDirectory
-
 
 Streams and stream wrappers
 ---------------------------
