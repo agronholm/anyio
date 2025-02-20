@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fix ``iterdir`` making blocking call in Python 3.13
+  (`#873 <https://github.com/agronholm/anyio/issues/873>`_; PR by @cbornet)
 - Added ``stdin`` argument to ``anyio.run_process()`` akin to what
   ``anyio.open_process()``, ``asyncio.create_subprocess_…()``, ``trio.run_process()``,
   and ``subprocess.run()`` already accept (PR by @jmehnle)

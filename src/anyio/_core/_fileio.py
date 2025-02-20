@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import operator
 import os
 import pathlib
 import sys
@@ -544,8 +545,29 @@ class Path:
     async def is_symlink(self) -> bool:
         return await to_thread.run_sync(self._path.is_symlink, abandon_on_cancel=True)
 
+    _remove_leading_dot = operator.itemgetter(slice(2, None))
+
+    def _from_parsed_string(self, path_str: str) -> pathlib.Path:
+        path = (
+            self._path.with_segments(path_str)
+            if hasattr(self._path, "with_segments")
+            else type(self._path)(path_str)
+        )
+        path._str = path_str or "."  # type: ignore[attr-defined]
+        return path
+
+    def _iterdir_sync(self) -> Iterator[pathlib.Path]:
+        """Like Python 3.13 pathlib.Path.iterdir but calling scandir lazily."""
+        root_dir = str(self)
+        with os.scandir(root_dir) as scandir_it:
+            for entry in scandir_it:
+                path = entry.path
+                if root_dir == ".":
+                    path = self._remove_leading_dot(path)
+                yield self._from_parsed_string(path)
+
     def iterdir(self) -> AsyncIterator[Path]:
-        gen = self._path.iterdir()
+        gen = self._iterdir_sync()
         return _PathIterator(gen)
 
     def joinpath(self, *args: str | PathLike[str]) -> Path:
