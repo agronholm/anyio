@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import operator
 import os
 import pathlib
 import sys
@@ -11,7 +10,7 @@ from collections.abc import (
     Iterator,
     Sequence,
 )
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 from os import PathLike
 from typing import (
@@ -204,11 +203,18 @@ def wrap_file(file: IO[AnyStr]) -> AsyncFile[AnyStr]:
 
 @dataclass(eq=False)
 class _PathIterator(AsyncIterator["Path"]):
-    iterator: Iterator[PathLike[str]]
+    iterator: Iterator[PathLike[str]] | Callable[[], Iterator[PathLike[str]]]
+    _iterator: Iterator[PathLike[str]] | None = field(init=False, default=None)
 
     async def __anext__(self) -> Path:
+        if self._iterator is None:
+            if callable(self.iterator):
+                self._iterator = await to_thread.run_sync(self.iterator)
+            else:
+                self._iterator = self.iterator
+
         nextval = await to_thread.run_sync(
-            next, self.iterator, None, abandon_on_cancel=True
+            next, self._iterator, None, abandon_on_cancel=True
         )
         if nextval is None:
             raise StopAsyncIteration from None
@@ -545,30 +551,8 @@ class Path:
     async def is_symlink(self) -> bool:
         return await to_thread.run_sync(self._path.is_symlink, abandon_on_cancel=True)
 
-    _remove_leading_dot = operator.itemgetter(slice(2, None))
-
-    def _from_parsed_string(self, path_str: str) -> pathlib.Path:
-        path = (
-            self._path.with_segments(path_str)
-            if hasattr(self._path, "with_segments")
-            else type(self._path)(path_str)
-        )
-        path._str = path_str or "."  # type: ignore[attr-defined]
-        return path
-
-    def _iterdir_sync(self) -> Iterator[pathlib.Path]:
-        """Like Python 3.13 pathlib.Path.iterdir but calling scandir lazily."""
-        root_dir = str(self)
-        with os.scandir(root_dir) as scandir_it:
-            for entry in scandir_it:
-                path = entry.path
-                if root_dir == ".":
-                    path = self._remove_leading_dot(path)
-                yield self._from_parsed_string(path)
-
     def iterdir(self) -> AsyncIterator[Path]:
-        gen = self._iterdir_sync()
-        return _PathIterator(gen)
+        return _PathIterator(self._path.iterdir)
 
     def joinpath(self, *args: str | PathLike[str]) -> Path:
         return Path(self._path.joinpath(*args))
