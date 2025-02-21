@@ -209,7 +209,9 @@ class _PathIterator(AsyncIterator["Path"]):
     async def __anext__(self) -> Path:
         if self._iterator is None:
             if callable(self.iterator):
-                self._iterator = await to_thread.run_sync(self.iterator)
+                self._iterator = await to_thread.run_sync(
+                    self.iterator, abandon_on_cancel=True
+                )
             else:
                 self._iterator = self.iterator
 
