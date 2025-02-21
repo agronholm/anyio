@@ -554,6 +554,10 @@ class Path:
         return await to_thread.run_sync(self._path.is_symlink, abandon_on_cancel=True)
 
     def iterdir(self) -> AsyncIterator[Path]:
+        # Path.iterdir() does I/O when called on Python 3.13+
+        if sys.version_info < (3, 12):
+            return _PathIterator(self._path.iterdir())
+
         return _PathIterator(self._path.iterdir)
 
     def joinpath(self, *args: str | PathLike[str]) -> Path:
