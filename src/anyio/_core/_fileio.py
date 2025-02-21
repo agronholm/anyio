@@ -10,7 +10,7 @@ from collections.abc import (
     Iterator,
     Sequence,
 )
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import partial
 from os import PathLike
 from typing import (
@@ -203,20 +203,11 @@ def wrap_file(file: IO[AnyStr]) -> AsyncFile[AnyStr]:
 
 @dataclass(eq=False)
 class _PathIterator(AsyncIterator["Path"]):
-    iterator: Iterator[PathLike[str]] | Callable[[], Iterator[PathLike[str]]]
-    _iterator: Iterator[PathLike[str]] | None = field(init=False, default=None)
+    iterator: Iterator[PathLike[str]]
 
     async def __anext__(self) -> Path:
-        if self._iterator is None:
-            if callable(self.iterator):
-                self._iterator = await to_thread.run_sync(
-                    self.iterator, abandon_on_cancel=True
-                )
-            else:
-                self._iterator = self.iterator
-
         nextval = await to_thread.run_sync(
-            next, self._iterator, None, abandon_on_cancel=True
+            next, self.iterator, None, abandon_on_cancel=True
         )
         if nextval is None:
             raise StopAsyncIteration from None
@@ -553,12 +544,14 @@ class Path:
     async def is_symlink(self) -> bool:
         return await to_thread.run_sync(self._path.is_symlink, abandon_on_cancel=True)
 
-    def iterdir(self) -> AsyncIterator[Path]:
-        # Path.iterdir() does I/O when called on Python 3.13+
-        if sys.version_info < (3, 12):
-            return _PathIterator(self._path.iterdir())
-
-        return _PathIterator(self._path.iterdir)
+    async def iterdir(self) -> AsyncIterator[Path]:
+        gen = (
+            self._path.iterdir()
+            if sys.version_info < (3, 13)
+            else await to_thread.run_sync(self._path.iterdir, abandon_on_cancel=True)
+        )
+        async for path in _PathIterator(gen):
+            yield path
 
     def joinpath(self, *args: str | PathLike[str]) -> Path:
         return Path(self._path.joinpath(*args))
