@@ -184,6 +184,11 @@ to it::
 
             tg.cancel_scope.cancel()
 
+.. warning:::: It is possible in rare cases, particularly in local development, that
+    another process could bind to the port returned by one of these fixtures before your
+    code can do the same, leading to an :exc:`OSError` with the ``EADDRINUSE`` code. It
+    is advisable to just rerun the test if this happens.
+
 This is mostly useful with APIs that don't natively offer any way to bind to ephemeral
 ports (and retrieve those ports after binding). If you're working with AnyIO's own APIs,
 however, you could make use of this native capability::
