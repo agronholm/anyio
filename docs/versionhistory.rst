@@ -19,10 +19,15 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``anyio.open_process()``, ``asyncio.create_subprocess_…()``, ``trio.run_process()``,
   and ``subprocess.run()`` already accept (PR by @jmehnle)
 - Added the ``info`` property to ``anyio.Path`` on Python 3.14
+- Changed ``anyio.getaddrinfo()`` to ignore (invalid) IPv6 name resolution results when
+  IPv6 support is disabled in Python
 - Fixed traceback formatting growing quadratically with level of ``TaskGroup``
   nesting on asyncio due to exception chaining when raising ``ExceptionGroups``
   in ``TaskGroup.__aexit__``
   (`#863 <https://github.com/agronholm/anyio/issues/863>`_; PR by @tapetersen)
+- Fixed ``anyio.Path.iterdir()`` making a blocking call in Python 3.13
+  (`#873 <https://github.com/agronholm/anyio/issues/873>`_; PR by @cbornet and
+  @agronholm)
 
 **4.8.0**
 

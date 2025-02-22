@@ -584,6 +584,8 @@ async def getaddrinfo(
     return [
         (family, type, proto, canonname, convert_ipv6_sockaddr(sockaddr))
         for family, type, proto, canonname, sockaddr in gai_res
+        # filter out IPv6 results when IPv6 is disabled
+        if not isinstance(sockaddr[0], int)
     ]
 
 

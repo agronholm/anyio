@@ -18,6 +18,7 @@ from socket import AddressFamily
 from ssl import SSLContext, SSLError
 from threading import Thread
 from typing import TYPE_CHECKING, Any, Literal, NoReturn, TypeVar, cast
+from unittest import mock
 
 import psutil
 import pytest
@@ -52,6 +53,7 @@ from anyio import (
     wait_socket_writable,
     wait_writable,
 )
+from anyio._core._eventloop import get_async_backend
 from anyio.abc import (
     IPSockAddrType,
     Listener,
@@ -1844,6 +1846,14 @@ async def test_getaddrinfo_ipv6addr(
             ("::1", 0),
         )
     ]
+
+
+async def test_getaddrinfo_ipv6_disabled() -> None:
+    gai_result = [
+        (AddressFamily.AF_INET6, socket.SocketKind.SOCK_STREAM, 6, "", (1, b""))
+    ]
+    with mock.patch.object(get_async_backend(), "getaddrinfo", return_value=gai_result):
+        assert await getaddrinfo("::1", 0) == []
 
 
 async def test_getnameinfo() -> None:

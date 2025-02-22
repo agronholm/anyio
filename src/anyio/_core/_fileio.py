@@ -544,9 +544,14 @@ class Path:
     async def is_symlink(self) -> bool:
         return await to_thread.run_sync(self._path.is_symlink, abandon_on_cancel=True)
 
-    def iterdir(self) -> AsyncIterator[Path]:
-        gen = self._path.iterdir()
-        return _PathIterator(gen)
+    async def iterdir(self) -> AsyncIterator[Path]:
+        gen = (
+            self._path.iterdir()
+            if sys.version_info < (3, 13)
+            else await to_thread.run_sync(self._path.iterdir, abandon_on_cancel=True)
+        )
+        async for path in _PathIterator(gen):
+            yield path
 
     def joinpath(self, *args: str | PathLike[str]) -> Path:
         return Path(self._path.joinpath(*args))

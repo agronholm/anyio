@@ -41,7 +41,7 @@ repos:
       - id: mypy
         additional_dependencies:
           - pytest
-          - trio >= 0.23
+          - trio >= 0.26
           - packaging
 
   - repo: https://github.com/pre-commit/pygrep-hooks
