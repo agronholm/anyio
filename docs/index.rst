@@ -20,6 +20,7 @@ The manual
    subprocesses
    subinterpreters
    fileio
+   tempfile
    signals
    testing
    api
