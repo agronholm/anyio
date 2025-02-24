@@ -1529,7 +1529,7 @@ class TestWrapSocket:
         yield sock
         sock.close()
 
-    async def test_wrap_server_tcp_socket(self, tcp_server_sock: socket.socket):
+    async def test_wrap_server_tcp_socket(self, tcp_server_sock: socket.socket) -> None:
         anyio_sock = await wrap_server_socket(tcp_server_sock)
         assert (
             tcp_server_sock.fileno()
@@ -1538,7 +1538,7 @@ class TestWrapSocket:
         assert tcp_server_sock.family == anyio_sock.extra(SocketAttribute.family)
         assert isinstance(anyio_sock, SocketListener)
 
-    async def test_wrap_server_udp_socket(self, udp_server_sock: socket.socket):
+    async def test_wrap_server_udp_socket(self, udp_server_sock: socket.socket) -> None:
         anyio_sock = await wrap_server_socket(udp_server_sock)
         assert (
             udp_server_sock.fileno()
@@ -1548,7 +1548,7 @@ class TestWrapSocket:
         assert isinstance(anyio_sock, UDPSocket)
         await anyio_sock.aclose()
 
-    async def test_wrap_client_tcp_socket(self, tcp_server_sock: socket.socket):
+    async def test_wrap_client_tcp_socket(self, tcp_server_sock: socket.socket) -> None:
         client = socket.socket(tcp_server_sock.family)
         client.connect(tcp_server_sock.getsockname())
         anyio_sock = await wrap_client_socket(client)
@@ -1557,7 +1557,7 @@ class TestWrapSocket:
         assert isinstance(anyio_sock, SocketStream)
         client.close()
 
-    async def test_wrap_client_udp_socket(self, udp_server_sock: socket.socket):
+    async def test_wrap_client_udp_socket(self, udp_server_sock: socket.socket) -> None:
         client = socket.socket(udp_server_sock.family, socket.SOCK_DGRAM)
         anyio_sock = await wrap_client_socket(client)
         assert client.fileno() == anyio_sock.extra(SocketAttribute.raw_socket).fileno()
