@@ -1557,6 +1557,7 @@ class TestWrapSocket:
         assert client.family == anyio_sock.extra(SocketAttribute.family)
         assert isinstance(anyio_sock, SocketStream)
         client.close()
+        await anyio_sock.aclose()
 
     async def test_wrap_client_udp_socket(self, family: AnyIPAddressFamily) -> None:
         client = socket.socket(family, socket.SOCK_DGRAM)
