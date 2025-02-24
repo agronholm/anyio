@@ -1213,6 +1213,28 @@ class TrioBackend(AsyncBackend):
             return UDPSocket(trio_socket)
 
     @classmethod
+    async def wrap_client_socket(
+        cls, raw_socket: socket.socket
+    ) -> SocketStream | ConnectedUDPSocket:
+        if raw_socket.type == socket.SocketKind.SOCK_DGRAM:
+            return ConnectedUDPSocket(trio.socket.from_stdlib_socket(raw_socket))
+        elif raw_socket.type == socket.SocketKind.SOCK_STREAM:
+            return SocketStream(trio.socket.from_stdlib_socket(raw_socket))
+        else:
+            raise NotImplementedError(f"Unsupported socket type: {raw_socket.type}")
+
+    @classmethod
+    async def wrap_server_socket(
+        cls, raw_socket: socket.socket
+    ) -> abc.SocketListener | UDPSocket:
+        if raw_socket.type == socket.SocketKind.SOCK_DGRAM:
+            return UDPSocket(trio.socket.from_stdlib_socket(raw_socket))
+        elif raw_socket.type == socket.SocketKind.SOCK_STREAM:
+            return cls.create_tcp_listener(raw_socket)
+        else:
+            raise NotImplementedError(f"Unsupported socket type: {raw_socket.type}")
+
+    @classmethod
     @overload
     async def create_unix_datagram_socket(
         cls, raw_socket: socket.socket, remote_path: None

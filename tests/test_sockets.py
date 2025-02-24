@@ -52,14 +52,18 @@ from anyio import (
     wait_socket_readable,
     wait_socket_writable,
     wait_writable,
+    wrap_client_socket,
+    wrap_server_socket,
 )
 from anyio._core._eventloop import get_async_backend
 from anyio.abc import (
+    ConnectedUDPSocket,
     IPSockAddrType,
     Listener,
     SocketAttribute,
     SocketListener,
     SocketStream,
+    UDPSocket,
 )
 from anyio.lowlevel import checkpoint
 from anyio.streams.stapled import MultiListener
@@ -1503,6 +1507,64 @@ class TestConnectedUDPSocket:
         await udp.aclose()
         with pytest.raises(ClosedResourceError):
             await udp.send(b"foo")
+
+
+@pytest.mark.network
+@pytest.mark.usefixtures("check_asyncio_bug")
+class TestWrapSocket:
+    @pytest.fixture
+    def tcp_server_sock(self, family: AnyIPAddressFamily) -> Iterator[socket.socket]:
+        sock = socket.socket(family, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        sock.bind(("localhost", 0))
+        sock.listen()
+        yield sock
+        sock.close()
+
+    @pytest.fixture
+    def udp_server_sock(self, family: AnyIPAddressFamily) -> Iterator[socket.socket]:
+        sock = socket.socket(family, socket.SOCK_DGRAM)
+        sock.settimeout(1)
+        sock.bind(("localhost", 0))
+        yield sock
+        sock.close()
+
+    async def test_wrap_server_tcp_socket(self, tcp_server_sock: socket.socket):
+        anyio_sock = await wrap_server_socket(tcp_server_sock)
+        assert (
+            tcp_server_sock.fileno()
+            == anyio_sock.extra(SocketAttribute.raw_socket).fileno()
+        )
+        assert tcp_server_sock.family == anyio_sock.extra(SocketAttribute.family)
+        assert isinstance(anyio_sock, SocketListener)
+
+    async def test_wrap_server_udp_socket(self, udp_server_sock: socket.socket):
+        anyio_sock = await wrap_server_socket(udp_server_sock)
+        assert (
+            udp_server_sock.fileno()
+            == anyio_sock.extra(SocketAttribute.raw_socket).fileno()
+        )
+        assert udp_server_sock.family == anyio_sock.extra(SocketAttribute.family)
+        assert isinstance(anyio_sock, UDPSocket)
+        await anyio_sock.aclose()
+
+    async def test_wrap_client_tcp_socket(self, tcp_server_sock: socket.socket):
+        client = socket.socket(tcp_server_sock.family)
+        client.connect(tcp_server_sock.getsockname())
+        anyio_sock = await wrap_client_socket(client)
+        assert client.fileno() == anyio_sock.extra(SocketAttribute.raw_socket).fileno()
+        assert client.family == anyio_sock.extra(SocketAttribute.family)
+        assert isinstance(anyio_sock, SocketStream)
+        client.close()
+
+    async def test_wrap_client_udp_socket(self, udp_server_sock: socket.socket):
+        client = socket.socket(udp_server_sock.family, socket.SOCK_DGRAM)
+        anyio_sock = await wrap_client_socket(client)
+        assert client.fileno() == anyio_sock.extra(SocketAttribute.raw_socket).fileno()
+        assert client.family == anyio_sock.extra(SocketAttribute.family)
+        assert isinstance(anyio_sock, ConnectedUDPSocket)
+        client.close()
+        await anyio_sock.aclose()
 
 
 @pytest.mark.skipif(
