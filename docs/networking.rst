@@ -197,6 +197,43 @@ address and port every time you send data to the peer::
 
     run(main)
 
+Wrapping stdlib sockets
+------------------------
+
+:class:`socket.socket` from the standard lib can be wrapper by using
+:func:`wrap_client_socket` and :func:`wrap_server_socket`. This can be especially useful if you want to
+configure the socket before it is bound to. Here is an example how to create an udp multicast socket::
+
+    import socket
+    import struct
+
+    from anyio import wrap_server_socket, run
+
+
+    async def main(multicast_addr: str, addr: str, port: int, ttl: int):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
+        sock.setblocking(False)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.setsockopt(
+            socket.IPPROTO_IP,
+            socket.IP_ADD_MEMBERSHIP,
+            struct.pack(
+                "4s4s",
+                socket.inet_aton(multicast_addr),
+                socket.inet_aton(addr),
+            ),
+        )
+        sock.bind((addr, port))
+        async with await wrap_server_socket(sock) as udp:
+            async for packet, (host, port) in udp:
+                print(f"Received {packet} from {host}:{port}")
+
+    run(main, 'multicast_group', 'host', port, ttl)
+
+.. note:: Remember to :meth:`~socket.socket.bind` the socket before wrapping it.
+
+
 Working with UNIX datagram sockets
 ----------------------------------
 
