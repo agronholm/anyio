@@ -1537,6 +1537,7 @@ class TestWrapSocket:
         )
         assert tcp_server_sock.family == anyio_sock.extra(SocketAttribute.family)
         assert isinstance(anyio_sock, SocketListener)
+        await anyio_sock.aclose()
 
     async def test_wrap_server_udp_socket(self, udp_server_sock: socket.socket) -> None:
         anyio_sock = await wrap_server_socket(udp_server_sock)
@@ -1557,8 +1558,8 @@ class TestWrapSocket:
         assert isinstance(anyio_sock, SocketStream)
         client.close()
 
-    async def test_wrap_client_udp_socket(self, udp_server_sock: socket.socket) -> None:
-        client = socket.socket(udp_server_sock.family, socket.SOCK_DGRAM)
+    async def test_wrap_client_udp_socket(self, family: AnyIPAddressFamily) -> None:
+        client = socket.socket(family, socket.SOCK_DGRAM)
         anyio_sock = await wrap_client_socket(client)
         assert client.fileno() == anyio_sock.extra(SocketAttribute.raw_socket).fileno()
         assert client.family == anyio_sock.extra(SocketAttribute.family)
