@@ -1549,9 +1549,8 @@ class TestWrapSocket:
         assert isinstance(anyio_sock, UDPSocket)
         await anyio_sock.aclose()
 
-    async def test_wrap_client_tcp_socket(self, tcp_server_sock: socket.socket) -> None:
-        client = socket.socket(tcp_server_sock.family)
-        client.connect(tcp_server_sock.getsockname())
+    async def test_wrap_client_tcp_socket(self, family: AnyIPAddressFamily) -> None:
+        client = socket.socket(family, socket.SOCK_STREAM)
         anyio_sock = await wrap_client_socket(client)
         assert client.fileno() == anyio_sock.extra(SocketAttribute.raw_socket).fileno()
         assert client.family == anyio_sock.extra(SocketAttribute.family)
