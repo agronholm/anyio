@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import socket
 import sys
-from collections.abc import Generator, Iterator
+from collections.abc import Callable, Generator, Iterator
 from contextlib import ExitStack, contextmanager
 from inspect import isasyncgenfunction, iscoroutinefunction, ismethod
 from typing import Any, cast
@@ -188,3 +189,84 @@ def anyio_backend_options(anyio_backend: Any) -> dict[str, Any]:
         return {}
     else:
         return anyio_backend[1]
+
+
+class FreePortFactory:
+    """
+    Manages port generation based on specified socket kind, ensuring no duplicate
+    ports are generated.
+
+    This class provides functionality for generating available free ports on the
+    system. It is initialized with a specific socket kind and can generate ports
+    for given address families while avoiding reuse of previously generated ports.
+
+    Users should not instantiate this class directly, but use the
+    ``free_tcp_port_factory`` and ``free_udp_port_factory`` fixtures instead. For simple
+    uses cases, ``free_tcp_port`` and ``free_udp_port`` can be used instead.
+    """
+
+    def __init__(self, kind: socket.SocketKind) -> None:
+        self._kind = kind
+        self._generated = set[int]()
+
+    @property
+    def kind(self) -> socket.SocketKind:
+        """
+        The type of socket connection (e.g., :data:`~socket.SOCK_STREAM` or
+        :data:`~socket.SOCK_DGRAM`) used to bind for checking port availability
+
+        """
+        return self._kind
+
+    def __call__(self, family: socket.AddressFamily | None = None) -> int:
+        """
+        Return an unbound port for the given address family.
+
+        :param family: if omitted, both IPv4 and IPv6 addresses will be tried
+        :return: a port number
+
+        """
+        if family is not None:
+            families = [family]
+        else:
+            families = [socket.AF_INET]
+            if socket.has_ipv6:
+                families.append(socket.AF_INET6)
+
+        while True:
+            port = 0
+            with ExitStack() as stack:
+                for family in families:
+                    sock = stack.enter_context(socket.socket(family, self._kind))
+                    addr = "::1" if family == socket.AF_INET6 else "127.0.0.1"
+                    try:
+                        sock.bind((addr, port))
+                    except OSError:
+                        break
+
+                    if not port:
+                        port = sock.getsockname()[1]
+                else:
+                    if port not in self._generated:
+                        self._generated.add(port)
+                        return port
+
+
+@pytest.fixture(scope="session")
+def free_tcp_port_factory() -> FreePortFactory:
+    return FreePortFactory(socket.SOCK_STREAM)
+
+
+@pytest.fixture(scope="session")
+def free_udp_port_factory() -> FreePortFactory:
+    return FreePortFactory(socket.SOCK_DGRAM)
+
+
+@pytest.fixture
+def free_tcp_port(free_tcp_port_factory: Callable[[], int]) -> int:
+    return free_tcp_port_factory()
+
+
+@pytest.fixture
+def free_udp_port(free_udp_port_factory: Callable[[], int]) -> int:
+    return free_udp_port_factory()
