@@ -29,7 +29,7 @@ repos:
           - tomli
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.6
+    rev: v0.9.7
     hooks:
       - id: ruff
         args: [--fix, --show-fixes]
@@ -41,7 +41,7 @@ repos:
       - id: mypy
         additional_dependencies:
           - pytest
-          - trio >= 0.23
+          - trio >= 0.26
           - packaging
 
   - repo: https://github.com/pre-commit/pygrep-hooks
