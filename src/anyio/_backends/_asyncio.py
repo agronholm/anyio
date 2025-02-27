@@ -2641,6 +2641,43 @@ class AsyncIOBackend(AsyncBackend):
             return ConnectedUDPSocket(transport, protocol)
 
     @classmethod
+    async def wrap_client_socket(
+        cls, raw_socket: socket.socket
+    ) -> SocketStream | ConnectedUDPSocket:
+        if raw_socket.type == socket.SocketKind.SOCK_DGRAM:
+            transport, protocol = await get_running_loop().create_datagram_endpoint(
+                DatagramProtocol,
+                sock=raw_socket,
+            )
+            return ConnectedUDPSocket(transport, protocol)
+        elif raw_socket.type == socket.SocketKind.SOCK_STREAM:
+            transport, protocol = cast(  # type: ignore[assignment]  # mypy is not able to properly infer the type on unix
+                tuple[asyncio.Transport, StreamProtocol],
+                await get_running_loop().create_connection(
+                    StreamProtocol,
+                    sock=raw_socket,
+                ),
+            )
+            return SocketStream(transport, protocol)  # type: ignore[arg-type]  # mypy is not able to properly infer the type on unix
+        else:
+            raise NotImplementedError(f"Unsupported socket type: {raw_socket.type}")
+
+    @classmethod
+    async def wrap_server_socket(
+        cls, raw_socket: socket.socket
+    ) -> SocketListener | UDPSocket:
+        if raw_socket.type == socket.SocketKind.SOCK_DGRAM:
+            transport, protocol = await get_running_loop().create_datagram_endpoint(
+                DatagramProtocol,
+                sock=raw_socket,
+            )
+            return UDPSocket(transport, protocol)
+        elif raw_socket.type == socket.SocketKind.SOCK_STREAM:
+            return cls.create_tcp_listener(raw_socket)
+        else:
+            raise NotImplementedError(f"Unsupported socket type: {raw_socket.type}")
+
+    @classmethod
     async def create_unix_datagram_socket(  # type: ignore[override]
         cls, raw_socket: socket.socket, remote_path: str | bytes | None
     ) -> abc.UNIXDatagramSocket | abc.ConnectedUNIXDatagramSocket:
