@@ -291,10 +291,10 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
         }
         self._max_size = max_size
         if "b" in mode:
-            super().__init__(BytesIO())
+            super().__init__(BytesIO())  # type: ignore[arg-type]
         else:
             super().__init__(
-                TextIOWrapper(
+                TextIOWrapper(  # type: ignore[arg-type]
                     BytesIO(),
                     encoding=encoding,
                     errors=errors,
@@ -337,7 +337,7 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
         if not self._rolled:
             return self._fp.read(size)
 
-        return await super().read(size)
+        return await super().read(size)  # type: ignore[return-value]
 
     async def read1(self: SpooledTemporaryFile[bytes], size: int = -1) -> bytes:
         if not self._rolled:
@@ -349,13 +349,13 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
         if not self._rolled:
             return self._fp.readline()
 
-        return await super().readline()
+        return await super().readline()  # type: ignore[return-value]
 
     async def readlines(self) -> list[AnyStr]:
         if not self._rolled:
             return self._fp.readlines()
 
-        return await super().readlines()
+        return await super().readlines()  # type: ignore[return-value]
 
     async def readinto(self: SpooledTemporaryFile[bytes], b: WriteableBuffer) -> int:
         if not self._rolled:
@@ -388,11 +388,11 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
         return await super().truncate(size)
 
     @overload
-    async def write(self: SpooledTemporaryFile[bytes], s: ReadableBuffer) -> int: ...
+    async def write(self: SpooledTemporaryFile[bytes], b: ReadableBuffer) -> int: ...
     @overload
-    async def write(self: SpooledTemporaryFile[str], s: str) -> int: ...
+    async def write(self: SpooledTemporaryFile[str], b: str) -> int: ...
 
-    async def write(self, s: str | ReadableBuffer) -> int:
+    async def write(self, b: ReadableBuffer | str) -> int:
         """
         Asynchronously write data to the spooled temporary file.
 
@@ -405,11 +405,11 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
 
         """
         if not self._rolled:
-            result = self._fp.write(s)
+            result = self._fp.write(b)
             await self._check()
             return result
 
-        return await super().write(s)
+        return await super().write(b)  # type: ignore[misc]
 
     @overload
     async def writelines(
@@ -436,7 +436,7 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
             await self._check()
             return result
 
-        return await super().writelines(lines)
+        return await super().writelines(lines)  # type: ignore[misc]
 
 
 class TemporaryDirectory(Generic[AnyStr]):
