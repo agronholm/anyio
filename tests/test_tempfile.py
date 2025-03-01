@@ -5,6 +5,7 @@ import pathlib
 import shutil
 import tempfile
 from typing import AnyStr
+from unittest.mock import patch
 
 import pytest
 
@@ -69,12 +70,12 @@ class TestSpooledTemporaryFile:
 
         async with SpooledTemporaryFile(max_size=10) as stf:
             original_rollover = stf.rollover
-            stf.rollover = fake_rollover
-            assert await stf.write(b"12345") == 5
-            assert not rollover_called
+            with patch.object(stf, "rollover", fake_rollover):
+                assert await stf.write(b"12345") == 5
+                assert not rollover_called
 
-            await stf.write(b"67890X")
-            assert rollover_called
+                await stf.write(b"67890X")
+                assert rollover_called
 
     async def test_writelines(self) -> None:
         rollover_called = False
@@ -86,14 +87,14 @@ class TestSpooledTemporaryFile:
 
         async with SpooledTemporaryFile(max_size=20) as stf:
             original_rollover = stf.rollover
-            stf.rollover = fake_rollover
-            await stf.writelines([b"hello", b"world"])
-            assert not rollover_called
-            await stf.seek(0)
+            with patch.object(stf, "rollover", fake_rollover):
+                await stf.writelines([b"hello", b"world"])
+                assert not rollover_called
+                await stf.seek(0)
 
-            assert await stf.read() == b"helloworld"
-            await stf.writelines([b"1234567890123456"])
-            assert rollover_called
+                assert await stf.read() == b"helloworld"
+                await stf.writelines([b"1234567890123456"])
+                assert rollover_called
 
     async def test_closed_state(self) -> None:
         async with SpooledTemporaryFile(max_size=10) as stf:

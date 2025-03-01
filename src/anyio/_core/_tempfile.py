@@ -339,7 +339,7 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
 
         return await super().read(size)
 
-    async def read1(self: AsyncFile[bytes], size: int = -1) -> bytes:
+    async def read1(self: SpooledTemporaryFile[bytes], size: int = -1) -> bytes:
         if not self._rolled:
             return self._fp.read1(size)
 
@@ -357,13 +357,13 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
 
         return await super().readlines()
 
-    async def readinto(self: AsyncFile[bytes], b: WriteableBuffer) -> int:
+    async def readinto(self: SpooledTemporaryFile[bytes], b: WriteableBuffer) -> int:
         if not self._rolled:
             self._fp.readinto(b)
 
         return await super().readinto(b)
 
-    async def readinto1(self: AsyncFile[bytes], b: WriteableBuffer) -> int:
+    async def readinto1(self: SpooledTemporaryFile[bytes], b: WriteableBuffer) -> int:
         if not self._rolled:
             self._fp.readinto(b)
 
