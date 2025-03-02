@@ -16,6 +16,7 @@ from typing import (
 
 from .. import to_thread
 from .._core._fileio import AsyncFile
+from ..lowlevel import checkpoint_if_cancelled
 
 if TYPE_CHECKING:
     from _typeshed import OpenBinaryMode, OpenTextMode, ReadableBuffer, WriteableBuffer
@@ -335,54 +336,63 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
 
     async def read(self, size: int = -1) -> AnyStr:
         if not self._rolled:
+            await checkpoint_if_cancelled()
             return self._fp.read(size)
 
         return await super().read(size)  # type: ignore[return-value]
 
     async def read1(self: SpooledTemporaryFile[bytes], size: int = -1) -> bytes:
         if not self._rolled:
+            await checkpoint_if_cancelled()
             return self._fp.read1(size)
 
         return await super().read1(size)
 
     async def readline(self) -> AnyStr:
         if not self._rolled:
+            await checkpoint_if_cancelled()
             return self._fp.readline()
 
         return await super().readline()  # type: ignore[return-value]
 
     async def readlines(self) -> list[AnyStr]:
         if not self._rolled:
+            await checkpoint_if_cancelled()
             return self._fp.readlines()
 
         return await super().readlines()  # type: ignore[return-value]
 
     async def readinto(self: SpooledTemporaryFile[bytes], b: WriteableBuffer) -> int:
         if not self._rolled:
+            await checkpoint_if_cancelled()
             self._fp.readinto(b)
 
         return await super().readinto(b)
 
     async def readinto1(self: SpooledTemporaryFile[bytes], b: WriteableBuffer) -> int:
         if not self._rolled:
+            await checkpoint_if_cancelled()
             self._fp.readinto(b)
 
         return await super().readinto1(b)
 
     async def seek(self, offset: int, whence: int | None = os.SEEK_SET) -> int:
         if not self._rolled:
+            await checkpoint_if_cancelled()
             return self._fp.seek(offset, whence)
 
         return await super().seek(offset, whence)
 
     async def tell(self) -> int:
         if not self._rolled:
+            await checkpoint_if_cancelled()
             return self._fp.tell()
 
         return await super().tell()
 
     async def truncate(self, size: int | None = None) -> int:
         if not self._rolled:
+            await checkpoint_if_cancelled()
             return self._fp.truncate(size)
 
         return await super().truncate(size)
@@ -405,6 +415,7 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
 
         """
         if not self._rolled:
+            await checkpoint_if_cancelled()
             result = self._fp.write(b)
             await self._check()
             return result
@@ -432,6 +443,7 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
 
         """
         if not self._rolled:
+            await checkpoint_if_cancelled()
             result = self._fp.writelines(lines)
             await self._check()
             return result
@@ -540,6 +552,7 @@ async def mkstemp(
     :param dir: Directory in which the temporary file is created.
     :param text: Whether the file is opened in text mode.
     :return: A tuple containing the file descriptor and the file name.
+
     """
     return await to_thread.run_sync(tempfile.mkstemp, suffix, prefix, dir, text)
 
@@ -574,6 +587,7 @@ async def mkdtemp(
     :param prefix: Prefix to be added to the directory name.
     :param dir: Parent directory where the temporary directory is created.
     :return: The path of the created temporary directory.
+
     """
     return await to_thread.run_sync(tempfile.mkdtemp, suffix, prefix, dir)
 
@@ -585,6 +599,7 @@ async def gettempdir() -> str:
     This function wraps `tempfile.gettempdir` and executes it in a background thread.
 
     :return: The path of the temporary directory as a string.
+
     """
     return await to_thread.run_sync(tempfile.gettempdir)
 
@@ -596,5 +611,6 @@ async def gettempdirb() -> bytes:
     This function wraps `tempfile.gettempdirb` and executes it in a background thread.
 
     :return: The path of the temporary directory as bytes.
+
     """
     return await to_thread.run_sync(tempfile.gettempdirb)
