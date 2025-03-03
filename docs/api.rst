@@ -200,6 +200,7 @@ Testing and debugging
 ---------------------
 
 .. autoclass:: anyio.TaskInfo
+.. autoclass:: anyio.pytest_plugin.FreePortFactory
 .. autofunction:: anyio.get_current_task
 .. autofunction:: anyio.get_running_tasks
 .. autofunction:: anyio.wait_all_tasks_blocked

@@ -140,6 +140,83 @@ scoped::
         yield
         await server.shutdown()
 
+Built-in utility fixtures
+-------------------------
+
+Some useful pytest fixtures are provided to make testing network services easier:
+
+* ``free_tcp_port_factory``: session scoped fixture returning a callable
+  (:class:`~pytest_plugin.FreePortFactory`) that generates unused TCP port numbers
+* ``free_udp_port_factory``: session scoped fixture returning a callable
+  (:class:`~pytest_plugin.FreePortFactory`) that generates unused UDP port numbers
+* ``free_tcp_port``: function level fixture that invokes the ``free_tcp_port_factory``
+  fixture to generate a free TCP port number
+* ``free_udp_port``: function level fixture that invokes the ``free_udp_port_factory``
+  fixture to generate a free UDP port number
+
+The use of these fixtures, in place of hard-coded ports numbers, will avoid errors due
+to a port already being allocated. In particular, they are a must for running multiple
+instances of the same test suite concurrently, either via ``pytest-xdist`` or ``tox`` or
+similar tools which can run the test suite in multiple interpreters in parallel.
+
+For example, you could set up a network listener in an ephemeral port and then connect
+to it::
+
+    from anyio import connect_tcp, create_task_group, create_tcp_listener
+    from anyio.abc import SocketStream
+
+
+    async def test_echo(free_tcp_port: int) -> None:
+        async def handle(client_stream: SocketStream) -> None:
+            async with client_stream:
+                payload = await client_stream.receive()
+                await client_stream.send(payload[::-1])
+
+        async with (
+            await create_tcp_listener(local_port=free_tcp_port) as listener,
+            create_task_group() as tg
+        ):
+            tg.start_soon(listener.serve, handle)
+
+            async with await connect_tcp("127.0.0.1", free_tcp_port) as stream:
+                await stream.send(b"hello")
+                assert await stream.receive() == b"olleh"
+
+            tg.cancel_scope.cancel()
+
+.. warning:::: It is possible in rare cases, particularly in local development, that
+    another process could bind to the port returned by one of these fixtures before your
+    code can do the same, leading to an :exc:`OSError` with the ``EADDRINUSE`` code. It
+    is advisable to just rerun the test if this happens.
+
+This is mostly useful with APIs that don't natively offer any way to bind to ephemeral
+ports (and retrieve those ports after binding). If you're working with AnyIO's own APIs,
+however, you could make use of this native capability::
+
+    from anyio import connect_tcp, create_task_group, create_tcp_listener
+    from anyio.abc import SocketAttribute, SocketStream
+
+    async def test_echo() -> None:
+        async def handle(client_stream: SocketStream) -> None:
+            async with client_stream:
+                payload = await client_stream.receive()
+                await client_stream.send(payload[::-1])
+
+        async with (
+            await create_tcp_listener(local_host="127.0.0.1") as listener,
+            create_task_group() as tg
+        ):
+            tg.start_soon(listener.serve, handle)
+            port = listener.extra(SocketAttribute.local_port)
+
+            async with await connect_tcp("127.0.0.1", port) as stream:
+                await stream.send(b"hello")
+                assert await stream.receive() == b"olleh"
+
+            tg.cancel_scope.cancel()
+
+.. versionadded:: 4.9.0
+
 Technical details
 -----------------
 
