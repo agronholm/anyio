@@ -39,6 +39,8 @@ from ._core._sockets import wait_readable as wait_readable
 from ._core._sockets import wait_socket_readable as wait_socket_readable
 from ._core._sockets import wait_socket_writable as wait_socket_writable
 from ._core._sockets import wait_writable as wait_writable
+from ._core._sockets import wrap_client_socket as wrap_client_socket
+from ._core._sockets import wrap_server_socket as wrap_server_socket
 from ._core._streams import create_memory_object_stream as create_memory_object_stream
 from ._core._subprocesses import open_process as open_process
 from ._core._subprocesses import run_process as run_process
