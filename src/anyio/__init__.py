@@ -61,6 +61,14 @@ from ._core._tasks import create_task_group as create_task_group
 from ._core._tasks import current_effective_deadline as current_effective_deadline
 from ._core._tasks import fail_after as fail_after
 from ._core._tasks import move_on_after as move_on_after
+from ._core._tempfile import NamedTemporaryFile as NamedTemporaryFile
+from ._core._tempfile import SpooledTemporaryFile as SpooledTemporaryFile
+from ._core._tempfile import TemporaryDirectory as TemporaryDirectory
+from ._core._tempfile import TemporaryFile as TemporaryFile
+from ._core._tempfile import gettempdir as gettempdir
+from ._core._tempfile import gettempdirb as gettempdirb
+from ._core._tempfile import mkdtemp as mkdtemp
+from ._core._tempfile import mkstemp as mkstemp
 from ._core._testing import TaskInfo as TaskInfo
 from ._core._testing import get_current_task as get_current_task
 from ._core._testing import get_running_tasks as get_running_tasks
