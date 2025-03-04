@@ -73,6 +73,7 @@ async def test_cancel_before() -> None:
     pytest.raises(LookupError, to_process._process_pool_workers.get)
 
 
+@pytest.mark.usefixtures("deactivate_blockbuster")
 async def test_cancel_during() -> None:
     """
     Test that cancelling an operation on the worker process causes the process to be
