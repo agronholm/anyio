@@ -58,7 +58,6 @@ def blockbuster() -> Iterator[BlockBuster]:
     with blockbuster_ctx(
         "anyio", excluded_modules=["anyio.pytest_plugin", "anyio._backends._asyncio"]
     ) as bb:
-        bb.functions["os.stat"].can_block_in("anyio/streams/tls.py", "wrap")
         bb.functions["socket.socket.accept"].can_block_in(
             "anyio/_core/_asyncio_selector_thread.py", {"get_selector"}
         )

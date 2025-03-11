@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import ssl
@@ -119,9 +120,18 @@ class TLSStream(ByteStream):
 
         bio_in = ssl.MemoryBIO()
         bio_out = ssl.MemoryBIO()
-        ssl_object = ssl_context.wrap_bio(
-            bio_in, bio_out, server_side=server_side, server_hostname=hostname
-        )
+        if type(ssl_context) is ssl.SSLContext:
+            ssl_object = ssl_context.wrap_bio(
+                bio_in, bio_out, server_side=server_side, server_hostname=hostname
+            )
+        else:
+            ssl_object = await asyncio.to_thread(
+                ssl_context.wrap_bio,
+                bio_in,
+                bio_out,
+                server_side=server_side,
+                server_hostname=hostname,
+            )
         wrapper = cls(
             transport_stream=transport_stream,
             standard_compatible=standard_compatible,
