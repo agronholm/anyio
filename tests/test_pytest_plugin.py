@@ -1,15 +1,22 @@
 from __future__ import annotations
 
+import socket
+from collections.abc import Sequence
+
 import pytest
 from _pytest.logging import LogCaptureFixture
 from _pytest.pytester import Pytester
 
 from anyio import get_all_backends
+from anyio.pytest_plugin import FreePortFactory
 
-pytestmark = pytest.mark.filterwarnings(
-    "ignore:The TerminalReporter.writer attribute is deprecated"
-    ":pytest.PytestDeprecationWarning:"
-)
+pytestmark = [
+    pytest.mark.filterwarnings(
+        "ignore:The TerminalReporter.writer attribute is deprecated"
+        ":pytest.PytestDeprecationWarning:"
+    ),
+    pytest.mark.anyio,
+]
 
 pytest_args = "-v", "-p", "anyio", "-p", "no:asyncio", "-p", "no:trio"
 
@@ -561,3 +568,62 @@ def test_async_fixture_params(testdir: Pytester) -> None:
 
     result = testdir.runpytest(*pytest_args)
     result.assert_outcomes(passed=len(get_all_backends()) * 2)
+
+
+class TestFreePortFactory:
+    @pytest.fixture(scope="class")
+    def families(self) -> Sequence[tuple[socket.AddressFamily, str]]:
+        from .test_sockets import has_ipv6
+
+        families: list[tuple[socket.AddressFamily, str]] = [
+            (socket.AF_INET, "127.0.0.1")
+        ]
+        if has_ipv6:
+            families.append((socket.AF_INET6, "::1"))
+
+        return families
+
+    async def test_tcp_factory(
+        self,
+        families: Sequence[tuple[socket.AddressFamily, str]],
+        free_tcp_port_factory: FreePortFactory,
+    ) -> None:
+        generated_ports = {free_tcp_port_factory() for _ in range(5)}
+        assert all(isinstance(port, int) for port in generated_ports)
+        assert len(generated_ports) == 5
+        for port in generated_ports:
+            for family, addr in families:
+                with socket.socket(family, socket.SOCK_STREAM) as sock:
+                    try:
+                        sock.bind((addr, port))
+                    except OSError:
+                        pass
+
+    async def test_udp_factory(
+        self,
+        families: Sequence[tuple[socket.AddressFamily, str]],
+        free_udp_port_factory: FreePortFactory,
+    ) -> None:
+        generated_ports = {free_udp_port_factory() for _ in range(5)}
+        assert all(isinstance(port, int) for port in generated_ports)
+        assert len(generated_ports) == 5
+        for port in generated_ports:
+            for family, addr in families:
+                with socket.socket(family, socket.SOCK_DGRAM) as sock:
+                    sock.bind((addr, port))
+
+    async def test_free_tcp_port(
+        self, families: Sequence[tuple[socket.AddressFamily, str]], free_tcp_port: int
+    ) -> None:
+        assert isinstance(free_tcp_port, int)
+        for family, addr in families:
+            with socket.socket(family, socket.SOCK_STREAM) as sock:
+                sock.bind((addr, free_tcp_port))
+
+    async def test_free_udp_port(
+        self, families: Sequence[tuple[socket.AddressFamily, str]], free_udp_port: int
+    ) -> None:
+        assert isinstance(free_udp_port, int)
+        for family, addr in families:
+            with socket.socket(family, socket.SOCK_DGRAM) as sock:
+                sock.bind((addr, free_udp_port))
