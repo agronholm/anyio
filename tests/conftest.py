@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import ssl
 import sys
-from collections.abc import Generator
+from collections.abc import Generator, Iterator
 from ssl import SSLContext
 from typing import Any
 from unittest.mock import Mock
@@ -11,6 +11,7 @@ from unittest.mock import Mock
 import pytest
 import trustme
 from _pytest.fixtures import SubRequest
+from blockbuster import BlockBuster, blockbuster_ctx
 from trustme import CA
 
 uvloop_marks = []
@@ -50,6 +51,27 @@ if sys.version_info >= (3, 12):
             id="asyncio+eager",
         ),
     )
+
+
+@pytest.fixture(autouse=True)
+def blockbuster() -> Iterator[BlockBuster]:
+    with blockbuster_ctx(
+        "anyio", excluded_modules=["anyio.pytest_plugin", "anyio._backends._asyncio"]
+    ) as bb:
+        bb.functions["socket.socket.accept"].can_block_in(
+            "anyio/_core/_asyncio_selector_thread.py", {"get_selector"}
+        )
+        for func in ["os.stat", "os.unlink"]:
+            bb.functions[func].can_block_in(
+                "anyio/_core/_sockets.py", "setup_unix_local_socket"
+            )
+
+        yield bb
+
+
+@pytest.fixture
+def deactivate_blockbuster(blockbuster: BlockBuster) -> None:
+    blockbuster.deactivate()
 
 
 @pytest.fixture(params=[*asyncio_params, pytest.param("trio")])

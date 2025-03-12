@@ -628,6 +628,7 @@ class TestBlockingPortal:
             assert exc.value.__context__ is None
 
     @pytest.mark.parametrize("portal_backend_name", get_all_backends())
+    @pytest.mark.usefixtures("deactivate_blockbuster")
     async def test_from_async(
         self, anyio_backend_name: str, portal_backend_name: str
     ) -> None:
