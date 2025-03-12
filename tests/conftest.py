@@ -65,6 +65,7 @@ def blockbuster() -> Iterator[BlockBuster]:
             bb.functions[func].can_block_in(
                 "anyio/_core/_sockets.py", "setup_unix_local_socket"
             )
+
         yield bb
 
 
