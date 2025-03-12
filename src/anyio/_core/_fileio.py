@@ -18,6 +18,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     AnyStr,
+    ClassVar,
     Final,
     Generic,
     overload,
@@ -27,6 +28,8 @@ from .. import to_thread
 from ..abc import AsyncResource
 
 if TYPE_CHECKING:
+    from types import ModuleType
+
     from _typeshed import OpenBinaryMode, OpenTextMode, ReadableBuffer, WriteableBuffer
 else:
     ReadableBuffer = OpenBinaryMode = OpenTextMode = WriteableBuffer = object
@@ -229,14 +232,15 @@ class Path:
     * :meth:`~pathlib.Path.copy` (available on Python 3.14 or later)
     * :meth:`~pathlib.Path.copy_into` (available on Python 3.14 or later)
     * :meth:`~pathlib.Path.from_uri` (available on Python 3.13 or later)
-    * :meth:`~pathlib.Path.full_match` (available on Python 3.13 or later)
+    * :meth:`~pathlib.PurePath.full_match` (available on Python 3.13 or later)
+    * :attr:`~pathlib.Path.info` (available on Python 3.14 or later)
     * :meth:`~pathlib.Path.is_junction` (available on Python 3.12 or later)
-    * :meth:`~pathlib.Path.match` (the ``case_sensitive`` parameter is only available on
-      Python 3.13 or later)
+    * :meth:`~pathlib.PurePath.match` (the ``case_sensitive`` parameter is only
+      available on Python 3.13 or later)
     * :meth:`~pathlib.Path.move` (available on Python 3.14 or later)
     * :meth:`~pathlib.Path.move_into` (available on Python 3.14 or later)
-    * :meth:`~pathlib.Path.relative_to` (the ``walk_up`` parameter is only available on
-      Python 3.12 or later)
+    * :meth:`~pathlib.PurePath.relative_to` (the ``walk_up`` parameter is only available
+      on Python 3.12 or later)
     * :meth:`~pathlib.Path.walk` (available on Python 3.12 or later)
 
     Any methods that do disk I/O need to be awaited on. These methods are:
@@ -386,7 +390,7 @@ class Path:
         return self._path.as_uri()
 
     if sys.version_info >= (3, 13):
-        parser = pathlib.Path.parser
+        parser: ClassVar[ModuleType] = pathlib.Path.parser
 
         @classmethod
         def from_uri(cls, uri: str) -> Path:
@@ -407,6 +411,10 @@ class Path:
             return self._path.match(path_pattern)
 
     if sys.version_info >= (3, 14):
+
+        @property
+        def info(self) -> Any:  # TODO: add return type annotation when Typeshed gets it
+            return self._path.info
 
         async def copy(
             self,
@@ -536,9 +544,14 @@ class Path:
     async def is_symlink(self) -> bool:
         return await to_thread.run_sync(self._path.is_symlink, abandon_on_cancel=True)
 
-    def iterdir(self) -> AsyncIterator[Path]:
-        gen = self._path.iterdir()
-        return _PathIterator(gen)
+    async def iterdir(self) -> AsyncIterator[Path]:
+        gen = (
+            self._path.iterdir()
+            if sys.version_info < (3, 13)
+            else await to_thread.run_sync(self._path.iterdir, abandon_on_cancel=True)
+        )
+        async for path in _PathIterator(gen):
+            yield path
 
     def joinpath(self, *args: str | PathLike[str]) -> Path:
         return Path(self._path.joinpath(*args))

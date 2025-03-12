@@ -764,9 +764,13 @@ class TaskGroup(abc.TaskGroup):
 
                 self._active = False
                 if self._exceptions:
+                    # The exception that got us here should already have been
+                    # added to self._exceptions so it's ok to break exception
+                    # chaining and avoid adding a "During handling of above..."
+                    # for each nesting level.
                     raise BaseExceptionGroup(
                         "unhandled errors in a TaskGroup", self._exceptions
-                    )
+                    ) from None
                 elif exc_val:
                     raise exc_val
             except BaseException as exc:
@@ -1980,8 +1984,7 @@ class CapacityLimiter(BaseCapacityLimiter):
     def acquire_on_behalf_of_nowait(self, borrower: object) -> None:
         if borrower in self._borrowers:
             raise RuntimeError(
-                "this borrower is already holding one of this CapacityLimiter's "
-                "tokens"
+                "this borrower is already holding one of this CapacityLimiter's tokens"
             )
 
         if self._wait_queue or len(self._borrowers) >= self._total_tokens:
@@ -2671,13 +2674,13 @@ class AsyncIOBackend(AsyncBackend):
         type: int | SocketKind = 0,
         proto: int = 0,
         flags: int = 0,
-    ) -> list[
+    ) -> Sequence[
         tuple[
             AddressFamily,
             SocketKind,
             int,
             str,
-            tuple[str, int] | tuple[str, int, int, int],
+            tuple[str, int] | tuple[str, int, int, int] | tuple[int, bytes],
         ]
     ]:
         return await get_running_loop().getaddrinfo(
