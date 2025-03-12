@@ -5,6 +5,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added ``wrap_client_socket`` and ``wrap_server_socket`` (`#845 <https://github.com/agronholm/anyio/issues/845>`_; PR by @leon1995)
 - Added 4 new fixtures for the AnyIO ``pytest`` plugin:
 
   * ``free_tcp_port_factory``: session scoped fixture returning a callable that

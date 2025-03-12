@@ -427,6 +427,26 @@ async def create_udp_socket(
     return cast(UDPSocket, sock)
 
 
+async def wrap_client_socket(
+    raw_socket: socket.socket,
+) -> SocketStream | ConnectedUDPSocket:
+    """
+    Wrap a client socket.
+
+    :param raw_socket: the client socket to wrap
+    """
+    return await get_async_backend().wrap_client_socket(raw_socket=raw_socket)
+
+
+async def wrap_server_socket(raw_socket: socket.socket) -> SocketListener | UDPSocket:
+    """
+    Wrap a server socket.
+
+    :param raw_socket: the server socket to wrap
+    """
+    return await get_async_backend().wrap_server_socket(raw_socket=raw_socket)
+
+
 async def create_connected_udp_socket(
     remote_host: IPAddressType,
     remote_port: int,
