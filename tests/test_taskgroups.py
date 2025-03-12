@@ -1619,26 +1619,16 @@ async def test_start_cancels_parent_scope() -> None:
 
 if sys.version_info >= (3, 14):
 
-    async def no_other_refs() -> list[object]:
-        frame = sys._getframe(1)
-        coro = get_current_task().coro
-
-        async def get_coro_for_frame(*, task_status: TaskStatus[object]) -> None:
-            my_coro = coro
-            while my_coro.cr_frame is not frame:
-                my_coro = my_coro.cr_await
-            task_status.started(my_coro)
-
-        async with create_task_group() as tg:
-            return [await tg.start(get_coro_for_frame)]
+    def no_other_refs() -> list[object]:
+        return [sys._getframe(1).f_generator]
 
 elif sys.version_info >= (3, 11):
 
-    async def no_other_refs() -> list[object]:
+    def no_other_refs() -> list[object]:
         return []
 else:
 
-    async def no_other_refs() -> list[object]:
+    def no_other_refs() -> list[object]:
         return [sys._getframe(1)]
 
 
@@ -1670,7 +1660,7 @@ class TestRefcycles:
             exc = e
 
         assert exc is not None
-        assert gc.get_referrers(exc) == await no_other_refs()
+        assert gc.get_referrers(exc) == no_other_refs()
 
     async def test_exception_refcycles_errors(self) -> None:
         """Test that TaskGroup deletes self._exceptions, and __aexit__ args"""
@@ -1687,7 +1677,7 @@ class TestRefcycles:
             exc = excs.exceptions[0]
 
         assert isinstance(exc, _Done)
-        assert gc.get_referrers(exc) == await no_other_refs()
+        assert gc.get_referrers(exc) == no_other_refs()
 
     async def test_exception_refcycles_parent_task(self) -> None:
         """Test that TaskGroup's cancel_scope deletes self._host_task"""
@@ -1708,7 +1698,7 @@ class TestRefcycles:
             exc = excs.exceptions[0].exceptions[0]
 
         assert isinstance(exc, _Done)
-        assert gc.get_referrers(exc) == await no_other_refs()
+        assert gc.get_referrers(exc) == no_other_refs()
 
     async def test_exception_refcycles_propagate_cancellation_error(self) -> None:
         """Test that TaskGroup deletes cancelled_exc"""
@@ -1725,7 +1715,7 @@ class TestRefcycles:
                 raise
 
         assert isinstance(exc, get_cancelled_exc_class())
-        assert gc.get_referrers(exc) == await no_other_refs()
+        assert gc.get_referrers(exc) == no_other_refs()
 
     async def test_exception_refcycles_base_error(self) -> None:
         """
@@ -1748,7 +1738,7 @@ class TestRefcycles:
             exc = excs.exceptions[0]
 
         assert isinstance(exc, MyKeyboardInterrupt)
-        assert gc.get_referrers(exc) == await no_other_refs()
+        assert gc.get_referrers(exc) == no_other_refs()
 
 
 class TestTaskStatusTyping:
