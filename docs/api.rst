@@ -82,6 +82,19 @@ Async file I/O
 .. autoclass:: anyio.AsyncFile
 .. autoclass:: anyio.Path
 
+Temporary files and directories
+-------------------------------
+
+.. autofunction:: anyio.mkstemp
+.. autofunction:: anyio.mkdtemp
+.. autofunction:: anyio.gettempdir
+.. autofunction:: anyio.gettempdirb
+
+.. autoclass:: anyio.TemporaryFile
+.. autoclass:: anyio.NamedTemporaryFile
+.. autoclass:: anyio.SpooledTemporaryFile
+.. autoclass:: anyio.TemporaryDirectory
+
 Streams and stream wrappers
 ---------------------------
 
@@ -187,6 +200,7 @@ Testing and debugging
 ---------------------
 
 .. autoclass:: anyio.TaskInfo
+.. autoclass:: anyio.pytest_plugin.FreePortFactory
 .. autofunction:: anyio.get_current_task
 .. autofunction:: anyio.get_running_tasks
 .. autofunction:: anyio.wait_all_tasks_blocked
