@@ -326,7 +326,7 @@ class TestTCPStream:
             "https://github.com/pypy/pypy/issues/5075"
         ),
     )
-    async def test_happy_eyeballs_refcycles(self, anyio_backend_name: str) -> None:
+    async def test_happy_eyeballs_refcycles(self, free_tcp_port: int, anyio_backend_name: str) -> None:
         """
         Test derived from https://github.com/python/cpython/pull/124859
         """
@@ -335,14 +335,9 @@ class TestTCPStream:
                 "asyncio.BaseEventLoop.create_connection creates refcycles on py 3.9"
             )
 
-        ip = "127.0.0.1"
-        with socket.socket(AddressFamily.AF_INET) as dummy_socket:
-            dummy_socket.bind((ip, 0))
-            free_port = dummy_socket.getsockname()[1]
-
         exc = None
         try:
-            async with await connect_tcp(ip, free_port):
+            async with await connect_tcp(ip, free_tcp_port):
                 pass
         except OSError as e:
             exc = e.__cause__
