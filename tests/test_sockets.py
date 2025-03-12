@@ -337,7 +337,7 @@ class TestTCPStream:
 
         exc = None
         try:
-            async with await connect_tcp(ip, free_tcp_port):
+            async with await connect_tcp("127.0.0.1", free_tcp_port):
                 pass
         except OSError as e:
             exc = e.__cause__
