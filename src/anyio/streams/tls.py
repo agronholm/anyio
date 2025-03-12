@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 import ssl
@@ -15,6 +14,7 @@ from .. import (
     EndOfStream,
     aclose_forcefully,
     get_cancelled_exc_class,
+    to_thread,
 )
 from .._core._typedattr import TypedAttributeSet, typed_attribute
 from ..abc import AnyByteStream, ByteStream, Listener, TaskGroup
@@ -125,12 +125,13 @@ class TLSStream(ByteStream):
                 bio_in, bio_out, server_side=server_side, server_hostname=hostname
             )
         else:
-            ssl_object = await asyncio.to_thread(
+            ssl_object = await to_thread.run_sync(
                 ssl_context.wrap_bio,
                 bio_in,
                 bio_out,
-                server_side=server_side,
-                server_hostname=hostname,
+                server_side,
+                hostname,
+                None,
             )
         wrapper = cls(
             transport_stream=transport_stream,
