@@ -120,6 +120,9 @@ class TLSStream(ByteStream):
 
         bio_in = ssl.MemoryBIO()
         bio_out = ssl.MemoryBIO()
+
+        # External SSLContext implementations may do blocking I/O in wrap_bio(),
+        # but the standard library implementation won't
         if type(ssl_context) is ssl.SSLContext:
             ssl_object = ssl_context.wrap_bio(
                 bio_in, bio_out, server_side=server_side, server_hostname=hostname
