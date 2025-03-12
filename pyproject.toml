@@ -44,6 +44,7 @@ Changelog = "https://anyio.readthedocs.io/en/stable/versionhistory.html"
 trio = ["trio >= 0.26.1"]
 test = [
     "anyio[trio]",
+    "blockbuster >= 1.5.23",
     "coverage[toml] >= 7",
     "exceptiongroup >= 1.2.0",
     "hypothesis >= 4.0",
@@ -89,6 +90,9 @@ extend-select = [
 
 [tool.ruff.lint.isort]
 "required-imports" = ["from __future__ import annotations"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/test_tempfile.py" = ["ASYNC230"]
 
 [tool.mypy]
 python_version = "3.13"
