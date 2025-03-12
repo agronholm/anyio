@@ -121,6 +121,7 @@ def asyncio_event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 
     loop.close()
 
+
 if sys.version_info >= (3, 14):
 
     def no_other_refs() -> list[object]:

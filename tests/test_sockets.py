@@ -44,7 +44,6 @@ from anyio import (
     create_unix_datagram_socket,
     create_unix_listener,
     fail_after,
-    get_current_task,
     getaddrinfo,
     getnameinfo,
     move_on_after,
@@ -61,7 +60,6 @@ from anyio.abc import (
     SocketAttribute,
     SocketListener,
     SocketStream,
-    TaskStatus,
 )
 from anyio.lowlevel import checkpoint
 from anyio.streams.stapled import MultiListener
@@ -326,7 +324,9 @@ class TestTCPStream:
             "https://github.com/pypy/pypy/issues/5075"
         ),
     )
-    async def test_happy_eyeballs_refcycles(self, free_tcp_port: int, anyio_backend_name: str) -> None:
+    async def test_happy_eyeballs_refcycles(
+        self, free_tcp_port: int, anyio_backend_name: str
+    ) -> None:
         """
         Test derived from https://github.com/python/cpython/pull/124859
         """
