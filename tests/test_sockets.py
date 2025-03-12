@@ -359,9 +359,10 @@ class TestTCPStream:
             pytest.skip(
                 "asyncio.BaseEventLoop.create_connection creates refcycles on py 3.9"
             )
+
         ip = "127.0.0.1"
         with socket.socket(AddressFamily.AF_INET) as dummy_socket:
-            dummy_socket.bind(("0.0.0.0", 0))
+            dummy_socket.bind((ip, 0))
             free_port = dummy_socket.getsockname()[1]
 
         exc = None
