@@ -66,7 +66,7 @@ from anyio.abc import (
 from anyio.lowlevel import checkpoint
 from anyio.streams.stapled import MultiListener
 
-from .conftest import asyncio_params
+from .conftest import asyncio_params, no_other_refs
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -135,31 +135,6 @@ def check_asyncio_bug(anyio_backend_name: str, family: AnyIPAddressFamily) -> No
         policy = asyncio.get_event_loop_policy()
         if policy.__class__.__name__ == "WindowsProactorEventLoopPolicy":
             pytest.skip("Does not work due to a known bug (39148)")
-
-
-if sys.version_info >= (3, 14):
-
-    async def no_other_refs() -> list[object]:
-        frame = sys._getframe(1)
-        coro = get_current_task().coro
-
-        async def get_coro_for_frame(*, task_status: TaskStatus[object]) -> None:
-            my_coro = coro
-            while my_coro.cr_frame is not frame:
-                my_coro = my_coro.cr_await
-            task_status.started(my_coro)
-
-        async with create_task_group() as tg:
-            return [await tg.start(get_coro_for_frame)]
-
-elif sys.version_info >= (3, 11):
-
-    async def no_other_refs() -> list[object]:
-        return []
-else:
-
-    async def no_other_refs() -> list[object]:
-        return [sys._getframe(1)]
 
 
 _T = TypeVar("_T")
@@ -373,7 +348,7 @@ class TestTCPStream:
             exc = e.__cause__
 
         assert isinstance(exc, OSError)
-        assert gc.get_referrers(exc) == await no_other_refs()
+        assert gc.get_referrers(exc) == no_other_refs()
 
     @pytest.mark.parametrize(
         "target, exception_class",
