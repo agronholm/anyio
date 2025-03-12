@@ -18,6 +18,7 @@ import anyio
 from anyio import (
     TASK_STATUS_IGNORED,
     CancelScope,
+    Event,
     create_task_group,
     current_effective_deadline,
     current_time,
@@ -1615,6 +1616,34 @@ async def test_start_cancels_parent_scope() -> None:
 
     assert started
     assert not tg.cancel_scope.cancel_called
+
+
+async def test_cancel_shielding_start() -> None:
+    """
+    Test that if the host task that has spawned a subtask via ``start()`` is cancelled,
+    a shielded cancel scope in the child task will shield it from cancellation.
+
+    Regression test for #837.
+    """
+
+    async def taskfunc(*, task_status: TaskStatus[None]) -> None:
+        with CancelScope(shield=True):
+            entered_inner_scope.set()
+            try:
+                await checkpoint()
+                await checkpoint()
+            except get_cancelled_exc_class():
+                pytest.fail("Shouldn't be cancelled in a shielded scope")
+
+        # The cancellation should be triggered here, and not any earlier
+        await checkpoint()
+
+    entered_inner_scope = Event()
+    with CancelScope() as outer_scope:
+        async with create_task_group() as tg:
+            tg.start_soon(tg.start, taskfunc)
+            await entered_inner_scope.wait()
+            outer_scope.cancel()
 
 
 if sys.version_info >= (3, 14):
