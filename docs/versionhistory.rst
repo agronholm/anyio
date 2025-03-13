@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed ``connect_tcp()`` producing cyclic references in tracebacks when raising
+  exceptions (`#809 <https://github.com/agronholm/anyio/pull/809>`_; PR by @graingert)
 - Added 4 new fixtures for the AnyIO ``pytest`` plugin:
 
   * ``free_tcp_port_factory``: session scoped fixture returning a callable that

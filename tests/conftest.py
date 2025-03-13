@@ -120,3 +120,18 @@ def asyncio_event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
         asyncio.set_event_loop(None)
 
     loop.close()
+
+
+if sys.version_info >= (3, 14):
+
+    def no_other_refs() -> list[object]:
+        return [sys._getframe(1).f_generator]
+
+elif sys.version_info >= (3, 11):
+
+    def no_other_refs() -> list[object]:
+        return []
+else:
+
+    def no_other_refs() -> list[object]:
+        return [sys._getframe(1)]

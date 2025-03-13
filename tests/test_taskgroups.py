@@ -32,7 +32,7 @@ from anyio import (
 from anyio.abc import TaskGroup, TaskStatus
 from anyio.lowlevel import checkpoint
 
-from .conftest import asyncio_params
+from .conftest import asyncio_params, no_other_refs
 
 if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup, ExceptionGroup
@@ -1615,21 +1615,6 @@ async def test_start_cancels_parent_scope() -> None:
 
     assert started
     assert not tg.cancel_scope.cancel_called
-
-
-if sys.version_info >= (3, 14):
-
-    def no_other_refs() -> list[object]:
-        return [sys._getframe(1).f_generator]
-
-elif sys.version_info >= (3, 11):
-
-    def no_other_refs() -> list[object]:
-        return []
-else:
-
-    def no_other_refs() -> list[object]:
-        return [sys._getframe(1)]
 
 
 @pytest.mark.skipif(
