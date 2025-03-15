@@ -3,6 +3,7 @@ from __future__ import annotations
 import array
 import asyncio
 import concurrent.futures
+import contextvars
 import math
 import os
 import socket
@@ -975,6 +976,9 @@ class WorkerThread(Thread):
                         )
 
                 self.queue.task_done()
+                # make sure no references after this epoch
+                # so that context can be garbage collected
+                del item, context, func, args, future, cancel_scope, result, exception
 
     def stop(self, f: asyncio.Task | None = None) -> None:
         self.stopping = True
@@ -2433,7 +2437,9 @@ class AsyncIOBackend(AsyncBackend):
                     worker = WorkerThread(root_task, workers, idle_workers)
                     worker.start()
                     workers.add(worker)
-                    root_task.add_done_callback(worker.stop)
+                    root_task.add_done_callback(
+                        worker.stop, context=contextvars.Context()
+                    )
                 else:
                     worker = idle_workers.pop()
 

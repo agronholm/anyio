@@ -6,7 +6,7 @@ import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextvars import ContextVar
 from functools import partial
-from typing import Any, NoReturn
+from typing import Any, NoReturn, Optional
 
 import pytest
 import sniffio
@@ -360,3 +360,30 @@ class TestBlockingPortalProvider:
                 portal.call(event.set)
 
         assert len(threads) == 1
+
+
+async def test_run_async_with_context() -> None:
+    class A:
+        def __init__(self, val: int, res: list[int]) -> None:
+            self.val = val
+            self.res = res
+            res.append(self.val)
+
+        def __del__(self) -> None:
+            self.res.append(-self.val)
+
+    cvar = ContextVar[Optional[A]]("cvar", default=None)
+
+    def foo() -> None:
+        return None
+
+    async def one_request(t: int, res: list[int]) -> None:
+        a = A(t, res)
+        cvar.set(a)
+        await to_thread.run_sync(foo)
+        cvar.set(None)
+
+    res: list[int] = []
+    for i in range(5):
+        await one_request(i + 1, res)
+    assert res == [1, -1, 2, -2, 3, -3, 4, -4, 5, -5]
