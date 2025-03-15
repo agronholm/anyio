@@ -47,6 +47,7 @@ from anyio import (
     getaddrinfo,
     getnameinfo,
     move_on_after,
+    sleep,
     wait_all_tasks_blocked,
     wait_readable,
     wait_socket_readable,
@@ -1911,3 +1912,39 @@ async def test_deprecated_wait_socket(anyio_backend_name: str) -> None:
         ):
             with move_on_after(0.1):
                 await wait_socket_writable(sock)
+
+
+async def test_selector_thread_closed_socket(anyio_backend_name: str) -> None:
+    skip = True
+    if anyio_backend_name == "asyncio" and platform.system() == "Windows":
+        import asyncio
+
+        policy = asyncio.get_event_loop_policy()
+        if policy.__class__.__name__ == "WindowsProactorEventLoopPolicy":
+            skip = False
+
+    if skip:
+        pytest.skip("Selector thread is only used on asyncio/Windows/ProactorEventLoop")
+
+    async with create_task_group() as tg:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+            sock.listen()
+            tg.start_soon(wait_readable, sock)
+            await wait_all_tasks_blocked()
+        await sleep(1)
+        tg.cancel_scope.cancel()
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_sock:
+        server_sock.bind(("127.0.0.1", 0))
+        port = server_sock.getsockname()[1]
+        server_sock.listen()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_sock:
+            client_sock.connect(("127.0.0.1", port))
+            client_sock.sendall(b"Hello, world")
+
+        conn, addr = server_sock.accept()
+        with conn:
+            with fail_after(3):
+                await wait_readable(conn)
+                assert conn.recv(1024) == b"Hello, world"
