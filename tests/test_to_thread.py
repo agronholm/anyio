@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import gc
+import sys
 import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -363,16 +364,26 @@ class TestBlockingPortalProvider:
         assert len(threads) == 1
 
 
+@pytest.mark.skipif(
+    sys.implementation.name == "pypy",
+    reason=(
+        "gc.get_referrers is broken on PyPy (see "
+        "https://github.com/pypy/pypy/issues/5075)"
+    ),
+)
 async def test_run_sync_worker_cyclic_references() -> None:
-    def foo(_: str) -> None:
+    class Foo:
         pass
 
-    cvar = ContextVar[str]("cvar")
-    contextval = "ffaweaw"
-    arg = "vvvsfsdfsdfsf"
+    def foo(_: Foo) -> None:
+        pass
+
+    cvar = ContextVar[Foo]("cvar")
+    contextval = Foo()
+    arg = Foo()
     cvar.set(contextval)
     await to_thread.run_sync(foo, arg)
-    cvar.set("")
+    cvar.set(Foo())
     gc.collect()
 
     assert gc.get_referrers(contextval) == no_other_refs()
