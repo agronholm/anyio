@@ -181,3 +181,5 @@ differences in its semantics, however:
   exception
 * :class:`asyncio.TaskGroup` does not allow starting new tasks after an exception in
   one of the tasks has triggered a shutdown of the task group
+* Tasks spawned from :class:`asyncio.TaskGroup` use different cancellation semantics
+  (see the notes on :ref:`asyncio cancellation semantics <asyncio cancellation>`)
