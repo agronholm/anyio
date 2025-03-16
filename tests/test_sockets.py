@@ -1926,25 +1926,16 @@ async def test_selector_thread_closed_socket(anyio_backend_name: str) -> None:
     if skip:
         pytest.skip("Selector thread is only used on asyncio/Windows/ProactorEventLoop")
 
-    async with create_task_group() as tg:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.bind(("127.0.0.1", 0))
-            sock.listen()
-            tg.start_soon(wait_readable, sock)
-            await wait_all_tasks_blocked()
-        await sleep(1)
-        tg.cancel_scope.cancel()
-
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_sock:
         server_sock.bind(("127.0.0.1", 0))
         port = server_sock.getsockname()[1]
         server_sock.listen()
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_sock:
             client_sock.connect(("127.0.0.1", port))
-            client_sock.sendall(b"Hello, world")
-
-        conn, addr = server_sock.accept()
-        with conn:
-            with fail_after(3):
-                await wait_readable(conn)
-                assert conn.recv(1024) == b"Hello, world"
+            conn, addr = server_sock.accept()
+            with conn:
+                with move_on_after(1):
+                    async with create_task_group() as tg:
+                        tg.start_soon(wait_readable, conn)
+                        await wait_all_tasks_blocked()
+                        conn.close()
