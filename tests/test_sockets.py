@@ -1929,14 +1929,16 @@ async def test_selector_thread_closed_socket(anyio_backend_name: str) -> None:
         server_sock.bind(("127.0.0.1", 0))
         port = server_sock.getsockname()[1]
         server_sock.listen()
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_sock1, socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_sock2:
+        with (
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_sock1,
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_sock2,
+        ):
             client_sock1.connect(("127.0.0.1", port))
             conn1, addr = server_sock.accept()
             client_sock2.connect(("127.0.0.1", port))
             conn2, addr = server_sock.accept()
             with conn1:
                 async with create_task_group() as tg:
-
                     with conn2:
                         tg.start_soon(wait_readable, conn2)
                         await wait_all_tasks_blocked()
