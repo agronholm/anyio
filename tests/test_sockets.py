@@ -64,7 +64,7 @@ from anyio.abc import (
 from anyio.lowlevel import checkpoint
 from anyio.streams.stapled import MultiListener
 
-from .conftest import asyncio_params
+from .conftest import asyncio_params, no_other_refs
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -317,6 +317,34 @@ class TestTCPStream:
         server_sock.close()
         assert client_addr[0] == expected_client_addr
 
+    @pytest.mark.skipif(
+        sys.implementation.name == "pypy",
+        reason=(
+            "gc.get_referrers is broken on PyPy (see "
+            "https://github.com/pypy/pypy/issues/5075)"
+        ),
+    )
+    async def test_happy_eyeballs_refcycles(
+        self, free_tcp_port: int, anyio_backend_name: str
+    ) -> None:
+        """
+        Test derived from https://github.com/python/cpython/pull/124859
+        """
+        if anyio_backend_name == "asyncio" and sys.version_info < (3, 10):
+            pytest.skip(
+                "asyncio.BaseEventLoop.create_connection creates refcycles on py 3.9"
+            )
+
+        exc = None
+        try:
+            async with await connect_tcp("127.0.0.1", free_tcp_port):
+                pass
+        except OSError as e:
+            exc = e.__cause__
+
+        assert isinstance(exc, OSError)
+        assert gc.get_referrers(exc) == no_other_refs()
+
     @pytest.mark.parametrize(
         "target, exception_class",
         [
@@ -331,14 +359,10 @@ class TestTCPStream:
         target: str,
         exception_class: type[ExceptionGroup] | type[ConnectionRefusedError],
         fake_localhost_dns: None,
+        free_tcp_port: int,
     ) -> None:
-        dummy_socket = socket.socket(AddressFamily.AF_INET6)
-        dummy_socket.bind(("::", 0))
-        free_port = dummy_socket.getsockname()[1]
-        dummy_socket.close()
-
         with pytest.raises(OSError) as exc:
-            await connect_tcp(target, free_port)
+            await connect_tcp(target, free_tcp_port)
 
         assert exc.match("All connection attempts failed")
         assert isinstance(exc.value.__cause__, exception_class)
