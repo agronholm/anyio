@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -386,4 +387,5 @@ async def test_run_async_with_context() -> None:
     res: list[int] = []
     for i in range(5):
         await one_request(i + 1, res)
+        gc.collect()
     assert res == [1, -1, 2, -2, 3, -3, 4, -4, 5, -5]
