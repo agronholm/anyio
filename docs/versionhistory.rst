@@ -33,6 +33,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``anyio.Path.iterdir()`` making a blocking call in Python 3.13
   (`#873 <https://github.com/agronholm/anyio/issues/873>`_; PR by @cbornet and
   @agronholm)
+- Fixed ``anyio.to_thread.run_sync()`` needlessly holding on to references of the
+  context, function, arguments and others until the next work item on asyncio
+  (PR by @Wankupi)
 
 **4.8.0**
 
