@@ -2711,6 +2711,7 @@ class AsyncIOBackend(AsyncBackend):
         loop = get_running_loop()
         event = asyncio.Event()
         try:
+            raise NotImplementedError()
             loop.add_reader(obj, event.set)
         except NotImplementedError:
             from anyio._core._asyncio_selector_thread import get_selector

@@ -1914,7 +1914,7 @@ async def test_deprecated_wait_socket(anyio_backend_name: str) -> None:
 
 
 async def test_selector_thread_closed_socket(anyio_backend_name: str) -> None:
-    skip = True
+    skip = False  # True
     if anyio_backend_name == "asyncio" and platform.system() == "Windows":
         import asyncio
 
@@ -1929,12 +1929,22 @@ async def test_selector_thread_closed_socket(anyio_backend_name: str) -> None:
         server_sock.bind(("127.0.0.1", 0))
         port = server_sock.getsockname()[1]
         server_sock.listen()
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_sock:
-            client_sock.connect(("127.0.0.1", port))
-            conn, addr = server_sock.accept()
-            with conn:
-                with move_on_after(1):
-                    async with create_task_group() as tg:
-                        tg.start_soon(wait_readable, conn)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_sock1, socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_sock2:
+            client_sock1.connect(("127.0.0.1", port))
+            conn1, addr = server_sock.accept()
+            client_sock2.connect(("127.0.0.1", port))
+            conn2, addr = server_sock.accept()
+            with conn1:
+                async with create_task_group() as tg:
+
+                    with conn2:
+                        tg.start_soon(wait_readable, conn2)
                         await wait_all_tasks_blocked()
-                        conn.close()
+
+                    async def read_conn1():
+                        await wait_readable(conn1)
+                        assert conn1.recv(1024) == b"Hello, world"
+                        tg.cancel_scope.cancel()
+
+                    tg.start_soon(read_conn1)
+                    client_sock1.sendall(b"Hello, world")
