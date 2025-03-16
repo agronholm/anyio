@@ -359,13 +359,10 @@ class TestTCPStream:
         target: str,
         exception_class: type[ExceptionGroup] | type[ConnectionRefusedError],
         fake_localhost_dns: None,
+        free_tcp_port: int,
     ) -> None:
-        with socket.socket(AddressFamily.AF_INET6) as dummy_socket:
-            dummy_socket.bind(("::", 0))
-            free_port = dummy_socket.getsockname()[1]
-
         with pytest.raises(OSError) as exc:
-            await connect_tcp(target, free_port)
+            await connect_tcp(target, free_tcp_port)
 
         assert exc.match("All connection attempts failed")
         assert isinstance(exc.value.__cause__, exception_class)
