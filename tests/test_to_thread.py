@@ -4,6 +4,7 @@ import asyncio
 import gc
 import threading
 import time
+from collections.abc import Callable, Coroutine
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextvars import ContextVar
 from functools import partial
@@ -363,29 +364,59 @@ class TestBlockingPortalProvider:
         assert len(threads) == 1
 
 
-async def test_run_async_with_context() -> None:
-    class A:
-        def __init__(self, val: int, res: list[int]) -> None:
-            self.val = val
-            self.res = res
-            res.append(self.val)
+class LifecycleIndicator:
+    def __init__(self, val: int, res: list[int]) -> None:
+        self.val = val
+        self.res = res
+        res.append(self.val)
 
-        def __del__(self) -> None:
-            self.res.append(-self.val)
+    def __del__(self) -> None:
+        self.res.append(-self.val)
 
-    cvar = ContextVar[Optional[A]]("cvar", default=None)
+    def __call__(self) -> None:
+        return None
+
+
+async def lifecycle_tester(
+    one_request: Callable[[int, list[int]], Coroutine[Any, Any, None]],
+    expected: list[int],
+) -> None:
+    res: list[int] = []
+    for i in range(5):
+        await one_request(i + 1, res)
+        gc.collect()
+    assert res == expected, f"expected: {expected}, got: {res}"
+
+
+async def test_run_async_lifecycle_context() -> None:
+    cvar = ContextVar[Optional[LifecycleIndicator]]("cvar", default=None)
 
     def foo() -> None:
         return None
 
     async def one_request(t: int, res: list[int]) -> None:
-        a = A(t, res)
+        a = LifecycleIndicator(t, res)
         cvar.set(a)
         await to_thread.run_sync(foo)
         cvar.set(None)
 
-    res: list[int] = []
-    for i in range(5):
-        await one_request(i + 1, res)
-        gc.collect()
-    assert res == [1, -1, 2, -2, 3, -3, 4, -4, 5, -5]
+    await lifecycle_tester(one_request, [1, -1, 2, -2, 3, -3, 4, -4, 5, -5])
+
+
+async def test_run_async_lifecycle_function() -> None:
+    async def one_request(t: int, res: list[int]) -> None:
+        a = LifecycleIndicator(t, res)
+        await to_thread.run_sync(a)
+
+    await lifecycle_tester(one_request, [1, -1, 2, -2, 3, -3, 4, -4, 5, -5])
+
+
+async def test_run_async_lifecycle_args() -> None:
+    def foo(a: LifecycleIndicator) -> None:
+        return None
+
+    async def one_request(t: int, res: list[int]) -> None:
+        a = LifecycleIndicator(t, res)
+        await to_thread.run_sync(foo, a)
+
+    await lifecycle_tester(one_request, [1, -1, 2, -2, 3, -3, 4, -4, 5, -5])
