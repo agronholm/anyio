@@ -47,7 +47,6 @@ from anyio import (
     getaddrinfo,
     getnameinfo,
     move_on_after,
-    sleep,
     wait_all_tasks_blocked,
     wait_readable,
     wait_socket_readable,
