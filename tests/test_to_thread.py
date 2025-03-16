@@ -4,11 +4,10 @@ import asyncio
 import gc
 import threading
 import time
-from collections.abc import Callable, Coroutine
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextvars import ContextVar
 from functools import partial
-from typing import Any, NoReturn, Optional
+from typing import Any, NoReturn
 
 import pytest
 import sniffio
@@ -25,7 +24,7 @@ from anyio import (
 )
 from anyio.from_thread import BlockingPortalProvider
 
-from .conftest import asyncio_params
+from .conftest import asyncio_params, no_other_refs
 
 pytestmark = pytest.mark.anyio
 
@@ -364,59 +363,18 @@ class TestBlockingPortalProvider:
         assert len(threads) == 1
 
 
-class LifecycleIndicator:
-    def __init__(self, val: int, res: list[int]) -> None:
-        self.val = val
-        self.res = res
-        res.append(self.val)
+async def test_run_sync_worker_cyclic_references() -> None:
+    def foo(_: str) -> None:
+        pass
 
-    def __del__(self) -> None:
-        self.res.append(-self.val)
+    cvar = ContextVar[str]("cvar")
+    contextval = "ffaweaw"
+    arg = "vvvsfsdfsdfsf"
+    cvar.set(contextval)
+    await to_thread.run_sync(foo, arg)
+    cvar.set("")
+    gc.collect()
 
-    def __call__(self) -> None:
-        return None
-
-
-async def lifecycle_tester(
-    one_request: Callable[[int, list[int]], Coroutine[Any, Any, None]],
-    expected: list[int],
-) -> None:
-    res: list[int] = []
-    for i in range(5):
-        await one_request(i + 1, res)
-        gc.collect()
-    assert res == expected, f"expected: {expected}, got: {res}"
-
-
-async def test_run_async_lifecycle_context() -> None:
-    cvar = ContextVar[Optional[LifecycleIndicator]]("cvar", default=None)
-
-    def foo() -> None:
-        return None
-
-    async def one_request(t: int, res: list[int]) -> None:
-        a = LifecycleIndicator(t, res)
-        cvar.set(a)
-        await to_thread.run_sync(foo)
-        cvar.set(None)
-
-    await lifecycle_tester(one_request, [1, -1, 2, -2, 3, -3, 4, -4, 5, -5])
-
-
-async def test_run_async_lifecycle_function() -> None:
-    async def one_request(t: int, res: list[int]) -> None:
-        a = LifecycleIndicator(t, res)
-        await to_thread.run_sync(a)
-
-    await lifecycle_tester(one_request, [1, -1, 2, -2, 3, -3, 4, -4, 5, -5])
-
-
-async def test_run_async_lifecycle_args() -> None:
-    def foo(a: LifecycleIndicator) -> None:
-        return None
-
-    async def one_request(t: int, res: list[int]) -> None:
-        a = LifecycleIndicator(t, res)
-        await to_thread.run_sync(foo, a)
-
-    await lifecycle_tester(one_request, [1, -1, 2, -2, 3, -3, 4, -4, 5, -5])
+    assert gc.get_referrers(contextval) == no_other_refs()
+    assert gc.get_referrers(foo) == no_other_refs()
+    assert gc.get_referrers(arg) == no_other_refs()
