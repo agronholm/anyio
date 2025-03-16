@@ -21,6 +21,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added the ``info`` property to ``anyio.Path`` on Python 3.14
 - Changed ``anyio.getaddrinfo()`` to ignore (invalid) IPv6 name resolution results when
   IPv6 support is disabled in Python
+- Changed ``EndOfStream`` raised from ``MemoryObjectReceiveStream.receive()`` to leave
+  out the ``AttributeError`` from the exception chain which was merely an implementation
+  detail and caused some confusion
 - Fixed traceback formatting growing quadratically with level of ``TaskGroup``
   nesting on asyncio due to exception chaining when raising ``ExceptionGroups``
   in ``TaskGroup.__aexit__``
