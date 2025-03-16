@@ -320,8 +320,8 @@ class TestTCPStream:
     @pytest.mark.skipif(
         sys.implementation.name == "pypy",
         reason=(
-            "gc.get_referrers is broken on PyPy see "
-            "https://github.com/pypy/pypy/issues/5075"
+            "gc.get_referrers is broken on PyPy (see "
+            "https://github.com/pypy/pypy/issues/5075)"
         ),
     )
     async def test_happy_eyeballs_refcycles(
