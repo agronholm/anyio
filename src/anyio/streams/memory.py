@@ -123,7 +123,7 @@ class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
             try:
                 return receiver.item
             except AttributeError:
-                raise EndOfStream
+                raise EndOfStream from None
 
     def clone(self) -> MemoryObjectReceiveStream[T_co]:
         """
