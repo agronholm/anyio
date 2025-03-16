@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager, contextmanager
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
-from ..abc._tasks import T_contra, TaskGroup, TaskStatus
+from ..abc._tasks import TaskGroup, TaskStatus
 from ._eventloop import current_time, get_async_backend, sleep
 
 if sys.version_info >= (3, 11):
@@ -182,27 +182,24 @@ def create_task_group() -> TaskGroup:
     return get_async_backend().create_task_group()
 
 
-class TaskHandle(Generic[T], TaskStatus[Any]):
+class TaskHandle(Generic[T]):
     __slots__ = (
         "cancel_scope",
         "_event",
-        "_task_status",
         "_return_value",
         "_exception",
         "_start_value",
     )
 
-    _task_status: TaskStatus[Any] | None
     _return_value: T
+    _start_value: Any
 
-    def __init__(self, task_status: TaskStatus[Any] | None = None) -> None:
+    def __init__(self) -> None:
         from ._synchronization import Event
 
         self.cancel_scope = CancelScope()
-        self._task_status = task_status
         self._event = Event()
         self._exception: BaseException | None = None
-        self._start_value: Any = None
 
     def set_return_value(self, value: T) -> None:
         self._return_value = value
@@ -215,12 +212,15 @@ class TaskHandle(Generic[T], TaskStatus[Any]):
     def cancel(self) -> None:
         self.cancel_scope.cancel()
 
-    def started(self, value: T_contra | None = None) -> None:
-        self._start_value = value
-
     @property
     def start_value(self) -> Any:
-        return self._task_status
+        try:
+            return self._start_value
+        except AttributeError:
+            raise ValueError(
+                "this task handle has no start value (the task was not started with "
+                "'await tg.start(...)`)"
+            )
 
     async def wait(self) -> T:
         await self._event.wait()
@@ -384,29 +384,49 @@ class _ResultsIterator(Generic[TRetval]):
         return await self._receive.receive()
 
 
-@asynccontextmanager
 async def amap(
     func: Callable[[T], Coroutine[Any, Any, TRetval]],
-    args: Sequence[T],
-    *,
-    max_at_once: int | None = None,
-    max_per_second: int | None = None,
-) -> AsyncIterator[AsyncIterator[TRetval]]:
+    args: Iterable[T],
+) -> Sequence[TRetval]:
     """
     Run the given coroutine function concurrently for multiple argument values.
 
     :param func: a coroutine function that takes a single argument
     :param args: a sequence of argument values to pass to ``func``
-    :param max_at_once: how many tasks to allow to run at once
-    :param max_per_second: how many tasks to allow to be launched per second
-    :return: an async context manager yielding an async iterator that yields return
-        values of the tasks in the order they were passed
+    :return: task results for each argument in the same order as they were passed
 
     """
     if not args:
         raise ValueError("'args' must not be empty")
 
-    coros = [func(arg) for arg in args]
+    async with EnhancedTaskGroup() as tg:
+        tasks = [tg.start_soon(func, arg) for arg in args]
+
+    return [await task.wait() for task in tasks]
+
+
+@asynccontextmanager
+async def as_completed(
+    coros: Iterable[Coroutine[Any, Any, Any]],
+    /,
+    *,
+    max_at_once: int | None = None,
+    max_per_second: int | None = None,
+) -> AsyncIterator[AsyncIterator[Any]]:
+    """
+    Run the given coroutines concurrently in a task group and yield return values as
+    they complete.
+
+    :param coros: an iterable of coroutine objects to run as tasks
+    :param max_at_once: how many tasks to allow to run at once
+    :param max_per_second: how many tasks to allow to be launched per second
+    :return: an async context manager yielding an async iterator that yields return
+        values of the tasks in the order they are completed
+
+    """
+    if not coros:
+        raise ValueError("'coros' must not be empty")
+
     async with _ResultsIterator(coros, max_at_once, max_per_second) as iterator:
         yield iterator
 

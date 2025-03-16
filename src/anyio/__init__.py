@@ -58,6 +58,7 @@ from ._core._synchronization import SemaphoreStatistics as SemaphoreStatistics
 from ._core._tasks import TASK_STATUS_IGNORED as TASK_STATUS_IGNORED
 from ._core._tasks import CancelScope as CancelScope
 from ._core._tasks import EnhancedTaskGroup as EnhancedTaskGroup
+from ._core._tasks import TaskHandle as TaskHandle
 from ._core._tasks import amap as amap
 from ._core._tasks import create_task_group as create_task_group
 from ._core._tasks import current_effective_deadline as current_effective_deadline
