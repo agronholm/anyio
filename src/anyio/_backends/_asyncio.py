@@ -975,10 +975,10 @@ class WorkerThread(Thread):
                             self._report_result, future, result, exception
                         )
 
+                    del result, exception
+
                 self.queue.task_done()
-                # make sure no references after this epoch
-                # so that context can be garbage collected
-                del item, context, func, args, future, cancel_scope, result, exception
+                del item, context, func, args, future, cancel_scope
 
     def stop(self, f: asyncio.Task | None = None) -> None:
         self.stopping = True
