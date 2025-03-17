@@ -702,6 +702,10 @@ def wait_writable(obj: FileDescriptorLike) -> Awaitable[None]:
     return get_async_backend().wait_writable(obj)
 
 
+def notify_closing(obj: FileDescriptorLike) -> None:
+    get_async_backend().notify_closing(obj)
+
+
 #
 # Private API
 #

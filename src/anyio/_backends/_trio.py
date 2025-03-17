@@ -43,6 +43,7 @@ from outcome import Error, Outcome, Value
 from trio.lowlevel import (
     current_root_task,
     current_task,
+    notify_closing,
     wait_readable,
     wait_writable,
 )
@@ -1280,6 +1281,10 @@ class TrioBackend(AsyncBackend):
             raise ClosedResourceError().with_traceback(exc.__traceback__) from None
         except trio.BusyResourceError:
             raise BusyResourceError("writing to") from None
+
+    @classmethod
+    def notify_closing(cls, obj: HasFileno | int) -> None:
+        notify_closing(obj)
 
     @classmethod
     def current_default_thread_limiter(cls) -> CapacityLimiter:

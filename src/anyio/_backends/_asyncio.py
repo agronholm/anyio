@@ -2731,8 +2731,10 @@ class AsyncIOBackend(AsyncBackend):
         try:
             await event.wait()
         finally:
-            remove_reader(obj)
+            removed = remove_reader(obj)
             del read_events[obj]
+        if removed:
+            raise ClosedResourceError
 
     @classmethod
     async def wait_writable(cls, obj: FileDescriptorLike) -> None:
@@ -2767,7 +2769,54 @@ class AsyncIOBackend(AsyncBackend):
             await event.wait()
         finally:
             del write_events[obj]
-            remove_writer(obj)
+            removed = remove_writer(obj)
+        if removed:
+            raise ClosedResourceError
+
+    @classmethod
+    def notify_closing(cls, obj: FileDescriptorLike) -> None:
+        if not isinstance(obj, int):
+            obj = obj.fileno()
+
+        loop = get_running_loop()
+
+        try:
+            write_events = _write_events.get()
+        except LookupError:
+            pass
+        else:
+            try:
+                event = write_events[obj]
+            except KeyError:
+                pass
+            else:
+                event.set()
+                try:
+                    loop.remove_writer(obj)
+                except NotImplementedError:
+                    from anyio._core._asyncio_selector_thread import get_selector
+
+                    selector = get_selector()
+                    selector.remove_writer(obj)
+
+        try:
+            read_events = _read_events.get()
+        except LookupError:
+            pass
+        else:
+            try:
+                event = read_events[obj]
+            except KeyError:
+                pass
+            else:
+                event.set()
+                try:
+                    loop.remove_reader(obj)
+                except NotImplementedError:
+                    from anyio._core._asyncio_selector_thread import get_selector
+
+                    selector = get_selector()
+                    selector.remove_reader(obj)
 
     @classmethod
     def current_default_thread_limiter(cls) -> CapacityLimiter:

@@ -345,6 +345,11 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
+    def notify_closing(cls, obj: HasFileno | int) -> None:
+        pass
+
+    @classmethod
+    @abstractmethod
     def current_default_thread_limiter(cls) -> CapacityLimiter:
         pass
 
