@@ -78,7 +78,7 @@ def blockbuster() -> Iterator[BlockBuster | None]:
 
 
 @pytest.fixture
-def deactivate_blockbuster(blockbuster: BlockBuster) -> None:
+def deactivate_blockbuster(blockbuster: BlockBuster | None) -> None:
     if blockbuster is not None:
         blockbuster.deactivate()
 
