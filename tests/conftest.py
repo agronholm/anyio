@@ -60,7 +60,7 @@ def blockbuster() -> Iterator[BlockBuster | None]:
     try:
         from blockbuster import blockbuster_ctx
     except ImportError:
-        yield
+        yield None
         return
 
     with blockbuster_ctx(
