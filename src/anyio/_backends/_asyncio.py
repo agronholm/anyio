@@ -2733,7 +2733,7 @@ class AsyncIOBackend(AsyncBackend):
         finally:
             removed = remove_reader(obj)
             del read_events[obj]
-        if removed:
+        if not removed:
             raise ClosedResourceError
 
     @classmethod
@@ -2770,7 +2770,7 @@ class AsyncIOBackend(AsyncBackend):
         finally:
             del write_events[obj]
             removed = remove_writer(obj)
-        if removed:
+        if not removed:
             raise ClosedResourceError
 
     @classmethod
