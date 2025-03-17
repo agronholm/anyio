@@ -243,7 +243,7 @@ call. To that end, you can use :class:`BlockingPortalProvider`::
 
         def do_stuff(self) -> None:
             with self._portal_provider as portal:
-                portal.call(async_obj.do_async_stuff)
+                portal.call(self._async_obj.do_async_stuff)
 
 Now, no matter how many threads call the ``do_stuff()`` method on a ``MyAPI`` instance
 at the same time, the same blocking portal will be used to handle the async calls
