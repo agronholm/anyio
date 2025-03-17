@@ -197,7 +197,7 @@ class TaskHandle(Generic[T]):
     def __init__(self) -> None:
         from ._synchronization import Event
 
-        self.cancel_scope = CancelScope()
+        self.cancel_scope: CancelScope = CancelScope()
         self._event = Event()
         self._exception: BaseException | None = None
 
