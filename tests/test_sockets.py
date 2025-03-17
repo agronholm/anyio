@@ -1010,11 +1010,8 @@ class TestUNIXStream:
 
         thread = Thread(target=serve, daemon=True)
         thread.start()
-        chunks = []
         async with await connect_unix(socket_path) as stream:
-            async for chunk in stream:
-                chunks.append(chunk)
-
+            chunks = [chunk async for chunk in stream]
         thread.join()
         assert chunks == [b"bl", b"ah"]
 

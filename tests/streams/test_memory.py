@@ -122,8 +122,7 @@ async def test_send_nowait_then_receive_nowait() -> None:
 
 async def test_iterate() -> None:
     async def receiver() -> None:
-        async for item in receive:
-            received_objects.append(item)
+        received_objects.extend([item async for item in receive])
 
     send, receive = create_memory_object_stream[str]()
     received_objects: list[str] = []
