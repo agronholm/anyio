@@ -56,7 +56,7 @@ if sys.version_info >= (3, 12):
 
 
 @pytest.fixture(autouse=True)
-def blockbuster() -> Iterator[BlockBuster]:
+def blockbuster() -> Iterator[BlockBuster | None]:
     try:
         from blockbuster import blockbuster_ctx
     except ImportError:
