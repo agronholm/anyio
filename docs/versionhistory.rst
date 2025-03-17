@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**4.9.0**
 
 - Fixed ``connect_tcp()`` producing cyclic references in tracebacks when raising
   exceptions (`#809 <https://github.com/agronholm/anyio/pull/809>`_; PR by @graingert)
