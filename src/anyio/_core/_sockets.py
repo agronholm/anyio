@@ -727,6 +727,7 @@ def notify_closing(obj: FileDescriptorLike) -> None:
     in anyway.
 
     :param obj: an object with a ``.fileno()`` method or an integer handle
+
     """
     get_async_backend().notify_closing(obj)
 
