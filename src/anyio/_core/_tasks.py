@@ -246,6 +246,7 @@ class EnhancedTaskGroup:
 
     @staticmethod
     async def _run_coro(coro: Coroutine[Any, Any, T], handle: TaskHandle[T]) -> None:
+        __tracebackhide__ = True
         with handle.cancel_scope:
             try:
                 retval = await coro
@@ -263,6 +264,7 @@ class EnhancedTaskGroup:
         *,
         task_status: TaskStatus[Any],
     ) -> None:
+        __tracebackhide__ = True
         with handle.cancel_scope:
             try:
                 retval = await func(*args, task_status=task_status, **kwargs)
@@ -351,7 +353,7 @@ class _ResultsIterator(Generic[TRetval]):
 
             # Apply rate limit
             if self._rate is not None:
-                next_allowed_time = start_time + self._rate * tasks_spawned
+                next_allowed_time = start_time + self._rate * (tasks_spawned + 1)
                 if delay := max(next_allowed_time - current_time(), 0):
                     await sleep(delay)
 
@@ -396,9 +398,6 @@ async def amap(
     :return: task results for each argument in the same order as they were passed
 
     """
-    if not args:
-        raise ValueError("'args' must not be empty")
-
     async with EnhancedTaskGroup() as tg:
         tasks = [tg.start_soon(func, arg) for arg in args]
 
@@ -412,51 +411,17 @@ async def as_completed(
     *,
     max_at_once: int | None = None,
     max_per_second: int | None = None,
-) -> AsyncIterator[AsyncIterator[Any]]:
+) -> AsyncIterator[AsyncIterator[TaskHandle]]:
     """
-    Run the given coroutines concurrently in a task group and yield return values as
-    they complete.
+    Run the given coroutines concurrently in a task group and yield task handles as they
+    complete.
 
     :param coros: an iterable of coroutine objects to run as tasks
     :param max_at_once: how many tasks to allow to run at once
     :param max_per_second: how many tasks to allow to be launched per second
-    :return: an async context manager yielding an async iterator that yields return
-        values of the tasks in the order they are completed
+    :return: an async context manager yielding an async iterator that yields task
+        handles in the order they finished
 
     """
-    if not coros:
-        raise ValueError("'coros' must not be empty")
-
     async with _ResultsIterator(coros, max_at_once, max_per_second) as iterator:
         yield iterator
-
-
-async def race(
-    coros: Iterable[Coroutine[Any, Any, TRetval]],
-    /,
-    *,
-    max_at_once: int | None = None,
-    max_per_second: int | None = None,
-) -> TRetval:
-    """
-    Start running the given coroutine objects and return the first result.
-
-    When the first result is received, all the remaining tasks will be cancelled.
-
-    If any of the coroutines raises an exception, all exceptions will be propagated in
-    an exception group.
-
-    :param coros: an iterable of coroutine objects to run as tasks
-    :param max_at_once: how many tasks to allow to run at once
-    :param max_per_second: how many tasks to allow to be launched per second
-    :return: the return value of the first completed task
-
-    """
-    if not coros:
-        raise ValueError("'coros' must not be empty")
-
-    async with _ResultsIterator(coros, max_at_once, max_per_second) as iterator:
-        retval = await iterator.__anext__()
-        iterator.cancel()
-
-    return retval

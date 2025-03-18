@@ -60,11 +60,11 @@ from ._core._tasks import CancelScope as CancelScope
 from ._core._tasks import EnhancedTaskGroup as EnhancedTaskGroup
 from ._core._tasks import TaskHandle as TaskHandle
 from ._core._tasks import amap as amap
+from ._core._tasks import as_completed as as_completed
 from ._core._tasks import create_task_group as create_task_group
 from ._core._tasks import current_effective_deadline as current_effective_deadline
 from ._core._tasks import fail_after as fail_after
 from ._core._tasks import move_on_after as move_on_after
-from ._core._tasks import race as race
 from ._core._tempfile import NamedTemporaryFile as NamedTemporaryFile
 from ._core._tempfile import SpooledTemporaryFile as SpooledTemporaryFile
 from ._core._tempfile import TemporaryDirectory as TemporaryDirectory
