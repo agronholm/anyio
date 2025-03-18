@@ -2719,7 +2719,6 @@ class AsyncIOBackend(AsyncBackend):
 
     @classmethod
     async def wait_readable(cls, obj: FileDescriptorLike) -> None:
-        await cls.checkpoint()
         try:
             read_events = _read_events.get()
         except LookupError:
@@ -2747,6 +2746,7 @@ class AsyncIOBackend(AsyncBackend):
 
         read_events[obj] = event
         try:
+            await cls.checkpoint()
             await event.wait()
         finally:
             remove_reader(obj)
@@ -2754,7 +2754,6 @@ class AsyncIOBackend(AsyncBackend):
 
     @classmethod
     async def wait_writable(cls, obj: FileDescriptorLike) -> None:
-        await cls.checkpoint()
         try:
             write_events = _write_events.get()
         except LookupError:
@@ -2782,6 +2781,7 @@ class AsyncIOBackend(AsyncBackend):
 
         write_events[obj] = event
         try:
+            await cls.checkpoint()
             await event.wait()
         finally:
             del write_events[obj]
