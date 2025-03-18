@@ -3,6 +3,13 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Added ``anyio.notify_closing`` to allow waking ``anyio.wait_readable``
+  and ``anyio.wait_writable`` before closing a socket. Among other things
+  this prevents an OSError on the ``ProactorEventLoop``.
+  (`#123 <https://github.com/agronholm/anyio/pull/896>`_; PR by @graingert)
+
 **4.9.0**
 
 - Added async support for temporary file handling
