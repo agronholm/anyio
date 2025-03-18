@@ -1960,11 +1960,7 @@ async def test_interrupted_by_close(socket_type: str) -> None:
             with pytest.raises(ClosedResourceError):
                 await wait_writable(a)
 
-        try:
-            while True:
-                a_sock.send(b"x" * 65536)
-        except BlockingIOError:
-            pass
+        fill_socket(a_sock)
 
         async with create_task_group() as tg:
             tg.start_soon(reader)
