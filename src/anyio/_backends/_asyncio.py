@@ -34,7 +34,7 @@ from collections.abc import (
 from concurrent.futures import Future
 from contextlib import AbstractContextManager, suppress
 from contextvars import Context, copy_context
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial, wraps
 from inspect import (
     CORO_RUNNING,
@@ -1745,8 +1745,26 @@ class ConnectedUNIXDatagramSocket(_RawSocketMixin, abc.ConnectedUNIXDatagramSock
                     return
 
 
-_read_events: RunVar[dict[int, asyncio.Event]] = RunVar("read_events")
-_write_events: RunVar[dict[int, asyncio.Event]] = RunVar("write_events")
+@dataclass(eq=False)
+class ClosableEvent:
+    _closed: bool = field(default=False, init=False)
+    _event: asyncio.Event = field(default_factory=asyncio.Event, init=False)
+
+    def set(self) -> None:
+        self._event.set()
+
+    async def wait(self) -> None:
+        await self._event.wait()
+        if self._closed:
+            raise ClosedResourceError
+
+    def close(self) -> None:
+        self._closed = True
+        self._event.set()
+
+
+_read_events: RunVar[dict[int, ClosableEvent]] = RunVar("read_events")
+_write_events: RunVar[dict[int, ClosableEvent]] = RunVar("write_events")
 
 
 #
@@ -2715,7 +2733,7 @@ class AsyncIOBackend(AsyncBackend):
             raise BusyResourceError("reading from")
 
         loop = get_running_loop()
-        event = asyncio.Event()
+        event = ClosableEvent()
         try:
             loop.add_reader(obj, event.set)
         except NotImplementedError:
@@ -2731,10 +2749,8 @@ class AsyncIOBackend(AsyncBackend):
         try:
             await event.wait()
         finally:
-            removed = remove_reader(obj)
+            remove_reader(obj)
             del read_events[obj]
-        if not removed:
-            raise ClosedResourceError
 
     @classmethod
     async def wait_writable(cls, obj: FileDescriptorLike) -> None:
@@ -2752,7 +2768,7 @@ class AsyncIOBackend(AsyncBackend):
             raise BusyResourceError("writing to")
 
         loop = get_running_loop()
-        event = asyncio.Event()
+        event = ClosableEvent()
         try:
             loop.add_writer(obj, event.set)
         except NotImplementedError:
@@ -2769,9 +2785,7 @@ class AsyncIOBackend(AsyncBackend):
             await event.wait()
         finally:
             del write_events[obj]
-            removed = remove_writer(obj)
-        if not removed:
-            raise ClosedResourceError
+            remove_writer(obj)
 
     @classmethod
     def notify_closing(cls, obj: FileDescriptorLike) -> None:
@@ -2790,7 +2804,7 @@ class AsyncIOBackend(AsyncBackend):
             except KeyError:
                 pass
             else:
-                event.set()
+                event.close()
                 try:
                     loop.remove_writer(obj)
                 except NotImplementedError:
@@ -2809,7 +2823,7 @@ class AsyncIOBackend(AsyncBackend):
             except KeyError:
                 pass
             else:
-                event.set()
+                event.close()
                 try:
                     loop.remove_reader(obj)
                 except NotImplementedError:
