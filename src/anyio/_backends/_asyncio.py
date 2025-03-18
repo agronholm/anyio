@@ -2746,7 +2746,6 @@ class AsyncIOBackend(AsyncBackend):
 
         read_events[obj] = event
         try:
-            await cls.checkpoint()
             await event.wait()
         finally:
             remove_reader(obj)
@@ -2781,7 +2780,6 @@ class AsyncIOBackend(AsyncBackend):
 
         write_events[obj] = event
         try:
-            await cls.checkpoint()
             await event.wait()
         finally:
             del write_events[obj]
