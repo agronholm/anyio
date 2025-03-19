@@ -83,7 +83,7 @@ from ..abc._eventloop import AsyncBackend, StrOrBytesPath
 from ..streams.memory import MemoryObjectSendStream
 
 if TYPE_CHECKING:
-    from _typeshed import HasFileno
+    from _typeshed import FileDescriptorLike
 
 if sys.version_info >= (3, 10):
     from typing import ParamSpec
@@ -1265,7 +1265,7 @@ class TrioBackend(AsyncBackend):
         return await trio.socket.getnameinfo(sockaddr, flags)
 
     @classmethod
-    async def wait_readable(cls, obj: HasFileno | int) -> None:
+    async def wait_readable(cls, obj: FileDescriptorLike) -> None:
         try:
             await wait_readable(obj)
         except trio.ClosedResourceError as exc:
@@ -1274,7 +1274,7 @@ class TrioBackend(AsyncBackend):
             raise BusyResourceError("reading from") from None
 
     @classmethod
-    async def wait_writable(cls, obj: HasFileno | int) -> None:
+    async def wait_writable(cls, obj: FileDescriptorLike) -> None:
         try:
             await wait_writable(obj)
         except trio.ClosedResourceError as exc:
@@ -1283,7 +1283,7 @@ class TrioBackend(AsyncBackend):
             raise BusyResourceError("writing to") from None
 
     @classmethod
-    def notify_closing(cls, obj: HasFileno | int) -> None:
+    def notify_closing(cls, obj: FileDescriptorLike) -> None:
         notify_closing(obj)
 
     @classmethod
