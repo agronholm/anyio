@@ -34,7 +34,7 @@ from collections.abc import (
 from concurrent.futures import Future
 from contextlib import AbstractContextManager, suppress
 from contextvars import Context, copy_context
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import partial, wraps
 from inspect import (
     CORO_RUNNING,
@@ -1745,26 +1745,8 @@ class ConnectedUNIXDatagramSocket(_RawSocketMixin, abc.ConnectedUNIXDatagramSock
                     return
 
 
-@dataclass(eq=False)
-class ClosableEvent:
-    _closed: bool = field(default=False, init=False)
-    _event: asyncio.Event = field(default_factory=asyncio.Event, init=False)
-
-    def set(self) -> None:
-        self._event.set()
-
-    async def wait(self) -> None:
-        await self._event.wait()
-        if self._closed:
-            raise ClosedResourceError
-
-    def close(self) -> None:
-        self._closed = True
-        self._event.set()
-
-
-_read_events: RunVar[dict[int, ClosableEvent]] = RunVar("read_events")
-_write_events: RunVar[dict[int, ClosableEvent]] = RunVar("write_events")
+_read_events: RunVar[dict[int, asyncio.Future[bool]]] = RunVar("read_events")
+_write_events: RunVar[dict[int, asyncio.Future[bool]]] = RunVar("write_events")
 
 
 #
@@ -2732,24 +2714,33 @@ class AsyncIOBackend(AsyncBackend):
             raise BusyResourceError("reading from")
 
         loop = get_running_loop()
-        event = ClosableEvent()
+        fut: asyncio.Future[bool] = loop.create_future()
+
+        def cb() -> None:
+            try:
+                fut.set_result(True)
+            except asyncio.InvalidStateError:
+                pass
+
         try:
-            loop.add_reader(obj, event.set)
+            loop.add_reader(obj, cb)
         except NotImplementedError:
             from anyio._core._asyncio_selector_thread import get_selector
 
             selector = get_selector()
-            selector.add_reader(obj, event.set)
+            selector.add_reader(obj, cb)
             remove_reader = selector.remove_reader
         else:
             remove_reader = loop.remove_reader
 
-        read_events[obj] = event
+        read_events[obj] = fut
         try:
-            await event.wait()
+            success = await fut
         finally:
             remove_reader(obj)
             del read_events[obj]
+        if not success:
+            raise ClosedResourceError
 
     @classmethod
     async def wait_writable(cls, obj: FileDescriptorLike) -> None:
@@ -2766,24 +2757,33 @@ class AsyncIOBackend(AsyncBackend):
             raise BusyResourceError("writing to")
 
         loop = get_running_loop()
-        event = ClosableEvent()
+        fut: asyncio.Future[bool] = loop.create_future()
+
+        def cb() -> None:
+            try:
+                fut.set_result(True)
+            except asyncio.InvalidStateError:
+                pass
+
         try:
-            loop.add_writer(obj, event.set)
+            loop.add_writer(obj, cb)
         except NotImplementedError:
             from anyio._core._asyncio_selector_thread import get_selector
 
             selector = get_selector()
-            selector.add_writer(obj, event.set)
+            selector.add_writer(obj, cb)
             remove_writer = selector.remove_writer
         else:
             remove_writer = loop.remove_writer
 
-        write_events[obj] = event
+        write_events[obj] = fut
         try:
-            await event.wait()
+            success = await fut
         finally:
             del write_events[obj]
             remove_writer(obj)
+        if not success:
+            raise ClosedResourceError
 
     @classmethod
     def notify_closing(cls, obj: FileDescriptorLike) -> None:
@@ -2798,11 +2798,14 @@ class AsyncIOBackend(AsyncBackend):
             pass
         else:
             try:
-                event = write_events[obj]
+                fut = write_events[obj]
             except KeyError:
                 pass
             else:
-                event.close()
+                try:
+                    fut.set_result(False)
+                except asyncio.InvalidStateError:
+                    pass
                 try:
                     loop.remove_writer(obj)
                 except NotImplementedError:
@@ -2817,11 +2820,14 @@ class AsyncIOBackend(AsyncBackend):
             pass
         else:
             try:
-                event = read_events[obj]
+                fut = read_events[obj]
             except KeyError:
                 pass
             else:
-                event.close()
+                try:
+                    fut.set_result(False)
+                except asyncio.InvalidStateError:
+                    pass
                 try:
                     loop.remove_reader(obj)
                 except NotImplementedError:
