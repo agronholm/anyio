@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Added the ability to specify the thread name in ``start_blocking_portal()``
+  (`#818 <https://github.com/agronholm/anyio/issues/818>`_; PR by @davidbrochart)
+
 **4.9.0**
 
 - Added async support for temporary file handling
