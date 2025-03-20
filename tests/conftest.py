@@ -5,14 +5,16 @@ import ssl
 import sys
 from collections.abc import Generator, Iterator
 from ssl import SSLContext
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import Mock
 
 import pytest
 import trustme
 from _pytest.fixtures import SubRequest
-from blockbuster import BlockBuster, blockbuster_ctx
 from trustme import CA
+
+if TYPE_CHECKING:
+    from blockbuster import BlockBuster
 
 uvloop_marks = []
 try:
@@ -54,7 +56,13 @@ if sys.version_info >= (3, 12):
 
 
 @pytest.fixture(autouse=True)
-def blockbuster() -> Iterator[BlockBuster]:
+def blockbuster() -> Iterator[BlockBuster | None]:
+    try:
+        from blockbuster import blockbuster_ctx
+    except ImportError:
+        yield None
+        return
+
     with blockbuster_ctx(
         "anyio", excluded_modules=["anyio.pytest_plugin", "anyio._backends._asyncio"]
     ) as bb:
@@ -70,8 +78,9 @@ def blockbuster() -> Iterator[BlockBuster]:
 
 
 @pytest.fixture
-def deactivate_blockbuster(blockbuster: BlockBuster) -> None:
-    blockbuster.deactivate()
+def deactivate_blockbuster(blockbuster: BlockBuster | None) -> None:
+    if blockbuster is not None:
+        blockbuster.deactivate()
 
 
 @pytest.fixture(params=[*asyncio_params, pytest.param("trio")])
@@ -120,3 +129,18 @@ def asyncio_event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
         asyncio.set_event_loop(None)
 
     loop.close()
+
+
+if sys.version_info >= (3, 14):
+
+    def no_other_refs() -> list[object]:
+        return [sys._getframe(1).f_generator]
+
+elif sys.version_info >= (3, 11):
+
+    def no_other_refs() -> list[object]:
+        return []
+else:
+
+    def no_other_refs() -> list[object]:
+        return [sys._getframe(1)]

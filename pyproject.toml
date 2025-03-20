@@ -60,7 +60,7 @@ test = [
 ]
 doc = [
     "packaging",
-    "Sphinx ~= 7.4",
+    "Sphinx ~= 8.2",
     "sphinx_rtd_theme",
     "sphinx-autodoc-typehints >= 1.2.0",
 ]
@@ -78,15 +78,18 @@ src = ["src"]
 [tool.ruff.lint]
 extend-select = [
     "ASYNC",        # flake8-async
-    "W",            # pycodestyle warnings
+    "C4",           # flake8-comprehensions
     "G",            # flake8-logging-format
     "I",            # isort
     "ISC",          # flake8-implicit-str-concat
+    "PERF",         # flake8-performance
     "PGH",          # pygrep-hooks
     "RUF100",       # unused noqa (yesqa)
     "T201",         # print
     "UP",           # pyupgrade
+    "W",            # pycodestyle warnings
 ]
+ignore = ["PERF203"]
 
 [tool.ruff.lint.isort]
 "required-imports" = ["from __future__ import annotations"]

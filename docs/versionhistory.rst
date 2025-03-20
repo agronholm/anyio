@@ -3,9 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**4.9.0**
 
 - Added ``wrap_client_socket`` and ``wrap_server_socket`` (`#845 <https://github.com/agronholm/anyio/issues/845>`_; PR by @leon1995)
+- Added async support for temporary file handling
+  (`#344 <https://github.com/agronholm/anyio/issues/873>`_; PR by @11kkw)
 - Added 4 new fixtures for the AnyIO ``pytest`` plugin:
 
   * ``free_tcp_port_factory``: session scoped fixture returning a callable that
@@ -22,6 +24,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added the ``info`` property to ``anyio.Path`` on Python 3.14
 - Changed ``anyio.getaddrinfo()`` to ignore (invalid) IPv6 name resolution results when
   IPv6 support is disabled in Python
+- Changed ``EndOfStream`` raised from ``MemoryObjectReceiveStream.receive()`` to leave
+  out the ``AttributeError`` from the exception chain which was merely an implementation
+  detail and caused some confusion
 - Fixed traceback formatting growing quadratically with level of ``TaskGroup``
   nesting on asyncio due to exception chaining when raising ``ExceptionGroups``
   in ``TaskGroup.__aexit__``
@@ -29,6 +34,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``anyio.Path.iterdir()`` making a blocking call in Python 3.13
   (`#873 <https://github.com/agronholm/anyio/issues/873>`_; PR by @cbornet and
   @agronholm)
+- Fixed ``connect_tcp()`` producing cyclic references in tracebacks when raising
+  exceptions (`#809 <https://github.com/agronholm/anyio/pull/809>`_; PR by @graingert)
+- Fixed ``anyio.to_thread.run_sync()`` needlessly holding on to references of the
+  context, function, arguments and others until the next work item on asyncio
+  (PR by @Wankupi)
 
 **4.8.0**
 
