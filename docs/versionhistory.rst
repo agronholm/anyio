@@ -6,7 +6,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **4.9.0**
 
 - Added async support for temporary file handling
-  (`#344 <https://github.com/agronholm/anyio/issues/873>`_; PR by @11kkw)
+  (`#344 <https://github.com/agronholm/anyio/issues/344>`_; PR by @11kkw)
 - Added 4 new fixtures for the AnyIO ``pytest`` plugin:
 
   * ``free_tcp_port_factory``: session scoped fixture returning a callable that
