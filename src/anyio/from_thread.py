@@ -477,9 +477,8 @@ def start_blocking_portal(
     async def run_portal() -> None:
         async with BlockingPortal() as portal_:
             if name is None:
-                current_thread().name = f"{backend}-portal-{hex(id(portal_))}"
-            else:
-                current_thread().name = name
+                current_thread().name = f"{backend}-portal-{id(portal_):x}"
+
             future.set_result(portal_)
             await portal_.sleep_until_stopped()
 
