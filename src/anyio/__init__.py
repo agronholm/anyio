@@ -35,6 +35,7 @@ from ._core._sockets import create_unix_datagram_socket as create_unix_datagram_
 from ._core._sockets import create_unix_listener as create_unix_listener
 from ._core._sockets import getaddrinfo as getaddrinfo
 from ._core._sockets import getnameinfo as getnameinfo
+from ._core._sockets import notify_closing as notify_closing
 from ._core._sockets import wait_readable as wait_readable
 from ._core._sockets import wait_socket_readable as wait_socket_readable
 from ._core._sockets import wait_socket_writable as wait_socket_writable

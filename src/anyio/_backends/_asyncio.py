@@ -1745,8 +1745,8 @@ class ConnectedUNIXDatagramSocket(_RawSocketMixin, abc.ConnectedUNIXDatagramSock
                     return
 
 
-_read_events: RunVar[dict[int, asyncio.Event]] = RunVar("read_events")
-_write_events: RunVar[dict[int, asyncio.Event]] = RunVar("write_events")
+_read_events: RunVar[dict[int, asyncio.Future[bool]]] = RunVar("read_events")
+_write_events: RunVar[dict[int, asyncio.Future[bool]]] = RunVar("write_events")
 
 
 #
@@ -2701,7 +2701,6 @@ class AsyncIOBackend(AsyncBackend):
 
     @classmethod
     async def wait_readable(cls, obj: FileDescriptorLike) -> None:
-        await cls.checkpoint()
         try:
             read_events = _read_events.get()
         except LookupError:
@@ -2715,28 +2714,36 @@ class AsyncIOBackend(AsyncBackend):
             raise BusyResourceError("reading from")
 
         loop = get_running_loop()
-        event = asyncio.Event()
+        fut: asyncio.Future[bool] = loop.create_future()
+
+        def cb() -> None:
+            try:
+                fut.set_result(True)
+            except asyncio.InvalidStateError:
+                pass
+
         try:
-            loop.add_reader(obj, event.set)
+            loop.add_reader(obj, cb)
         except NotImplementedError:
             from anyio._core._asyncio_selector_thread import get_selector
 
             selector = get_selector()
-            selector.add_reader(obj, event.set)
+            selector.add_reader(obj, cb)
             remove_reader = selector.remove_reader
         else:
             remove_reader = loop.remove_reader
 
-        read_events[obj] = event
+        read_events[obj] = fut
         try:
-            await event.wait()
+            success = await fut
         finally:
             remove_reader(obj)
             del read_events[obj]
+        if not success:
+            raise ClosedResourceError
 
     @classmethod
     async def wait_writable(cls, obj: FileDescriptorLike) -> None:
-        await cls.checkpoint()
         try:
             write_events = _write_events.get()
         except LookupError:
@@ -2750,24 +2757,84 @@ class AsyncIOBackend(AsyncBackend):
             raise BusyResourceError("writing to")
 
         loop = get_running_loop()
-        event = asyncio.Event()
+        fut: asyncio.Future[bool] = loop.create_future()
+
+        def cb() -> None:
+            try:
+                fut.set_result(True)
+            except asyncio.InvalidStateError:
+                pass
+
         try:
-            loop.add_writer(obj, event.set)
+            loop.add_writer(obj, cb)
         except NotImplementedError:
             from anyio._core._asyncio_selector_thread import get_selector
 
             selector = get_selector()
-            selector.add_writer(obj, event.set)
+            selector.add_writer(obj, cb)
             remove_writer = selector.remove_writer
         else:
             remove_writer = loop.remove_writer
 
-        write_events[obj] = event
+        write_events[obj] = fut
         try:
-            await event.wait()
+            success = await fut
         finally:
             del write_events[obj]
             remove_writer(obj)
+        if not success:
+            raise ClosedResourceError
+
+    @classmethod
+    def notify_closing(cls, obj: FileDescriptorLike) -> None:
+        if not isinstance(obj, int):
+            obj = obj.fileno()
+
+        loop = get_running_loop()
+
+        try:
+            write_events = _write_events.get()
+        except LookupError:
+            pass
+        else:
+            try:
+                fut = write_events[obj]
+            except KeyError:
+                pass
+            else:
+                try:
+                    fut.set_result(False)
+                except asyncio.InvalidStateError:
+                    pass
+                try:
+                    loop.remove_writer(obj)
+                except NotImplementedError:
+                    from anyio._core._asyncio_selector_thread import get_selector
+
+                    selector = get_selector()
+                    selector.remove_writer(obj)
+
+        try:
+            read_events = _read_events.get()
+        except LookupError:
+            pass
+        else:
+            try:
+                fut = read_events[obj]
+            except KeyError:
+                pass
+            else:
+                try:
+                    fut.set_result(False)
+                except asyncio.InvalidStateError:
+                    pass
+                try:
+                    loop.remove_reader(obj)
+                except NotImplementedError:
+                    from anyio._core._asyncio_selector_thread import get_selector
+
+                    selector = get_selector()
+                    selector.remove_reader(obj)
 
     @classmethod
     def current_default_thread_limiter(cls) -> CapacityLimiter:
