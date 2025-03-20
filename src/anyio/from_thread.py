@@ -454,7 +454,9 @@ class BlockingPortalProvider:
 
 @contextmanager
 def start_blocking_portal(
-    backend: str = "asyncio", backend_options: dict[str, Any] | None = None, name: str | None = None
+    backend: str = "asyncio",
+    backend_options: dict[str, Any] | None = None,
+    name: str | None = None,
 ) -> Generator[BlockingPortal, Any, None]:
     """
     Start a new event loop in a new thread and run a blocking portal in its main task.
