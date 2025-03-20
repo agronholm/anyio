@@ -10,7 +10,7 @@ from contextlib import (
 )
 from dataclasses import dataclass, field
 from inspect import isawaitable
-from threading import Lock, Thread, get_ident
+from threading import Lock, Thread, current_thread, get_ident
 from types import TracebackType
 from typing import (
     Any,
@@ -476,16 +476,12 @@ def start_blocking_portal(
 
     async def run_portal() -> None:
         async with BlockingPortal() as portal_:
+            if name is None:
+                current_thread().name = f"{backend}-portal-{hex(id(portal_))}"
+            else:
+                current_thread().name = name
             future.set_result(portal_)
             await portal_.sleep_until_stopped()
-
-    class NamedThread(Thread):
-        def run(self) -> None:
-            if name is None:
-                self.name = f"{backend}-portal-{get_ident()}"
-            else:
-                self.name = name
-            super().run()
 
     def run_blocking_portal() -> None:
         if future.set_running_or_notify_cancel():
@@ -498,7 +494,7 @@ def start_blocking_portal(
                     future.set_exception(exc)
 
     future: Future[BlockingPortal] = Future()
-    thread = NamedThread(target=run_blocking_portal, daemon=True, name=name)
+    thread = Thread(target=run_blocking_portal, daemon=True, name=name)
     thread.start()
     try:
         cancel_remaining_tasks = False
