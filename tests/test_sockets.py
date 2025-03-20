@@ -1531,7 +1531,6 @@ class TestConnectedUDPSocket:
 
 
 @pytest.mark.network
-@pytest.mark.usefixtures("check_asyncio_bug")
 class TestWrapSocket:
     @pytest.fixture
     def tcp_server_sock(self, family: AnyIPAddressFamily) -> Iterator[socket.socket]:

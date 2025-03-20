@@ -2651,20 +2651,23 @@ class AsyncIOBackend(AsyncBackend):
         cls, raw_socket: socket.socket
     ) -> SocketStream | ConnectedUDPSocket:
         if raw_socket.type == socket.SocketKind.SOCK_DGRAM:
-            transport, protocol = await get_running_loop().create_datagram_endpoint(
-                DatagramProtocol,
-                sock=raw_socket,
+            return ConnectedUDPSocket(
+                *(
+                    await get_running_loop().create_datagram_endpoint(
+                        DatagramProtocol,
+                        sock=raw_socket,
+                    )
+                )
             )
-            return ConnectedUDPSocket(transport, protocol)
         elif raw_socket.type == socket.SocketKind.SOCK_STREAM:
-            transport, protocol = cast(  # type: ignore[assignment]  # mypy is not able to properly infer the type on unix
-                tuple[asyncio.Transport, StreamProtocol],
-                await get_running_loop().create_connection(
-                    StreamProtocol,
-                    sock=raw_socket,
-                ),
+            return SocketStream(
+                *(
+                    await get_running_loop().create_connection(
+                        StreamProtocol,
+                        sock=raw_socket,
+                    )
+                )
             )
-            return SocketStream(transport, protocol)  # type: ignore[arg-type]  # mypy is not able to properly infer the type on unix
         else:
             raise NotImplementedError(f"Unsupported socket type: {raw_socket.type}")
 
