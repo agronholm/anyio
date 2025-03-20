@@ -377,7 +377,9 @@ class TestBlockingPortal:
         def get_thread_name() -> int:
             return threading.current_thread().name
 
-        with start_blocking_portal(anyio_backend_name, anyio_backend_options, name="foo") as portal:
+        with start_blocking_portal(
+            anyio_backend_name, anyio_backend_options, name="foo"
+        ) as portal:
             thread_name = portal.call(get_thread_name)
 
         assert thread_name == "foo"
