@@ -454,7 +454,7 @@ class BlockingPortalProvider:
 
 @contextmanager
 def start_blocking_portal(
-    backend: str = "asyncio", backend_options: dict[str, Any] | None = None
+    backend: str = "asyncio", backend_options: dict[str, Any] | None = None, name: str | None = None
 ) -> Generator[BlockingPortal, Any, None]:
     """
     Start a new event loop in a new thread and run a blocking portal in its main task.
@@ -463,6 +463,7 @@ def start_blocking_portal(
 
     :param backend: name of the backend
     :param backend_options: backend options
+    :param name: name of the thread
     :return: a context manager that yields a blocking portal
 
     .. versionchanged:: 3.0
@@ -486,7 +487,7 @@ def start_blocking_portal(
                     future.set_exception(exc)
 
     future: Future[BlockingPortal] = Future()
-    thread = Thread(target=run_blocking_portal, daemon=True)
+    thread = Thread(target=run_blocking_portal, daemon=True, name=name)
     thread.start()
     try:
         cancel_remaining_tasks = False
