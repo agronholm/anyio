@@ -456,6 +456,7 @@ class BlockingPortalProvider:
 def start_blocking_portal(
     backend: str = "asyncio",
     backend_options: dict[str, Any] | None = None,
+    *,
     name: str | None = None,
 ) -> Generator[BlockingPortal, Any, None]:
     """
@@ -478,6 +479,14 @@ def start_blocking_portal(
             future.set_result(portal_)
             await portal_.sleep_until_stopped()
 
+    class NamedThread(Thread):
+        def run(self) -> None:
+            if name is None:
+                self.name = f"{backend}-portal-{get_ident()}"
+            else:
+                self.name = name
+            super().run()
+
     def run_blocking_portal() -> None:
         if future.set_running_or_notify_cancel():
             try:
@@ -489,7 +498,7 @@ def start_blocking_portal(
                     future.set_exception(exc)
 
     future: Future[BlockingPortal] = Future()
-    thread = Thread(target=run_blocking_portal, daemon=True, name=name)
+    thread = NamedThread(target=run_blocking_portal, daemon=True, name=name)
     thread.start()
     try:
         cancel_remaining_tasks = False
