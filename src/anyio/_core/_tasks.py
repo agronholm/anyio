@@ -16,6 +16,7 @@ from contextlib import asynccontextmanager, contextmanager
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
+from .. import get_cancelled_exc_class
 from ..abc._tasks import TaskGroup, TaskStatus
 from ._eventloop import current_time, get_async_backend, sleep
 
@@ -213,6 +214,14 @@ class TaskHandle(Generic[T]):
         self.cancel_scope.cancel()
 
     @property
+    def cancelled(self) -> bool:
+        return isinstance(self._exception, get_cancelled_exc_class())
+
+    @property
+    def exception(self) -> BaseException | None:
+        return self._exception
+
+    @property
     def start_value(self) -> Any:
         try:
             return self._start_value
@@ -232,6 +241,7 @@ class TaskHandle(Generic[T]):
 
 class EnhancedTaskGroup:
     async def __aenter__(self) -> Self:
+        self._tasks: dict[Coroutine[Any, Any, Any], TaskHandle[Any]] = {}
         self._task_group = create_task_group()
         await self._task_group.__aenter__()
         return self
@@ -241,22 +251,26 @@ class EnhancedTaskGroup:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> None:
-        await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+    ) -> bool | None:
+        return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
 
-    @staticmethod
-    async def _run_coro(coro: Coroutine[Any, Any, T], handle: TaskHandle[T]) -> None:
+    async def _run_coro(
+        self, coro: Coroutine[Any, Any, T], handle: TaskHandle[T]
+    ) -> None:
         __tracebackhide__ = True
         with handle.cancel_scope:
             try:
                 retval = await coro
             except BaseException as exc:
                 handle.set_exception(exc)
+                raise
             else:
                 handle.set_return_value(retval)
+            finally:
+                del self._tasks[coro]
 
-    @staticmethod
     async def _run_start_func(
+        self,
         func: Callable[..., Coroutine[Any, Any, T]],
         args: tuple[Any],
         kwargs: Mapping[str, Any],
@@ -265,13 +279,22 @@ class EnhancedTaskGroup:
         task_status: TaskStatus[Any],
     ) -> None:
         __tracebackhide__ = True
+        coro = func(*args, task_status=task_status, **kwargs)
+        self._tasks[coro] = handle
         with handle.cancel_scope:
             try:
-                retval = await func(*args, task_status=task_status, **kwargs)
+                retval = await coro
             except BaseException as exc:
                 handle.set_exception(exc)
+                raise
             else:
                 handle.set_return_value(retval)
+            finally:
+                del self._tasks[coro]
+
+    @property
+    def cancel_scope(self) -> CancelScope:
+        return self._task_group.cancel_scope
 
     async def start(
         self,
@@ -296,53 +319,71 @@ class EnhancedTaskGroup:
         coro = func(*args, **(kwargs or {}))
         return self.create_task(coro)
 
-    def create_task(self, coro: Coroutine[Any, Any, T], /) -> TaskHandle[T]:
+    def create_task(
+        self, coro: Coroutine[Any, Any, T], /, *, name: str | None = None
+    ) -> TaskHandle[T]:
         handle = TaskHandle[T]()
-        self._task_group.start_soon(self._run_coro, coro, handle)
+        self._tasks[coro] = handle
+        self._task_group.start_soon(self._run_coro, coro, handle, name=name)
         return handle
 
     def cancel_all(self) -> None:
-        self._task_group.cancel_scope.cancel()
+        """
+        Cancel all currently running child tasks.
+
+        This method does **not** cancel the host task.
+
+        """
+        for task in self._tasks.values():
+            task.cancel()
 
 
-class _ResultsIterator(Generic[TRetval]):
-    _coros: deque[Coroutine[Any, Any, TRetval]]
-    _task_group: TaskGroup
+class _ResultsIterator:
+    _coros: deque[Coroutine[Any, Any, Any]]
+    _task_group: EnhancedTaskGroup
     _semaphore: Semaphore
-    _send: MemoryObjectSendStream[TRetval]
-    _receive: MemoryObjectReceiveStream[TRetval]
+    _send: MemoryObjectSendStream[TaskHandle]
+    _receive: MemoryObjectReceiveStream[TaskHandle]
     _rate: float | None
 
     def __init__(
         self,
-        coros: Iterable[Coroutine[Any, Any, TRetval]],
+        coros: Iterable[Coroutine[Any, Any, Any]],
         max_at_once: int | None = None,
         max_task_per_second: float | None = None,
     ) -> None:
         from ._streams import create_memory_object_stream
         from ._synchronization import Semaphore
 
-        if not isinstance(max_task_per_second, int) or max_task_per_second < 0:
-            raise ValueError("max_task_per_second must be a positive integer")
+        if max_task_per_second is not None:
+            if (
+                not isinstance(max_task_per_second, (int, float))
+                or max_task_per_second < 0
+            ):
+                raise ValueError("max_task_per_second must be a positive number")
 
+        self._tasks: dict[Coroutine[Any, Any, Any], TaskHandle[Any]] = {}
         self._coros = deque(coros)
-        self._task_group: TaskGroup = create_task_group()
-        self._send, self._receive = create_memory_object_stream[TRetval]()
+        self._task_group = EnhancedTaskGroup()
+        self._send, self._receive = create_memory_object_stream[Any](len(self._coros))
         self._semaphore = Semaphore(max_at_once or len(self._coros), fast_acquire=True)
         self._rate = (
             (1 / max_task_per_second) if max_task_per_second is not None else None
         )
 
-    def cancel(self) -> None:
-        self._task_group.cancel_scope.cancel()
+    def cancel_all(self) -> None:
+        self._task_group.cancel_all()
+        while self._coros:
+            self._coros.pop().close()
 
-    async def _run_task(self, coro: Coroutine[Any, Any, TRetval]) -> None:
+    async def _run_task(self, coro: Coroutine[Any, Any, Any]) -> Any:
         try:
-            retval = await coro
+            return await coro
         finally:
             self._semaphore.release()
-
-        await self._send.send(retval)
+            with CancelScope(shield=True):
+                self._send.send_nowait(self._tasks[coro])
+                del self._tasks[coro]
 
     async def _feed_tasks(self) -> None:
         start_time = current_time()
@@ -353,11 +394,15 @@ class _ResultsIterator(Generic[TRetval]):
 
             # Apply rate limit
             if self._rate is not None:
-                next_allowed_time = start_time + self._rate * (tasks_spawned + 1)
+                next_allowed_time = start_time + self._rate * tasks_spawned
                 if delay := max(next_allowed_time - current_time(), 0):
                     await sleep(delay)
 
-            self._task_group.start_soon(self._run_task, self._coros.popleft())
+            coro = self._coros.popleft()
+            self._tasks[coro] = self._task_group.create_task(
+                self._run_task(coro),
+                name=f"Task {tasks_spawned} of result iterator {id(self):x}",
+            )
             tasks_spawned += 1
 
     async def __aenter__(self) -> Self:
@@ -370,9 +415,9 @@ class _ResultsIterator(Generic[TRetval]):
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> None:
+    ) -> bool | None:
         try:
-            await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+            return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
         finally:
             self._send.close()
             self._receive.close()
@@ -382,7 +427,10 @@ class _ResultsIterator(Generic[TRetval]):
     def __aiter__(self) -> Self:
         return self
 
-    async def __anext__(self) -> TRetval:
+    async def __anext__(self) -> TaskHandle[Any]:
+        if not self._coros and not self._tasks:
+            raise StopAsyncIteration
+
         return await self._receive.receive()
 
 
@@ -410,8 +458,8 @@ async def as_completed(
     /,
     *,
     max_at_once: int | None = None,
-    max_per_second: int | None = None,
-) -> AsyncIterator[AsyncIterator[TaskHandle]]:
+    max_per_second: float | None = None,
+) -> AsyncIterator[_ResultsIterator]:
     """
     Run the given coroutines concurrently in a task group and yield task handles as they
     complete.
