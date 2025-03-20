@@ -121,20 +121,6 @@ def family(request: SubRequest) -> AnyIPAddressFamily:
     return request.param
 
 
-@pytest.fixture
-def check_asyncio_bug(anyio_backend_name: str, family: AnyIPAddressFamily) -> None:
-    if (
-        anyio_backend_name == "asyncio"
-        and sys.platform == "win32"
-        and family == AddressFamily.AF_INET6
-    ):
-        import asyncio
-
-        policy = asyncio.get_event_loop_policy()
-        if policy.__class__.__name__ == "WindowsProactorEventLoopPolicy":
-            pytest.skip("Does not work due to a known bug (39148)")
-
-
 _T = TypeVar("_T")
 
 
@@ -1278,7 +1264,6 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
 
 
 @pytest.mark.network
-@pytest.mark.usefixtures("check_asyncio_bug")
 class TestUDPSocket:
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_udp_socket(
@@ -1404,7 +1389,6 @@ class TestUDPSocket:
 
 
 @pytest.mark.network
-@pytest.mark.usefixtures("check_asyncio_bug")
 class TestConnectedUDPSocket:
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_connected_udp_socket(
