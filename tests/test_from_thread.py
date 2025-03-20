@@ -393,7 +393,7 @@ class TestBlockingPortal:
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
             thread_name = portal.call(get_thread_name)
 
-        assert thread_name == f"{anyio_backend_name}-portal-{hex(id(portal))}"
+        assert thread_name == f"{anyio_backend_name}-portal-{id(portal):x}"
 
     def test_start_with_nonexistent_backend(self) -> None:
         with pytest.raises(LookupError) as exc:
