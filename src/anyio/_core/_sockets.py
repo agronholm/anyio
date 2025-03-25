@@ -28,8 +28,7 @@ from ..streams.stapled import MultiListener
 from ..streams.tls import TLSStream
 from ._eventloop import get_async_backend
 from ._resources import aclose_forcefully
-from ._synchronization import Event
-from ._tasks import create_task_group, move_on_after
+from ._tasks import as_completed
 
 if TYPE_CHECKING:
     from _typeshed import FileDescriptorLike
@@ -166,25 +165,6 @@ async def connect_tcp(
     :raises OSError: if the connection attempt fails
 
     """
-    # Placed here due to https://github.com/python/mypy/issues/7057
-    connected_stream: SocketStream | None = None
-
-    async def try_connect(remote_host: str, event: Event) -> None:
-        nonlocal connected_stream
-        try:
-            stream = await asynclib.connect_tcp(remote_host, remote_port, local_address)
-        except OSError as exc:
-            oserrors.append(exc)
-            return
-        else:
-            if connected_stream is None:
-                connected_stream = stream
-                tg.cancel_scope.cancel()
-            else:
-                await stream.aclose()
-        finally:
-            event.set()
-
     asynclib = get_async_backend()
     local_address: IPSockAddrType | None = None
     family = socket.AF_UNSPEC
@@ -223,24 +203,43 @@ async def connect_tcp(
             else:
                 target_addrs.append((af, sa[0]))
 
-    oserrors: list[OSError] = []
-    try:
-        async with create_task_group() as tg:
-            for i, (af, addr) in enumerate(target_addrs):
-                event = Event()
-                tg.start_soon(try_connect, addr, event)
-                with move_on_after(happy_eyeballs_delay):
-                    await event.wait()
+    async def try_connect(remote_ip: str) -> SocketStream | OSError:
+        try:
+            return await asynclib.connect_tcp(remote_ip, remote_port, local_address)
+        except OSError as exc:
+            return exc
 
-        if connected_stream is None:
-            cause = (
-                oserrors[0]
-                if len(oserrors) == 1
-                else ExceptionGroup("multiple connection attempts failed", oserrors)
-            )
-            raise OSError("All connection attempts failed") from cause
-    finally:
-        oserrors.clear()
+    oserrors: list[OSError] = []
+    connected_stream: SocketStream | None = None
+    async with as_completed(
+        [try_connect(remote_ip) for _af, remote_ip in target_addrs],
+        max_per_second=1 / happy_eyeballs_delay,
+    ) as results:
+        async for handle in results:
+            if handle.cancelled:
+                continue
+
+            retval = await handle.wait()
+            if isinstance(retval, OSError):
+                # Store connection errors and raise them all if none of the attempts
+                # succeed
+                oserrors.append(retval)
+            elif connected_stream is None:
+                # When the first connection succeeds, store that stream and cancel all
+                # the rest of the tasks
+                connected_stream = retval
+                results.cancel_all()
+            else:
+                # If any other tasks also manage to connect, close those connections
+                await retval.aclose()
+
+    if connected_stream is None:
+        cause = (
+            oserrors[0]
+            if len(oserrors) == 1
+            else ExceptionGroup("multiple connection attempts failed", oserrors)
+        )
+        raise OSError("All connection attempts failed") from cause
 
     if tls or tls_hostname or ssl_context:
         try:
