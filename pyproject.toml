@@ -127,6 +127,10 @@ relative_files = true
 
 [tool.coverage.report]
 show_missing = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "@(abc\\.)?abstractmethod",
+]
 
 [tool.tox]
 env_list = ["pre-commit", "py39", "py310", "py311", "py312", "py313", "py314", "pypy3"]
