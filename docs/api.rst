@@ -95,6 +95,15 @@ Temporary files and directories
 .. autoclass:: anyio.SpooledTemporaryFile
 .. autoclass:: anyio.TemporaryDirectory
 
+Context manager mix-in classes
+------------------------------
+
+.. autoclass:: anyio.ContextManagerMixin
+   :special-members: __contextmanager__
+
+.. autoclass:: anyio.AsyncContextManagerMixin
+   :special-members: __asynccontextmanager__
+
 Streams and stream wrappers
 ---------------------------
 
