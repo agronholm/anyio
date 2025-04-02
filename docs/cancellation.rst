@@ -216,10 +216,16 @@ context manager needs to use other context managers, you may find it convenient 
 :class:`AsyncContextManagerMixin` in order to avoid cumbersome code that calls
 ``__aenter__()`` and ``__aexit__()`` directly::
 
+    from __future__ import annotations
+
+    from collections.abc import AsyncGenerator
+
     from anyio import AsyncContextManagerMixin, create_task_group
 
 
-    class MyAsyncContextManager(AsyncContextManagerMixin):
-        async def __asynccontextmanager__(self):
+    # AsyncContextManagerMixin is parametrized this way because it returns 'self'
+    class MyAsyncContextManager(AsyncContextManagerMixin["MyAsyncContextManager"]):
+        async def __asynccontextmanager__(self) -> AsyncGenerator[MyAsyncContextManager]:
             async with create_task_group() as tg:
                 ...  # launch tasks
+                yield self
