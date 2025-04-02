@@ -14,19 +14,9 @@ class ContextManagerMixin(Generic[T]):
     Mixin class providing context manager functionality via a generator-based
     implementation.
 
-    This class allows you to implement a context manager using a generator, similar to
-    :func:`contextlib.contextmanager`, but for classes that need to embed other context
-    managers.
-
-    This class is designed to streamline the use of context management by
-    requiring the implementation of the `__contextmanager__` method, which
-    should yield instances of the class itself. It then wraps this generator
-    with the standard `__enter__` and `__exit__` methods to make the class
-    work seamlessly in `with` statements.
-
-    The mixin enforces type checking to ensure consistency and correctness,
-    validating that the yielded value from the generator is an instance of the
-    class itself.
+    This class allows you to implement a context manager via :meth:`__contextmanager__`
+    which should return a generator. The mechanics are meant to mirror those of
+    :func:`@contextmanager <contextlib.contextmanager>`.
     """
 
     @final
@@ -75,10 +65,31 @@ class ContextManagerMixin(Generic[T]):
 
     @abstractmethod
     def __contextmanager__(self) -> Generator[T, None, None]:
-        pass
+        """
+        Implement your context manager logic here, as you would with
+        :func:`@contextmanager <contextlib.contextmanager>`.
+
+        Any code up to the ``yield`` will be run in ``__enter__()``, and any code after
+        it is run in ``__exit__()``.
+
+        .. note:: If an exception is raised in the context block, it is reraised from
+            the ``yield``, just like with
+            :func:`@contextmanager <contextlib.contextmanager>`.
+
+        :return: a generator that yields exactly once
+        """
 
 
 class AsyncContextManagerMixin(Generic[T]):
+    """
+    Mixin class providing async context manager functionality via a generator-based
+    implementation.
+
+    This class allows you to implement a context manager via
+    :meth:`__asynccontextmanager__`. The mechanics are meant to mirror those of
+    :func:`@asynccontextmanager <contextlib.asynccontextmanager>`.
+    """
+
     @final
     async def __aenter__(self) -> T:
         gen = self.__asynccontextmanager__()
@@ -133,4 +144,16 @@ class AsyncContextManagerMixin(Generic[T]):
 
     @abstractmethod
     def __asynccontextmanager__(self) -> AsyncGenerator[T, None]:
-        pass
+        """
+        Implement your async context manager logic here, as you would with
+        :func:`@asynccontextmanager <contextlib.asynccontextmanager>`.
+
+        Any code up to the ``yield`` will be run in ``__aenter__()``, and any code after
+        it is run in ``__aexit__()``.
+
+        .. note:: If an exception is raised in the context block, it is reraised from
+            the ``yield``, just like with
+            :func:`@asynccontextmanager <contextlib.asynccontextmanager>`.
+
+        :return: an async generator that yields exactly once
+        """
