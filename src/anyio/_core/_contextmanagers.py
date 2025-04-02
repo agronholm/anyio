@@ -17,10 +17,20 @@ class ContextManagerMixin(Generic[_T_co]):
     This class allows you to implement a context manager via :meth:`__contextmanager__`
     which should return a generator. The mechanics are meant to mirror those of
     :func:`@contextmanager <contextlib.contextmanager>`.
+
+    .. note:: Classes using this mix-in are not reentrant as context managers, meaning
+        that once you enter it, you can't re-enter before first exiting it.
     """
+
+    __cm: Generator[_T_co] | None = None
 
     @final
     def __enter__(self) -> _T_co:
+        if self.__cm is not None:
+            raise RuntimeError(
+                f"this {self.__class__.__qualname__} has already been entered"
+            )
+
         gen = self.__contextmanager__()
         if not isinstance(gen, Generator):
             raise TypeError(
@@ -45,9 +55,14 @@ class ContextManagerMixin(Generic[_T_co]):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> bool | None:
+        if self.__cm is None:
+            raise RuntimeError(
+                f"this {self.__class__.__qualname__} has not been entered yet"
+            )
+
         # Prevent circular references
         cm = self.__cm
-        del self.__cm
+        self.__cm = None
 
         if exc_val is not None:
             try:
@@ -88,10 +103,20 @@ class AsyncContextManagerMixin(Generic[_T_co]):
     This class allows you to implement a context manager via
     :meth:`__asynccontextmanager__`. The mechanics are meant to mirror those of
     :func:`@asynccontextmanager <contextlib.asynccontextmanager>`.
+
+    .. note:: Classes using this mix-in are not reentrant as context managers, meaning
+        that once you enter it, you can't re-enter before first exiting it.
     """
+
+    __cm: AsyncGenerator[_T_co] | None = None
 
     @final
     async def __aenter__(self) -> _T_co:
+        if self.__cm is not None:
+            raise RuntimeError(
+                f"this {self.__class__.__qualname__} has already been entered"
+            )
+
         gen = self.__asynccontextmanager__()
         if not isasyncgen(gen):
             if iscoroutine(gen):
@@ -124,6 +149,11 @@ class AsyncContextManagerMixin(Generic[_T_co]):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> bool | None:
+        if self.__cm is None:
+            raise RuntimeError(
+                f"this {self.__class__.__qualname__} has not been entered yet"
+            )
+
         # Prevent circular references
         cm = self.__cm
         del self.__cm

@@ -95,6 +95,22 @@ class TestContextManagerMixin:
             with BadContextManager():
                 pass
 
+    def test_enter_twice(self) -> None:
+        with DummyContextManager() as cm:
+            with pytest.raises(
+                RuntimeError,
+                match="^this DummyContextManager has already been entered$",
+            ):
+                with cm:
+                    pass
+
+    def test_exit_before_enter(self) -> None:
+        cm = DummyContextManager()
+        with pytest.raises(
+            RuntimeError, match="^this DummyContextManager has not been entered yet$"
+        ):
+            cm.__exit__(None, None, None)
+
 
 class TestAsyncContextManagerMixin:
     async def test_contextmanager(self) -> None:
@@ -153,3 +169,20 @@ class TestAsyncContextManagerMixin:
         with pytest.raises(RuntimeError, match="generator didn't stop$"):
             async with BadContextManager():
                 pass
+
+    async def test_enter_twice(self) -> None:
+        async with DummyAsyncContextManager() as cm:
+            with pytest.raises(
+                RuntimeError,
+                match="^this DummyAsyncContextManager has already been entered$",
+            ):
+                async with cm:
+                    pass
+
+    async def test_exit_before_enter(self) -> None:
+        cm = DummyAsyncContextManager()
+        with pytest.raises(
+            RuntimeError,
+            match="^this DummyAsyncContextManager has not been entered yet$",
+        ):
+            await cm.__aexit__(None, None, None)
