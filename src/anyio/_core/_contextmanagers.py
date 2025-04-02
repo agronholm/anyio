@@ -6,10 +6,10 @@ from inspect import isasyncgen, iscoroutine
 from types import TracebackType
 from typing import Generic, TypeVar, final
 
-T = TypeVar("T")
+_T_co = TypeVar("_T_co", covariant=True)
 
 
-class ContextManagerMixin(Generic[T]):
+class ContextManagerMixin(Generic[_T_co]):
     """
     Mixin class providing context manager functionality via a generator-based
     implementation.
@@ -20,7 +20,7 @@ class ContextManagerMixin(Generic[T]):
     """
 
     @final
-    def __enter__(self) -> T:
+    def __enter__(self) -> _T_co:
         gen = self.__contextmanager__()
         if not isinstance(gen, Generator):
             raise TypeError(
@@ -64,7 +64,7 @@ class ContextManagerMixin(Generic[T]):
         raise RuntimeError("the __contextmanager__() generator didn't stop")
 
     @abstractmethod
-    def __contextmanager__(self) -> Generator[T, None, None]:
+    def __contextmanager__(self) -> Generator[_T_co, None, None]:
         """
         Implement your context manager logic here, as you would with
         :func:`@contextmanager <contextlib.contextmanager>`.
@@ -80,7 +80,7 @@ class ContextManagerMixin(Generic[T]):
         """
 
 
-class AsyncContextManagerMixin(Generic[T]):
+class AsyncContextManagerMixin(Generic[_T_co]):
     """
     Mixin class providing async context manager functionality via a generator-based
     implementation.
@@ -91,7 +91,7 @@ class AsyncContextManagerMixin(Generic[T]):
     """
 
     @final
-    async def __aenter__(self) -> T:
+    async def __aenter__(self) -> _T_co:
         gen = self.__asynccontextmanager__()
         if not isasyncgen(gen):
             if iscoroutine(gen):
@@ -143,7 +143,7 @@ class AsyncContextManagerMixin(Generic[T]):
         raise RuntimeError("the __asynccontextmanager__() generator didn't stop")
 
     @abstractmethod
-    def __asynccontextmanager__(self) -> AsyncGenerator[T, None]:
+    def __asynccontextmanager__(self) -> AsyncGenerator[_T_co, None]:
         """
         Implement your async context manager logic here, as you would with
         :func:`@asynccontextmanager <contextlib.asynccontextmanager>`.
