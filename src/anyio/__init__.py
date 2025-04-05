@@ -40,6 +40,9 @@ from ._core._sockets import wait_socket_readable as wait_socket_readable
 from ._core._sockets import wait_socket_writable as wait_socket_writable
 from ._core._sockets import wait_writable as wait_writable
 from ._core._streams import create_memory_object_stream as create_memory_object_stream
+from ._core._streams import (
+    create_priority_memory_object_stream as create_priority_memory_object_stream,
+)
 from ._core._subprocesses import open_process as open_process
 from ._core._subprocesses import run_process as run_process
 from ._core._synchronization import CapacityLimiter as CapacityLimiter
