@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import abc
 import heapq
 import warnings
 from collections import OrderedDict, deque
@@ -68,7 +67,7 @@ class MemoryObjectItemReceiver(Generic[T_Item]):
 
 
 @dataclass(eq=False)
-class BaseMemoryObjectStreamState(abc.ABC, Generic[T_Item]):
+class MemoryObjectStreamState(Generic[T_Item]):
     max_buffer_size: float = field()
     open_send_channels: int = field(init=False, default=0)
     open_receive_channels: int = field(init=False, default=0)
@@ -78,10 +77,7 @@ class BaseMemoryObjectStreamState(abc.ABC, Generic[T_Item]):
     waiting_senders: OrderedDict[Event, T_Item] = field(
         init=False, default_factory=OrderedDict
     )
-
-    @property
-    @abc.abstractmethod
-    def buffer(self) -> Buffer[T_Item]: ...
+    buffer: Buffer[T_Item] = field(init=False, default_factory=deque)
 
     def statistics(self) -> MemoryObjectStreamStatistics:
         return MemoryObjectStreamStatistics(
@@ -95,18 +91,13 @@ class BaseMemoryObjectStreamState(abc.ABC, Generic[T_Item]):
 
 
 @dataclass(eq=False)
-class MemoryObjectStreamState(BaseMemoryObjectStreamState[T_Item]):
-    buffer: deque[T_Item] = field(init=False, default_factory=deque)
-
-
-@dataclass(eq=False)
-class PriorityMemoryObjectStreamState(BaseMemoryObjectStreamState[T_Item]):
+class PriorityMemoryObjectStreamState(MemoryObjectStreamState[T_Item]):
     buffer: HeapQ[T_Item] = field(init=False, default_factory=HeapQ)
 
 
 @dataclass(eq=False)
 class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
-    _state: BaseMemoryObjectStreamState[T_co]
+    _state: MemoryObjectStreamState[T_co]
     _closed: bool = field(init=False, default=False)
 
     def __post_init__(self) -> None:
@@ -224,7 +215,7 @@ class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
 
 @dataclass(eq=False)
 class MemoryObjectSendStream(Generic[T_contra], ObjectSendStream[T_contra]):
-    _state: BaseMemoryObjectStreamState[T_contra]
+    _state: MemoryObjectStreamState[T_contra]
     _closed: bool = field(init=False, default=False)
 
     def __post_init__(self) -> None:
