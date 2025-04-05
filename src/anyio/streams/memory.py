@@ -69,6 +69,7 @@ class MemoryObjectItemReceiver(Generic[T_Item]):
 @dataclass(eq=False)
 class MemoryObjectStreamState(Generic[T_Item]):
     max_buffer_size: float = field()
+    buffer: Buffer[T_Item] = field(init=False, default_factory=deque)
     open_send_channels: int = field(init=False, default=0)
     open_receive_channels: int = field(init=False, default=0)
     waiting_receivers: OrderedDict[Event, MemoryObjectItemReceiver[T_Item]] = field(
@@ -77,7 +78,6 @@ class MemoryObjectStreamState(Generic[T_Item]):
     waiting_senders: OrderedDict[Event, T_Item] = field(
         init=False, default_factory=OrderedDict
     )
-    buffer: Buffer[T_Item] = field(init=False, default_factory=deque)
 
     def statistics(self) -> MemoryObjectStreamStatistics:
         return MemoryObjectStreamStatistics(
