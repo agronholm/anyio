@@ -371,6 +371,22 @@ class TestBlockingPortal:
         assert isinstance(thread_id, int)
         assert thread_id != threading.get_ident()
 
+    def test_start_with_thread_name(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        with start_blocking_portal(
+            anyio_backend_name, anyio_backend_options, name="foo"
+        ) as portal:
+            assert portal.call(lambda: threading.current_thread().name) == "foo"
+
+    def test_start_without_thread_name(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            assert portal.call(lambda: threading.current_thread().name) == (
+                f"{anyio_backend_name}-portal-{id(portal):x}"
+            )
+
     def test_start_with_nonexistent_backend(self) -> None:
         with pytest.raises(LookupError) as exc:
             with start_blocking_portal("foo"):
