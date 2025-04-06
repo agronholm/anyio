@@ -62,7 +62,7 @@ class ContextManagerMixin(Generic[_T_co]):
 
         # Prevent circular references
         cm = self.__cm
-        self.__cm = None
+        del self.__cm
 
         if exc_val is not None:
             try:
