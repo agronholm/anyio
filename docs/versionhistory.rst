@@ -8,6 +8,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added context manager mix-in classes (``anyio.ContextManagerMixin`` and
   ``anyio.AsyncContextManagerMixin``) to help write classes that embed other context
   managers (particularly cancel scopes or task groups)
+- Added the ability to specify the thread name in ``start_blocking_portal()``
+  (`#818 <https://github.com/agronholm/anyio/issues/818>`_; PR by @davidbrochart)
 
 **4.9.0**
 
