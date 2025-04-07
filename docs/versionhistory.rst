@@ -5,15 +5,17 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added the ability to specify the thread name in ``start_blocking_portal()``
+  (`#818 <https://github.com/agronholm/anyio/issues/818>`_; PR by @davidbrochart)
 - Added ``anyio.notify_closing`` to allow waking ``anyio.wait_readable``
-  and ``anyio.wait_writable`` before closing a socket. Among other things
+  and ``anyio.wait_writable`` before closing a socket. Among other things,
   this prevents an OSError on the ``ProactorEventLoop``.
   (`#123 <https://github.com/agronholm/anyio/pull/896>`_; PR by @graingert)
 
 **4.9.0**
 
 - Added async support for temporary file handling
-  (`#344 <https://github.com/agronholm/anyio/issues/873>`_; PR by @11kkw)
+  (`#344 <https://github.com/agronholm/anyio/issues/344>`_; PR by @11kkw)
 - Added 4 new fixtures for the AnyIO ``pytest`` plugin:
 
   * ``free_tcp_port_factory``: session scoped fixture returning a callable that

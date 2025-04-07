@@ -150,7 +150,7 @@ _ignore_win32_resource_warnings = (
         "ignore:unclosed <socket.socket:ResourceWarning",
         "ignore:unclosed transport <_ProactorSocketTransport closing:ResourceWarning",
     )
-    if sys.platform == "win32"
+    if sys.version_info < (3, 10) and sys.platform == "win32"
     else _identity
 )
 
