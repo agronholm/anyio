@@ -2737,8 +2737,12 @@ class AsyncIOBackend(AsyncBackend):
         try:
             success = await fut
         finally:
-            remove_reader(obj)
-            del read_events[obj]
+            try:
+                del read_events[obj]
+            except KeyError:
+                pass
+            else:
+                remove_reader(obj)
         if not success:
             raise ClosedResourceError
 
@@ -2780,8 +2784,12 @@ class AsyncIOBackend(AsyncBackend):
         try:
             success = await fut
         finally:
-            del write_events[obj]
-            remove_writer(obj)
+            try:
+                del write_events[obj]
+            except KeyError:
+                pass
+            else:
+                remove_writer(obj)
         if not success:
             raise ClosedResourceError
 
@@ -2798,7 +2806,7 @@ class AsyncIOBackend(AsyncBackend):
             pass
         else:
             try:
-                fut = write_events[obj]
+                fut = write_events.pop(obj)
             except KeyError:
                 pass
             else:
@@ -2820,7 +2828,7 @@ class AsyncIOBackend(AsyncBackend):
             pass
         else:
             try:
-                fut = read_events[obj]
+                fut = read_events.pop(obj)
             except KeyError:
                 pass
             else:
