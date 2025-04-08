@@ -286,6 +286,18 @@ class AsyncBackend(metaclass=ABCMeta):
         pass
 
     @classmethod
+    @abstractmethod
+    async def wrap_client_socket(
+        cls, raw_socket: socket
+    ) -> SocketStream | ConnectedUDPSocket:
+        pass
+
+    @classmethod
+    @abstractmethod
+    async def wrap_server_socket(cls, raw_socket: socket) -> SocketListener | UDPSocket:
+        pass
+
+    @classmethod
     @overload
     async def create_unix_datagram_socket(
         cls, raw_socket: socket, remote_path: None
