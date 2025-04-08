@@ -2707,10 +2707,9 @@ class AsyncIOBackend(AsyncBackend):
             read_events = {}
             _read_events.set(read_events)
 
-        if not isinstance(obj, int):
-            obj = obj.fileno()
+        fd = obj if isinstance(obj, int) else obj.fileno()
 
-        if read_events.get(obj):
+        if read_events.get(fd):
             raise BusyResourceError("reading from")
 
         loop = get_running_loop()
@@ -2718,31 +2717,37 @@ class AsyncIOBackend(AsyncBackend):
 
         def cb() -> None:
             try:
+                del read_events[fd]
+            except KeyError:
+                pass
+            else:
+                remove_reader(fd)
+            try:
                 fut.set_result(True)
             except asyncio.InvalidStateError:
                 pass
 
         try:
-            loop.add_reader(obj, cb)
+            loop.add_reader(fd, cb)
         except NotImplementedError:
             from anyio._core._asyncio_selector_thread import get_selector
 
             selector = get_selector()
-            selector.add_reader(obj, cb)
+            selector.add_reader(fd, cb)
             remove_reader = selector.remove_reader
         else:
             remove_reader = loop.remove_reader
 
-        read_events[obj] = fut
+        read_events[fd] = fut
         try:
             success = await fut
         finally:
             try:
-                del read_events[obj]
+                del read_events[fd]
             except KeyError:
                 pass
             else:
-                remove_reader(obj)
+                remove_reader(fd)
         if not success:
             raise ClosedResourceError
 
@@ -2754,10 +2759,9 @@ class AsyncIOBackend(AsyncBackend):
             write_events = {}
             _write_events.set(write_events)
 
-        if not isinstance(obj, int):
-            obj = obj.fileno()
+        fd = obj if isinstance(obj, int) else obj.fileno()
 
-        if write_events.get(obj):
+        if write_events.get(fd):
             raise BusyResourceError("writing to")
 
         loop = get_running_loop()
@@ -2765,38 +2769,44 @@ class AsyncIOBackend(AsyncBackend):
 
         def cb() -> None:
             try:
+                del write_events[fd]
+            except KeyError:
+                pass
+            else:
+                remove_writer(fd)
+
+            try:
                 fut.set_result(True)
             except asyncio.InvalidStateError:
                 pass
 
         try:
-            loop.add_writer(obj, cb)
+            loop.add_writer(fd, cb)
         except NotImplementedError:
             from anyio._core._asyncio_selector_thread import get_selector
 
             selector = get_selector()
-            selector.add_writer(obj, cb)
+            selector.add_writer(fd, cb)
             remove_writer = selector.remove_writer
         else:
             remove_writer = loop.remove_writer
 
-        write_events[obj] = fut
+        write_events[fd] = fut
         try:
             success = await fut
         finally:
             try:
-                del write_events[obj]
+                del write_events[fd]
             except KeyError:
                 pass
             else:
-                remove_writer(obj)
+                remove_writer(fd)
         if not success:
             raise ClosedResourceError
 
     @classmethod
     def notify_closing(cls, obj: FileDescriptorLike) -> None:
-        if not isinstance(obj, int):
-            obj = obj.fileno()
+        fd = obj if isinstance(obj, int) else obj.fileno()
 
         loop = get_running_loop()
 
@@ -2806,7 +2816,7 @@ class AsyncIOBackend(AsyncBackend):
             pass
         else:
             try:
-                fut = write_events.pop(obj)
+                fut = write_events.pop(fd)
             except KeyError:
                 pass
             else:
@@ -2815,12 +2825,12 @@ class AsyncIOBackend(AsyncBackend):
                 except asyncio.InvalidStateError:
                     pass
                 try:
-                    loop.remove_writer(obj)
+                    loop.remove_writer(fd)
                 except NotImplementedError:
                     from anyio._core._asyncio_selector_thread import get_selector
 
                     selector = get_selector()
-                    selector.remove_writer(obj)
+                    selector.remove_writer(fd)
 
         try:
             read_events = _read_events.get()
@@ -2828,7 +2838,7 @@ class AsyncIOBackend(AsyncBackend):
             pass
         else:
             try:
-                fut = read_events.pop(obj)
+                fut = read_events.pop(fd)
             except KeyError:
                 pass
             else:
@@ -2837,12 +2847,12 @@ class AsyncIOBackend(AsyncBackend):
                 except asyncio.InvalidStateError:
                     pass
                 try:
-                    loop.remove_reader(obj)
+                    loop.remove_reader(fd)
                 except NotImplementedError:
                     from anyio._core._asyncio_selector_thread import get_selector
 
                     selector = get_selector()
-                    selector.remove_reader(obj)
+                    selector.remove_reader(fd)
 
     @classmethod
     def current_default_thread_limiter(cls) -> CapacityLimiter:
