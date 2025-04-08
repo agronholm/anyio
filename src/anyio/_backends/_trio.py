@@ -43,6 +43,7 @@ from outcome import Error, Outcome, Value
 from trio.lowlevel import (
     current_root_task,
     current_task,
+    notify_closing,
     wait_readable,
     wait_writable,
 )
@@ -82,7 +83,7 @@ from ..abc._eventloop import AsyncBackend, StrOrBytesPath
 from ..streams.memory import MemoryObjectSendStream
 
 if TYPE_CHECKING:
-    from _typeshed import HasFileno
+    from _typeshed import FileDescriptorLike
 
 if sys.version_info >= (3, 10):
     from typing import ParamSpec
@@ -1264,7 +1265,7 @@ class TrioBackend(AsyncBackend):
         return await trio.socket.getnameinfo(sockaddr, flags)
 
     @classmethod
-    async def wait_readable(cls, obj: HasFileno | int) -> None:
+    async def wait_readable(cls, obj: FileDescriptorLike) -> None:
         try:
             await wait_readable(obj)
         except trio.ClosedResourceError as exc:
@@ -1273,13 +1274,17 @@ class TrioBackend(AsyncBackend):
             raise BusyResourceError("reading from") from None
 
     @classmethod
-    async def wait_writable(cls, obj: HasFileno | int) -> None:
+    async def wait_writable(cls, obj: FileDescriptorLike) -> None:
         try:
             await wait_writable(obj)
         except trio.ClosedResourceError as exc:
             raise ClosedResourceError().with_traceback(exc.__traceback__) from None
         except trio.BusyResourceError:
             raise BusyResourceError("writing to") from None
+
+    @classmethod
+    def notify_closing(cls, obj: FileDescriptorLike) -> None:
+        notify_closing(obj)
 
     @classmethod
     def current_default_thread_limiter(cls) -> CapacityLimiter:
