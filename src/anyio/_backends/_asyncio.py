@@ -2748,6 +2748,7 @@ class AsyncIOBackend(AsyncBackend):
                 pass
             else:
                 remove_reader(fd)
+
         if not success:
             raise ClosedResourceError
 
@@ -2800,6 +2801,7 @@ class AsyncIOBackend(AsyncBackend):
                 pass
             else:
                 remove_writer(fd)
+
         if not success:
             raise ClosedResourceError
 
