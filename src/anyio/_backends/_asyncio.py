@@ -2760,7 +2760,6 @@ class AsyncIOBackend(AsyncBackend):
             _write_events.set(write_events)
 
         fd = obj if isinstance(obj, int) else obj.fileno()
-
         if write_events.get(fd):
             raise BusyResourceError("writing to")
 
@@ -2807,7 +2806,6 @@ class AsyncIOBackend(AsyncBackend):
     @classmethod
     def notify_closing(cls, obj: FileDescriptorLike) -> None:
         fd = obj if isinstance(obj, int) else obj.fileno()
-
         loop = get_running_loop()
 
         try:
@@ -2824,13 +2822,13 @@ class AsyncIOBackend(AsyncBackend):
                     fut.set_result(False)
                 except asyncio.InvalidStateError:
                     pass
+
                 try:
                     loop.remove_writer(fd)
                 except NotImplementedError:
                     from anyio._core._asyncio_selector_thread import get_selector
 
-                    selector = get_selector()
-                    selector.remove_writer(fd)
+                    get_selector().remove_writer(fd)
 
         try:
             read_events = _read_events.get()
@@ -2846,13 +2844,13 @@ class AsyncIOBackend(AsyncBackend):
                     fut.set_result(False)
                 except asyncio.InvalidStateError:
                     pass
+
                 try:
                     loop.remove_reader(fd)
                 except NotImplementedError:
                     from anyio._core._asyncio_selector_thread import get_selector
 
-                    selector = get_selector()
-                    selector.remove_reader(fd)
+                    get_selector().remove_reader(fd)
 
     @classmethod
     def current_default_thread_limiter(cls) -> CapacityLimiter:
