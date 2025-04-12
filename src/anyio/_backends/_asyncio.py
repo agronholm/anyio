@@ -2721,6 +2721,7 @@ class AsyncIOBackend(AsyncBackend):
                 pass
             else:
                 remove_reader(fd)
+
             try:
                 fut.set_result(True)
             except asyncio.InvalidStateError:
