@@ -143,6 +143,14 @@ def _identity(v: _T) -> _T:
     return v
 
 
+def fill_socket(sock: socket.socket) -> None:
+    try:
+        while True:
+            sock.send(b"x" * 65536)
+    except BlockingIOError:
+        pass
+
+
 #  _ProactorBasePipeTransport.abort() after _ProactorBasePipeTransport.close()
 # does not cancel writes: https://bugs.python.org/issue44428
 _ignore_win32_resource_warnings = (
@@ -1933,14 +1941,6 @@ async def test_deprecated_wait_socket(anyio_backend_name: str) -> None:
         ):
             with move_on_after(0.1):
                 await wait_socket_writable(sock)
-
-
-def fill_socket(sock: socket.socket) -> None:
-    try:
-        while True:
-            sock.send(b"x" * 65536)
-    except BlockingIOError:
-        pass
 
 
 @pytest.mark.parametrize("socket_type", ["socket", "fd"])
