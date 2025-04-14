@@ -14,7 +14,7 @@ import time
 from collections.abc import Generator, Iterable, Iterator
 from contextlib import suppress
 from pathlib import Path
-from socket import AddressFamily, SocketKind
+from socket import AddressFamily
 from ssl import SSLContext, SSLError
 from threading import Thread
 from typing import TYPE_CHECKING, Any, Literal, NoReturn, TypeVar, cast
@@ -1851,29 +1851,8 @@ class TestConnectedUNIXDatagramSocket:
             await udp.send(b"foo")
 
 
-async def test_getaddrinfo(monkeypatch: MonkeyPatch) -> None:
-    def fake_getaddrinfo(
-        host: str | bytes,
-        port: int | str,
-        family: int = 0,
-        type: int = 0,
-        proto: int = 0,
-        flags: int = 0,
-    ) -> list[tuple[int, int, int, str, tuple[str, int]]]:
-        if host == b"xn--fa-hia.de":
-            address = "1.2.3.4"
-        else:
-            assert host == b"fass.de"
-            address = "5.6.7.8"
-
-        return [
-            (AddressFamily.AF_INET, SocketKind.SOCK_RAW, 6, "", (address, 0)),
-            (AddressFamily.AF_INET, SocketKind.SOCK_RAW, 17, "", (address, 0)),
-            (AddressFamily.AF_INET, SocketKind.SOCK_RAW, 0, "", (address, 0)),
-        ]
-
-    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
-
+@pytest.mark.network
+async def test_getaddrinfo() -> None:
     # IDNA 2003 gets this wrong
     correct = await getaddrinfo("faß.de", 0)
     wrong = await getaddrinfo("fass.de", 0)

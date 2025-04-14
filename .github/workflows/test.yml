@@ -91,6 +91,18 @@ jobs:
         cache-dependency-path: pyproject.toml
     - name: Install dependencies
       run: pip install -e .[test]
+    - name: Patch /etc/hosts
+      if: runner.os != 'Windows'
+      run: |
+        sudo echo "1.2.3.4 xn--fa-hia.de" >> /etc/hosts
+        sudo echo "5.6.7.8 fass.de" >> /etc/hosts
+    - name: Patch C:\Windows\System32\drivers\etc\hosts
+      if: runner.os == 'Windows'
+      run: |
+        Add-Content -Path C:\Windows\System32\drivers\etc\hosts -Value "1.2.3.4 xn--fa-hia.de"
+        Add-Content -Path C:\Windows\System32\drivers\etc\hosts -Value "5.6.7.8 fass.de"
+    - name: Install coverage
+      run: pip install coverage
     - name: Test with pytest
       run: coverage run -m pytest -v
       timeout-minutes: 5
