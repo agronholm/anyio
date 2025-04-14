@@ -47,6 +47,7 @@ from anyio import (
     getaddrinfo,
     getnameinfo,
     move_on_after,
+    notify_closing,
     wait_all_tasks_blocked,
     wait_readable,
     wait_socket_readable,
@@ -140,6 +141,14 @@ _T = TypeVar("_T")
 
 def _identity(v: _T) -> _T:
     return v
+
+
+def fill_socket(sock: socket.socket) -> None:
+    try:
+        while True:
+            sock.send(b"x" * 65536)
+    except BlockingIOError:
+        pass
 
 
 #  _ProactorBasePipeTransport.abort() after _ProactorBasePipeTransport.close()
@@ -1953,3 +1962,30 @@ async def test_deprecated_wait_socket(anyio_backend_name: str) -> None:
         ):
             with move_on_after(0.1):
                 await wait_socket_writable(sock)
+
+
+@pytest.mark.parametrize("socket_type", ["socket", "fd"])
+async def test_interrupted_by_close(socket_type: str) -> None:
+    a_sock, b = socket.socketpair()
+    with a_sock, b:
+        a_sock.setblocking(False)
+        b.setblocking(False)
+
+        a: FileDescriptorLike = a_sock.fileno() if socket_type == "fd" else a_sock
+
+        async def reader() -> None:
+            with pytest.raises(ClosedResourceError):
+                await wait_readable(a)
+
+        async def writer() -> None:
+            with pytest.raises(ClosedResourceError):
+                await wait_writable(a)
+
+        fill_socket(a_sock)
+
+        async with create_task_group() as tg:
+            tg.start_soon(reader)
+            tg.start_soon(writer)
+            await wait_all_tasks_blocked()
+            notify_closing(a_sock)
+            a_sock.close()
