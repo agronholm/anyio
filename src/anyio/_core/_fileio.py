@@ -428,7 +428,7 @@ class Path:
                 follow_symlinks=follow_symlinks,
                 preserve_metadata=preserve_metadata,
             )
-            return Path(await to_thread.run_sync(func, target))
+            return Path(await to_thread.run_sync(func, pathlib.Path(target)))
 
         async def copy_into(
             self,
@@ -442,7 +442,7 @@ class Path:
                 follow_symlinks=follow_symlinks,
                 preserve_metadata=preserve_metadata,
             )
-            return Path(await to_thread.run_sync(func, target_dir))
+            return Path(await to_thread.run_sync(func, pathlib.Path(target_dir)))
 
         async def move(self, target: str | os.PathLike[str]) -> Path:
             # Upstream does not handle anyio.Path properly as a PathLike
