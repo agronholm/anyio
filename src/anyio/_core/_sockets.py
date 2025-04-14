@@ -213,25 +213,18 @@ async def connect_tcp(
     connected_stream: SocketStream | None = None
     async with as_completed(
         [try_connect(remote_ip) for _af, remote_ip in target_addrs],
-        max_per_second=1 / happy_eyeballs_delay,
+        max_per_second=1 // happy_eyeballs_delay,
     ) as results:
         async for handle in results:
             if handle.cancelled:
                 continue
 
-            retval = await handle.wait()
-            if isinstance(retval, OSError):
-                # Store connection errors and raise them all if none of the attempts
-                # succeed
-                oserrors.append(retval)
-            elif connected_stream is None:
-                # When the first connection succeeds, store that stream and cancel all
-                # the rest of the tasks
+            retval = await handle
+            if isinstance(retval, SocketStream):
                 connected_stream = retval
                 results.cancel_all()
             else:
-                # If any other tasks also manage to connect, close those connections
-                await retval.aclose()
+                oserrors.append(retval)
 
     if connected_stream is None:
         cause = (

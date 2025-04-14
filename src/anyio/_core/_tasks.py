@@ -4,7 +4,7 @@ import math
 import sys
 from collections import deque
 from collections.abc import (
-    AsyncIterator,
+    AsyncGenerator,
     Callable,
     Coroutine,
     Generator,
@@ -16,9 +16,8 @@ from contextlib import asynccontextmanager, contextmanager
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
-from .. import get_cancelled_exc_class
 from ..abc._tasks import TaskGroup, TaskStatus
-from ._eventloop import current_time, get_async_backend, sleep
+from ._eventloop import current_time, get_async_backend, get_cancelled_exc_class, sleep
 
 if sys.version_info >= (3, 11):
     from typing import Self, TypeVarTuple, Unpack
@@ -183,39 +182,74 @@ def create_task_group() -> TaskGroup:
     return get_async_backend().create_task_group()
 
 
+class AwaitedTaskCancelled(Exception):
+    """
+    Raised when awaiting on a :class:`TaskHandle` which was cancelled.
+
+    This exception class exists in order to differentiate between the cancellation of
+    the host task (the one awaiting on a task) and the cancellation of the task it's
+    awaiting on. Additionally, raising :class:`asyncio.CancelledError` when waiting on
+    a task would potentially cause cancellation`counters (Python 3.11 and later) to
+    """
+
+
 class TaskHandle(Generic[T]):
+    """
+    Returned from task-spawning methods in :class:`EnhancedTaskGroup`. Can be awaited on
+    to get the return value of the task (or the raised exception). If the task was
+    cancelled, :exc:`AwaitedTaskCancelled` will be raised.
+    """
+
     __slots__ = (
-        "cancel_scope",
+        "__weakref__",
+        "_cancel_scope",
+        "_name",
         "_event",
         "_return_value",
         "_exception",
         "_start_value",
+        "_awaited",
     )
 
     _return_value: T
     _start_value: Any
 
-    def __init__(self) -> None:
+    def __init__(self, name: str | None) -> None:
         from ._synchronization import Event
 
-        self.cancel_scope: CancelScope = CancelScope()
+        self._cancel_scope: CancelScope = CancelScope()
+        self._name = name
         self._event = Event()
         self._exception: BaseException | None = None
+        self._awaited = False
 
     def set_return_value(self, value: T) -> None:
         self._return_value = value
         self._event.set()
 
     def set_exception(self, exception: BaseException) -> None:
+        if isinstance(exception, get_cancelled_exc_class()):
+            exc = AwaitedTaskCancelled(
+                f"the task being awaited on ({self.name!r}) was cancelled"
+            )
+            exc.__cause__ = exception
+            exception = exc
+
         self._exception = exception
         self._event.set()
 
     def cancel(self) -> None:
-        self.cancel_scope.cancel()
+        self._cancel_scope.cancel()
 
     @property
     def cancelled(self) -> bool:
-        return isinstance(self._exception, get_cancelled_exc_class())
+        return self._cancel_scope.cancel_called or isinstance(
+            self._exception, get_cancelled_exc_class()
+        )
+
+    @property
+    def name(self) -> str | None:
+        return self._name
 
     @property
     def exception(self) -> BaseException | None:
@@ -229,14 +263,31 @@ class TaskHandle(Generic[T]):
             raise ValueError(
                 "this task handle has no start value (the task was not started with "
                 "'await tg.start(...)`)"
+            ) from None
+
+    def __await__(self) -> Generator[Any, None, T]:
+        if self._awaited:
+            raise RuntimeError(
+                f"{self.__class__.__qualname__} cannot be awaited multiple times"
             )
 
-    async def wait(self) -> T:
-        await self._event.wait()
-        if self._exception is not None:
-            raise self._exception
+        if not self._event.is_set():
+            yield from self._event.wait().__await__()
 
-        return self._return_value
+        self._awaited = True
+        if self._exception is not None:
+            try:
+                raise self._exception
+            finally:
+                del self._exception
+
+        try:
+            return self._return_value
+        finally:
+            del self._return_value
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__qualname__} name={self.name!r}>"
 
 
 class EnhancedTaskGroup:
@@ -258,7 +309,7 @@ class EnhancedTaskGroup:
         self, coro: Coroutine[Any, Any, T], handle: TaskHandle[T]
     ) -> None:
         __tracebackhide__ = True
-        with handle.cancel_scope:
+        with handle._cancel_scope:
             try:
                 retval = await coro
             except BaseException as exc:
@@ -281,7 +332,7 @@ class EnhancedTaskGroup:
         __tracebackhide__ = True
         coro = func(*args, task_status=task_status, **kwargs)
         self._tasks[coro] = handle
-        with handle.cancel_scope:
+        with handle._cancel_scope:
             try:
                 retval = await coro
             except BaseException as exc:
@@ -301,9 +352,10 @@ class EnhancedTaskGroup:
         func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T]],
         /,
         *args: Unpack[PosArgsT],
+        name: str | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> TaskHandle[T]:
-        handle = TaskHandle[T]()
+        handle = TaskHandle[T](name)
         handle._start_value = await self._task_group.start(
             self._run_start_func, func, args, kwargs or {}, handle
         )
@@ -314,15 +366,16 @@ class EnhancedTaskGroup:
         func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T]],
         /,
         *args: Unpack[PosArgsT],
+        name: str | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> TaskHandle[T]:
         coro = func(*args, **(kwargs or {}))
-        return self.create_task(coro)
+        return self.create_task(coro, name=name)
 
     def create_task(
         self, coro: Coroutine[Any, Any, T], /, *, name: str | None = None
     ) -> TaskHandle[T]:
-        handle = TaskHandle[T]()
+        handle = TaskHandle[T](name)
         self._tasks[coro] = handle
         self._task_group.start_soon(self._run_coro, coro, handle, name=name)
         return handle
@@ -338,7 +391,7 @@ class EnhancedTaskGroup:
             task.cancel()
 
 
-class _ResultsIterator:
+class AsyncResultsIterator:
     _coros: deque[Coroutine[Any, Any, Any]]
     _task_group: EnhancedTaskGroup
     _semaphore: Semaphore
@@ -364,7 +417,7 @@ class _ResultsIterator:
 
         self._tasks: dict[Coroutine[Any, Any, Any], TaskHandle[Any]] = {}
         self._coros = deque(coros)
-        self._task_group = EnhancedTaskGroup()
+        self._task_group: EnhancedTaskGroup = EnhancedTaskGroup()
         self._send, self._receive = create_memory_object_stream[Any](len(self._coros))
         self._semaphore = Semaphore(max_at_once or len(self._coros), fast_acquire=True)
         self._rate = (
@@ -372,18 +425,20 @@ class _ResultsIterator:
         )
 
     def cancel_all(self) -> None:
+        """Cancel all the currently running tasks within this result iterator."""
         self._task_group.cancel_all()
-        while self._coros:
-            self._coros.pop().close()
+        for coro in self._coros:
+            coro.close()
+
+        self._coros.clear()
 
     async def _run_task(self, coro: Coroutine[Any, Any, Any]) -> Any:
         try:
             return await coro
         finally:
+            self._send.send_nowait(self._tasks[coro])
             self._semaphore.release()
-            with CancelScope(shield=True):
-                self._send.send_nowait(self._tasks[coro])
-                del self._tasks[coro]
+            del self._tasks[coro]
 
     async def _feed_tasks(self) -> None:
         start_time = current_time()
@@ -407,7 +462,12 @@ class _ResultsIterator:
 
     async def __aenter__(self) -> Self:
         await self._task_group.__aenter__()
-        self._task_group.start_soon(self._feed_tasks)
+        try:
+            self._task_group.start_soon(self._feed_tasks)
+        except BaseException as exc:
+            await self._task_group.__aexit__(type(exc), exc, exc.__traceback__)
+            raise
+
         return self
 
     async def __aexit__(
@@ -449,7 +509,7 @@ async def amap(
     async with EnhancedTaskGroup() as tg:
         tasks = [tg.start_soon(func, arg) for arg in args]
 
-    return [await task.wait() for task in tasks]
+    return [await task for task in tasks]
 
 
 @asynccontextmanager
@@ -459,7 +519,7 @@ async def as_completed(
     *,
     max_at_once: int | None = None,
     max_per_second: float | None = None,
-) -> AsyncIterator[_ResultsIterator]:
+) -> AsyncGenerator[AsyncResultsIterator]:
     """
     Run the given coroutines concurrently in a task group and yield task handles as they
     complete.
@@ -471,5 +531,5 @@ async def as_completed(
         handles in the order they finished
 
     """
-    async with _ResultsIterator(coros, max_at_once, max_per_second) as iterator:
+    async with AsyncResultsIterator(coros, max_at_once, max_per_second) as iterator:
         yield iterator
