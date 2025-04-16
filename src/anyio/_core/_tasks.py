@@ -430,7 +430,7 @@ class AsyncResultsIterator:
         self._task_group.cancel_all()
         self._clear_coros()
 
-    def _clear_coros(self):
+    def _clear_coros(self) -> None:
         for coro in self._coros:
             coro.close()
 
