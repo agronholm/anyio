@@ -428,6 +428,9 @@ class AsyncResultsIterator:
     def cancel_all(self) -> None:
         """Cancel all the currently running tasks within this result iterator."""
         self._task_group.cancel_all()
+        self._clear_coros()
+
+    def _clear_coros(self):
         for coro in self._coros:
             coro.close()
 
@@ -482,8 +485,7 @@ class AsyncResultsIterator:
         finally:
             self._send.close()
             self._receive.close()
-            for coro in self._coros:
-                coro.close()
+            self._clear_coros()
 
     def __aiter__(self) -> Self:
         return self
