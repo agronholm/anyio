@@ -4,17 +4,20 @@ from abc import abstractmethod
 from contextlib import AbstractAsyncContextManager, AbstractContextManager
 from inspect import isasyncgen, iscoroutine, isgenerator
 from types import TracebackType
-from typing import Protocol, TypeVar, final
+from typing import Protocol, TypeVar, cast, final
 
 _T_co = TypeVar("_T_co", covariant=True)
+_ExitT_co = TypeVar("_ExitT_co", covariant=True, bound="bool | None")
 
 
-class _SupportsCtxMgr(Protocol[_T_co]):
-    def __contextmanager__(self) -> AbstractContextManager[_T_co]: ...
+class _SupportsCtxMgr(Protocol[_T_co, _ExitT_co]):
+    def __contextmanager__(self) -> AbstractContextManager[_T_co, _ExitT_co]: ...
 
 
-class _SupportsAsyncCtxMgr(Protocol[_T_co]):
-    def __asynccontextmanager__(self) -> AbstractAsyncContextManager[_T_co]: ...
+class _SupportsAsyncCtxMgr(Protocol[_T_co, _ExitT_co]):
+    def __asynccontextmanager__(
+        self,
+    ) -> AbstractAsyncContextManager[_T_co, _ExitT_co]: ...
 
 
 class ContextManagerMixin:
@@ -30,10 +33,10 @@ class ContextManagerMixin:
         that once you enter it, you can't re-enter before first exiting it.
     """
 
-    __cm: AbstractContextManager[object] | None = None
+    __cm: AbstractContextManager[object, bool | None] | None = None
 
     @final
-    def __enter__(self: _SupportsCtxMgr[_T_co]) -> _T_co:
+    def __enter__(self: _SupportsCtxMgr[_T_co, bool | None]) -> _T_co:
         # Needed for mypy to assume self still has the __cm member
         assert isinstance(self, ContextManagerMixin)
         if self.__cm is not None:
@@ -68,11 +71,13 @@ class ContextManagerMixin:
 
     @final
     def __exit__(
-        self,
+        self: _SupportsCtxMgr[object, _ExitT_co],
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool | None:
+    ) -> _ExitT_co:
+        # Needed for mypy to assume self still has the __cm member
+        assert isinstance(self, ContextManagerMixin)
         if self.__cm is None:
             raise RuntimeError(
                 f"this {self.__class__.__qualname__} has not been entered yet"
@@ -82,10 +87,10 @@ class ContextManagerMixin:
         cm = self.__cm
         del self.__cm
 
-        return cm.__exit__(exc_type, exc_val, exc_tb)
+        return cast(_ExitT_co, cm.__exit__(exc_type, exc_val, exc_tb))
 
     @abstractmethod
-    def __contextmanager__(self) -> AbstractContextManager[object]:
+    def __contextmanager__(self) -> AbstractContextManager[object, bool | None]:
         """
         Implement your context manager logic here.
 
@@ -112,10 +117,10 @@ class AsyncContextManagerMixin:
         that once you enter it, you can't re-enter before first exiting it.
     """
 
-    __cm: AbstractAsyncContextManager[object] | None = None
+    __cm: AbstractAsyncContextManager[object, bool | None] | None = None
 
     @final
-    async def __aenter__(self: _SupportsAsyncCtxMgr[_T_co]) -> _T_co:
+    async def __aenter__(self: _SupportsAsyncCtxMgr[_T_co, bool | None]) -> _T_co:
         # Needed for mypy to assume self still has the __cm member
         assert isinstance(self, AsyncContextManagerMixin)
         if self.__cm is not None:
@@ -157,11 +162,12 @@ class AsyncContextManagerMixin:
 
     @final
     async def __aexit__(
-        self,
+        self: _SupportsAsyncCtxMgr[object, _ExitT_co],
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool | None:
+    ) -> _ExitT_co:
+        assert isinstance(self, AsyncContextManagerMixin)
         if self.__cm is None:
             raise RuntimeError(
                 f"this {self.__class__.__qualname__} has not been entered yet"
@@ -171,10 +177,12 @@ class AsyncContextManagerMixin:
         cm = self.__cm
         del self.__cm
 
-        return await cm.__aexit__(exc_type, exc_val, exc_tb)
+        return cast(_ExitT_co, await cm.__aexit__(exc_type, exc_val, exc_tb))
 
     @abstractmethod
-    def __asynccontextmanager__(self) -> AbstractAsyncContextManager[object]:
+    def __asynccontextmanager__(
+        self,
+    ) -> AbstractAsyncContextManager[object, bool | None]:
         """
         Implement your async context manager logic here.
 
