@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Iterable
 from dataclasses import InitVar, dataclass, field
-from typing import Iterable, TypeVar
+from typing import TypeVar
 
 import pytest
 

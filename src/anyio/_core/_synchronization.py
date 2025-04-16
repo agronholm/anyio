@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import math
 from collections import deque
 from dataclasses import dataclass
 from types import TracebackType
 
-from ..lowlevel import cancel_shielded_checkpoint, checkpoint, checkpoint_if_cancelled
+from sniffio import AsyncLibraryNotFoundError
+
+from ..lowlevel import checkpoint
 from ._eventloop import get_async_backend
-from ._exceptions import BusyResourceError, WouldBlock
+from ._exceptions import BusyResourceError
 from ._tasks import CancelScope
 from ._testing import TaskInfo, get_current_task
 
@@ -76,7 +79,10 @@ class SemaphoreStatistics:
 
 class Event:
     def __new__(cls) -> Event:
-        return get_async_backend().create_event()
+        try:
+            return get_async_backend().create_event()
+        except AsyncLibraryNotFoundError:
+            return EventAdapter()
 
     def set(self) -> None:
         """Set the flag, notifying all listeners."""
@@ -101,11 +107,50 @@ class Event:
         raise NotImplementedError
 
 
-class Lock:
-    _owner_task: TaskInfo | None = None
+class EventAdapter(Event):
+    _internal_event: Event | None = None
+    _is_set: bool = False
 
-    def __init__(self) -> None:
-        self._waiters: deque[tuple[TaskInfo, Event]] = deque()
+    def __new__(cls) -> EventAdapter:
+        return object.__new__(cls)
+
+    @property
+    def _event(self) -> Event:
+        if self._internal_event is None:
+            self._internal_event = get_async_backend().create_event()
+            if self._is_set:
+                self._internal_event.set()
+
+        return self._internal_event
+
+    def set(self) -> None:
+        if self._internal_event is None:
+            self._is_set = True
+        else:
+            self._event.set()
+
+    def is_set(self) -> bool:
+        if self._internal_event is None:
+            return self._is_set
+
+        return self._internal_event.is_set()
+
+    async def wait(self) -> None:
+        await self._event.wait()
+
+    def statistics(self) -> EventStatistics:
+        if self._internal_event is None:
+            return EventStatistics(tasks_waiting=0)
+
+        return self._internal_event.statistics()
+
+
+class Lock:
+    def __new__(cls, *, fast_acquire: bool = False) -> Lock:
+        try:
+            return get_async_backend().create_lock(fast_acquire=fast_acquire)
+        except AsyncLibraryNotFoundError:
+            return LockAdapter(fast_acquire=fast_acquire)
 
     async def __aenter__(self) -> None:
         await self.acquire()
@@ -120,31 +165,7 @@ class Lock:
 
     async def acquire(self) -> None:
         """Acquire the lock."""
-        await checkpoint_if_cancelled()
-        try:
-            self.acquire_nowait()
-        except WouldBlock:
-            task = get_current_task()
-            event = Event()
-            token = task, event
-            self._waiters.append(token)
-            try:
-                await event.wait()
-            except BaseException:
-                if not event.is_set():
-                    self._waiters.remove(token)
-                elif self._owner_task == task:
-                    self.release()
-
-                raise
-
-            assert self._owner_task == task
-        else:
-            try:
-                await cancel_shielded_checkpoint()
-            except BaseException:
-                self.release()
-                raise
+        raise NotImplementedError
 
     def acquire_nowait(self) -> None:
         """
@@ -153,29 +174,15 @@ class Lock:
         :raises ~anyio.WouldBlock: if the operation would block
 
         """
-        task = get_current_task()
-        if self._owner_task == task:
-            raise RuntimeError("Attempted to acquire an already held Lock")
-
-        if self._owner_task is not None:
-            raise WouldBlock
-
-        self._owner_task = task
+        raise NotImplementedError
 
     def release(self) -> None:
         """Release the lock."""
-        if self._owner_task != get_current_task():
-            raise RuntimeError("The current task is not holding this lock")
-
-        if self._waiters:
-            self._owner_task, event = self._waiters.popleft()
-            event.set()
-        else:
-            del self._owner_task
+        raise NotImplementedError
 
     def locked(self) -> bool:
         """Return True if the lock is currently held."""
-        return self._owner_task is not None
+        raise NotImplementedError
 
     def statistics(self) -> LockStatistics:
         """
@@ -183,7 +190,71 @@ class Lock:
 
         .. versionadded:: 3.0
         """
-        return LockStatistics(self.locked(), self._owner_task, len(self._waiters))
+        raise NotImplementedError
+
+
+class LockAdapter(Lock):
+    _internal_lock: Lock | None = None
+
+    def __new__(cls, *, fast_acquire: bool = False) -> LockAdapter:
+        return object.__new__(cls)
+
+    def __init__(self, *, fast_acquire: bool = False):
+        self._fast_acquire = fast_acquire
+
+    @property
+    def _lock(self) -> Lock:
+        if self._internal_lock is None:
+            self._internal_lock = get_async_backend().create_lock(
+                fast_acquire=self._fast_acquire
+            )
+
+        return self._internal_lock
+
+    async def __aenter__(self) -> None:
+        await self._lock.acquire()
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        if self._internal_lock is not None:
+            self._internal_lock.release()
+
+    async def acquire(self) -> None:
+        """Acquire the lock."""
+        await self._lock.acquire()
+
+    def acquire_nowait(self) -> None:
+        """
+        Acquire the lock, without blocking.
+
+        :raises ~anyio.WouldBlock: if the operation would block
+
+        """
+        self._lock.acquire_nowait()
+
+    def release(self) -> None:
+        """Release the lock."""
+        self._lock.release()
+
+    def locked(self) -> bool:
+        """Return True if the lock is currently held."""
+        return self._lock.locked()
+
+    def statistics(self) -> LockStatistics:
+        """
+        Return statistics about the current state of this lock.
+
+        .. versionadded:: 3.0
+
+        """
+        if self._internal_lock is None:
+            return LockStatistics(False, None, 0)
+
+        return self._internal_lock.statistics()
 
 
 class Condition:
@@ -277,7 +348,27 @@ class Condition:
 
 
 class Semaphore:
-    def __init__(self, initial_value: int, *, max_value: int | None = None):
+    def __new__(
+        cls,
+        initial_value: int,
+        *,
+        max_value: int | None = None,
+        fast_acquire: bool = False,
+    ) -> Semaphore:
+        try:
+            return get_async_backend().create_semaphore(
+                initial_value, max_value=max_value, fast_acquire=fast_acquire
+            )
+        except AsyncLibraryNotFoundError:
+            return SemaphoreAdapter(initial_value, max_value=max_value)
+
+    def __init__(
+        self,
+        initial_value: int,
+        *,
+        max_value: int | None = None,
+        fast_acquire: bool = False,
+    ):
         if not isinstance(initial_value, int):
             raise TypeError("initial_value must be an integer")
         if initial_value < 0:
@@ -290,9 +381,7 @@ class Semaphore:
                     "max_value must be equal to or higher than initial_value"
                 )
 
-        self._value = initial_value
-        self._max_value = max_value
-        self._waiters: deque[Event] = deque()
+        self._fast_acquire = fast_acquire
 
     async def __aenter__(self) -> Semaphore:
         await self.acquire()
@@ -308,27 +397,7 @@ class Semaphore:
 
     async def acquire(self) -> None:
         """Decrement the semaphore value, blocking if necessary."""
-        await checkpoint_if_cancelled()
-        try:
-            self.acquire_nowait()
-        except WouldBlock:
-            event = Event()
-            self._waiters.append(event)
-            try:
-                await event.wait()
-            except BaseException:
-                if not event.is_set():
-                    self._waiters.remove(event)
-                else:
-                    self.release()
-
-                raise
-        else:
-            try:
-                await cancel_shielded_checkpoint()
-            except BaseException:
-                self.release()
-                raise
+        raise NotImplementedError
 
     def acquire_nowait(self) -> None:
         """
@@ -337,30 +406,21 @@ class Semaphore:
         :raises ~anyio.WouldBlock: if the operation would block
 
         """
-        if self._value == 0:
-            raise WouldBlock
-
-        self._value -= 1
+        raise NotImplementedError
 
     def release(self) -> None:
         """Increment the semaphore value."""
-        if self._max_value is not None and self._value == self._max_value:
-            raise ValueError("semaphore released too many times")
-
-        if self._waiters:
-            self._waiters.popleft().set()
-        else:
-            self._value += 1
+        raise NotImplementedError
 
     @property
     def value(self) -> int:
         """The current value of the semaphore."""
-        return self._value
+        raise NotImplementedError
 
     @property
     def max_value(self) -> int | None:
         """The maximum value of the semaphore."""
-        return self._max_value
+        raise NotImplementedError
 
     def statistics(self) -> SemaphoreStatistics:
         """
@@ -368,12 +428,74 @@ class Semaphore:
 
         .. versionadded:: 3.0
         """
-        return SemaphoreStatistics(len(self._waiters))
+        raise NotImplementedError
+
+
+class SemaphoreAdapter(Semaphore):
+    _internal_semaphore: Semaphore | None = None
+
+    def __new__(
+        cls,
+        initial_value: int,
+        *,
+        max_value: int | None = None,
+        fast_acquire: bool = False,
+    ) -> SemaphoreAdapter:
+        return object.__new__(cls)
+
+    def __init__(
+        self,
+        initial_value: int,
+        *,
+        max_value: int | None = None,
+        fast_acquire: bool = False,
+    ) -> None:
+        super().__init__(initial_value, max_value=max_value, fast_acquire=fast_acquire)
+        self._initial_value = initial_value
+        self._max_value = max_value
+
+    @property
+    def _semaphore(self) -> Semaphore:
+        if self._internal_semaphore is None:
+            self._internal_semaphore = get_async_backend().create_semaphore(
+                self._initial_value, max_value=self._max_value
+            )
+
+        return self._internal_semaphore
+
+    async def acquire(self) -> None:
+        await self._semaphore.acquire()
+
+    def acquire_nowait(self) -> None:
+        self._semaphore.acquire_nowait()
+
+    def release(self) -> None:
+        self._semaphore.release()
+
+    @property
+    def value(self) -> int:
+        if self._internal_semaphore is None:
+            return self._initial_value
+
+        return self._semaphore.value
+
+    @property
+    def max_value(self) -> int | None:
+        return self._max_value
+
+    def statistics(self) -> SemaphoreStatistics:
+        if self._internal_semaphore is None:
+            return SemaphoreStatistics(tasks_waiting=0)
+
+        return self._semaphore.statistics()
 
 
 class CapacityLimiter:
     def __new__(cls, total_tokens: float) -> CapacityLimiter:
-        return get_async_backend().create_capacity_limiter(total_tokens)
+        try:
+            return get_async_backend().create_capacity_limiter(total_tokens)
+        except AsyncLibraryNotFoundError:
+            return CapacityLimiterAdapter(total_tokens)
 
     async def __aenter__(self) -> None:
         raise NotImplementedError
@@ -482,6 +604,99 @@ class CapacityLimiter:
         raise NotImplementedError
 
 
+class CapacityLimiterAdapter(CapacityLimiter):
+    _internal_limiter: CapacityLimiter | None = None
+
+    def __new__(cls, total_tokens: float) -> CapacityLimiterAdapter:
+        return object.__new__(cls)
+
+    def __init__(self, total_tokens: float) -> None:
+        self.total_tokens = total_tokens
+
+    @property
+    def _limiter(self) -> CapacityLimiter:
+        if self._internal_limiter is None:
+            self._internal_limiter = get_async_backend().create_capacity_limiter(
+                self._total_tokens
+            )
+
+        return self._internal_limiter
+
+    async def __aenter__(self) -> None:
+        await self._limiter.__aenter__()
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
+        return await self._limiter.__aexit__(exc_type, exc_val, exc_tb)
+
+    @property
+    def total_tokens(self) -> float:
+        if self._internal_limiter is None:
+            return self._total_tokens
+
+        return self._internal_limiter.total_tokens
+
+    @total_tokens.setter
+    def total_tokens(self, value: float) -> None:
+        if not isinstance(value, int) and value is not math.inf:
+            raise TypeError("total_tokens must be an int or math.inf")
+        elif value < 1:
+            raise ValueError("total_tokens must be >= 1")
+
+        if self._internal_limiter is None:
+            self._total_tokens = value
+            return
+
+        self._limiter.total_tokens = value
+
+    @property
+    def borrowed_tokens(self) -> int:
+        if self._internal_limiter is None:
+            return 0
+
+        return self._internal_limiter.borrowed_tokens
+
+    @property
+    def available_tokens(self) -> float:
+        if self._internal_limiter is None:
+            return self._total_tokens
+
+        return self._internal_limiter.available_tokens
+
+    def acquire_nowait(self) -> None:
+        self._limiter.acquire_nowait()
+
+    def acquire_on_behalf_of_nowait(self, borrower: object) -> None:
+        self._limiter.acquire_on_behalf_of_nowait(borrower)
+
+    async def acquire(self) -> None:
+        await self._limiter.acquire()
+
+    async def acquire_on_behalf_of(self, borrower: object) -> None:
+        await self._limiter.acquire_on_behalf_of(borrower)
+
+    def release(self) -> None:
+        self._limiter.release()
+
+    def release_on_behalf_of(self, borrower: object) -> None:
+        self._limiter.release_on_behalf_of(borrower)
+
+    def statistics(self) -> CapacityLimiterStatistics:
+        if self._internal_limiter is None:
+            return CapacityLimiterStatistics(
+                borrowed_tokens=0,
+                total_tokens=self.total_tokens,
+                borrowers=(),
+                tasks_waiting=0,
+            )
+
+        return self._internal_limiter.statistics()
+
+
 class ResourceGuard:
     """
     A context manager for ensuring that a resource is only used by a single task at a
@@ -492,6 +707,8 @@ class ResourceGuard:
 
     :param action: the action to guard against (visible in the :exc:`BusyResourceError`
         when triggered, e.g. "Another task is already {action} this resource")
+
+    .. versionadded:: 4.1
     """
 
     __slots__ = "action", "_guarded"
@@ -511,6 +728,5 @@ class ResourceGuard:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool | None:
+    ) -> None:
         self._guarded = False
-        return None

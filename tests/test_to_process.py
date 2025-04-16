@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import os
-import platform
 import sys
 import time
 from functools import partial
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+from pytest import MonkeyPatch
 
 from anyio import (
     CancelScope,
@@ -19,16 +20,6 @@ from anyio import (
 from anyio.abc import Process
 
 pytestmark = pytest.mark.anyio
-
-
-@pytest.fixture(autouse=True)
-def check_compatibility(anyio_backend_name: str) -> None:
-    if anyio_backend_name == "asyncio":
-        if platform.system() == "Windows" and sys.version_info < (3, 8):
-            pytest.skip(
-                "Python < 3.8 uses SelectorEventLoop by default and it does not "
-                "support subprocesses"
-            )
 
 
 async def test_run_sync_in_process_pool() -> None:
@@ -82,6 +73,7 @@ async def test_cancel_before() -> None:
     pytest.raises(LookupError, to_process._process_pool_workers.get)
 
 
+@pytest.mark.usefixtures("deactivate_blockbuster")
 async def test_cancel_during() -> None:
     """
     Test that cancelling an operation on the worker process causes the process to be
@@ -124,3 +116,17 @@ async def test_exec_while_pruning() -> None:
         assert idle_workers[0][0] is real_worker
     finally:
         workers.discard(fake_idle_process)
+
+
+async def test_nonexistent_main_module(
+    monkeypatch: MonkeyPatch, tmp_path: Path
+) -> None:
+    """
+    Test that worker process creation won't fail if the detected path to the `__main__`
+    module doesn't exist. Regression test for #696.
+    """
+
+    script_path = tmp_path / "badscript"
+    script_path.touch()
+    monkeypatch.setattr("__main__.__file__", str(script_path / "__main__.py"))
+    await to_process.run_sync(os.getpid)

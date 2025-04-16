@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import math
+import sys
 from abc import ABCMeta, abstractmethod
-from collections.abc import AsyncIterator, Awaitable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from contextlib import AbstractContextManager
 from os import PathLike
 from signal import Signals
 from socket import AddressFamily, SocketKind, socket
@@ -10,17 +12,25 @@ from typing import (
     IO,
     TYPE_CHECKING,
     Any,
-    Callable,
-    ContextManager,
-    Sequence,
     TypeVar,
+    Union,
     overload,
 )
 
-if TYPE_CHECKING:
-    from typing import Literal
+if sys.version_info >= (3, 11):
+    from typing import TypeVarTuple, Unpack
+else:
+    from typing_extensions import TypeVarTuple, Unpack
 
-    from .._core._synchronization import CapacityLimiter, Event
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
+else:
+    from typing_extensions import TypeAlias
+
+if TYPE_CHECKING:
+    from _typeshed import FileDescriptorLike
+
+    from .._core._synchronization import CapacityLimiter, Event, Lock, Semaphore
     from .._core._tasks import CancelScope
     from .._core._testing import TaskInfo
     from ..from_thread import BlockingPortal
@@ -39,6 +49,8 @@ if TYPE_CHECKING:
     from ._testing import TestRunner
 
 T_Retval = TypeVar("T_Retval")
+PosArgsT = TypeVarTuple("PosArgsT")
+StrOrBytesPath: TypeAlias = Union[str, bytes, "PathLike[str]", "PathLike[bytes]"]
 
 
 class AsyncBackend(metaclass=ABCMeta):
@@ -46,8 +58,8 @@ class AsyncBackend(metaclass=ABCMeta):
     @abstractmethod
     def run(
         cls,
-        func: Callable[..., Awaitable[T_Retval]],
-        args: tuple[Any, ...],
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+        args: tuple[Unpack[PosArgsT]],
         kwargs: dict[str, Any],
         options: dict[str, Any],
     ) -> T_Retval:
@@ -162,6 +174,22 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
+    def create_lock(cls, *, fast_acquire: bool) -> Lock:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def create_semaphore(
+        cls,
+        initial_value: int,
+        *,
+        max_value: int | None = None,
+        fast_acquire: bool = False,
+    ) -> Semaphore:
+        pass
+
+    @classmethod
+    @abstractmethod
     def create_capacity_limiter(cls, total_tokens: float) -> CapacityLimiter:
         pass
 
@@ -169,8 +197,8 @@ class AsyncBackend(metaclass=ABCMeta):
     @abstractmethod
     async def run_sync_in_worker_thread(
         cls,
-        func: Callable[..., T_Retval],
-        args: tuple[Any, ...],
+        func: Callable[[Unpack[PosArgsT]], T_Retval],
+        args: tuple[Unpack[PosArgsT]],
         abandon_on_cancel: bool = False,
         limiter: CapacityLimiter | None = None,
     ) -> T_Retval:
@@ -185,8 +213,8 @@ class AsyncBackend(metaclass=ABCMeta):
     @abstractmethod
     def run_async_from_thread(
         cls,
-        func: Callable[..., Awaitable[T_Retval]],
-        args: tuple[Any],
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+        args: tuple[Unpack[PosArgsT]],
         token: object,
     ) -> T_Retval:
         pass
@@ -194,7 +222,10 @@ class AsyncBackend(metaclass=ABCMeta):
     @classmethod
     @abstractmethod
     def run_sync_from_thread(
-        cls, func: Callable[..., T_Retval], args: tuple[Any, ...], token: object
+        cls,
+        func: Callable[[Unpack[PosArgsT]], T_Retval],
+        args: tuple[Unpack[PosArgsT]],
+        token: object,
     ) -> T_Retval:
         pass
 
@@ -204,50 +235,15 @@ class AsyncBackend(metaclass=ABCMeta):
         pass
 
     @classmethod
-    @overload
-    async def open_process(
-        cls,
-        command: str | bytes,
-        *,
-        shell: Literal[True],
-        stdin: int | IO[Any] | None,
-        stdout: int | IO[Any] | None,
-        stderr: int | IO[Any] | None,
-        cwd: str | bytes | PathLike[str] | None = None,
-        env: Mapping[str, str] | None = None,
-        start_new_session: bool = False,
-    ) -> Process:
-        pass
-
-    @classmethod
-    @overload
-    async def open_process(
-        cls,
-        command: Sequence[str | bytes],
-        *,
-        shell: Literal[False],
-        stdin: int | IO[Any] | None,
-        stdout: int | IO[Any] | None,
-        stderr: int | IO[Any] | None,
-        cwd: str | bytes | PathLike[str] | None = None,
-        env: Mapping[str, str] | None = None,
-        start_new_session: bool = False,
-    ) -> Process:
-        pass
-
-    @classmethod
     @abstractmethod
     async def open_process(
         cls,
-        command: str | bytes | Sequence[str | bytes],
+        command: StrOrBytesPath | Sequence[StrOrBytesPath],
         *,
-        shell: bool,
         stdin: int | IO[Any] | None,
         stdout: int | IO[Any] | None,
         stderr: int | IO[Any] | None,
-        cwd: str | bytes | PathLike[str] | None = None,
-        env: Mapping[str, str] | None = None,
-        start_new_session: bool = False,
+        **kwargs: Any,
     ) -> Process:
         pass
 
@@ -293,15 +289,13 @@ class AsyncBackend(metaclass=ABCMeta):
     @overload
     async def create_unix_datagram_socket(
         cls, raw_socket: socket, remote_path: None
-    ) -> UNIXDatagramSocket:
-        ...
+    ) -> UNIXDatagramSocket: ...
 
     @classmethod
     @overload
     async def create_unix_datagram_socket(
         cls, raw_socket: socket, remote_path: str | bytes
-    ) -> ConnectedUNIXDatagramSocket:
-        ...
+    ) -> ConnectedUNIXDatagramSocket: ...
 
     @classmethod
     @abstractmethod
@@ -321,13 +315,13 @@ class AsyncBackend(metaclass=ABCMeta):
         type: int | SocketKind = 0,
         proto: int = 0,
         flags: int = 0,
-    ) -> list[
+    ) -> Sequence[
         tuple[
             AddressFamily,
             SocketKind,
             int,
             str,
-            tuple[str, int] | tuple[str, int, int, int],
+            tuple[str, int] | tuple[str, int, int, int] | tuple[int, bytes],
         ]
     ]:
         pass
@@ -341,12 +335,17 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    async def wait_socket_readable(cls, sock: socket) -> None:
+    async def wait_readable(cls, obj: FileDescriptorLike) -> None:
         pass
 
     @classmethod
     @abstractmethod
-    async def wait_socket_writable(cls, sock: socket) -> None:
+    async def wait_writable(cls, obj: FileDescriptorLike) -> None:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def notify_closing(cls, obj: FileDescriptorLike) -> None:
         pass
 
     @classmethod
@@ -358,7 +357,7 @@ class AsyncBackend(metaclass=ABCMeta):
     @abstractmethod
     def open_signal_receiver(
         cls, *signals: Signals
-    ) -> ContextManager[AsyncIterator[Signals]]:
+    ) -> AbstractContextManager[AsyncIterator[Signals]]:
         pass
 
     @classmethod
@@ -368,7 +367,7 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    def get_running_tasks(cls) -> list[TaskInfo]:
+    def get_running_tasks(cls) -> Sequence[TaskInfo]:
         pass
 
     @classmethod

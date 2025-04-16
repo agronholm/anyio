@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from types import TracebackType
@@ -11,6 +12,7 @@ from .. import (
     EndOfStream,
     WouldBlock,
 )
+from .._core._testing import TaskInfo, get_current_task
 from ..abc import Event, ObjectReceiveStream, ObjectSendStream
 from ..lowlevel import checkpoint
 
@@ -32,12 +34,24 @@ class MemoryObjectStreamStatistics(NamedTuple):
 
 
 @dataclass(eq=False)
+class MemoryObjectItemReceiver(Generic[T_Item]):
+    task_info: TaskInfo = field(init=False, default_factory=get_current_task)
+    item: T_Item = field(init=False)
+
+    def __repr__(self) -> str:
+        # When item is not defined, we get following error with default __repr__:
+        # AttributeError: 'MemoryObjectItemReceiver' object has no attribute 'item'
+        item = getattr(self, "item", None)
+        return f"{self.__class__.__name__}(task_info={self.task_info}, item={item!r})"
+
+
+@dataclass(eq=False)
 class MemoryObjectStreamState(Generic[T_Item]):
     max_buffer_size: float = field()
     buffer: deque[T_Item] = field(init=False, default_factory=deque)
     open_send_channels: int = field(init=False, default=0)
     open_receive_channels: int = field(init=False, default=0)
-    waiting_receivers: OrderedDict[Event, list[T_Item]] = field(
+    waiting_receivers: OrderedDict[Event, MemoryObjectItemReceiver[T_Item]] = field(
         init=False, default_factory=OrderedDict
     )
     waiting_senders: OrderedDict[Event, T_Item] = field(
@@ -87,18 +101,18 @@ class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
         except WouldBlock:
             # Add ourselves in the queue
             receive_event = Event()
-            container: list[T_co] = []
-            self._state.waiting_receivers[receive_event] = container
+            receiver = MemoryObjectItemReceiver[T_co]()
+            self._state.waiting_receivers[receive_event] = receiver
 
             try:
                 await receive_event.wait()
             finally:
                 self._state.waiting_receivers.pop(receive_event, None)
 
-            if container:
-                return container[0]
-            else:
-                raise EndOfStream
+            try:
+                return receiver.item
+            except AttributeError:
+                raise EndOfStream from None
 
     def clone(self) -> MemoryObjectReceiveStream[T_co]:
         """
@@ -153,6 +167,14 @@ class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
     ) -> None:
         self.close()
 
+    def __del__(self) -> None:
+        if not self._closed:
+            warnings.warn(
+                f"Unclosed <{self.__class__.__name__} at {id(self):x}>",
+                ResourceWarning,
+                source=self,
+            )
+
 
 @dataclass(eq=False)
 class MemoryObjectSendStream(Generic[T_contra], ObjectSendStream[T_contra]):
@@ -179,11 +201,14 @@ class MemoryObjectSendStream(Generic[T_contra], ObjectSendStream[T_contra]):
         if not self._state.open_receive_channels:
             raise BrokenResourceError
 
-        if self._state.waiting_receivers:
-            receive_event, container = self._state.waiting_receivers.popitem(last=False)
-            container.append(item)
-            receive_event.set()
-        elif len(self._state.buffer) < self._state.max_buffer_size:
+        while self._state.waiting_receivers:
+            receive_event, receiver = self._state.waiting_receivers.popitem(last=False)
+            if not receiver.task_info.has_pending_cancellation():
+                receiver.item = item
+                receive_event.set()
+                return
+
+        if len(self._state.buffer) < self._state.max_buffer_size:
             self._state.buffer.append(item)
         else:
             raise WouldBlock
@@ -214,7 +239,8 @@ class MemoryObjectSendStream(Generic[T_contra], ObjectSendStream[T_contra]):
                 self._state.waiting_senders.pop(send_event, None)
                 raise
 
-            if self._state.waiting_senders.pop(send_event, None):
+            if send_event in self._state.waiting_senders:
+                del self._state.waiting_senders[send_event]
                 raise BrokenResourceError from None
 
     def clone(self) -> MemoryObjectSendStream[T_contra]:
@@ -270,3 +296,11 @@ class MemoryObjectSendStream(Generic[T_contra], ObjectSendStream[T_contra]):
         exc_tb: TracebackType | None,
     ) -> None:
         self.close()
+
+    def __del__(self) -> None:
+        if not self._closed:
+            warnings.warn(
+                f"Unclosed <{self.__class__.__name__} at {id(self):x}>",
+                ResourceWarning,
+                source=self,
+            )

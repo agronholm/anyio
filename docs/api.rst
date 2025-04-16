@@ -50,6 +50,12 @@ Running code in worker threads
 .. autofunction:: anyio.to_thread.run_sync
 .. autofunction:: anyio.to_thread.current_default_thread_limiter
 
+Running code in subinterpreters
+-------------------------------
+
+.. autofunction:: anyio.to_interpreter.run_sync
+.. autofunction:: anyio.to_interpreter.current_default_interpreter_limiter
+
 Running code in worker processes
 --------------------------------
 
@@ -65,6 +71,7 @@ Running asynchronous code from other threads
 .. autofunction:: anyio.from_thread.start_blocking_portal
 
 .. autoclass:: anyio.from_thread.BlockingPortal
+.. autoclass:: anyio.from_thread.BlockingPortalProvider
 
 Async file I/O
 --------------
@@ -74,6 +81,19 @@ Async file I/O
 
 .. autoclass:: anyio.AsyncFile
 .. autoclass:: anyio.Path
+
+Temporary files and directories
+-------------------------------
+
+.. autofunction:: anyio.mkstemp
+.. autofunction:: anyio.mkdtemp
+.. autofunction:: anyio.gettempdir
+.. autofunction:: anyio.gettempdirb
+
+.. autoclass:: anyio.TemporaryFile
+.. autoclass:: anyio.NamedTemporaryFile
+.. autoclass:: anyio.SpooledTemporaryFile
+.. autoclass:: anyio.TemporaryDirectory
 
 Streams and stream wrappers
 ---------------------------
@@ -126,8 +146,10 @@ Sockets and networking
 .. autofunction:: anyio.create_connected_udp_socket
 .. autofunction:: anyio.getaddrinfo
 .. autofunction:: anyio.getnameinfo
+.. autofunction:: anyio.wait_readable
 .. autofunction:: anyio.wait_socket_readable
 .. autofunction:: anyio.wait_socket_writable
+.. autofunction:: anyio.wait_writable
 
 .. autoclass:: anyio.abc.SocketAttribute
 .. autoclass:: anyio.abc.SocketStream()
@@ -178,6 +200,7 @@ Testing and debugging
 ---------------------
 
 .. autoclass:: anyio.TaskInfo
+.. autoclass:: anyio.pytest_plugin.FreePortFactory
 .. autofunction:: anyio.get_current_task
 .. autofunction:: anyio.get_running_tasks
 .. autofunction:: anyio.wait_all_tasks_blocked
@@ -186,6 +209,8 @@ Exceptions
 ----------
 
 .. autoexception:: anyio.BrokenResourceError
+.. autoexception:: anyio.BrokenWorkerIntepreter
+.. autoexception:: anyio.BrokenWorkerProcess
 .. autoexception:: anyio.BusyResourceError
 .. autoexception:: anyio.ClosedResourceError
 .. autoexception:: anyio.DelimiterNotFound

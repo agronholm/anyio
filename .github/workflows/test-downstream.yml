@@ -11,12 +11,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.10", "3.12"]
+        python-version: ["3.9", "3.13"]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: encode/starlette
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "${{ matrix.python-version }}"
           allow-prereleases: true
@@ -37,12 +37,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.10", "3.12"]
+        python-version: ["3.9", "3.13"]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: encode/httpcore
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "${{ matrix.python-version }}"
           allow-prereleases: true
@@ -63,22 +63,56 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.11"]
+        python-version: ["3.9", "3.13"]
+    env:
+      UV_SYSTEM_PYTHON: 1
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: tiangolo/fastapi
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "${{ matrix.python-version }}"
-          allow-prereleases: true
-          cache: pip
-          cache-dependency-path: |
-            requirements-tests.txt
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.4.15"
+          enable-cache: true
+          cache-dependency-glob: |
+            requirements**.txt
             pyproject.toml
       - name: Install dependencies
         run: |
-          pip install -r requirements-tests.txt
-          pip install anyio[trio]@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
+          uv pip install -r requirements-tests.txt
+          uv pip install anyio[trio]@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
       - name: Run tests
-        run: bash scripts/test.sh
+        run: pytest -W ignore::ResourceWarning
+        env:
+          PYTHONPATH: ./docs_src
+
+  litestar:
+    name: "Litestar on Python ${{ matrix.python-version }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: litestar-org/litestar
+      - name: Set up python ${{ inputs.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.4"
+          enable-cache: true
+      - name: Install dependencies
+        run: |
+          uv sync
+          uv pip install anyio[trio]@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
+      - name: Test
+        run: uv run pytest docs/examples tests -n auto

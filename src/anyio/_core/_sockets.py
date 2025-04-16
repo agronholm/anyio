@@ -10,7 +10,7 @@ from collections.abc import Awaitable
 from ipaddress import IPv6Address, ip_address
 from os import PathLike, chmod
 from socket import AddressFamily, SocketKind
-from typing import Any, Literal, cast, overload
+from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
 from .. import to_thread
 from ..abc import (
@@ -31,8 +31,18 @@ from ._resources import aclose_forcefully
 from ._synchronization import Event
 from ._tasks import create_task_group, move_on_after
 
+if TYPE_CHECKING:
+    from _typeshed import FileDescriptorLike
+else:
+    FileDescriptorLike = object
+
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
+
+if sys.version_info < (3, 13):
+    from typing_extensions import deprecated
+else:
+    from warnings import deprecated
 
 IPPROTO_IPV6 = getattr(socket, "IPPROTO_IPV6", 41)  # https://bugs.python.org/issue29515
 
@@ -53,8 +63,7 @@ async def connect_tcp(
     tls_standard_compatible: bool = ...,
     tls_hostname: str,
     happy_eyeballs_delay: float = ...,
-) -> TLSStream:
-    ...
+) -> TLSStream: ...
 
 
 # ssl_context given
@@ -68,8 +77,7 @@ async def connect_tcp(
     tls_standard_compatible: bool = ...,
     tls_hostname: str | None = ...,
     happy_eyeballs_delay: float = ...,
-) -> TLSStream:
-    ...
+) -> TLSStream: ...
 
 
 # tls=True
@@ -84,8 +92,7 @@ async def connect_tcp(
     tls_standard_compatible: bool = ...,
     tls_hostname: str | None = ...,
     happy_eyeballs_delay: float = ...,
-) -> TLSStream:
-    ...
+) -> TLSStream: ...
 
 
 # tls=False
@@ -100,8 +107,7 @@ async def connect_tcp(
     tls_standard_compatible: bool = ...,
     tls_hostname: str | None = ...,
     happy_eyeballs_delay: float = ...,
-) -> SocketStream:
-    ...
+) -> SocketStream: ...
 
 
 # No TLS arguments
@@ -112,8 +118,7 @@ async def connect_tcp(
     *,
     local_host: IPAddressType | None = ...,
     happy_eyeballs_delay: float = ...,
-) -> SocketStream:
-    ...
+) -> SocketStream: ...
 
 
 async def connect_tcp(
@@ -191,6 +196,14 @@ async def connect_tcp(
     try:
         addr_obj = ip_address(remote_host)
     except ValueError:
+        addr_obj = None
+
+    if addr_obj is not None:
+        if isinstance(addr_obj, IPv6Address):
+            target_addrs = [(socket.AF_INET6, addr_obj.compressed)]
+        else:
+            target_addrs = [(socket.AF_INET, addr_obj.compressed)]
+    else:
         # getaddrinfo() will raise an exception if name resolution fails
         gai_res = await getaddrinfo(
             target_host, remote_port, family=family, type=socket.SOCK_STREAM
@@ -199,7 +212,7 @@ async def connect_tcp(
         # Organize the list so that the first address is an IPv6 address (if available)
         # and the second one is an IPv4 addresses. The rest can be in whatever order.
         v6_found = v4_found = False
-        target_addrs: list[tuple[socket.AddressFamily, str]] = []
+        target_addrs = []
         for af, *rest, sa in gai_res:
             if af == socket.AF_INET6 and not v6_found:
                 v6_found = True
@@ -209,27 +222,25 @@ async def connect_tcp(
                 target_addrs.insert(1, (af, sa[0]))
             else:
                 target_addrs.append((af, sa[0]))
-    else:
-        if isinstance(addr_obj, IPv6Address):
-            target_addrs = [(socket.AF_INET6, addr_obj.compressed)]
-        else:
-            target_addrs = [(socket.AF_INET, addr_obj.compressed)]
 
     oserrors: list[OSError] = []
-    async with create_task_group() as tg:
-        for i, (af, addr) in enumerate(target_addrs):
-            event = Event()
-            tg.start_soon(try_connect, addr, event)
-            with move_on_after(happy_eyeballs_delay):
-                await event.wait()
+    try:
+        async with create_task_group() as tg:
+            for i, (af, addr) in enumerate(target_addrs):
+                event = Event()
+                tg.start_soon(try_connect, addr, event)
+                with move_on_after(happy_eyeballs_delay):
+                    await event.wait()
 
-    if connected_stream is None:
-        cause = (
-            oserrors[0]
-            if len(oserrors) == 1
-            else ExceptionGroup("multiple connection attempts failed", oserrors)
-        )
-        raise OSError("All connection attempts failed") from cause
+        if connected_stream is None:
+            cause = (
+                oserrors[0]
+                if len(oserrors) == 1
+                else ExceptionGroup("multiple connection attempts failed", oserrors)
+            )
+            raise OSError("All connection attempts failed") from cause
+    finally:
+        oserrors.clear()
 
     if tls or tls_hostname or ssl_context:
         try:
@@ -576,6 +587,8 @@ async def getaddrinfo(
     return [
         (family, type, proto, canonname, convert_ipv6_sockaddr(sockaddr))
         for family, type, proto, canonname, sockaddr in gai_res
+        # filter out IPv6 results when IPv6 is disabled
+        if not isinstance(sockaddr[0], int)
     ]
 
 
@@ -593,12 +606,13 @@ def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Awaitable[tuple[str
     return get_async_backend().getnameinfo(sockaddr, flags)
 
 
+@deprecated("This function is deprecated; use `wait_readable` instead")
 def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
     """
-    Wait until the given socket has data to be read.
+    .. deprecated:: 4.7.0
+       Use :func:`wait_readable` instead.
 
-    This does **NOT** work on Windows when using the asyncio backend with a proactor
-    event loop (default on py3.8+).
+    Wait until the given socket has data to be read.
 
     .. warning:: Only use this on raw sockets that have not been wrapped by any higher
         level constructs like socket streams!
@@ -610,11 +624,15 @@ def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
         to become readable
 
     """
-    return get_async_backend().wait_socket_readable(sock)
+    return get_async_backend().wait_readable(sock.fileno())
 
 
+@deprecated("This function is deprecated; use `wait_writable` instead")
 def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
     """
+    .. deprecated:: 4.7.0
+       Use :func:`wait_writable` instead.
+
     Wait until the given socket can be written to.
 
     This does **NOT** work on Windows when using the asyncio backend with a proactor
@@ -630,7 +648,88 @@ def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
         to become writable
 
     """
-    return get_async_backend().wait_socket_writable(sock)
+    return get_async_backend().wait_writable(sock.fileno())
+
+
+def wait_readable(obj: FileDescriptorLike) -> Awaitable[None]:
+    """
+    Wait until the given object has data to be read.
+
+    On Unix systems, ``obj`` must either be an integer file descriptor, or else an
+    object with a ``.fileno()`` method which returns an integer file descriptor. Any
+    kind of file descriptor can be passed, though the exact semantics will depend on
+    your kernel. For example, this probably won't do anything useful for on-disk files.
+
+    On Windows systems, ``obj`` must either be an integer ``SOCKET`` handle, or else an
+    object with a ``.fileno()`` method which returns an integer ``SOCKET`` handle. File
+    descriptors aren't supported, and neither are handles that refer to anything besides
+    a ``SOCKET``.
+
+    On backends where this functionality is not natively provided (asyncio
+    ``ProactorEventLoop`` on Windows), it is provided using a separate selector thread
+    which is set to shut down when the interpreter shuts down.
+
+    .. warning:: Don't use this on raw sockets that have been wrapped by any higher
+        level constructs like socket streams!
+
+    :param obj: an object with a ``.fileno()`` method or an integer handle
+    :raises ~anyio.ClosedResourceError: if the object was closed while waiting for the
+        object to become readable
+    :raises ~anyio.BusyResourceError: if another task is already waiting for the object
+        to become readable
+
+    """
+    return get_async_backend().wait_readable(obj)
+
+
+def wait_writable(obj: FileDescriptorLike) -> Awaitable[None]:
+    """
+    Wait until the given object can be written to.
+
+    :param obj: an object with a ``.fileno()`` method or an integer handle
+    :raises ~anyio.ClosedResourceError: if the object was closed while waiting for the
+        object to become writable
+    :raises ~anyio.BusyResourceError: if another task is already waiting for the object
+        to become writable
+
+    .. seealso:: See the documentation of :func:`wait_readable` for the definition of
+       ``obj`` and notes on backend compatibility.
+
+    .. warning:: Don't use this on raw sockets that have been wrapped by any higher
+        level constructs like socket streams!
+
+    """
+    return get_async_backend().wait_writable(obj)
+
+
+def notify_closing(obj: FileDescriptorLike) -> None:
+    """
+    Call this before closing a file descriptor (on Unix) or socket (on
+    Windows). This will cause any `wait_readable` or `wait_writable`
+    calls on the given object to immediately wake up and raise
+    `~anyio.ClosedResourceError`.
+
+    This doesn't actually close the object – you still have to do that
+    yourself afterwards. Also, you want to be careful to make sure no
+    new tasks start waiting on the object in between when you call this
+    and when it's actually closed. So to close something properly, you
+    usually want to do these steps in order:
+
+    1. Explicitly mark the object as closed, so that any new attempts
+       to use it will abort before they start.
+    2. Call `notify_closing` to wake up any already-existing users.
+    3. Actually close the object.
+
+    It's also possible to do them in a different order if that's more
+    convenient, *but only if* you make sure not to have any checkpoints in
+    between the steps. This way they all happen in a single atomic
+    step, so other tasks won't be able to tell what order they happened
+    in anyway.
+
+    :param obj: an object with a ``.fileno()`` method or an integer handle
+
+    """
+    get_async_backend().notify_closing(obj)
 
 
 #
@@ -685,19 +784,26 @@ async def setup_unix_local_socket(
     :param socktype: socket.SOCK_STREAM or socket.SOCK_DGRAM
 
     """
-    path_str: str | bytes | None
+    path_str: str | None
     if path is not None:
-        path_str = os.fspath(path)
+        path_str = os.fsdecode(path)
 
-        # Copied from pathlib...
-        try:
-            stat_result = os.stat(path)
-        except OSError as e:
-            if e.errno not in (errno.ENOENT, errno.ENOTDIR, errno.EBADF, errno.ELOOP):
-                raise
-        else:
-            if stat.S_ISSOCK(stat_result.st_mode):
-                os.unlink(path)
+        # Linux abstract namespace sockets aren't backed by a concrete file so skip stat call
+        if not path_str.startswith("\0"):
+            # Copied from pathlib...
+            try:
+                stat_result = os.stat(path)
+            except OSError as e:
+                if e.errno not in (
+                    errno.ENOENT,
+                    errno.ENOTDIR,
+                    errno.EBADF,
+                    errno.ELOOP,
+                ):
+                    raise
+            else:
+                if stat.S_ISSOCK(stat_result.st_mode):
+                    os.unlink(path)
     else:
         path_str = None
 

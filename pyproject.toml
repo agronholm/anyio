@@ -10,26 +10,26 @@ name = "anyio"
 description = "High level compatibility layer for multiple asynchronous event loop implementations"
 readme = "README.rst"
 authors = [{name = "Alex Grönholm", email = "alex.gronholm@nextday.fi"}]
-license = {text = "MIT"}
+license = "MIT"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Framework :: AnyIO",
     "Typing :: Typed",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
-requires-python = ">= 3.8"
+requires-python = ">= 3.9"
 dependencies = [
     "exceptiongroup >= 1.0.2; python_version < '3.11'",
     "idna >= 2.8",
     "sniffio >= 1.1",
+    "typing_extensions >= 4.5; python_version < '3.13'",
 ]
 dynamic = ["version"]
 
@@ -40,21 +40,26 @@ Changelog = "https://anyio.readthedocs.io/en/stable/versionhistory.html"
 "Issue tracker" = "https://github.com/agronholm/anyio/issues"
 
 [project.optional-dependencies]
-trio = ["trio >= 0.23"]
+trio = ["trio >= 0.26.1"]
 test = [
     "anyio[trio]",
+    "blockbuster >= 1.5.23",
     "coverage[toml] >= 7",
     "exceptiongroup >= 1.2.0",
     "hypothesis >= 4.0",
     "psutil >= 5.9",
     "pytest >= 7.0",
-    "pytest-mock >= 3.6.1",
     "trustme",
-    "uvloop >= 0.17; platform_python_implementation == 'CPython' and platform_system != 'Windows'",
+    "truststore >= 0.9.1; python_version >= '3.10'",
+    """\
+    uvloop >= 0.21; platform_python_implementation == 'CPython' \
+    and platform_system != 'Windows' \
+    and python_version < '3.14'\
+    """
 ]
 doc = [
     "packaging",
-    "Sphinx >= 7",
+    "Sphinx ~= 8.2",
     "sphinx_rtd_theme",
     "sphinx-autodoc-typehints >= 1.2.0",
 ]
@@ -67,45 +72,54 @@ version_scheme = "post-release"
 local_scheme = "dirty-tag"
 
 [tool.ruff]
-select = [
-    "E", "F", "W",  # default flake-8
-    "I",            # isort
-    "PGH",          # pygrep-hooks
-    "UP",           # pyupgrade
-]
 src = ["src"]
 
-[tool.ruff.isort]
+[tool.ruff.lint]
+extend-select = [
+    "ASYNC",        # flake8-async
+    "C4",           # flake8-comprehensions
+    "G",            # flake8-logging-format
+    "I",            # isort
+    "ISC",          # flake8-implicit-str-concat
+    "PERF",         # flake8-performance
+    "PGH",          # pygrep-hooks
+    "RUF100",       # unused noqa (yesqa)
+    "T201",         # print
+    "UP",           # pyupgrade
+    "W",            # pycodestyle warnings
+]
+ignore = ["PERF203"]
+
+[tool.ruff.lint.isort]
 "required-imports" = ["from __future__ import annotations"]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/test_tempfile.py" = ["ASYNC230"]
+
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.13"
 strict = true
-ignore_missing_imports = true
 disallow_any_generics = false
 warn_return_any = false
 disallow_untyped_decorators = false
-disallow_subclassing_any = false
-show_error_codes = true
 
 [tool.pytest.ini_options]
-addopts = "-rsx --tb=short --strict-config --strict-markers -p anyio -p no:asyncio -p no:trio"
+addopts = "-rsfE --tb=short --strict-config --strict-markers -p anyio -p no:asyncio -p no:trio"
 testpaths = ["tests"]
 xfail_strict = true
-# Ignore resource warnings due to a CPython/Windows bug (https://bugs.python.org/issue44428)
 filterwarnings = [
     "error",
-    "ignore:unclosed <socket.socket.*:ResourceWarning",
+    # Ignore resource warnings due to a CPython/Windows bug (https://bugs.python.org/issue44428)
     "ignore:unclosed transport <_ProactorSocketTransport.*:ResourceWarning",
-    "ignore:ast.Str is deprecated:DeprecationWarning",
-    "ignore:Attribute s is deprecated:DeprecationWarning",
-    "ignore:ast.NameConstant is deprecated:DeprecationWarning",
     # Workaround for Python 3.9.7 (see https://bugs.python.org/issue45097)
     "ignore:The loop argument is deprecated since Python 3\\.8, and scheduled for removal in Python 3\\.10\\.:DeprecationWarning:asyncio",
 ]
 markers = [
     "network: marks tests as requiring Internet access",
 ]
+
+[tool.codespell]
+ignore-words-list = "asend,daa,hel"
 
 [tool.coverage.run]
 source = ["anyio"]
@@ -115,31 +129,29 @@ relative_files = true
 show_missing = true
 
 [tool.tox]
-legacy_tox_ini = """
-[tox]
-envlist = pre-commit, py38, py39, py310, py311, py312, pypy3
+env_list = ["pre-commit", "py39", "py310", "py311", "py312", "py313", "py314", "pypy3"]
 skip_missing_interpreters = true
-minversion = 4.0.0
 
-[testenv]
-depends = pre-commit
-package = editable
-commands = coverage run -m pytest {posargs}
-extras = test
+[tool.tox.env_run_base]
+depends = ["pre-commit"]
+package = "editable"
+commands = [["coverage", "run", "-m", "pytest", { replace = "posargs", extend = true }]]
+extras = ["test"]
 
-[testenv:pre-commit]
-depends =
-basepython = python3
-package = skip
-deps = pre-commit
-commands = pre-commit run --all-files
+[tool.tox.env.pypy3]
+commands = [["pytest", { replace = "posargs", extend = true }]]
 
-[testenv:pyright]
-deps = pyright
-commands = pyright --verifytypes anyio
+[tool.tox.env.pre-commit]
+commands = [["pre-commit", "run", "--all-files"]]
+depends = []
+allowlist_externals = ["pre-commit"]
+package = "skip"
 
-[testenv:docs]
-depends =
-extras = doc
-commands = sphinx-build -W docs build/sphinx
-"""
+[tool.tox.env.pyright]
+deps = ["pyright"]
+commands = [["pyright", "--verifytypes", "anyio"]]
+
+[tool.tox.env.docs]
+depends = []
+extras = ["doc"]
+commands = [["sphinx-build", "-W", "docs", "build/sphinx"]]

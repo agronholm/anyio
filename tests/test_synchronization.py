@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import pytest
 
@@ -13,10 +14,13 @@ from anyio import (
     WouldBlock,
     create_task_group,
     fail_after,
+    run,
     to_thread,
     wait_all_tasks_blocked,
 )
 from anyio.abc import CapacityLimiter, TaskStatus
+
+from .conftest import asyncio_params
 
 pytestmark = pytest.mark.anyio
 
@@ -62,6 +66,24 @@ class TestLock:
         assert not lock.locked()
         assert results == ["1", "2"]
 
+    async def test_fast_acquire(self) -> None:
+        """
+        Test that fast_acquire=True does not yield back control to the event loop when
+        there is no contention.
+
+        """
+        other_task_called = False
+
+        async def other_task() -> None:
+            nonlocal other_task_called
+            other_task_called = True
+
+        lock = Lock(fast_acquire=True)
+        async with create_task_group() as tg:
+            tg.start_soon(other_task)
+            async with lock:
+                assert not other_task_called
+
     async def test_acquire_nowait(self) -> None:
         lock = Lock()
         lock.acquire_nowait()
@@ -75,6 +97,23 @@ class TestLock:
         async with lock, create_task_group() as tg:
             assert lock.locked()
             tg.start_soon(try_lock)
+
+    @pytest.mark.parametrize("fast_acquire", [True, False])
+    async def test_acquire_twice_async(self, fast_acquire: bool) -> None:
+        lock = Lock(fast_acquire=fast_acquire)
+        await lock.acquire()
+        with pytest.raises(
+            RuntimeError, match="Attempted to acquire an already held Lock"
+        ):
+            await lock.acquire()
+
+    async def test_acquire_twice_sync(self) -> None:
+        lock = Lock()
+        lock.acquire_nowait()
+        with pytest.raises(
+            RuntimeError, match="Attempted to acquire an already held Lock"
+        ):
+            lock.acquire_nowait()
 
     @pytest.mark.parametrize(
         "release_first",
@@ -125,7 +164,7 @@ class TestLock:
         assert not lock.statistics().locked
         assert lock.statistics().tasks_waiting == 0
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_asyncio_deadlock(self) -> None:
         """Regression test for #398."""
         lock = Lock()
@@ -140,6 +179,74 @@ class TestLock:
         await asyncio.sleep(0)
         task1.cancel()
         await asyncio.wait_for(task2, 1)
+
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_cancel_after_release(self) -> None:
+        """
+        Test that a native asyncio cancellation will not cause a lock ownership
+        to get lost between a release() and the resumption of acquire().
+
+        """
+        # Create the lock and acquire it right away so that any task acquiring it will
+        # block
+        lock = Lock()
+        lock.acquire_nowait()
+
+        # Start a task that gets blocked on trying to acquire the semaphore
+        loop = asyncio.get_running_loop()
+        task1 = loop.create_task(lock.acquire(), name="task1")
+        await asyncio.sleep(0)
+
+        # Trigger the acquiring task to be rescheduled, but also cancel it right away
+        lock.release()
+        task1.cancel()
+        statistics = lock.statistics()
+        assert statistics.owner
+        assert statistics.owner.name == "task1"
+        await asyncio.wait([task1], timeout=1)
+
+        # The acquire() method should've released the semaphore because acquisition
+        # failed due to cancellation
+        statistics = lock.statistics()
+        assert statistics.owner is None
+        assert statistics.tasks_waiting == 0
+        lock.acquire_nowait()
+
+    def test_instantiate_outside_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        async def use_lock() -> None:
+            async with lock:
+                pass
+
+        lock = Lock()
+        statistics = lock.statistics()
+        assert not statistics.locked
+        assert statistics.owner is None
+        assert statistics.tasks_waiting == 0
+
+        run(use_lock, backend=anyio_backend_name, backend_options=anyio_backend_options)
+
+    async def test_owner_after_release(self) -> None:
+        async def taskfunc1() -> None:
+            await lock.acquire()
+            owner = lock.statistics().owner
+            assert owner
+            assert owner.name == "task1"
+            await event.wait()
+            lock.release()
+            owner = lock.statistics().owner
+            assert owner
+            assert owner.name == "task2"
+
+        event = Event()
+        lock = Lock()
+        async with create_task_group() as tg:
+            tg.start_soon(taskfunc1, name="task1")
+            await wait_all_tasks_blocked()
+            tg.start_soon(lock.acquire, name="task2")
+            await wait_all_tasks_blocked()
+            event.set()
 
 
 class TestEvent:
@@ -207,6 +314,22 @@ class TestEvent:
             event.set()
 
         assert event.statistics().tasks_waiting == 0
+
+    def test_instantiate_outside_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        event = Event()
+        assert not event.is_set()
+        assert event.statistics().tasks_waiting == 0
+
+        event.set()
+        assert event.is_set()
+
+        run(
+            event.wait,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
+        )
 
 
 class TestCondition:
@@ -304,6 +427,22 @@ class TestCondition:
         assert not condition.statistics().lock_statistics.locked
         assert condition.statistics().tasks_waiting == 0
 
+    def test_instantiate_outside_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        async def use_condition() -> None:
+            async with condition:
+                pass
+
+        condition = Condition()
+        assert condition.statistics().tasks_waiting == 0
+
+        run(
+            use_condition,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
+        )
+
 
 class TestSemaphore:
     async def test_contextmanager(self) -> None:
@@ -332,6 +471,24 @@ class TestSemaphore:
             tg.start_soon(acquire, name="task 2")
 
         assert semaphore.value == 2
+
+    async def test_fast_acquire(self) -> None:
+        """
+        Test that fast_acquire=True does not yield back control to the event loop when
+        there is no contention.
+
+        """
+        other_task_called = False
+
+        async def other_task() -> None:
+            nonlocal other_task_called
+            other_task_called = True
+
+        semaphore = Semaphore(1, fast_acquire=True)
+        async with create_task_group() as tg:
+            tg.start_soon(other_task)
+            async with semaphore:
+                assert not other_task_called
 
     async def test_acquire_nowait(self) -> None:
         semaphore = Semaphore(1)
@@ -410,7 +567,7 @@ class TestSemaphore:
             semaphore.release()
             pytest.raises(WouldBlock, semaphore.acquire_nowait)
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_asyncio_deadlock(self) -> None:
         """Regression test for #398."""
         semaphore = Semaphore(1)
@@ -425,6 +582,51 @@ class TestSemaphore:
         await asyncio.sleep(0)
         task1.cancel()
         await asyncio.wait_for(task2, 1)
+
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_cancel_after_release(self) -> None:
+        """
+        Test that a native asyncio cancellation will not cause a semaphore ownership
+        to get lost between a release() and the resumption of acquire().
+
+        """
+        # Create the semaphore in such a way that any task acquiring it will block
+        semaphore = Semaphore(0, max_value=1)
+
+        # Start a task that gets blocked on trying to acquire the semaphore
+        loop = asyncio.get_running_loop()
+        task1 = loop.create_task(semaphore.acquire())
+        await asyncio.sleep(0)
+
+        # Trigger the acquiring task to be rescheduled, but also cancel it right away
+        semaphore.release()
+        task1.cancel()
+        assert semaphore.value == 0
+        await asyncio.wait([task1], timeout=1)
+
+        # The acquire() method should've released the semaphore because acquisition
+        # failed due to cancellation
+        assert semaphore.value == 1
+        assert semaphore.statistics().tasks_waiting == 0
+        semaphore.acquire_nowait()
+
+    def test_instantiate_outside_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        async def use_semaphore() -> None:
+            async with semaphore:
+                pass
+
+        semaphore = Semaphore(1, max_value=3)
+        assert semaphore.value == 1
+        assert semaphore.max_value == 3
+        assert semaphore.statistics().tasks_waiting == 0
+
+        run(
+            use_semaphore,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
+        )
 
 
 class TestCapacityLimiter:
@@ -531,7 +733,7 @@ class TestCapacityLimiter:
         assert limiter.statistics().tasks_waiting == 0
         assert limiter.statistics().borrowed_tokens == 0
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_asyncio_deadlock(self) -> None:
         """Regression test for #398."""
         limiter = CapacityLimiter(1)
@@ -595,3 +797,38 @@ class TestCapacityLimiter:
 
             # Allow all tasks to exit
             continue_event.set()
+
+    def test_instantiate_outside_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        async def use_limiter() -> None:
+            async with limiter:
+                pass
+
+        limiter = CapacityLimiter(1)
+        limiter.total_tokens = 2
+
+        with pytest.raises(TypeError):
+            limiter.total_tokens = "2"  # type: ignore[assignment]
+
+        with pytest.raises(TypeError):
+            limiter.total_tokens = 3.0
+
+        assert limiter.total_tokens == 2
+        assert limiter.borrowed_tokens == 0
+        statistics = limiter.statistics()
+        assert statistics.total_tokens == 2
+        assert statistics.borrowed_tokens == 0
+        assert statistics.borrowers == ()
+        assert statistics.tasks_waiting == 0
+
+        run(
+            use_limiter,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
+        )
+
+    async def test_total_tokens_as_kwarg(self) -> None:
+        # Regression test for #515
+        limiter = CapacityLimiter(total_tokens=1)
+        assert limiter.total_tokens == 1

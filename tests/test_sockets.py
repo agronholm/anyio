@@ -5,16 +5,20 @@ import gc
 import io
 import os
 import platform
+import re
 import socket
 import sys
+import tempfile
 import threading
 import time
+from collections.abc import Generator, Iterable, Iterator
 from contextlib import suppress
 from pathlib import Path
 from socket import AddressFamily
 from ssl import SSLContext, SSLError
 from threading import Thread
-from typing import Any, Iterable, Iterator, NoReturn, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Literal, NoReturn, TypeVar, cast
+from unittest import mock
 
 import psutil
 import pytest
@@ -27,6 +31,7 @@ from anyio import (
     BrokenResourceError,
     BusyResourceError,
     ClosedResourceError,
+    EndOfStream,
     Event,
     TypedAttributeLookupError,
     connect_tcp,
@@ -42,9 +47,14 @@ from anyio import (
     getaddrinfo,
     getnameinfo,
     move_on_after,
-    sleep,
+    notify_closing,
     wait_all_tasks_blocked,
+    wait_readable,
+    wait_socket_readable,
+    wait_socket_writable,
+    wait_writable,
 )
+from anyio._core._eventloop import get_async_backend
 from anyio.abc import (
     IPSockAddrType,
     Listener,
@@ -52,12 +62,16 @@ from anyio.abc import (
     SocketListener,
     SocketStream,
 )
+from anyio.lowlevel import checkpoint
 from anyio.streams.stapled import MultiListener
+
+from .conftest import asyncio_params, no_other_refs
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
-from typing import Literal
+if TYPE_CHECKING:
+    from _typeshed import FileDescriptorLike
 
 AnyIPAddressFamily = Literal[
     AddressFamily.AF_UNSPEC, AddressFamily.AF_INET, AddressFamily.AF_INET6
@@ -81,6 +95,10 @@ if socket.has_ipv6:
         has_ipv6 = True
 
 skip_ipv6_mark = pytest.mark.skipif(not has_ipv6, reason="IPv6 is not available")
+skip_unix_abstract_mark = pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="Abstract namespace sockets is a Linux only feature",
+)
 
 
 @pytest.fixture
@@ -125,6 +143,14 @@ def _identity(v: _T) -> _T:
     return v
 
 
+def fill_socket(sock: socket.socket) -> None:
+    try:
+        while True:
+            sock.send(b"x" * 65536)
+    except BlockingIOError:
+        pass
+
+
 #  _ProactorBasePipeTransport.abort() after _ProactorBasePipeTransport.close()
 # does not cancel writes: https://bugs.python.org/issue44428
 _ignore_win32_resource_warnings = (
@@ -132,12 +158,12 @@ _ignore_win32_resource_warnings = (
         "ignore:unclosed <socket.socket:ResourceWarning",
         "ignore:unclosed transport <_ProactorSocketTransport closing:ResourceWarning",
     )
-    if sys.platform == "win32"
+    if sys.version_info < (3, 10) and sys.platform == "win32"
     else _identity
 )
 
 
-@_ignore_win32_resource_warnings  # type: ignore[operator]
+@_ignore_win32_resource_warnings
 class TestTCPStream:
     @pytest.fixture
     def server_sock(self, family: AnyIPAddressFamily) -> Iterator[socket.socket]:
@@ -200,7 +226,9 @@ class TestTCPStream:
             thread.start()
             response = b""
             while len(response) < len(buffer):
-                response += await stream.receive()
+                chunk = await stream.receive()
+                assert isinstance(chunk, bytes)
+                response += chunk
 
         thread.join()
         assert response == buffer
@@ -298,6 +326,34 @@ class TestTCPStream:
         server_sock.close()
         assert client_addr[0] == expected_client_addr
 
+    @pytest.mark.skipif(
+        sys.implementation.name == "pypy",
+        reason=(
+            "gc.get_referrers is broken on PyPy (see "
+            "https://github.com/pypy/pypy/issues/5075)"
+        ),
+    )
+    async def test_happy_eyeballs_refcycles(
+        self, free_tcp_port: int, anyio_backend_name: str
+    ) -> None:
+        """
+        Test derived from https://github.com/python/cpython/pull/124859
+        """
+        if anyio_backend_name == "asyncio" and sys.version_info < (3, 10):
+            pytest.skip(
+                "asyncio.BaseEventLoop.create_connection creates refcycles on py 3.9"
+            )
+
+        exc = None
+        try:
+            async with await connect_tcp("127.0.0.1", free_tcp_port):
+                pass
+        except OSError as e:
+            exc = e.__cause__
+
+        assert isinstance(exc, OSError)
+        assert gc.get_referrers(exc) == no_other_refs()
+
     @pytest.mark.parametrize(
         "target, exception_class",
         [
@@ -312,14 +368,10 @@ class TestTCPStream:
         target: str,
         exception_class: type[ExceptionGroup] | type[ConnectionRefusedError],
         fake_localhost_dns: None,
+        free_tcp_port: int,
     ) -> None:
-        dummy_socket = socket.socket(AddressFamily.AF_INET6)
-        dummy_socket.bind(("::", 0))
-        free_port = dummy_socket.getsockname()[1]
-        dummy_socket.close()
-
         with pytest.raises(OSError) as exc:
-            await connect_tcp(target, free_port)
+            await connect_tcp(target, free_tcp_port)
 
         assert exc.match("All connection attempts failed")
         assert isinstance(exc.value.__cause__, exception_class)
@@ -474,7 +526,7 @@ class TestTCPStream:
         thread.join()
         assert thread_exception is None
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_unretrieved_future_exception_server_crash(
         self, family: AnyIPAddressFamily, caplog: LogCaptureFixture
     ) -> None:
@@ -483,34 +535,40 @@ class TestTCPStream:
         retrieved.
 
         See https://github.com/encode/httpcore/issues/382 for details.
-
         """
 
         def serve() -> None:
             sock, addr = server_sock.accept()
             event.wait(3)
+            sock.close()
             del sock
             gc.collect()
 
-        server_sock = socket.socket(family, socket.SOCK_STREAM)
-        server_sock.settimeout(1)
-        server_sock.bind(("localhost", 0))
-        server_sock.listen()
-        server_addr = server_sock.getsockname()[:2]
-        event = threading.Event()
-        thread = Thread(target=serve)
-        thread.start()
-        async with await connect_tcp(*server_addr) as stream:
-            await stream.send(b"GET")
-            event.set()
-            with pytest.raises(BrokenResourceError):
-                await stream.receive()
+        with socket.socket(family, socket.SOCK_STREAM) as server_sock:
+            server_sock.settimeout(1)
+            server_sock.bind(("localhost", 0))
+            server_sock.listen()
+            server_addr = server_sock.getsockname()[:2]
+            event = threading.Event()
+            thread = Thread(target=serve)
+            thread.start()
+            async with await connect_tcp(*server_addr) as stream:
+                await stream.send(b"GET")
+                event.set()
+                with pytest.raises(BrokenResourceError):
+                    await stream.receive()
 
-        thread.join()
-        gc.collect()
-        assert not caplog.text
+            thread.join()
+            gc.collect()
+            caplog_text = "\n".join(
+                msg
+                for msg in caplog.messages
+                if not re.search("took [0-9.]+ seconds", msg)
+            )
+            assert not caplog_text
 
 
+@pytest.mark.network
 class TestTCPListener:
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_tcp_listener(
@@ -672,12 +730,35 @@ class TestTCPListener:
                         try:
                             message = client.recv(10)
                         except BlockingIOError:
-                            await sleep(0)
+                            await checkpoint()
                         else:
                             assert message == b"Hello\n"
                             break
 
             tg.cancel_scope.cancel()
+
+    async def test_eof_after_send(self, family: AnyIPAddressFamily) -> None:
+        """Regression test for #701."""
+        received_bytes = b""
+
+        async def handle(stream: SocketStream) -> None:
+            nonlocal received_bytes
+            async with stream:
+                received_bytes = await stream.receive()
+                with pytest.raises(EndOfStream), fail_after(1):
+                    await stream.receive()
+
+            tg.cancel_scope.cancel()
+
+        multi = await create_tcp_listener(family=family, local_host="localhost")
+        async with multi, create_task_group() as tg:
+            with socket.socket(family) as client:
+                client.connect(multi.extra(SocketAttribute.local_address))
+                client.send(b"Hello")
+                client.shutdown(socket.SHUT_WR)
+                await multi.serve(handle)
+
+        assert received_bytes == b"Hello"
 
     @skip_ipv6_mark
     @pytest.mark.skipif(
@@ -706,9 +787,20 @@ class TestTCPListener:
     sys.platform == "win32", reason="UNIX sockets are not available on Windows"
 )
 class TestUNIXStream:
-    @pytest.fixture
-    def socket_path(self, tmp_path_factory: TempPathFactory) -> Path:
-        return tmp_path_factory.mktemp("unix").joinpath("socket")
+    @pytest.fixture(
+        params=[
+            "path",
+            pytest.param("abstract", marks=[skip_unix_abstract_mark]),
+        ]
+    )
+    def socket_path(self, request: SubRequest) -> Generator[Path, None, None]:
+        # Use stdlib tempdir generation
+        # Fixes `OSError: AF_UNIX path too long` from pytest generated temp_path
+        with tempfile.TemporaryDirectory() as path:
+            if request.param == "path":
+                yield Path(path) / "socket"
+            else:
+                yield Path(f"\0{path}") / "socket"
 
     @pytest.fixture(params=[False, True], ids=["str", "path"])
     def socket_path_or_str(self, request: SubRequest, socket_path: Path) -> Path | str:
@@ -732,7 +824,15 @@ class TestUNIXStream:
             assert (
                 stream.extra(SocketAttribute.local_address) == raw_socket.getsockname()
             )
-            assert stream.extra(SocketAttribute.remote_address) == str(socket_path)
+            remote_addr = stream.extra(SocketAttribute.remote_address)
+            if isinstance(remote_addr, str):
+                assert stream.extra(SocketAttribute.remote_address) == str(socket_path)
+            else:
+                assert isinstance(remote_addr, bytes)
+                assert stream.extra(SocketAttribute.remote_address) == bytes(
+                    socket_path
+                )
+
             pytest.raises(
                 TypedAttributeLookupError, stream.extra, SocketAttribute.local_port
             )
@@ -919,11 +1019,8 @@ class TestUNIXStream:
 
         thread = Thread(target=serve, daemon=True)
         thread.start()
-        chunks = []
         async with await connect_unix(socket_path) as stream:
-            async for chunk in stream:
-                chunks.append(chunk)
-
+            chunks = [chunk async for chunk in stream]
         thread.join()
         assert chunks == [b"bl", b"ah"]
 
@@ -999,8 +1096,12 @@ class TestUNIXStream:
             await stream.send(b"foo")
 
     async def test_cannot_connect(self, socket_path: Path) -> None:
-        with pytest.raises(FileNotFoundError):
-            await connect_unix(socket_path)
+        if str(socket_path).startswith("\0"):
+            with pytest.raises(ConnectionRefusedError):
+                await connect_unix(socket_path)
+        else:
+            with pytest.raises(FileNotFoundError):
+                await connect_unix(socket_path)
 
     async def test_connecting_using_bytes(
         self, server_sock: socket.socket, socket_path: Path
@@ -1012,22 +1113,33 @@ class TestUNIXStream:
         platform.system() == "Darwin", reason="macOS requires valid UTF-8 paths"
     )
     async def test_connecting_with_non_utf8(self, socket_path: Path) -> None:
-        actual_path = str(socket_path).encode() + b"\xF0"
-        server = socket.socket(socket.AF_UNIX)
-        server.bind(actual_path)
-        server.listen(1)
+        actual_path = str(socket_path).encode() + b"\xf0"
+        with socket.socket(socket.AF_UNIX) as server:
+            server.bind(actual_path)
+            server.listen(1)
 
-        async with await connect_unix(actual_path):
-            pass
+            async with await connect_unix(actual_path):
+                pass
 
 
 @pytest.mark.skipif(
     sys.platform == "win32", reason="UNIX sockets are not available on Windows"
 )
 class TestUNIXListener:
-    @pytest.fixture
-    def socket_path(self, tmp_path_factory: TempPathFactory) -> Path:
-        return tmp_path_factory.mktemp("unix").joinpath("socket")
+    @pytest.fixture(
+        params=[
+            "path",
+            pytest.param("abstract", marks=[skip_unix_abstract_mark]),
+        ]
+    )
+    def socket_path(self, request: SubRequest) -> Generator[Path, None, None]:
+        # Use stdlib tempdir generation
+        # Fixes `OSError: AF_UNIX path too long` from pytest generated temp_path
+        with tempfile.TemporaryDirectory() as path:
+            if request.param == "path":
+                yield Path(path) / "socket"
+            else:
+                yield Path(f"\0{path}") / "socket"
 
     @pytest.fixture(params=[False, True], ids=["str", "path"])
     def socket_path_or_str(self, request: SubRequest, socket_path: Path) -> Path | str:
@@ -1091,9 +1203,10 @@ class TestUNIXListener:
             async with stream:
                 await stream.send(b"Hello\n")
 
-        async with await create_unix_listener(
-            socket_path
-        ) as listener, create_task_group() as tg:
+        async with (
+            await create_unix_listener(socket_path) as listener,
+            create_task_group() as tg,
+        ):
             tg.start_soon(listener.serve, handle)
             await wait_all_tasks_blocked()
 
@@ -1106,7 +1219,7 @@ class TestUNIXListener:
                         try:
                             message = client.recv(10)
                         except BlockingIOError:
-                            await sleep(0)
+                            await checkpoint()
                         else:
                             assert message == b"Hello\n"
                             break
@@ -1127,7 +1240,7 @@ class TestUNIXListener:
         platform.system() == "Darwin", reason="macOS requires valid UTF-8 paths"
     )
     async def test_listening_invalid_ascii(self, socket_path: Path) -> None:
-        real_path = str(socket_path).encode() + b"\xF0"
+        real_path = str(socket_path).encode() + b"\xf0"
         async with await create_unix_listener(real_path):
             pass
 
@@ -1140,37 +1253,40 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
 
     client_addresses: list[str | IPSockAddrType] = []
     listeners: list[Listener] = [await create_tcp_listener(local_host="localhost")]
-    if sys.platform != "win32":
-        socket_path = tmp_path_factory.mktemp("unix").joinpath("socket")
-        listeners.append(await create_unix_listener(socket_path))
+    with tempfile.TemporaryDirectory() as path:
+        if sys.platform != "win32":
+            listeners.append(await create_unix_listener(Path(path) / "socket"))
 
-    expected_addresses: list[str | IPSockAddrType] = []
-    async with MultiListener(listeners) as multi_listener:
-        async with create_task_group() as tg:
-            tg.start_soon(multi_listener.serve, handle)
-            for listener in multi_listener.listeners:
-                event = Event()
-                local_address = listener.extra(SocketAttribute.local_address)
-                if (
-                    sys.platform != "win32"
-                    and listener.extra(SocketAttribute.family)
-                    == socket.AddressFamily.AF_UNIX
-                ):
-                    assert isinstance(local_address, str)
-                    stream: SocketStream = await connect_unix(local_address)
-                else:
-                    assert isinstance(local_address, tuple)
-                    stream = await connect_tcp(*local_address)
+        expected_addresses: list[str | IPSockAddrType] = []
+        async with MultiListener(listeners) as multi_listener:
+            async with create_task_group() as tg:
+                tg.start_soon(multi_listener.serve, handle)
+                for listener in multi_listener.listeners:
+                    event = Event()
+                    local_address = listener.extra(SocketAttribute.local_address)
+                    if (
+                        sys.platform != "win32"
+                        and listener.extra(SocketAttribute.family)
+                        == socket.AddressFamily.AF_UNIX
+                    ):
+                        assert isinstance(local_address, str)
+                        stream: SocketStream = await connect_unix(local_address)
+                    else:
+                        assert isinstance(local_address, tuple)
+                        stream = await connect_tcp(*local_address)
 
-                expected_addresses.append(stream.extra(SocketAttribute.local_address))
-                await event.wait()
-                await stream.aclose()
+                    expected_addresses.append(
+                        stream.extra(SocketAttribute.local_address)
+                    )
+                    await event.wait()
+                    await stream.aclose()
 
-            tg.cancel_scope.cancel()
+                tg.cancel_scope.cancel()
 
-    assert client_addresses == expected_addresses
+        assert client_addresses == expected_addresses
 
 
+@pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestUDPSocket:
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
@@ -1296,6 +1412,7 @@ class TestUDPSocket:
             assert local_address[1] > 0
 
 
+@pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestConnectedUDPSocket:
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
@@ -1422,17 +1539,31 @@ class TestConnectedUDPSocket:
     sys.platform == "win32", reason="UNIX sockets are not available on Windows"
 )
 class TestUNIXDatagramSocket:
-    @pytest.fixture
-    def socket_path(self, tmp_path_factory: TempPathFactory) -> Path:
-        return tmp_path_factory.mktemp("unix").joinpath("socket")
+    @pytest.fixture(
+        params=[
+            "path",
+            pytest.param("abstract", marks=[skip_unix_abstract_mark]),
+        ]
+    )
+    def socket_path(self, request: SubRequest) -> Generator[Path, None, None]:
+        # Use stdlib tempdir generation
+        # Fixes `OSError: AF_UNIX path too long` from pytest generated temp_path
+        with tempfile.TemporaryDirectory() as path:
+            if request.param == "path":
+                yield Path(path) / "socket"
+            else:
+                yield Path(f"\0{path}") / "socket"
 
     @pytest.fixture(params=[False, True], ids=["str", "path"])
     def socket_path_or_str(self, request: SubRequest, socket_path: Path) -> Path | str:
         return socket_path if request.param else str(socket_path)
 
     @pytest.fixture
-    def peer_socket_path(self, tmp_path_factory: TempPathFactory) -> Path:
-        return tmp_path_factory.mktemp("unix").joinpath("peer_socket")
+    def peer_socket_path(self) -> Generator[Path, None, None]:
+        # Use stdlib tempdir generation
+        # Fixes `OSError: AF_UNIX path too long` from pytest generated temp_path
+        with tempfile.TemporaryDirectory() as path:
+            yield Path(path) / "peer_socket"
 
     async def test_extra_attributes(self, socket_path: Path) -> None:
         async with await create_unix_datagram_socket(local_path=socket_path) as unix_dg:
@@ -1461,12 +1592,18 @@ class TestUNIXDatagramSocket:
             await sock.sendto(b"blah", path)
             request, addr = await sock.receive()
             assert request == b"blah"
-            assert addr == path
+            if isinstance(addr, bytes):
+                assert addr == path.encode()
+            else:
+                assert addr == path
 
             await sock.sendto(b"halb", path)
             response, addr = await sock.receive()
             assert response == b"halb"
-            assert addr == path
+            if isinstance(addr, bytes):
+                assert addr == path.encode()
+            else:
+                assert addr == path
 
     async def test_iterate(self, peer_socket_path: Path, socket_path: Path) -> None:
         async def serve() -> None:
@@ -1535,7 +1672,7 @@ class TestUNIXDatagramSocket:
         platform.system() == "Darwin", reason="macOS requires valid UTF-8 paths"
     )
     async def test_local_path_invalid_ascii(self, socket_path: Path) -> None:
-        real_path = str(socket_path).encode() + b"\xF0"
+        real_path = str(socket_path).encode() + b"\xf0"
         async with await create_unix_datagram_socket(local_path=real_path):
             pass
 
@@ -1544,17 +1681,38 @@ class TestUNIXDatagramSocket:
     sys.platform == "win32", reason="UNIX sockets are not available on Windows"
 )
 class TestConnectedUNIXDatagramSocket:
-    @pytest.fixture
-    def socket_path(self, tmp_path_factory: TempPathFactory) -> Path:
-        return tmp_path_factory.mktemp("unix").joinpath("socket")
+    @pytest.fixture(
+        params=[
+            "path",
+            pytest.param("abstract", marks=[skip_unix_abstract_mark]),
+        ]
+    )
+    def socket_path(self, request: SubRequest) -> Generator[Path, None, None]:
+        # Use stdlib tempdir generation
+        # Fixes `OSError: AF_UNIX path too long` from pytest generated temp_path
+        with tempfile.TemporaryDirectory() as path:
+            if request.param == "path":
+                yield Path(path) / "socket"
+            else:
+                yield Path(f"\0{path}") / "socket"
 
     @pytest.fixture(params=[False, True], ids=["str", "path"])
     def socket_path_or_str(self, request: SubRequest, socket_path: Path) -> Path | str:
         return socket_path if request.param else str(socket_path)
 
-    @pytest.fixture
-    def peer_socket_path(self, tmp_path_factory: TempPathFactory) -> Path:
-        return tmp_path_factory.mktemp("unix").joinpath("peer_socket")
+    @pytest.fixture(
+        params=[
+            pytest.param("path", id="path-peer"),
+            pytest.param(
+                "abstract", marks=[skip_unix_abstract_mark], id="abstract-peer"
+            ),
+        ]
+    )
+    def peer_socket_path(self) -> Generator[Path, None, None]:
+        # Use stdlib tempdir generation
+        # Fixes `OSError: AF_UNIX path too long` from pytest generated temp_path
+        with tempfile.TemporaryDirectory() as path:
+            yield Path(path) / "peer_socket"
 
     @pytest.fixture(params=[False, True], ids=["peer_str", "peer_path"])
     def peer_socket_path_or_str(
@@ -1583,10 +1741,12 @@ class TestConnectedUNIXDatagramSocket:
             raw_socket = unix_dg.extra(SocketAttribute.raw_socket)
             assert raw_socket is not None
             assert unix_dg.extra(SocketAttribute.family) == AddressFamily.AF_UNIX
-            assert unix_dg.extra(SocketAttribute.local_address) == str(socket_path)
-            assert unix_dg.extra(SocketAttribute.remote_address) == str(
-                peer_socket_path
-            )
+            assert os.fsencode(
+                cast(os.PathLike, unix_dg.extra(SocketAttribute.local_address))
+            ) == os.fsencode(socket_path)
+            assert os.fsencode(
+                cast(os.PathLike, unix_dg.extra(SocketAttribute.remote_address))
+            ) == os.fsencode(peer_socket_path)
             pytest.raises(
                 TypedAttributeLookupError, unix_dg.extra, SocketAttribute.local_port
             )
@@ -1606,11 +1766,11 @@ class TestConnectedUNIXDatagramSocket:
                 peer_socket_path_or_str,
                 local_path=socket_path_or_str,
             ) as unix_dg2:
-                socket_path = str(socket_path_or_str)
+                socket_path = os.fsdecode(socket_path_or_str)
 
                 await unix_dg2.send(b"blah")
-                request = await unix_dg1.receive()
-                assert request == (b"blah", socket_path)
+                data, remote_addr = await unix_dg1.receive()
+                assert (data, os.fsdecode(remote_addr)) == (b"blah", socket_path)
 
                 await unix_dg1.sendto(b"halb", socket_path)
                 response = await unix_dg2.receive()
@@ -1631,13 +1791,15 @@ class TestConnectedUNIXDatagramSocket:
             async with await create_connected_unix_datagram_socket(
                 peer_socket_path, local_path=socket_path
             ) as unix_dg2:
-                path = str(socket_path)
+                path = os.fsdecode(socket_path)
                 async with create_task_group() as tg:
                     tg.start_soon(serve)
                     await unix_dg1.sendto(b"FOOBAR", path)
-                    assert await unix_dg1.receive() == (b"RABOOF", path)
+                    data, addr = await unix_dg1.receive()
+                    assert (data, os.fsdecode(addr)) == (b"RABOOF", path)
                     await unix_dg1.sendto(b"123456", path)
-                    assert await unix_dg1.receive() == (b"654321", path)
+                    data, addr = await unix_dg1.receive()
+                    assert (data, os.fsdecode(addr)) == (b"654321", path)
                     tg.cancel_scope.cancel()
 
     async def test_concurrent_receive(
@@ -1716,7 +1878,93 @@ async def test_getaddrinfo_ipv6addr(
     ]
 
 
+async def test_getaddrinfo_ipv6_disabled() -> None:
+    gai_result = [
+        (AddressFamily.AF_INET6, socket.SocketKind.SOCK_STREAM, 6, "", (1, b""))
+    ]
+    with mock.patch.object(get_async_backend(), "getaddrinfo", return_value=gai_result):
+        assert await getaddrinfo("::1", 0) == []
+
+
 async def test_getnameinfo() -> None:
     expected_result = socket.getnameinfo(("127.0.0.1", 6666), 0)
     result = await getnameinfo(("127.0.0.1", 6666))
     assert result == expected_result
+
+
+async def test_connect_tcp_getaddrinfo_context() -> None:
+    """
+    See https://github.com/agronholm/anyio/issues/815
+    """
+    with pytest.raises(socket.gaierror) as exc_info:
+        async with await connect_tcp("anyio.invalid", 6666):
+            pass
+
+    assert exc_info.value.__context__ is None
+
+
+@pytest.mark.parametrize("socket_type", ["socket", "fd"])
+@pytest.mark.parametrize("event", ["readable", "writable"])
+async def test_wait_socket(event: str, socket_type: str) -> None:
+    wait = wait_readable if event == "readable" else wait_writable
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_sock:
+        server_sock.bind(("127.0.0.1", 0))
+        port = server_sock.getsockname()[1]
+        server_sock.listen()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_sock:
+            client_sock.connect(("127.0.0.1", port))
+            client_sock.sendall(b"Hello, world")
+
+        conn, addr = server_sock.accept()
+        with conn:
+            sock_or_fd: FileDescriptorLike = (
+                conn.fileno() if socket_type == "fd" else conn
+            )
+            with fail_after(3):
+                await wait(sock_or_fd)
+                assert conn.recv(1024) == b"Hello, world"
+
+
+async def test_deprecated_wait_socket(anyio_backend_name: str) -> None:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        with pytest.warns(
+            DeprecationWarning,
+            match="This function is deprecated; use `wait_readable` instead",
+        ):
+            with move_on_after(0.1):
+                await wait_socket_readable(sock)
+
+        with pytest.warns(
+            DeprecationWarning,
+            match="This function is deprecated; use `wait_writable` instead",
+        ):
+            with move_on_after(0.1):
+                await wait_socket_writable(sock)
+
+
+@pytest.mark.parametrize("socket_type", ["socket", "fd"])
+async def test_interrupted_by_close(socket_type: str) -> None:
+    a_sock, b = socket.socketpair()
+    with a_sock, b:
+        a_sock.setblocking(False)
+        b.setblocking(False)
+
+        a: FileDescriptorLike = a_sock.fileno() if socket_type == "fd" else a_sock
+
+        async def reader() -> None:
+            with pytest.raises(ClosedResourceError):
+                await wait_readable(a)
+
+        async def writer() -> None:
+            with pytest.raises(ClosedResourceError):
+                await wait_writable(a)
+
+        fill_socket(a_sock)
+
+        async with create_task_group() as tg:
+            tg.start_soon(reader)
+            tg.start_soon(writer)
+            await wait_all_tasks_blocked()
+            notify_closing(a_sock)
+            a_sock.close()

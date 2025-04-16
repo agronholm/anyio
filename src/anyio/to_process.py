@@ -18,9 +18,16 @@ from .abc import ByteReceiveStream, ByteSendStream, Process
 from .lowlevel import RunVar, checkpoint_if_cancelled
 from .streams.buffered import BufferedByteReceiveStream
 
+if sys.version_info >= (3, 11):
+    from typing import TypeVarTuple, Unpack
+else:
+    from typing_extensions import TypeVarTuple, Unpack
+
 WORKER_MAX_IDLE_TIME = 300  # 5 minutes
 
 T_Retval = TypeVar("T_Retval")
+PosArgsT = TypeVarTuple("PosArgsT")
+
 _process_pool_workers: RunVar[set[Process]] = RunVar("_process_pool_workers")
 _process_pool_idle_workers: RunVar[deque[tuple[Process, float]]] = RunVar(
     "_process_pool_idle_workers"
@@ -28,9 +35,9 @@ _process_pool_idle_workers: RunVar[deque[tuple[Process, float]]] = RunVar(
 _default_process_limiter: RunVar[CapacityLimiter] = RunVar("_default_process_limiter")
 
 
-async def run_sync(
-    func: Callable[..., T_Retval],
-    *args: object,
+async def run_sync(  # type: ignore[return]
+    func: Callable[[Unpack[PosArgsT]], T_Retval],
+    *args: Unpack[PosArgsT],
     cancellable: bool = False,
     limiter: CapacityLimiter | None = None,
 ) -> T_Retval:
@@ -216,7 +223,7 @@ def process_worker() -> None:
                 main_module_path: str | None
                 sys.path, main_module_path = args
                 del sys.modules["__main__"]
-                if main_module_path:
+                if main_module_path and os.path.isfile(main_module_path):
                     # Load the parent's main module but as __mp_main__ instead of
                     # __main__ (like multiprocessing does) to avoid infinite recursion
                     try:
@@ -227,7 +234,6 @@ def process_worker() -> None:
                             sys.modules["__main__"] = main
                     except BaseException as exc:
                         exception = exc
-
         try:
             if exception is not None:
                 status = b"EXCEPTION"

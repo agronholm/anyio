@@ -4,12 +4,12 @@ import math
 import sys
 import threading
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from concurrent import futures
 from concurrent.futures import CancelledError, Future
 from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
-from typing import Any, AsyncGenerator, Literal, NoReturn, TypeVar
+from typing import Any, Literal, NoReturn, TypeVar
 
 import pytest
 import sniffio
@@ -33,8 +33,10 @@ from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
 from anyio.lowlevel import checkpoint
 
+from .conftest import asyncio_params
+
 if sys.version_info < (3, 11):
-    from exceptiongroup import BaseExceptionGroup, ExceptionGroup
+    from exceptiongroup import ExceptionGroup
 
 pytestmark = pytest.mark.anyio
 
@@ -206,8 +208,8 @@ class TestRunAsyncFromThread:
         exc.match("unsupported operand type")
 
     async def test_run_anyio_async_func_from_thread(self) -> None:
-        def worker(*args: int) -> Literal[True]:
-            from_thread.run(sleep, *args)
+        def worker(delay: float) -> Literal[True]:
+            from_thread.run(sleep, delay)
             return True
 
         assert await to_thread.run_sync(worker, 0)
@@ -220,9 +222,6 @@ class TestRunAsyncFromThread:
         exc.match("This function can only be run from an AnyIO worker thread")
 
     async def test_contextvar_propagation(self, anyio_backend_name: str) -> None:
-        if anyio_backend_name == "asyncio" and sys.version_info < (3, 7):
-            pytest.skip("Asyncio does not propagate context before Python 3.7")
-
         var = ContextVar("var", default=1)
 
         async def async_func() -> int:
@@ -372,6 +371,22 @@ class TestBlockingPortal:
         assert isinstance(thread_id, int)
         assert thread_id != threading.get_ident()
 
+    def test_start_with_thread_name(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        with start_blocking_portal(
+            anyio_backend_name, anyio_backend_options, name="foo"
+        ) as portal:
+            assert portal.call(lambda: threading.current_thread().name) == "foo"
+
+    def test_start_without_thread_name(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            assert portal.call(lambda: threading.current_thread().name) == (
+                f"{anyio_backend_name}-portal-{id(portal):x}"
+            )
+
     def test_start_with_nonexistent_backend(self) -> None:
         with pytest.raises(LookupError) as exc:
             with start_blocking_portal("foo"):
@@ -422,6 +437,7 @@ class TestBlockingPortal:
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         cancelled = False
+        done_event = threading.Event()
 
         async def event_waiter() -> None:
             nonlocal cancelled
@@ -429,10 +445,13 @@ class TestBlockingPortal:
                 await sleep(3)
             except get_cancelled_exc_class():
                 cancelled = True
+            finally:
+                done_event.set()
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
             future = portal.start_task_soon(event_waiter)
             future.cancel()
+            done_event.wait(10)
 
         assert cancelled
 
@@ -507,29 +526,29 @@ class TestBlockingPortal:
     def test_start_no_value(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
-        def taskfunc(*, task_status: TaskStatus) -> None:
+        async def taskfunc(*, task_status: TaskStatus) -> None:
             task_status.started()
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
-            future, value = portal.start_task(taskfunc)  # type: ignore[arg-type]
+            future, value = portal.start_task(taskfunc)
             assert value is None
             assert future.result() is None
 
     def test_start_with_value(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
-        def taskfunc(*, task_status: TaskStatus) -> None:
+        async def taskfunc(*, task_status: TaskStatus) -> None:
             task_status.started("foo")
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
-            future, value = portal.start_task(taskfunc)  # type: ignore[arg-type]
+            future, value = portal.start_task(taskfunc)
             assert value == "foo"
             assert future.result() is None
 
     def test_start_crash_before_started_call(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
-        def taskfunc(*, task_status: object) -> NoReturn:
+        async def taskfunc(*, task_status: object) -> NoReturn:
             raise Exception("foo")
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
@@ -539,7 +558,7 @@ class TestBlockingPortal:
     def test_start_crash_after_started_call(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
-        def taskfunc(*, task_status: TaskStatus) -> NoReturn:
+        async def taskfunc(*, task_status: TaskStatus) -> NoReturn:
             task_status.started(2)
             raise Exception("foo")
 
@@ -552,32 +571,26 @@ class TestBlockingPortal:
     def test_start_no_started_call(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
-        def taskfunc(*, task_status: TaskStatus) -> None:
+        async def taskfunc(*, task_status: TaskStatus) -> None:
             pass
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
             with pytest.raises(RuntimeError, match="Task exited"):
-                portal.start_task(taskfunc)  # type: ignore[arg-type]
+                portal.start_task(taskfunc)
 
     def test_start_with_name(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
-        def taskfunc(*, task_status: TaskStatus) -> None:
+        async def taskfunc(*, task_status: TaskStatus) -> None:
             task_status.started(get_current_task().name)
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
-            future, start_value = portal.start_task(
-                taskfunc,  # type: ignore[arg-type]
-                name="testname",
-            )
+            future, start_value = portal.start_task(taskfunc, name="testname")
             assert start_value == "testname"
 
     def test_contextvar_propagation_sync(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
-        if anyio_backend_name == "asyncio" and sys.version_info < (3, 7):
-            pytest.skip("Asyncio does not propagate context before Python 3.7")
-
         var = ContextVar("var", default=1)
         var.set(6)
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
@@ -588,9 +601,6 @@ class TestBlockingPortal:
     def test_contextvar_propagation_async(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
-        if anyio_backend_name == "asyncio" and sys.version_info < (3, 7):
-            pytest.skip("Asyncio does not propagate context before Python 3.7")
-
         var = ContextVar("var", default=1)
         var.set(6)
 
@@ -603,7 +613,7 @@ class TestBlockingPortal:
 
         assert propagated_value == 6
 
-    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_asyncio_run_sync_called(self, caplog: LogCaptureFixture) -> None:
         """Regression test for #357."""
 
@@ -621,25 +631,20 @@ class TestBlockingPortal:
         """
         Test that when a task raises a BaseException, it does not trigger additional
         exceptions when trying to close the portal.
-
         """
 
         async def raise_baseexception() -> None:
+            assert threading.current_thread().daemon
             raise BaseException("fatal error")
 
-        with pytest.raises(BaseExceptionGroup) as outer_exc:
-            with start_blocking_portal(
-                anyio_backend_name, anyio_backend_options
-            ) as portal:
-                with pytest.raises(BaseException, match="fatal error") as exc:
-                    portal.call(raise_baseexception)
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            with pytest.raises(BaseException, match="fatal error") as exc:
+                portal.call(raise_baseexception)
 
-                assert exc.value.__context__ is None
-
-        assert len(outer_exc.value.exceptions) == 1
-        assert str(outer_exc.value.exceptions[0]) == "fatal error"
+            assert exc.value.__context__ is None
 
     @pytest.mark.parametrize("portal_backend_name", get_all_backends())
+    @pytest.mark.usefixtures("deactivate_blockbuster")
     async def test_from_async(
         self, anyio_backend_name: str, portal_backend_name: str
     ) -> None:

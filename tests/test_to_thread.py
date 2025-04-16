@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import gc
+import sys
 import threading
 import time
-from concurrent.futures import Future
+from concurrent.futures import Future, ThreadPoolExecutor
 from contextvars import ContextVar
 from functools import partial
 from typing import Any, NoReturn
@@ -21,6 +23,9 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
+from anyio.from_thread import BlockingPortalProvider
+
+from .conftest import asyncio_params, no_other_refs
 
 pytestmark = pytest.mark.anyio
 
@@ -158,7 +163,7 @@ async def test_asynclib_detection() -> None:
         await to_thread.run_sync(sniffio.current_async_library)
 
 
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_asyncio_cancel_native_task() -> None:
     task: asyncio.Task[None] | None = None
 
@@ -287,3 +292,100 @@ async def test_stopiteration() -> None:
 
     with pytest.raises(RuntimeError, match="coroutine raised StopIteration"):
         await to_thread.run_sync(raise_stopiteration)
+
+
+class TestBlockingPortalProvider:
+    @pytest.fixture
+    def provider(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> BlockingPortalProvider:
+        return BlockingPortalProvider(
+            backend=anyio_backend_name, backend_options=anyio_backend_options
+        )
+
+    def test_single_thread(
+        self, provider: BlockingPortalProvider, anyio_backend_name: str
+    ) -> None:
+        threads: set[threading.Thread] = set()
+
+        async def check_thread() -> None:
+            assert sniffio.current_async_library() == anyio_backend_name
+            threads.add(threading.current_thread())
+
+        active_threads_before = threading.active_count()
+        for _ in range(3):
+            with provider as portal:
+                portal.call(check_thread)
+
+        assert len(threads) == 3
+        assert threading.active_count() == active_threads_before
+
+    def test_single_thread_overlapping(
+        self, provider: BlockingPortalProvider, anyio_backend_name: str
+    ) -> None:
+        threads: set[threading.Thread] = set()
+
+        async def check_thread() -> None:
+            assert sniffio.current_async_library() == anyio_backend_name
+            threads.add(threading.current_thread())
+
+        with provider as portal1:
+            with provider as portal2:
+                assert portal1 is portal2
+                portal2.call(check_thread)
+
+            portal1.call(check_thread)
+
+        assert len(threads) == 1
+
+    def test_multiple_threads(
+        self, provider: BlockingPortalProvider, anyio_backend_name: str
+    ) -> None:
+        threads: set[threading.Thread] = set()
+        event = Event()
+
+        async def check_thread() -> None:
+            assert sniffio.current_async_library() == anyio_backend_name
+            await event.wait()
+            threads.add(threading.current_thread())
+
+        def dummy() -> None:
+            with provider as portal:
+                portal.call(check_thread)
+
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            for _ in range(3):
+                pool.submit(dummy)
+
+            with provider as portal:
+                portal.call(wait_all_tasks_blocked)
+                portal.call(event.set)
+
+        assert len(threads) == 1
+
+
+@pytest.mark.skipif(
+    sys.implementation.name == "pypy",
+    reason=(
+        "gc.get_referrers is broken on PyPy (see "
+        "https://github.com/pypy/pypy/issues/5075)"
+    ),
+)
+async def test_run_sync_worker_cyclic_references() -> None:
+    class Foo:
+        pass
+
+    def foo(_: Foo) -> None:
+        pass
+
+    cvar = ContextVar[Foo]("cvar")
+    contextval = Foo()
+    arg = Foo()
+    cvar.set(contextval)
+    await to_thread.run_sync(foo, arg)
+    cvar.set(Foo())
+    gc.collect()
+
+    assert gc.get_referrers(contextval) == no_other_refs()
+    assert gc.get_referrers(foo) == no_other_refs()
+    assert gc.get_referrers(arg) == no_other_refs()

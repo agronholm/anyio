@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import signal
 import sys
-from typing import AsyncIterable
+from collections.abc import AsyncIterable
 
 import pytest
 

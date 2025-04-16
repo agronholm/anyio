@@ -1,15 +1,22 @@
 from __future__ import annotations
 
+import socket
+from collections.abc import Sequence
+
 import pytest
 from _pytest.logging import LogCaptureFixture
 from _pytest.pytester import Pytester
 
 from anyio import get_all_backends
+from anyio.pytest_plugin import FreePortFactory
 
-pytestmark = pytest.mark.filterwarnings(
-    "ignore:The TerminalReporter.writer attribute is deprecated"
-    ":pytest.PytestDeprecationWarning:"
-)
+pytestmark = [
+    pytest.mark.filterwarnings(
+        "ignore:The TerminalReporter.writer attribute is deprecated"
+        ":pytest.PytestDeprecationWarning:"
+    ),
+    pytest.mark.anyio,
+]
 
 pytest_args = "-v", "-p", "anyio", "-p", "no:asyncio", "-p", "no:trio"
 
@@ -418,3 +425,205 @@ def test_hypothesis_function_mark(testdir: Pytester) -> None:
     result.assert_outcomes(
         passed=2 * len(get_all_backends()), xfailed=2 * len(get_all_backends())
     )
+
+
+@pytest.mark.parametrize("anyio_backend", get_all_backends(), indirect=True)
+def test_debugger_exit_in_taskgroup(testdir: Pytester, anyio_backend_name: str) -> None:
+    testdir.makepyfile(
+        f"""
+        import pytest
+        from _pytest.outcomes import Exit
+        from anyio import create_task_group
+
+        @pytest.fixture
+        def anyio_backend():
+            return {anyio_backend_name!r}
+
+        @pytest.mark.anyio
+        async def test_debugger_exit():
+            async with create_task_group() as tg:
+                raise Exit('Quitting debugger')
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes()
+
+
+@pytest.mark.parametrize("anyio_backend", get_all_backends(), indirect=True)
+def test_keyboardinterrupt_during_test(
+    testdir: Pytester, anyio_backend_name: str
+) -> None:
+    testdir.makepyfile(
+        f"""
+        import pytest
+        from anyio import create_task_group, sleep
+
+        @pytest.fixture
+        def anyio_backend():
+            return {anyio_backend_name!r}
+
+        async def send_keyboardinterrupt():
+            raise KeyboardInterrupt
+
+        @pytest.mark.anyio
+        async def test_anyio_mark_first():
+            async with create_task_group() as tg:
+                tg.start_soon(send_keyboardinterrupt)
+                await sleep(10)
+        """
+    )
+
+    testdir.runpytest_subprocess(*pytest_args, timeout=3)
+
+
+def test_async_fixture_in_test_class(testdir: Pytester) -> None:
+    # Regression test for #633
+    testdir.makepyfile(
+        """
+        import pytest
+
+
+        class TestAsyncFixtureMethod:
+            is_same_instance = False
+
+            @pytest.fixture(autouse=True)
+            async def async_fixture_method(self):
+                self.is_same_instance = True
+
+            @pytest.mark.anyio
+            async def test_async_fixture_method(self):
+                assert self.is_same_instance
+        """
+    )
+
+    result = testdir.runpytest_subprocess(*pytest_args)
+    result.assert_outcomes(passed=len(get_all_backends()))
+
+
+def test_asyncgen_fixture_in_test_class(testdir: Pytester) -> None:
+    # Regression test for #633
+    testdir.makepyfile(
+        """
+        import pytest
+
+
+        class TestAsyncFixtureMethod:
+            is_same_instance = False
+
+            @pytest.fixture(autouse=True)
+            async def async_fixture_method(self):
+                self.is_same_instance = True
+                yield
+
+            @pytest.mark.anyio
+            async def test_async_fixture_method(self):
+                assert self.is_same_instance
+        """
+    )
+
+    result = testdir.runpytest_subprocess(*pytest_args)
+    result.assert_outcomes(passed=len(get_all_backends()))
+
+
+def test_anyio_fixture_adoption_does_not_persist(testdir: Pytester) -> None:
+    testdir.makepyfile(
+        """
+        import inspect
+        import pytest
+
+        @pytest.fixture
+        async def fixt():
+            return 1
+
+        @pytest.mark.anyio
+        async def test_fixt(fixt):
+            assert fixt == 1
+
+        def test_no_mark(fixt):
+            assert inspect.iscoroutine(fixt)
+            fixt.close()
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=len(get_all_backends()) + 1)
+
+
+def test_async_fixture_params(testdir: Pytester) -> None:
+    testdir.makepyfile(
+        """
+        import inspect
+        import pytest
+
+        @pytest.fixture(params=[1, 2])
+        async def fixt(request):
+            return request.param
+
+        @pytest.mark.anyio
+        async def test_params(fixt):
+            assert fixt in (1, 2)
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=len(get_all_backends()) * 2)
+
+
+class TestFreePortFactory:
+    @pytest.fixture(scope="class")
+    def families(self) -> Sequence[tuple[socket.AddressFamily, str]]:
+        from .test_sockets import has_ipv6
+
+        families: list[tuple[socket.AddressFamily, str]] = [
+            (socket.AF_INET, "127.0.0.1")
+        ]
+        if has_ipv6:
+            families.append((socket.AF_INET6, "::1"))
+
+        return families
+
+    async def test_tcp_factory(
+        self,
+        families: Sequence[tuple[socket.AddressFamily, str]],
+        free_tcp_port_factory: FreePortFactory,
+    ) -> None:
+        generated_ports = {free_tcp_port_factory() for _ in range(5)}
+        assert all(isinstance(port, int) for port in generated_ports)
+        assert len(generated_ports) == 5
+        for port in generated_ports:
+            for family, addr in families:
+                with socket.socket(family, socket.SOCK_STREAM) as sock:
+                    try:
+                        sock.bind((addr, port))
+                    except OSError:
+                        pass
+
+    async def test_udp_factory(
+        self,
+        families: Sequence[tuple[socket.AddressFamily, str]],
+        free_udp_port_factory: FreePortFactory,
+    ) -> None:
+        generated_ports = {free_udp_port_factory() for _ in range(5)}
+        assert all(isinstance(port, int) for port in generated_ports)
+        assert len(generated_ports) == 5
+        for port in generated_ports:
+            for family, addr in families:
+                with socket.socket(family, socket.SOCK_DGRAM) as sock:
+                    sock.bind((addr, port))
+
+    async def test_free_tcp_port(
+        self, families: Sequence[tuple[socket.AddressFamily, str]], free_tcp_port: int
+    ) -> None:
+        assert isinstance(free_tcp_port, int)
+        for family, addr in families:
+            with socket.socket(family, socket.SOCK_STREAM) as sock:
+                sock.bind((addr, free_tcp_port))
+
+    async def test_free_udp_port(
+        self, families: Sequence[tuple[socket.AddressFamily, str]], free_udp_port: int
+    ) -> None:
+        assert isinstance(free_udp_port, int)
+        for family, addr in families:
+            with socket.socket(family, socket.SOCK_DGRAM) as sock:
+                sock.bind((addr, free_udp_port))

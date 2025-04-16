@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from collections.abc import AsyncGenerator, Coroutine, Generator
+from collections.abc import AsyncGenerator, Generator
+from types import CoroutineType, GeneratorType
 from typing import Any, cast
 
 import pytest
@@ -18,6 +19,8 @@ from anyio import (
     wait_all_tasks_blocked,
 )
 from anyio.abc import TaskStatus
+
+from .conftest import asyncio_params
 
 pytestmark = pytest.mark.anyio
 
@@ -96,7 +99,7 @@ async def test_get_running_tasks() -> None:
     for task, expected_name in zip(task_infos, expected_names):
         assert task.parent_id == host_task.id
         assert task.name == expected_name
-        assert repr(task) == f"TaskInfo(id={task.id}, name={expected_name!r})"
+        assert repr(task).endswith(f"TaskInfo(id={task.id}, name={expected_name!r})")
 
 
 @pytest.mark.skipif(
@@ -111,9 +114,9 @@ def test_wait_generator_based_task_blocked(
 ) -> None:
     async def native_coro_part() -> None:
         await wait_all_tasks_blocked()
-        gen = cast(Generator, get_coro(gen_task))
+        gen = cast(GeneratorType, get_coro(gen_task))
         assert not gen.gi_running
-        coro = cast(Coroutine, gen.gi_yieldfrom)
+        coro = cast(CoroutineType, gen.gi_yieldfrom)
         assert coro.cr_code.co_name == "wait"
 
         event.set()
@@ -127,7 +130,7 @@ def test_wait_generator_based_task_blocked(
     asyncio_event_loop.run_until_complete(native_coro_part())
 
 
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_wait_all_tasks_blocked_asend(anyio_backend: str) -> None:
     """Test that wait_all_tasks_blocked() does not crash on an `asend()` object."""
 
@@ -137,7 +140,7 @@ async def test_wait_all_tasks_blocked_asend(anyio_backend: str) -> None:
     agen = agen_func()
     coro = agen.asend(None)
     loop = asyncio.get_running_loop()
-    task = loop.create_task(cast("Coroutine[Any, Any, Any]", coro))
+    task = loop.create_task(cast("CoroutineType[Any, Any, Any]", coro))
     await wait_all_tasks_blocked()
     await task
     await agen.aclose()

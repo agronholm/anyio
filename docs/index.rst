@@ -18,7 +18,9 @@ The manual
    networking
    threads
    subprocesses
+   subinterpreters
    fileio
+   tempfile
    signals
    testing
    api

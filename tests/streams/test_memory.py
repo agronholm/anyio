@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import sys
 from typing import NoReturn
 
@@ -16,8 +17,14 @@ from anyio import (
     fail_after,
     wait_all_tasks_blocked,
 )
-from anyio.abc import ObjectReceiveStream, ObjectSendStream
-from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+from anyio.abc import ObjectReceiveStream, ObjectSendStream, TaskStatus
+from anyio.streams.memory import (
+    MemoryObjectItemReceiver,
+    MemoryObjectReceiveStream,
+    MemoryObjectSendStream,
+)
+
+from ..conftest import asyncio_params
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -52,6 +59,9 @@ async def test_receive_then_send() -> None:
 
     assert received_objects == ["hello", "anyio"]
 
+    send.close()
+    receive.close()
+
 
 async def test_receive_then_send_nowait() -> None:
     async def receiver() -> None:
@@ -68,6 +78,9 @@ async def test_receive_then_send_nowait() -> None:
 
     assert sorted(received_objects, reverse=True) == ["hello", "anyio"]
 
+    send.close()
+    receive.close()
+
 
 async def test_send_then_receive_nowait() -> None:
     send, receive = create_memory_object_stream[str](0)
@@ -75,6 +88,9 @@ async def test_send_then_receive_nowait() -> None:
         tg.start_soon(send.send, "hello")
         await wait_all_tasks_blocked()
         assert receive.receive_nowait() == "hello"
+
+    send.close()
+    receive.close()
 
 
 async def test_send_is_unblocked_after_receive_nowait() -> None:
@@ -89,6 +105,9 @@ async def test_send_is_unblocked_after_receive_nowait() -> None:
 
     assert receive.receive_nowait() == "anyio"
 
+    send.close()
+    receive.close()
+
 
 async def test_send_nowait_then_receive_nowait() -> None:
     send, receive = create_memory_object_stream[str](2)
@@ -97,11 +116,13 @@ async def test_send_nowait_then_receive_nowait() -> None:
     assert receive.receive_nowait() == "hello"
     assert receive.receive_nowait() == "anyio"
 
+    send.close()
+    receive.close()
+
 
 async def test_iterate() -> None:
     async def receiver() -> None:
-        async for item in receive:
-            received_objects.append(item)
+        received_objects.extend([item async for item in receive])
 
     send, receive = create_memory_object_stream[str]()
     received_objects: list[str] = []
@@ -113,6 +134,9 @@ async def test_iterate() -> None:
 
     assert received_objects == ["hello", "anyio"]
 
+    send.close()
+    receive.close()
+
 
 async def test_receive_send_closed_send_stream() -> None:
     send, receive = create_memory_object_stream[None]()
@@ -123,6 +147,8 @@ async def test_receive_send_closed_send_stream() -> None:
     with pytest.raises(ClosedResourceError):
         await send.send(None)
 
+    receive.close()
+
 
 async def test_receive_send_closed_receive_stream() -> None:
     send, receive = create_memory_object_stream[None]()
@@ -132,6 +158,8 @@ async def test_receive_send_closed_receive_stream() -> None:
 
     with pytest.raises(BrokenResourceError):
         await send.send(None)
+
+    send.close()
 
 
 async def test_cancel_receive() -> None:
@@ -144,6 +172,9 @@ async def test_cancel_receive() -> None:
     with pytest.raises(WouldBlock):
         send.send_nowait("hello")
 
+    send.close()
+    receive.close()
+
 
 async def test_cancel_send() -> None:
     send, receive = create_memory_object_stream[str]()
@@ -155,6 +186,9 @@ async def test_cancel_send() -> None:
     with pytest.raises(WouldBlock):
         receive.receive_nowait()
 
+    send.close()
+    receive.close()
+
 
 async def test_clone() -> None:
     send1, receive1 = create_memory_object_stream[str](1)
@@ -164,6 +198,11 @@ async def test_clone() -> None:
     await receive1.aclose()
     send2.send_nowait("hello")
     assert receive2.receive_nowait() == "hello"
+
+    send1.close()
+    receive1.close()
+    send2.close()
+    receive2.close()
 
 
 async def test_clone_closed() -> None:
@@ -185,17 +224,24 @@ async def test_close_send_while_receiving() -> None:
     assert len(exc.value.exceptions) == 1
     assert isinstance(exc.value.exceptions[0], EndOfStream)
 
+    send.close()
+    receive.close()
+
 
 async def test_close_receive_while_sending() -> None:
-    send, receive = create_memory_object_stream[str](0)
+    # We send None here as a regression test for #731
+    send, receive = create_memory_object_stream[None](0)
     with pytest.raises(ExceptionGroup) as exc:
         async with create_task_group() as tg:
-            tg.start_soon(send.send, "hello")
+            tg.start_soon(send.send, None)
             await wait_all_tasks_blocked()
             await receive.aclose()
 
     assert len(exc.value.exceptions) == 1
     assert isinstance(exc.value.exceptions[0], BrokenResourceError)
+
+    send.close()
+    receive.close()
 
 
 async def test_receive_after_send_closed() -> None:
@@ -203,6 +249,9 @@ async def test_receive_after_send_closed() -> None:
     await send.send("hello")
     await send.aclose()
     assert await receive.receive() == "hello"
+
+    send.close()
+    receive.close()
 
 
 async def test_receive_when_cancelled() -> None:
@@ -224,6 +273,9 @@ async def test_receive_when_cancelled() -> None:
 
         assert await receive.receive() == "hello"
         assert await receive.receive() == "world"
+
+    send.close()
+    receive.close()
 
 
 async def test_send_when_cancelled() -> None:
@@ -248,6 +300,9 @@ async def test_send_when_cancelled() -> None:
 
     assert received == ["world"]
 
+    send.close()
+    receive.close()
+
 
 async def test_cancel_during_receive() -> None:
     """
@@ -255,25 +310,49 @@ async def test_cancel_during_receive() -> None:
     stream to be lost.
 
     """
-    receiver_scope = None
 
-    async def scoped_receiver() -> None:
-        nonlocal receiver_scope
-        with CancelScope() as receiver_scope:
+    async def scoped_receiver(task_status: TaskStatus[CancelScope]) -> None:
+        with CancelScope() as cancel_scope:
+            task_status.started(cancel_scope)
             received.append(await receive.receive())
 
-        assert receiver_scope.cancel_called
+        assert cancel_scope.cancel_called
 
     received: list[str] = []
     send, receive = create_memory_object_stream[str]()
-    async with create_task_group() as tg:
-        tg.start_soon(scoped_receiver)
-        await wait_all_tasks_blocked()
-        send.send_nowait("hello")
-        assert receiver_scope is not None
-        receiver_scope.cancel()
+    with send, receive:
+        async with create_task_group() as tg:
+            receiver_scope = await tg.start(scoped_receiver)
+            await wait_all_tasks_blocked()
+            send.send_nowait("hello")
+            receiver_scope.cancel()
 
     assert received == ["hello"]
+
+
+async def test_cancel_during_receive_buffered() -> None:
+    """
+    Test that sending an item to a memory object stream when the receiver that is next
+    in line has been cancelled will not result in the item being lost.
+    """
+
+    async def scoped_receiver(
+        receive: MemoryObjectReceiveStream[str], task_status: TaskStatus[CancelScope]
+    ) -> None:
+        with CancelScope() as cancel_scope:
+            task_status.started(cancel_scope)
+            await receive.receive()
+
+    send, receive = create_memory_object_stream[str](1)
+    with send, receive:
+        async with create_task_group() as tg:
+            cancel_scope = await tg.start(scoped_receiver, receive)
+            await wait_all_tasks_blocked()
+            cancel_scope.cancel()
+            send.send_nowait("item")
+
+        # Since the item was not sent to the cancelled task, it should be available here
+        assert receive.receive_nowait() == "item"
 
 
 async def test_close_receive_after_send() -> None:
@@ -289,6 +368,9 @@ async def test_close_receive_after_send() -> None:
     async with create_task_group() as tg:
         tg.start_soon(send)
         tg.start_soon(receive)
+
+    send_stream.close()
+    receive_stream.close()
 
 
 async def test_statistics() -> None:
@@ -347,6 +429,9 @@ async def test_statistics() -> None:
         assert stream.statistics().tasks_waiting_send == 0
         assert stream.statistics().tasks_waiting_receive == 0
 
+    send_stream.close()
+    receive_stream.close()
+
 
 async def test_sync_close() -> None:
     send_stream, receive_stream = create_memory_object_stream[None](1)
@@ -374,7 +459,68 @@ async def test_type_variance() -> None:
     send1: MemoryObjectSendStream[int] = send  # noqa: F841
     send2: ObjectSendStream[int] = send  # noqa: F841
 
+    send.close()
+    receive.close()
+
 
 async def test_deprecated_item_type_parameter() -> None:
     with pytest.warns(DeprecationWarning, match="item_type argument has been "):
-        create_memory_object_stream(item_type=int)
+        send, receive = create_memory_object_stream(item_type=int)  # type: ignore[var-annotated]
+
+        send.close()
+        receive.close()
+
+
+async def test_not_closed_warning() -> None:
+    send, receive = create_memory_object_stream[int]()
+
+    with pytest.warns(
+        ResourceWarning, match="Unclosed <MemoryObjectSendStream at [0-9a-f]+>"
+    ):
+        del send
+        gc.collect()
+
+    with pytest.warns(
+        ResourceWarning, match="Unclosed <MemoryObjectReceiveStream at [0-9a-f]+>"
+    ):
+        del receive
+        gc.collect()
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_send_to_natively_cancelled_receiver() -> None:
+    """
+    Test that if a task waiting on receive.receive() is cancelled and then another
+    task sends an item, said item is not delivered to the task with a pending
+    cancellation, but rather to the next one in line.
+
+    """
+    from asyncio import CancelledError, create_task
+
+    send, receive = create_memory_object_stream[str](1)
+    with send, receive:
+        receive_task = create_task(receive.receive())
+        await wait_all_tasks_blocked()  # ensure that the task is waiting to receive
+        receive_task.cancel()
+        send.send_nowait("hello")
+        with pytest.raises(CancelledError):
+            await receive_task
+
+        assert receive.receive_nowait() == "hello"
+
+
+async def test_memory_object_item_receiver_repr() -> None:
+    """
+    Test the repr of `MemoryObjectItemReceiver`.
+    Since when `item` is not set, the default dataclass repr raises an AttributeError.
+    """
+    receiver = MemoryObjectItemReceiver[str]()
+
+    assert str(receiver) is not None
+    receiver_repr = repr(receiver)
+    assert "item=None" in receiver_repr
+
+    assert str(receiver) is not None
+    receiver.item = "test_item"
+    receiver_repr = repr(receiver)
+    assert "item='test_item'" in receiver_repr

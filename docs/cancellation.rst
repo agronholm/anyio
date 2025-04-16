@@ -20,6 +20,28 @@ cancelling this scope.
 .. _Trio: https://trio.readthedocs.io/en/latest/reference-core.html
    #cancellation-and-timeouts
 
+.. _asyncio cancellation:
+
+Differences between asyncio and AnyIO cancellation semantics
+------------------------------------------------------------
+
+Asyncio employs a type of cancellation called *edge cancellation*. This means that when
+a task is cancelled, a :exc:`~asyncio.CancelledError` is raised in the task and the task
+then gets to handle it however it likes, even opting to ignore it entirely. In contrast,
+tasks that either explicitly use a cancel scope, or are spawned from an AnyIO task
+group, use *level cancellation*. This means that as long as a task remains within an
+*effectively cancelled* cancel scope, it will get hit with a cancellation exception any
+time it hits a *yield point* (usually by awaiting something, or through
+``async with ...`` or ``async for ...``).
+
+This can cause difficulties when running code written for asyncio that does not expect
+to get cancelled repeatedly. For example, :class:`asyncio.Condition` was written in such
+a way that it suppresses cancellation exceptions until it is able to reacquire the
+underlying lock. This can lead to a busy-wait_ loop that needlessly consumes a lot of
+CPU time.
+
+.. _busy-wait: https://en.wikipedia.org/wiki/Busy_waiting
+
 Timeouts
 --------
 
@@ -107,7 +129,7 @@ In some specific cases, you might only want to catch the cancellation exception.
 tricky because each async framework has its own exception class for that and AnyIO
 cannot control which exception is raised in the task when it's cancelled. To work around
 that, AnyIO provides a way to retrieve the exception class specific to the currently
-running async framework, using:func:`~get_cancelled_exc_class`::
+running async framework, using :func:`~get_cancelled_exc_class`::
 
     from anyio import get_cancelled_exc_class
 

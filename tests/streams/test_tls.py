@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import socket
 import ssl
-import sys
-from contextlib import ExitStack
+from contextlib import AbstractContextManager, ExitStack
 from threading import Thread
-from typing import ContextManager, NoReturn
+from typing import NoReturn
+from unittest import mock
 
 import pytest
-from pytest_mock import MockerFixture
 from trustme import CA
 
 from anyio import (
@@ -26,10 +25,6 @@ from anyio.streams.stapled import StapledObjectStream
 from anyio.streams.tls import TLSAttribute, TLSListener, TLSStream
 
 pytestmark = pytest.mark.anyio
-skip_on_broken_openssl = pytest.mark.skipif(
-    (ssl.OPENSSL_VERSION_INFO[0] > 1 and sys.version_info < (3, 8)),
-    reason="Python 3.7 does not work with OpenSSL versions higher than 1.X",
-)
 
 
 class TestTLSStream:
@@ -193,7 +188,6 @@ class TestTLSStream:
             pytest.param(False, False, id="neither_standard"),
         ],
     )
-    @skip_on_broken_openssl
     async def test_ragged_eofs(
         self,
         server_context: ssl.SSLContext,
@@ -216,7 +210,7 @@ class TestTLSStream:
             finally:
                 conn.close()
 
-        client_cm: ContextManager = ExitStack()
+        client_cm: AbstractContextManager = ExitStack()
         if client_compatible and not server_compatible:
             client_cm = pytest.raises(BrokenResourceError)
 
@@ -250,7 +244,6 @@ class TestTLSStream:
         else:
             assert server_exc is None
 
-    @skip_on_broken_openssl
     async def test_ragged_eof_on_receive(
         self, server_context: ssl.SSLContext, client_context: ssl.SSLContext
     ) -> None:
@@ -350,10 +343,7 @@ class TestTLSStream:
         ca.configure_trust(client_context)
         if force_tlsv12:
             expected_pattern = r"send_eof\(\) requires at least TLSv1.3"
-            if hasattr(ssl, "TLSVersion"):
-                client_context.maximum_version = ssl.TLSVersion.TLSv1_2
-            else:  # Python 3.6
-                client_context.options |= ssl.OP_NO_TLSv1_3
+            client_context.maximum_version = ssl.TLSVersion.TLSv1_2
         else:
             expected_pattern = (
                 r"send_eof\(\) has not yet been implemented for TLS streams"
@@ -385,19 +375,47 @@ class TestTLSStream:
         not hasattr(ssl, "OP_IGNORE_UNEXPECTED_EOF"),
         reason="The ssl module does not have the OP_IGNORE_UNEXPECTED_EOF attribute",
     )
-    async def test_default_context_ignore_unexpected_eof_flag_off(
-        self, mocker: MockerFixture
-    ) -> None:
+    async def test_default_context_ignore_unexpected_eof_flag_off(self) -> None:
         send1, receive1 = create_memory_object_stream[bytes]()
         client_stream = StapledObjectStream(send1, receive1)
-        mocker.patch.object(TLSStream, "_call_sslobject_method")
-        tls_stream = await TLSStream.wrap(client_stream)
-        ssl_context = tls_stream.extra(TLSAttribute.ssl_object).context
-        assert not ssl_context.options & ssl.OP_IGNORE_UNEXPECTED_EOF
+        with mock.patch.object(TLSStream, "_call_sslobject_method"):
+            tls_stream = await TLSStream.wrap(client_stream)
+            ssl_context = tls_stream.extra(TLSAttribute.ssl_object).context
+            assert not ssl_context.options & ssl.OP_IGNORE_UNEXPECTED_EOF
+
+            send1.close()
+            receive1.close()
+
+    async def test_truststore_ssl(
+        self, request: pytest.FixtureRequest, server_context: ssl.SSLContext
+    ) -> None:
+        # This test is only expected to fail on Windows without the associated patch
+        def serve_sync() -> None:
+            with server_sock, pytest.raises(ssl.SSLEOFError):
+                server_sock.accept()
+
+        # We deliberately skip making the client context trust the server context
+        truststore = pytest.importorskip("truststore")
+        client_context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+
+        server_sock = server_context.wrap_socket(
+            socket.socket(), server_side=True, suppress_ragged_eofs=True
+        )
+        server_sock.settimeout(1)
+        server_sock.bind(("127.0.0.1", 0))
+        server_sock.listen()
+        server_thread = Thread(target=serve_sync, daemon=True)
+        server_thread.start()
+        request.addfinalizer(server_thread.join)
+
+        async with await connect_tcp(*server_sock.getsockname()) as stream:
+            with pytest.raises(ssl.SSLCertVerificationError):
+                await TLSStream.wrap(
+                    stream, hostname="localhost", ssl_context=client_context
+                )
 
 
 class TestTLSListener:
-    @skip_on_broken_openssl
     async def test_handshake_fail(
         self, server_context: ssl.SSLContext, caplog: pytest.LogCaptureFixture
     ) -> None:
