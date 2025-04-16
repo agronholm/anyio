@@ -21,8 +21,7 @@ from anyio import AsyncContextManagerMixin, ContextManagerMixin
 
 pytestmark = pytest.mark.anyio
 
-
-class DummyContextManager(ContextManagerMixin["DummyContextManager"]):
+class DummyContextManager(ContextManagerMixin[Self]):
     def __init__(self, handle_exc: bool = False) -> None:
         self.started = False
         self.finished = False
@@ -40,7 +39,7 @@ class DummyContextManager(ContextManagerMixin["DummyContextManager"]):
         self.finished = True
 
 
-class DummyAsyncContextManager(AsyncContextManagerMixin["DummyAsyncContextManager"]):
+class DummyAsyncContextManager(AsyncContextManagerMixin[Self]):
     def __init__(self, handle_exc: bool = False) -> None:
         self.started = False
         self.finished = False
