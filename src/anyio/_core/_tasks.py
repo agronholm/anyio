@@ -317,9 +317,9 @@ class EnhancedTaskGroup:
                 raise
             else:
                 handle.set_return_value(retval)
+                del retval
             finally:
                 del self._tasks[coro]
-                del retval
 
     async def _run_start_func(
         self,
