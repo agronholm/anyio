@@ -255,7 +255,6 @@ regression fix to Python 3.8, and adds a few other fixes also present in v4.6.1.
 - Add support for ``byte``-based paths in ``connect_unix``, ``create_unix_listeners``,
   ``create_unix_datagram_socket``, and ``create_connected_unix_datagram_socket``. (PR by
   Lura Skye)
-- Fixed adjusting the total number of tokens in a ``CapacityLimiter`` on asyncio failing
 - Enabled the ``Event`` and ``CapacityLimiter`` classes to be instantiated outside an
   event loop thread
 - Broadly improved/fixed the type annotations. Among other things, many functions and
@@ -288,6 +287,7 @@ regression fix to Python 3.8, and adds a few other fixes also present in v4.6.1.
   * ``anyio.Path.with_segments()``
 
   (PR by Ganden Schaffner)
+- Fixed adjusting the total number of tokens in a ``CapacityLimiter`` on asyncio failing
   to wake up tasks waiting to acquire the limiter in certain edge cases (fixed with help
   from Egor Blagov)
 - Fixed ``loop_factory`` and ``use_uvloop`` options not being used on the asyncio
