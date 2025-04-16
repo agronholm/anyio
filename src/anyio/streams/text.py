@@ -45,8 +45,7 @@ class TextReceiveStream(ObjectReceiveStream[str]):
     def receive_nowait(self) -> str:
         while True:
             chunk = self.transport_stream.receive_nowait()
-            decoded = self._decoder.decode(chunk)
-            if decoded:
+            if decoded := self._decoder.decode(chunk):
                 return decoded
 
     async def receive(self) -> str:
