@@ -4,12 +4,20 @@ from abc import abstractmethod
 from contextlib import AbstractAsyncContextManager, AbstractContextManager
 from inspect import isasyncgen, iscoroutine, isgenerator
 from types import TracebackType
-from typing import Generic, TypeVar, final
+from typing import Protocol, TypeVar, final
 
 _T_co = TypeVar("_T_co", covariant=True)
 
 
-class ContextManagerMixin(Generic[_T_co]):
+class _SupportsCtxMgr(Protocol[_T_co]):
+    def __contextmanager__(self) -> AbstractContextManager[_T_co]: ...
+
+
+class _SupportsAsyncCtxMgr(Protocol[_T_co]):
+    def __asynccontextmanager__(self) -> AbstractAsyncContextManager[_T_co]: ...
+
+
+class ContextManagerMixin:
     """
     Mixin class providing context manager functionality via a generator-based
     implementation.
@@ -22,10 +30,12 @@ class ContextManagerMixin(Generic[_T_co]):
         that once you enter it, you can't re-enter before first exiting it.
     """
 
-    __cm: AbstractContextManager[_T_co] | None = None
+    __cm: AbstractContextManager[object] | None = None
 
     @final
-    def __enter__(self) -> _T_co:
+    def __enter__(self: _SupportsCtxMgr[_T_co]) -> _T_co:
+        # Needed for mypy to assume self still has the __cm member
+        assert isinstance(self, ContextManagerMixin)
         if self.__cm is not None:
             raise RuntimeError(
                 f"this {self.__class__.__qualname__} has already been entered"
@@ -75,7 +85,7 @@ class ContextManagerMixin(Generic[_T_co]):
         return cm.__exit__(exc_type, exc_val, exc_tb)
 
     @abstractmethod
-    def __contextmanager__(self) -> AbstractContextManager[_T_co]:
+    def __contextmanager__(self) -> AbstractContextManager[object]:
         """
         Implement your context manager logic here.
 
@@ -89,7 +99,7 @@ class ContextManagerMixin(Generic[_T_co]):
         """
 
 
-class AsyncContextManagerMixin(Generic[_T_co]):
+class AsyncContextManagerMixin:
     """
     Mixin class providing async context manager functionality via a generator-based
     implementation.
@@ -102,10 +112,12 @@ class AsyncContextManagerMixin(Generic[_T_co]):
         that once you enter it, you can't re-enter before first exiting it.
     """
 
-    __cm: AbstractAsyncContextManager[_T_co] | None = None
+    __cm: AbstractAsyncContextManager[object] | None = None
 
     @final
-    async def __aenter__(self) -> _T_co:
+    async def __aenter__(self: _SupportsAsyncCtxMgr[_T_co]) -> _T_co:
+        # Needed for mypy to assume self still has the __cm member
+        assert isinstance(self, AsyncContextManagerMixin)
         if self.__cm is not None:
             raise RuntimeError(
                 f"this {self.__class__.__qualname__} has already been entered"
@@ -162,7 +174,7 @@ class AsyncContextManagerMixin(Generic[_T_co]):
         return await cm.__aexit__(exc_type, exc_val, exc_tb)
 
     @abstractmethod
-    def __asynccontextmanager__(self) -> AbstractAsyncContextManager[_T_co]:
+    def __asynccontextmanager__(self) -> AbstractAsyncContextManager[object]:
         """
         Implement your async context manager logic here.
 

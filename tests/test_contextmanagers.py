@@ -21,7 +21,7 @@ from anyio import AsyncContextManagerMixin, ContextManagerMixin
 
 pytestmark = pytest.mark.anyio
 
-class DummyContextManager(ContextManagerMixin[Self]):
+class DummyContextManager(ContextManagerMixin):
     def __init__(self, handle_exc: bool = False) -> None:
         self.started = False
         self.finished = False
@@ -39,7 +39,7 @@ class DummyContextManager(ContextManagerMixin[Self]):
         self.finished = True
 
 
-class DummyAsyncContextManager(AsyncContextManagerMixin[Self]):
+class DummyAsyncContextManager(AsyncContextManagerMixin):
     def __init__(self, handle_exc: bool = False) -> None:
         self.started = False
         self.finished = False
@@ -78,7 +78,7 @@ class TestContextManagerMixin:
         assert cm.finished == handle_exc
 
     def test_return_bad_type(self) -> None:
-        class BadContextManager(ContextManagerMixin[None]):
+        class BadContextManager(ContextManagerMixin):
             def __contextmanager__(self) -> AbstractContextManager[None]:
                 return None  # type: ignore[return-value]
 
@@ -87,7 +87,7 @@ class TestContextManagerMixin:
                 pass
 
     def test_return_generator(self) -> None:
-        class BadContextManager(ContextManagerMixin["BadContextManager"]):
+        class BadContextManager(ContextManagerMixin):
             def __contextmanager__(self):  # type: ignore[no-untyped-def]
                 yield self
 
@@ -96,7 +96,7 @@ class TestContextManagerMixin:
                 pass
 
     def test_return_self(self) -> None:
-        class BadContextManager(ContextManagerMixin["BadContextManager"]):
+        class BadContextManager(ContextManagerMixin):
             def __contextmanager__(self):  # type: ignore[no-untyped-def]
                 return self
 
@@ -172,7 +172,7 @@ class TestAsyncContextManagerMixin:
         assert cm.finished == handle_exc
 
     async def test_return_bad_type(self) -> None:
-        class BadContextManager(AsyncContextManagerMixin[None]):
+        class BadContextManager(AsyncContextManagerMixin):
             def __asynccontextmanager__(self):  # type: ignore[no-untyped-def]
                 return None
 
@@ -181,7 +181,7 @@ class TestAsyncContextManagerMixin:
                 pass
 
     async def test_return_async_generator(self) -> None:
-        class BadContextManager(AsyncContextManagerMixin["BadContextManager"]):
+        class BadContextManager(AsyncContextManagerMixin):
             async def __asynccontextmanager__(self):  # type: ignore[no-untyped-def]
                 yield self
 
@@ -190,7 +190,7 @@ class TestAsyncContextManagerMixin:
                 pass
 
     async def test_return_self(self) -> None:
-        class BadContextManager(AsyncContextManagerMixin["BadContextManager"]):
+        class BadContextManager(AsyncContextManagerMixin):
             def __asynccontextmanager__(self):  # type: ignore[no-untyped-def]
                 return self
 
@@ -199,7 +199,7 @@ class TestAsyncContextManagerMixin:
                 pass
 
     async def test_return_coroutine(self) -> None:
-        class BadContextManager(AsyncContextManagerMixin["BadContextManager"]):
+        class BadContextManager(AsyncContextManagerMixin):
             async def __asynccontextmanager__(self):  # type: ignore[no-untyped-def]
                 return self
 
