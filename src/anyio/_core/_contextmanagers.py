@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from collections.abc import AsyncGenerator, Generator
-from inspect import isasyncgen, iscoroutine
+from contextlib import AbstractAsyncContextManager, AbstractContextManager
+from inspect import isasyncgen, iscoroutine, isgenerator
 from types import TracebackType
 from typing import Generic, TypeVar, final
 
@@ -22,7 +22,7 @@ class ContextManagerMixin(Generic[_T_co]):
         that once you enter it, you can't re-enter before first exiting it.
     """
 
-    __cm: Generator[_T_co] | None = None
+    __cm: AbstractContextManager[_T_co] | None = None
 
     @final
     def __enter__(self) -> _T_co:
@@ -31,21 +31,29 @@ class ContextManagerMixin(Generic[_T_co]):
                 f"this {self.__class__.__qualname__} has already been entered"
             )
 
-        gen = self.__contextmanager__()
-        if not isinstance(gen, Generator):
+        cm = self.__contextmanager__()
+        if not isinstance(cm, AbstractContextManager):
+            if isgenerator(cm):
+                raise TypeError(
+                    "__contextmanager__() returned a generator object instead of "
+                    "a context manager. Did you forget to add the @contextmanager "
+                    "decorator?"
+                )
+
             raise TypeError(
-                f"__contextmanager__() did not return a generator object, "
-                f"but {gen.__class__!r}"
+                f"__contextmanager__() did not return a context manager object, "
+                f"but {cm.__class__!r}"
             )
 
-        try:
-            value = gen.send(None)
-        except StopIteration:
-            raise RuntimeError(
-                "the __contextmanager__() generator returned without yielding a value"
-            ) from None
+        if cm is self:
+            raise TypeError(
+                f"{self.__class__.__qualname__}.__contextmanager__() returned "
+                f"self. Did you forget to add the @contextmanager decorator and a "
+                f"'yield' statement?"
+            )
 
-        self.__cm = gen
+        value = cm.__enter__()
+        self.__cm = cm
         return value
 
     @final
@@ -64,34 +72,20 @@ class ContextManagerMixin(Generic[_T_co]):
         cm = self.__cm
         del self.__cm
 
-        if exc_val is not None:
-            try:
-                cm.throw(exc_val)
-            except StopIteration:
-                return True
-        else:
-            try:
-                cm.send(None)
-            except StopIteration:
-                return None
-
-        cm.close()
-        raise RuntimeError("the __contextmanager__() generator didn't stop")
+        return cm.__exit__(exc_type, exc_val, exc_tb)
 
     @abstractmethod
-    def __contextmanager__(self) -> Generator[_T_co, None, None]:
+    def __contextmanager__(self) -> AbstractContextManager[_T_co]:
         """
-        Implement your context manager logic here, as you would with
+        Implement your context manager logic here.
+
+        This method **must** be decorated with
         :func:`@contextmanager <contextlib.contextmanager>`.
 
-        Any code up to the ``yield`` will be run in ``__enter__()``, and any code after
-        it is run in ``__exit__()``.
+        .. note:: Remember that the ``yield`` will raise any exception raised in the
+            enclosed context block, so use a ``finally:`` block to clean up resources!
 
-        .. note:: If an exception is raised in the context block, it is reraised from
-            the ``yield``, just like with
-            :func:`@contextmanager <contextlib.contextmanager>`.
-
-        :return: a generator that yields exactly once
+        :return: a context manager object
         """
 
 
@@ -108,7 +102,7 @@ class AsyncContextManagerMixin(Generic[_T_co]):
         that once you enter it, you can't re-enter before first exiting it.
     """
 
-    __cm: AsyncGenerator[_T_co] | None = None
+    __cm: AbstractAsyncContextManager[_T_co] | None = None
 
     @final
     async def __aenter__(self) -> _T_co:
@@ -117,29 +111,36 @@ class AsyncContextManagerMixin(Generic[_T_co]):
                 f"this {self.__class__.__qualname__} has already been entered"
             )
 
-        gen = self.__asynccontextmanager__()
-        if not isasyncgen(gen):
-            if iscoroutine(gen):
-                gen.close()
+        cm = self.__asynccontextmanager__()
+        if not isinstance(cm, AbstractAsyncContextManager):
+            if isasyncgen(cm):
+                raise TypeError(
+                    "__asynccontextmanager__() returned an async generator instead of "
+                    "an async context manager. Did you forget to add the "
+                    "@asynccontextmanager decorator?"
+                )
+            elif iscoroutine(cm):
+                cm.close()
                 raise TypeError(
                     "__asynccontextmanager__() returned a coroutine object instead of "
-                    "an async generator. Did you forget to add 'yield'?"
+                    "an async context manager. Did you forget to add the "
+                    "@asynccontextmanager decorator and a 'yield' statement?"
                 )
 
             raise TypeError(
-                f"__asynccontextmanager__() did not return an async generator object, "
-                f"but {gen.__class__!r}"
+                f"__asynccontextmanager__() did not return an async context manager, "
+                f"but {cm.__class__!r}"
             )
 
-        try:
-            value = await gen.asend(None)
-        except StopAsyncIteration:
-            raise RuntimeError(
-                "the __asynccontextmanager__() generator returned without yielding a "
-                "value"
-            ) from None
+        if cm is self:
+            raise TypeError(
+                f"{self.__class__.__qualname__}.__asynccontextmanager__() returned "
+                f"self. Did you forget to add the @asynccontextmanager decorator and a "
+                f"'yield' statement?"
+            )
 
-        self.__cm = gen
+        value = await cm.__aenter__()
+        self.__cm = cm
         return value
 
     @final
@@ -158,32 +159,18 @@ class AsyncContextManagerMixin(Generic[_T_co]):
         cm = self.__cm
         del self.__cm
 
-        if exc_val is not None:
-            try:
-                await cm.athrow(exc_val)
-            except StopAsyncIteration:
-                return True
-        else:
-            try:
-                await cm.asend(None)
-            except StopAsyncIteration:
-                return None
-
-        await cm.aclose()
-        raise RuntimeError("the __asynccontextmanager__() generator didn't stop")
+        return await cm.__aexit__(exc_type, exc_val, exc_tb)
 
     @abstractmethod
-    def __asynccontextmanager__(self) -> AsyncGenerator[_T_co, None]:
+    def __asynccontextmanager__(self) -> AbstractAsyncContextManager[_T_co]:
         """
-        Implement your async context manager logic here, as you would with
+        Implement your async context manager logic here.
+
+        This method **must** be decorated with
         :func:`@asynccontextmanager <contextlib.asynccontextmanager>`.
 
-        Any code up to the ``yield`` will be run in ``__aenter__()``, and any code after
-        it is run in ``__aexit__()``.
+        .. note:: Remember that the ``yield`` will raise any exception raised in the
+            enclosed context block, so use a ``finally:`` block to clean up resources!
 
-        .. note:: If an exception is raised in the context block, it is reraised from
-            the ``yield``, just like with
-            :func:`@asynccontextmanager <contextlib.asynccontextmanager>`.
-
-        :return: an async generator that yields exactly once
+        :return: an async context manager object
         """

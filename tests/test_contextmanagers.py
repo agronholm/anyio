@@ -1,7 +1,19 @@
 from __future__ import annotations
 
+import sys
 from collections.abc import AsyncGenerator, Generator
-from contextlib import AsyncExitStack, ExitStack
+from contextlib import (
+    AbstractContextManager,
+    AsyncExitStack,
+    ExitStack,
+    asynccontextmanager,
+    contextmanager,
+)
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
 
 import pytest
 
@@ -16,7 +28,8 @@ class DummyContextManager(ContextManagerMixin["DummyContextManager"]):
         self.finished = False
         self.handle_exc = handle_exc
 
-    def __contextmanager__(self) -> Generator[DummyContextManager, None, None]:
+    @contextmanager
+    def __contextmanager__(self) -> Generator[Self]:
         self.started = True
         try:
             yield self
@@ -33,9 +46,8 @@ class DummyAsyncContextManager(AsyncContextManagerMixin["DummyAsyncContextManage
         self.finished = False
         self.handle_exc = handle_exc
 
-    async def __asynccontextmanager__(
-        self,
-    ) -> AsyncGenerator[DummyAsyncContextManager, None]:
+    @asynccontextmanager
+    async def __asynccontextmanager__(self) -> AsyncGenerator[Self]:
         self.started = True
         try:
             yield self
@@ -66,32 +78,30 @@ class TestContextManagerMixin:
         assert cm.started
         assert cm.finished == handle_exc
 
-    def test_bad_return_type(self) -> None:
+    def test_return_bad_type(self) -> None:
         class BadContextManager(ContextManagerMixin[None]):
-            def __contextmanager__(self) -> Generator[None, None, None]:
-                return self  # type: ignore[return-value]
+            def __contextmanager__(self) -> AbstractContextManager[None]:
+                return None  # type: ignore[return-value]
 
-        with pytest.raises(TypeError, match="did not return a generator object"):
+        with pytest.raises(TypeError, match="did not return a context manager"):
             with BadContextManager():
                 pass
 
-    def test_no_initial_yield(self) -> None:
+    def test_return_generator(self) -> None:
         class BadContextManager(ContextManagerMixin["BadContextManager"]):
-            def __contextmanager__(self) -> Generator[BadContextManager, None, None]:
-                if False:
-                    yield self
+            def __contextmanager__(self):  # type: ignore[no-untyped-def]
+                yield self
 
-        with pytest.raises(RuntimeError, match="generator returned without yielding"):
+        with pytest.raises(TypeError, match="returned a generator"):
             with BadContextManager():
                 pass
 
-    def test_too_many_yields(self) -> None:
-        class BadContextManager(ContextManagerMixin[None]):
-            def __contextmanager__(self) -> Generator[None, None, None]:
-                yield
-                yield
+    def test_return_self(self) -> None:
+        class BadContextManager(ContextManagerMixin["BadContextManager"]):
+            def __contextmanager__(self):  # type: ignore[no-untyped-def]
+                return self
 
-        with pytest.raises(RuntimeError, match="generator didn't stop$"):
+        with pytest.raises(TypeError, match="returned self"):
             with BadContextManager():
                 pass
 
@@ -110,6 +120,36 @@ class TestContextManagerMixin:
             RuntimeError, match="^this DummyContextManager has not been entered yet$"
         ):
             cm.__exit__(None, None, None)
+
+    def test_call_superclass_method(self) -> None:
+        class InheritedContextManager(DummyContextManager):
+            def __init__(self, handle_exc: bool = False) -> None:
+                super().__init__(handle_exc)
+                self.child_started = False
+                self.child_finished = False
+
+            @contextmanager
+            def __contextmanager__(self) -> Generator[Self]:
+                self.child_started = True
+                with super().__contextmanager__():
+                    assert self.started
+                    try:
+                        yield self
+                    except RuntimeError:
+                        if not self.handle_exc:
+                            raise
+
+                assert self.finished
+                self.child_finished = True
+
+        with InheritedContextManager() as cm:
+            assert cm.started
+            assert not cm.finished
+            assert cm.child_started
+            assert not cm.child_finished
+
+        assert cm.finished
+        assert cm.child_finished
 
 
 class TestAsyncContextManagerMixin:
@@ -132,41 +172,39 @@ class TestAsyncContextManagerMixin:
         assert cm.started
         assert cm.finished == handle_exc
 
-    async def test_bad_return_type(self) -> None:
+    async def test_return_bad_type(self) -> None:
         class BadContextManager(AsyncContextManagerMixin[None]):
-            def __asynccontextmanager__(self) -> AsyncGenerator[None, None]:
-                return None  # type: ignore[return-value]
+            def __asynccontextmanager__(self):  # type: ignore[no-untyped-def]
+                return None
 
-        with pytest.raises(TypeError, match="did not return an async generator object"):
+        with pytest.raises(TypeError, match="did not return an async context manager"):
+            async with BadContextManager():
+                pass
+
+    async def test_return_async_generator(self) -> None:
+        class BadContextManager(AsyncContextManagerMixin["BadContextManager"]):
+            async def __asynccontextmanager__(self):  # type: ignore[no-untyped-def]
+                yield self
+
+        with pytest.raises(TypeError, match="returned an async generator"):
+            async with BadContextManager():
+                pass
+
+    async def test_return_self(self) -> None:
+        class BadContextManager(AsyncContextManagerMixin["BadContextManager"]):
+            def __asynccontextmanager__(self):  # type: ignore[no-untyped-def]
+                return self
+
+        with pytest.raises(TypeError, match="returned self"):
             async with BadContextManager():
                 pass
 
     async def test_return_coroutine(self) -> None:
-        class BadContextManager(AsyncContextManagerMixin[None]):
-            async def __asynccontextmanager__(self) -> AsyncGenerator[None, None]:  # type: ignore[override]
-                return None  # type: ignore[return-value]
+        class BadContextManager(AsyncContextManagerMixin["BadContextManager"]):
+            async def __asynccontextmanager__(self):  # type: ignore[no-untyped-def]
+                return self
 
         with pytest.raises(TypeError, match="returned a coroutine object instead of"):
-            async with BadContextManager():
-                pass
-
-    async def test_no_initial_yield(self) -> None:
-        class BadContextManager(AsyncContextManagerMixin[None]):
-            async def __asynccontextmanager__(self) -> AsyncGenerator[None, None]:
-                if False:
-                    yield
-
-        with pytest.raises(RuntimeError, match="generator returned without yielding"):
-            async with BadContextManager():
-                pass
-
-    async def test_too_many_yields(self) -> None:
-        class BadContextManager(AsyncContextManagerMixin[None]):
-            async def __asynccontextmanager__(self) -> AsyncGenerator[None, None]:
-                yield
-                yield
-
-        with pytest.raises(RuntimeError, match="generator didn't stop$"):
             async with BadContextManager():
                 pass
 
@@ -186,3 +224,33 @@ class TestAsyncContextManagerMixin:
             match="^this DummyAsyncContextManager has not been entered yet$",
         ):
             await cm.__aexit__(None, None, None)
+
+    async def test_call_superclass_method(self) -> None:
+        class InheritedAsyncContextManager(DummyAsyncContextManager):
+            def __init__(self, handle_exc: bool = False) -> None:
+                super().__init__(handle_exc)
+                self.child_started = False
+                self.child_finished = False
+
+            @asynccontextmanager
+            async def __asynccontextmanager__(self) -> AsyncGenerator[Self]:
+                self.child_started = True
+                async with super().__asynccontextmanager__():
+                    assert self.started
+                    try:
+                        yield self
+                    except RuntimeError:
+                        if not self.handle_exc:
+                            raise
+
+                assert self.finished
+                self.child_finished = True
+
+        async with InheritedAsyncContextManager() as cm:
+            assert cm.started
+            assert not cm.finished
+            assert cm.child_started
+            assert not cm.child_finished
+
+        assert cm.finished
+        assert cm.child_finished
