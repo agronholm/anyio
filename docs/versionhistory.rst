@@ -15,6 +15,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **4.9.0**
 
+- Added ``wrap_client_socket`` and ``wrap_server_socket`` (`#845 <https://github.com/agronholm/anyio/issues/845>`_; PR by @leon1995)
 - Added async support for temporary file handling
   (`#344 <https://github.com/agronholm/anyio/issues/344>`_; PR by @11kkw)
 - Added 4 new fixtures for the AnyIO ``pytest`` plugin:
