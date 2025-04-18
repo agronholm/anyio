@@ -157,6 +157,8 @@ cancelled scope::
 
             raise
 
+.. _cancel_scope_stack_corruption:
+
 Avoiding cancel scope stack corruption
 --------------------------------------
 
@@ -196,8 +198,11 @@ Depending on how they are used, this pattern is, however, *usually* safe to use 
 asynchronous context managers, so long as you make sure that the same host task keeps
 running throughout the entire enclosed code block::
 
+    from contextlib import asynccontextmanager
+
+
     # Okay in most cases!
-    @async_context_manager
+    @asynccontextmanager
     async def some_context_manager():
         async with create_task_group() as tg:
             tg.start_soon(foo)
@@ -209,24 +214,23 @@ start to end in the same task, making it possible to have task groups or cancel 
 safely straddle the ``yield``.
 
 When you're implementing the async context manager protocol manually and your async
-context manager needs to use other context managers, you may find it necessary to call
-their ``__aenter__()`` and ``__aexit__()`` directly. In such cases, it is absolutely
-vital to ensure that their ``__aexit__()`` methods are called in the exact reverse order
-of the ``__aenter__()`` calls. To this end, you may find the
-:class:`~contextlib.AsyncExitStack` class very useful::
+context manager needs to use other context managers, you may find it convenient to use
+:class:`AsyncContextManagerMixin` in order to avoid cumbersome code that calls
+``__aenter__()`` and ``__aexit__()`` directly::
 
-    from contextlib import AsyncExitStack
+    from __future__ import annotations
 
-    from anyio import create_task_group
+    from collections.abc import AsyncGenerator
+    from typing import Self
+
+    from anyio import AsyncContextManagerMixin, create_task_group
 
 
-    class MyAsyncContextManager:
-        async def __aenter__(self):
-            self._exitstack = AsyncExitStack()
-            await self._exitstack.__aenter__()
-            self._task_group = await self._exitstack.enter_async_context(
-                create_task_group()
-            )
+    class MyAsyncContextManager(AsyncContextManagerMixin):
+        @asynccontextmanager
+        async def __asynccontextmanager__(self) -> AsyncGenerator[Self]:
+            async with create_task_group() as tg:
+                ...  # launch tasks
+                yield self
 
-        async def __aexit__(self, exc_type, exc_val, exc_tb):
-            return await self._exitstack.__aexit__(exc_type, exc_val, exc_tb)
+.. seealso:: :doc:`contextmanagers`

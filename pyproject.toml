@@ -62,6 +62,7 @@ doc = [
     "Sphinx ~= 8.2",
     "sphinx_rtd_theme",
     "sphinx-autodoc-typehints >= 1.2.0",
+    "sphinx-tabs >= 3.3.1",
 ]
 
 [project.entry-points]
@@ -127,6 +128,10 @@ relative_files = true
 
 [tool.coverage.report]
 show_missing = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "@(abc\\.)?abstractmethod",
+]
 
 [tool.tox]
 env_list = ["pre-commit", "py39", "py310", "py311", "py312", "py313", "py314", "pypy3"]

@@ -22,6 +22,7 @@ The manual
    fileio
    tempfile
    signals
+   contextmanagers
    testing
    api
    migration
