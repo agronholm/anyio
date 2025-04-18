@@ -157,6 +157,8 @@ cancelled scope::
 
             raise
 
+.. _cancel_scope_stack_corruption:
+
 Avoiding cancel scope stack corruption
 --------------------------------------
 
@@ -219,13 +221,16 @@ context manager needs to use other context managers, you may find it convenient 
     from __future__ import annotations
 
     from collections.abc import AsyncGenerator
+    from typing import Self
 
     from anyio import AsyncContextManagerMixin, create_task_group
 
 
-    # AsyncContextManagerMixin is parametrized this way because it returns 'self'
-    class MyAsyncContextManager(AsyncContextManagerMixin["MyAsyncContextManager"]):
-        async def __asynccontextmanager__(self) -> AsyncGenerator[MyAsyncContextManager]:
+    class MyAsyncContextManager(AsyncContextManagerMixin):
+        @asynccontextmanager
+        async def __asynccontextmanager__(self) -> AsyncGenerator[Self]:
             async with create_task_group() as tg:
                 ...  # launch tasks
                 yield self
+
+.. seealso:: :doc:`contextmanagers`
