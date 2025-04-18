@@ -31,6 +31,8 @@ class ContextManagerMixin:
 
     .. note:: Classes using this mix-in are not reentrant as context managers, meaning
         that once you enter it, you can't re-enter before first exiting it.
+
+    .. seealso:: :doc:`contextmanagers`
     """
 
     __cm: AbstractContextManager[object, bool | None] | None = None
@@ -115,6 +117,8 @@ class AsyncContextManagerMixin:
 
     .. note:: Classes using this mix-in are not reentrant as context managers, meaning
         that once you enter it, you can't re-enter before first exiting it.
+
+    .. seealso:: :doc:`contextmanagers`
     """
 
     __cm: AbstractAsyncContextManager[object, bool | None] | None = None
