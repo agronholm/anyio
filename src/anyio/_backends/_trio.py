@@ -407,6 +407,8 @@ class _TrioSocketMixin(Generic[T_SockAddr]):
             raise ClosedResourceError from exc
         elif self._trio_socket.fileno() < 0 and self._closed:
             raise ClosedResourceError from None
+        elif isinstance(exc, BlockingIOError):
+            raise WouldBlock from exc
         elif isinstance(exc, OSError):
             raise BrokenResourceError from exc
         else:
@@ -562,6 +564,14 @@ class UDPSocket(_TrioSocketMixin[IPSockAddrType], abc.UDPSocket):
         self._receive_guard = ResourceGuard("reading from")
         self._send_guard = ResourceGuard("writing to")
 
+    def receive_nowait(self) -> tuple[bytes, IPSockAddrType]:
+        with self._receive_guard:
+            try:
+                data, addr = self._raw_socket.recvfrom(65536)
+                return data, convert_ipv6_sockaddr(addr)
+            except BaseException as exc:
+                self._convert_socket_error(exc)
+
     async def receive(self) -> tuple[bytes, IPSockAddrType]:
         with self._receive_guard:
             try:
@@ -584,6 +594,13 @@ class ConnectedUDPSocket(_TrioSocketMixin[IPSockAddrType], abc.ConnectedUDPSocke
         self._receive_guard = ResourceGuard("reading from")
         self._send_guard = ResourceGuard("writing to")
 
+    def receive_nowait(self) -> bytes:
+        with self._receive_guard:
+            try:
+                return self._raw_socket.recv(65536)
+            except BaseException as exc:
+                self._convert_socket_error(exc)
+
     async def receive(self) -> bytes:
         with self._receive_guard:
             try:
@@ -604,6 +621,13 @@ class UNIXDatagramSocket(_TrioSocketMixin[str], abc.UNIXDatagramSocket):
         super().__init__(trio_socket)
         self._receive_guard = ResourceGuard("reading from")
         self._send_guard = ResourceGuard("writing to")
+
+    def receive_nowait(self) -> UNIXDatagramPacketType:
+        with self._receive_guard:
+            try:
+                return self._raw_socket.recvfrom(65536)
+            except BaseException as exc:
+                self._convert_socket_error(exc)
 
     async def receive(self) -> UNIXDatagramPacketType:
         with self._receive_guard:
@@ -628,6 +652,13 @@ class ConnectedUNIXDatagramSocket(
         super().__init__(trio_socket)
         self._receive_guard = ResourceGuard("reading from")
         self._send_guard = ResourceGuard("writing to")
+
+    def receive_nowait(self) -> bytes:
+        with self._receive_guard:
+            try:
+                return self._raw_socket.recv(65536)
+            except BaseException as exc:
+                self._convert_socket_error(exc)
 
     async def receive(self) -> bytes:
         with self._receive_guard:

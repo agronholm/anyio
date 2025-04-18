@@ -132,6 +132,9 @@ class TextStream(ObjectStream[str]):
             self.transport_stream, encoding=encoding, errors=errors
         )
 
+    def receive_nowait(self) -> str:
+        return self._receive_stream.receive_nowait()
+
     async def receive(self) -> str:
         return await self._receive_stream.receive()
 

@@ -1604,6 +1604,20 @@ class UDPSocket(abc.UDPSocket):
             self._closed = True
             self._transport.close()
 
+    def receive_nowait(self) -> tuple[bytes, IPSockAddrType]:
+        with self._receive_guard:
+            # If the buffer is empty, raise WouldBlock
+            if not self._protocol.read_queue and not self._transport.is_closing():
+                raise WouldBlock
+
+            try:
+                return self._protocol.read_queue.popleft()
+            except IndexError:
+                if self._closed:
+                    raise ClosedResourceError from None
+                else:
+                    raise BrokenResourceError from None
+
     async def receive(self) -> tuple[bytes, IPSockAddrType]:
         with self._receive_guard:
             await AsyncIOBackend.checkpoint()
@@ -1652,6 +1666,22 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
             self._closed = True
             self._transport.close()
 
+    def receive_nowait(self) -> bytes:
+        with self._receive_guard:
+            # If the buffer is empty, raise WouldBlock
+            if not self._protocol.read_queue and not self._transport.is_closing():
+                raise WouldBlock
+
+            try:
+                packet = self._protocol.read_queue.popleft()
+            except IndexError:
+                if self._closed:
+                    raise ClosedResourceError from None
+                else:
+                    raise BrokenResourceError from None
+
+            return packet[0]
+
     async def receive(self) -> bytes:
         with self._receive_guard:
             await AsyncIOBackend.checkpoint()
@@ -1684,6 +1714,21 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
 
 
 class UNIXDatagramSocket(_RawSocketMixin, abc.UNIXDatagramSocket):
+    def receive_nowait(self) -> UNIXDatagramPacketType:
+        with self._receive_guard:
+            while True:
+                try:
+                    data = self._raw_socket.recvfrom(65536)
+                except BlockingIOError:
+                    raise WouldBlock from None
+                except OSError as exc:
+                    if self._closing:
+                        raise ClosedResourceError from None
+                    else:
+                        raise BrokenResourceError from exc
+                else:
+                    return data
+
     async def receive(self) -> UNIXDatagramPacketType:
         loop = get_running_loop()
         await AsyncIOBackend.checkpoint()
@@ -1720,6 +1765,21 @@ class UNIXDatagramSocket(_RawSocketMixin, abc.UNIXDatagramSocket):
 
 
 class ConnectedUNIXDatagramSocket(_RawSocketMixin, abc.ConnectedUNIXDatagramSocket):
+    def receive_nowait(self) -> bytes:
+        with self._receive_guard:
+            while True:
+                try:
+                    data = self._raw_socket.recv(65536)
+                except BlockingIOError:
+                    raise WouldBlock from None
+                except OSError as exc:
+                    if self._closing:
+                        raise ClosedResourceError from None
+                    else:
+                        raise BrokenResourceError from exc
+                else:
+                    return data
+
     async def receive(self) -> bytes:
         loop = get_running_loop()
         await AsyncIOBackend.checkpoint()
