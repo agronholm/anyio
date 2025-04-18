@@ -110,13 +110,16 @@ class DummyObjectReceiveStream(ObjectReceiveStream[T_Item]):
     def __post_init__(self, data: Iterable[T_Item]) -> None:
         self.buffer = deque(data)
 
-    async def receive(self) -> T_Item:
+    def receive_nowait(self) -> T_Item:
         if self._closed:
             raise ClosedResourceError
-        if not self.buffer:
+        elif not self.buffer:
             raise EndOfStream
 
         return self.buffer.popleft()
+
+    async def receive(self) -> T_Item:
+        return self.receive_nowait()
 
     async def aclose(self) -> None:
         self._closed = True
