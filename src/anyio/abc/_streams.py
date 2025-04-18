@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from collections.abc import Callable
 from typing import Any, Generic, TypeVar, Union
+from warnings import warn
 
 from .._core._exceptions import EndOfStream, WouldBlock
 from .._core._typedattr import TypedAttributeProvider
@@ -27,6 +28,16 @@ class UnreliableObjectReceiveStream(
     given type parameter.
     """
 
+    def __init_subclass__(cls, **kwargs: Any):
+        super().__init_subclass__(**kwargs)
+        if cls.receive_nowait is UnreliableObjectReceiveStream.receive_nowait:
+            warn(
+                f"{cls.__qualname__} does not implement receive_nowait(). In v5.0, "
+                f"receive_nowait() will become an abstract method and an exception "
+                f"will be raised if not implemented in a stream class.",
+                DeprecationWarning,
+            )
+
     def __aiter__(self) -> UnreliableObjectReceiveStream[T_co]:
         return self
 
@@ -45,10 +56,10 @@ class UnreliableObjectReceiveStream(
         :raises ~anyio.EndOfStream: if this stream has been closed from the other end
         :raises ~anyio.BrokenResourceError: if this stream has been rendered unusable
             due to external causes
-        :raises ~anyio.WouldBlock: if there is no item immeditately available
+        :raises ~anyio.WouldBlock: if there is no item immediately available
 
         """
-        raise WouldBlock
+        raise NotImplementedError
 
     @abstractmethod
     async def receive(self) -> T_co:
@@ -151,7 +162,7 @@ class ByteReceiveStream(AsyncResource, TypedAttributeProvider):
         Receive at most ``max_bytes`` bytes from the peer, if it can be done without
         blocking.
 
-        .. note:: Implementors of this interface should not return an empty
+        .. note:: Implementers of this interface should not return an empty
             :class:`bytes` object, and users should ignore them.
 
         :param max_bytes: maximum number of bytes to receive
