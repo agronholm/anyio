@@ -28,7 +28,7 @@ class UnreliableObjectReceiveStream(
     given type parameter.
     """
 
-    def __init_subclass__(cls, **kwargs: Any):
+    def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         if cls.receive_nowait is UnreliableObjectReceiveStream.receive_nowait:
             warn(
