@@ -726,7 +726,7 @@ class TaskGroup(abc.TaskGroup):
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool | None:
+    ) -> bool:
         try:
             if exc_val is not None:
                 self.cancel_scope.cancel()
