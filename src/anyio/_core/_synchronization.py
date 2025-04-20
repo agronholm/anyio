@@ -505,7 +505,7 @@ class CapacityLimiter:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool | None:
+    ) -> None:
         raise NotImplementedError
 
     @property
@@ -630,7 +630,7 @@ class CapacityLimiterAdapter(CapacityLimiter):
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool | None:
+    ) -> None:
         return await self._limiter.__aexit__(exc_type, exc_val, exc_tb)
 
     @property
