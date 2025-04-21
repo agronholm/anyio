@@ -163,7 +163,7 @@ class BlockingPortal:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool | None:
+    ) -> bool:
         await self.stop()
         return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
 

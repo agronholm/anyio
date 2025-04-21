@@ -35,7 +35,7 @@ class _NullAsyncContextManager:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool | None:
+    ) -> None:
         return None
 
 

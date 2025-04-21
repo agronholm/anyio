@@ -17,6 +17,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   this prevents an OSError on the ``ProactorEventLoop``.
   (`#896 <https://github.com/agronholm/anyio/pull/896>`_; PR by @graingert)
 - Fixed ``anyio.Path.copy()`` and ``anyio.Path.copy_into()`` failing on Python 3.14.0a7
+- Fixed return annotation of ``__aexit__`` on async context managers. CMs which can
+  suppress exceptions should return ``bool``, or ``None`` otherwise.
+  (`#913 <https://github.com/agronholm/anyio/pull/913>`_; PR by @Enegg)
 
 **4.9.0**
 
