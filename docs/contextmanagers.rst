@@ -50,8 +50,8 @@ Here's a trivial example of how to use the mix-in classes:
               yield self
               print("exiting context")
 
-Rationale
----------
+When should I use the contextmanager mix-in classes?
+----------------------------------------------------
 
 When embedding other context managers, a common mistake is forgetting about error
 handling when entering the context. Consider this example::
@@ -85,9 +85,9 @@ correctly. Thus, the above code should be written as::
     from contextlib import asynccontextmanager
     from typing import Self
 
-    from anyio import create_task_group
+    from anyio import AsyncContextManagerMixin, create_task_group
 
-    class MyBetterContextManager:
+    class MyBetterContextManager(AsyncContextManagerMixin):
         @asynccontextmanager
         async def __asynccontextmanager__(self) -> AsyncGenerator[Self]:
             async with create_task_group() as task_group:
@@ -99,3 +99,66 @@ correctly. Thus, the above code should be written as::
             ...
 
 .. seealso:: :ref:`cancel_scope_stack_corruption`
+
+Inheriting context manager classes
+----------------------------------
+
+Here's how you would call the superclass implementation from a subclass:
+
+.. tabs::
+
+   .. code-tab:: python Synchronous
+
+      from collections.abc import Generator
+      from contextlib import contextmanager
+      from typing import Self
+
+      from anyio import ContextManagerMixin
+
+      class SuperclassContextManager(ContextManagerMixin):
+          @contextmanager
+          def __contextmanager__(self) -> Generator[Self]:
+              print("superclass entered")
+              try:
+                  yield self
+              finally:
+                  print("superclass exited")
+
+
+      class SubclassContextManager(SuperclassContextManager):
+          @contextmanager
+          def __contextmanager__(self) -> Generator[Self]:
+              print("subclass entered")
+              try:
+                  with super().__contextmanager__():
+                      yield self
+              finally:
+                  print("subclass exited")
+
+   .. code-tab:: python Asynchronous
+
+      from collections.abc import AsyncGenerator
+      from contextlib import asynccontextmanager
+      from typing import Self
+
+      from anyio import AsyncContextManagerMixin
+
+      class SuperclassContextManager(AsyncContextManagerMixin):
+          @asynccontextmanager
+          async def __asynccontextmanager__(self) -> AsyncGenerator[Self]:
+              print("superclass entered")
+              try:
+                  yield self
+              finally:
+                  print("superclass exited")
+
+
+      class SubclassContextManager(SuperclassContextManager):
+          @asynccontextmanager
+          async def __asynccontextmanager__(self) -> AsyncGenerator[Self]:
+              print("subclass entered")
+              try:
+                  async with super().__asynccontextmanager__():
+                      yield self
+              finally:
+                  print("subclass exited")
