@@ -40,20 +40,20 @@ class TestNamedTemporaryFile:
         data = b"named temporary file data"
         async with NamedTemporaryFile[bytes]() as af:
             filename = af.name
-            assert os.path.exists(filename)  # type: ignore[arg-type]
+            assert os.path.exists(filename)
 
             await af.write(data)
             await af.seek(0)
             assert await af.read() == data
 
-        assert not os.path.exists(filename)  # type: ignore[arg-type]
+        assert not os.path.exists(filename)
 
     async def test_exception_handling(self) -> None:
         async with NamedTemporaryFile[bytes]() as af:
             filename = af.name
-            assert os.path.exists(filename)  # type: ignore[arg-type]
+            assert os.path.exists(filename)
 
-        assert not os.path.exists(filename)  # type: ignore[arg-type]
+        assert not os.path.exists(filename)
 
         with pytest.raises(ValueError):
             await af.write(b"should fail")
@@ -103,22 +103,12 @@ class TestSpooledTemporaryFile:
         assert stf.closed
 
     async def test_exact_boundary_no_rollover(self) -> None:
-        rollover_called = False
-
-        async def fake_rollover() -> None:
-            nonlocal rollover_called
-            rollover_called = True
-            await original_rollover()
-
         async with SpooledTemporaryFile(max_size=10) as stf:
-            original_rollover = stf.rollover
-            with patch.object(stf, "rollover", fake_rollover):
-                await stf.write(b"0123456789")
-                assert not rollover_called
+            await stf.write(b"0123456789")
+            assert not stf._rolled
 
-                more = b"x"
-                await stf.write(more)
-                assert rollover_called
+            await stf.write(b"x")
+            assert stf._rolled
 
 
 class TestTemporaryDirectory:
@@ -178,14 +168,14 @@ async def test_mkstemp(
 
     if text:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(content)
+            f.write(content)  # type: ignore[arg-type]
         with open(path, encoding="utf-8") as f:
             read_content = f.read()
     else:
         with os.fdopen(fd, "wb") as f:
-            f.write(content)
+            f.write(content)  # type: ignore[arg-type]
         with open(os.fsdecode(path), "rb") as f:
-            read_content = f.read()
+            assert f.read() == content
 
     assert read_content == content
 
