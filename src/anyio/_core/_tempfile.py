@@ -312,7 +312,7 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
         await super().aclose()
 
     async def _check(self) -> None:
-        if self._rolled or self._fp.tell() < self._max_size:
+        if self._rolled or self._fp.tell() <= self._max_size:
             return
 
         await self.rollover()
