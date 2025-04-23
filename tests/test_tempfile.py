@@ -103,13 +103,13 @@ class TestSpooledTemporaryFile:
         assert stf.closed
 
 
-async def test_exact_boundary_no_rollover(self) -> None:
-    async with SpooledTemporaryFile(max_size=10) as stf:
-        await stf.write(b"0123456789")
-        assert not stf._rolled
+    async def test_exact_boundary_no_rollover(self) -> None:
+        async with SpooledTemporaryFile(max_size=10) as stf:
+            await stf.write(b"0123456789")
+            assert not stf._rolled
 
-        await stf.write(b"x")
-        assert stf._rolled
+            await stf.write(b"x")
+            assert stf._rolled
 
 
 class TestTemporaryDirectory:
