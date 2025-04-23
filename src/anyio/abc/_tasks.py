@@ -97,5 +97,5 @@ class TaskGroup(metaclass=ABCMeta):
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool | None:
+    ) -> bool:
         """Exit the task group context waiting for all tasks to finish."""
