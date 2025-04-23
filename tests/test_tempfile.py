@@ -102,6 +102,24 @@ class TestSpooledTemporaryFile:
 
         assert stf.closed
 
+    async def test_exact_boundary_no_rollover(self) -> None:
+        rollover_called = False
+
+        async def fake_rollover() -> None:
+            nonlocal rollover_called
+            rollover_called = True
+            await original_rollover()
+
+        async with SpooledTemporaryFile(max_size=10) as stf:
+            original_rollover = stf.rollover
+            with patch.object(stf, "rollover", fake_rollover):
+                await stf.write(b"0123456789")
+                assert not rollover_called
+
+                more = b"x"
+                await stf.write(more)
+                assert rollover_called
+
 
 class TestTemporaryDirectory:
     async def test_context_manager(self) -> None:
