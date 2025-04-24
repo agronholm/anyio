@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ._core._contextmanagers import AsyncContextManagerMixin as AsyncContextManagerMixin
+from ._core._contextmanagers import ContextManagerMixin as ContextManagerMixin
 from ._core._eventloop import current_time as current_time
 from ._core._eventloop import get_all_backends as get_all_backends
 from ._core._eventloop import get_cancelled_exc_class as get_cancelled_exc_class
@@ -35,6 +37,7 @@ from ._core._sockets import create_unix_datagram_socket as create_unix_datagram_
 from ._core._sockets import create_unix_listener as create_unix_listener
 from ._core._sockets import getaddrinfo as getaddrinfo
 from ._core._sockets import getnameinfo as getnameinfo
+from ._core._sockets import notify_closing as notify_closing
 from ._core._sockets import wait_readable as wait_readable
 from ._core._sockets import wait_socket_readable as wait_socket_readable
 from ._core._sockets import wait_socket_writable as wait_socket_writable

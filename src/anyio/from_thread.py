@@ -10,7 +10,7 @@ from contextlib import (
 )
 from dataclasses import dataclass, field
 from inspect import isawaitable
-from threading import Lock, Thread, get_ident
+from threading import Lock, Thread, current_thread, get_ident
 from types import TracebackType
 from typing import (
     Any,
@@ -163,7 +163,7 @@ class BlockingPortal:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool | None:
+    ) -> bool:
         await self.stop()
         return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
 
@@ -454,7 +454,10 @@ class BlockingPortalProvider:
 
 @contextmanager
 def start_blocking_portal(
-    backend: str = "asyncio", backend_options: dict[str, Any] | None = None
+    backend: str = "asyncio",
+    backend_options: dict[str, Any] | None = None,
+    *,
+    name: str | None = None,
 ) -> Generator[BlockingPortal, Any, None]:
     """
     Start a new event loop in a new thread and run a blocking portal in its main task.
@@ -463,6 +466,7 @@ def start_blocking_portal(
 
     :param backend: name of the backend
     :param backend_options: backend options
+    :param name: name of the thread
     :return: a context manager that yields a blocking portal
 
     .. versionchanged:: 3.0
@@ -472,6 +476,9 @@ def start_blocking_portal(
 
     async def run_portal() -> None:
         async with BlockingPortal() as portal_:
+            if name is None:
+                current_thread().name = f"{backend}-portal-{id(portal_):x}"
+
             future.set_result(portal_)
             await portal_.sleep_until_stopped()
 
@@ -486,7 +493,7 @@ def start_blocking_portal(
                     future.set_exception(exc)
 
     future: Future[BlockingPortal] = Future()
-    thread = Thread(target=run_blocking_portal, daemon=True)
+    thread = Thread(target=run_blocking_portal, daemon=True, name=name)
     thread.start()
     try:
         cancel_remaining_tasks = False
