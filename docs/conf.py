@@ -8,6 +8,7 @@ from packaging.version import parse
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.intersphinx",
+    "sphinx_tabs.tabs",
     "sphinx_autodoc_typehints",
     "sphinx_rtd_theme",
 ]
