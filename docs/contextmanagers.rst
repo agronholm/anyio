@@ -62,7 +62,7 @@ handling when entering the context. Consider this example::
 
     class MyBrokenContextManager:
         async def __aenter__(self) -> Self:
-            self._task_group = await create_task_group()
+            self._task_group = await create_task_group().__aenter__()
             # BOOM: missing the "arg" argument here to my_background_func!
             self._task_group.start_soon(self.my_background_func)
             return self
