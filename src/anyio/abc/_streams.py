@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from abc import abstractmethod
 from collections.abc import Callable
 from typing import Any, Generic, TypeVar, Union
@@ -8,6 +9,11 @@ from .._core._exceptions import EndOfStream
 from .._core._typedattr import TypedAttributeProvider
 from ._resources import AsyncResource
 from ._tasks import TaskGroup
+
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
+else:
+    from typing_extensions import TypeAlias
 
 T_Item = TypeVar("T_Item")
 T_co = TypeVar("T_co", covariant=True)
@@ -172,19 +178,21 @@ class ByteStream(ByteReceiveStream, ByteSendStream):
 
 
 #: Type alias for all unreliable bytes-oriented receive streams.
-AnyUnreliableByteReceiveStream = Union[
+AnyUnreliableByteReceiveStream: TypeAlias = Union[
     UnreliableObjectReceiveStream[bytes], ByteReceiveStream
 ]
 #: Type alias for all unreliable bytes-oriented send streams.
-AnyUnreliableByteSendStream = Union[UnreliableObjectSendStream[bytes], ByteSendStream]
+AnyUnreliableByteSendStream: TypeAlias = Union[
+    UnreliableObjectSendStream[bytes], ByteSendStream
+]
 #: Type alias for all unreliable bytes-oriented streams.
-AnyUnreliableByteStream = Union[UnreliableObjectStream[bytes], ByteStream]
+AnyUnreliableByteStream: TypeAlias = Union[UnreliableObjectStream[bytes], ByteStream]
 #: Type alias for all bytes-oriented receive streams.
-AnyByteReceiveStream = Union[ObjectReceiveStream[bytes], ByteReceiveStream]
+AnyByteReceiveStream: TypeAlias = Union[ObjectReceiveStream[bytes], ByteReceiveStream]
 #: Type alias for all bytes-oriented send streams.
-AnyByteSendStream = Union[ObjectSendStream[bytes], ByteSendStream]
+AnyByteSendStream: TypeAlias = Union[ObjectSendStream[bytes], ByteSendStream]
 #: Type alias for all bytes-oriented streams.
-AnyByteStream = Union[ObjectStream[bytes], ByteStream]
+AnyByteStream: TypeAlias = Union[ObjectStream[bytes], ByteStream]
 
 
 class Listener(Generic[T_co], AsyncResource, TypedAttributeProvider):
