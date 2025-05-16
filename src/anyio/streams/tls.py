@@ -19,6 +19,11 @@ from .. import (
 from .._core._typedattr import TypedAttributeSet, typed_attribute
 from ..abc import AnyByteStream, ByteStream, Listener, TaskGroup
 
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
+else:
+    from typing_extensions import TypeAlias
+
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
 else:
@@ -26,8 +31,8 @@ else:
 
 T_Retval = TypeVar("T_Retval")
 PosArgsT = TypeVarTuple("PosArgsT")
-_PCTRTT = tuple[tuple[str, str], ...]
-_PCTRTTT = tuple[_PCTRTT, ...]
+_PCTRTT: TypeAlias = tuple[tuple[str, str], ...]
+_PCTRTTT: TypeAlias = tuple[_PCTRTT, ...]
 
 
 class TLSAttribute(TypedAttributeSet):
