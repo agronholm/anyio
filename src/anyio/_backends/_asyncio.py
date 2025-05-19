@@ -73,7 +73,6 @@ from .._core._exceptions import (
     BrokenResourceError,
     BusyResourceError,
     ClosedResourceError,
-    ConnectionFailed,
     EndOfStream,
     WouldBlock,
     iterate_exceptions,
@@ -2609,9 +2608,6 @@ class AsyncIOBackend(AsyncBackend):
                 loop.add_writer(raw_socket, f.set_result, None)
                 f.add_done_callback(lambda _: loop.remove_writer(raw_socket))
                 await f
-            except OSError as exc:
-                raw_socket.close()
-                raise ConnectionFailed(str(exc)) from exc
             except BaseException:
                 raw_socket.close()
                 raise

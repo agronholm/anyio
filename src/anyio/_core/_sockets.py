@@ -29,7 +29,6 @@ from ..abc import (
 from ..streams.stapled import MultiListener
 from ..streams.tls import TLSStream
 from ._eventloop import get_async_backend
-from ._exceptions import ConnectionFailed
 from ._resources import aclose_forcefully
 from ._synchronization import Event
 from ._tasks import create_task_group, move_on_after
@@ -246,7 +245,7 @@ async def connect_tcp(
                 if len(oserrors) == 1
                 else ExceptionGroup("multiple connection attempts failed", oserrors)
             )
-            raise ConnectionFailed("All connection attempts failed") from cause
+            raise OSError("All connection attempts failed") from cause
     finally:
         oserrors.clear()
 

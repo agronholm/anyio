@@ -3,7 +3,6 @@ from __future__ import annotations
 import math
 import sys
 from collections.abc import AsyncGenerator, Sequence
-from contextlib import aclosing
 from typing import TypeVar
 from warnings import warn
 
@@ -157,9 +156,8 @@ class MultiConnector(ObjectStreamConnectable[T_Item]):
                 else:
                     await aclose_forcefully(_stream)
 
-        async with aclosing(
-            self.strategy.get_connectables(self.connectables)
-        ) as iterator:
+        iterator = self.strategy.get_connectables(self.connectables)
+        try:
             async with create_task_group() as tg:
                 async for connectables in iterator:
                     for connectable in connectables:
@@ -167,6 +165,8 @@ class MultiConnector(ObjectStreamConnectable[T_Item]):
 
             if stream is not None:
                 return stream
+        finally:
+            await iterator.aclose()
 
         excgrp = ExceptionGroup("all connections failed", errors)
         try:

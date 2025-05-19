@@ -31,6 +31,7 @@ from anyio import (
     BrokenResourceError,
     BusyResourceError,
     ClosedResourceError,
+    ConnectionFailed,
     EndOfStream,
     Event,
     TypedAttributeLookupError,
@@ -348,7 +349,7 @@ class TestTCPStream:
         try:
             async with await connect_tcp("127.0.0.1", free_tcp_port):
                 pass
-        except OSError as e:
+        except ConnectionFailed as e:
             exc = e.__cause__
 
         assert isinstance(exc, OSError)
