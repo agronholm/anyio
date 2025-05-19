@@ -18,7 +18,7 @@ from ._exceptions import ConnectionFailed, TypedAttributeLookupError
 from ._resources import aclose_forcefully
 from ._tasks import create_task_group
 
-if sys.version_info >= (3, 11):
+if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
 T_Item = TypeVar("T_Item")
