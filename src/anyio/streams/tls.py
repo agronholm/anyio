@@ -17,7 +17,14 @@ from .. import (
     to_thread,
 )
 from .._core._typedattr import TypedAttributeSet, typed_attribute
-from ..abc import AnyByteStream, ByteStream, ByteStreamConnectable, Listener, TaskGroup
+from ..abc import (
+    AnyByteStream,
+    ByteStream,
+    ByteStreamConnectable,
+    Listener,
+    ObjectStreamConnectable,
+    TaskGroup,
+)
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
@@ -359,7 +366,7 @@ class TLSListener(Listener[TLSStream]):
 
 class TLSConnectable(ByteStreamConnectable):
     """
-    Wraps another endpoint and does TLS negotiation after a successful connection.
+    Wraps another connectable and does TLS negotiation after a successful connection.
 
     :param hostname: host name of the peer (if host name checking is desired)
     :param ssl_context: the SSLContext object to use (if not provided, a secure default
@@ -370,19 +377,19 @@ class TLSConnectable(ByteStreamConnectable):
 
     def __init__(
         self,
-        endpoint: ByteStreamConnectable,
+        connectable: ObjectStreamConnectable[bytes],
         *,
         ssl_context: ssl.SSLContext | None = None,
         hostname: str | None = None,
         standard_compatible: bool = True,
     ) -> None:
-        self.endpoint = endpoint
+        self.connectable = connectable
         self.ssl_context = ssl_context
         self.hostname = hostname
         self.standard_compatible = standard_compatible
 
     async def connect(self) -> TLSStream:
-        stream = await self.endpoint.connect()
+        stream = await self.connectable.connect()
         try:
             return await TLSStream.wrap(
                 stream,

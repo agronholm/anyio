@@ -155,14 +155,14 @@ class TextStream(ObjectStream[str]):
 
 
 class TextConnectable(ObjectStreamConnectable[str]):
-    def __init__(self, endpoint: ObjectStreamConnectable[bytes]):
+    def __init__(self, connectable: ObjectStreamConnectable[bytes]):
         """
-        :param endpoint: the bytestream endpoint to wrap
+        :param connectable: the bytestream endpoint to wrap
 
         """
-        self.endpoint = endpoint
+        self.connectable = connectable
 
     @override
     async def connect(self) -> TextStream:
-        stream = await self.endpoint.connect()
+        stream = await self.connectable.connect()
         return TextStream(stream)
