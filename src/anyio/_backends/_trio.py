@@ -52,6 +52,7 @@ from trio.to_thread import run_sync
 
 from .. import (
     CapacityLimiterStatistics,
+    ConnectionFailed,
     EventStatistics,
     LockStatistics,
     TaskInfo,
@@ -1166,6 +1167,9 @@ class TrioBackend(AsyncBackend):
 
         try:
             await trio_socket.connect((host, port))
+        except OSError as exc:
+            trio_socket.close()
+            raise ConnectionFailed(str(exc)) from exc
         except BaseException:
             trio_socket.close()
             raise
@@ -1177,6 +1181,9 @@ class TrioBackend(AsyncBackend):
         trio_socket = trio.socket.socket(socket.AF_UNIX)
         try:
             await trio_socket.connect(path)
+        except OSError as exc:
+            trio_socket.close()
+            raise ConnectionFailed(str(exc)) from exc
         except BaseException:
             trio_socket.close()
             raise

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ._eventloop import AsyncBackend as AsyncBackend
 from ._resources import AsyncResource as AsyncResource
+from ._resources import ResourcePool as ResourcePool
 from ._sockets import ConnectedUDPSocket as ConnectedUDPSocket
 from ._sockets import ConnectedUNIXDatagramSocket as ConnectedUNIXDatagramSocket
 from ._sockets import IPAddressType as IPAddressType
@@ -23,10 +24,13 @@ from ._streams import AnyUnreliableByteStream as AnyUnreliableByteStream
 from ._streams import ByteReceiveStream as ByteReceiveStream
 from ._streams import ByteSendStream as ByteSendStream
 from ._streams import ByteStream as ByteStream
+from ._streams import ByteStreamConnectable as ByteStreamConnectable
+from ._streams import ConnectionStrategy as ConnectionStrategy
 from ._streams import Listener as Listener
 from ._streams import ObjectReceiveStream as ObjectReceiveStream
 from ._streams import ObjectSendStream as ObjectSendStream
 from ._streams import ObjectStream as ObjectStream
+from ._streams import ObjectStreamConnectable as ObjectStreamConnectable
 from ._streams import UnreliableObjectReceiveStream as UnreliableObjectReceiveStream
 from ._streams import UnreliableObjectSendStream as UnreliableObjectSendStream
 from ._streams import UnreliableObjectStream as UnreliableObjectStream

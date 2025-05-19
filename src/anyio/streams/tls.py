@@ -17,7 +17,7 @@ from .. import (
     to_thread,
 )
 from .._core._typedattr import TypedAttributeSet, typed_attribute
-from ..abc import AnyByteStream, ByteStream, Listener, TaskGroup
+from ..abc import AnyByteStream, ByteStream, ByteStreamConnectable, Listener, TaskGroup
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
@@ -355,3 +355,41 @@ class TLSListener(Listener[TLSStream]):
         return {
             TLSAttribute.standard_compatible: lambda: self.standard_compatible,
         }
+
+
+class TLSConnectable(ByteStreamConnectable):
+    """
+    Wraps another endpoint and does TLS negotiation after a successful connection.
+
+    :param hostname: host name of the peer (if host name checking is desired)
+    :param ssl_context: the SSLContext object to use (if not provided, a secure default
+        will be created)
+    :param standard_compatible: if ``False``, skip the closing handshake when closing
+        the connection, and don't raise an exception if the peer does the same
+    """
+
+    def __init__(
+        self,
+        endpoint: ByteStreamConnectable,
+        *,
+        ssl_context: ssl.SSLContext | None = None,
+        hostname: str | None = None,
+        standard_compatible: bool = True,
+    ) -> None:
+        self.endpoint = endpoint
+        self.ssl_context = ssl_context
+        self.hostname = hostname
+        self.standard_compatible = standard_compatible
+
+    async def connect(self) -> TLSStream:
+        stream = await self.endpoint.connect()
+        try:
+            return await TLSStream.wrap(
+                stream,
+                hostname=self.hostname,
+                ssl_context=self.ssl_context,
+                standard_compatible=self.standard_compatible,
+            )
+        except BaseException:
+            await aclose_forcefully(stream)
+            raise

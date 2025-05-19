@@ -1,11 +1,22 @@
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 from .. import ClosedResourceError, DelimiterNotFound, EndOfStream, IncompleteRead
-from ..abc import AnyByteReceiveStream, ByteReceiveStream
+from ..abc import (
+    AnyByteReceiveStream,
+    ByteReceiveStream,
+    ByteStream,
+    ByteStreamConnectable,
+)
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 
 @dataclass(eq=False)
@@ -117,3 +128,40 @@ class BufferedByteReceiveStream(ByteReceiveStream):
             # Move the offset forward and add the new data to the buffer
             offset = max(len(self._buffer) - delimiter_size + 1, 0)
             self._buffer.extend(data)
+
+
+class BufferedByteStream(BufferedByteReceiveStream, ByteStream):
+    """
+    A full-duplex variant of :class:`BufferedByteReceiveStream`. All writes are passed
+    through to the wrapped stream as-is.
+    """
+
+    def __init__(self, stream: ByteStream):
+        """
+        :param stream: the bytestream to be wrapped
+
+        """
+        super().__init__(stream)
+        self._stream = stream
+
+    @override
+    async def send_eof(self) -> None:
+        await self._stream.send_eof()
+
+    @override
+    async def send(self, item: bytes) -> None:
+        await self._stream.send(item)
+
+
+class BufferedEndpoint(ByteStreamConnectable):
+    def __init__(self, endpoint: ByteStreamConnectable):
+        """
+        :param endpoint: the endpoint to wrap
+
+        """
+        self.endpoint = endpoint
+
+    @override
+    async def connect(self) -> BufferedByteStream:
+        stream = await self.endpoint.connect()
+        return BufferedByteStream(stream)

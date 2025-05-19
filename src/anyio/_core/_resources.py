@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from typing import TypeVar
+
 from ..abc import AsyncResource
 from ._tasks import CancelScope
+
+T_co = TypeVar("T_co", bound=AsyncResource, covariant=True)
 
 
 async def aclose_forcefully(resource: AsyncResource) -> None:

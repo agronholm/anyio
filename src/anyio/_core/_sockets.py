@@ -7,13 +7,15 @@ import ssl
 import stat
 import sys
 from collections.abc import Awaitable
-from ipaddress import IPv6Address, ip_address
+from dataclasses import dataclass
+from ipaddress import IPv4Address, IPv6Address, ip_address
 from os import PathLike, chmod
 from socket import AddressFamily, SocketKind
 from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
 from .. import to_thread
 from ..abc import (
+    ByteStreamConnectable,
     ConnectedUDPSocket,
     ConnectedUNIXDatagramSocket,
     IPAddressType,
@@ -27,6 +29,7 @@ from ..abc import (
 from ..streams.stapled import MultiListener
 from ..streams.tls import TLSStream
 from ._eventloop import get_async_backend
+from ._exceptions import ConnectionFailed
 from ._resources import aclose_forcefully
 from ._synchronization import Event
 from ._tasks import create_task_group, move_on_after
@@ -38,6 +41,11 @@ else:
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 if sys.version_info < (3, 13):
     from typing_extensions import deprecated
@@ -163,7 +171,7 @@ async def connect_tcp(
     :param happy_eyeballs_delay: delay (in seconds) before starting the next connection
         attempt
     :return: a socket stream object if no TLS handshake was done, otherwise a TLS stream
-    :raises OSError: if the connection attempt fails
+    :raises ConnectionFailed: if the connection fails
 
     """
     # Placed here due to https://github.com/python/mypy/issues/7057
@@ -238,7 +246,7 @@ async def connect_tcp(
                 if len(oserrors) == 1
                 else ExceptionGroup("multiple connection attempts failed", oserrors)
             )
-            raise OSError("All connection attempts failed") from cause
+            raise ConnectionFailed("All connection attempts failed") from cause
     finally:
         oserrors.clear()
 
@@ -266,6 +274,7 @@ async def connect_unix(path: str | bytes | PathLike[Any]) -> UNIXSocketStream:
 
     :param path: path to the socket
     :return: a socket stream object
+    :raises ConnectionFailed: if the connection fails
 
     """
     path = os.fspath(path)
@@ -820,3 +829,26 @@ async def setup_unix_local_socket(
             raise
 
     return raw_socket
+
+
+@dataclass
+class TCPEndpoint(ByteStreamConnectable):
+    host: str | IPv4Address | IPv6Address
+    port: int
+
+    def __post_init__(self) -> None:
+        if self.port < 1 or self.port > 65535:
+            raise ValueError("TCP port number out of range")
+
+    @override
+    async def connect(self) -> SocketStream:
+        return await connect_tcp(self.host, self.port)
+
+
+@dataclass
+class UNIXEndpoint(ByteStreamConnectable):
+    path: str | bytes | PathLike[str] | PathLike[bytes]
+
+    @override
+    async def connect(self) -> UNIXSocketStream:
+        return await connect_unix(self.path)

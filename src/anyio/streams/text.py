@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import codecs
+import sys
 from collections.abc import Callable, Mapping
 from dataclasses import InitVar, dataclass, field
 from typing import Any
@@ -12,7 +13,13 @@ from ..abc import (
     ObjectReceiveStream,
     ObjectSendStream,
     ObjectStream,
+    ObjectStreamConnectable,
 )
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 
 @dataclass(eq=False)
@@ -145,3 +152,17 @@ class TextStream(ObjectStream[str]):
             **self._send_stream.extra_attributes,
             **self._receive_stream.extra_attributes,
         }
+
+
+class TextConnectable(ObjectStreamConnectable[str]):
+    def __init__(self, endpoint: ObjectStreamConnectable[bytes]):
+        """
+        :param endpoint: the bytestream endpoint to wrap
+
+        """
+        self.endpoint = endpoint
+
+    @override
+    async def connect(self) -> TextStream:
+        stream = await self.endpoint.connect()
+        return TextStream(stream)

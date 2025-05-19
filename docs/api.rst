@@ -18,6 +18,7 @@ Asynchronous resources
 .. autofunction:: anyio.aclose_forcefully
 
 .. autoclass:: anyio.abc.AsyncResource
+.. autoclass:: anyio.abc.ResourcePool
 
 Typed attributes
 ----------------
@@ -119,6 +120,9 @@ Streams and stream wrappers
 .. autoclass:: anyio.abc.ByteSendStream
 .. autoclass:: anyio.abc.ByteStream
 .. autoclass:: anyio.abc.Listener
+.. autoclass:: anyio.abc.ObjectStreamConnectable
+.. autoclass:: anyio.abc.ByteStreamConnectable
+.. autoclass:: anyio.abc.ConnectionStrategy
 
 .. autodata:: anyio.abc.AnyUnreliableByteReceiveStream
 .. autodata:: anyio.abc.AnyUnreliableByteSendStream
@@ -140,9 +144,11 @@ Streams and stream wrappers
 .. autoclass:: anyio.streams.text.TextReceiveStream
 .. autoclass:: anyio.streams.text.TextSendStream
 .. autoclass:: anyio.streams.text.TextStream
+.. autoclass:: anyio.streams.text.TextConnectable
 .. autoclass:: anyio.streams.tls.TLSAttribute
 .. autoclass:: anyio.streams.tls.TLSStream
 .. autoclass:: anyio.streams.tls.TLSListener
+.. autoclass:: anyio.streams.tls.TLSConnectable
 
 Sockets and networking
 ----------------------
@@ -222,6 +228,7 @@ Exceptions
 .. autoexception:: anyio.BrokenWorkerProcess
 .. autoexception:: anyio.BusyResourceError
 .. autoexception:: anyio.ClosedResourceError
+.. autoexception:: anyio.ConnectionFailed
 .. autoexception:: anyio.DelimiterNotFound
 .. autoexception:: anyio.EndOfStream
 .. autoexception:: anyio.IncompleteRead
