@@ -121,7 +121,7 @@ class ObjectStream(
         """
 
 
-class ByteReceiveStream(ObjectReceiveStream[bytes]):
+class ByteReceiveStream(AsyncResource, TypedAttributeProvider):
     """
     An interface for receiving bytes from a single peer.
 
@@ -152,7 +152,7 @@ class ByteReceiveStream(ObjectReceiveStream[bytes]):
         """
 
 
-class ByteSendStream(ObjectSendStream[bytes]):
+class ByteSendStream(AsyncResource, TypedAttributeProvider):
     """An interface for sending bytes to a single peer."""
 
     @abstractmethod
@@ -164,8 +164,17 @@ class ByteSendStream(ObjectSendStream[bytes]):
         """
 
 
-class ByteStream(ByteReceiveStream, ByteSendStream, ObjectStream[bytes]):
+class ByteStream(ByteReceiveStream, ByteSendStream):
     """A bidirectional byte stream."""
+
+    @abstractmethod
+    async def send_eof(self) -> None:
+        """
+        Send an end-of-file indication to the peer.
+
+        You should not try to send any further data to this stream after calling this
+        method. This method is idempotent (does nothing on successive calls).
+        """
 
 
 #: Type alias for all unreliable bytes-oriented receive streams.
@@ -213,7 +222,7 @@ class ObjectStreamConnectable(Generic[T_co]):
         """
 
 
-class ByteStreamConnectable(ObjectStreamConnectable[bytes]):
+class ByteStreamConnectable:
     @abstractmethod
     async def connect(self) -> ByteStream:
         """
@@ -222,6 +231,12 @@ class ByteStreamConnectable(ObjectStreamConnectable[bytes]):
         :return: a bytestream connected to the remote end
         :raises ConnectionFailed: if the connection fails
         """
+
+
+#: Type alias for all connectables returning bytestreams or bytes-oriented object streams
+AnyByteStreamConnectable: TypeAlias = Union[
+    ObjectStreamConnectable[bytes], ByteStreamConnectable
+]
 
 
 class ConnectionStrategy(metaclass=ABCMeta):

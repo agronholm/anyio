@@ -13,7 +13,7 @@ from os import PathLike, chmod
 from socket import AddressFamily, SocketKind
 from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
-from .. import to_thread
+from .. import ConnectionFailed, to_thread
 from ..abc import (
     ByteStreamConnectable,
     ConnectedUDPSocket,
@@ -831,7 +831,14 @@ async def setup_unix_local_socket(
 
 
 @dataclass
-class TCPEndpoint(ByteStreamConnectable):
+class TCPConnectable(ByteStreamConnectable):
+    """
+    Connects to a TCP server at the given host and port.
+
+    :param host: host name or IP address of the server
+    :param port: TCP port number of the server
+    """
+
     host: str | IPv4Address | IPv6Address
     port: int
 
@@ -841,13 +848,27 @@ class TCPEndpoint(ByteStreamConnectable):
 
     @override
     async def connect(self) -> SocketStream:
-        return await connect_tcp(self.host, self.port)
+        try:
+            return await connect_tcp(self.host, self.port)
+        except OSError as exc:
+            raise ConnectionFailed(
+                f"error connecting to {self.host}:{self.port}: {exc}"
+            ) from exc
 
 
 @dataclass
-class UNIXEndpoint(ByteStreamConnectable):
+class UNIXConnectable(ByteStreamConnectable):
+    """
+    Connects to a UNIX domain socket at the given path.
+
+    :param path: the file system path of the socket
+    """
+
     path: str | bytes | PathLike[str] | PathLike[bytes]
 
     @override
     async def connect(self) -> UNIXSocketStream:
-        return await connect_unix(self.path)
+        try:
+            return await connect_unix(self.path)
+        except OSError as exc:
+            raise ConnectionFailed(f"error connecting to {self.path!r}: {exc}") from exc

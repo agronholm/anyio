@@ -18,6 +18,7 @@ from ._sockets import UNIXSocketStream as UNIXSocketStream
 from ._streams import AnyByteReceiveStream as AnyByteReceiveStream
 from ._streams import AnyByteSendStream as AnyByteSendStream
 from ._streams import AnyByteStream as AnyByteStream
+from ._streams import AnyByteStreamConnectable as AnyByteStreamConnectable
 from ._streams import AnyUnreliableByteReceiveStream as AnyUnreliableByteReceiveStream
 from ._streams import AnyUnreliableByteSendStream as AnyUnreliableByteSendStream
 from ._streams import AnyUnreliableByteStream as AnyUnreliableByteStream

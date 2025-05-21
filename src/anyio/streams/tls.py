@@ -19,10 +19,10 @@ from .. import (
 from .._core._typedattr import TypedAttributeSet, typed_attribute
 from ..abc import (
     AnyByteStream,
+    AnyByteStreamConnectable,
     ByteStream,
     ByteStreamConnectable,
     Listener,
-    ObjectStreamConnectable,
     TaskGroup,
 )
 
@@ -377,7 +377,7 @@ class TLSConnectable(ByteStreamConnectable):
 
     def __init__(
         self,
-        connectable: ObjectStreamConnectable[bytes],
+        connectable: AnyByteStreamConnectable,
         *,
         ssl_context: ssl.SSLContext | None = None,
         hostname: str | None = None,

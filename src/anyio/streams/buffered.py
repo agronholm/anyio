@@ -7,10 +7,12 @@ from typing import Any
 
 from .. import ClosedResourceError, DelimiterNotFound, EndOfStream, IncompleteRead
 from ..abc import (
+    AnyByteReceiveStream,
+    AnyByteStream,
+    AnyByteStreamConnectable,
     ByteReceiveStream,
     ByteStream,
     ByteStreamConnectable,
-    ObjectReceiveStream,
 )
 
 if sys.version_info >= (3, 12):
@@ -26,7 +28,7 @@ class BufferedByteReceiveStream(ByteReceiveStream):
     receiving capabilities in the form of a byte stream.
     """
 
-    receive_stream: ObjectReceiveStream[bytes]
+    receive_stream: AnyByteReceiveStream
     _buffer: bytearray = field(init=False, default_factory=bytearray)
     _closed: bool = field(init=False, default=False)
 
@@ -136,7 +138,7 @@ class BufferedByteStream(BufferedByteReceiveStream, ByteStream):
     through to the wrapped stream as-is.
     """
 
-    def __init__(self, stream: ByteStream):
+    def __init__(self, stream: AnyByteStream):
         """
         :param stream: the bytestream to be wrapped
 
@@ -153,8 +155,8 @@ class BufferedByteStream(BufferedByteReceiveStream, ByteStream):
         await self._stream.send(item)
 
 
-class BufferedEndpoint(ByteStreamConnectable):
-    def __init__(self, connectable: ByteStreamConnectable):
+class BufferedConnectable(ByteStreamConnectable):
+    def __init__(self, connectable: AnyByteStreamConnectable):
         """
         :param connectable: the connectable to wrap
 

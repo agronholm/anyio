@@ -10,6 +10,7 @@ from ..abc import (
     AnyByteReceiveStream,
     AnyByteSendStream,
     AnyByteStream,
+    AnyByteStreamConnectable,
     ObjectReceiveStream,
     ObjectSendStream,
     ObjectStream,
@@ -155,7 +156,7 @@ class TextStream(ObjectStream[str]):
 
 
 class TextConnectable(ObjectStreamConnectable[str]):
-    def __init__(self, connectable: ObjectStreamConnectable[bytes]):
+    def __init__(self, connectable: AnyByteStreamConnectable):
         """
         :param connectable: the bytestream endpoint to wrap
 
