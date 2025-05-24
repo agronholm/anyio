@@ -20,9 +20,15 @@ from anyio import (
     create_tcp_listener,
     to_thread,
 )
-from anyio.abc import AnyByteStream, SocketAttribute, SocketStream
+from anyio.abc import (
+    AnyByteStream,
+    ObjectStream,
+    ObjectStreamConnectable,
+    SocketAttribute,
+    SocketStream,
+)
 from anyio.streams.stapled import StapledObjectStream
-from anyio.streams.tls import TLSAttribute, TLSListener, TLSStream
+from anyio.streams.tls import TLSAttribute, TLSConnectable, TLSListener, TLSStream
 
 pytestmark = pytest.mark.anyio
 
@@ -525,3 +531,35 @@ class TestTLSListener:
             await event.wait()
             await to_thread.run_sync(client_thread.join)
             tg.cancel_scope.cancel()
+
+
+async def test_tls_connectable(
+    client_context: ssl.SSLContext, server_context: ssl.SSLContext
+) -> None:
+    server_send, server_receive = create_memory_object_stream[bytes](1)
+    client_send, client_receive = create_memory_object_stream[bytes](1)
+    client_stream = StapledObjectStream(client_send, server_receive)
+    server_stream = StapledObjectStream(server_send, client_receive)
+
+    async def server() -> None:
+        async with await TLSStream.wrap(
+            server_stream,
+            server_side=True,
+            hostname="localhost",
+            ssl_context=server_context,
+        ) as server_tls_stream:
+            message = await server_tls_stream.receive()
+            await server_tls_stream.send(b"hello, " + message)
+
+    class MemoryConnectable(ObjectStreamConnectable[bytes]):
+        async def connect(self) -> ObjectStream[bytes]:
+            return client_stream
+
+    async with create_task_group() as tg:
+        tg.start_soon(server)
+        connectable = TLSConnectable(
+            MemoryConnectable(), ssl_context=client_context, hostname="localhost"
+        )
+        async with await connectable.connect() as client_tls_stream:
+            await client_tls_stream.send(b"world")
+            assert await client_tls_stream.receive() == b"hello, world"

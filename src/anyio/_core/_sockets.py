@@ -7,13 +7,15 @@ import ssl
 import stat
 import sys
 from collections.abc import Awaitable
-from ipaddress import IPv6Address, ip_address
+from dataclasses import dataclass
+from ipaddress import IPv4Address, IPv6Address, ip_address
 from os import PathLike, chmod
 from socket import AddressFamily, SocketKind
 from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
-from .. import to_thread
+from .. import ConnectionFailed, to_thread
 from ..abc import (
+    ByteStreamConnectable,
     ConnectedUDPSocket,
     ConnectedUNIXDatagramSocket,
     IPAddressType,
@@ -38,6 +40,11 @@ else:
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 if sys.version_info < (3, 13):
     from typing_extensions import deprecated
@@ -163,7 +170,7 @@ async def connect_tcp(
     :param happy_eyeballs_delay: delay (in seconds) before starting the next connection
         attempt
     :return: a socket stream object if no TLS handshake was done, otherwise a TLS stream
-    :raises OSError: if the connection attempt fails
+    :raises ConnectionFailed: if the connection fails
 
     """
     # Placed here due to https://github.com/python/mypy/issues/7057
@@ -266,6 +273,7 @@ async def connect_unix(path: str | bytes | PathLike[Any]) -> UNIXSocketStream:
 
     :param path: path to the socket
     :return: a socket stream object
+    :raises ConnectionFailed: if the connection fails
 
     """
     path = os.fspath(path)
@@ -820,3 +828,47 @@ async def setup_unix_local_socket(
             raise
 
     return raw_socket
+
+
+@dataclass
+class TCPConnectable(ByteStreamConnectable):
+    """
+    Connects to a TCP server at the given host and port.
+
+    :param host: host name or IP address of the server
+    :param port: TCP port number of the server
+    """
+
+    host: str | IPv4Address | IPv6Address
+    port: int
+
+    def __post_init__(self) -> None:
+        if self.port < 1 or self.port > 65535:
+            raise ValueError("TCP port number out of range")
+
+    @override
+    async def connect(self) -> SocketStream:
+        try:
+            return await connect_tcp(self.host, self.port)
+        except OSError as exc:
+            raise ConnectionFailed(
+                f"error connecting to {self.host}:{self.port}: {exc}"
+            ) from exc
+
+
+@dataclass
+class UNIXConnectable(ByteStreamConnectable):
+    """
+    Connects to a UNIX domain socket at the given path.
+
+    :param path: the file system path of the socket
+    """
+
+    path: str | bytes | PathLike[str] | PathLike[bytes]
+
+    @override
+    async def connect(self) -> UNIXSocketStream:
+        try:
+            return await connect_unix(self.path)
+        except OSError as exc:
+            raise ConnectionFailed(f"error connecting to {self.path!r}: {exc}") from exc
