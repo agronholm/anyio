@@ -26,6 +26,7 @@ from _pytest.fixtures import SubRequest
 from _pytest.logging import LogCaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
 from _pytest.tmpdir import TempPathFactory
+from pytest_mock.plugin import MockerFixture
 
 from anyio import (
     BrokenResourceError,
@@ -33,7 +34,9 @@ from anyio import (
     ClosedResourceError,
     EndOfStream,
     Event,
+    TCPConnectable,
     TypedAttributeLookupError,
+    UNIXConnectable,
     connect_tcp,
     connect_unix,
     create_connected_udp_socket,
@@ -1849,6 +1852,20 @@ class TestConnectedUNIXDatagramSocket:
         await udp.aclose()
         with pytest.raises(ClosedResourceError):
             await udp.send(b"foo")
+
+
+async def test_tcp_connectable(mocker: MockerFixture) -> None:
+    mock_connect_tcp = mocker.patch("anyio._core._sockets.connect_tcp")
+    connectable = TCPConnectable("localhost", 1234)
+    await connectable.connect()
+    mock_connect_tcp.assert_called_once_with("localhost", 1234)
+
+
+async def test_unix_connectable(mocker: MockerFixture) -> None:
+    mock_connect_tcp = mocker.patch("anyio._core._sockets.connect_unix")
+    connectable = UNIXConnectable("/foo/bar")
+    await connectable.connect()
+    mock_connect_tcp.assert_called_once_with("/foo/bar")
 
 
 @pytest.mark.network
