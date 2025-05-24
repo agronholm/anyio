@@ -140,7 +140,7 @@ class BufferedByteStream(BufferedByteReceiveStream, ByteStream):
 
     def __init__(self, stream: AnyByteStream):
         """
-        :param stream: the bytestream to be wrapped
+        :param stream: the stream to be wrapped
 
         """
         super().__init__(stream)

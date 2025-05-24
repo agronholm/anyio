@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from ._eventloop import AsyncBackend as AsyncBackend
 from ._resources import AsyncResource as AsyncResource
-from ._resources import ResourcePool as ResourcePool
 from ._sockets import ConnectedUDPSocket as ConnectedUDPSocket
 from ._sockets import ConnectedUNIXDatagramSocket as ConnectedUNIXDatagramSocket
 from ._sockets import IPAddressType as IPAddressType

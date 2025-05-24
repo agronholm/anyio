@@ -36,6 +36,11 @@ if sys.version_info >= (3, 11):
 else:
     from typing_extensions import TypeVarTuple, Unpack
 
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
+
 T_Retval = TypeVar("T_Retval")
 PosArgsT = TypeVarTuple("PosArgsT")
 _PCTRTT: TypeAlias = tuple[tuple[str, str], ...]
@@ -388,6 +393,7 @@ class TLSConnectable(ByteStreamConnectable):
         self.hostname = hostname
         self.standard_compatible = standard_compatible
 
+    @override
     async def connect(self) -> TLSStream:
         stream = await self.connectable.connect()
         try:

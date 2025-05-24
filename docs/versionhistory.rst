@@ -7,8 +7,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added a hierarchy of connectable stream classes for transparently connecting to
   various remote or local endpoints for exchanging bytes or objects
-- Bytestream classes now inherit from their object stream counterparts (with ``bytes``)
-  as the type parameter
 - Added context manager mix-in classes (``anyio.ContextManagerMixin`` and
   ``anyio.AsyncContextManagerMixin``) to help write classes that embed other context
   managers, particularly cancel scopes or task groups

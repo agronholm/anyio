@@ -18,7 +18,6 @@ Asynchronous resources
 .. autofunction:: anyio.aclose_forcefully
 
 .. autoclass:: anyio.abc.AsyncResource
-.. autoclass:: anyio.abc.ResourcePool
 
 Typed attributes
 ----------------
@@ -122,7 +121,6 @@ Streams and stream wrappers
 .. autoclass:: anyio.abc.Listener
 .. autoclass:: anyio.abc.ObjectStreamConnectable
 .. autoclass:: anyio.abc.ByteStreamConnectable
-.. autoclass:: anyio.abc.ConnectionStrategy
 
 .. autodata:: anyio.abc.AnyUnreliableByteReceiveStream
 .. autodata:: anyio.abc.AnyUnreliableByteSendStream
