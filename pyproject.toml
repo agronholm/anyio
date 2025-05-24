@@ -108,7 +108,7 @@ warn_return_any = false
 disallow_untyped_decorators = false
 
 [tool.pytest.ini_options]
-addopts = "-rsfE --tb=short --strict-config --strict-markers -p anyio -p no:asyncio -p no:trio"
+addopts = "-rsfE --tb=short --strict-config --strict-markers -p anyio -p mock -p no:asyncio -p no:trio"
 testpaths = ["tests"]
 xfail_strict = true
 filterwarnings = [
