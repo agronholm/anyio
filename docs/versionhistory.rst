@@ -23,6 +23,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed rollover boundary check in ``SpooledTemporaryFile`` so that rollover
   only occurs when the buffer size exceeds ``max_size``
   (`#915 <https://github.com/agronholm/anyio/pull/915>`_; PR by @11kkw)
+- Migrated testing and documentation dependencies from extras to dependency groups
 
 **4.9.0**
 

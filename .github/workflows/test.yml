@@ -89,8 +89,10 @@ jobs:
         allow-prereleases: true
         cache: pip
         cache-dependency-path: pyproject.toml
-    - name: Install dependencies
-      run: pip install -e .[test]
+    - name: Ensure pip >= v25.1
+      run: python -m pip install "pip >= 25.1"
+    - name: Install the project and its dependencies
+      run: pip install --group test -e .
     - name: Patch /etc/hosts
       if: runner.os != 'Windows'
       run: |
@@ -132,8 +134,10 @@ jobs:
         python-version: "3.11"
         cache: pip
         cache-dependency-path: pyproject.toml
-    - name: Install dependencies
-      run: pip install -e .[doc]
+    - name: Ensure pip >= v25.1
+      run: python -m pip install "pip >= 25.1"
+    - name: Install the project and its dependencies
+      run: pip install --group doc -e .
     - name: Build documentation
       run: sphinx-build -W docs build/sphinx
 
