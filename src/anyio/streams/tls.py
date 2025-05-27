@@ -7,6 +7,7 @@ import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from functools import wraps
+from ssl import SSLContext
 from typing import Any, TypeVar
 
 from .. import (
@@ -390,7 +391,7 @@ class TLSConnectable(ByteStreamConnectable):
         standard_compatible: bool = True,
     ) -> None:
         self.connectable = connectable
-        self.ssl_context = ssl_context or ssl.create_default_context(
+        self.ssl_context: SSLContext = ssl_context or ssl.create_default_context(
             ssl.Purpose.SERVER_AUTH
         )
         if not isinstance(self.ssl_context, ssl.SSLContext):
