@@ -26,8 +26,14 @@ DEFAULT_CPU_COUNT: Final = 8  # this is just an arbitrarily selected value
 MAX_WORKER_IDLE_TIME = (
     30  # seconds a subinterpreter can be idle before becoming eligible for pruning
 )
-QUEUE_PICKLE_ARGS: Final = (UNBOUND,) if sys.version_info >= (3, 14, 0, 'beta', 2) else (FMT_PICKLED, UNBOUND)
-QUEUE_UNPICKLE_ARGS: Final = (UNBOUND,) if sys.version_info >= (3, 14, 0, 'beta', 2) else (FMT_UNPICKLED, UNBOUND)
+QUEUE_PICKLE_ARGS: Final = (
+    (UNBOUND,) if sys.version_info >= (3, 14, 0, "beta", 2) else (FMT_PICKLED, UNBOUND)
+)
+QUEUE_UNPICKLE_ARGS: Final = (
+    (UNBOUND,)
+    if sys.version_info >= (3, 14, 0, "beta", 2)
+    else (FMT_UNPICKLED, UNBOUND)
+)
 
 T_Retval = TypeVar("T_Retval")
 PosArgsT = TypeVarTuple("PosArgsT")
