@@ -13,6 +13,7 @@ import threading
 import time
 from collections.abc import Generator, Iterable, Iterator
 from contextlib import suppress
+from ipaddress import IPv4Address, IPv6Address
 from pathlib import Path
 from socket import AddressFamily
 from ssl import SSLContext, SSLError
@@ -37,6 +38,7 @@ from anyio import (
     TCPConnectable,
     TypedAttributeLookupError,
     UNIXConnectable,
+    as_connectable,
     connect_tcp,
     connect_unix,
     create_connected_udp_socket,
@@ -67,6 +69,7 @@ from anyio.abc import (
 )
 from anyio.lowlevel import checkpoint
 from anyio.streams.stapled import MultiListener
+from anyio.streams.tls import TLSConnectable
 
 from .conftest import asyncio_params, no_other_refs
 
@@ -1866,6 +1869,68 @@ async def test_unix_connectable(mocker: MockerFixture) -> None:
     connectable = UNIXConnectable("/foo/bar")
     await connectable.connect()
     mock_connect_tcp.assert_called_once_with("/foo/bar")
+
+
+class TestAsConnectable:
+    def test_pass_connectable(self) -> None:
+        connectable = TCPConnectable("localhost", 1234)
+        assert as_connectable(connectable) is connectable
+
+    @pytest.mark.parametrize(
+        "addr",
+        [
+            pytest.param("localhost", id="string"),
+            pytest.param(IPv4Address("127.0.0.1"), id="ipv4addr"),
+            pytest.param(IPv6Address("::1"), id="ipv6addr"),
+        ],
+    )
+    def test_tcp(self, addr: str | IPv4Address | IPv6Address) -> None:
+        connectable = as_connectable((addr, 1234))
+        assert isinstance(connectable, TCPConnectable)
+        assert connectable.host == addr
+        assert connectable.port == 1234
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            pytest.param("/foo/bar", id="str"),
+            pytest.param(b"/foo/bar", id="bytes"),
+            pytest.param(Path("/foo/bar"), id="strpath"),
+        ],
+    )
+    def test_unix(self, path: str | bytes | os.PathLike[str]) -> None:
+        connectable = as_connectable(path)
+        assert isinstance(connectable, UNIXConnectable)
+        assert connectable.path == path
+
+    def test_bad_type(self) -> None:
+        with pytest.raises(TypeError, match="cannot convert 1234 to a connectable"):
+            as_connectable(1234)  # type: ignore[arg-type]
+
+    def test_tls_true(self) -> None:
+        connectable = as_connectable(
+            "/foo/bar",
+            tls=True,
+            tls_hostname="example.com",
+            tls_standard_compatible=False,
+        )
+        assert isinstance(connectable, TLSConnectable)
+        assert connectable.hostname == "example.com"
+        assert not connectable.standard_compatible
+        assert isinstance(connectable, TLSConnectable)
+
+    def test_tls_explicit_context(self, client_context: SSLContext) -> None:
+        connectable = as_connectable(
+            "/foo/bar", tls=client_context, tls_hostname="example.com"
+        )
+        assert isinstance(connectable, TLSConnectable)
+        assert connectable.ssl_context is client_context
+        assert connectable.hostname == "example.com"
+
+    def test_tls_tcp_implicit_hostname(self, client_context: SSLContext) -> None:
+        connectable = as_connectable(("localhost", 1234), tls=True)
+        assert isinstance(connectable, TLSConnectable)
+        assert connectable.hostname == "localhost"
 
 
 @pytest.mark.network

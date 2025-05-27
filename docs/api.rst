@@ -152,6 +152,7 @@ Streams and stream wrappers
 Sockets and networking
 ----------------------
 
+.. autofunction:: anyio.as_connectable
 .. autofunction:: anyio.connect_tcp
 .. autofunction:: anyio.connect_unix
 .. autofunction:: anyio.create_tcp_listener

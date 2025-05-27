@@ -373,23 +373,31 @@ class TLSConnectable(ByteStreamConnectable):
     """
     Wraps another connectable and does TLS negotiation after a successful connection.
 
-    :param hostname: host name of the peer (if host name checking is desired)
+    :param connectable: the connectable to wrap
+    :param hostname: host name of the server (if host name checking is desired)
     :param ssl_context: the SSLContext object to use (if not provided, a secure default
         will be created)
     :param standard_compatible: if ``False``, skip the closing handshake when closing
-        the connection, and don't raise an exception if the peer does the same
+        the connection, and don't raise an exception if the server does the same
     """
 
     def __init__(
         self,
         connectable: AnyByteStreamConnectable,
         *,
-        ssl_context: ssl.SSLContext | None = None,
         hostname: str | None = None,
+        ssl_context: ssl.SSLContext | None = None,
         standard_compatible: bool = True,
     ) -> None:
         self.connectable = connectable
-        self.ssl_context = ssl_context
+        self.ssl_context = ssl_context or ssl.create_default_context(
+            ssl.Purpose.SERVER_AUTH
+        )
+        if not isinstance(self.ssl_context, ssl.SSLContext):
+            raise TypeError(
+                "ssl_context must be an instance of ssl.SSLContext, not "
+                f"{type(self.ssl_context).__name__}"
+            )
         self.hostname = hostname
         self.standard_compatible = standard_compatible
 

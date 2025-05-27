@@ -27,7 +27,7 @@ from ..abc import (
     UNIXSocketStream,
 )
 from ..streams.stapled import MultiListener
-from ..streams.tls import TLSStream
+from ..streams.tls import TLSConnectable, TLSStream
 from ._eventloop import get_async_backend
 from ._resources import aclose_forcefully
 from ._synchronization import Event
@@ -872,3 +872,60 @@ class UNIXConnectable(ByteStreamConnectable):
             return await connect_unix(self.path)
         except OSError as exc:
             raise ConnectionFailed(f"error connecting to {self.path!r}: {exc}") from exc
+
+
+def as_connectable(
+    remote: ByteStreamConnectable
+    | tuple[str | IPv4Address | IPv6Address, int]
+    | str
+    | bytes
+    | PathLike[str],
+    /,
+    *,
+    tls: bool | ssl.SSLContext = False,
+    ssl_context: ssl.SSLContext | None = None,
+    tls_hostname: str | None = None,
+    tls_standard_compatible: bool = True,
+) -> ByteStreamConnectable:
+    """
+    Return a byte stream connectable from the given object.
+
+    If a bytestream connectable is given, it is returned unchanged.
+    If a tuple of (host, port) is given, a TCP connectable is returned.
+    If a string or bytes path is given, a UNIX connectable is returned.
+
+    If either ``tls``, ``ssl_context`` or ``tls_hostname`` is given, the created
+    connectable is wrapped with a :class:`TLSConnectable`.
+
+    :param remote: a connectable, a tuple of (host, port) or a path to a UNIX socket
+    :param tls: if ``True``, enable TLS with the default settings (unless other TLS
+        settings are provided)
+    :param tls_hostname: host name of the server to use for checking the server
+        certificate (defaults to the host portion of the address for TCP connectables)
+    :param tls_standard_compatible: if ``False``, skip the closing handshake when
+        closing the connection, and don't raise an exception if the server does the same
+
+    """
+    connectable: TCPConnectable | UNIXConnectable | TLSConnectable
+    if isinstance(remote, ByteStreamConnectable):
+        return remote
+    elif isinstance(remote, tuple):
+        connectable = TCPConnectable(*remote)
+    elif isinstance(remote, (str, bytes, PathLike)):
+        connectable = UNIXConnectable(remote)
+    else:
+        raise TypeError(f"cannot convert {remote!r} to a connectable")
+
+    if tls or tls_hostname or ssl_context:
+        if not tls_hostname and isinstance(connectable, TCPConnectable):
+            tls_hostname = str(connectable.host)
+
+        ssl_context = tls if isinstance(tls, ssl.SSLContext) else None
+        connectable = TLSConnectable(
+            connectable,
+            ssl_context=ssl_context,
+            hostname=tls_hostname,
+            standard_compatible=tls_standard_compatible,
+        )
+
+    return connectable
