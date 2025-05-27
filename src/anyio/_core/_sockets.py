@@ -900,6 +900,8 @@ def as_connectable(
     :param remote: a connectable, a tuple of (host, port) or a path to a UNIX socket
     :param tls: if ``True``, enable TLS with the default settings (unless other TLS
         settings are provided)
+    :param ssl_context: the SSLContext object to use (if not provided, a secure default
+        will be created)
     :param tls_hostname: host name of the server to use for checking the server
         certificate (defaults to the host portion of the address for TCP connectables)
     :param tls_standard_compatible: if ``False``, skip the closing handshake when
