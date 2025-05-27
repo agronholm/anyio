@@ -24,6 +24,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   only occurs when the buffer size exceeds ``max_size``
   (`#915 <https://github.com/agronholm/anyio/pull/915>`_; PR by @11kkw)
 - Migrated testing and documentation dependencies from extras to dependency groups
+- Fixed compatibility of ``anyio.to_interpreter`` with Python 3.14.0b2
+  (`#926 <https://github.com/agronholm/anyio/issues/926>`_; PR by @hroncok)
 
 **4.9.0**
 
