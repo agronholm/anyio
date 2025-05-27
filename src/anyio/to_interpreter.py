@@ -86,9 +86,6 @@ class Worker:
             self._interpreter_id,
             {
                 "queue_id": self._queue_id,
-                "FMT_PICKLED": FMT_PICKLED,
-                "FMT_UNPICKLED": FMT_UNPICKLED,
-                "UNBOUND": UNBOUND,
                 "QUEUE_PICKLE_ARGS": QUEUE_PICKLE_ARGS,
                 "QUEUE_UNPICKLE_ARGS": QUEUE_UNPICKLE_ARGS,
             },
