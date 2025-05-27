@@ -26,6 +26,8 @@ DEFAULT_CPU_COUNT: Final = 8  # this is just an arbitrarily selected value
 MAX_WORKER_IDLE_TIME = (
     30  # seconds a subinterpreter can be idle before becoming eligible for pruning
 )
+QUEUE_PICKLE_ARGS: Final = (UNBOUND,) if sys.version_info >= (3, 14, 0, 'beta', 2) else (FMT_PICKLED, UNBOUND)
+QUEUE_UNPICKLE_ARGS: Final = (UNBOUND,) if sys.version_info >= (3, 14, 0, 'beta', 2) else (FMT_UNPICKLED, UNBOUND)
 
 T_Retval = TypeVar("T_Retval")
 PosArgsT = TypeVarTuple("PosArgsT")
@@ -52,10 +54,10 @@ class Worker:
             is_exception = False
 
         try:
-            queues.put(queue_id, (retval, is_exception), FMT_UNPICKLED, UNBOUND)
+            queues.put(queue_id, (retval, is_exception), *QUEUE_UNPICKLE_ARGS)
         except interpreters.NotShareableError:
             retval = dumps(retval, HIGHEST_PROTOCOL)
-            queues.put(queue_id, (retval, is_exception), FMT_PICKLED, UNBOUND)
+            queues.put(queue_id, (retval, is_exception), *QUEUE_PICKLE_ARGS)
         """),
         "<string>",
         "exec",
@@ -72,7 +74,7 @@ class Worker:
         import _interpreters as interpreters
 
         self._interpreter_id = interpreters.create()
-        self._queue_id = queues.create(2, FMT_UNPICKLED, UNBOUND)
+        self._queue_id = queues.create(2, *QUEUE_UNPICKLE_ARGS)
         self._initialized = True
         interpreters.set___main___attrs(
             self._interpreter_id,
@@ -81,6 +83,8 @@ class Worker:
                 "FMT_PICKLED": FMT_PICKLED,
                 "FMT_UNPICKLED": FMT_UNPICKLED,
                 "UNBOUND": UNBOUND,
+                "QUEUE_PICKLE_ARGS": QUEUE_PICKLE_ARGS,
+                "QUEUE_UNPICKLE_ARGS": QUEUE_UNPICKLE_ARGS,
             },
         )
 
@@ -104,7 +108,7 @@ class Worker:
             self.initialize()
 
         payload = pickle.dumps((func, args), pickle.HIGHEST_PROTOCOL)
-        queues.put(self._queue_id, payload, FMT_PICKLED, UNBOUND)
+        queues.put(self._queue_id, payload, *QUEUE_PICKLE_ARGS)
 
         res: Any
         is_exception: bool
