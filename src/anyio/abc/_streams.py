@@ -40,7 +40,7 @@ class UnreliableObjectReceiveStream(
         try:
             return await self.receive()
         except EndOfStream:
-            raise StopAsyncIteration
+            raise StopAsyncIteration from None
 
     @abstractmethod
     async def receive(self) -> T_co:
@@ -136,7 +136,7 @@ class ByteReceiveStream(AsyncResource, TypedAttributeProvider):
         try:
             return await self.receive()
         except EndOfStream:
-            raise StopAsyncIteration
+            raise StopAsyncIteration from None
 
     @abstractmethod
     async def receive(self, max_bytes: int = 65536) -> bytes:

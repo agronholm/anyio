@@ -80,6 +80,7 @@ src = ["src"]
 [tool.ruff.lint]
 extend-select = [
     "ASYNC",        # flake8-async
+    "B",            # flake8-bugbear
     "C4",           # flake8-comprehensions
     "G",            # flake8-logging-format
     "I",            # isort
@@ -91,7 +92,7 @@ extend-select = [
     "UP",           # pyupgrade
     "W",            # pycodestyle warnings
 ]
-ignore = ["PERF203"]
+ignore = ["B009", "PERF203"]
 
 [tool.ruff.lint.isort]
 "required-imports" = ["from __future__ import annotations"]
