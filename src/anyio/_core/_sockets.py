@@ -213,7 +213,7 @@ async def connect_tcp(
         # and the second one is an IPv4 addresses. The rest can be in whatever order.
         v6_found = v4_found = False
         target_addrs = []
-        for af, *rest, sa in gai_res:
+        for af, *_, sa in gai_res:
             if af == socket.AF_INET6 and not v6_found:
                 v6_found = True
                 target_addrs.insert(0, (af, sa[0]))
@@ -226,7 +226,7 @@ async def connect_tcp(
     oserrors: list[OSError] = []
     try:
         async with create_task_group() as tg:
-            for i, (af, addr) in enumerate(target_addrs):
+            for _af, addr in target_addrs:
                 event = Event()
                 tg.start_soon(try_connect, addr, event)
                 with move_on_after(happy_eyeballs_delay):

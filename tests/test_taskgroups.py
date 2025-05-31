@@ -1459,8 +1459,8 @@ class TestUncancel:
                     scope.cancel()
                     try:
                         await checkpoint()
-                    except asyncio.CancelledError:
-                        raise asyncio.CancelledError
+                    except asyncio.CancelledError as exc:
+                        raise asyncio.CancelledError from exc
             except asyncio.CancelledError:
                 pytest.fail("Should have swallowed the CancelledError")
 
