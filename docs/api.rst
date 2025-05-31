@@ -41,6 +41,8 @@ Task groups
 
 .. autofunction:: anyio.create_task_group
 
+.. autoclass:: anyio.EnhancedTaskGroup
+.. autoclass:: anyio.TaskHandle
 .. autoclass:: anyio.abc.TaskGroup
 .. autoclass:: anyio.abc.TaskStatus
 
@@ -217,6 +219,7 @@ Testing and debugging
 Exceptions
 ----------
 
+.. autoexception:: anyio.AwaitedTaskCancelled
 .. autoexception:: anyio.BrokenResourceError
 .. autoexception:: anyio.BrokenWorkerIntepreter
 .. autoexception:: anyio.BrokenWorkerProcess
