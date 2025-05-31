@@ -211,7 +211,7 @@ class Listener(Generic[T_co], AsyncResource, TypedAttributeProvider):
         """
 
 
-class ObjectStreamConnectable(Generic[T_co]):
+class ObjectStreamConnectable(Generic[T_co], metaclass=ABCMeta):
     @abstractmethod
     async def connect(self) -> ObjectStream[T_co]:
         """
@@ -222,7 +222,7 @@ class ObjectStreamConnectable(Generic[T_co]):
         """
 
 
-class ByteStreamConnectable:
+class ByteStreamConnectable(metaclass=ABCMeta):
     @abstractmethod
     async def connect(self) -> ByteStream:
         """
