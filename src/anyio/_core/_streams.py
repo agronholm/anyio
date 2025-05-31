@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-import sys
 from typing import TypeVar
 from warnings import warn
 
@@ -11,11 +10,7 @@ from ..streams.memory import (
     MemoryObjectStreamState,
 )
 
-if sys.version_info < (3, 11):
-    pass
-
 T_Item = TypeVar("T_Item")
-T_co = TypeVar("T_co", covariant=True)
 
 
 class create_memory_object_stream(
