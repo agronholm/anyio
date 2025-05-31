@@ -72,6 +72,24 @@ class ClosedResourceError(Exception):
     """Raised when trying to use a resource that has been closed."""
 
 
+class ConnectionFailed(OSError):
+    """
+    Raised when a connection attempt fails.
+
+    .. note:: This class inherits from :exc:`OSError` for backwards compatibility.
+    """
+
+
+def iterate_exceptions(
+    exception: BaseException,
+) -> Generator[BaseException, None, None]:
+    if isinstance(exception, BaseExceptionGroup):
+        for exc in exception.exceptions:
+            yield from iterate_exceptions(exc)
+    else:
+        yield exception
+
+
 class DelimiterNotFound(Exception):
     """
     Raised during
@@ -114,13 +132,3 @@ class TypedAttributeLookupError(LookupError):
 
 class WouldBlock(Exception):
     """Raised by ``X_nowait`` functions if ``X()`` would block."""
-
-
-def iterate_exceptions(
-    exception: BaseException,
-) -> Generator[BaseException, None, None]:
-    if isinstance(exception, BaseExceptionGroup):
-        for exc in exception.exceptions:
-            yield from iterate_exceptions(exc)
-    else:
-        yield exception

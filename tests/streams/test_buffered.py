@@ -2,8 +2,19 @@ from __future__ import annotations
 
 import pytest
 
-from anyio import IncompleteRead, create_memory_object_stream
-from anyio.streams.buffered import BufferedByteReceiveStream
+from anyio import (
+    ClosedResourceError,
+    EndOfStream,
+    IncompleteRead,
+    create_memory_object_stream,
+)
+from anyio.abc import ObjectStream, ObjectStreamConnectable
+from anyio.streams.buffered import (
+    BufferedByteReceiveStream,
+    BufferedByteStream,
+    BufferedConnectable,
+)
+from anyio.streams.stapled import StapledObjectStream
 
 pytestmark = pytest.mark.anyio
 
@@ -63,3 +74,38 @@ async def test_receive_until_incomplete() -> None:
 
     send_stream.close()
     receive_stream.close()
+
+
+async def test_buffered_stream() -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
+    buffered_stream = BufferedByteStream(
+        StapledObjectStream(send_stream, receive_stream)
+    )
+    await send_stream.send(b"abcd")
+    assert await buffered_stream.receive_exactly(2) == b"ab"
+    assert await buffered_stream.receive_exactly(2) == b"cd"
+
+    # send_eof() should close only the sending end
+    await buffered_stream.send_eof()
+    pytest.raises(ClosedResourceError, send_stream.send_nowait, b"abc")
+    pytest.raises(EndOfStream, receive_stream.receive_nowait)
+
+    # aclose() closes the receive stream too
+    await buffered_stream.aclose()
+    pytest.raises(ClosedResourceError, receive_stream.receive_nowait)
+
+
+async def test_buffered_connectable() -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
+    memory_stream = StapledObjectStream(send_stream, receive_stream)
+
+    class MemoryObjectConnectable(ObjectStreamConnectable[bytes]):
+        async def connect(self) -> ObjectStream[bytes]:
+            return memory_stream
+
+    connectable = BufferedConnectable(MemoryObjectConnectable())
+    async with await connectable.connect() as stream:
+        assert isinstance(stream, BufferedByteStream)
+        await stream.send(b"abcd")
+        assert await stream.receive_exactly(2) == b"ab"
+        assert await stream.receive_exactly(2) == b"cd"
