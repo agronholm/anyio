@@ -507,7 +507,7 @@ class TestBlockingPortal:
         """Regression test for #381."""
 
         async def failing_func() -> None:
-            0 / 0
+            raise ZeroDivisionError
 
         @asynccontextmanager
         async def run_in_context() -> AsyncGenerator[None, None]:
