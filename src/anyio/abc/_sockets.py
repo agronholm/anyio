@@ -41,7 +41,15 @@ def _validate_socket(
     require_bound: bool = False,
 ) -> socket.socket:
     if isinstance(sock_or_fd, int):
-        sock = socket.socket(fileno=sock_or_fd)
+        try:
+            sock = socket.socket(fileno=sock_or_fd)
+        except OSError:
+            if require_connected:
+                raise ValueError("the socket must be connected") from None
+            elif require_bound:
+                raise ValueError("the socket must be bound to a local address")
+            else:
+                raise
     elif isinstance(sock_or_fd, socket.socket):
         sock = sock_or_fd
     else:
@@ -67,10 +75,15 @@ def _validate_socket(
             raise ValueError("the socket must be connected") from None
 
     if require_bound:
-        if (sock.family == socket.AF_UNIX and not sock.getsockname()) or (
-            sock.family in (socket.AF_INET, socket.AF_INET6)
-            and sock.getsockname()[1] == 0
-        ):
+        try:
+            if sock.family in (socket.AF_INET, socket.AF_INET6):
+                bound_addr = sock.getsockname()[1]
+            else:
+                bound_addr = sock.getsockname()
+        except OSError:
+            bound_addr = None
+
+        if not bound_addr:
             raise ValueError("the socket must be bound to a local address")
 
     sock.setblocking(False)
@@ -249,12 +262,13 @@ class UDPSocket(UnreliableObjectStream[UDPPacketType], _SocketProvider):
         Wrap an existing socket object or file descriptor as a UDP socket.
 
         The newly created socket wrapper takes ownership of the socket being passed in.
+        The existing socket must be bound to a local address.
 
         :param sock_or_fd: a socket object or file descriptor
         :return: a UDP socket
 
         """
-        sock = _validate_socket(sock_or_fd, socket.SOCK_DGRAM)
+        sock = _validate_socket(sock_or_fd, socket.SOCK_DGRAM, require_bound=True)
         return await get_async_backend().wrap_udp_socket(sock)
 
     async def sendto(self, data: bytes, host: str, port: int) -> None:

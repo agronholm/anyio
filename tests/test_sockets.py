@@ -1541,6 +1541,7 @@ class TestUDPSocket:
         self, family: AnyIPAddressFamily, as_fileno: bool
     ) -> None:
         sock = socket.socket(family, socket.SOCK_DGRAM)
+        sock.bind(("localhost", 0))
         sock_or_fd = sock.detach() if as_fileno else sock
         async with await UDPSocket.from_socket(sock_or_fd) as udp_socket:
             assert isinstance(udp_socket, UDPSocket)
