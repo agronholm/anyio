@@ -58,17 +58,6 @@ def _validate_socket(
         )
 
     try:
-        if addr_family != socket.AF_UNSPEC and sock.family != addr_family:
-            raise ValueError(
-                f"address family mismatch: expected {addr_family.name}, got "
-                f"{sock.family.name}"
-            )
-
-        if sock.type != sock_type:
-            raise ValueError(
-                f"socket type mismatch: expected {sock_type.name}, got {sock.type.name}"
-            )
-
         if require_connected:
             try:
                 sock.getpeername()
@@ -86,6 +75,17 @@ def _validate_socket(
 
             if not bound_addr:
                 raise ValueError("the socket must be bound to a local address")
+
+        if addr_family != socket.AF_UNSPEC and sock.family != addr_family:
+            raise ValueError(
+                f"address family mismatch: expected {addr_family.name}, got "
+                f"{sock.family.name}"
+            )
+
+        if sock.type != sock_type:
+            raise ValueError(
+                f"socket type mismatch: expected {sock_type.name}, got {sock.type.name}"
+            )
     except BaseException:
         # Avoid ResourceWarning from the locally constructed socket object
         if isinstance(sock_or_fd, int):

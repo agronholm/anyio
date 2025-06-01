@@ -652,7 +652,9 @@ class TestTCPStream:
     async def test_from_socket_wrong_socket_type(
         self, sock_or_fd_factory: SockFdFactoryProtocol
     ) -> None:
-        sock_or_fd = sock_or_fd_factory(socket.AF_INET, socket.SocketKind.SOCK_DGRAM)
+        sock_or_fd = sock_or_fd_factory(
+            socket.AF_INET, socket.SocketKind.SOCK_DGRAM, connected=True
+        )
         with pytest.raises(
             ValueError,
             match="socket type mismatch: expected SOCK_STREAM, got SOCK_DGRAM",
@@ -1247,7 +1249,9 @@ class TestUNIXStream:
     async def test_from_socket_wrong_socket_type(
         self, sock_or_fd_factory: SockFdFactoryProtocol
     ) -> None:
-        sock_or_fd = sock_or_fd_factory(socket.AF_UNIX, socket.SOCK_DGRAM)
+        sock_or_fd = sock_or_fd_factory(
+            socket.AF_UNIX, socket.SOCK_DGRAM, connected=True
+        )
         with pytest.raises(
             ValueError,
             match="socket type mismatch: expected SOCK_STREAM, got SOCK_DGRAM",
@@ -1257,7 +1261,9 @@ class TestUNIXStream:
     async def test_from_socket_wrong_address_family(
         self, sock_or_fd_factory: SockFdFactoryProtocol
     ) -> None:
-        sock_or_fd = sock_or_fd_factory(socket.AF_INET, socket.SOCK_STREAM)
+        sock_or_fd = sock_or_fd_factory(
+            socket.AF_INET, socket.SOCK_STREAM, connected=True
+        )
         with pytest.raises(
             ValueError,
             match="address family mismatch: expected AF_UNIX, got AF_INET",
