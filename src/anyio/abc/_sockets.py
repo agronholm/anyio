@@ -57,34 +57,41 @@ def _validate_socket(
             f"expected an int or socket, got {type(sock_or_fd).__qualname__} instead"
         )
 
-    if addr_family != socket.AF_UNSPEC and sock.family != addr_family:
-        raise ValueError(
-            f"address family mismatch: expected {addr_family.name}, got "
-            f"{sock.family.name}"
-        )
+    try:
+        if addr_family != socket.AF_UNSPEC and sock.family != addr_family:
+            raise ValueError(
+                f"address family mismatch: expected {addr_family.name}, got "
+                f"{sock.family.name}"
+            )
 
-    if sock.type != sock_type:
-        raise ValueError(
-            f"socket type mismatch: expected {sock_type.name}, got {sock.type.name}"
-        )
+        if sock.type != sock_type:
+            raise ValueError(
+                f"socket type mismatch: expected {sock_type.name}, got {sock.type.name}"
+            )
 
-    if require_connected:
-        try:
-            sock.getpeername()
-        except OSError:
-            raise ValueError("the socket must be connected") from None
+        if require_connected:
+            try:
+                sock.getpeername()
+            except OSError:
+                raise ValueError("the socket must be connected") from None
 
-    if require_bound:
-        try:
-            if sock.family in (socket.AF_INET, socket.AF_INET6):
-                bound_addr = sock.getsockname()[1]
-            else:
-                bound_addr = sock.getsockname()
-        except OSError:
-            bound_addr = None
+        if require_bound:
+            try:
+                if sock.family in (socket.AF_INET, socket.AF_INET6):
+                    bound_addr = sock.getsockname()[1]
+                else:
+                    bound_addr = sock.getsockname()
+            except OSError:
+                bound_addr = None
 
-        if not bound_addr:
-            raise ValueError("the socket must be bound to a local address")
+            if not bound_addr:
+                raise ValueError("the socket must be bound to a local address")
+    except BaseException:
+        # Avoid ResourceWarning from the locally constructed socket object
+        if isinstance(sock_or_fd, int):
+            sock.detach()
+
+        raise
 
     sock.setblocking(False)
     return sock

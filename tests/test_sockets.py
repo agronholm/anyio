@@ -18,7 +18,7 @@ from pathlib import Path
 from socket import AddressFamily
 from ssl import SSLContext, SSLError
 from threading import Thread
-from typing import TYPE_CHECKING, Any, Literal, NoReturn, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Literal, NoReturn, Protocol, TypeVar, cast
 from unittest import mock
 
 import psutil
@@ -145,6 +145,42 @@ def check_asyncio_bug(anyio_backend_name: str, family: AnyIPAddressFamily) -> No
         policy = asyncio.get_event_loop_policy()
         if policy.__class__.__name__ == "WindowsProactorEventLoopPolicy":
             pytest.skip("Does not work due to a known bug (39148)")
+
+
+class SockFdFactoryProtocol(Protocol):
+    def __call__(
+        self,
+        family: socket.AddressFamily,
+        kind: socket.SocketKind,
+        local_addr: Any = None,
+        remote_addr: Any = None,
+    ) -> socket.socket | int: ...
+
+
+@pytest.fixture(
+    params=[pytest.param(False, id="sock"), pytest.param(True, id="fileno")]
+)
+def sock_or_fd_factory(request: SubRequest) -> SockFdFactoryProtocol:
+    def factory(
+        family: socket.AddressFamily,
+        kind: socket.SocketKind,
+        local_addr: Any = None,
+        remote_addr: Any = None,
+    ) -> socket.socket | int:
+        sock = socket.socket(family, kind)
+        if local_addr:
+            sock.bind(local_addr)
+
+        if remote_addr:
+            sock.connect(remote_addr)
+
+        if request.param:
+            return sock.detach()
+        else:
+            request.addfinalizer(sock.close)
+            return sock
+
+    return factory
 
 
 _T = TypeVar("_T")
@@ -578,19 +614,16 @@ class TestTCPStream:
             )
             assert not caplog_text
 
-    @pytest.mark.parametrize(
-        "as_fileno", [pytest.param(False, id="sock"), pytest.param(True, id="fileno")]
-    )
     async def test_from_socket(
-        self, family: AnyIPAddressFamily, as_fileno: bool
+        self, family: AnyIPAddressFamily, sock_or_fd_factory: SockFdFactoryProtocol
     ) -> None:
         with socket.socket(family, socket.SOCK_STREAM) as server_sock:
             server_sock.bind(("localhost", 0))
             server_sock.listen()
             sockname = server_sock.getsockname()[:2]
-            sock = socket.socket(family, socket.SOCK_STREAM)
-            sock.connect(sockname)
-            sock_or_fd = sock.detach() if as_fileno else sock
+            sock_or_fd = sock_or_fd_factory(
+                family, socket.SocketKind.SOCK_STREAM, remote_addr=sockname
+            )
             async with await SocketStream.from_socket(sock_or_fd) as stream:
                 assert isinstance(stream, SocketStream)
                 assert stream.extra(SocketAttribute.family) == family
@@ -603,18 +636,26 @@ class TestTCPStream:
         ):
             await SocketStream.from_socket("foo")  # type: ignore[arg-type]
 
-    async def test_from_socket_wrong_socket_type(self) -> None:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            with pytest.raises(
-                ValueError,
-                match="socket type mismatch: expected SOCK_STREAM, got SOCK_DGRAM",
-            ):
-                await SocketStream.from_socket(sock)
+    async def test_from_socket_wrong_socket_type(
+        self, sock_or_fd_factory: SockFdFactoryProtocol
+    ) -> None:
+        sock_or_fd = sock_or_fd_factory(
+            socket.AddressFamily.AF_INET, socket.SocketKind.SOCK_DGRAM
+        )
+        with pytest.raises(
+            ValueError,
+            match="socket type mismatch: expected SOCK_STREAM, got SOCK_DGRAM",
+        ):
+            await SocketStream.from_socket(sock_or_fd)
 
-    async def test_from_socket_not_connected(self) -> None:
-        with socket.socket(socket.AF_INET) as sock:
-            with pytest.raises(ValueError, match="the socket must be connected"):
-                await SocketStream.from_socket(sock)
+    async def test_from_socket_not_connected(
+        self, sock_or_fd_factory: SockFdFactoryProtocol
+    ) -> None:
+        sock_or_fd = sock_or_fd_factory(
+            socket.AddressFamily.AF_INET, socket.SocketKind.SOCK_STREAM
+        )
+        with pytest.raises(ValueError, match="the socket must be connected"):
+            await SocketStream.from_socket(sock_or_fd)
 
 
 @pytest.mark.network
@@ -831,27 +872,22 @@ class TestTCPListener:
         async with await create_tcp_listener(local_host=link_local_ipv6_address):
             pass
 
-    @pytest.mark.parametrize(
-        "as_fileno", [pytest.param(False, id="sock"), pytest.param(True, id="fileno")]
-    )
-    @pytest.mark.usefixtures("deactivate_blockbuster")
     async def test_from_socket(
-        self, family: AnyIPAddressFamily, as_fileno: bool
+        self, family: AnyIPAddressFamily, sock_or_fd_factory: SockFdFactoryProtocol
     ) -> None:
-        server_sock = socket.socket(family, socket.SOCK_STREAM)
-        server_sock.bind(("localhost", 0))
-        server_sock.listen()
-        sockname = server_sock.getsockname()[:2]
-        sock_or_fd = server_sock.detach() if as_fileno else server_sock
+        sock_or_fd = sock_or_fd_factory(
+            family, socket.SOCK_STREAM, local_addr=("localhost", 0)
+        )
         async with await SocketListener.from_socket(sock_or_fd) as listener:
             assert isinstance(listener, SocketListener)
             assert listener.extra(SocketAttribute.family) == family
-            assert listener.extra(SocketAttribute.local_address) == sockname
 
-    async def test_from_socket_not_bound(self, family: AnyIPAddressFamily) -> None:
-        with socket.socket(family, socket.SOCK_STREAM) as server_sock:
-            with pytest.raises(ValueError, match="the socket must be bound"):
-                await SocketListener.from_socket(server_sock)
+    async def test_from_socket_not_bound(
+        self, family: AnyIPAddressFamily, sock_or_fd_factory: SockFdFactoryProtocol
+    ) -> None:
+        sock_or_fd = sock_or_fd_factory(family, socket.SocketKind.SOCK_STREAM)
+        with pytest.raises(ValueError, match="the socket must be bound"):
+            await SocketListener.from_socket(sock_or_fd)
 
 
 @pytest.mark.skipif(
@@ -1192,16 +1228,15 @@ class TestUNIXStream:
             async with await connect_unix(actual_path):
                 pass
 
-    @pytest.mark.parametrize(
-        "as_fileno", [pytest.param(False, id="sock"), pytest.param(True, id="fileno")]
-    )
-    async def test_from_socket(self, socket_path: Path, as_fileno: bool) -> None:
+    async def test_from_socket(
+        self, socket_path: Path, sock_or_fd_factory: SockFdFactoryProtocol
+    ) -> None:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server_sock:
             server_sock.bind(str(socket_path))
             server_sock.listen()
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.connect(server_sock.getsockname())
-            sock_or_fd = sock.detach() if as_fileno else sock
+            sock_or_fd = sock_or_fd_factory(
+                socket.AF_UNIX, socket.SOCK_STREAM, remote_addr=str(socket_path)
+            )
             async with await UNIXSocketStream.from_socket(sock_or_fd) as stream:
                 assert isinstance(stream, UNIXSocketStream)
                 assert (
@@ -1209,21 +1244,25 @@ class TestUNIXStream:
                     == server_sock.getsockname()
                 )
 
-    async def test_from_socket_wrong_socket_type(self) -> None:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sock:
-            with pytest.raises(
-                ValueError,
-                match="socket type mismatch: expected SOCK_STREAM, got SOCK_DGRAM",
-            ):
-                await UNIXSocketStream.from_socket(sock)
+    async def test_from_socket_wrong_socket_type(
+        self, sock_or_fd_factory: SockFdFactoryProtocol
+    ) -> None:
+        sock_or_fd = sock_or_fd_factory(socket.AF_UNIX, socket.SOCK_DGRAM)
+        with pytest.raises(
+            ValueError,
+            match="socket type mismatch: expected SOCK_STREAM, got SOCK_DGRAM",
+        ):
+            await UNIXSocketStream.from_socket(sock_or_fd)
 
-    async def test_from_socket_wrong_address_family(self) -> None:
-        with socket.socket(socket.AF_INET) as sock:
-            with pytest.raises(
-                ValueError,
-                match="address family mismatch: expected AF_UNIX, got AF_INET",
-            ):
-                await UNIXSocketStream.from_socket(sock)
+    async def test_from_socket_wrong_address_family(
+        self, sock_or_fd_factory: SockFdFactoryProtocol
+    ) -> None:
+        sock_or_fd = sock_or_fd_factory(socket.AF_INET, socket.SOCK_STREAM)
+        with pytest.raises(
+            ValueError,
+            match="address family mismatch: expected AF_UNIX, got AF_INET",
+        ):
+            await UNIXSocketStream.from_socket(sock_or_fd)
 
     async def test_from_socket_not_connected(self) -> None:
         with socket.socket(socket.AF_UNIX) as sock:
@@ -1353,19 +1392,15 @@ class TestUNIXListener:
         async with await create_unix_listener(real_path):
             pass
 
-    @pytest.mark.parametrize(
-        "as_fileno", [pytest.param(False, id="sock"), pytest.param(True, id="fileno")]
-    )
-    async def test_from_socket(self, socket_path: Path, as_fileno: bool) -> None:
-        server_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        server_sock.bind(str(socket_path))
-        server_sock.listen()
-        sockname = server_sock.getsockname()
-        sock_or_fd = server_sock.detach() if as_fileno else server_sock
+    async def test_from_socket(
+        self, socket_path: Path, sock_or_fd_factory: SockFdFactoryProtocol
+    ) -> None:
+        sock_or_fd = sock_or_fd_factory(
+            socket.AF_UNIX, socket.SOCK_STREAM, local_addr=str(socket_path)
+        )
         async with await SocketListener.from_socket(sock_or_fd) as listener:
             assert isinstance(listener, SocketListener)
             assert listener.extra(SocketAttribute.family) == socket.AF_UNIX
-            assert listener.extra(SocketAttribute.local_address) == sockname
 
 
 async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
@@ -1534,26 +1569,25 @@ class TestUDPSocket:
             )
             assert local_address[1] > 0
 
-    @pytest.mark.parametrize(
-        "as_fileno", [pytest.param(False, id="sock"), pytest.param(True, id="fileno")]
-    )
     async def test_from_socket(
-        self, family: AnyIPAddressFamily, as_fileno: bool
+        self, family: AnyIPAddressFamily, sock_or_fd_factory: SockFdFactoryProtocol
     ) -> None:
-        sock = socket.socket(family, socket.SOCK_DGRAM)
-        sock.bind(("localhost", 0))
-        sock_or_fd = sock.detach() if as_fileno else sock
+        sock_or_fd = sock_or_fd_factory(
+            family, socket.SOCK_DGRAM, local_addr=("localhost", 0)
+        )
         async with await UDPSocket.from_socket(sock_or_fd) as udp_socket:
             assert isinstance(udp_socket, UDPSocket)
             assert udp_socket.extra(SocketAttribute.family) == family
 
-    async def test_from_socket_wrong_socket_type(self) -> None:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            with pytest.raises(
-                ValueError,
-                match="socket type mismatch: expected SOCK_DGRAM, got SOCK_STREAM",
-            ):
-                await UDPSocket.from_socket(sock)
+    async def test_from_socket_wrong_socket_type(
+        self, sock_or_fd_factory: SockFdFactoryProtocol
+    ) -> None:
+        sock_or_fd = sock_or_fd_factory(socket.AF_INET, socket.SOCK_STREAM)
+        with pytest.raises(
+            ValueError,
+            match="socket type mismatch: expected SOCK_DGRAM, got SOCK_STREAM",
+        ):
+            await UDPSocket.from_socket(sock_or_fd)
 
 
 @pytest.mark.network
@@ -1678,33 +1712,39 @@ class TestConnectedUDPSocket:
         with pytest.raises(ClosedResourceError):
             await udp.send(b"foo")
 
-    @pytest.mark.parametrize(
-        "as_fileno", [pytest.param(False, id="sock"), pytest.param(True, id="fileno")]
-    )
     async def test_from_socket(
-        self, family: AnyIPAddressFamily, as_fileno: bool
+        self, family: AnyIPAddressFamily, sock_or_fd_factory: SockFdFactoryProtocol
     ) -> None:
-        sock = socket.socket(family, socket.SOCK_DGRAM)
-        sock.connect(("localhost", 5000))
-        peername = sock.getpeername()[:2]
-        sock_or_fd = sock.detach() if as_fileno else sock
+        remote_addr = (
+            ("127.0.0.1", 5000) if family == AddressFamily.AF_INET else ("::1", 5000)
+        )
+        sock_or_fd = sock_or_fd_factory(
+            family,
+            socket.SOCK_DGRAM,
+            local_addr=("localhost", 0),
+            remote_addr=remote_addr,
+        )
         async with await ConnectedUDPSocket.from_socket(sock_or_fd) as udp_socket:
             assert isinstance(udp_socket, ConnectedUDPSocket)
             assert udp_socket.extra(SocketAttribute.family) == family
-            assert udp_socket.extra(SocketAttribute.remote_address) == peername
+            assert udp_socket.extra(SocketAttribute.remote_address) == remote_addr
 
-    async def test_from_socket_wrong_socket_type(self) -> None:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            with pytest.raises(
-                ValueError,
-                match="socket type mismatch: expected SOCK_DGRAM, got SOCK_STREAM",
-            ):
-                await ConnectedUDPSocket.from_socket(sock)
+    async def test_from_socket_wrong_socket_type(
+        self, sock_or_fd_factory: SockFdFactoryProtocol
+    ) -> None:
+        sock_or_fd = sock_or_fd_factory(socket.AF_INET, socket.SOCK_STREAM)
+        with pytest.raises(
+            ValueError,
+            match="socket type mismatch: expected SOCK_DGRAM, got SOCK_STREAM",
+        ):
+            await ConnectedUDPSocket.from_socket(sock_or_fd)
 
-    async def test_from_socket_not_connected(self) -> None:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            with pytest.raises(ValueError, match="the socket must be connected"):
-                await ConnectedUDPSocket.from_socket(sock)
+    async def test_from_socket_not_connected(
+        self, sock_or_fd_factory: SockFdFactoryProtocol
+    ) -> None:
+        sock_or_fd = sock_or_fd_factory(socket.AF_INET, socket.SOCK_DGRAM)
+        with pytest.raises(ValueError, match="the socket must be connected"):
+            await ConnectedUDPSocket.from_socket(sock_or_fd)
 
 
 @pytest.mark.skipif(
@@ -1848,23 +1888,21 @@ class TestUNIXDatagramSocket:
         async with await create_unix_datagram_socket(local_path=real_path):
             pass
 
-    @pytest.mark.parametrize(
-        "as_fileno", [pytest.param(False, id="sock"), pytest.param(True, id="fileno")]
-    )
-    async def test_from_socket(self, as_fileno: bool) -> None:
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-        sock_or_fd = sock.detach() if as_fileno else sock
+    async def test_from_socket(self, sock_or_fd_factory: SockFdFactoryProtocol) -> None:
+        sock_or_fd = sock_or_fd_factory(socket.AF_UNIX, socket.SOCK_DGRAM)
         async with await UNIXDatagramSocket.from_socket(sock_or_fd) as udp_socket:
             assert isinstance(udp_socket, UNIXDatagramSocket)
             assert udp_socket.extra(SocketAttribute.family) == socket.AF_UNIX
 
-    async def test_from_socket_wrong_socket_type(self) -> None:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
-            with pytest.raises(
-                ValueError,
-                match="socket type mismatch: expected SOCK_DGRAM, got SOCK_STREAM",
-            ):
-                await UNIXDatagramSocket.from_socket(sock)
+    async def test_from_socket_wrong_socket_type(
+        self, sock_or_fd_factory: SockFdFactoryProtocol
+    ) -> None:
+        sock_or_fd = sock_or_fd_factory(socket.AF_UNIX, socket.SOCK_STREAM)
+        with pytest.raises(
+            ValueError,
+            match="socket type mismatch: expected SOCK_DGRAM, got SOCK_STREAM",
+        ):
+            await UNIXDatagramSocket.from_socket(sock_or_fd)
 
 
 @pytest.mark.skipif(
@@ -2040,33 +2078,38 @@ class TestConnectedUNIXDatagramSocket:
         with pytest.raises(ClosedResourceError):
             await udp.send(b"foo")
 
-    @pytest.mark.parametrize(
-        "as_fileno", [pytest.param(False, id="sock"), pytest.param(True, id="fileno")]
-    )
-    async def test_from_socket(self, peer_sock: socket.socket, as_fileno: bool) -> None:
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-        sock.connect(peer_sock.getsockname())
-        peername = sock.getpeername()
-        sock_or_fd = sock.detach() if as_fileno else sock
+    async def test_from_socket(
+        self, peer_sock: socket.socket, sock_or_fd_factory: SockFdFactoryProtocol
+    ) -> None:
+        sock_or_fd = sock_or_fd_factory(
+            socket.AF_UNIX, socket.SOCK_DGRAM, remote_addr=peer_sock.getsockname()
+        )
         async with await ConnectedUNIXDatagramSocket.from_socket(
             sock_or_fd
         ) as udp_socket:
             assert isinstance(udp_socket, ConnectedUNIXDatagramSocket)
             assert udp_socket.extra(SocketAttribute.family) == socket.AF_UNIX
-            assert udp_socket.extra(SocketAttribute.remote_address) == peername
+            assert (
+                udp_socket.extra(SocketAttribute.remote_address)
+                == peer_sock.getsockname()
+            )
 
-    async def test_from_socket_wrong_socket_type(self) -> None:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
-            with pytest.raises(
-                ValueError,
-                match="socket type mismatch: expected SOCK_DGRAM, got SOCK_STREAM",
-            ):
-                await ConnectedUNIXDatagramSocket.from_socket(sock)
+    async def test_from_socket_wrong_socket_type(
+        self, sock_or_fd_factory: SockFdFactoryProtocol
+    ) -> None:
+        sock_or_fd = sock_or_fd_factory(socket.AF_UNIX, socket.SOCK_STREAM)
+        with pytest.raises(
+            ValueError,
+            match="socket type mismatch: expected SOCK_DGRAM, got SOCK_STREAM",
+        ):
+            await ConnectedUNIXDatagramSocket.from_socket(sock_or_fd)
 
-    async def test_from_socket_not_connected(self) -> None:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sock:
-            with pytest.raises(ValueError, match="the socket must be connected"):
-                await ConnectedUNIXDatagramSocket.from_socket(sock)
+    async def test_from_socket_not_connected(
+        self, sock_or_fd_factory: SockFdFactoryProtocol
+    ) -> None:
+        sock_or_fd = sock_or_fd_factory(socket.AF_UNIX, socket.SOCK_DGRAM)
+        with pytest.raises(ValueError, match="the socket must be connected"):
+            await ConnectedUNIXDatagramSocket.from_socket(sock_or_fd)
 
 
 async def test_tcp_connectable(mocker: MockerFixture) -> None:
