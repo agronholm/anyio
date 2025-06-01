@@ -43,11 +43,11 @@ def _validate_socket(
     if isinstance(sock_or_fd, int):
         try:
             sock = socket.socket(fileno=sock_or_fd)
-        except OSError:
+        except OSError as exc:
             if require_connected:
-                raise ValueError("the socket must be connected") from None
+                raise ValueError("the socket must be connected") from exc
             elif require_bound:
-                raise ValueError("the socket must be bound to a local address")
+                raise ValueError("the socket must be bound to a local address") from exc
             else:
                 raise
     elif isinstance(sock_or_fd, socket.socket):
