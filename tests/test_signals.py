@@ -35,7 +35,7 @@ async def test_receive_signals() -> None:
 async def test_task_group_cancellation_open() -> None:
     async def signal_handler() -> None:
         with open_signal_receiver(signal.SIGUSR1) as sigiter:
-            async for v in sigiter:
+            async for _ in sigiter:
                 pytest.fail("SIGUSR1 should not be sent")
 
             pytest.fail("signal_handler should have been cancelled")
@@ -49,7 +49,7 @@ async def test_task_group_cancellation_open() -> None:
 
 async def test_task_group_cancellation_consume() -> None:
     async def consume(sigiter: AsyncIterable[int]) -> None:
-        async for v in sigiter:
+        async for _ in sigiter:
             pytest.fail("SIGUSR1 should not be sent")
 
         pytest.fail("consume should have been cancelled")

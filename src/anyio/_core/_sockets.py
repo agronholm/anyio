@@ -200,7 +200,7 @@ async def connect_tcp(
         # and the second one is an IPv4 addresses. The rest can be in whatever order.
         v6_found = v4_found = False
         target_addrs = []
-        for af, *rest, sa in gai_res:
+        for af, *_, sa in gai_res:
             if af == socket.AF_INET6 and not v6_found:
                 v6_found = True
                 target_addrs.insert(0, (af, sa[0]))
