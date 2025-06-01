@@ -175,11 +175,9 @@ def sock_or_fd_factory(
 
         if bound or connected:
             if family in (socket.AF_INET, socket.AF_INET6):
-                local_addr = ("localhost", 0)
+                local_addr: str | tuple[str, int] = ("localhost", 0)
             else:
-                local_addr: str | tuple[str, int] = str(
-                    tmp_path_factory.mktemp("anyio") / "socket"
-                )
+                local_addr = str(tmp_path_factory.mktemp("anyio") / "socket")
 
         if bound:
             sock.bind(local_addr)
