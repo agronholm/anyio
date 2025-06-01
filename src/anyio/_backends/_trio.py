@@ -273,7 +273,7 @@ class ReceiveStreamWrapper(abc.ByteReceiveStream):
             raise BrokenResourceError from exc.__cause__
 
         if data:
-            return data
+            return bytes(data)
         else:
             raise EndOfStream
 
