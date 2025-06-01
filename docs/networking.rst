@@ -245,7 +245,7 @@ Wrapping existing sockets as streams or listeners
 -------------------------------------------------
 
 In some cases, you might want to create a socket in third party code and wrap that as an
-AnyIO stream or socket listener. For that, various class methods exists:
+AnyIO stream or socket listener. For that, various class methods exist:
 
 * :meth:`.abc.SocketListener.from_socket`
 * :meth:`.abc.SocketStream.from_socket`
