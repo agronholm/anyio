@@ -170,6 +170,8 @@ def sock_or_fd_factory(request: SubRequest) -> SockFdFactoryProtocol:
         sock = socket.socket(family, kind)
         if local_addr:
             sock.bind(local_addr)
+            if kind == socket.SOCK_STREAM:
+                sock.listen()
 
         if remote_addr:
             sock.connect(remote_addr)
@@ -622,7 +624,7 @@ class TestTCPStream:
             server_sock.listen()
             sockname = server_sock.getsockname()[:2]
             sock_or_fd = sock_or_fd_factory(
-                family, socket.SocketKind.SOCK_STREAM, remote_addr=sockname
+                family, socket.SOCK_STREAM, remote_addr=sockname
             )
             async with await SocketStream.from_socket(sock_or_fd) as stream:
                 assert isinstance(stream, SocketStream)
@@ -639,9 +641,7 @@ class TestTCPStream:
     async def test_from_socket_wrong_socket_type(
         self, sock_or_fd_factory: SockFdFactoryProtocol
     ) -> None:
-        sock_or_fd = sock_or_fd_factory(
-            socket.AddressFamily.AF_INET, socket.SocketKind.SOCK_DGRAM
-        )
+        sock_or_fd = sock_or_fd_factory(socket.AF_INET, socket.SocketKind.SOCK_DGRAM)
         with pytest.raises(
             ValueError,
             match="socket type mismatch: expected SOCK_STREAM, got SOCK_DGRAM",
@@ -651,9 +651,7 @@ class TestTCPStream:
     async def test_from_socket_not_connected(
         self, sock_or_fd_factory: SockFdFactoryProtocol
     ) -> None:
-        sock_or_fd = sock_or_fd_factory(
-            socket.AddressFamily.AF_INET, socket.SocketKind.SOCK_STREAM
-        )
+        sock_or_fd = sock_or_fd_factory(socket.AF_INET, socket.SOCK_STREAM)
         with pytest.raises(ValueError, match="the socket must be connected"):
             await SocketStream.from_socket(sock_or_fd)
 
@@ -885,7 +883,7 @@ class TestTCPListener:
     async def test_from_socket_not_bound(
         self, family: AnyIPAddressFamily, sock_or_fd_factory: SockFdFactoryProtocol
     ) -> None:
-        sock_or_fd = sock_or_fd_factory(family, socket.SocketKind.SOCK_STREAM)
+        sock_or_fd = sock_or_fd_factory(family, socket.SOCK_STREAM)
         with pytest.raises(ValueError, match="the socket must be bound"):
             await SocketListener.from_socket(sock_or_fd)
 
@@ -1329,7 +1327,7 @@ class TestUNIXListener:
     async def test_socket_options(self, socket_path: Path) -> None:
         async with await create_unix_listener(socket_path) as listener:
             listener_socket = listener.extra(SocketAttribute.raw_socket)
-            assert listener_socket.family == socket.AddressFamily.AF_UNIX
+            assert listener_socket.family == socket.AF_UNIX
             listener_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 80000)
             assert listener_socket.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF) in (
                 80000,
@@ -1424,8 +1422,7 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
                     local_address = listener.extra(SocketAttribute.local_address)
                     if (
                         sys.platform != "win32"
-                        and listener.extra(SocketAttribute.family)
-                        == socket.AddressFamily.AF_UNIX
+                        and listener.extra(SocketAttribute.family) == socket.AF_UNIX
                     ):
                         assert isinstance(local_address, str)
                         stream: SocketStream = await connect_unix(local_address)
@@ -2095,9 +2092,14 @@ class TestConnectedUNIXDatagramSocket:
             )
 
     async def test_from_socket_wrong_socket_type(
-        self, sock_or_fd_factory: SockFdFactoryProtocol
+        self, socket_path: Path, sock_or_fd_factory: SockFdFactoryProtocol
     ) -> None:
-        sock_or_fd = sock_or_fd_factory(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock_or_fd_factory(
+            socket.AF_UNIX, socket.SOCK_STREAM, local_addr=str(socket_path)
+        )
+        sock_or_fd = sock_or_fd_factory(
+            socket.AF_UNIX, socket.SOCK_STREAM, remote_addr=str(socket_path)
+        )
         with pytest.raises(
             ValueError,
             match="socket type mismatch: expected SOCK_DGRAM, got SOCK_STREAM",
@@ -2196,9 +2198,7 @@ async def test_getaddrinfo() -> None:
     assert correct != wrong
 
 
-@pytest.mark.parametrize(
-    "sock_type", [socket.SOCK_STREAM, socket.SocketKind.SOCK_STREAM]
-)
+@pytest.mark.parametrize("sock_type", [socket.SOCK_STREAM, socket.SOCK_STREAM])
 async def test_getaddrinfo_ipv6addr(
     sock_type: Literal[socket.SocketKind.SOCK_STREAM],
 ) -> None:
@@ -2206,8 +2206,8 @@ async def test_getaddrinfo_ipv6addr(
     proto = 0 if platform.system() == "Windows" else 6
     assert await getaddrinfo("::1", 0, type=sock_type) == [
         (
-            socket.AddressFamily.AF_INET6,
-            socket.SocketKind.SOCK_STREAM,
+            socket.AF_INET6,
+            socket.SOCK_STREAM,
             proto,
             "",
             ("::1", 0),
@@ -2216,9 +2216,7 @@ async def test_getaddrinfo_ipv6addr(
 
 
 async def test_getaddrinfo_ipv6_disabled() -> None:
-    gai_result = [
-        (AddressFamily.AF_INET6, socket.SocketKind.SOCK_STREAM, 6, "", (1, b""))
-    ]
+    gai_result = [(AddressFamily.AF_INET6, socket.SOCK_STREAM, 6, "", (1, b""))]
     with mock.patch.object(get_async_backend(), "getaddrinfo", return_value=gai_result):
         assert await getaddrinfo("::1", 0) == []
 
