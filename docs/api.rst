@@ -121,6 +121,8 @@ Streams and stream wrappers
 .. autoclass:: anyio.abc.ByteSendStream
 .. autoclass:: anyio.abc.ByteStream
 .. autoclass:: anyio.abc.Listener
+.. autoclass:: anyio.abc.ObjectStreamConnectable
+.. autoclass:: anyio.abc.ByteStreamConnectable
 
 .. autodata:: anyio.abc.AnyUnreliableByteReceiveStream
 .. autodata:: anyio.abc.AnyUnreliableByteSendStream
@@ -128,6 +130,7 @@ Streams and stream wrappers
 .. autodata:: anyio.abc.AnyByteReceiveStream
 .. autodata:: anyio.abc.AnyByteSendStream
 .. autodata:: anyio.abc.AnyByteStream
+.. autodata:: anyio.abc.AnyByteStreamConnectable
 
 .. autoclass:: anyio.streams.buffered.BufferedByteReceiveStream
 .. autoclass:: anyio.streams.file.FileStreamAttribute
@@ -142,13 +145,16 @@ Streams and stream wrappers
 .. autoclass:: anyio.streams.text.TextReceiveStream
 .. autoclass:: anyio.streams.text.TextSendStream
 .. autoclass:: anyio.streams.text.TextStream
+.. autoclass:: anyio.streams.text.TextConnectable
 .. autoclass:: anyio.streams.tls.TLSAttribute
 .. autoclass:: anyio.streams.tls.TLSStream
 .. autoclass:: anyio.streams.tls.TLSListener
+.. autoclass:: anyio.streams.tls.TLSConnectable
 
 Sockets and networking
 ----------------------
 
+.. autofunction:: anyio.as_connectable
 .. autofunction:: anyio.connect_tcp
 .. autofunction:: anyio.connect_unix
 .. autofunction:: anyio.create_tcp_listener
@@ -168,6 +174,8 @@ Sockets and networking
 .. autoclass:: anyio.abc.UDPSocket()
 .. autoclass:: anyio.abc.ConnectedUDPSocket()
 .. autoclass:: anyio.abc.UNIXSocketStream()
+.. autoclass:: anyio.TCPConnectable
+.. autoclass:: anyio.UNIXConnectable
 
 Subprocesses
 ------------
@@ -225,6 +233,7 @@ Exceptions
 .. autoexception:: anyio.BrokenWorkerProcess
 .. autoexception:: anyio.BusyResourceError
 .. autoexception:: anyio.ClosedResourceError
+.. autoexception:: anyio.ConnectionFailed
 .. autoexception:: anyio.DelimiterNotFound
 .. autoexception:: anyio.EndOfStream
 .. autoexception:: anyio.IncompleteRead

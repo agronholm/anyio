@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import sys
-from abc import abstractmethod
-from collections.abc import Callable
+from abc import ABCMeta, abstractmethod
+from collections.abc import AsyncGenerator, Callable, Sequence
 from typing import Any, Generic, TypeVar, Union
 
 from .._core._exceptions import EndOfStream
@@ -208,4 +208,43 @@ class Listener(Generic[T_co], AsyncResource, TypedAttributeProvider):
         :param handler: a callable that will be used to handle each accepted connection
         :param task_group: the task group that will be used to start tasks for handling
             each accepted connection (if omitted, an ad-hoc task group will be created)
+        """
+
+
+class ObjectStreamConnectable(Generic[T_co], metaclass=ABCMeta):
+    @abstractmethod
+    async def connect(self) -> ObjectStream[T_co]:
+        """
+        Connect to the remote endpoint.
+
+        :return: an object stream connected to the remote end
+        :raises ConnectionFailed: if the connection fails
+        """
+
+
+class ByteStreamConnectable(metaclass=ABCMeta):
+    @abstractmethod
+    async def connect(self) -> ByteStream:
+        """
+        Connect to the remote endpoint.
+
+        :return: a bytestream connected to the remote end
+        :raises ConnectionFailed: if the connection fails
+        """
+
+
+#: Type alias for all connectables returning bytestreams or bytes-oriented object streams
+AnyByteStreamConnectable: TypeAlias = Union[
+    ObjectStreamConnectable[bytes], ByteStreamConnectable
+]
+
+
+class ConnectionStrategy(metaclass=ABCMeta):
+    @abstractmethod
+    def get_connectables(
+        self, connectables: Sequence[ObjectStreamConnectable[T_Item]]
+    ) -> AsyncGenerator[Sequence[ObjectStreamConnectable[T_Item]], None]:
+        """
+        Return an asynchronous generator that yields a sequence of connectables to use
+        for each connection attempt.
         """
