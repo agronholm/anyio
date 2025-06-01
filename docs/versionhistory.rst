@@ -5,6 +5,15 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added various class methods to wrap existing sockets as listeners or socket streams:
+
+  * ``SocketListener.wrap_socket()``
+  * ``SocketStream.wrap_socket()``
+  * ``UNIXSocketStream.wrap_socket()``
+  * ``UDPSocket.wrap_socket()``
+  * ``ConnectedUDPSocket.wrap_socket()``
+  * ``UNIXDatagramSocket.wrap_socket()``
+  * ``ConnectedUNIXDatagramSocket.wrap_socket()``
 - Added a hierarchy of connectable stream classes for transparently connecting to
   various remote or local endpoints for exchanging bytes or objects
 - Added context manager mix-in classes (``anyio.ContextManagerMixin`` and
