@@ -8,7 +8,6 @@ from contextlib import AsyncExitStack
 from io import IOBase
 from ipaddress import IPv4Address, IPv6Address
 from socket import AddressFamily
-from types import TracebackType
 from typing import Any, TypeVar, Union
 
 from .._core._typedattr import (
@@ -30,19 +29,6 @@ SockAddrType: TypeAlias = Union[IPSockAddrType, str]
 UDPPacketType: TypeAlias = tuple[bytes, IPSockAddrType]
 UNIXDatagramPacketType: TypeAlias = tuple[bytes, str]
 T_Retval = TypeVar("T_Retval")
-
-
-class _NullAsyncContextManager:
-    async def __aenter__(self) -> None:
-        pass
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        return None
 
 
 class SocketAttribute(TypedAttributeSet):
