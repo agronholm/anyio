@@ -219,7 +219,7 @@ else:
                 if self._interrupt_count > 0:
                     uncancel = getattr(task, "uncancel", None)
                     if uncancel is not None and uncancel() == 0:
-                        raise KeyboardInterrupt from None
+                        raise KeyboardInterrupt  # noqa: B904
                 raise  # CancelledError
             finally:
                 if (
