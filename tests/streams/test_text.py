@@ -6,8 +6,14 @@ import sys
 import pytest
 
 from anyio import create_memory_object_stream
+from anyio.abc import ObjectStream, ObjectStreamConnectable
 from anyio.streams.stapled import StapledObjectStream
-from anyio.streams.text import TextReceiveStream, TextSendStream, TextStream
+from anyio.streams.text import (
+    TextConnectable,
+    TextReceiveStream,
+    TextSendStream,
+    TextStream,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -74,3 +80,18 @@ async def test_bidirectional_stream() -> None:
 
     send_stream.close()
     receive_stream.close()
+
+
+async def test_text_connectable() -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
+    memory_stream = StapledObjectStream(send_stream, receive_stream)
+
+    class MemoryConnectable(ObjectStreamConnectable[bytes]):
+        async def connect(self) -> ObjectStream[bytes]:
+            return memory_stream
+
+    connectable = TextConnectable(MemoryConnectable())
+    async with await connectable.connect() as stream:
+        assert isinstance(stream, TextStream)
+        await stream.send("hello")
+        assert await stream.receive() == "hello"
