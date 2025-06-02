@@ -61,8 +61,8 @@ def _validate_socket(
         if require_connected:
             try:
                 sock.getpeername()
-            except OSError:
-                raise ValueError("the socket must be connected") from None
+            except OSError as exc:
+                raise ValueError("the socket must be connected") from exc
 
         if require_bound:
             try:
