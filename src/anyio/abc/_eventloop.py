@@ -350,6 +350,43 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
+    async def wrap_listener_socket(cls, sock: socket) -> SocketListener:
+        pass
+
+    @classmethod
+    @abstractmethod
+    async def wrap_stream_socket(cls, sock: socket) -> SocketStream:
+        pass
+
+    @classmethod
+    @abstractmethod
+    async def wrap_unix_stream_socket(cls, sock: socket) -> UNIXSocketStream:
+        pass
+
+    @classmethod
+    @abstractmethod
+    async def wrap_udp_socket(cls, sock: socket) -> UDPSocket:
+        pass
+
+    @classmethod
+    @abstractmethod
+    async def wrap_connected_udp_socket(cls, sock: socket) -> ConnectedUDPSocket:
+        pass
+
+    @classmethod
+    @abstractmethod
+    async def wrap_unix_datagram_socket(cls, sock: socket) -> UNIXDatagramSocket:
+        pass
+
+    @classmethod
+    @abstractmethod
+    async def wrap_connected_unix_datagram_socket(
+        cls, sock: socket
+    ) -> ConnectedUNIXDatagramSocket:
+        pass
+
+    @classmethod
+    @abstractmethod
     def current_default_thread_limiter(cls) -> CapacityLimiter:
         pass
 
