@@ -25,7 +25,6 @@ from ._streams import ByteReceiveStream as ByteReceiveStream
 from ._streams import ByteSendStream as ByteSendStream
 from ._streams import ByteStream as ByteStream
 from ._streams import ByteStreamConnectable as ByteStreamConnectable
-from ._streams import ConnectionStrategy as ConnectionStrategy
 from ._streams import Listener as Listener
 from ._streams import ObjectReceiveStream as ObjectReceiveStream
 from ._streams import ObjectSendStream as ObjectSendStream

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 from abc import ABCMeta, abstractmethod
-from collections.abc import AsyncGenerator, Callable, Sequence
+from collections.abc import Callable
 from typing import Any, Generic, TypeVar, Union
 
 from .._core._exceptions import EndOfStream
@@ -237,14 +237,3 @@ class ByteStreamConnectable(metaclass=ABCMeta):
 AnyByteStreamConnectable: TypeAlias = Union[
     ObjectStreamConnectable[bytes], ByteStreamConnectable
 ]
-
-
-class ConnectionStrategy(metaclass=ABCMeta):
-    @abstractmethod
-    def get_connectables(
-        self, connectables: Sequence[ObjectStreamConnectable[T_Item]]
-    ) -> AsyncGenerator[Sequence[ObjectStreamConnectable[T_Item]], None]:
-        """
-        Return an asynchronous generator that yields a sequence of connectables to use
-        for each connection attempt.
-        """
