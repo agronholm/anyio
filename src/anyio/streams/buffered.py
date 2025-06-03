@@ -45,6 +45,27 @@ class BufferedByteReceiveStream(ByteReceiveStream):
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
         return self.receive_stream.extra_attributes
 
+    def receive_nowait(self, max_bytes: int = 65536) -> bytes:
+        if self._closed:
+            raise ClosedResourceError
+
+        if self._buffer:
+            chunk = bytes(self._buffer[:max_bytes])
+            del self._buffer[:max_bytes]
+            return chunk
+        elif isinstance(self.receive_stream, ByteReceiveStream):
+            return self.receive_stream.receive_nowait(max_bytes)
+        else:
+            # With a bytes-oriented object stream, we need to handle any surplus bytes
+            # we get from the receive_nowait() call
+            chunk = self.receive_stream.receive_nowait()
+            if len(chunk) > max_bytes:
+                # Save the surplus bytes in the buffer
+                self._buffer.extend(chunk[max_bytes:])
+                return chunk[:max_bytes]
+            else:
+                return chunk
+
     async def receive(self, max_bytes: int = 65536) -> bytes:
         if self._closed:
             raise ClosedResourceError
