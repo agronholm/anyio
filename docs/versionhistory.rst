@@ -30,6 +30,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#926 <https://github.com/agronholm/anyio/issues/926>`_; PR by @hroncok)
 - Fixed ``SyntaxWarning`` on Python 3.14 about ``return`` in ``finally``
   (`#816 <https://github.com/agronholm/anyio/issues/816>`_)
+- Added ``TaskGroup.start_context()`` method as a better typed alternative to
+  ``TaskGroup.start()``. Fixes `#678 <https://github.com/agronholm/anyio/issue/678>`_.
 
 **4.9.0**
 
