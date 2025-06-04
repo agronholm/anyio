@@ -16,7 +16,18 @@ if TYPE_CHECKING:
 
 T_Retval = TypeVar("T_Retval")
 T_contra = TypeVar("T_contra", contravariant=True)
+T_co = TypeVar("T_co", covariant=True)
 PosArgsT = TypeVarTuple("PosArgsT")
+
+
+class StartFunc(Protocol[Unpack[PosArgsT], T_co]):
+    """A function that signals that it has started."""
+
+    async def __call__(
+        self,
+        *args: Unpack[PosArgsT],
+        task_status: TaskStatus[T_co],
+    ) -> None: ...
 
 
 class TaskStatus(Protocol[T_contra]):
@@ -70,10 +81,9 @@ class TaskGroup(metaclass=ABCMeta):
     @abstractmethod
     async def start(
         self,
-        func: Callable[..., Awaitable[Any]],
-        *args: object,
-        name: object = None,
-    ) -> Any:
+        func: StartFunc[Unpack[PosArgsT], T_Retval],
+        *args: Unpack[PosArgsT],
+    ) -> T_Retval:
         """
         Start a new task and wait until it signals for readiness.
 
