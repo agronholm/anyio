@@ -55,6 +55,8 @@ jobs:
       run: pip install -e . pyright pytest
     - name: Run pyright
       run: pyright --ignoreexternal --verifytypes anyio
+    - name: Run pyright tests
+      run: pyright tests
 
   test:
     strategy:
