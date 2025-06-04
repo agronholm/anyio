@@ -6,7 +6,8 @@ import math
 import sys
 import time
 from asyncio import CancelledError
-from collections.abc import AsyncGenerator, Coroutine, Generator
+from collections.abc import AsyncGenerator, AsyncIterator, Coroutine, Generator
+from contextlib import asynccontextmanager
 from typing import Any, NoReturn, cast
 from unittest import mock
 
@@ -1822,3 +1823,19 @@ async def test_exception_groups_suppresses_exc_context() -> None:
             raise Exception("Error")
 
     assert exc_info.value.__suppress_context__
+
+
+async def test_taskgroup_start_context() -> None:
+    """
+    Test that the task group context manager can be used to start a task group.
+
+    This is a regression test for issue #1000.
+    """
+
+    @asynccontextmanager
+    async def task_ctx() -> AsyncIterator[str]:
+        yield "foo"
+
+    async with create_task_group() as tg:
+        result = await tg.start_context(task_ctx())
+        assert result == "foo"

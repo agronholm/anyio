@@ -91,8 +91,47 @@ that is calling with :meth:`TaskGroup.start() <.abc.TaskGroup.start>` will be bl
 until then. If the spawned task never calls it, then the
 :meth:`TaskGroup.start() <.abc.TaskGroup.start>` call will raise a ``RuntimeError``.
 
-.. note:: Unlike :meth:`~.abc.TaskGroup.start_soon`, :meth:`~.abc.TaskGroup.start` needs
-   an ``await``.
+Alternatively, you can use :meth:`TaskGroup.start_context() <.abc.TaskGroup.start_context>`
+to achieve the same thing without needing to accept a ``task_status`` argument in the
+target coroutine function. Instead, initialization is signaled by the context
+manager having been entered. Further the value returned by the ``tg.start_context()``
+call is also the value returned by the context manager's ``__aenter__()`` method. When
+using the ``@asynccontextmanager`` decorator, this is the value yielded by the
+async generator function::
+
+    from contextlib import asynccontextmanager
+    from (
+        create_task_group,
+        connect_tcp,
+        create_tcp_listener,
+        run,
+    )
+
+
+    async def handler(stream):
+        ...
+
+
+    @asynccontextmanager
+    async def start_service_context(port: int):
+        async with await create_tcp_listener(
+            local_host="127.0.0.1", local_port=port
+        ) as listener:
+            yield
+            await listener.serve(handler)
+
+
+    async def main():
+        async with create_task_group() as tg:
+            await tg.start(start_service_context(5000))
+            async with await connect_tcp("127.0.0.1", 5000) as stream:
+                ...
+
+
+    run(main)
+
+.. note:: Unlike :meth:`~.abc.TaskGroup.start_soon`, :meth:`~.abc.TaskGroup.start` and
+   :meth:`~.abc.TaskGroup.start_context` need an ``await``.
 
 Handling multiple errors in a task group
 ----------------------------------------

@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from abc import ABCMeta, abstractmethod
 from collections.abc import Awaitable, Callable
+from contextlib import AbstractAsyncContextManager
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar, overload
 
@@ -87,6 +88,21 @@ class TaskGroup(metaclass=ABCMeta):
         .. versionadded:: 3.0
         """
 
+    async def start_context(
+        self, ctx: AbstractAsyncContextManager[T_Retval], *, name: object = None
+    ) -> T_Retval:
+        """Start a new task by waiting until the context manager has been entered.
+
+        The remainder of the task will run until the context manager's exit method has completed.
+
+        :param ctx: an asynchronous context manager
+        :param name: name of the task, for the purposes of introspection and debugging
+        :return: The value yielded by the context manager's ``__aenter__`` method.
+
+        .. versionadded:: X.Y
+        """
+        return await self.start(_start_context, ctx, name=name)
+
     @abstractmethod
     async def __aenter__(self) -> TaskGroup:
         """Enter the task group context and allow starting new tasks."""
@@ -99,3 +115,20 @@ class TaskGroup(metaclass=ABCMeta):
         exc_tb: TracebackType | None,
     ) -> bool:
         """Exit the task group context waiting for all tasks to finish."""
+
+
+async def _start_context(
+    ctx: AbstractAsyncContextManager[T_Retval],
+    *,
+    task_status: TaskStatus[T_Retval],
+) -> None:
+    """
+    Start a new task and wait until it signals for readiness.
+
+    :param ctx: an asynchronous context manager
+    :return: the value passed to ``task_status.started()``
+    :raises RuntimeError: if the task finishes without calling
+        ``task_status.started()``
+    """
+    async with ctx as retval:
+        task_status.started(retval)
