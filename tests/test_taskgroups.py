@@ -6,7 +6,7 @@ import math
 import sys
 import time
 from asyncio import CancelledError
-from collections.abc import AsyncGenerator, AsyncIterator, Coroutine, Generator
+from collections.abc import AsyncGenerator, Coroutine, Generator
 from contextlib import asynccontextmanager
 from typing import Any, NoReturn, cast
 from unittest import mock
@@ -1833,7 +1833,7 @@ async def test_taskgroup_start_context() -> None:
     """
 
     @asynccontextmanager
-    async def task_ctx() -> AsyncIterator[str]:
+    async def task_ctx() -> AsyncGenerator[str, None]:
         yield "foo"
 
     async with create_task_group() as tg:

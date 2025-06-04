@@ -1,15 +1,12 @@
 [build-system]
-requires = [
-    "setuptools >= 77",
-    "setuptools_scm >= 6.4"
-]
+requires = ["setuptools >= 77", "setuptools_scm >= 6.4"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "anyio"
 description = "High level compatibility layer for multiple asynchronous event loop implementations"
 readme = "README.rst"
-authors = [{name = "Alex Grönholm", email = "alex.gronholm@nextday.fi"}]
+authors = [{ name = "Alex Grönholm", email = "alex.gronholm@nextday.fi" }]
 license = "MIT"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -43,7 +40,7 @@ Changelog = "https://anyio.readthedocs.io/en/stable/versionhistory.html"
 trio = ["trio >= 0.26.1"]
 
 [project.entry-points]
-pytest11 = {anyio = "anyio.pytest_plugin"}
+pytest11 = { anyio = "anyio.pytest_plugin" }
 
 [dependency-groups]
 test = [
@@ -61,7 +58,7 @@ test = [
     uvloop >= 0.21; platform_python_implementation == 'CPython' \
     and platform_system != 'Windows' \
     and python_version < '3.14'\
-    """
+    """,
 ]
 doc = [
     "packaging",
@@ -80,18 +77,18 @@ src = ["src"]
 
 [tool.ruff.lint]
 extend-select = [
-    "ASYNC",        # flake8-async
-    "B",            # flake8-bugbear
-    "C4",           # flake8-comprehensions
-    "G",            # flake8-logging-format
-    "I",            # isort
-    "ISC",          # flake8-implicit-str-concat
-    "PERF",         # flake8-performance
-    "PGH",          # pygrep-hooks
-    "RUF100",       # unused noqa (yesqa)
-    "T201",         # print
-    "UP",           # pyupgrade
-    "W",            # pycodestyle warnings
+    "ASYNC",  # flake8-async
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "G",      # flake8-logging-format
+    "I",      # isort
+    "ISC",    # flake8-implicit-str-concat
+    "PERF",   # flake8-performance
+    "PGH",    # pygrep-hooks
+    "RUF100", # unused noqa (yesqa)
+    "T201",   # print
+    "UP",     # pyupgrade
+    "W",      # pycodestyle warnings
 ]
 ignore = ["B009", "PERF203"]
 
@@ -119,9 +116,7 @@ filterwarnings = [
     # Workaround for Python 3.9.7 (see https://bugs.python.org/issue45097)
     "ignore:The loop argument is deprecated since Python 3\\.8, and scheduled for removal in Python 3\\.10\\.:DeprecationWarning:asyncio",
 ]
-markers = [
-    "network: marks tests as requiring Internet access",
-]
+markers = ["network: marks tests as requiring Internet access"]
 
 [tool.codespell]
 ignore-words-list = "asend,daa,hel"
@@ -132,20 +127,34 @@ relative_files = true
 
 [tool.coverage.report]
 show_missing = true
-exclude_also = [
-    "if TYPE_CHECKING:",
-    "@(abc\\.)?abstractmethod",
-]
+exclude_also = ["if TYPE_CHECKING:", "@(abc\\.)?abstractmethod"]
 
 [tool.tox]
-env_list = ["pre-commit", "py39", "py310", "py311", "py312", "py313", "py314", "pypy3"]
+env_list = [
+    "pre-commit",
+    "py39",
+    "py310",
+    "py311",
+    "py312",
+    "py313",
+    "py314",
+    "pypy3",
+]
 skip_missing_interpreters = true
 requires = ["tox >= 4.22"]
 
 [tool.tox.env_run_base]
 depends = ["pre-commit"]
 package = "editable"
-commands = [["coverage", "run", "-m", "pytest", { replace = "posargs", extend = true }]]
+commands = [
+    [
+        "coverage",
+        "run",
+        "-m",
+        "pytest",
+        { replace = "posargs", extend = true },
+    ],
+]
 dependency_groups = ["test"]
 
 [tool.tox.env.pypy3]
@@ -165,3 +174,7 @@ commands = [["pyright", "--verifytypes", "anyio"]]
 depends = []
 dependency_groups = ["doc"]
 commands = [["sphinx-build", "-W", "docs", "build/sphinx"]]
+
+[tool.pyright]
+exclude = [".venv"]
+include = ["src"]
