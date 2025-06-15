@@ -292,7 +292,7 @@ async def create_tcp_listener(
         2**16, or 65536)
     :param reuse_port: ``True`` to allow multiple sockets to bind to the same
         address/port (not supported on Windows)
-    :return: a list of listener objects
+    :return: a multi-listener object containing one or more socket listeners
 
     """
     asynclib = get_async_backend()
