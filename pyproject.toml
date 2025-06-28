@@ -159,7 +159,7 @@ package = "skip"
 
 [tool.tox.env.pyright]
 deps = ["pyright"]
-commands = [["pyright", "--verifytypes", "anyio"]]
+commands = [["pyright", "--ignoreexternal", "--verifytypes", "anyio"]]
 
 [tool.tox.env.docs]
 depends = []
