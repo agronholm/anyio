@@ -2174,7 +2174,7 @@ class TestAsConnectable:
 
     def test_tls_explicit_context(self, client_context: SSLContext) -> None:
         connectable = as_connectable(
-            "/foo/bar", tls=client_context, tls_hostname="example.com"
+            "/foo/bar", tls=True, ssl_context=client_context, tls_hostname="example.com"
         )
         assert isinstance(connectable, TLSConnectable)
         assert connectable.ssl_context is client_context
