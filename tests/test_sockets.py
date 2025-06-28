@@ -647,6 +647,14 @@ class TestTCPStream:
         ):
             await SocketStream.from_socket("foo")  # type: ignore[arg-type]
 
+    async def test_from_socket_pass_file_fd(self, tmp_path: Path) -> None:
+        with pytest.raises(
+            ValueError,
+            match="the file descriptor does not refer to a socket",
+        ):
+            with tmp_path.joinpath("foo").open("wb") as fd:
+                await SocketStream.from_socket(fd.fileno())
+
     async def test_from_socket_wrong_socket_type(
         self, sock_or_fd_factory: SockFdFactoryProtocol
     ) -> None:

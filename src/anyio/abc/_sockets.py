@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import socket
 import sys
 from abc import abstractmethod
@@ -44,7 +45,11 @@ def _validate_socket(
         try:
             sock = socket.socket(fileno=sock_or_fd)
         except OSError as exc:
-            if require_connected:
+            if exc.errno == errno.ENOTSOCK:
+                raise ValueError(
+                    "the file descriptor does not refer to a socket"
+                ) from exc
+            elif require_connected:
                 raise ValueError("the socket must be connected") from exc
             elif require_bound:
                 raise ValueError("the socket must be bound to a local address") from exc
