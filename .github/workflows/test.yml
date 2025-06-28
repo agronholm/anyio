@@ -52,9 +52,9 @@ jobs:
         path: ~/.cache/pip
         key: pip-pyright
     - name: Install dependencies
-      run: pip install -e . pyright pytest
+      run: pip install -e . pyright
     - name: Run pyright
-      run: pyright --verifytypes anyio
+      run: pyright --ignoreexternal --verifytypes anyio
 
   test:
     strategy:
@@ -89,8 +89,6 @@ jobs:
         allow-prereleases: true
         cache: pip
         cache-dependency-path: pyproject.toml
-    - name: Ensure pip >= v25.1
-      run: python -m pip install "pip >= 25.1"
     - name: Install the project and its dependencies
       run: pip install --group test -e .
     - name: Patch /etc/hosts
@@ -134,8 +132,6 @@ jobs:
         python-version: "3.11"
         cache: pip
         cache-dependency-path: pyproject.toml
-    - name: Ensure pip >= v25.1
-      run: python -m pip install "pip >= 25.1"
     - name: Install the project and its dependencies
       run: pip install --group doc -e .
     - name: Build documentation
