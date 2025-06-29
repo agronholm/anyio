@@ -123,7 +123,7 @@ class RunVar(Generic[T]):
         self, default: D | Literal[_NoValueSet.NO_VALUE_SET] = NO_VALUE_SET
     ) -> T | D:
         try:
-            return self._current_vars[self._name]
+            return self._current_vars[self]
         except KeyError:
             if default is not RunVar.NO_VALUE_SET:
                 return default
@@ -137,7 +137,7 @@ class RunVar(Generic[T]):
     def set(self, value: T) -> RunvarToken[T]:
         current_vars = self._current_vars
         token = RunvarToken(self, current_vars.get(self._name, RunVar.NO_VALUE_SET))
-        current_vars[self._name] = value
+        current_vars[self] = value
         return token
 
     def reset(self, token: RunvarToken[T]) -> None:
