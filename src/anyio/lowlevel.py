@@ -105,7 +105,7 @@ class RunVar(Generic[T]):
         self._default = default
 
     @property
-    def _current_vars(self) -> dict[str, T]:
+    def _current_vars(self) -> dict[RunVar, T]:
         token = current_token()
         try:
             return _run_vars[token]
