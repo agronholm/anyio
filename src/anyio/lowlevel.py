@@ -64,7 +64,7 @@ def current_token() -> object:
     return get_async_backend().current_token()
 
 
-_run_vars: WeakKeyDictionary[Any, dict[str, Any]] = WeakKeyDictionary()
+_run_vars: WeakKeyDictionary[Any, dict[RunVar[Any], Any]] = WeakKeyDictionary()
 _token_wrappers: dict[Any, _TokenWrapper] = {}
 
 
@@ -105,7 +105,7 @@ class RunVar(Generic[T]):
         self._default = default
 
     @property
-    def _current_vars(self) -> dict[RunVar, T]:
+    def _current_vars(self) -> dict[RunVar[T], T]:
         token = current_token()
         try:
             return _run_vars[token]
@@ -136,7 +136,7 @@ class RunVar(Generic[T]):
 
     def set(self, value: T) -> RunvarToken[T]:
         current_vars = self._current_vars
-        token = RunvarToken(self, current_vars.get(self._name, RunVar.NO_VALUE_SET))
+        token = RunvarToken(self, current_vars.get(self, RunVar.NO_VALUE_SET))
         current_vars[self] = value
         return token
 
@@ -149,11 +149,11 @@ class RunVar(Generic[T]):
 
         if token._value is _NoValueSet.NO_VALUE_SET:
             try:
-                del self._current_vars[self._name]
+                del self._current_vars[self]
             except KeyError:
                 pass
         else:
-            self._current_vars[self._name] = token._value
+            self._current_vars[self] = token._value
 
         token._redeemed = True
 
