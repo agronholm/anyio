@@ -874,7 +874,7 @@ def as_connectable(
     | PathLike[str],
     /,
     *,
-    tls: bool | ssl.SSLContext = False,
+    tls: bool = False,
     ssl_context: ssl.SSLContext | None = None,
     tls_hostname: str | None = None,
     tls_standard_compatible: bool = True,
@@ -886,35 +886,35 @@ def as_connectable(
     If a tuple of (host, port) is given, a TCP connectable is returned.
     If a string or bytes path is given, a UNIX connectable is returned.
 
-    If either ``tls``, ``ssl_context`` or ``tls_hostname`` is given, the created
-    connectable is wrapped with a :class:`TLSConnectable`.
+    If ``tls=True``, the connectable will be wrapped in a :class:`TLSConnectable`.
 
     :param remote: a connectable, a tuple of (host, port) or a path to a UNIX socket
-    :param tls: if ``True``, enable TLS with the default settings (unless other TLS
-        settings are provided)
-    :param ssl_context: the SSLContext object to use (if not provided, a secure default
-        will be created)
-    :param tls_hostname: host name of the server to use for checking the server
-        certificate (defaults to the host portion of the address for TCP connectables)
-    :param tls_standard_compatible: if ``False``, skip the closing handshake when
-        closing the connection, and don't raise an exception if the server does the same
+    :param tls: if ``True``, wrap the plaintext connectable in a
+        :class:`TLSConnectable`, using the provided TLS settings)
+    :param ssl_context: if ``tls=True``, the SSLContext object to use  (if not provided,
+        a secure default will be created)
+    :param tls_hostname: if ``tls=True``, host name of the server to use for checking
+        the server certificate (defaults to the host portion of the address for TCP
+        connectables)
+    :param tls_standard_compatible: if ``False`` and ``tls=True``, makes the TLS stream
+        skip the closing handshake when closing the connection, so it won't raise an
+        exception if the server does the same
 
     """
     connectable: TCPConnectable | UNIXConnectable | TLSConnectable
     if isinstance(remote, ByteStreamConnectable):
         return remote
-    elif isinstance(remote, tuple):
+    elif isinstance(remote, tuple) and len(remote) == 2:
         connectable = TCPConnectable(*remote)
     elif isinstance(remote, (str, bytes, PathLike)):
         connectable = UNIXConnectable(remote)
     else:
         raise TypeError(f"cannot convert {remote!r} to a connectable")
 
-    if tls or tls_hostname or ssl_context:
+    if tls:
         if not tls_hostname and isinstance(connectable, TCPConnectable):
             tls_hostname = str(connectable.host)
 
-        ssl_context = tls if isinstance(tls, ssl.SSLContext) else None
         connectable = TLSConnectable(
             connectable,
             ssl_context=ssl_context,

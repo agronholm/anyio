@@ -5,6 +5,15 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added various class methods to wrap existing sockets as listeners or socket streams:
+
+  * ``SocketListener.from_socket()``
+  * ``SocketStream.from_socket()``
+  * ``UNIXSocketStream.from_socket()``
+  * ``UDPSocket.from_socket()``
+  * ``ConnectedUDPSocket.from_socket()``
+  * ``UNIXDatagramSocket.from_socket()``
+  * ``ConnectedUNIXDatagramSocket.from_socket()``
 - Added a hierarchy of connectable stream classes for transparently connecting to
   various remote or local endpoints for exchanging bytes or objects
 - Added context manager mix-in classes (``anyio.ContextManagerMixin`` and
@@ -30,6 +39,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#926 <https://github.com/agronholm/anyio/issues/926>`_; PR by @hroncok)
 - Fixed ``SyntaxWarning`` on Python 3.14 about ``return`` in ``finally``
   (`#816 <https://github.com/agronholm/anyio/issues/816>`_)
+- Fixed RunVar name conflicts. RunVar instances with the same name should not share storage.
+  (`#880 <https://github.com/agronholm/anyio/issues/880>`_; PR by @vimfu)
 
 **4.9.0**
 
