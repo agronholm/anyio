@@ -10,7 +10,7 @@ from textwrap import dedent
 from typing import Any, Final, TypeVar
 
 from . import current_time, to_thread
-from ._core._exceptions import BrokenWorkerIntepreter
+from ._core._exceptions import BrokenWorkerInterpreter
 from ._core._synchronization import CapacityLimiter
 from .lowlevel import RunVar
 
@@ -116,7 +116,7 @@ class Worker:
         res: Any
         is_exception: bool
         if exc_info := interpreters.exec(self._interpreter_id, self._run_func):
-            raise BrokenWorkerIntepreter(exc_info)
+            raise BrokenWorkerInterpreter(exc_info)
 
         (res, is_exception), fmt = queues.get(self._queue_id)[:2]
         if fmt == FMT_PICKLED:
@@ -170,7 +170,7 @@ async def run_sync(
     :param limiter: capacity limiter to use to limit the total amount of subinterpreters
         running (if omitted, the default limiter is used)
     :return: the result of the call
-    :raises BrokenWorkerIntepreter: if there's an internal error in a subinterpreter
+    :raises BrokenWorkerInterpreter: if there's an internal error in a subinterpreter
 
     """
     if sys.version_info <= (3, 13):
