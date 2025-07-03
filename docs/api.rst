@@ -226,7 +226,7 @@ Exceptions
 ----------
 
 .. autoexception:: anyio.BrokenResourceError
-.. autoexception:: anyio.BrokenWorkerIntepreter
+.. autoexception:: anyio.BrokenWorkerInterpreter
 .. autoexception:: anyio.BrokenWorkerProcess
 .. autoexception:: anyio.BusyResourceError
 .. autoexception:: anyio.ClosedResourceError
