@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import math
 import contextvars
+import math
 from collections.abc import Generator
 from contextlib import contextmanager
 from types import TracebackType
@@ -27,7 +27,9 @@ class CancelScope:
     """
 
     # set to True to capture full stack traces. set to an integer to capture at most that many frames
-    track_source_information = contextvars.ContextVar("track_source_information", default=False)
+    track_source_information = contextvars.ContextVar(
+        "track_source_information", default=False
+    )
 
     def __new__(
         cls, *, deadline: float = math.inf, shield: bool = False

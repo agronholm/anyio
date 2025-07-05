@@ -4,12 +4,12 @@ import array
 import asyncio
 import concurrent.futures
 import contextvars
-import traceback
 import math
 import os
 import socket
 import sys
 import threading
+import traceback
 import weakref
 from asyncio import (
     AbstractEventLoop,
@@ -579,7 +579,9 @@ class CancelScope(BaseCancelScope):
                 waiter = task._fut_waiter  # type: ignore[attr-defined]
                 if not isinstance(waiter, asyncio.Future) or not waiter.done():
                     if origin._source_stack is not None:
-                        task.cancel(f"Cancelled by cancel scope {id(origin):x} at\n{"".join(traceback.format_list(origin._source_stack))}")
+                        task.cancel(
+                            f"Cancelled by cancel scope {id(origin):x} at\n{''.join(traceback.format_list(origin._source_stack))}"
+                        )
                     else:
                         task.cancel(f"Cancelled by cancel scope {id(origin):x}")
                     if (
