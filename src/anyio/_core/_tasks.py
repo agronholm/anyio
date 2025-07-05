@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import contextvars
 from collections.abc import Generator
 from contextlib import contextmanager
 from types import TracebackType
@@ -24,6 +25,9 @@ class CancelScope:
     :param deadline: The time (clock value) when this scope is cancelled automatically
     :param shield: ``True`` to shield the cancel scope from external cancellation
     """
+
+    # set to True to capture full stack traces. set to an integer to capture at most that many frames
+    track_source_information = contextvars.ContextVar("track_source_information", default=False)
 
     def __new__(
         cls, *, deadline: float = math.inf, shield: bool = False
