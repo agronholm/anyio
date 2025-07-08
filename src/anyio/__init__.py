@@ -96,11 +96,10 @@ del __value
 def __getattr__(attr: str) -> type[BrokenWorkerInterpreter]:
     """Support deprecated aliases."""
     if attr == "BrokenWorkerIntepreter":
-        replaced_class_name = BrokenWorkerInterpreter.__name__
         import warnings
 
         warnings.warn(
-            f"The 'BrokenWorkerIntepreter' alias is deprecated, use {replaced_class_name!r} instead.",
+            "The 'BrokenWorkerIntepreter' alias is deprecated, use 'BrokenWorkerInterpreter' instead.",
             DeprecationWarning,
             stacklevel=2,
         )

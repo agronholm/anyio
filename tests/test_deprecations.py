@@ -7,4 +7,5 @@ import anyio
 
 def test_broken_worker_interpreter_deprecation() -> None:
     with pytest.warns(DeprecationWarning):
-        assert anyio.BrokenWorkerIntepreter is anyio.BrokenWorkerInterpreter
+        DeprecatedClass = anyio.BrokenWorkerIntepreter
+    assert DeprecatedClass is anyio.BrokenWorkerInterpreter
