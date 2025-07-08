@@ -42,7 +42,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed RunVar name conflicts. RunVar instances with the same name should not share storage.
   (`#880 <https://github.com/agronholm/anyio/issues/880>`_; PR by @vimfu)
 - Renamed the ``BrokenWorkerIntepreter`` exception to ``BrokenWorkerInterpreter``.
-  The old name is available as an alias.
+  The old name is available as a deprecated alias.
 
 **4.9.0**
 
