@@ -4,8 +4,9 @@ import sys
 from abc import ABCMeta, abstractmethod
 from collections.abc import Callable
 from typing import Any, Generic, TypeVar, Union
+from warnings import warn
 
-from .._core._exceptions import EndOfStream
+from .._core._exceptions import EndOfStream, WouldBlock
 from .._core._typedattr import TypedAttributeProvider
 from ._resources import AsyncResource
 from ._tasks import TaskGroup
@@ -33,6 +34,16 @@ class UnreliableObjectReceiveStream(
     given type parameter.
     """
 
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if cls.receive_nowait is UnreliableObjectReceiveStream.receive_nowait:
+            warn(
+                f"{cls.__qualname__} does not implement receive_nowait(). In v5.0, "
+                f"receive_nowait() will become an abstract method and an exception "
+                f"will be raised if not implemented in a stream class.",
+                DeprecationWarning,
+            )
+
     def __aiter__(self) -> UnreliableObjectReceiveStream[T_co]:
         return self
 
@@ -41,6 +52,20 @@ class UnreliableObjectReceiveStream(
             return await self.receive()
         except EndOfStream:
             raise StopAsyncIteration from None
+
+    def receive_nowait(self) -> T_co:
+        """
+        Receive the next item if it can be done without waiting.
+
+        :raises ~anyio.ClosedResourceError: if the receive stream has been explicitly
+            closed
+        :raises ~anyio.EndOfStream: if this stream has been closed from the other end
+        :raises ~anyio.BrokenResourceError: if this stream has been rendered unusable
+            due to external causes
+        :raises ~anyio.WouldBlock: if there is no item immediately available
+
+        """
+        raise NotImplementedError
 
     @abstractmethod
     async def receive(self) -> T_co:
@@ -137,6 +162,21 @@ class ByteReceiveStream(AsyncResource, TypedAttributeProvider):
             return await self.receive()
         except EndOfStream:
             raise StopAsyncIteration from None
+
+    def receive_nowait(self, max_bytes: int = 65536) -> bytes:
+        """
+        Receive at most ``max_bytes`` bytes from the peer, if it can be done without
+        blocking.
+
+        .. note:: Implementers of this interface should not return an empty
+            :class:`bytes` object, and users should ignore them.
+
+        :param max_bytes: maximum number of bytes to receive
+        :return: the received bytes
+        :raises ~anyio.EndOfStream: if this stream has been closed from the other end
+        :raises ~anyio.WouldBlock: if there is no data waiting to be received
+        """
+        raise WouldBlock
 
     @abstractmethod
     async def receive(self, max_bytes: int = 65536) -> bytes:

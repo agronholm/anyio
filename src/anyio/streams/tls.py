@@ -13,6 +13,7 @@ from typing import Any, TypeVar
 from .. import (
     BrokenResourceError,
     EndOfStream,
+    WouldBlock,
     aclose_forcefully,
     get_cancelled_exc_class,
     to_thread,
@@ -232,6 +233,44 @@ class TLSStream(ByteStream):
                 raise
 
         await self.transport_stream.aclose()
+
+    def receive_nowait(self, max_bytes: int = 65536) -> bytes:
+        while True:
+            try:
+                data = self._ssl_object.read(max_bytes)
+                break
+            except ssl.SSLWantReadError:
+                try:
+                    data = self.transport_stream.receive_nowait()
+                except WouldBlock:
+                    raise WouldBlock from None
+                except EndOfStream:
+                    self._read_bio.write_eof()
+                except OSError as exc:
+                    self._read_bio.write_eof()
+                    self._write_bio.write_eof()
+                    raise BrokenResourceError from exc
+                else:
+                    self._read_bio.write(data)
+            except ssl.SSLWantWriteError:
+                raise WouldBlock from None
+            except ssl.SSLError as exc:
+                self._read_bio.write_eof()
+                self._write_bio.write_eof()
+                if isinstance(exc, ssl.SSLEOFError) or (
+                    exc.strerror and "UNEXPECTED_EOF_WHILE_READING" in exc.strerror
+                ):
+                    if self.standard_compatible:
+                        raise BrokenResourceError from exc
+                    else:
+                        raise EndOfStream from None
+
+                raise
+
+        if not data:
+            raise EndOfStream
+
+        return data
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
         data = await self._call_sslobject_method(self._ssl_object.read, max_bytes)

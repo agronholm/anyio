@@ -50,6 +50,12 @@ class TextReceiveStream(ObjectReceiveStream[str]):
         decoder_class = codecs.getincrementaldecoder(encoding)
         self._decoder = decoder_class(errors=errors)
 
+    def receive_nowait(self) -> str:
+        while True:
+            chunk = self.transport_stream.receive_nowait()
+            if decoded := self._decoder.decode(chunk):
+                return decoded
+
     async def receive(self) -> str:
         while True:
             chunk = await self.transport_stream.receive()
@@ -133,6 +139,9 @@ class TextStream(ObjectStream[str]):
         self._send_stream = TextSendStream(
             self.transport_stream, encoding=encoding, errors=errors
         )
+
+    def receive_nowait(self) -> str:
+        return self._receive_stream.receive_nowait()
 
     async def receive(self) -> str:
         return await self._receive_stream.receive()
