@@ -90,11 +90,14 @@ for __value in list(locals().values()):
         __value.__module__ = __name__
 
 
-def __getattr__(attr: str):  # type: ignore[no-untyped-def]
+del __value
+
+
+def __getattr__(attr: str) -> type[BrokenWorkerInterpreter]:
     """Support deprecated aliases."""
     if attr == "BrokenWorkerIntepreter":
         replaced_class_name = BrokenWorkerInterpreter.__name__
-        import warnings  # A lazy import here cuts the overall import time
+        import warnings
 
         warnings.warn(
             f"The 'BrokenWorkerIntepreter' alias is deprecated, use {replaced_class_name!r} instead.",
