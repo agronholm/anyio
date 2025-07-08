@@ -89,6 +89,18 @@ for __value in list(locals().values()):
     if getattr(__value, "__module__", "").startswith("anyio."):
         __value.__module__ = __name__
 
-del __value
 
-BrokenWorkerIntepreter = BrokenWorkerInterpreter
+def __getattr__(attr: str):  # type: ignore[no-untyped-def]
+    """Support deprecated aliases."""
+    if attr == "BrokenWorkerIntepreter":
+        replaced_class_name = BrokenWorkerInterpreter.__name__
+        import warnings  # A lazy import here cuts the overall import time
+
+        warnings.warn(
+            f"The 'BrokenWorkerIntepreter' alias is deprecated, use {replaced_class_name!r} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return BrokenWorkerInterpreter
+
+    raise AttributeError(f"module {__name__!r} has no attribute {attr!r}")
