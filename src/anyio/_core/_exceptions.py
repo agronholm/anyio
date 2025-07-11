@@ -23,7 +23,7 @@ class BrokenWorkerProcess(Exception):
     """
 
 
-class BrokenWorkerIntepreter(Exception):
+class BrokenWorkerInterpreter(Exception):
     """
     Raised by :meth:`~anyio.to_interpreter.run_sync` if an unexpected exception is
     raised in the subinterpreter.

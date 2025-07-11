@@ -19,7 +19,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added context manager mix-in classes (``anyio.ContextManagerMixin`` and
   ``anyio.AsyncContextManagerMixin``) to help write classes that embed other context
   managers, particularly cancel scopes or task groups
-  (`#905 <https://github.com/agronholm/anyio/pull/905>`_; PR by by @agronholm and
+  (`#905 <https://github.com/agronholm/anyio/pull/905>`_; PR by @agronholm and
   @tapetersen)
 - Added the ability to specify the thread name in ``start_blocking_portal()``
   (`#818 <https://github.com/agronholm/anyio/issues/818>`_; PR by @davidbrochart)
@@ -41,6 +41,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#816 <https://github.com/agronholm/anyio/issues/816>`_)
 - Fixed RunVar name conflicts. RunVar instances with the same name should not share storage.
   (`#880 <https://github.com/agronholm/anyio/issues/880>`_; PR by @vimfu)
+- Renamed the ``BrokenWorkerIntepreter`` exception to ``BrokenWorkerInterpreter``.
+  The old name is available as a deprecated alias.
+  (`#938 <https://github.com/agronholm/anyio/pull/938>`_; PR by @ayussh-verma)
 
 **4.9.0**
 

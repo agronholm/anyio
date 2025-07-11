@@ -10,7 +10,7 @@ from ._core._eventloop import sleep as sleep
 from ._core._eventloop import sleep_forever as sleep_forever
 from ._core._eventloop import sleep_until as sleep_until
 from ._core._exceptions import BrokenResourceError as BrokenResourceError
-from ._core._exceptions import BrokenWorkerIntepreter as BrokenWorkerIntepreter
+from ._core._exceptions import BrokenWorkerInterpreter as BrokenWorkerInterpreter
 from ._core._exceptions import BrokenWorkerProcess as BrokenWorkerProcess
 from ._core._exceptions import BusyResourceError as BusyResourceError
 from ._core._exceptions import ClosedResourceError as ClosedResourceError
@@ -89,4 +89,20 @@ for __value in list(locals().values()):
     if getattr(__value, "__module__", "").startswith("anyio."):
         __value.__module__ = __name__
 
+
 del __value
+
+
+def __getattr__(attr: str) -> type[BrokenWorkerInterpreter]:
+    """Support deprecated aliases."""
+    if attr == "BrokenWorkerIntepreter":
+        import warnings
+
+        warnings.warn(
+            "The 'BrokenWorkerIntepreter' alias is deprecated, use 'BrokenWorkerInterpreter' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return BrokenWorkerInterpreter
+
+    raise AttributeError(f"module {__name__!r} has no attribute {attr!r}")
