@@ -214,13 +214,15 @@ mechanism that allows user code to voluntarily check if the host task's scope ha
 and if it has, raise a cancellation exception. This can be done by simply calling
 :func:`from_thread.check_cancelled`::
 
-    from anyio import to_thread, from_thread
+    import time
+
+    from anyio import to_thread, from_thread, move_on_after
 
     def sync_function():
         while True:
             from_thread.check_cancelled()
             print("Not cancelled yet")
-            sleep(1)
+            time.sleep(1)
 
     async def foo():
         with move_on_after(3):
