@@ -109,3 +109,18 @@ async def test_buffered_connectable() -> None:
         await stream.send(b"abcd")
         assert await stream.receive_exactly(2) == b"ab"
         assert await stream.receive_exactly(2) == b"cd"
+
+
+async def test_feed_data() -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
+    buffered_stream = BufferedByteStream(
+        StapledObjectStream(send_stream, receive_stream)
+    )
+    send_stream.send_nowait(b"abcd")
+
+    # The stream has not received the sent data yet, so b"xxx" should come out of the
+    # buffer first, despite this order of data input
+    buffered_stream.feed_data(b"xxx")
+    buffered_stream.feed_data(b"foo")
+    assert await buffered_stream.receive_exactly(10) == b"xxxfooabcd"
+    await buffered_stream.aclose()

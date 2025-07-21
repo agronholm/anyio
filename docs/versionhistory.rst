@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added the ``feed_data()`` method to the ``BufferedByteReceiveStream`` class, allowing
+  users to inject data directly into the buffer
 - Added various class methods to wrap existing sockets as listeners or socket streams:
 
   * ``SocketListener.from_socket()``
