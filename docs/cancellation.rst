@@ -110,7 +110,22 @@ To accomplish this, open a new cancel scope with the ``shield=True`` argument::
 The shielded block will be exempt from cancellation except when the shielded block
 itself is being cancelled. Shielding a cancel scope is often best combined with
 :func:`~move_on_after` or :func:`~fail_after`, both of which also accept
-``shield=True``.
+``shield=True``::
+
+    async def do_something(resource):
+        try:
+            ...
+        except BaseException:
+            # Here we wait 10 seconds for resource.aclose() to complete,
+            # but if the operation doesn't complete within that period, we move on
+            # and re-raise the caught exception anyway
+            with move_on_after(10, shield=True):
+                await resource.aclose()
+
+            raise
+
+    run(main)
+
 
 Finalization
 ------------
