@@ -45,7 +45,7 @@ class BufferedByteReceiveStream(ByteReceiveStream):
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
         return self.receive_stream.extra_attributes
 
-    def feed_data(self, data: Iterable[SupportsIndex]) -> None:
+    def feed_data(self, data: Iterable[SupportsIndex], /) -> None:
         """
         Append data directly into the buffer.
 
