@@ -44,6 +44,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Renamed the ``BrokenWorkerIntepreter`` exception to ``BrokenWorkerInterpreter``.
   The old name is available as a deprecated alias.
   (`#938 <https://github.com/agronholm/anyio/pull/938>`_; PR by @ayussh-verma)
+- Fixed an edge case in ``CapacityLimiter`` on asyncio where a task, waiting to acquire
+  a limiter gets cancelled and is subsequently granted a token from the limiter, but
+  before the cancellation is delivered, and then fails to notify the next waiting task
+  (`#947 <https://github.com/agronholm/anyio/issues/947>`_)
 
 **4.9.0**
 

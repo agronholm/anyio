@@ -1982,6 +1982,12 @@ class CapacityLimiter(BaseCapacityLimiter):
     def available_tokens(self) -> float:
         return self._total_tokens - len(self._borrowers)
 
+    def _notify_next_waiter(self) -> None:
+        """Notify the next task in line if this limiter has free capacity now."""
+        if self._wait_queue and len(self._borrowers) < self._total_tokens:
+            event = self._wait_queue.popitem(last=False)[1]
+            event.set()
+
     def acquire_nowait(self) -> None:
         self.acquire_on_behalf_of_nowait(current_task())
 
@@ -2010,6 +2016,9 @@ class CapacityLimiter(BaseCapacityLimiter):
                 await event.wait()
             except BaseException:
                 self._wait_queue.pop(borrower, None)
+                if event.is_set():
+                    self._notify_next_waiter()
+
                 raise
 
             self._borrowers.add(borrower)
@@ -2031,10 +2040,7 @@ class CapacityLimiter(BaseCapacityLimiter):
                 "this borrower isn't holding any of this CapacityLimiter's tokens"
             ) from None
 
-        # Notify the next task in line if this limiter has free capacity now
-        if self._wait_queue and len(self._borrowers) < self._total_tokens:
-            event = self._wait_queue.popitem(last=False)[1]
-            event.set()
+        self._notify_next_waiter()
 
     def statistics(self) -> CapacityLimiterStatistics:
         return CapacityLimiterStatistics(
