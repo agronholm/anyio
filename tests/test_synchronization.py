@@ -14,11 +14,13 @@ from anyio import (
     WouldBlock,
     create_task_group,
     fail_after,
+    move_on_after,
     run,
     to_thread,
     wait_all_tasks_blocked,
 )
 from anyio.abc import CapacityLimiter, TaskStatus
+from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params
 
@@ -832,3 +834,32 @@ class TestCapacityLimiter:
         # Regression test for #515
         limiter = CapacityLimiter(total_tokens=1)
         assert limiter.total_tokens == 1
+
+    async def test_acquire_cancelled(self) -> None:
+        # Regression test for #947
+        limiter = CapacityLimiter(1)
+
+        async def borrower(
+            event: Event, *, task_status: TaskStatus[CancelScope]
+        ) -> None:
+            with CancelScope() as scope:
+                task_status.started(scope)
+                async with limiter:
+                    event.set()
+                    await checkpoint()
+
+        async with create_task_group() as tg:
+            async with limiter:
+                event1 = Event()
+                scope1 = await tg.start(borrower, event1)
+                event2 = Event()
+                await tg.start(borrower, event2)
+                scope1.cancel()
+
+            with move_on_after(0.1):
+                await event2.wait()
+                return
+
+            tg.cancel_scope.cancel()
+
+        pytest.fail("The second borrower failed to acquire the limiter")
