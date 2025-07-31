@@ -126,6 +126,7 @@ itself is being cancelled. Shielding a cancel scope is often best combined with
 
     run(main)
 
+.. _finalization:
 
 Finalization
 ------------

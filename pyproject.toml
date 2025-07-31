@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "anyio"
-description = "High level compatibility layer for multiple asynchronous event loop implementations"
+description = "High-level concurrency and networking framework on top of asyncio or Trio"
 readme = "README.rst"
 authors = [{name = "Alex Grönholm", email = "alex.gronholm@nextday.fi"}]
 license = "MIT"
@@ -164,4 +164,4 @@ commands = [["pyright", "--ignoreexternal", "--verifytypes", "anyio"]]
 [tool.tox.env.docs]
 depends = []
 dependency_groups = ["doc"]
-commands = [["sphinx-build", "-W", "docs", "build/sphinx"]]
+commands = [["sphinx-build", "-n", "docs", "build/sphinx"]]

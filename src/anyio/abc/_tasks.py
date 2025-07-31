@@ -77,12 +77,19 @@ class TaskGroup(metaclass=ABCMeta):
         """
         Start a new task and wait until it signals for readiness.
 
-        :param func: a coroutine function
+        The target callable must accept a keyword argument ``task_status`` (of type
+        :class:`TaskStatus`). Awaiting on this method will return whatever was passed to
+        ``task_status.started()`` (``None`` by default).
+
+        :param func: a coroutine function that accepts the ``task_status`` keyword
+            argument
         :param args: positional arguments to call the function with
         :param name: name of the task, for the purposes of introspection and debugging
         :return: the value passed to ``task_status.started()``
         :raises RuntimeError: if the task finishes without calling
             ``task_status.started()``
+
+        .. seealso:: :ref:`start_initialize`
 
         .. versionadded:: 3.0
         """
