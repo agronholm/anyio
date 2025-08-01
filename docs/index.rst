@@ -26,6 +26,7 @@ The manual
    testing
    api
    migration
+   why
    faq
    support
    contributing

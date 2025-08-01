@@ -131,6 +131,7 @@ Streams and stream wrappers
 .. autodata:: anyio.abc.AnyByteStreamConnectable
 
 .. autoclass:: anyio.streams.buffered.BufferedByteReceiveStream
+.. autoclass:: anyio.streams.buffered.BufferedByteStream
 .. autoclass:: anyio.streams.file.FileStreamAttribute
 .. autoclass:: anyio.streams.file.FileReadStream
 .. autoclass:: anyio.streams.file.FileWriteStream
@@ -172,6 +173,8 @@ Sockets and networking
 .. autoclass:: anyio.abc.UDPSocket()
 .. autoclass:: anyio.abc.ConnectedUDPSocket()
 .. autoclass:: anyio.abc.UNIXSocketStream()
+.. autoclass:: anyio.abc.UNIXDatagramSocket()
+.. autoclass:: anyio.abc.ConnectedUNIXDatagramSocket()
 .. autoclass:: anyio.TCPConnectable
 .. autoclass:: anyio.UNIXConnectable
 

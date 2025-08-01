@@ -148,6 +148,8 @@ Example::
 
     run(main)
 
+.. _capacity-limiters:
+
 Capacity limiters
 -----------------
 

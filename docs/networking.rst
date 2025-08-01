@@ -255,12 +255,14 @@ AnyIO stream or socket listener. For that, various class methods exist:
 * :meth:`.abc.UNIXDatagramSocket.from_socket`
 * :meth:`.abc.ConnectedUNIXDatagramSocket.from_socket`
 
+.. _connectables:
+
 Abstracting remote connections using Connectables
 -------------------------------------------------
 
 AnyIO offers a hierarchy of classes implementing either the
-:class:`ObjectStreamConnectable` or :class:`ByteStreamConnectable` interfaces which
-lets developers abstract out the connection mechanism for network clients.
+:class:`.abc.ObjectStreamConnectable` or :class:`.abc.ByteStreamConnectable` interfaces
+which lets developers abstract out the connection mechanism for network clients.
 For example, you could create a network client class like this::
 
     from os import PathLike
@@ -289,7 +291,7 @@ For example, you could create a network client class like this::
 
 Here's a dissection of the type annotation for ``connectable``:
 
-* :class:`ByteStreamConnectable`: allows for any arbitrary bytestream connectable
+* :class:`.abc.ByteStreamConnectable`: allows for any arbitrary bytestream connectable
 * ``tuple[str, int]``: TCP host/port
 * ``str | bytes | PathLike[str]``: file system path to a UNIX socket
 

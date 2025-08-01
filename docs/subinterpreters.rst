@@ -24,7 +24,7 @@ Running functions in a worker interpreter makes sense when:
 If the code you're trying to run only does blocking network I/O, or file I/O, then
 you're better off using :doc:`worker thread <threads>` instead.
 
-This is done by using :func:`.interpreter.run_sync`::
+This is done by using :func:`.to_interpreter.run_sync`::
 
     import time
 

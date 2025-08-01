@@ -41,6 +41,8 @@ Here's a demonstration::
 .. _Trio: https://trio.readthedocs.io/en/latest/reference-core.html
    #tasks-let-you-do-multiple-things-at-once
 
+.. _start_initialize:
+
 Starting and initializing tasks
 -------------------------------
 

@@ -894,11 +894,12 @@ def as_connectable(
     If a tuple of (host, port) is given, a TCP connectable is returned.
     If a string or bytes path is given, a UNIX connectable is returned.
 
-    If ``tls=True``, the connectable will be wrapped in a :class:`TLSConnectable`.
+    If ``tls=True``, the connectable will be wrapped in a
+    :class:`~.streams.tls.TLSConnectable`.
 
     :param remote: a connectable, a tuple of (host, port) or a path to a UNIX socket
     :param tls: if ``True``, wrap the plaintext connectable in a
-        :class:`TLSConnectable`, using the provided TLS settings)
+        :class:`~.streams.tls.TLSConnectable`, using the provided TLS settings)
     :param ssl_context: if ``tls=True``, the SSLContext object to use  (if not provided,
         a secure default will be created)
     :param tls_hostname: if ``tls=True``, host name of the server to use for checking

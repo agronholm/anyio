@@ -34,10 +34,11 @@ The simplest possible AnyIO program looks like this::
 
     run(main)
 
-This will run the program above on the default backend (asyncio). To run it on another
-supported backend, say Trio_, you can use the ``backend`` argument, like so::
+This will run the program above on the default backend (asyncio). To explicitly specify
+which backend to run on, you can use the ``backend`` argument, like so::
 
     run(main, backend='trio')
+    run(main, backend='asyncio')
 
 But AnyIO code is not required to be run via :func:`run`. You can just as well use the
 native ``run()`` function of the backend library::
@@ -62,6 +63,14 @@ native ``run()`` function of the backend library::
 
 Backend specific options
 ------------------------
+
+Any options exclusive to a specific backend can be passed as keyword arguments to
+:func:`run`::
+
+    run(main, backend="asyncio", debug=True)
+    run(main, backend="trio", restrict_keyboard_interrupt_to_checkpoints=True)
+
+Here is the list of supported options for each backend:
 
 **Asyncio**:
 
@@ -94,6 +103,8 @@ asynchronous framework of your choice. There are a few rules to keep in mind how
   to the cancellation rules enforced by AnyIO
 * Threads spawned outside of AnyIO cannot use :func:`.from_thread.run` to call
   asynchronous code
+
+.. seealso:: :ref:`asyncio cancellation`
 
 .. _virtualenv: https://docs.python-guide.org/dev/virtualenvs/
 .. _Trio: https://github.com/python-trio/trio
