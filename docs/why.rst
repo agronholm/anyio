@@ -385,7 +385,7 @@ protocol so you can't just do ``async with writer: ...``.
 Another issue lies with the :meth:`~asyncio.StreamWriter.get_extra_info` method asyncio provides to get information like
 the remote address for socket connections, or the raw socket object:
 
-#. This method only exist in the writer class, not the reader (for whatever reason).
+#. This method only exists in the writer class, not the reader (for whatever reason).
 #. It returns a dictionary, so to get the information you want, you'll need to access one of the keys in the returned
    dict, based on the documentation.
 #. It is not type safe, as Typeshed specifies the return type as ``dict[str, Any]``. Therefore, static type checkers
@@ -500,7 +500,7 @@ counterpart for the :class:`~pathlib.Path` class. Additionally, it should be not
 .. seealso:: :doc:`fileio`
 
 .. _aiofiles: https://github.com/Tinche/aiofiles
-.. _aiopath: https://pypi.org/project/aiopath/
+.. _aiopath: https://github.com/alexdelorenzo/aiopath
 
 Features not in asyncio which you might be interested in
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
