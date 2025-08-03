@@ -16,7 +16,7 @@ Trio_. It implements trio-like `structured concurrency`_ (SC) on top of asyncio 
 with the native SC of trio itself.
 
 Applications and libraries written against AnyIO's API will run unmodified on either asyncio_ or
-trio_. AnyIO can also be adopted into a library or application incrementally – bit by bit, no full
+Trio_. AnyIO can also be adopted into a library or application incrementally – bit by bit, no full
 refactoring necessary. It will blend in with the native libraries of your chosen backend.
 
 To find out why you might want to use AnyIO's APIs instead of asyncio's, you can read about it
