@@ -29,6 +29,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   and ``anyio.wait_writable`` before closing a socket. Among other things,
   this prevents an OSError on the ``ProactorEventLoop``.
   (`#896 <https://github.com/agronholm/anyio/pull/896>`_; PR by @graingert)
+- Incorporated several documentation improvements from the EuroPython 2025 sprint
+  (special thanks to the sprinters: Emmanuel Okedele, Jan Murre, Euxenia Miruna Goia and
+  Christoffer Fjord)
+- Added a documentation page explaining why one might want to use AnyIO's APIs instead of
+  asyncio's
 - Fixed ``anyio.Path.copy()`` and ``anyio.Path.copy_into()`` failing on Python 3.14.0a7
 - Fixed return annotation of ``__aexit__`` on async context managers. CMs which can
   suppress exceptions should return ``bool``, or ``None`` otherwise.
