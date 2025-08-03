@@ -81,10 +81,14 @@ class TaskGroup(metaclass=ABCMeta):
         :class:`TaskStatus`). Awaiting on this method will return whatever was passed to
         ``task_status.started()`` (``None`` by default).
 
+        .. note:: The :class:`TaskStatus` class is generic, and the type argument should
+            indicate the type of the value that will be passed to
+            ``task_status.started()``.
+
         :param func: a coroutine function that accepts the ``task_status`` keyword
             argument
         :param args: positional arguments to call the function with
-        :param name: name of the task, for the purposes of introspection and debugging
+        :param name: an optional name for the task, for introspection and debugging
         :return: the value passed to ``task_status.started()``
         :raises RuntimeError: if the task finishes without calling
             ``task_status.started()``
