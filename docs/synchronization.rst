@@ -189,7 +189,7 @@ is hashable.
 
 It is recommended to use capacity limiters instead of semaphores unless you intend to
 allow a task to acquire multiple tokens from the same object. AnyIO uses capacity
-limiters to limit the number of threads spawned
+limiters to limit the number of threads spawned.
 
 The number of total tokens available for tasks to acquire can be adjusted by assigning
 the desired value to the ``total_tokens`` property. If the value is higher than the
