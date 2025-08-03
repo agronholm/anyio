@@ -103,17 +103,43 @@ def _validate_socket(
 
 
 class SocketAttribute(TypedAttributeSet):
-    #: the address family of the underlying socket
+    """
+    .. attribute:: family
+        :type: socket.AddressFamily
+
+        the address family of the underlying socket
+
+    .. attribute:: local_address
+        :type: tuple[str, int] | str
+
+        the local address the underlying socket is connected to
+
+    .. attribute:: local_port
+        :type: int
+
+        for IP based sockets, the local port the underlying socket is bound to
+
+    .. attribute:: raw_socket
+        :type: socket.socket
+
+        the underlying stdlib socket object
+
+    .. attribute:: remote_address
+        :type: tuple[str, int] | str
+
+        the remote address the underlying socket is connected to
+
+    .. attribute:: remote_port
+        :type: int
+
+        for IP based sockets, the remote port the underlying socket is connected to
+    """
+
     family: AddressFamily = typed_attribute()
-    #: the local socket address of the underlying socket
     local_address: SockAddrType = typed_attribute()
-    #: for IP addresses, the local port the underlying socket is bound to
     local_port: int = typed_attribute()
-    #: the underlying stdlib socket object
     raw_socket: socket.socket = typed_attribute()
-    #: the remote address the underlying socket is connected to
     remote_address: SockAddrType = typed_attribute()
-    #: for IP addresses, the remote port the underlying socket is connected to
     remote_port: int = typed_attribute()
 
 

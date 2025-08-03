@@ -234,7 +234,7 @@ Sharing a blocking portal on demand
 
 If you're building a synchronous API that needs to start a blocking portal on demand,
 you might need a more efficient solution than just starting a blocking portal for each
-call. To that end, you can use :class:`BlockingPortalProvider`::
+call. To that end, you can use :class:`~.from_thread.BlockingPortalProvider`::
 
     from anyio.from_thread import BlockingPortalProvider
 

@@ -13,9 +13,9 @@ notifying other tasks and guarding access to shared resources.
 Events
 ------
 
-Events are used to notify tasks that something they've been waiting to happen has
-happened. An event object can have multiple listeners and they are all notified when the
-event is triggered.
+Events (:class:`Event`) are used to notify tasks that something they've been waiting to
+happen has happened. An event object can have multiple listeners and they are all
+notified when the event is triggered.
 
 Example::
 
@@ -35,6 +35,9 @@ Example::
 
     run(main)
 
+    # Output:
+    # Received notification!
+
 .. note:: Unlike standard library Events, AnyIO events cannot be reused, and must be
    replaced instead. This practice prevents a class of race conditions, and matches the
    semantics of the Trio library.
@@ -42,10 +45,10 @@ Example::
 Semaphores
 ----------
 
-Semaphores are used for limiting access to a shared resource. A semaphore starts with a
-maximum value, which is decremented each time the semaphore is acquired by a task and
-incremented when it is released. If the value drops to zero, any attempt to acquire the
-semaphore will block until another task frees it.
+Semaphores (:class:`Semaphore`) are used for limiting access to a shared resource. A
+semaphore starts with a maximum value, which is decremented each time the semaphore is
+acquired by a task and incremented when it is released. If the value drops to zero, any
+attempt to acquire the semaphore will block until another task frees it.
 
 Example::
 
@@ -54,7 +57,7 @@ Example::
 
     async def use_resource(tasknum, semaphore):
         async with semaphore:
-            print('Task number', tasknum, 'is now working with the shared resource')
+            print(f"Task number {tasknum} is now working with the shared resource")
             await sleep(1)
 
 
@@ -66,6 +69,18 @@ Example::
 
     run(main)
 
+    # Output:
+    # Task number 0 is now working with the shared resource
+    # Task number 1 is now working with the shared resource
+    # Task number 2 is now working with the shared resource
+    # Task number 3 is now working with the shared resource
+    # Task number 4 is now working with the shared resource
+    # Task number 5 is now working with the shared resource
+    # Task number 6 is now working with the shared resource
+    # Task number 7 is now working with the shared resource
+    # Task number 8 is now working with the shared resource
+    # Task number 9 is now working with the shared resource
+
 .. tip:: If the performance of semaphores is critical for you, you could pass
    ``fast_acquire=True`` to :class:`Semaphore`. This has the effect of skipping the
    :func:`~.lowlevel.cancel_shielded_checkpoint` call in :meth:`Semaphore.acquire` if
@@ -76,9 +91,9 @@ Example::
 Locks
 -----
 
-Locks are used to guard shared resources to ensure sole access to a single task at once.
-They function much like semaphores with a maximum value of 1, except that only the task
-that acquired the lock is allowed to release it.
+Locks (:class:`Lock`) are used to guard shared resources to ensure sole access to a
+single task at once. They function much like semaphores with a maximum value of 1,
+except that only the task that acquired the lock is allowed to release it.
 
 Example::
 
@@ -98,6 +113,12 @@ Example::
                 tg.start_soon(use_resource, num, lock)
 
     run(main)
+
+    # Output:
+    # Task number 0 is now working with the shared resource
+    # Task number 1 is now working with the shared resource
+    # Task number 2 is now working with the shared resource
+    # Task number 3 is now working with the shared resource
 
 .. tip:: If the performance of locks is critical for you, you could pass
    ``fast_acquire=True`` to :class:`Lock`. This has the effect of skipping the
@@ -148,12 +169,31 @@ Example::
 
     run(main)
 
+    # Output:
+    # Woke up task number 0
+    # Woke up task number 1
+    # Woke up task number 2
+    # Woke up task number 3
+    # Woke up task number 4
+    # Woke up task number 5
+
+.. _capacity-limiters:
+
 Capacity limiters
 -----------------
 
-Capacity limiters are like semaphores except that a single borrower (the current task by
-default) can only hold a single token at a time. It is also possible to borrow a token
-on behalf of any arbitrary object, so long as that object is hashable.
+Capacity limiters (:class:`CapacityLimiter`) are like semaphores except that a single
+borrower (the current task by default) can only hold a single token at a time. It is
+also possible to borrow a token on behalf of any arbitrary object, so long as that object
+is hashable.
+
+It is recommended to use capacity limiters instead of semaphores unless you intend to
+allow a task to acquire multiple tokens from the same object. AnyIO uses capacity
+limiters to limit the number of threads spawned.
+
+The number of total tokens available for tasks to acquire can be adjusted by assigning
+the desired value to the ``total_tokens`` property. If the value is higher than the
+previous one, it will automatically wake up the appropriate number of waiting tasks.
 
 Example::
 
@@ -162,7 +202,7 @@ Example::
 
     async def use_resource(tasknum, limiter):
         async with limiter:
-            print('Task number', tasknum, 'is now working with the shared resource')
+            print(f"Task number {tasknum} is now working with the shared resource")
             await sleep(1)
 
 
@@ -174,8 +214,17 @@ Example::
 
     run(main)
 
-You can adjust the total number of tokens by setting a different value on the limiter's
-``total_tokens`` property.
+    # Output:
+    # Task number 0 is now working with the shared resource
+    # Task number 1 is now working with the shared resource
+    # Task number 2 is now working with the shared resource
+    # Task number 3 is now working with the shared resource
+    # Task number 4 is now working with the shared resource
+    # Task number 5 is now working with the shared resource
+    # Task number 6 is now working with the shared resource
+    # Task number 7 is now working with the shared resource
+    # Task number 8 is now working with the shared resource
+    # Task number 9 is now working with the shared resource
 
 Resource guards
 ---------------

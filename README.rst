@@ -12,12 +12,15 @@
   :alt: Gitter chat
 
 AnyIO is an asynchronous networking and concurrency library that works on top of either asyncio_ or
-trio_. It implements trio-like `structured concurrency`_ (SC) on top of asyncio and works in harmony
-with the native SC of trio itself.
+Trio_. It implements Trio-like `structured concurrency`_ (SC) on top of asyncio and works in harmony
+with the native SC of Trio itself.
 
 Applications and libraries written against AnyIO's API will run unmodified on either asyncio_ or
-trio_. AnyIO can also be adopted into a library or application incrementally – bit by bit, no full
+Trio_. AnyIO can also be adopted into a library or application incrementally – bit by bit, no full
 refactoring necessary. It will blend in with the native libraries of your chosen backend.
+
+To find out why you might want to use AnyIO's APIs instead of asyncio's, you can read about it
+`here <https://anyio.readthedocs.io/en/stable/why.html>`_.
 
 Documentation
 -------------
@@ -49,7 +52,7 @@ AnyIO also comes with its own pytest_ plugin which also supports asynchronous fi
 It even works with the popular Hypothesis_ library.
 
 .. _asyncio: https://docs.python.org/3/library/asyncio.html
-.. _trio: https://github.com/python-trio/trio
+.. _Trio: https://github.com/python-trio/trio
 .. _structured concurrency: https://en.wikipedia.org/wiki/Structured_concurrency
 .. _nurseries: https://trio.readthedocs.io/en/stable/reference-core.html#nurseries-and-spawning
 .. _Happy eyeballs: https://en.wikipedia.org/wiki/Happy_Eyeballs

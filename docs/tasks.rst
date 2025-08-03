@@ -41,6 +41,8 @@ Here's a demonstration::
 .. _Trio: https://trio.readthedocs.io/en/latest/reference-core.html
    #tasks-let-you-do-multiple-things-at-once
 
+.. _start_initialize:
+
 Starting and initializing tasks
 -------------------------------
 
@@ -145,9 +147,22 @@ function from the exceptiongroup_ package::
 
 If you need to set local variables in the handlers, declare them as ``nonlocal``::
 
-    def handle_valueerror(exc):
-        nonlocal somevariable
-        somevariable = 'whatever'
+    async def yourfunc():
+        somevariable: str | None = None
+
+        def handle_valueerror(exc):
+            nonlocal somevariable
+            somevariable = 'whatever'
+
+        with catch({
+            ValueError: handle_valueerror,
+            KeyError: handle_keyerror
+        }):
+            async with create_task_group() as tg:
+                tg.start_soon(some_task)
+                tg.start_soon(another_task)
+
+        print(f"{somevariable=}")
 
 .. _exceptiongroup: https://pypi.org/project/exceptiongroup/
 
