@@ -34,6 +34,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   Christoffer Fjord)
 - Added a documentation page explaining why one might want to use AnyIO's APIs instead of
   asyncio's
+- Updated the ``to_interpreters`` module to use the public ``concurrent.interpreters``
+  API on Python 3.14 or later
 - Fixed ``anyio.Path.copy()`` and ``anyio.Path.copy_into()`` failing on Python 3.14.0a7
 - Fixed return annotation of ``__aexit__`` on async context managers. CMs which can
   suppress exceptions should return ``bool``, or ``None`` otherwise.
