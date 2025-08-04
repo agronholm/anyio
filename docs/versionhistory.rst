@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**4.10**
 
 - Added the ``feed_data()`` method to the ``BufferedByteReceiveStream`` class, allowing
   users to inject data directly into the buffer
@@ -32,8 +32,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Incorporated several documentation improvements from the EuroPython 2025 sprint
   (special thanks to the sprinters: Emmanuel Okedele, Jan Murre, Euxenia Miruna Goia and
   Christoffer Fjord)
-- Added a documentation page explaining why one might want to use AnyIO's APIs instead of
-  asyncio's
+- Added a documentation page explaining why one might want to use AnyIO's APIs instead
+  of asyncio's
 - Updated the ``to_interpreters`` module to use the public ``concurrent.interpreters``
   API on Python 3.14 or later
 - Fixed ``anyio.Path.copy()`` and ``anyio.Path.copy_into()`` failing on Python 3.14.0a7
@@ -48,8 +48,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#926 <https://github.com/agronholm/anyio/issues/926>`_; PR by @hroncok)
 - Fixed ``SyntaxWarning`` on Python 3.14 about ``return`` in ``finally``
   (`#816 <https://github.com/agronholm/anyio/issues/816>`_)
-- Fixed RunVar name conflicts. RunVar instances with the same name should not share storage.
-  (`#880 <https://github.com/agronholm/anyio/issues/880>`_; PR by @vimfu)
+- Fixed RunVar name conflicts. RunVar instances with the same name should not share
+  storage (`#880 <https://github.com/agronholm/anyio/issues/880>`_; PR by @vimfu)
 - Renamed the ``BrokenWorkerIntepreter`` exception to ``BrokenWorkerInterpreter``.
   The old name is available as a deprecated alias.
   (`#938 <https://github.com/agronholm/anyio/pull/938>`_; PR by @ayussh-verma)
