@@ -24,6 +24,7 @@ The manual
    signals
    contextmanagers
    testing
+   backend_options
    api
    migration
    faq

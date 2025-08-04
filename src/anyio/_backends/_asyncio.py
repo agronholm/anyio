@@ -68,6 +68,7 @@ from .. import (
     TaskInfo,
     abc,
 )
+from .._core._config import get_config
 from .._core._eventloop import claim_worker_thread, threadlocals
 from .._core._exceptions import (
     BrokenResourceError,
@@ -913,8 +914,6 @@ _Retval_Queue_Type = tuple[Optional[T_Retval], Optional[BaseException]]
 
 
 class WorkerThread(Thread):
-    MAX_IDLE_TIME = 10  # seconds
-
     def __init__(
         self,
         root_task: asyncio.Task,
@@ -2449,13 +2448,14 @@ class AsyncIOBackend(AsyncBackend):
                 else:
                     worker = idle_workers.pop()
 
-                    # Prune any other workers that have been idle for MAX_IDLE_TIME
-                    # seconds or longer
+                    # Prune any other workers that have been idle for the configured
+                    # max idle time or longer
                     now = cls.current_time()
+                    max_idle_time = get_config().worker_thread_max_idle_time
                     while idle_workers:
                         if (
                             now - idle_workers[0].idle_since
-                            < WorkerThread.MAX_IDLE_TIME
+                            < max_idle_time
                         ):
                             break
 

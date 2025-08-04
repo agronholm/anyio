@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 import sniffio
 
+from ._config import update_config_from_options
+
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
 else:
@@ -71,6 +73,8 @@ def run(
 
     try:
         backend_options = backend_options or {}
+        # Update global configuration from backend options
+        update_config_from_options(backend_options)
         return async_backend.run(func, args, {}, backend_options)
     finally:
         if token:

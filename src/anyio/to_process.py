@@ -23,7 +23,7 @@ if sys.version_info >= (3, 11):
 else:
     from typing_extensions import TypeVarTuple, Unpack
 
-WORKER_MAX_IDLE_TIME = 300  # 5 minutes
+from ._core._config import get_config
 
 T_Retval = TypeVar("T_Retval")
 PosArgsT = TypeVarTuple("PosArgsT")
@@ -117,12 +117,13 @@ async def run_sync(  # type: ignore[return]
                     cast(ByteReceiveStream, process.stdout)
                 )
 
-                # Prune any other workers that have been idle for WORKER_MAX_IDLE_TIME
-                # seconds or longer
+                # Prune any other workers that have been idle for the configured
+                # max idle time or longer
                 now = current_time()
+                max_idle_time = get_config().worker_process_max_idle_time
                 killed_processes: list[Process] = []
                 while idle_workers:
-                    if now - idle_workers[0][1] < WORKER_MAX_IDLE_TIME:
+                    if now - idle_workers[0][1] < max_idle_time:
                         break
 
                     process_to_kill, idle_since = idle_workers.popleft()

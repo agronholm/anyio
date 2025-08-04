@@ -18,6 +18,7 @@ from anyio import (
     wait_all_tasks_blocked,
 )
 from anyio.abc import Process
+from anyio._core._config import get_config
 
 pytestmark = pytest.mark.anyio
 
@@ -107,7 +108,7 @@ async def test_exec_while_pruning() -> None:
     try:
         # Add a mock worker process that's guaranteed to be eligible for pruning
         idle_workers.appendleft(
-            (fake_idle_process, -to_process.WORKER_MAX_IDLE_TIME - 1)
+            (fake_idle_process, -get_config().worker_process_max_idle_time - 1)
         )
 
         worker_pid2 = await to_process.run_sync(os.getpid)
