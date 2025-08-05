@@ -36,12 +36,7 @@ from contextlib import AbstractContextManager, suppress
 from contextvars import Context, copy_context
 from dataclasses import dataclass
 from functools import partial, wraps
-from inspect import (
-    CORO_RUNNING,
-    CORO_SUSPENDED,
-    getcoroutinestate,
-    iscoroutine,
-)
+from inspect import CORO_RUNNING, CORO_SUSPENDED, getcoroutinestate, iscoroutine
 from io import IOBase
 from os import PathLike
 from queue import Queue
@@ -49,25 +44,12 @@ from signal import Signals
 from socket import AddressFamily, SocketKind
 from threading import Thread
 from types import CodeType, TracebackType
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    Any,
-    Optional,
-    TypeVar,
-    cast,
-)
+from typing import IO, TYPE_CHECKING, Any, Optional, TypeVar, cast
 from weakref import WeakKeyDictionary
 
 import sniffio
 
-from .. import (
-    CapacityLimiterStatistics,
-    EventStatistics,
-    LockStatistics,
-    TaskInfo,
-    abc,
-)
+from .. import CapacityLimiterStatistics, EventStatistics, LockStatistics, TaskInfo, abc
 from .._core._eventloop import claim_worker_thread, threadlocals
 from .._core._exceptions import (
     BrokenResourceError,
@@ -79,15 +61,10 @@ from .._core._exceptions import (
 )
 from .._core._sockets import convert_ipv6_sockaddr
 from .._core._streams import create_memory_object_stream
-from .._core._synchronization import (
-    CapacityLimiter as BaseCapacityLimiter,
-)
+from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
 from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import Lock as BaseLock
-from .._core._synchronization import (
-    ResourceGuard,
-    SemaphoreStatistics,
-)
+from .._core._synchronization import ResourceGuard, SemaphoreStatistics
 from .._core._synchronization import Semaphore as BaseSemaphore
 from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import (
@@ -951,7 +928,7 @@ class WorkerThread(Thread):
                 future.set_result(result)
 
     def run(self) -> None:
-        with claim_worker_thread(AsyncIOBackend, self.loop):
+        with claim_worker_thread(AsyncIOBackend, self.loop):  # type: ignore[type-abstract]
             while True:
                 item = self.queue.get()
                 if item is None:
@@ -1116,7 +1093,11 @@ def _forcibly_shutdown_process_pool_on_exit(
 ) -> None:
     """
     Forcibly shuts down worker processes belonging to this event loop."""
-    child_watcher: asyncio.AbstractChildWatcher | None = None
+    if sys.platform == "win32":
+        # XXX: Mypy issue
+        child_watcher = None
+    else:
+        child_watcher: asyncio.AbstractChildWatcher | None = None
     if sys.version_info < (3, 12):
         try:
             child_watcher = asyncio.get_event_loop_policy().get_child_watcher()
@@ -1362,120 +1343,126 @@ class _RawSocketMixin:
                 self._send_future.set_result(None)
 
 
-class UNIXSocketStream(_RawSocketMixin, abc.UNIXSocketStream):
-    async def send_eof(self) -> None:
-        with self._send_guard:
-            self._raw_socket.shutdown(socket.SHUT_WR)
+if sys.platform != "win32":
 
-    async def receive(self, max_bytes: int = 65536) -> bytes:
-        loop = get_running_loop()
-        await AsyncIOBackend.checkpoint()
-        with self._receive_guard:
-            while True:
-                try:
-                    data = self._raw_socket.recv(max_bytes)
-                except BlockingIOError:
-                    await self._wait_until_readable(loop)
-                except OSError as exc:
-                    if self._closing:
-                        raise ClosedResourceError from None
+    class UNIXSocketStream(_RawSocketMixin, abc.UNIXSocketStream):
+        async def send_eof(self) -> None:
+            with self._send_guard:
+                self._raw_socket.shutdown(socket.SHUT_WR)
+
+        async def receive(self, max_bytes: int = 65536) -> bytes:
+            loop = get_running_loop()
+            await AsyncIOBackend.checkpoint()
+            with self._receive_guard:
+                while True:
+                    try:
+                        data = self._raw_socket.recv(max_bytes)
+                    except BlockingIOError:
+                        await self._wait_until_readable(loop)
+                    except OSError as exc:
+                        if self._closing:
+                            raise ClosedResourceError from None
+                        else:
+                            raise BrokenResourceError from exc
                     else:
-                        raise BrokenResourceError from exc
-                else:
-                    if not data:
-                        raise EndOfStream
+                        if not data:
+                            raise EndOfStream
 
-                    return data
+                        return data
 
-    async def send(self, item: bytes) -> None:
-        loop = get_running_loop()
-        await AsyncIOBackend.checkpoint()
-        with self._send_guard:
-            view = memoryview(item)
-            while view:
-                try:
-                    bytes_sent = self._raw_socket.send(view)
-                except BlockingIOError:
-                    await self._wait_until_writable(loop)
-                except OSError as exc:
-                    if self._closing:
-                        raise ClosedResourceError from None
+        async def send(self, item: bytes) -> None:
+            loop = get_running_loop()
+            await AsyncIOBackend.checkpoint()
+            with self._send_guard:
+                view = memoryview(item)
+                while view:
+                    try:
+                        bytes_sent = self._raw_socket.send(view)
+                    except BlockingIOError:
+                        await self._wait_until_writable(loop)
+                    except OSError as exc:
+                        if self._closing:
+                            raise ClosedResourceError from None
+                        else:
+                            raise BrokenResourceError from exc
                     else:
-                        raise BrokenResourceError from exc
-                else:
-                    view = view[bytes_sent:]
+                        view = view[bytes_sent:]
 
-    async def receive_fds(self, msglen: int, maxfds: int) -> tuple[bytes, list[int]]:
-        if not isinstance(msglen, int) or msglen < 0:
-            raise ValueError("msglen must be a non-negative integer")
-        if not isinstance(maxfds, int) or maxfds < 1:
-            raise ValueError("maxfds must be a positive integer")
+        async def receive_fds(
+            self, msglen: int, maxfds: int
+        ) -> tuple[bytes, list[int]]:
+            if not isinstance(msglen, int) or msglen < 0:
+                raise ValueError("msglen must be a non-negative integer")
+            if not isinstance(maxfds, int) or maxfds < 1:
+                raise ValueError("maxfds must be a positive integer")
 
-        loop = get_running_loop()
-        fds = array.array("i")
-        await AsyncIOBackend.checkpoint()
-        with self._receive_guard:
-            while True:
-                try:
-                    message, ancdata, flags, addr = self._raw_socket.recvmsg(
-                        msglen, socket.CMSG_LEN(maxfds * fds.itemsize)
+            loop = get_running_loop()
+            fds = array.array("i")
+            await AsyncIOBackend.checkpoint()
+            with self._receive_guard:
+                while True:
+                    try:
+                        message, ancdata, flags, addr = self._raw_socket.recvmsg(
+                            msglen, socket.CMSG_LEN(maxfds * fds.itemsize)
+                        )
+                    except BlockingIOError:
+                        await self._wait_until_readable(loop)
+                    except OSError as exc:
+                        if self._closing:
+                            raise ClosedResourceError from None
+                        else:
+                            raise BrokenResourceError from exc
+                    else:
+                        if not message and not ancdata:
+                            raise EndOfStream
+
+                        break
+
+            for cmsg_level, cmsg_type, cmsg_data in ancdata:
+                if cmsg_level != socket.SOL_SOCKET or cmsg_type != socket.SCM_RIGHTS:
+                    raise RuntimeError(
+                        f"Received unexpected ancillary data; message = {message!r}, "
+                        f"cmsg_level = {cmsg_level}, cmsg_type = {cmsg_type}"
                     )
-                except BlockingIOError:
-                    await self._wait_until_readable(loop)
-                except OSError as exc:
-                    if self._closing:
-                        raise ClosedResourceError from None
-                    else:
-                        raise BrokenResourceError from exc
-                else:
-                    if not message and not ancdata:
-                        raise EndOfStream
 
-                    break
-
-        for cmsg_level, cmsg_type, cmsg_data in ancdata:
-            if cmsg_level != socket.SOL_SOCKET or cmsg_type != socket.SCM_RIGHTS:
-                raise RuntimeError(
-                    f"Received unexpected ancillary data; message = {message!r}, "
-                    f"cmsg_level = {cmsg_level}, cmsg_type = {cmsg_type}"
+                fds.frombytes(
+                    cmsg_data[: len(cmsg_data) - (len(cmsg_data) % fds.itemsize)]
                 )
 
-            fds.frombytes(cmsg_data[: len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])
+            return message, list(fds)
 
-        return message, list(fds)
+        async def send_fds(self, message: bytes, fds: Collection[int | IOBase]) -> None:
+            if not message:
+                raise ValueError("message must not be empty")
+            if not fds:
+                raise ValueError("fds must not be empty")
 
-    async def send_fds(self, message: bytes, fds: Collection[int | IOBase]) -> None:
-        if not message:
-            raise ValueError("message must not be empty")
-        if not fds:
-            raise ValueError("fds must not be empty")
+            loop = get_running_loop()
+            filenos: list[int] = []
+            for fd in fds:
+                if isinstance(fd, int):
+                    filenos.append(fd)
+                elif isinstance(fd, IOBase):
+                    filenos.append(fd.fileno())
 
-        loop = get_running_loop()
-        filenos: list[int] = []
-        for fd in fds:
-            if isinstance(fd, int):
-                filenos.append(fd)
-            elif isinstance(fd, IOBase):
-                filenos.append(fd.fileno())
-
-        fdarray = array.array("i", filenos)
-        await AsyncIOBackend.checkpoint()
-        with self._send_guard:
-            while True:
-                try:
-                    # The ignore can be removed after mypy picks up
-                    # https://github.com/python/typeshed/pull/5545
-                    self._raw_socket.sendmsg(
-                        [message], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)]
-                    )
-                    break
-                except BlockingIOError:
-                    await self._wait_until_writable(loop)
-                except OSError as exc:
-                    if self._closing:
-                        raise ClosedResourceError from None
-                    else:
-                        raise BrokenResourceError from exc
+            fdarray = array.array("i", filenos)
+            await AsyncIOBackend.checkpoint()
+            with self._send_guard:
+                while True:
+                    try:
+                        # The ignore can be removed after mypy picks up
+                        # https://github.com/python/typeshed/pull/5545
+                        self._raw_socket.sendmsg(
+                            [message], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)]
+                        )
+                        break
+                    except BlockingIOError:
+                        await self._wait_until_writable(loop)
+                    except OSError as exc:
+                        if self._closing:
+                            raise ClosedResourceError from None
+                        else:
+                            raise BrokenResourceError from exc
 
 
 class TCPSocketListener(abc.SocketListener):
@@ -1538,41 +1525,43 @@ class TCPSocketListener(abc.SocketListener):
         self._raw_socket.close()
 
 
-class UNIXSocketListener(abc.SocketListener):
-    def __init__(self, raw_socket: socket.socket):
-        self.__raw_socket = raw_socket
-        self._loop = get_running_loop()
-        self._accept_guard = ResourceGuard("accepting connections from")
-        self._closed = False
+if sys.platform != "win32":
 
-    async def accept(self) -> abc.SocketStream:
-        await AsyncIOBackend.checkpoint()
-        with self._accept_guard:
-            while True:
-                try:
-                    client_sock, _ = self.__raw_socket.accept()
-                    client_sock.setblocking(False)
-                    return UNIXSocketStream(client_sock)
-                except BlockingIOError:
-                    f: asyncio.Future = asyncio.Future()
-                    self._loop.add_reader(self.__raw_socket, f.set_result, None)
-                    f.add_done_callback(
-                        lambda _: self._loop.remove_reader(self.__raw_socket)
-                    )
-                    await f
-                except OSError as exc:
-                    if self._closed:
-                        raise ClosedResourceError from None
-                    else:
-                        raise BrokenResourceError from exc
+    class UNIXSocketListener(abc.SocketListener):
+        def __init__(self, raw_socket: socket.socket):
+            self.__raw_socket = raw_socket
+            self._loop = get_running_loop()
+            self._accept_guard = ResourceGuard("accepting connections from")
+            self._closed = False
 
-    async def aclose(self) -> None:
-        self._closed = True
-        self.__raw_socket.close()
+        async def accept(self) -> abc.SocketStream:
+            await AsyncIOBackend.checkpoint()
+            with self._accept_guard:
+                while True:
+                    try:
+                        client_sock, _ = self.__raw_socket.accept()
+                        client_sock.setblocking(False)
+                        return UNIXSocketStream(client_sock)
+                    except BlockingIOError:
+                        f: asyncio.Future = asyncio.Future()
+                        self._loop.add_reader(self.__raw_socket, f.set_result, None)
+                        f.add_done_callback(
+                            lambda _: self._loop.remove_reader(self.__raw_socket)
+                        )
+                        await f
+                    except OSError as exc:
+                        if self._closed:
+                            raise ClosedResourceError from None
+                        else:
+                            raise BrokenResourceError from exc
 
-    @property
-    def _raw_socket(self) -> socket.socket:
-        return self.__raw_socket
+        async def aclose(self) -> None:
+            self._closed = True
+            self.__raw_socket.close()
+
+        @property
+        def _raw_socket(self) -> socket.socket:
+            return self.__raw_socket
 
 
 class UDPSocket(abc.UDPSocket):
@@ -2149,9 +2138,14 @@ class TestRunner(abc.TestRunner):
         loop_factory: Callable[[], AbstractEventLoop] | None = None,
     ) -> None:
         if use_uvloop and loop_factory is None:
-            import uvloop
+            if sys.platform != "win32":
+                import uvloop
 
-            loop_factory = uvloop.new_event_loop
+                loop_factory = uvloop.new_event_loop
+            else:
+                import winloop
+
+                loop_factory = winloop.new_event_loop
 
         self._runner = Runner(debug=debug, loop_factory=loop_factory)
         self._exceptions: list[BaseException] = []
@@ -2308,9 +2302,14 @@ class AsyncIOBackend(AsyncBackend):
         debug = options.get("debug", None)
         loop_factory = options.get("loop_factory", None)
         if loop_factory is None and options.get("use_uvloop", False):
-            import uvloop
+            if sys.platform != "win32":
+                import uvloop
 
-            loop_factory = uvloop.new_event_loop
+                loop_factory = uvloop.new_event_loop
+            else:
+                import winloop
+
+                loop_factory = winloop.new_event_loop
 
         with Runner(debug=debug, loop_factory=loop_factory) as runner:
             return runner.run(wrapper())
@@ -2600,33 +2599,37 @@ class AsyncIOBackend(AsyncBackend):
         transport.pause_reading()
         return SocketStream(transport, protocol)
 
-    @classmethod
-    async def connect_unix(cls, path: str | bytes) -> abc.UNIXSocketStream:
-        await cls.checkpoint()
-        loop = get_running_loop()
-        raw_socket = socket.socket(socket.AF_UNIX)
-        raw_socket.setblocking(False)
-        while True:
-            try:
-                raw_socket.connect(path)
-            except BlockingIOError:
-                f: asyncio.Future = asyncio.Future()
-                loop.add_writer(raw_socket, f.set_result, None)
-                f.add_done_callback(lambda _: loop.remove_writer(raw_socket))
-                await f
-            except BaseException:
-                raw_socket.close()
-                raise
-            else:
-                return UNIXSocketStream(raw_socket)
+    if sys.platform != "win32":
+
+        @classmethod
+        async def connect_unix(cls, path: str | bytes) -> abc.UNIXSocketStream:
+            await cls.checkpoint()
+            loop = get_running_loop()
+            raw_socket = socket.socket(getattr(socket, "AF_UNIX"))
+            raw_socket.setblocking(False)
+            while True:
+                try:
+                    raw_socket.connect(path)
+                except BlockingIOError:
+                    f: asyncio.Future = asyncio.Future()
+                    loop.add_writer(raw_socket, f.set_result, None)
+                    f.add_done_callback(lambda _: loop.remove_writer(raw_socket))
+                    await f
+                except BaseException:
+                    raw_socket.close()
+                    raise
+                else:
+                    return UNIXSocketStream(raw_socket)
 
     @classmethod
     def create_tcp_listener(cls, sock: socket.socket) -> SocketListener:
         return TCPSocketListener(sock)
 
-    @classmethod
-    def create_unix_listener(cls, sock: socket.socket) -> SocketListener:
-        return UNIXSocketListener(sock)
+    if sys.platform != "win32":
+
+        @classmethod
+        def create_unix_listener(cls, sock: socket.socket) -> SocketListener:
+            return UNIXSocketListener(sock)
 
     @classmethod
     async def create_udp_socket(
@@ -2871,9 +2874,11 @@ class AsyncIOBackend(AsyncBackend):
         )
         return SocketStream(transport, protocol)
 
-    @classmethod
-    async def wrap_unix_stream_socket(cls, sock: socket.socket) -> UNIXSocketStream:
-        return UNIXSocketStream(sock)
+    if sys.platform != "win32":
+
+        @classmethod
+        async def wrap_unix_stream_socket(cls, sock: socket.socket) -> UNIXSocketStream:
+            return UNIXSocketStream(sock)
 
     @classmethod
     async def wrap_udp_socket(cls, sock: socket.socket) -> UDPSocket:

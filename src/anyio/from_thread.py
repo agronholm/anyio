@@ -12,13 +12,7 @@ from dataclasses import dataclass, field
 from inspect import isawaitable
 from threading import Lock, Thread, current_thread, get_ident
 from types import TracebackType
-from typing import (
-    Any,
-    Generic,
-    TypeVar,
-    cast,
-    overload,
-)
+from typing import Any, Generic, TypeVar, cast, overload
 
 from ._core import _eventloop
 from ._core._eventloop import get_async_backend, get_cancelled_exc_class, threadlocals

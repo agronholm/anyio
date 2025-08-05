@@ -26,16 +26,7 @@ from os import PathLike
 from signal import Signals
 from socket import AddressFamily, SocketKind
 from types import TracebackType
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    Any,
-    Generic,
-    NoReturn,
-    TypeVar,
-    cast,
-    overload,
-)
+from typing import IO, TYPE_CHECKING, Any, Generic, NoReturn, TypeVar, cast, overload
 
 import trio.from_thread
 import trio.lowlevel
@@ -67,15 +58,10 @@ from .._core._exceptions import (
 )
 from .._core._sockets import convert_ipv6_sockaddr
 from .._core._streams import create_memory_object_stream
-from .._core._synchronization import (
-    CapacityLimiter as BaseCapacityLimiter,
-)
+from .._core._synchronization import CapacityLimiter as BaseCapacityLimiter
 from .._core._synchronization import Event as BaseEvent
 from .._core._synchronization import Lock as BaseLock
-from .._core._synchronization import (
-    ResourceGuard,
-    SemaphoreStatistics,
-)
+from .._core._synchronization import ResourceGuard, SemaphoreStatistics
 from .._core._synchronization import Semaphore as BaseSemaphore
 from .._core._tasks import CancelScope as BaseCancelScope
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
@@ -458,8 +444,9 @@ class UNIXSocketStream(SocketStream, abc.UNIXSocketStream):
         with self._receive_guard:
             while True:
                 try:
-                    message, ancdata, flags, addr = await self._trio_socket.recvmsg(
-                        msglen, socket.CMSG_LEN(maxfds * fds.itemsize)
+                    message, ancdata, flags, addr = await self._trio_socket.recvmsg(  # type: ignore[attr-defined]
+                        msglen,
+                        socket.CMSG_LEN(maxfds * fds.itemsize),  # type: ignore[attr-defined]
                     )
                 except BaseException as exc:
                     self._convert_socket_error(exc)
@@ -470,7 +457,7 @@ class UNIXSocketStream(SocketStream, abc.UNIXSocketStream):
                     break
 
         for cmsg_level, cmsg_type, cmsg_data in ancdata:
-            if cmsg_level != socket.SOL_SOCKET or cmsg_type != socket.SCM_RIGHTS:
+            if cmsg_level != socket.SOL_SOCKET or cmsg_type != socket.SCM_RIGHTS:  # type: ignore[attr-defined]
                 raise RuntimeError(
                     f"Received unexpected ancillary data; message = {message!r}, "
                     f"cmsg_level = {cmsg_level}, cmsg_type = {cmsg_type}"
@@ -498,12 +485,12 @@ class UNIXSocketStream(SocketStream, abc.UNIXSocketStream):
         with self._send_guard:
             while True:
                 try:
-                    await self._trio_socket.sendmsg(
+                    await self._trio_socket.sendmsg(  # type: ignore[attr-defined]
                         [message],
                         [
                             (
                                 socket.SOL_SOCKET,
-                                socket.SCM_RIGHTS,
+                                socket.SCM_RIGHTS,  # type: ignore[attr-defined]
                                 fdarray,
                             )
                         ],
@@ -1174,7 +1161,7 @@ class TrioBackend(AsyncBackend):
 
     @classmethod
     async def connect_unix(cls, path: str | bytes) -> abc.UNIXSocketStream:
-        trio_socket = trio.socket.socket(socket.AF_UNIX)
+        trio_socket = trio.socket.socket(getattr(socket, "AF_UNIX"))
         try:
             await trio_socket.connect(path)
         except BaseException:
@@ -1201,7 +1188,8 @@ class TrioBackend(AsyncBackend):
     ) -> UDPSocket | ConnectedUDPSocket:
         trio_socket = trio.socket.socket(family=family, type=socket.SOCK_DGRAM)
 
-        if reuse_port:
+        if reuse_port and sys.platform != "win32":
+            # XXX: SO_REUSEPORT is not supported on windows
             trio_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
 
         if local_address:

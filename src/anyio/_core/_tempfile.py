@@ -6,13 +6,7 @@ import tempfile
 from collections.abc import Iterable
 from io import BytesIO, TextIOWrapper
 from types import TracebackType
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    AnyStr,
-    Generic,
-    overload,
-)
+from typing import TYPE_CHECKING, Any, AnyStr, Generic, overload
 
 from .. import to_thread
 from .._core._fileio import AsyncFile

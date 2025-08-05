@@ -6,12 +6,7 @@ from dataclasses import dataclass, field
 from types import TracebackType
 from typing import Generic, NamedTuple, TypeVar
 
-from .. import (
-    BrokenResourceError,
-    ClosedResourceError,
-    EndOfStream,
-    WouldBlock,
-)
+from .. import BrokenResourceError, ClosedResourceError, EndOfStream, WouldBlock
 from .._core._testing import TaskInfo, get_current_task
 from ..abc import Event, ObjectReceiveStream, ObjectSendStream
 from ..lowlevel import checkpoint

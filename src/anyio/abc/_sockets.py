@@ -218,7 +218,10 @@ class UNIXSocketStream(SocketStream):
 
         """
         sock = _validate_socket(
-            sock_or_fd, socket.SOCK_STREAM, socket.AF_UNIX, require_connected=True
+            sock_or_fd,
+            socket.SOCK_STREAM,
+            getattr(socket, "AF_UNIX"),
+            require_connected=True,
         )
         return await get_async_backend().wrap_unix_stream_socket(sock)
 
@@ -368,7 +371,9 @@ class UNIXDatagramSocket(
         :return: a UNIX datagram socket
 
         """
-        sock = _validate_socket(sock_or_fd, socket.SOCK_DGRAM, socket.AF_UNIX)
+        sock = _validate_socket(
+            sock_or_fd, socket.SOCK_DGRAM, getattr(socket, "AF_UNIX")
+        )
         return await get_async_backend().wrap_unix_datagram_socket(sock)
 
     async def sendto(self, data: bytes, path: str) -> None:
@@ -400,6 +405,9 @@ class ConnectedUNIXDatagramSocket(UnreliableObjectStream[bytes], _SocketProvider
 
         """
         sock = _validate_socket(
-            sock_or_fd, socket.SOCK_DGRAM, socket.AF_UNIX, require_connected=True
+            sock_or_fd,
+            socket.SOCK_DGRAM,
+            getattr(socket, "AF_UNIX"),
+            require_connected=True,
         )
         return await get_async_backend().wrap_connected_unix_datagram_socket(sock)

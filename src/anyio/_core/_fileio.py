@@ -3,26 +3,11 @@ from __future__ import annotations
 import os
 import pathlib
 import sys
-from collections.abc import (
-    AsyncIterator,
-    Callable,
-    Iterable,
-    Iterator,
-    Sequence,
-)
+from collections.abc import AsyncIterator, Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from functools import partial
 from os import PathLike
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    Any,
-    AnyStr,
-    ClassVar,
-    Final,
-    Generic,
-    overload,
-)
+from typing import IO, TYPE_CHECKING, Any, AnyStr, ClassVar, Final, Generic, overload
 
 from .. import to_thread
 from ..abc import AsyncResource
@@ -484,7 +469,7 @@ class Path:
         return _PathIterator(gen)
 
     async def group(self) -> str:
-        return await to_thread.run_sync(self._path.group, abandon_on_cancel=True)
+        return await to_thread.run_sync(self._path.group, abandon_on_cancel=True)  # type: ignore[attr-defined]
 
     async def hardlink_to(
         self, target: str | bytes | PathLike[str] | PathLike[bytes]
@@ -597,7 +582,7 @@ class Path:
         return AsyncFile(fp)
 
     async def owner(self) -> str:
-        return await to_thread.run_sync(self._path.owner, abandon_on_cancel=True)
+        return await to_thread.run_sync(self._path.owner, abandon_on_cancel=True)  # type: ignore[attr-defined]
 
     async def read_bytes(self) -> bytes:
         return await to_thread.run_sync(self._path.read_bytes)

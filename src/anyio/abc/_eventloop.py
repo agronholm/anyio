@@ -8,14 +8,7 @@ from contextlib import AbstractContextManager
 from os import PathLike
 from signal import Signals
 from socket import AddressFamily, SocketKind, socket
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    Any,
-    TypeVar,
-    Union,
-    overload,
-)
+from typing import IO, TYPE_CHECKING, Any, TypeVar, Union, overload
 
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack

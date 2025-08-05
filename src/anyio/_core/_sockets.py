@@ -335,7 +335,7 @@ async def create_tcp_listener(
             else:
                 raw_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-            if reuse_port:
+            if reuse_port and sys.platform != "win32":
                 raw_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
 
             # If only IPv6 was requested, disable dual stack operation
@@ -815,7 +815,7 @@ async def setup_unix_local_socket(
     else:
         path_str = None
 
-    raw_socket = socket.socket(socket.AF_UNIX, socktype)
+    raw_socket = socket.socket(getattr(socket, "AF_UNIX"), socktype)
     raw_socket.setblocking(False)
 
     if path_str is not None:
