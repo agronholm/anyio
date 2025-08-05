@@ -30,13 +30,28 @@ else:
             pytest.mark.skip(reason="uvloop is missing shutdown_default_executor()")
         )
 
+winloop_marks = []
+try:
+    import winloop
+except ImportError:
+    winloop_marks.append(pytest.mark.skip(reason="winloop not available"))
+    winloop = Mock()
+
 pytest_plugins = ["pytester"]
 
 asyncio_params = [
     pytest.param(("asyncio", {"debug": True}), id="asyncio"),
     pytest.param(
-        ("asyncio", {"debug": True, "loop_factory": uvloop.new_event_loop}),
-        marks=uvloop_marks,
+        (
+            "asyncio",
+            {
+                "debug": True,
+                "loop_factory": uvloop.new_event_loop
+                if sys.platform != "win32"
+                else winloop.new_event_loop,
+            },
+        ),
+        marks=uvloop_marks if sys.platform != "win32" else winloop_marks,
         id="asyncio+uvloop",
     ),
 ]
