@@ -87,12 +87,11 @@ class TestAsyncioOptions:
         uvloop = pytest.importorskip("uvloop", reason="uvloop not installed")
         loop_class = run(main, backend="asyncio", backend_options={"use_uvloop": True})
         assert issubclass(loop_class, uvloop.Loop)
-    
+
     def test_use_winloop(self) -> None:
         async def main() -> type:
             return type(get_running_loop())
-        
+
         winloop = pytest.importorskip("winloop", reason="winloop not installed")
         loop_class = run(main, backend="asyncio", backend_options={"use_winloop": True})
         assert issubclass(loop_class, winloop.Loop)
-    
