@@ -36,13 +36,6 @@ try:
 except ImportError:
     winloop_marks.append(pytest.mark.skip(reason="winloop not available"))
     winloop = Mock()
-else:
-    if hasattr(asyncio.AbstractEventLoop, "shutdown_default_executor") and not hasattr(
-        winloop.loop.Loop, "shutdown_default_executor"
-    ):
-        winloop_marks.append(
-            pytest.mark.skip(reason="winloop is missing shutdown_default_executor()")
-        )
 
 pytest_plugins = ["pytester"]
 
