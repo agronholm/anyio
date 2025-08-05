@@ -2159,7 +2159,6 @@ class TestRunner(abc.TestRunner):
 
             loop_factory = winloop.new_event_loop
 
-
         self._runner = Runner(debug=debug, loop_factory=loop_factory)
         self._exceptions: list[BaseException] = []
         self._runner_task: asyncio.Task | None = None
