@@ -30,7 +30,9 @@ else:
         uvloop.loop.Loop, "shutdown_default_executor"
     ):
         uvloop_marks.append(
-            pytest.mark.skip(reason="uvloop or winloop is missing shutdown_default_executor()")
+            pytest.mark.skip(
+                reason="uvloop or winloop is missing shutdown_default_executor()"
+            )
         )
 
 pytest_plugins = ["pytester"]
