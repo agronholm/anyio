@@ -17,11 +17,11 @@ The ``worker_thread_max_idle_time`` option controls how long worker threads in t
 .. code-block:: python
 
     import anyio
-    
+
     async def my_coroutine():
         # Your async code here
         pass
-    
+
     # Set worker thread max idle time to 30 seconds
     anyio.run(my_coroutine, backend_options={
         "worker_thread_max_idle_time": 30.0
@@ -41,11 +41,11 @@ The ``worker_process_max_idle_time`` option controls how long worker processes i
 .. code-block:: python
 
     import anyio
-    
+
     async def my_coroutine():
         # Your async code here
         pass
-    
+
     # Set worker process max idle time to 10 minutes
     anyio.run(my_coroutine, backend_options={
         "worker_process_max_idle_time": 600.0
@@ -72,8 +72,8 @@ Both configuration options must be positive numbers. Attempting to set negative 
 .. code-block:: python
 
     import anyio
-    
+
     # This will raise ValueError
     anyio.run(my_coroutine, backend_options={
         "worker_thread_max_idle_time": -1.0  # Invalid!
-    }) 
+    })

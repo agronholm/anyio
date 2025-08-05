@@ -2453,10 +2453,7 @@ class AsyncIOBackend(AsyncBackend):
                     now = cls.current_time()
                     max_idle_time = get_config().worker_thread_max_idle_time
                     while idle_workers:
-                        if (
-                            now - idle_workers[0].idle_since
-                            < max_idle_time
-                        ):
+                        if now - idle_workers[0].idle_since < max_idle_time:
                             break
 
                         expired_worker = idle_workers.popleft()

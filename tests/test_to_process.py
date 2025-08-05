@@ -17,8 +17,8 @@ from anyio import (
     to_process,
     wait_all_tasks_blocked,
 )
-from anyio.abc import Process
 from anyio._core._config import get_config
+from anyio.abc import Process
 
 pytestmark = pytest.mark.anyio
 
