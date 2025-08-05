@@ -30,6 +30,20 @@ else:
             pytest.mark.skip(reason="uvloop is missing shutdown_default_executor()")
         )
 
+winloop_marks = []
+try:
+    import winloop
+except ImportError:
+    winloop_marks.append(pytest.mark.skip(reason="winloop not available"))
+    winloop = Mock()
+else:
+    if hasattr(asyncio.AbstractEventLoop, "shutdown_default_executor") and not hasattr(
+        winloop.loop.Loop, "shutdown_default_executor"
+    ):
+        winloop_marks.append(
+            pytest.mark.skip(reason="winloop is missing shutdown_default_executor()")
+        )
+
 pytest_plugins = ["pytester"]
 
 asyncio_params = [
@@ -39,6 +53,11 @@ asyncio_params = [
         marks=uvloop_marks,
         id="asyncio+uvloop",
     ),
+    pytest.param(
+        ("winloop", {"debug": True, "loop_factory": winloop.new_event_loop}),
+        marks=winloop_marks,
+        id="asyncio+winloop"
+    )
 ]
 if sys.version_info >= (3, 12):
 
