@@ -2146,19 +2146,19 @@ class TestRunner(abc.TestRunner):
         *,
         debug: bool | None = None,
         use_uvloop: bool = False,
-        use_winloop: bool = False,
         loop_factory: Callable[[], AbstractEventLoop] | None = None,
     ) -> None:
         if use_uvloop and loop_factory is None:
-            import uvloop
+            if sys.platform != "win32":
+                import uvloop
 
-            loop_factory = uvloop.new_event_loop
+                loop_factory = uvloop.new_event_loop
+            else:
+                import winloop
 
-        elif use_winloop and loop_factory is None:
-            import winloop
-
-            loop_factory = winloop.new_event_loop
-
+                loop_factory = winloop.new_event_loop
+            
+      
         self._runner = Runner(debug=debug, loop_factory=loop_factory)
         self._exceptions: list[BaseException] = []
         self._runner_task: asyncio.Task | None = None
