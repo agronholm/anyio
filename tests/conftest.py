@@ -42,13 +42,16 @@ pytest_plugins = ["pytester"]
 asyncio_params = [
     pytest.param(("asyncio", {"debug": True}), id="asyncio"),
     pytest.param(
-        ("asyncio", {"debug": True, "loop_factory": uvloop.new_event_loop}),
-        marks=uvloop_marks,
-        id="asyncio+uvloop",
-    ),
-    pytest.param(
-        ("asyncio", {"debug": True, "loop_factory": winloop.new_event_loop}),
-        marks=winloop_marks,
+        (
+            "asyncio",
+            {
+                "debug": True,
+                "loop_factory": uvloop.new_event_loop
+                if sys.platform != "win32"
+                else winloop.new_event_loop,
+            },
+        ),
+        marks=uvloop_marks if sys.platform != "win32" else winloop_marks,
         id="asyncio+uvloop",
     ),
 ]
