@@ -3,6 +3,12 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+- Added ``winloop`` to anyio so windows users can now set ``use_uvloop`` with pytest
+  or ``anyio.run()`` to run ``winloop`` instead of ``uvloop`` or being left with an ``ModuleNotFoundError``
+- Fixed Mypy Problems by making unix portions off limits when windows is in use.
+
+
 **4.10.0**
 
 - Added the ``feed_data()`` method to the ``BufferedByteReceiveStream`` class, allowing
