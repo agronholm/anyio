@@ -47,7 +47,7 @@ asyncio_params = [
         id="asyncio+uvloop",
     ),
     pytest.param(
-        ("winloop", {"debug": True, "loop_factory": winloop.new_event_loop}),
+        ("asyncio", {"debug": True, "loop_factory": winloop.new_event_loop}),
         marks=winloop_marks,
         id="asyncio+winloop",
     ),
