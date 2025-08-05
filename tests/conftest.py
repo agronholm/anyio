@@ -49,7 +49,7 @@ asyncio_params = [
     pytest.param(
         ("asyncio", {"debug": True, "loop_factory": winloop.new_event_loop}),
         marks=winloop_marks,
-        id="asyncio+winloop",
+        id="asyncio+uvloop",
     ),
 ]
 if sys.version_info >= (3, 12):
