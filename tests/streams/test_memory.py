@@ -169,8 +169,14 @@ async def test_cancel_receive() -> None:
         await wait_all_tasks_blocked()
         tg.cancel_scope.cancel()
 
+    assert receive._state.is_closed
+    assert send._state.is_closed
+
     with pytest.raises(WouldBlock):
         send.send_nowait("hello")
+
+    with pytest.raises(EndOfStream):
+        await receive.receive()
 
     send.close()
     receive.close()
@@ -181,10 +187,18 @@ async def test_cancel_send() -> None:
     async with create_task_group() as tg:
         tg.start_soon(send.send, "hello")
         await wait_all_tasks_blocked()
-        tg.cancel_scope.cancel()
+        tg.cancel_scope.cancel()  
+
+    assert send._state.is_closed
+    assert receive._state.is_closed
+
+    with pytest.raises(EndOfStream):
+        await receive.receive()
 
     with pytest.raises(WouldBlock):
         receive.receive_nowait()
+
+    assert not send._state.waiting_senders
 
     send.close()
     receive.close()
