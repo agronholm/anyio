@@ -187,7 +187,7 @@ async def test_cancel_send() -> None:
     async with create_task_group() as tg:
         tg.start_soon(send.send, "hello")
         await wait_all_tasks_blocked()
-        tg.cancel_scope.cancel()  
+        tg.cancel_scope.cancel()
 
     assert send._state.is_closed
     assert receive._state.is_closed
