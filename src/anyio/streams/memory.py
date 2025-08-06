@@ -14,7 +14,7 @@ from .. import (
 )
 from .._core._testing import TaskInfo, get_current_task
 from ..abc import Event, ObjectReceiveStream, ObjectSendStream
-from ..lowlevel import checkpoint
+from ..lowlevel import cancel_shielded_checkpoint
 
 T_Item = TypeVar("T_Item")
 T_co = TypeVar("T_co", covariant=True)
@@ -106,7 +106,7 @@ class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
         raise WouldBlock
 
     async def receive(self) -> T_co:
-        await checkpoint()
+        await cancel_shielded_checkpoint()
         try:
             return self.receive_nowait()
         except WouldBlock:
@@ -238,7 +238,7 @@ class MemoryObjectSendStream(Generic[T_contra], ObjectSendStream[T_contra]):
             receiving end
 
         """
-        await checkpoint()
+        await cancel_shielded_checkpoint()
         try:
             self.send_nowait(item)
         except WouldBlock:
