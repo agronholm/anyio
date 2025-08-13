@@ -4,7 +4,12 @@ import sys
 from abc import ABCMeta, abstractmethod
 from collections.abc import Awaitable, Callable
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Protocol, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Protocol, overload
+
+if sys.version_info >= (3, 13):
+    from typing import TypeVar
+else:
+    from typing_extensions import TypeVar
 
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
@@ -15,7 +20,7 @@ if TYPE_CHECKING:
     from .._core._tasks import CancelScope
 
 T_Retval = TypeVar("T_Retval")
-T_contra = TypeVar("T_contra", contravariant=True)
+T_contra = TypeVar("T_contra", contravariant=True, default=None)
 PosArgsT = TypeVarTuple("PosArgsT")
 
 

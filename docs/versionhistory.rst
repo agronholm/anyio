@@ -3,6 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Set ``None`` as the default type argument for ``anyio.abc.TaskStatus``
+
 **4.10.0**
 
 - Added the ``feed_data()`` method to the ``BufferedByteReceiveStream`` class, allowing
