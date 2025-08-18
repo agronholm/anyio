@@ -72,11 +72,9 @@ from anyio.abc import (
     UNIXDatagramSocket,
     UNIXSocketStream,
 )
-
 from anyio.lowlevel import checkpoint
 from anyio.streams.stapled import MultiListener
 from anyio.streams.tls import TLSConnectable
-import sniffio
 
 from .conftest import asyncio_params, no_other_refs
 
@@ -2198,8 +2196,7 @@ async def test_getaddrinfo() -> None:
 
 @pytest.mark.parametrize("sock_type", [socket.SOCK_STREAM, socket.SOCK_STREAM])
 async def test_getaddrinfo_ipv6addr(
-    sock_type: Literal[socket.SocketKind.SOCK_STREAM],
-    skip_if_winloop
+    sock_type: Literal[socket.SocketKind.SOCK_STREAM], skip_if_winloop
 ) -> None:
     # IDNA trips up over raw IPv6 addresses
     proto = 0 if platform.system() == "Windows" else 6
