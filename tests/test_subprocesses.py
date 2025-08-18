@@ -24,7 +24,6 @@ from anyio.streams.buffered import BufferedByteReceiveStream
 pytestmark = pytest.mark.anyio
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="winloop fails this shell test")
 @pytest.mark.parametrize(
     "shell, command",
     [
@@ -41,7 +40,7 @@ pytestmark = pytest.mark.anyio
     ],
 )
 async def test_run_process(
-    shell: bool, command: str | list[str], anyio_backend_name: str
+    shell: bool, command: str | list[str], anyio_backend_name: str, skip_if_winloop:None
 ) -> None:
     process = await run_process(command, input=b"abc")
     assert process.returncode == 0
@@ -276,9 +275,7 @@ async def test_process_aexit_cancellation_closes_standard_streams(
         await process.stderr.receive(1)
 
 
-@pytest.mark.skipif(
-    sys.platform == "win32", reason="winloop doesn't have have umask or special kwargs"
-)
+
 @pytest.mark.parametrize(
     "argname, argvalue_factory",
     [
@@ -313,6 +310,7 @@ async def test_py39_arguments(
     argvalue_factory: Callable[[], Any],
     anyio_backend_name: str,
     anyio_backend_options: dict[str, Any],
+    skip_if_winloop:None
 ) -> None:
     try:
         await run_process(
