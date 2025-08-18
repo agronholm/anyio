@@ -537,7 +537,7 @@ class TestBlockingPortal:
     def test_start_with_value(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
-        async def taskfunc(*, task_status: TaskStatus) -> None:
+        async def taskfunc(*, task_status: TaskStatus[str]) -> None:
             task_status.started("foo")
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
@@ -558,7 +558,7 @@ class TestBlockingPortal:
     def test_start_crash_after_started_call(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
-        async def taskfunc(*, task_status: TaskStatus) -> NoReturn:
+        async def taskfunc(*, task_status: TaskStatus[int]) -> NoReturn:
             task_status.started(2)
             raise Exception("foo")
 
@@ -581,7 +581,7 @@ class TestBlockingPortal:
     def test_start_with_name(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
-        async def taskfunc(*, task_status: TaskStatus) -> None:
+        async def taskfunc(*, task_status: TaskStatus[str | None]) -> None:
             task_status.started(get_current_task().name)
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
