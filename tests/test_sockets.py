@@ -2195,7 +2195,9 @@ async def test_getaddrinfo() -> None:
 
 
 @pytest.mark.parametrize("sock_type", [socket.SOCK_STREAM, socket.SOCK_STREAM])
-@pytest.mark.skipif(sys.platform == "win32", reason="getaddrinfo can be incorrect on winloop")
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="getaddrinfo can be incorrect on winloop"
+)
 async def test_getaddrinfo_ipv6addr(
     sock_type: Literal[socket.SocketKind.SOCK_STREAM],
 ) -> None:
