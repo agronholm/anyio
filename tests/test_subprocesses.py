@@ -42,9 +42,12 @@ pytestmark = pytest.mark.anyio
 async def test_run_process(
     shell: bool,
     command: str | list[str],
-    anyio_backend_name: str,
-    skip_if_winloop: None,
+    anyio_backend_name: str
 ) -> None:
+    if anyio_backend_name == "asyncio" and sys.platform == "win32":
+        import asyncio
+        if asyncio.get_event_loop().__module__ == "winloop":
+            pytest.skip(reason="winloop produces a non-zero exit with status 1")
     process = await run_process(command, input=b"abc")
     assert process.returncode == 0
     assert process.stdout.rstrip() == b"cba"

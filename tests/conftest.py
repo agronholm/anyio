@@ -93,21 +93,6 @@ def blockbuster() -> Iterator[BlockBuster | None]:
 
 
 @pytest.fixture
-async def skip_if_winloop():
-    import platform
-
-    import sniffio
-
-    if sniffio.current_async_library() == "asyncio" and platform.system() == "Windows":
-        import asyncio
-
-        import winloop
-
-        if isinstance(asyncio.get_running_loop(), winloop.Loop):
-            pytest.skip("winloop is currently broken")
-
-
-@pytest.fixture
 def deactivate_blockbuster(blockbuster: BlockBuster | None) -> None:
     if blockbuster is not None:
         blockbuster.deactivate()
