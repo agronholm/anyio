@@ -2196,10 +2196,22 @@ async def test_getaddrinfo() -> None:
 
 @pytest.mark.parametrize("sock_type", [socket.SOCK_STREAM, socket.SOCK_STREAM])
 async def test_getaddrinfo_ipv6addr(
-    sock_type: Literal[socket.SocketKind.SOCK_STREAM], skip_if_winloop
+    sock_type: Literal[socket.SocketKind.SOCK_STREAM],
 ) -> None:
     # IDNA trips up over raw IPv6 addresses
-    proto = 0 if platform.system() == "Windows" else 6
+    if platform.system() == "Windows":
+        import sniffio
+        if sniffio.current_async_library() == "asyncio": 
+            import asyncio
+            if asyncio.get_running_loop().__module__ == "winloop":
+                proto = 6
+            else:
+                proto = 0
+        else:
+            proto = 0
+    else:
+        proto = 6
+   
     assert await getaddrinfo("::1", 0, type=sock_type) == [
         (
             socket.AF_INET6,
