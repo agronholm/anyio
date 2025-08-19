@@ -312,8 +312,8 @@ async def test_py39_arguments(
     argvalue_factory: Callable[[], Any],
     anyio_backend_name: str,
     anyio_backend_options: dict[str, Any],
-    skip_if_winloop: None,
 ) -> None:
+    
     try:
         await run_process(
             [sys.executable, "-c", "print('hello')"],
@@ -324,9 +324,9 @@ async def test_py39_arguments(
             "unexpected kwargs" in str(exc)
             and anyio_backend_name == "asyncio"
             and anyio_backend_options["loop_factory"]
-            and anyio_backend_options["loop_factory"].__module__ == "uvloop"
+            and anyio_backend_options["loop_factory"].__module__ in ("uvloop", "winloop")
         ):
-            pytest.skip(f"the {argname!r} argument is not supported by uvloop yet")
+            pytest.skip(f"the {argname!r} argument is not supported by uvloop or winloop yet")
 
         raise
 
