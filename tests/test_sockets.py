@@ -2201,8 +2201,10 @@ async def test_getaddrinfo_ipv6addr(
     # IDNA trips up over raw IPv6 addresses
     if platform.system() == "Windows":
         import sniffio
-        if sniffio.current_async_library() == "asyncio": 
+
+        if sniffio.current_async_library() == "asyncio":
             import asyncio
+
             if asyncio.get_running_loop().__module__ == "winloop":
                 proto = 6
             else:
@@ -2211,7 +2213,7 @@ async def test_getaddrinfo_ipv6addr(
             proto = 0
     else:
         proto = 6
-   
+
     assert await getaddrinfo("::1", 0, type=sock_type) == [
         (
             socket.AF_INET6,
