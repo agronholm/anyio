@@ -78,7 +78,7 @@ Here is the list of supported options for each backend:
 * ``use_uvloop`` (``bool``, default=False): Use the faster uvloop_ event loop
   implementation, if available (this is a shorthand for passing
  ``loop_factory=uvloop.new_event_loop`` or ``loop_factory=winloop.new_event_loop`` if using windows,
-  and is ignored if ``loop_factory`` is passed a value other than ``None``)
+ and is ignored if ``loop_factory`` is passed a value other than ``None``)
 
 **Trio**: options covered in the
 `official documentation
