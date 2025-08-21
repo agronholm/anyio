@@ -19,13 +19,15 @@ if TYPE_CHECKING:
     from blockbuster import BlockBuster
 
 uvloop_marks = []
+uvloop_name = "uvloop"
 try:
     if platform.system() == "Windows":
+        uvloop_name = "winloop"
         import winloop as uvloop
     else:
         import uvloop
 except ImportError:
-    uvloop_marks.append(pytest.mark.skip(reason="uvloop not available"))
+    uvloop_marks.append(pytest.mark.skip(reason=f"{uvloop_name} not available"))
     uvloop = Mock()
 else:
     if hasattr(asyncio.AbstractEventLoop, "shutdown_default_executor") and not hasattr(
@@ -33,7 +35,7 @@ else:
     ):
         uvloop_marks.append(
             pytest.mark.skip(
-                reason=f"{uvloop.__name__} is missing shutdown_default_executor()"
+                reason=f"{uvloop_name} is missing shutdown_default_executor()"
             )
         )
 
@@ -47,7 +49,7 @@ asyncio_params = [
             {"debug": True, "loop_factory": uvloop.new_event_loop},
         ),
         marks=uvloop_marks,
-        id=f"asyncio+{uvloop.__name__}",
+        id=f"asyncio+{uvloop_name}",
     ),
 ]
 if sys.version_info >= (3, 12):
@@ -157,7 +159,7 @@ else:
 
 
 @pytest.fixture
-def event_loop_implementation_name() -> str | None:
+async def event_loop_implementation_name() -> str | None:
     try:
         name = sniffio.current_async_library()
     except sniffio.AsyncLibraryNotFoundError:
