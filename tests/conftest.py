@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import platform
 import ssl
 import sys
 from collections.abc import Generator, Iterator
@@ -9,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import Mock
 
 import pytest
+import sniffio
 import trustme
 from _pytest.fixtures import SubRequest
 from trustme import CA
@@ -18,7 +20,10 @@ if TYPE_CHECKING:
 
 uvloop_marks = []
 try:
-    import uvloop
+    if platform.system() == "Windows":
+        import winloop as uvloop
+    else:
+        import uvloop
 except ImportError:
     uvloop_marks.append(pytest.mark.skip(reason="uvloop not available"))
     uvloop = Mock()
@@ -27,15 +32,10 @@ else:
         uvloop.loop.Loop, "shutdown_default_executor"
     ):
         uvloop_marks.append(
-            pytest.mark.skip(reason="uvloop is missing shutdown_default_executor()")
+            pytest.mark.skip(
+                reason=f"{uvloop.__name__} is missing shutdown_default_executor()"
+            )
         )
-
-winloop_marks = []
-try:
-    import winloop
-except ImportError:
-    winloop_marks.append(pytest.mark.skip(reason="winloop not available"))
-    winloop = Mock()
 
 pytest_plugins = ["pytester"]
 
@@ -44,15 +44,10 @@ asyncio_params = [
     pytest.param(
         (
             "asyncio",
-            {
-                "debug": True,
-                "loop_factory": uvloop.new_event_loop
-                if sys.platform != "win32"
-                else winloop.new_event_loop,
-            },
+            {"debug": True, "loop_factory": uvloop.new_event_loop},
         ),
-        marks=uvloop_marks if sys.platform != "win32" else winloop_marks,
-        id="asyncio+uvloop",
+        marks=uvloop_marks,
+        id=f"asyncio+{uvloop.__name__}",
     ),
 ]
 if sys.version_info >= (3, 12):
@@ -159,3 +154,16 @@ else:
 
     def no_other_refs() -> list[object]:
         return [sys._getframe(1)]
+
+
+@pytest.fixture
+def event_loop_implementation_name() -> str | None:
+    try:
+        name = sniffio.current_async_library()
+    except sniffio.AsyncLibraryNotFoundError:
+        return None
+
+    if name == "asyncio":
+        return asyncio.get_running_loop().__module__
+
+    return name

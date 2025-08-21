@@ -40,13 +40,11 @@ pytestmark = pytest.mark.anyio
     ],
 )
 async def test_run_process(
-    shell: bool, command: str | list[str], anyio_backend_name: str
+    shell: bool, command: str | list[str], event_loop_implementation_name: str | None
 ) -> None:
-    if anyio_backend_name == "asyncio" and sys.platform == "win32":
-        import asyncio
+    if event_loop_implementation_name == "winloop":
+        pytest.skip(reason="winloop produces a non-zero exit with status 1")
 
-        if asyncio.get_event_loop().__module__ == "winloop":
-            pytest.skip(reason="winloop produces a non-zero exit with status 1")
     process = await run_process(command, input=b"abc")
     assert process.returncode == 0
     assert process.stdout.rstrip() == b"cba"
@@ -312,8 +310,7 @@ async def test_process_aexit_cancellation_closes_standard_streams(
 async def test_py39_arguments(
     argname: str,
     argvalue_factory: Callable[[], Any],
-    anyio_backend_name: str,
-    anyio_backend_options: dict[str, Any],
+    event_loop_implementation_name: str | None,
 ) -> None:
     try:
         await run_process(
@@ -321,15 +318,13 @@ async def test_py39_arguments(
             **{argname: argvalue_factory()},
         )
     except ValueError as exc:
-        if (
-            "unexpected kwargs" in str(exc)
-            and anyio_backend_name == "asyncio"
-            and anyio_backend_options["loop_factory"]
-            and anyio_backend_options["loop_factory"].__module__
-            in ("uvloop", "winloop")
+        if "unexpected kwargs" in str(exc) and event_loop_implementation_name in (
+            "uvloop",
+            "winloop",
         ):
             pytest.skip(
-                f"the {argname!r} argument is not supported by uvloop or winloop yet"
+                f"the {argname!r} argument is not supported by "
+                f"{event_loop_implementation_name} yet"
             )
 
         raise
