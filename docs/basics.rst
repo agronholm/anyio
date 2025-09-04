@@ -64,11 +64,15 @@ native ``run()`` function of the backend library::
 Backend specific options
 ------------------------
 
-Any options exclusive to a specific backend can be passed as keyword arguments to
-:func:`run`::
+Any options exclusive to a specific backend can be passed with the ``backend_options``
+argument to :func:`run`::
 
-    run(main, backend="asyncio", debug=True)
-    run(main, backend="trio", restrict_keyboard_interrupt_to_checkpoints=True)
+    run(main, backend="asyncio", backend_options={"debug": True})
+    run(
+        main,
+        backend="trio",
+        backend_options={"restrict_keyboard_interrupt_to_checkpoints": True}
+    )
 
 Here is the list of supported options for each backend:
 
