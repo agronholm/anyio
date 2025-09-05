@@ -38,8 +38,6 @@ from .conftest import asyncio_params
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
-pytestmark = pytest.mark.anyio
-
 T_Retval = TypeVar("T_Retval")
 
 

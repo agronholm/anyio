@@ -24,8 +24,6 @@ from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params
 
-pytestmark = pytest.mark.anyio
-
 
 class TestLock:
     async def test_contextmanager(self) -> None:

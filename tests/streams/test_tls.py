@@ -30,8 +30,6 @@ from anyio.abc import (
 from anyio.streams.stapled import StapledObjectStream
 from anyio.streams.tls import TLSAttribute, TLSConnectable, TLSListener, TLSStream
 
-pytestmark = pytest.mark.anyio
-
 
 class TestTLSStream:
     async def test_send_receive(

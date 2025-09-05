@@ -29,8 +29,6 @@ from ..conftest import asyncio_params
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
-pytestmark = pytest.mark.anyio
-
 
 def test_invalid_max_buffer() -> None:
     pytest.raises(ValueError, create_memory_object_stream, 1.0).match(

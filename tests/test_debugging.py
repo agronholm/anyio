@@ -22,9 +22,6 @@ from anyio.abc import TaskStatus
 
 from .conftest import asyncio_params
 
-pytestmark = pytest.mark.anyio
-
-
 get_coro = asyncio.Task.get_coro
 
 

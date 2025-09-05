@@ -88,8 +88,6 @@ AnyIPAddressFamily = Literal[
     AddressFamily.AF_UNSPEC, AddressFamily.AF_INET, AddressFamily.AF_INET6
 ]
 
-pytestmark = pytest.mark.anyio
-
 # If a socket can bind to ::1, the current environment has IPv6 properly configured
 has_ipv6 = False
 if socket.has_ipv6:

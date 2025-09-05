@@ -112,6 +112,7 @@ disallow_untyped_decorators = false
 [tool.pytest.ini_options]
 addopts = "-rsfE --tb=short --strict-config --strict-markers -p anyio -p pytest_mock -p no:asyncio -p no:trio"
 testpaths = ["tests"]
+anyio_mode = "auto"
 xfail_strict = true
 filterwarnings = [
     "error",
