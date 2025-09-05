@@ -54,6 +54,7 @@ from .. import (
     CapacityLimiterStatistics,
     EventStatistics,
     LockStatistics,
+    RunFinishedError,
     TaskInfo,
     WouldBlock,
     abc,
@@ -1094,7 +1095,11 @@ class TrioBackend(AsyncBackend):
         args: tuple[Unpack[PosArgsT]],
         token: object,
     ) -> T_Retval:
-        return trio.from_thread.run(func, *args)
+        trio_token = cast("trio.lowlevel.TrioToken | None", token)
+        try:
+            return trio.from_thread.run(func, *args, trio_token=trio_token)
+        except trio.RunFinishedError:
+            raise RunFinishedError from None
 
     @classmethod
     def run_sync_from_thread(
@@ -1103,7 +1108,11 @@ class TrioBackend(AsyncBackend):
         args: tuple[Unpack[PosArgsT]],
         token: object,
     ) -> T_Retval:
-        return trio.from_thread.run_sync(func, *args)
+        trio_token = cast("trio.lowlevel.TrioToken | None", token)
+        try:
+            return trio.from_thread.run_sync(func, *args, trio_token=trio_token)
+        except trio.RunFinishedError:
+            raise RunFinishedError from None
 
     @classmethod
     def create_blocking_portal(cls) -> abc.BlockingPortal:
