@@ -149,6 +149,7 @@ depends = ["pre-commit"]
 package = "editable"
 commands = [["coverage", "run", "-m", "pytest", { replace = "posargs", extend = true }]]
 dependency_groups = ["test"]
+set_env = { PYTEST_DISABLE_PLUGIN_AUTOLOAD = "1" }
 
 [tool.tox.env.pypy3]
 commands = [["pytest", { replace = "posargs", extend = true }]]

@@ -635,7 +635,7 @@ def test_auto_mode_conflict_warning(testdir: Pytester) -> None:
         """
     )
 
-    result = testdir.runpytest()
+    result = testdir.runpytest("-p", "anyio")
     result.assert_outcomes(passed=len(get_all_backends()))
     assert (
         "PytestConfigWarning: AnyIO auto mode has been enabled together with "
