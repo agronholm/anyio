@@ -16,8 +16,6 @@ from anyio.abc import (
 )
 from anyio.streams.stapled import StapledByteStream, StapledObjectStream
 
-pytestmark = pytest.mark.anyio
-
 
 @dataclass
 class DummyByteReceiveStream(ByteReceiveStream):

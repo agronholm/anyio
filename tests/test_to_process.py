@@ -19,8 +19,6 @@ from anyio import (
 )
 from anyio.abc import Process
 
-pytestmark = pytest.mark.anyio
-
 
 async def test_run_sync_in_process_pool() -> None:
     """

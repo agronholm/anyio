@@ -37,8 +37,6 @@ from .conftest import asyncio_params, no_other_refs
 if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup, ExceptionGroup
 
-pytestmark = pytest.mark.anyio
-
 
 async def async_error(text: str, delay: float = 0.1) -> NoReturn:
     try:

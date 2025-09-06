@@ -12,7 +12,6 @@ from pytest import MonkeyPatch
 
 from anyio import run, sleep_forever, sleep_until
 
-pytestmark = pytest.mark.anyio
 fake_current_time = 1620581544.0
 
 

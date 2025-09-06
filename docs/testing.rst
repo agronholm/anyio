@@ -11,12 +11,27 @@ Creating asynchronous tests
 ---------------------------
 
 Pytest does not natively support running asynchronous test functions, so they have to be
-marked for the AnyIO pytest plugin to pick them up. This can be done in one of two ways:
+marked for the AnyIO pytest plugin to pick them up. This can be done in one of three
+ways:
 
+#. Setting the ``anyio_mode = "auto"`` option in the pytest configuration
 #. Using the ``pytest.mark.anyio`` marker
 #. Using the ``anyio_backend`` fixture, either directly or via another fixture
 
-The simplest way is thus the following::
+The simplest way is thus the following:
+
+.. code-block:: toml
+
+    [tool.pytest.ini_options]
+    anyio_mode = "auto"
+
+.. note:: This does not work if ``pytest-asyncio`` is installed and configured to use
+    its own ``auto`` mode, as it will conflict with the AnyIO plugin. To prevent this
+    from happening, you can remove the ``asyncio_mode`` option from your pytest
+    configuration, thus making ``pytest-asyncio`` use its default strict mode.
+
+In case your AnyIO tests need to coexist with other async test plugins, the next best
+option is to use the ``pytest.mark.anyio`` marker::
 
     import pytest
 
@@ -26,6 +41,8 @@ The simplest way is thus the following::
 
     async def test_something():
         ...
+
+.. note:: The marker only affects asynchronous test functions.
 
 Marking modules, classes or functions with this marker has the same effect as applying
 the ``pytest.mark.usefixtures('anyio_backend')`` on them.

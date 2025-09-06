@@ -10,8 +10,6 @@ from anyio import ClosedResourceError, EndOfStream
 from anyio.abc import ByteReceiveStream
 from anyio.streams.file import FileReadStream, FileStreamAttribute, FileWriteStream
 
-pytestmark = pytest.mark.anyio
-
 
 class TestFileReadStream:
     @pytest.fixture(scope="class")

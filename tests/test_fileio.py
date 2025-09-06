@@ -12,8 +12,6 @@ from _pytest.tmpdir import TempPathFactory
 
 from anyio import AsyncFile, Path, open_file, wrap_file
 
-pytestmark = pytest.mark.anyio
-
 
 class TestAsyncFile:
     @pytest.fixture(scope="class")

@@ -15,8 +15,6 @@ from anyio.streams.text import (
     TextStream,
 )
 
-pytestmark = pytest.mark.anyio
-
 
 async def test_receive() -> None:
     send_stream, receive_stream = create_memory_object_stream[bytes](1)
