@@ -105,7 +105,7 @@ The first method is the easier one::
         thread = Thread(target=external_func, args=[event, current_token()])
         thread.start()
 
-        # Wait for the external thread to set the evet
+        # Wait for the external thread to set the event
         await event.wait()
 
     run(main)
@@ -147,7 +147,7 @@ manager and keeping it open::
 
     async def main():
         async with BlockingPortal() as portal:
-            # Here the portal stays open until the worker thread as run the function
+            # Here the portal stays open until the worker thread has run the function
             await to_thread.run_sync(sync_func_run_in_thread, portal)
 
 
