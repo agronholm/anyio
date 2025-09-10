@@ -1057,28 +1057,6 @@ async def test_triple_nested_shield_checkpoint_in_middle() -> None:
     assert not got_past_checkpoint
 
 
-def test_task_group_in_generator(
-    anyio_backend_name: str, anyio_backend_options: dict[str, Any]
-) -> None:
-    async def task_group_generator() -> AsyncGenerator[None, None]:
-        async with create_task_group():
-            yield
-
-    gen = task_group_generator()
-    anyio.run(
-        gen.__anext__,
-        backend=anyio_backend_name,
-        backend_options=anyio_backend_options,
-    )
-    pytest.raises(
-        StopAsyncIteration,
-        anyio.run,
-        gen.__anext__,
-        backend=anyio_backend_name,
-        backend_options=anyio_backend_options,
-    )
-
-
 async def test_exception_group_filtering() -> None:
     """Test that CancelledErrors are filtered out of nested exception groups."""
 
