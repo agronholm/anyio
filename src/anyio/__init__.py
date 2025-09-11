@@ -18,6 +18,8 @@ from ._core._exceptions import ConnectionFailed as ConnectionFailed
 from ._core._exceptions import DelimiterNotFound as DelimiterNotFound
 from ._core._exceptions import EndOfStream as EndOfStream
 from ._core._exceptions import IncompleteRead as IncompleteRead
+from ._core._exceptions import NoEventLoopError as NoEventLoopError
+from ._core._exceptions import RunFinishedError as RunFinishedError
 from ._core._exceptions import TypedAttributeLookupError as TypedAttributeLookupError
 from ._core._exceptions import WouldBlock as WouldBlock
 from ._core._fileio import AsyncFile as AsyncFile
