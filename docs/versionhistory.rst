@@ -13,6 +13,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added pytest option (``anyio_mode = "auto"``) to make the pytest plugin automatically
   handle all async tests
 - Set ``None`` as the default type argument for ``anyio.abc.TaskStatus``
+- Added support for ``uvloop=True`` on Windows via the winloop_ implementation
+  (`#960 <https://github.com/agronholm/anyio/pull/960>`_; PR by @Vizonex)
+
+.. _winloop: https://github.com/Vizonex/Winloop
 
 **4.10.0**
 
