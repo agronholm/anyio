@@ -9,6 +9,7 @@ import os
 import socket
 import sys
 import threading
+import traceback
 import weakref
 from asyncio import (
     AbstractEventLoop,
@@ -412,6 +413,12 @@ class CancelScope(BaseCancelScope):
             self._pending_uncancellations: int | None = 0
         else:
             self._pending_uncancellations = None
+        if limit := self.track_source_information.get():
+            if not isinstance(limit, int):
+                limit = None
+            self._source_stack = traceback.extract_stack(limit=limit)
+        else:
+            self._source_stack = None
 
     def __enter__(self) -> CancelScope:
         if self._active:
@@ -572,7 +579,12 @@ class CancelScope(BaseCancelScope):
             if task is not current and (task is self._host_task or _task_started(task)):
                 waiter = task._fut_waiter  # type: ignore[attr-defined]
                 if not isinstance(waiter, asyncio.Future) or not waiter.done():
-                    task.cancel(f"Cancelled by cancel scope {id(origin):x}")
+                    if origin._source_stack is not None:
+                        task.cancel(
+                            f"Cancelled by cancel scope {id(origin):x} at\n{''.join(traceback.format_list(origin._source_stack))}"
+                        )
+                    else:
+                        task.cancel(f"Cancelled by cancel scope {id(origin):x}")
                     if (
                         task is origin._host_task
                         and origin._pending_uncancellations is not None
