@@ -443,6 +443,30 @@ class TestCondition:
             backend_options=anyio_backend_options,
         )
 
+    async def test_wait_for(self) -> None:
+        result = None
+
+        async def waiter() -> None:
+            nonlocal result
+            async with condition:
+                result = await condition.wait_for(lambda: value)
+
+        value = None
+        condition = Condition()
+        async with create_task_group() as tg:
+            tg.start_soon(waiter)
+            await wait_all_tasks_blocked()
+            async with condition:
+                condition.notify_all()
+
+            await wait_all_tasks_blocked()
+            assert result is None
+            value = "foo"
+            async with condition:
+                condition.notify_all()
+
+        assert result == "foo"
+
 
 class TestSemaphore:
     async def test_contextmanager(self) -> None:
