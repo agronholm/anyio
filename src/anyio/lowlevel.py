@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass
-from typing import Any, Generic, Literal, TypeVar, overload
+from typing import Any, Generic, Literal, TypeVar, final, overload
 from weakref import WeakKeyDictionary
 
 from ._core._eventloop import get_async_backend
+from .abc import AsyncBackend
 
 T = TypeVar("T")
 D = TypeVar("D")
@@ -55,23 +56,33 @@ async def cancel_shielded_checkpoint() -> None:
     await get_async_backend().cancel_shielded_checkpoint()
 
 
-def current_token() -> object:
+@final
+@dataclass(frozen=True, repr=False)
+class EventLoopToken:
     """
-    Return a backend specific token object that can be used to get back to the event
-    loop.
+    An opaque object that holds a reference to an event loop.
+
+    .. versionadded:: 4.11.0
+    """
+
+    backend_class: type[AsyncBackend]
+    native_token: object
+
+
+def current_token() -> EventLoopToken:
+    """
+    Return a token object that can be used to call code in the current event loop from
+    another thread.
+
+    .. versionadded:: 4.11.0
 
     """
-    return get_async_backend().current_token()
+    backend_class = get_async_backend()
+    raw_token = backend_class.current_token()
+    return EventLoopToken(backend_class, raw_token)
 
 
-_run_vars: WeakKeyDictionary[Any, dict[RunVar[Any], Any]] = WeakKeyDictionary()
-_token_wrappers: dict[Any, _TokenWrapper] = {}
-
-
-@dataclass(frozen=True)
-class _TokenWrapper:
-    __slots__ = "_token", "__weakref__"
-    _token: object
+_run_vars: WeakKeyDictionary[object, dict[RunVar[Any], Any]] = WeakKeyDictionary()
 
 
 class _NoValueSet(enum.Enum):
@@ -96,8 +107,6 @@ class RunVar(Generic[T]):
 
     NO_VALUE_SET: Literal[_NoValueSet.NO_VALUE_SET] = _NoValueSet.NO_VALUE_SET
 
-    _token_wrappers: set[_TokenWrapper] = set()
-
     def __init__(
         self, name: str, default: T | Literal[_NoValueSet.NO_VALUE_SET] = NO_VALUE_SET
     ):
@@ -106,11 +115,11 @@ class RunVar(Generic[T]):
 
     @property
     def _current_vars(self) -> dict[RunVar[T], T]:
-        token = current_token()
+        native_token = current_token().native_token
         try:
-            return _run_vars[token]
+            return _run_vars[native_token]
         except KeyError:
-            run_vars = _run_vars[token] = {}
+            run_vars = _run_vars[native_token] = {}
             return run_vars
 
     @overload

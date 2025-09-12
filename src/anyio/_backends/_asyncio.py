@@ -74,6 +74,7 @@ from .._core._exceptions import (
     BusyResourceError,
     ClosedResourceError,
     EndOfStream,
+    RunFinishedError,
     WouldBlock,
     iterate_exceptions,
 )
@@ -2494,24 +2495,31 @@ class AsyncIOBackend(AsyncBackend):
         args: tuple[Unpack[PosArgsT]],
         token: object,
     ) -> T_Retval:
-        async def task_wrapper(scope: CancelScope) -> T_Retval:
+        async def task_wrapper() -> T_Retval:
             __tracebackhide__ = True
-            task = cast(asyncio.Task, current_task())
-            _task_states[task] = TaskState(None, scope)
-            scope._tasks.add(task)
+            if scope is not None:
+                task = cast(asyncio.Task, current_task())
+                _task_states[task] = TaskState(None, scope)
+                scope._tasks.add(task)
             try:
                 return await func(*args)
             except CancelledError as exc:
                 raise concurrent.futures.CancelledError(str(exc)) from None
             finally:
-                scope._tasks.discard(task)
+                if scope is not None:
+                    scope._tasks.discard(task)
 
-        loop = cast(AbstractEventLoop, token)
+        loop = cast(
+            "AbstractEventLoop", token or threadlocals.current_token.native_token
+        )
+        if loop.is_closed():
+            raise RunFinishedError
+
         context = copy_context()
         context.run(sniffio.current_async_library_cvar.set, "asyncio")
-        wrapper = task_wrapper(threadlocals.current_cancel_scope)
+        scope = getattr(threadlocals, "current_cancel_scope", None)
         f: concurrent.futures.Future[T_Retval] = context.run(
-            asyncio.run_coroutine_threadsafe, wrapper, loop
+            asyncio.run_coroutine_threadsafe, task_wrapper(), loop=loop
         )
         return f.result()
 
@@ -2532,8 +2540,13 @@ class AsyncIOBackend(AsyncBackend):
                 if not isinstance(exc, Exception):
                     raise
 
+        loop = cast(
+            "AbstractEventLoop", token or threadlocals.current_token.native_token
+        )
+        if loop.is_closed():
+            raise RunFinishedError
+
         f: concurrent.futures.Future[T_Retval] = Future()
-        loop = cast(AbstractEventLoop, token)
         loop.call_soon_threadsafe(wrapper)
         return f.result()
 
