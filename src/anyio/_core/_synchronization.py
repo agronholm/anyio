@@ -328,6 +328,7 @@ class Condition:
     async def wait(self) -> None:
         """Wait for a notification."""
         await checkpoint_if_cancelled()
+        self._check_acquired()
         event = Event()
         self._waiters.append(event)
         self.release()

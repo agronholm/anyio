@@ -399,6 +399,13 @@ class TestCondition:
         assert task_started
         assert not notified
 
+    async def test_wait_no_lock(self) -> None:
+        condition = Condition()
+        with pytest.raises(
+            RuntimeError, match="The current task is not holding the underlying lock"
+        ):
+            await condition.wait()
+
     async def test_statistics(self) -> None:
         async def waiter() -> None:
             async with condition:
