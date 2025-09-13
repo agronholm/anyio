@@ -2,16 +2,20 @@ from __future__ import annotations
 
 import math
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from types import TracebackType
+from typing import TypeVar
 
 from sniffio import AsyncLibraryNotFoundError
 
-from ..lowlevel import checkpoint
+from ..lowlevel import checkpoint_if_cancelled
 from ._eventloop import get_async_backend
 from ._exceptions import BusyResourceError
 from ._tasks import CancelScope
 from ._testing import TaskInfo, get_current_task
+
+T = TypeVar("T")
 
 
 @dataclass(frozen=True)
@@ -323,7 +327,8 @@ class Condition:
 
     async def wait(self) -> None:
         """Wait for a notification."""
-        await checkpoint()
+        await checkpoint_if_cancelled()
+        self._check_acquired()
         event = Event()
         self._waiters.append(event)
         self.release()
@@ -337,6 +342,22 @@ class Condition:
         finally:
             with CancelScope(shield=True):
                 await self.acquire()
+
+    async def wait_for(self, predicate: Callable[[], T]) -> T:
+        """
+        Wait until a predicate becomes true.
+
+        :param predicate: a callable that returns a truthy value when the condition is
+            met
+        :return: the result of the predicate
+
+        .. versionadded:: 4.11.0
+
+        """
+        while not (result := predicate()):
+            await self.wait()
+
+        return result
 
     def statistics(self) -> ConditionStatistics:
         """
