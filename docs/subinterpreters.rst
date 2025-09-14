@@ -48,4 +48,4 @@ Limitations
   applies to any functions defined in the REPL)
 * The target functions cannot react to cancellation
 * Unlike with threads, the code running in the subinterpreter cannot share mutable data
-  with other interpreters/threads (however, sharing _immutable_ data is fine)
+  with other interpreters/threads (however, sharing *immutable* data is fine)
