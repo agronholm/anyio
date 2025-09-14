@@ -15,6 +15,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   keyword argument
 - Added pytest option (``anyio_mode = "auto"``) to make the pytest plugin automatically
   handle all async tests
+- Added the ``anyio.Condition.wait_for()`` method for feature parity with asyncio
 - Set ``None`` as the default type argument for ``anyio.abc.TaskStatus``
 
 **4.10.0**
