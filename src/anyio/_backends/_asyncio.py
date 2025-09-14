@@ -379,7 +379,7 @@ def is_anyio_cancellation(exc: CancelledError) -> bool:
         if (
             exc.args
             and isinstance(exc.args[0], str)
-            and exc.args[0].startswith("Cancelled by cancel scope ")
+            and exc.args[0].startswith("Cancelled via cancel scope ")
         ):
             return True
 
@@ -623,7 +623,10 @@ class CancelScope(BaseCancelScope):
                 self._timeout_handle = None
 
             self._cancel_called = True
-            self._cancel_reason = f"Cancelled by cancel scope {id(self):x}"
+            self._cancel_reason = f"Cancelled via cancel scope {id(self):x}"
+            if task := current_task():
+                self._cancel_reason += f" by {task}"
+
             if reason:
                 self._cancel_reason += f"; reason: {reason}"
 

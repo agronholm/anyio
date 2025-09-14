@@ -1809,5 +1809,10 @@ async def test_exception_groups_suppresses_exc_context() -> None:
 async def test_cancel_reason() -> None:
     with CancelScope() as scope:
         scope.cancel("test reason")
-        with pytest.raises(get_cancelled_exc_class(), match="test reason"):
+        with pytest.raises(get_cancelled_exc_class()) as exc_info:
             await checkpoint()
+
+    task = get_current_task()
+    assert task and task.name
+    exc_info.match("test reason")
+    exc_info.match(task.name)

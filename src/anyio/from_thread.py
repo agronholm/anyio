@@ -224,7 +224,7 @@ class BlockingPortal:
         self._event_loop_thread_id = None
         self._stop_event.set()
         if cancel_remaining:
-            self._task_group.cancel_scope.cancel()
+            self._task_group.cancel_scope.cancel("the blocking portal is shutting down")
 
     async def _call_func(
         self,
@@ -238,14 +238,14 @@ class BlockingPortal:
                 None,
                 get_ident(),
             ):
-                self.call(scope.cancel)
+                self.call(scope.cancel, "the future was cancelled")
 
         try:
             retval_or_awaitable = func(*args, **kwargs)
             if isawaitable(retval_or_awaitable):
                 with CancelScope() as scope:
                     if future.cancelled():
-                        scope.cancel()
+                        scope.cancel("the future was cancelled")
                     else:
                         future.add_done_callback(callback)
 

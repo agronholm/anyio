@@ -200,6 +200,32 @@ cancelled scope::
 
             raise
 
+Specifying the reason for cancellation
+--------------------------------------
+
+To help with debugging, it is possible to specify a reason why you're cancelling a
+cancel scope::
+
+    async def do_something():
+        with CancelScope() as scope:
+            scope.cancel("Testing cancellation")
+            try:
+                await sleep(1)
+            except get_cancelled_exc_class() as exc:
+                print(exc)  # Print the cancellation message
+                raise  # Always re-raise cancellation exceptions!
+
+        raise
+
+While the exact resulting message from the cancellation exception varies by the event
+loop implementation, it will contain at least the following pieces of information:
+
+* The cancellation reason (if one was given)
+* The task name where :meth:`CancelScope.cancel` was called (if cancelled from a task)
+
+.. note:: Calling :meth:`~CancelScope.cancel` on an already cancelled scope will not
+    change the cancel message.
+
 .. _cancel_scope_stack_corruption:
 
 Avoiding cancel scope stack corruption
