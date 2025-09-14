@@ -137,8 +137,8 @@ class CancelScope(BaseCancelScope):
     ) -> bool:
         return self.__original.__exit__(exc_type, exc_val, exc_tb)
 
-    def cancel(self) -> None:
-        self.__original.cancel()
+    def cancel(self, reason: str | None = None) -> None:
+        self.__original.cancel(reason)
 
     @property
     def deadline(self) -> float:

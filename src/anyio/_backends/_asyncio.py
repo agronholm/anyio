@@ -379,7 +379,7 @@ def is_anyio_cancellation(exc: CancelledError) -> bool:
         if (
             exc.args
             and isinstance(exc.args[0], str)
-            and exc.args[0].startswith("Cancelled by cancel scope ")
+            and exc.args[0].startswith("Cancelled via cancel scope ")
         ):
             return True
 
@@ -402,6 +402,7 @@ class CancelScope(BaseCancelScope):
         self._parent_scope: CancelScope | None = None
         self._child_scopes: set[CancelScope] = set()
         self._cancel_called = False
+        self._cancel_reason: str | None = None
         self._cancelled_caught = False
         self._active = False
         self._timeout_handle: asyncio.TimerHandle | None = None
@@ -546,7 +547,7 @@ class CancelScope(BaseCancelScope):
         if self._deadline != math.inf:
             loop = get_running_loop()
             if loop.time() >= self._deadline:
-                self.cancel()
+                self.cancel("deadline exceeded")
             else:
                 self._timeout_handle = loop.call_at(self._deadline, self._timeout)
 
@@ -572,7 +573,7 @@ class CancelScope(BaseCancelScope):
             if task is not current and (task is self._host_task or _task_started(task)):
                 waiter = task._fut_waiter  # type: ignore[attr-defined]
                 if not isinstance(waiter, asyncio.Future) or not waiter.done():
-                    task.cancel(f"Cancelled by cancel scope {id(origin):x}")
+                    task.cancel(origin._cancel_reason)
                     if (
                         task is origin._host_task
                         and origin._pending_uncancellations is not None
@@ -615,13 +616,20 @@ class CancelScope(BaseCancelScope):
 
             scope = scope._parent_scope
 
-    def cancel(self) -> None:
+    def cancel(self, reason: str | None = None) -> None:
         if not self._cancel_called:
             if self._timeout_handle:
                 self._timeout_handle.cancel()
                 self._timeout_handle = None
 
             self._cancel_called = True
+            self._cancel_reason = f"Cancelled via cancel scope {id(self):x}"
+            if task := current_task():
+                self._cancel_reason += f" by {task}"
+
+            if reason:
+                self._cancel_reason += f"; reason: {reason}"
+
             if self._host_task is not None:
                 self._deliver_cancellation(self)
 

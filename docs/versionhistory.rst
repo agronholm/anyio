@@ -5,6 +5,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added support for cancellation reasons (the ``reason`` parameter to
+  ``CancelScope.cancel()``)
+- Bumped the minimum version of Trio to v0.31.0
 - Added the ability to enter the event loop from foreign (non-worker) threads by
   passing the return value of ``anyio.lowlevel.current_token()`` to
   ``anyio.from_thread.run()`` and ``anyio.from_thread.run_sync()`` as the ``token``
