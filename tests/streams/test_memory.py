@@ -463,7 +463,7 @@ async def test_type_variance() -> None:
 
 async def test_deprecated_item_type_parameter() -> None:
     with pytest.warns(DeprecationWarning, match="item_type argument has been "):
-        send, receive = create_memory_object_stream(item_type=int)  # type: ignore[var-annotated]
+        send, receive = create_memory_object_stream(item_type=int)
 
         send.close()
         receive.close()
