@@ -301,7 +301,6 @@ async def create_tcp_listener(
     :param reuse_port: ``True`` to allow multiple sockets to bind to the same
         address/port (not supported on Windows)
     :return: a multi-listener object containing one or more socket listeners
-
     """
     asynclib = get_async_backend()
     backlog = min(backlog, 65536)
@@ -314,6 +313,9 @@ async def create_tcp_listener(
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
     listeners: list[SocketListener] = []
+    ephemeral_port: int | None = None
+    dualstack_v6_bound = False
+
     try:
         # The set() is here to work around a glibc bug:
         # https://sourceware.org/bugzilla/show_bug.cgi?id=14969
@@ -325,11 +327,13 @@ async def create_tcp_listener(
             if sys.platform != "win32" and kind is not SocketKind.SOCK_STREAM:
                 continue
 
+            if fam == socket.AF_INET and dualstack_v6_bound:
+                continue
+
             raw_socket = socket.socket(fam)
             raw_socket.setblocking(False)
 
-            # For Windows, enable exclusive address use. For others, enable address
-            # reuse.
+            # For Windows, enable exclusive address use. For others, enable address reuse.
             if sys.platform == "win32":
                 raw_socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
             else:
@@ -340,21 +344,39 @@ async def create_tcp_listener(
 
             # If only IPv6 was requested, disable dual stack operation
             if fam == socket.AF_INET6:
-                raw_socket.setsockopt(IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+                if (
+                    local_port == 0
+                    and local_host in (None, "::")
+                    and socket.has_dualstack_ipv6()
+                ):
+                    raw_socket.setsockopt(IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+                    dualstack_v6_bound = True
+                else:
+                    raw_socket.setsockopt(IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
 
                 # Workaround for #554
                 if "%" in sockaddr[0]:
                     addr, scope_id = sockaddr[0].split("%", 1)
                     sockaddr = (addr, sockaddr[1], 0, int(scope_id))
 
+            if local_port == 0 and ephemeral_port is not None:
+                if fam == socket.AF_INET6 and len(sockaddr) == 4:
+                    sockaddr = (sockaddr[0], ephemeral_port, sockaddr[2], sockaddr[3])
+                else:
+                    sockaddr = (sockaddr[0], ephemeral_port)
+
             raw_socket.bind(sockaddr)
+
+            if local_port == 0 and ephemeral_port is None:
+                ephemeral_port = raw_socket.getsockname()[1]
+
             raw_socket.listen(backlog)
             listener = asynclib.create_tcp_listener(raw_socket)
             listeners.append(listener)
+
     except BaseException:
         for listener in listeners:
             await listener.aclose()
-
         raise
 
     return MultiListener(listeners)

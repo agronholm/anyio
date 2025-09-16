@@ -902,6 +902,29 @@ class TestTCPListener:
         with pytest.raises(ValueError, match="the socket must be bound"):
             await SocketListener.from_socket(sock_or_fd)
 
+    async def test_dualstack_same_port(self) -> None:
+        family = cast(Literal[AddressFamily.AF_UNSPEC], socket.AF_UNSPEC)
+
+        async with await create_tcp_listener(
+            local_host="localhost", family=family
+        ) as multi:
+            ports = {
+                listener.extra(SocketAttribute.local_port)
+                for listener in multi.listeners
+            }
+            assert len(ports) == 1
+
+    async def test_dualstack_fallback_same_port(self) -> None:
+        if socket.has_dualstack_ipv6():
+            pytest.skip("This test is only meaningful when dualstack is not supported")
+
+        async with await create_tcp_listener(family=AddressFamily.AF_INET) as multi:
+            ports = {
+                listener.extra(SocketAttribute.local_port)
+                for listener in multi.listeners
+            }
+            assert len(ports) == 1
+
 
 @pytest.mark.skipif(
     sys.platform == "win32", reason="UNIX sockets are not available on Windows"
