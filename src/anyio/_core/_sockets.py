@@ -349,8 +349,8 @@ async def create_tcp_listener(
                 if (
                     fam == socket.AF_INET6
                     and local_port == 0
-                    and local_host in (None, "::", "::1")
                     and family == socket.AddressFamily.AF_UNSPEC
+                    and local_host in (None, "::", "localhost")
                     and socket.has_dualstack_ipv6()
                 ):
                     raw_socket.setsockopt(IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
