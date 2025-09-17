@@ -902,23 +902,22 @@ class TestTCPListener:
         with pytest.raises(ValueError, match="the socket must be bound"):
             await SocketListener.from_socket(sock_or_fd)
 
-    async def test_dualstack_same_port(self) -> None:
-        family = cast(Literal[AddressFamily.AF_UNSPEC], socket.AF_UNSPEC)
-
+    @pytest.mark.parametrize(
+        "local_host,family",
+        [
+            (None, AddressFamily.AF_UNSPEC),
+            ("localhost", AddressFamily.AF_UNSPEC),
+            ("::", AddressFamily.AF_UNSPEC),
+            ("127.0.0.1", AddressFamily.AF_INET),
+            ("::1", AddressFamily.AF_INET6),
+        ],
+    )
+    async def test_tcp_listener_same_port(
+        self, local_host: str | None, family: AnyIPAddressFamily
+    ) -> None:
         async with await create_tcp_listener(
-            local_host="localhost", family=family
+            local_host=local_host, family=family
         ) as multi:
-            ports = {
-                listener.extra(SocketAttribute.local_port)
-                for listener in multi.listeners
-            }
-            assert len(ports) == 1
-
-    async def test_dualstack_fallback_same_port(self) -> None:
-        if socket.has_dualstack_ipv6():
-            pytest.skip("This test is only meaningful when dualstack is not supported")
-
-        async with await create_tcp_listener(family=AddressFamily.AF_INET) as multi:
             ports = {
                 listener.extra(SocketAttribute.local_port)
                 for listener in multi.listeners

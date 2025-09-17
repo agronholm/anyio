@@ -301,6 +301,7 @@ async def create_tcp_listener(
     :param reuse_port: ``True`` to allow multiple sockets to bind to the same
         address/port (not supported on Windows)
     :return: a multi-listener object containing one or more socket listeners
+
     """
     asynclib = get_async_backend()
     backlog = min(backlog, 65536)
@@ -333,7 +334,8 @@ async def create_tcp_listener(
             raw_socket = socket.socket(fam)
             raw_socket.setblocking(False)
 
-            # For Windows, enable exclusive address use. For others, enable address reuse.
+            # For Windows, enable exclusive address use. For others, enable address
+            # reuse.
             if sys.platform == "win32":
                 raw_socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
             else:
@@ -345,8 +347,10 @@ async def create_tcp_listener(
             # If only IPv6 was requested, disable dual stack operation
             if fam == socket.AF_INET6:
                 if (
-                    local_port == 0
-                    and local_host in (None, "::")
+                    fam == socket.AF_INET6
+                    and local_port == 0
+                    and local_host in (None, "::", "::1")
+                    and family == socket.AddressFamily.AF_UNSPEC
                     and socket.has_dualstack_ipv6()
                 ):
                     raw_socket.setsockopt(IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
@@ -373,10 +377,10 @@ async def create_tcp_listener(
             raw_socket.listen(backlog)
             listener = asynclib.create_tcp_listener(raw_socket)
             listeners.append(listener)
-
     except BaseException:
         for listener in listeners:
             await listener.aclose()
+
         raise
 
     return MultiListener(listeners)
