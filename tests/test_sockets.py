@@ -924,6 +924,26 @@ class TestTCPListener:
             }
             assert len(ports) == 1
 
+    @pytest.mark.parametrize(
+        "local_host, expect_dualstack",
+        [
+            (None, True),
+            ("localhost", True),
+            ("::", True),
+            ("0.0.0.0", False),
+            ("127.0.0.1", False),
+            ("::1", False),
+        ],
+    )
+    async def test_tcp_listener_dualstack_expected_listener_count(
+        self, local_host: str | None, expect_dualstack: bool
+    ) -> None:
+        async with await create_tcp_listener(local_host=local_host) as multi:
+            if expect_dualstack:
+                assert len(multi.listeners) == 1
+            else:
+                assert len(multi.listeners) >= 1
+
 
 @pytest.mark.skipif(
     sys.platform == "win32", reason="UNIX sockets are not available on Windows"
