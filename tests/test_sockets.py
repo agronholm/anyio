@@ -717,7 +717,20 @@ class TestTCPListener:
             for listener in multi.listeners:
                 client = socket.socket(listener.extra(SocketAttribute.family))
                 client.settimeout(1)
-                client.connect(listener.extra(SocketAttribute.local_address))
+                addr = listener.extra(SocketAttribute.local_address)
+                host, port = addr[0], addr[1]
+
+                # On Windows, connecting to ANY (:: or 0.0.0.0) is invalid (WinError 10049).
+                # Replace it with loopback (::1 or 127.0.0.1) to make the test portable.
+                if sys.platform == "win32" and host in ("::", "0.0.0.0"):
+                    family = listener.extra(SocketAttribute.family)
+                    if family == socket.AF_INET6:
+                        addr = ("::1", port)
+                    elif family == socket.AF_INET:
+                        addr = ("127.0.0.1", port)
+
+                client.connect(addr)
+
                 assert isinstance(listener, SocketListener)
                 stream = await listener.accept()
                 client.sendall(b"blah")
