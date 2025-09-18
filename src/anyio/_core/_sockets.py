@@ -323,13 +323,14 @@ async def create_tcp_listener(
         return raw_socket
 
     if (
-        family == socket.AddressFamily.AF_UNSPEC
-        and local_host in (None, "::", "localhost")
+        local_host in (None, "::", "localhost")
+        and local_port == 0
+        and family == socket.AddressFamily.AF_UNSPEC
         and socket.has_dualstack_ipv6()
     ):
         raw_socket = _setup_raw_socket(socket.AF_INET6)
         raw_socket.setsockopt(IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-        raw_socket.bind(("::", local_port))
+        raw_socket.bind(("::", 0))
         raw_socket.listen(backlog)
         listener = asynclib.create_tcp_listener(raw_socket)
 
