@@ -17,6 +17,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   handle all async tests
 - Added the ``anyio.Condition.wait_for()`` method for feature parity with asyncio
 - Set ``None`` as the default type argument for ``anyio.abc.TaskStatus``
+- Added support for ``uvloop=True`` on Windows via the winloop_ implementation
+  (`#960 <https://github.com/agronholm/anyio/pull/960>`_; PR by @Vizonex)
+
+.. _winloop: https://github.com/Vizonex/Winloop
 
 **4.10.0**
 
