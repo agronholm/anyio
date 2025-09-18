@@ -1493,7 +1493,18 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
                         stream: SocketStream = await connect_unix(local_address)
                     else:
                         assert isinstance(local_address, tuple)
-                        stream = await connect_tcp(*local_address)
+                        host, port = local_address
+
+                        # On Windows, connecting to ANY (:: or 0.0.0.0) is invalid (WinError 10049).
+                        # Replace it with loopback (::1 or 127.0.0.1) to make the test portable.
+                        if sys.platform == "win32" and host in ("::", "0.0.0.0"):
+                            family = listener.extra(SocketAttribute.family)
+                            if family == socket.AF_INET6:
+                                host = "::1"
+                            elif family == socket.AF_INET:
+                                host = "127.0.0.1"
+
+                        stream = await connect_tcp(host, port)
 
                     expected_addresses.append(
                         stream.extra(SocketAttribute.local_address)
