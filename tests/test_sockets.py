@@ -955,7 +955,7 @@ class TestTCPListener:
             if expect_dualstack:
                 assert len(multi.listeners) == 1
             else:
-                assert len(multi.listeners) >= 1
+                assert len(multi.listeners) == 2
 
 
 @pytest.mark.skipif(
