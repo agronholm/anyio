@@ -25,7 +25,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed TCP listener behavior to guarantee the same ephemeral port is used for both
   IPv4 and IPv6 listeners when ``local_port=0``
   (`#857 <https://github.com/agronholm/anyio/issues/857>`_; PR by @11kkw)
-  
+
 **4.10.0**
 
 - Added the ``feed_data()`` method to the ``BufferedByteReceiveStream`` class, allowing
