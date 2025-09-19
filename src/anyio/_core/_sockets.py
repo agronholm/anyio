@@ -358,7 +358,6 @@ async def create_tcp_listener(
         type=socket.SocketKind.SOCK_STREAM if sys.platform == "win32" else 0,
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
-    listeners: list[SocketListener] = []
 
     try:
         # The set() is here to work around a glibc bug:
@@ -367,6 +366,7 @@ async def create_tcp_listener(
         sockaddr: tuple[str, int] | tuple[str, int, int, int]
         errors: list[OSError] = []
         for _ in range(len(sockaddrs)):
+            listeners: list[SocketListener] = []
             bound_ephemeral_port = local_port
             try:
                 for fam, kind, *_, sockaddr in sockaddrs:
@@ -386,11 +386,15 @@ async def create_tcp_listener(
                         bound_ephemeral_port = raw_socket.getsockname()[1]
 
                     listeners.append(asynclib.create_tcp_listener(raw_socket))
-            except OSError as exc:
+            except BaseException as exc:
+                for listener in listeners:
+                    await listener.aclose()
+
                 # If an ephemeral port was requested but binding the assigned port
                 # failed for another interface, rotate the address list and try again
                 if (
-                    exc.errno == errno.EADDRINUSE
+                    isinstance(exc, OSError)
+                    and exc.errno == errno.EADDRINUSE
                     and local_port == 0
                     and bound_ephemeral_port
                 ):
@@ -404,12 +408,8 @@ async def create_tcp_listener(
         raise OSError(
             f"Could not create {len(sockaddrs)} listeners with a consistent port"
         ) from ExceptionGroup("Several bind attempts failed", errors)
-    except BaseException:
+    finally:
         del errors  # Prevent reference cycles
-        for listener in listeners:
-            await listener.aclose()
-
-        raise
 
 
 async def create_unix_listener(
