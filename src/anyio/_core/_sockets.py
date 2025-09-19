@@ -301,39 +301,54 @@ async def create_tcp_listener(
     :param reuse_port: ``True`` to allow multiple sockets to bind to the same
         address/port (not supported on Windows)
     :return: a multi-listener object containing one or more socket listeners
+    :raises OSError: if there's an error creating a socket, or binding to one or more
+        interfaces failed
 
     """
     asynclib = get_async_backend()
     backlog = min(backlog, 65536)
     local_host = str(local_host) if local_host is not None else None
 
-    def _setup_raw_socket(fam: AddressFamily) -> socket.socket:
-        raw_socket = socket.socket(fam)
-        raw_socket.setblocking(False)
+    def setup_raw_socket(
+        fam: AddressFamily,
+        bind_addr: tuple[str, int] | tuple[str, int, int, int],
+        *,
+        v6only: bool = True,
+    ) -> socket.socket:
+        sock = socket.socket(fam)
+        sock.setblocking(False)
+
+        if fam == AddressFamily.AF_INET6:
+            sock.setsockopt(IPPROTO_IPV6, socket.IPV6_V6ONLY, v6only)
 
         # For Windows, enable exclusive address use. For others, enable address
         # reuse.
         if sys.platform == "win32":
-            raw_socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         else:
-            raw_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
         if reuse_port:
-            raw_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        return raw_socket
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+
+        # Workaround for #554
+        if fam == socket.AF_INET6 and "%" in bind_addr[0]:
+            addr, scope_id = bind_addr[0].split("%", 1)
+            bind_addr = (addr, bind_addr[1], 0, int(scope_id))
+
+        sock.bind(bind_addr)
+        sock.listen(backlog)
+        return sock
 
     if (
-        local_host in (None, "::", "localhost")
-        and local_port == 0
+        local_host is None
         and family == socket.AddressFamily.AF_UNSPEC
         and socket.has_dualstack_ipv6()
     ):
-        raw_socket = _setup_raw_socket(socket.AF_INET6)
-        raw_socket.setsockopt(IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-        raw_socket.bind(("::", 0))
-        raw_socket.listen(backlog)
+        raw_socket = setup_raw_socket(
+            socket.AF_INET6, ("::", local_port, 0, 0), v6only=False
+        )
         listener = asynclib.create_tcp_listener(raw_socket)
-
         return MultiListener([listener])
 
     gai_res = await getaddrinfo(
@@ -344,48 +359,57 @@ async def create_tcp_listener(
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
     listeners: list[SocketListener] = []
-    first_port: int | None = None
 
     try:
         # The set() is here to work around a glibc bug:
         # https://sourceware.org/bugzilla/show_bug.cgi?id=14969
+        sockaddrs = sorted(set(gai_res))
         sockaddr: tuple[str, int] | tuple[str, int, int, int]
-        for fam, kind, *_, sockaddr in sorted(set(gai_res)):
-            # Workaround for an uvloop bug where we don't get the correct scope ID for
-            # IPv6 link-local addresses when passing type=socket.SOCK_STREAM to
-            # getaddrinfo(): https://github.com/MagicStack/uvloop/issues/539
-            if sys.platform != "win32" and kind is not SocketKind.SOCK_STREAM:
-                continue
+        errors: list[OSError] = []
+        for _ in range(len(sockaddrs)):
+            bound_ephemeral_port = local_port
+            try:
+                for fam, kind, *_, sockaddr in sockaddrs:
+                    # Workaround for an uvloop bug where we don't get the correct scope
+                    # ID for IPv6 link-local addresses when passing
+                    # type=socket.SOCK_STREAM to getaddrinfo():
+                    # https://github.com/MagicStack/uvloop/issues/539
+                    if sys.platform != "win32" and kind is not SocketKind.SOCK_STREAM:
+                        continue
 
-            raw_socket = _setup_raw_socket(fam)
-            # If only IPv6 was requested, disable dual stack operation
-            if fam == socket.AF_INET6:
-                raw_socket.setsockopt(IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+                    sockaddr = sockaddr[0], bound_ephemeral_port, *sockaddr[2:]
+                    raw_socket = setup_raw_socket(fam, sockaddr)
 
-                # Workaround for #554
-                if "%" in sockaddr[0]:
-                    addr, scope_id = sockaddr[0].split("%", 1)
-                    sockaddr = (addr, sockaddr[1], 0, int(scope_id))
+                    # Store the assigned port if an ephemeral port was requested, so
+                    # we'll bind to the same port on all interfaces
+                    if local_port == 0 and len(gai_res) > 1:
+                        bound_ephemeral_port = raw_socket.getsockname()[1]
 
-            if local_port == 0:
-                if first_port is None:
-                    raw_socket.bind(sockaddr)
-                    first_port = raw_socket.getsockname()[1]
-                else:
-                    raw_socket.bind((sockaddr[0], first_port))
-            else:
-                raw_socket.bind(sockaddr)
+                    listeners.append(asynclib.create_tcp_listener(raw_socket))
+            except OSError as exc:
+                # If an ephemeral port was requested but binding the assigned port
+                # failed for another interface, rotate the address list and try again
+                if (
+                    exc.errno == errno.EADDRINUSE
+                    and local_port == 0
+                    and bound_ephemeral_port
+                ):
+                    sockaddrs.append(sockaddrs.pop(0))
+                    continue
 
-            raw_socket.listen(backlog)
-            listener = asynclib.create_tcp_listener(raw_socket)
-            listeners.append(listener)
+                raise
+
+            return MultiListener(listeners)
+
+        raise OSError(
+            f"Could not create {len(sockaddrs)} listeners with a consistent port"
+        ) from ExceptionGroup("Several bind attempts failed", errors)
     except BaseException:
+        del errors  # Prevent reference cycles
         for listener in listeners:
             await listener.aclose()
 
         raise
-
-    return MultiListener(listeners)
 
 
 async def create_unix_listener(

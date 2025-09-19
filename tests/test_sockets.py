@@ -916,17 +916,21 @@ class TestTCPListener:
             await SocketListener.from_socket(sock_or_fd)
 
     @pytest.mark.parametrize(
-        "local_host,family",
+        "local_host,family,expected_listeners",
         [
-            (None, AddressFamily.AF_UNSPEC),
-            ("localhost", AddressFamily.AF_UNSPEC),
-            ("::", AddressFamily.AF_UNSPEC),
-            ("127.0.0.1", AddressFamily.AF_INET),
-            ("::1", AddressFamily.AF_INET6),
+            (None, AddressFamily.AF_UNSPEC, 1 if socket.has_dualstack_ipv6() else 2),
+            ("localhost", AddressFamily.AF_UNSPEC, 2),
+            ("localhost", AddressFamily.AF_INET, 1),
+            ("::", AddressFamily.AF_UNSPEC, 1),
+            ("127.0.0.1", AddressFamily.AF_INET, 1),
+            ("::1", AddressFamily.AF_INET6, 1),
         ],
     )
     async def test_tcp_listener_same_port(
-        self, local_host: str | None, family: AnyIPAddressFamily
+        self,
+        local_host: str | None,
+        family: AnyIPAddressFamily,
+        expected_listeners: int,
     ) -> None:
         async with await create_tcp_listener(
             local_host=local_host, family=family
@@ -936,17 +940,7 @@ class TestTCPListener:
                 for listener in multi.listeners
             }
             assert len(ports) == 1
-
-    @pytest.mark.parametrize(
-        "local_host",
-        [None, "localhost", "::"],
-    )
-    async def test_tcp_listener_dualstack_expected_listener_count(
-        self,
-        local_host: str | None,
-    ) -> None:
-        async with await create_tcp_listener(local_host=local_host) as multi:
-            assert len(multi.listeners) == 1
+            assert len(multi.listeners) == expected_listeners
 
 
 @pytest.mark.skipif(
