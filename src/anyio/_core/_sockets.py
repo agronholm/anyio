@@ -344,6 +344,7 @@ async def create_tcp_listener(
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
     listeners: list[SocketListener] = []
+    first_port: int | None = None
 
     try:
         # The set() is here to work around a glibc bug:
@@ -366,7 +367,15 @@ async def create_tcp_listener(
                     addr, scope_id = sockaddr[0].split("%", 1)
                     sockaddr = (addr, sockaddr[1], 0, int(scope_id))
 
-            raw_socket.bind(sockaddr)
+            if local_port == 0:
+                if first_port is None:
+                    raw_socket.bind(sockaddr)
+                    first_port = raw_socket.getsockname()[1]
+                else:
+                    raw_socket.bind((sockaddr[0], first_port))
+            else:
+                raw_socket.bind(sockaddr)
+
             raw_socket.listen(backlog)
             listener = asynclib.create_tcp_listener(raw_socket)
             listeners.append(listener)

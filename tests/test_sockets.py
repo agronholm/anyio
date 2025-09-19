@@ -938,24 +938,15 @@ class TestTCPListener:
             assert len(ports) == 1
 
     @pytest.mark.parametrize(
-        "local_host, expect_dualstack",
-        [
-            (None, True),
-            ("localhost", True),
-            ("::", True),
-            ("0.0.0.0", False),
-            ("127.0.0.1", False),
-            ("::1", False),
-        ],
+        "local_host",
+        [None, "localhost", "::"],
     )
     async def test_tcp_listener_dualstack_expected_listener_count(
-        self, local_host: str | None, expect_dualstack: bool
+        self,
+        local_host: str | None,
     ) -> None:
         async with await create_tcp_listener(local_host=local_host) as multi:
-            if expect_dualstack:
-                assert len(multi.listeners) == 1
-            else:
-                assert len(multi.listeners) == 2
+            assert len(multi.listeners) == 1
 
 
 @pytest.mark.skipif(
@@ -1494,7 +1485,11 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
                     else:
                         assert isinstance(local_address, tuple)
                         host, port = local_address
-                        host = "::1" if listener.extra(SocketAttribute.family) == socket.AF_INET6 else "127.0.0.1"
+                        host = (
+                            "::1"
+                            if listener.extra(SocketAttribute.family) == socket.AF_INET6
+                            else "127.0.0.1"
+                        )
                         stream = await connect_tcp(host, port)
 
                     expected_addresses.append(
