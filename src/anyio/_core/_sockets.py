@@ -359,12 +359,12 @@ async def create_tcp_listener(
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
 
+    errors: list[OSError] = []
     try:
         # The set() is here to work around a glibc bug:
         # https://sourceware.org/bugzilla/show_bug.cgi?id=14969
         sockaddrs = sorted(set(gai_res))
         sockaddr: tuple[str, int] | tuple[str, int, int, int]
-        errors: list[OSError] = []
         for _ in range(len(sockaddrs)):
             listeners: list[SocketListener] = []
             bound_ephemeral_port = local_port
