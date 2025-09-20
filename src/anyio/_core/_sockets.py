@@ -340,17 +340,6 @@ async def create_tcp_listener(
         sock.listen(backlog)
         return sock
 
-    if (
-        local_host is None
-        and family == socket.AddressFamily.AF_UNSPEC
-        and socket.has_dualstack_ipv6()
-    ):
-        raw_socket = setup_raw_socket(
-            socket.AF_INET6, ("::", local_port, 0, 0), v6only=False
-        )
-        listener = asynclib.create_tcp_listener(raw_socket)
-        return MultiListener([listener])
-
     gai_res = await getaddrinfo(
         local_host,
         local_port,
@@ -358,6 +347,19 @@ async def create_tcp_listener(
         type=socket.SocketKind.SOCK_STREAM if sys.platform == "win32" else 0,
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
+
+    # Special case for dual-stack binding on the "any" interface
+    if (
+        local_host is None
+        and family == AddressFamily.AF_UNSPEC
+        and socket.has_dualstack_ipv6()
+        and any(fam == AddressFamily.AF_INET6 for fam, *_ in gai_res)
+    ):
+        raw_socket = setup_raw_socket(
+            AddressFamily.AF_INET6, ("::", local_port), v6only=False
+        )
+        listener = asynclib.create_tcp_listener(raw_socket)
+        return MultiListener([listener])
 
     errors: list[OSError] = []
     try:
@@ -373,7 +375,7 @@ async def create_tcp_listener(
                     # ID for IPv6 link-local addresses when passing
                     # type=socket.SOCK_STREAM to getaddrinfo():
                     # https://github.com/MagicStack/uvloop/issues/539
-                    if sys.platform != "win32" and kind is not SocketKind.SOCK_STREAM:
+                    if sys.platform != "win32" and kind != SocketKind.SOCK_STREAM:
                         continue
 
                     sockaddr = sockaddr[0], bound_ephemeral_port, *sockaddr[2:]
