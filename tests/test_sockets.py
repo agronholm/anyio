@@ -717,7 +717,20 @@ class TestTCPListener:
             for listener in multi.listeners:
                 client = socket.socket(listener.extra(SocketAttribute.family))
                 client.settimeout(1)
-                client.connect(listener.extra(SocketAttribute.local_address))
+                addr = listener.extra(SocketAttribute.local_address)
+                host, port = addr[0], addr[1]
+
+                # On Windows, connecting to ANY (:: or 0.0.0.0) is invalid (WinError 10049).
+                # Replace it with loopback (::1 or 127.0.0.1) to make the test portable.
+                if sys.platform == "win32" and host in ("::", "0.0.0.0"):
+                    family = listener.extra(SocketAttribute.family)
+                    if family == socket.AF_INET6:
+                        addr = ("::1", port)
+                    elif family == socket.AF_INET:
+                        addr = ("127.0.0.1", port)
+
+                client.connect(addr)
+
                 assert isinstance(listener, SocketListener)
                 stream = await listener.accept()
                 client.sendall(b"blah")
@@ -901,6 +914,33 @@ class TestTCPListener:
         sock_or_fd = sock_or_fd_factory(family, socket.SOCK_STREAM)
         with pytest.raises(ValueError, match="the socket must be bound"):
             await SocketListener.from_socket(sock_or_fd)
+
+    @pytest.mark.parametrize(
+        "local_host,family,expected_listeners",
+        [
+            (None, AddressFamily.AF_UNSPEC, 1 if socket.has_dualstack_ipv6() else 2),
+            ("localhost", AddressFamily.AF_UNSPEC, 2),
+            ("localhost", AddressFamily.AF_INET, 1),
+            ("::", AddressFamily.AF_UNSPEC, 1),
+            ("127.0.0.1", AddressFamily.AF_INET, 1),
+            ("::1", AddressFamily.AF_INET6, 1),
+        ],
+    )
+    async def test_tcp_listener_same_port(
+        self,
+        local_host: str | None,
+        family: AnyIPAddressFamily,
+        expected_listeners: int,
+    ) -> None:
+        async with await create_tcp_listener(
+            local_host=local_host, family=family
+        ) as multi:
+            ports = {
+                listener.extra(SocketAttribute.local_port)
+                for listener in multi.listeners
+            }
+            assert len(ports) == 1
+            assert len(multi.listeners) == expected_listeners
 
 
 @pytest.mark.skipif(
@@ -1438,7 +1478,13 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
                         stream: SocketStream = await connect_unix(local_address)
                     else:
                         assert isinstance(local_address, tuple)
-                        stream = await connect_tcp(*local_address)
+                        host, port = local_address
+                        host = (
+                            "::1"
+                            if listener.extra(SocketAttribute.family) == socket.AF_INET6
+                            else "127.0.0.1"
+                        )
+                        stream = await connect_tcp(host, port)
 
                     expected_addresses.append(
                         stream.extra(SocketAttribute.local_address)
