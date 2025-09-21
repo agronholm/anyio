@@ -316,37 +316,49 @@ async def create_tcp_listener(
         v6only: bool = True,
     ) -> socket.socket:
         sock = socket.socket(fam)
-        sock.setblocking(False)
+        try:
+            sock.setblocking(False)
 
-        if fam == AddressFamily.AF_INET6:
-            sock.setsockopt(IPPROTO_IPV6, socket.IPV6_V6ONLY, v6only)
+            if fam == AddressFamily.AF_INET6:
+                sock.setsockopt(IPPROTO_IPV6, socket.IPV6_V6ONLY, v6only)
 
-        # For Windows, enable exclusive address use. For others, enable address
-        # reuse.
-        if sys.platform == "win32":
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-        else:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            # For Windows, enable exclusive address use. For others, enable address
+            # reuse.
+            if sys.platform == "win32":
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            else:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-        if reuse_port:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            if reuse_port:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
 
-        # Workaround for #554
-        if fam == socket.AF_INET6 and "%" in bind_addr[0]:
-            addr, scope_id = bind_addr[0].split("%", 1)
-            bind_addr = (addr, bind_addr[1], 0, int(scope_id))
+            # Workaround for #554
+            if fam == socket.AF_INET6 and "%" in bind_addr[0]:
+                addr, scope_id = bind_addr[0].split("%", 1)
+                bind_addr = (addr, bind_addr[1], 0, int(scope_id))
 
-        sock.bind(bind_addr)
-        sock.listen(backlog)
+            sock.bind(bind_addr)
+            sock.listen(backlog)
+        except BaseException:
+            sock.close()
+            raise
+
         return sock
 
+    # We skip passing type=socket.SOCK_STREAM as a workaround for a uvloop bug
+    # where we don't get the correct scope ID for IPv6 link-local addresses when passing
+    # type=socket.SOCK_STREAM to getaddrinfo():
+    # https://github.com/MagicStack/uvloop/issues/539
     gai_res = await getaddrinfo(
         local_host,
         local_port,
         family=family,
-        type=socket.SocketKind.SOCK_STREAM if sys.platform == "win32" else 0,
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
+
+    # The set() is here to work around a glibc bug:
+    # https://sourceware.org/bugzilla/show_bug.cgi?id=14969
+    sockaddrs = sorted({res for res in gai_res if res[1] == SocketKind.SOCK_STREAM})
 
     # Special case for dual-stack binding on the "any" interface
     if (
@@ -363,21 +375,11 @@ async def create_tcp_listener(
 
     errors: list[OSError] = []
     try:
-        # The set() is here to work around a glibc bug:
-        # https://sourceware.org/bugzilla/show_bug.cgi?id=14969
-        sockaddrs = sorted(set(gai_res))
         for _ in range(len(sockaddrs)):
             listeners: list[SocketListener] = []
             bound_ephemeral_port = local_port
             try:
-                for fam, kind, *_, sockaddr in sockaddrs:
-                    # Workaround for an uvloop bug where we don't get the correct scope
-                    # ID for IPv6 link-local addresses when passing
-                    # type=socket.SOCK_STREAM to getaddrinfo():
-                    # https://github.com/MagicStack/uvloop/issues/539
-                    if sys.platform != "win32" and kind != SocketKind.SOCK_STREAM:
-                        continue
-
+                for fam, *_, sockaddr in sockaddrs:
                     sockaddr = sockaddr[0], bound_ephemeral_port, *sockaddr[2:]
                     raw_socket = setup_raw_socket(fam, sockaddr)
 
@@ -399,6 +401,7 @@ async def create_tcp_listener(
                     and local_port == 0
                     and bound_ephemeral_port
                 ):
+                    errors.append(exc)
                     sockaddrs.append(sockaddrs.pop(0))
                     continue
 

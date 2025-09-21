@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import array
+import errno
 import gc
 import io
 import os
@@ -20,6 +21,7 @@ from ssl import SSLContext, SSLError
 from threading import Thread
 from typing import TYPE_CHECKING, Any, Literal, NoReturn, Protocol, TypeVar, cast
 from unittest import mock
+from unittest.mock import MagicMock, patch
 
 import psutil
 import pytest
@@ -941,6 +943,33 @@ class TestTCPListener:
             }
             assert len(ports) == 1
             assert len(multi.listeners) == expected_listeners
+
+    async def test_tcp_listener_total_bind_failure(self) -> None:
+        """
+        Test for a situation where bind() always fails when other listeners are being
+        bound to the same port as the first listener which was randomly assigned a free
+        port by the kernel.
+
+        """
+
+        def raise_oserror(addr: tuple[str, int]) -> None:
+            # Pretend that every explicitly requested port is already in use
+            if addr[1] != 0:
+                raise OSError(errno.EADDRINUSE, "bind failure")
+
+        mock_socket_instance = MagicMock()
+        mock_socket_instance.bind.side_effect = raise_oserror
+        asynclib = get_async_backend()
+        with (
+            patch("socket.socket", autospec=True, return_value=mock_socket_instance),
+            patch.object(
+                asynclib, "create_tcp_listener", return_value=MagicMock(SocketListener)
+            ),
+            pytest.raises(
+                OSError, match="Could not create 2 listeners with a consistent port"
+            ),
+        ):
+            await create_tcp_listener(local_host="localhost")
 
 
 @pytest.mark.skipif(
