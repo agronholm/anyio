@@ -356,7 +356,7 @@ async def create_tcp_listener(
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
 
-    # The set() is here to work around a glibc bug:
+    # The set comprehension is here to work around a glibc bug:
     # https://sourceware.org/bugzilla/show_bug.cgi?id=14969
     sockaddrs = sorted({res for res in gai_res if res[1] == SocketKind.SOCK_STREAM})
 
