@@ -961,7 +961,7 @@ class TestTCPListener:
         mock_socket_instance.bind.side_effect = raise_oserror
         asynclib = get_async_backend()
         with (
-            patch("socket.socket", autospec=True, return_value=mock_socket_instance),
+            patch("anyio._core._sockets.socket") as mock_anyio_sockets,
             patch.object(
                 asynclib, "create_tcp_listener", return_value=MagicMock(SocketListener)
             ),
@@ -969,6 +969,7 @@ class TestTCPListener:
                 OSError, match="Could not create 2 listeners with a consistent port"
             ),
         ):
+            mock_anyio_sockets.socket.configure_mock(return_value=mock_socket_instance)
             await create_tcp_listener(local_host="localhost")
 
 

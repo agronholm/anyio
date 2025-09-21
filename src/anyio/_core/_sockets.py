@@ -345,7 +345,7 @@ async def create_tcp_listener(
 
         return sock
 
-    # We skip passing type=socket.SOCK_STREAM as a workaround for a uvloop bug
+    # We passing type=0 on non-Windows platforms as a workaround for a uvloop bug
     # where we don't get the correct scope ID for IPv6 link-local addresses when passing
     # type=socket.SOCK_STREAM to getaddrinfo():
     # https://github.com/MagicStack/uvloop/issues/539
@@ -353,6 +353,7 @@ async def create_tcp_listener(
         local_host,
         local_port,
         family=family,
+        type=socket.SOCK_STREAM if sys.platform == "win32" else 0,
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
 
