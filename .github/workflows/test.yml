@@ -109,7 +109,6 @@ jobs:
     - name: Generate coverage report
       run: coverage xml
     - name: Upload Coverage
-      if: runner.os != 'macOS'
       uses: coverallsapp/github-action@v2
       with:
         parallel: true
