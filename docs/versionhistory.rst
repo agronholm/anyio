@@ -12,8 +12,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added the ability to enter the event loop from foreign (non-worker) threads by
   passing the return value of ``anyio.lowlevel.current_token()`` to
   ``anyio.from_thread.run()`` and ``anyio.from_thread.run_sync()`` as the ``token``
-  (`#256 <https://github.com/agronholm/anyio/issues/256>`_)
-  keyword argument
+  keyword argument (`#256 <https://github.com/agronholm/anyio/issues/256>`_)
 - Added pytest option (``anyio_mode = "auto"``) to make the pytest plugin automatically
   handle all async tests
   (`#971 <https://github.com/agronholm/anyio/pull/971>`_)
