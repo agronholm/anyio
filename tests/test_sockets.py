@@ -975,9 +975,7 @@ class TestTCPListener:
             }
             assert len(ports) == 1
 
-    async def test_tcp_listener_retry_after_partial_failure(
-        self, monkeypatch: MonkeyPatch
-    ) -> None:
+    async def test_tcp_listener_retry_after_partial_failure(self) -> None:
         """
         Simulate a case where the first bind() succeeds with an ephemeral port,
         the second bind() fails with EADDRINUSE, and verify that create_tcp_listener
@@ -1004,21 +1002,20 @@ class TestTCPListener:
 
             return real_bind(self, addr)
 
-        monkeypatch.setattr(socket.socket, "bind", fake_bind)
+        with patch.object(socket.socket, "bind", new=fake_bind):
+            async with await create_tcp_listener(
+                local_host="localhost", family=socket.AF_UNSPEC, local_port=0
+            ) as multi:
+                assert bind_count >= 2
 
-        async with await create_tcp_listener(
-            local_host="localhost", family=socket.AF_UNSPEC, local_port=0
-        ) as multi:
-            assert bind_count >= 2
-
-            ports = {
-                listener.extra(SocketAttribute.local_port)
-                for listener in multi.listeners
-            }
-            assert len(ports) == 1
-            assert all(
-                isinstance(listener, SocketListener) for listener in multi.listeners
-            )
+                ports = {
+                    listener.extra(SocketAttribute.local_port)
+                    for listener in multi.listeners
+                }
+                assert len(ports) == 1
+                assert all(
+                    isinstance(listener, SocketListener) for listener in multi.listeners
+                )
 
     async def test_tcp_listener_total_bind_failure(self) -> None:
         """
