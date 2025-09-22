@@ -21,6 +21,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#974 <https://github.com/agronholm/anyio/pull/974>`_)
 - Changed the default type argument of ``anyio.abc.TaskStatus`` from ``Any`` to ``None``
   (`#964 <https://github.com/agronholm/anyio/pull/964>`_)
+- Fixed TCP listener behavior to guarantee the same ephemeral port is used for all
+  socket listeners when ``local_port=0``
+  (`#857 <https://github.com/agronholm/anyio/issues/857>`_; PR by @11kkw and @agronholm)
 
 **4.10.0**
 
