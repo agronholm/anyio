@@ -918,14 +918,22 @@ class TestTCPListener:
             await SocketListener.from_socket(sock_or_fd)
 
     @pytest.mark.parametrize(
-        "local_host,family,expected_listeners",
+        "local_host,family,expected_listeners,local_port",
         [
-            (None, AddressFamily.AF_UNSPEC, 1 if socket.has_dualstack_ipv6() else 2),
-            ("localhost", AddressFamily.AF_UNSPEC, 2),
-            ("localhost", AddressFamily.AF_INET, 1),
-            ("::", AddressFamily.AF_UNSPEC, 1),
-            ("127.0.0.1", AddressFamily.AF_INET, 1),
-            ("::1", AddressFamily.AF_INET6, 1),
+            (None, AddressFamily.AF_UNSPEC, 1 if socket.has_dualstack_ipv6() else 2, 0),
+            ("localhost", AddressFamily.AF_UNSPEC, 2, 0),
+            ("localhost", AddressFamily.AF_INET, 1, 0),
+            ("::", AddressFamily.AF_UNSPEC, 1, 0),
+            ("127.0.0.1", AddressFamily.AF_INET, 1, 0),
+            ("::1", AddressFamily.AF_INET6, 1, 0),
+            (
+                None,
+                AddressFamily.AF_UNSPEC,
+                1 if socket.has_dualstack_ipv6() else 2,
+                54321,
+            ),
+            ("localhost", AddressFamily.AF_UNSPEC, 2, 54321),
+            ("localhost", AddressFamily.AF_INET, 1, 54321),
         ],
     )
     async def test_tcp_listener_same_port(
@@ -933,16 +941,84 @@ class TestTCPListener:
         local_host: str | None,
         family: AnyIPAddressFamily,
         expected_listeners: int,
+        local_port: int,
     ) -> None:
         async with await create_tcp_listener(
-            local_host=local_host, family=family
+            local_host=local_host, family=family, local_port=local_port
         ) as multi:
             ports = {
                 listener.extra(SocketAttribute.local_port)
                 for listener in multi.listeners
             }
             assert len(ports) == 1
+            if local_port != 0:
+                assert list(ports)[0] == local_port
             assert len(multi.listeners) == expected_listeners
+
+    async def test_tcp_listener_dualstack_disabled(
+        self, monkeypatch: MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(socket, "has_dualstack_ipv6", lambda: False)
+
+        async with await create_tcp_listener(
+            local_host=None, family=AddressFamily.AF_UNSPEC
+        ) as multi:
+            families = {
+                listener.extra(SocketAttribute.family) for listener in multi.listeners
+            }
+            assert families == {socket.AF_INET, socket.AF_INET6}
+            assert len(multi.listeners) == 2
+
+            ports = {
+                listener.extra(SocketAttribute.local_port)
+                for listener in multi.listeners
+            }
+            assert len(ports) == 1
+
+    async def test_tcp_listener_retry_after_partial_failure(
+        self, monkeypatch: MonkeyPatch
+    ) -> None:
+        """
+        Simulate a case where the first bind() succeeds with an ephemeral port,
+        the second bind() fails with EADDRINUSE, and verify that create_tcp_listener
+        retries and eventually succeeds with all listeners bound to the same port.
+        """
+
+        real_bind = socket.socket.bind
+        bind_count = 0
+        fail_once = True
+
+        def fake_bind(
+            self: socket.socket, addr: tuple[str, int] | tuple[str, int, int, int]
+        ) -> None:
+            nonlocal bind_count, fail_once
+            port = addr[1] if isinstance(addr, tuple) and len(addr) >= 2 else None
+            bind_count += 1
+
+            if bind_count == 1 and port == 0:
+                return real_bind(self, addr)
+
+            if fail_once and port != 0:
+                fail_once = False
+                raise OSError(errno.EADDRINUSE, "simulated collision on second bind")
+
+            return real_bind(self, addr)
+
+        monkeypatch.setattr(socket.socket, "bind", fake_bind)
+
+        async with await create_tcp_listener(
+            local_host="localhost", family=socket.AF_UNSPEC, local_port=0
+        ) as multi:
+            assert bind_count >= 2
+
+            ports = {
+                listener.extra(SocketAttribute.local_port)
+                for listener in multi.listeners
+            }
+            assert len(ports) == 1
+            assert all(
+                isinstance(listener, SocketListener) for listener in multi.listeners
+            )
 
     async def test_tcp_listener_total_bind_failure(self) -> None:
         """
