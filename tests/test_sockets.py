@@ -953,8 +953,10 @@ class TestTCPListener:
             assert len(ports) == 1
             if local_port != 0:
                 assert ports == {local_port}
+
             assert len(multi.listeners) == expected_listeners
 
+    @skip_ipv6_mark
     async def test_tcp_listener_dualstack_disabled(
         self, monkeypatch: MonkeyPatch
     ) -> None:
