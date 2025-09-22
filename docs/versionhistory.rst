@@ -18,7 +18,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   handle all async tests
   (`#971 <https://github.com/agronholm/anyio/pull/971>`_)
 - Added the ``anyio.Condition.wait_for()`` method for feature parity with asyncio
-- Added the ``anyio.Condition.wait_for()`` method for feature parity with asyncio
   (`#974 <https://github.com/agronholm/anyio/pull/974>`_)
 - Changed the default type argument of ``anyio.abc.TaskStatus`` from ``Any`` to ``None``
   (`#964 <https://github.com/agronholm/anyio/pull/964>`_)
