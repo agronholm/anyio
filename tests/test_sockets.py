@@ -1022,7 +1022,6 @@ class TestTCPListener:
         Test for a situation where bind() always fails when other listeners are being
         bound to the same port as the first listener which was randomly assigned a free
         port by the kernel.
-
         """
 
         def raise_oserror(addr: tuple[str, int]) -> None:
