@@ -45,6 +45,7 @@ AnyIO offers the following functionality:
   streams)
 * Worker threads
 * Subprocesses
+* Subinterpreter support for code parallelization (on Python 3.13 and later)
 * Asynchronous file I/O (using worker threads)
 * Signal handling
 
