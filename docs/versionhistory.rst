@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**4.11.0**
 
 - Added support for cancellation reasons (the ``reason`` parameter to
   ``CancelScope.cancel()``)
