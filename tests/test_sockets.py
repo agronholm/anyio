@@ -29,6 +29,7 @@ from _pytest.fixtures import SubRequest
 from _pytest.logging import LogCaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
 from _pytest.tmpdir import TempPathFactory
+from pytest import FixtureRequest
 from pytest_mock.plugin import MockerFixture
 
 from anyio import (
@@ -513,26 +514,40 @@ class TestTCPStream:
         with pytest.raises(ClosedResourceError):
             await stream.send(b"foo")
 
-    async def test_send_after_peer_closed(self, family: AnyIPAddressFamily) -> None:
-        def serve_once() -> None:
+    async def test_receive_after_peer_closed(
+        self, family: AnyIPAddressFamily, request: FixtureRequest
+    ) -> None:
+        server_sock = socket.create_server(("localhost", 0), family=family)
+        request.addfinalizer(server_sock.close)
+        server_sock.settimeout(1)
+        server_addr = server_sock.getsockname()[:2]
+
+        async with await connect_tcp(*server_addr) as stream:
             client_sock, _ = server_sock.accept()
             client_sock.close()
-            server_sock.close()
+            with pytest.raises(EndOfStream):
+                await stream.receive(1)
 
-        server_sock = socket.socket(family, socket.SOCK_STREAM)
+        with pytest.raises(ClosedResourceError):
+            await stream.receive(1)
+
+    async def test_send_after_peer_closed(
+        self, family: AnyIPAddressFamily, request: FixtureRequest
+    ) -> None:
+        server_sock = socket.create_server(("localhost", 0), family=family)
+        request.addfinalizer(server_sock.close)
         server_sock.settimeout(1)
-        server_sock.bind(("localhost", 0))
         server_addr = server_sock.getsockname()[:2]
-        server_sock.listen()
-        thread = Thread(target=serve_once, daemon=True)
-        thread.start()
 
-        with pytest.raises(BrokenResourceError):
-            async with await connect_tcp(*server_addr) as stream:
+        async with await connect_tcp(*server_addr) as stream:
+            client_sock, _ = server_sock.accept()
+            client_sock.close()
+            with pytest.raises(BrokenResourceError):
                 for _ in range(1000):
                     await stream.send(b"foo")
 
-        thread.join()
+        with pytest.raises(ClosedResourceError):
+            await stream.send(b"foo")
 
     async def test_connect_tcp_with_tls(
         self,

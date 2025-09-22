@@ -23,6 +23,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed TCP listener behavior to guarantee the same ephemeral port is used for all
   socket listeners when ``local_port=0``
   (`#857 <https://github.com/agronholm/anyio/issues/857>`_; PR by @11kkw and @agronholm)
+- Fixed inconsistency between Trio and asyncio where a TCP stream that previously
+  raised a ``BrokenResourceError`` on ``send()`` would still raise
+  ``BrokenResourceError`` after the stream was closed on asyncio, but
+  ``ClosedResourceError`` on Trio. They now both raise a ``ClosedResourceError`` in this
+  scenario. (`#671 <https://github.com/agronholm/anyio/issues/671>`_)
 
 **4.10.0**
 
