@@ -952,7 +952,7 @@ class TestTCPListener:
             }
             assert len(ports) == 1
             if local_port != 0:
-                assert list(ports)[0] == local_port
+                assert ports == {local_port}
             assert len(multi.listeners) == expected_listeners
 
     async def test_tcp_listener_dualstack_disabled(
