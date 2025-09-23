@@ -1313,8 +1313,8 @@ class SocketStream(abc.SocketStream):
             pass
 
     async def aclose(self) -> None:
+        self._closed = True
         if not self._transport.is_closing():
-            self._closed = True
             try:
                 self._transport.write_eof()
             except OSError:
