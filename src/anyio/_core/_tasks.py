@@ -192,8 +192,9 @@ class AwaitedTaskTerminated(Exception):
     Raised when awaiting on a :class:`TaskHandle` which was terminated by a
     `BaseException`.
 
-    This exception class exists because a `BaseException` (i.e. one that is
-    not an `Exception`) should not be suppressed, nor forwarded to another scope.
+    This exception class exists because a :exc:`BaseException` (i.e. one
+    that is not an :exc:`Exception`) should not be suppressed, nor
+    forwarded to another scope.
     """
 
 
@@ -201,12 +202,14 @@ class AwaitedTaskCancelled(AwaitedTaskTerminated):
     """
     Raised when awaiting on a :class:`TaskHandle` which was cancelled.
 
-    This subclass of `AwaitedTaskTerminated` exists in order to
+    This subclass of :exc:`AwaitedTaskTerminated` exists in order to
     differentiate between the cancellation of the host task (the one
     awaiting on a task) and the cancellation of the task it's awaiting on.
 
     Additionally, raising :class:`asyncio.CancelledError` when waiting on
-    a task would potentially cause cancellation`counters (Python 3.11 and later) to
+    a task would potentially cause cancellation counters (Python 3.11 and later) to
+    be incorrectly decremented, as they should only be decremented when the task
+    itself has been cancelled.
     """
 
 
