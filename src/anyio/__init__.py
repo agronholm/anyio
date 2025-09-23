@@ -66,6 +66,7 @@ from ._core._synchronization import Semaphore as Semaphore
 from ._core._synchronization import SemaphoreStatistics as SemaphoreStatistics
 from ._core._tasks import TASK_STATUS_IGNORED as TASK_STATUS_IGNORED
 from ._core._tasks import AwaitedTaskCancelled as AwaitedTaskCancelled
+from ._core._tasks import AwaitedTaskTerminated as AwaitedTaskTerminated
 from ._core._tasks import CancelScope as CancelScope
 from ._core._tasks import EnhancedTaskGroup as EnhancedTaskGroup
 from ._core._tasks import TaskHandle as TaskHandle
