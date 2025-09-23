@@ -187,14 +187,29 @@ def create_task_group() -> TaskGroup:
     return get_async_backend().create_task_group()
 
 
-class AwaitedTaskCancelled(Exception):
+class AwaitedTaskTerminated(Exception):
+    """
+    Raised when awaiting on a :class:`TaskHandle` which was terminated by a
+    `BaseException`.
+
+    This exception class exists because a :exc:`BaseException` (i.e. one
+    that is not an :exc:`Exception`) should not be suppressed, nor
+    forwarded to another scope.
+    """
+
+
+class AwaitedTaskCancelled(AwaitedTaskTerminated):
     """
     Raised when awaiting on a :class:`TaskHandle` which was cancelled.
 
-    This exception class exists in order to differentiate between the cancellation of
-    the host task (the one awaiting on a task) and the cancellation of the task it's
-    awaiting on. Additionally, raising :class:`asyncio.CancelledError` when waiting on
-    a task would potentially cause cancellation`counters (Python 3.11 and later) to
+    This subclass of :exc:`AwaitedTaskTerminated` exists in order to
+    differentiate between the cancellation of the host task (the one
+    awaiting on a task) and the cancellation of the task it's awaiting on.
+
+    Additionally, raising :class:`asyncio.CancelledError` when waiting on
+    a task would potentially cause cancellation counters (Python 3.11 and later) to
+    be incorrectly decremented, as they should only be decremented when the task
+    itself has been cancelled.
     """
 
 
@@ -202,7 +217,8 @@ class TaskHandle(Generic[T]):
     """
     Returned from task-spawning methods in :class:`EnhancedTaskGroup`. Can be awaited on
     to get the return value of the task (or the raised exception). If the task was
-    cancelled, :exc:`AwaitedTaskCancelled` will be raised.
+    terminated by a :exc:`BaseException`, :exc:`AwaitedTaskTerminated` will be raised
+    (or its subclass :exc:`AwaitedTaskCancelled` if the task was cancelled).
     """
 
     __slots__ = (
@@ -233,10 +249,12 @@ class TaskHandle(Generic[T]):
         self._event.set()
 
     def set_exception(self, exception: BaseException) -> None:
-        if isinstance(exception, get_cancelled_exc_class()):
-            exc = AwaitedTaskCancelled(
-                f"the task being awaited on ({self.name!r}) was cancelled"
-            )
+        if not isinstance(exception, Exception):
+            exc = (
+                AwaitedTaskCancelled
+                if isinstance(exception, get_cancelled_exc_class())
+                else AwaitedTaskTerminated
+            )(f"the task being awaited on ({self.name!r}) was cancelled")
             exc.__cause__ = exception
             exception = exc
 
