@@ -80,8 +80,10 @@ class AsyncBackend(metaclass=ABCMeta):
     @abstractmethod
     def current_token(cls) -> object:
         """
+        Return an object that allows other threads to run code inside the event loop.
 
-        :return:
+        :return: a token object, specific to the event loop running in the current
+            thread
         """
 
     @classmethod

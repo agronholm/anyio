@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, SupportsIndex
 
 from .. import ClosedResourceError, DelimiterNotFound, EndOfStream, IncompleteRead
 from ..abc import (
@@ -44,6 +44,19 @@ class BufferedByteReceiveStream(ByteReceiveStream):
     @property
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
         return self.receive_stream.extra_attributes
+
+    def feed_data(self, data: Iterable[SupportsIndex], /) -> None:
+        """
+        Append data directly into the buffer.
+
+        Any data in the buffer will be consumed by receive operations before receiving
+        anything from the wrapped stream.
+
+        :param data: the data to append to the buffer (can be bytes or anything else
+            that supports ``__index__()``)
+
+        """
+        self._buffer.extend(data)
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
         if self._closed:

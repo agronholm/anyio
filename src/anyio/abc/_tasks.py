@@ -4,7 +4,12 @@ import sys
 from abc import ABCMeta, abstractmethod
 from collections.abc import Awaitable, Callable
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Protocol, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Protocol, overload
+
+if sys.version_info >= (3, 13):
+    from typing import TypeVar
+else:
+    from typing_extensions import TypeVar
 
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
@@ -15,7 +20,7 @@ if TYPE_CHECKING:
     from .._core._tasks import CancelScope
 
 T_Retval = TypeVar("T_Retval")
-T_contra = TypeVar("T_contra", contravariant=True)
+T_contra = TypeVar("T_contra", contravariant=True, default=None)
 PosArgsT = TypeVarTuple("PosArgsT")
 
 
@@ -77,12 +82,23 @@ class TaskGroup(metaclass=ABCMeta):
         """
         Start a new task and wait until it signals for readiness.
 
-        :param func: a coroutine function
+        The target callable must accept a keyword argument ``task_status`` (of type
+        :class:`TaskStatus`). Awaiting on this method will return whatever was passed to
+        ``task_status.started()`` (``None`` by default).
+
+        .. note:: The :class:`TaskStatus` class is generic, and the type argument should
+            indicate the type of the value that will be passed to
+            ``task_status.started()``.
+
+        :param func: a coroutine function that accepts the ``task_status`` keyword
+            argument
         :param args: positional arguments to call the function with
-        :param name: name of the task, for the purposes of introspection and debugging
+        :param name: an optional name for the task, for introspection and debugging
         :return: the value passed to ``task_status.started()``
         :raises RuntimeError: if the task finishes without calling
             ``task_status.started()``
+
+        .. seealso:: :ref:`start_initialize`
 
         .. versionadded:: 3.0
         """

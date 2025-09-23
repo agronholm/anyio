@@ -3,8 +3,36 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**4.11.0**
 
+- Added support for cancellation reasons (the ``reason`` parameter to
+  ``CancelScope.cancel()``)
+  (`#975 <https://github.com/agronholm/anyio/pull/975>`_)
+- Bumped the minimum version of Trio to v0.31.0
+- Added the ability to enter the event loop from foreign (non-worker) threads by
+  passing the return value of ``anyio.lowlevel.current_token()`` to
+  ``anyio.from_thread.run()`` and ``anyio.from_thread.run_sync()`` as the ``token``
+  keyword argument (`#256 <https://github.com/agronholm/anyio/issues/256>`_)
+- Added pytest option (``anyio_mode = "auto"``) to make the pytest plugin automatically
+  handle all async tests
+  (`#971 <https://github.com/agronholm/anyio/pull/971>`_)
+- Added the ``anyio.Condition.wait_for()`` method for feature parity with asyncio
+  (`#974 <https://github.com/agronholm/anyio/pull/974>`_)
+- Changed the default type argument of ``anyio.abc.TaskStatus`` from ``Any`` to ``None``
+  (`#964 <https://github.com/agronholm/anyio/pull/964>`_)
+- Fixed TCP listener behavior to guarantee the same ephemeral port is used for all
+  socket listeners when ``local_port=0``
+  (`#857 <https://github.com/agronholm/anyio/issues/857>`_; PR by @11kkw and @agronholm)
+- Fixed inconsistency between Trio and asyncio where a TCP stream that previously
+  raised a ``BrokenResourceError`` on ``send()`` would still raise
+  ``BrokenResourceError`` after the stream was closed on asyncio, but
+  ``ClosedResourceError`` on Trio. They now both raise a ``ClosedResourceError`` in this
+  scenario. (`#671 <https://github.com/agronholm/anyio/issues/671>`_)
+
+**4.10.0**
+
+- Added the ``feed_data()`` method to the ``BufferedByteReceiveStream`` class, allowing
+  users to inject data directly into the buffer
 - Added various class methods to wrap existing sockets as listeners or socket streams:
 
   * ``SocketListener.from_socket()``
@@ -19,7 +47,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added context manager mix-in classes (``anyio.ContextManagerMixin`` and
   ``anyio.AsyncContextManagerMixin``) to help write classes that embed other context
   managers, particularly cancel scopes or task groups
-  (`#905 <https://github.com/agronholm/anyio/pull/905>`_; PR by by @agronholm and
+  (`#905 <https://github.com/agronholm/anyio/pull/905>`_; PR by @agronholm and
   @tapetersen)
 - Added the ability to specify the thread name in ``start_blocking_portal()``
   (`#818 <https://github.com/agronholm/anyio/issues/818>`_; PR by @davidbrochart)
@@ -27,6 +55,13 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   and ``anyio.wait_writable`` before closing a socket. Among other things,
   this prevents an OSError on the ``ProactorEventLoop``.
   (`#896 <https://github.com/agronholm/anyio/pull/896>`_; PR by @graingert)
+- Incorporated several documentation improvements from the EuroPython 2025 sprint
+  (special thanks to the sprinters: Emmanuel Okedele, Jan Murre, Euxenia Miruna Goia and
+  Christoffer Fjord)
+- Added a documentation page explaining why one might want to use AnyIO's APIs instead
+  of asyncio's
+- Updated the ``to_interpreters`` module to use the public ``concurrent.interpreters``
+  API on Python 3.14 or later
 - Fixed ``anyio.Path.copy()`` and ``anyio.Path.copy_into()`` failing on Python 3.14.0a7
 - Fixed return annotation of ``__aexit__`` on async context managers. CMs which can
   suppress exceptions should return ``bool``, or ``None`` otherwise.
@@ -39,8 +74,15 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#926 <https://github.com/agronholm/anyio/issues/926>`_; PR by @hroncok)
 - Fixed ``SyntaxWarning`` on Python 3.14 about ``return`` in ``finally``
   (`#816 <https://github.com/agronholm/anyio/issues/816>`_)
-- Fixed RunVar name conflicts. RunVar instances with the same name should not share storage.
-  (`#880 <https://github.com/agronholm/anyio/issues/880>`_; PR by @vimfu)
+- Fixed RunVar name conflicts. RunVar instances with the same name should not share
+  storage (`#880 <https://github.com/agronholm/anyio/issues/880>`_; PR by @vimfu)
+- Renamed the ``BrokenWorkerIntepreter`` exception to ``BrokenWorkerInterpreter``.
+  The old name is available as a deprecated alias.
+  (`#938 <https://github.com/agronholm/anyio/pull/938>`_; PR by @ayussh-verma)
+- Fixed an edge case in ``CapacityLimiter`` on asyncio where a task, waiting to acquire
+  a limiter gets cancelled and is subsequently granted a token from the limiter, but
+  before the cancellation is delivered, and then fails to notify the next waiting task
+  (`#947 <https://github.com/agronholm/anyio/issues/947>`_)
 
 **4.9.0**
 

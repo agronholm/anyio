@@ -29,8 +29,6 @@ from ..conftest import asyncio_params
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
-pytestmark = pytest.mark.anyio
-
 
 def test_invalid_max_buffer() -> None:
     pytest.raises(ValueError, create_memory_object_stream, 1.0).match(
@@ -465,7 +463,7 @@ async def test_type_variance() -> None:
 
 async def test_deprecated_item_type_parameter() -> None:
     with pytest.warns(DeprecationWarning, match="item_type argument has been "):
-        send, receive = create_memory_object_stream(item_type=int)  # type: ignore[var-annotated]
+        send, receive = create_memory_object_stream(item_type=int)
 
         send.close()
         receive.close()

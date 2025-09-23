@@ -132,6 +132,9 @@ The above script gives the following output::
     b'hello, w'
     b'orld'
 
+.. tip:: In some cases, you may need to inject data directly into the buffer. You can do
+    that with the :meth:`~.streams.buffered.BufferedByteReceiveStream.feed_data` method.
+
 Text streams
 ------------
 

@@ -10,7 +10,6 @@ from pytest import fixture
 from anyio import to_interpreter
 
 pytestmark = [
-    pytest.mark.anyio,
     pytest.mark.skipif(sys.version_info < (3, 13), reason="requires Python 3.13+"),
 ]
 

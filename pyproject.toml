@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "anyio"
-description = "High level compatibility layer for multiple asynchronous event loop implementations"
+description = "High-level concurrency and networking framework on top of asyncio or Trio"
 readme = "README.rst"
 authors = [{name = "Alex Grönholm", email = "alex.gronholm@nextday.fi"}]
 license = "MIT"
@@ -23,6 +23,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 requires-python = ">= 3.9"
 dependencies = [
@@ -40,7 +41,7 @@ Changelog = "https://anyio.readthedocs.io/en/stable/versionhistory.html"
 "Issue tracker" = "https://github.com/agronholm/anyio/issues"
 
 [project.optional-dependencies]
-trio = ["trio >= 0.26.1"]
+trio = ["trio >= 0.31.0"]
 
 [project.entry-points]
 pytest11 = {anyio = "anyio.pytest_plugin"}
@@ -111,6 +112,7 @@ disallow_untyped_decorators = false
 [tool.pytest.ini_options]
 addopts = "-rsfE --tb=short --strict-config --strict-markers -p anyio -p pytest_mock -p no:asyncio -p no:trio"
 testpaths = ["tests"]
+anyio_mode = "auto"
 xfail_strict = true
 filterwarnings = [
     "error",
@@ -147,6 +149,7 @@ depends = ["pre-commit"]
 package = "editable"
 commands = [["coverage", "run", "-m", "pytest", { replace = "posargs", extend = true }]]
 dependency_groups = ["test"]
+set_env = { PYTEST_DISABLE_PLUGIN_AUTOLOAD = "1" }
 
 [tool.tox.env.pypy3]
 commands = [["pytest", { replace = "posargs", extend = true }]]
@@ -164,4 +167,4 @@ commands = [["pyright", "--ignoreexternal", "--verifytypes", "anyio"]]
 [tool.tox.env.docs]
 depends = []
 dependency_groups = ["doc"]
-commands = [["sphinx-build", "-W", "docs", "build/sphinx"]]
+commands = [["sphinx-build", "-n", "docs", "build/sphinx"]]

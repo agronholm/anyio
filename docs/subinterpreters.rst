@@ -24,7 +24,7 @@ Running functions in a worker interpreter makes sense when:
 If the code you're trying to run only does blocking network I/O, or file I/O, then
 you're better off using :doc:`worker thread <threads>` instead.
 
-This is done by using :func:`.interpreter.run_sync`::
+This is done by using :func:`.to_interpreter.run_sync`::
 
     import time
 
@@ -48,4 +48,4 @@ Limitations
   applies to any functions defined in the REPL)
 * The target functions cannot react to cancellation
 * Unlike with threads, the code running in the subinterpreter cannot share mutable data
-  with other interpreters/threads (however, sharing _immutable_ data is fine)
+  with other interpreters/threads (however, sharing *immutable* data is fine)

@@ -19,8 +19,6 @@ import pytest
 
 from anyio import AsyncContextManagerMixin, ContextManagerMixin
 
-pytestmark = pytest.mark.anyio
-
 
 class DummyContextManager(ContextManagerMixin):
     def __init__(self, handle_exc: bool = False) -> None:

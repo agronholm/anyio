@@ -21,8 +21,6 @@ from anyio import (
 )
 from anyio.streams.buffered import BufferedByteReceiveStream
 
-pytestmark = pytest.mark.anyio
-
 
 @pytest.mark.parametrize(
     "shell, command",

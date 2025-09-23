@@ -133,6 +133,7 @@ Streams and stream wrappers
 .. autodata:: anyio.abc.AnyByteStreamConnectable
 
 .. autoclass:: anyio.streams.buffered.BufferedByteReceiveStream
+.. autoclass:: anyio.streams.buffered.BufferedByteStream
 .. autoclass:: anyio.streams.file.FileStreamAttribute
 .. autoclass:: anyio.streams.file.FileReadStream
 .. autoclass:: anyio.streams.file.FileWriteStream
@@ -174,6 +175,8 @@ Sockets and networking
 .. autoclass:: anyio.abc.UDPSocket()
 .. autoclass:: anyio.abc.ConnectedUDPSocket()
 .. autoclass:: anyio.abc.UNIXSocketStream()
+.. autoclass:: anyio.abc.UNIXDatagramSocket()
+.. autoclass:: anyio.abc.ConnectedUNIXDatagramSocket()
 .. autoclass:: anyio.TCPConnectable
 .. autoclass:: anyio.UNIXConnectable
 
@@ -212,8 +215,10 @@ Low level operations
 .. autofunction:: anyio.lowlevel.checkpoint
 .. autofunction:: anyio.lowlevel.checkpoint_if_cancelled
 .. autofunction:: anyio.lowlevel.cancel_shielded_checkpoint
+.. autofunction:: anyio.lowlevel.current_token
 
 .. autoclass:: anyio.lowlevel.RunVar
+.. autoclass:: anyio.lowlevel.EventLoopToken
 
 Testing and debugging
 ---------------------
@@ -229,7 +234,7 @@ Exceptions
 
 .. autoexception:: anyio.AwaitedTaskCancelled
 .. autoexception:: anyio.BrokenResourceError
-.. autoexception:: anyio.BrokenWorkerIntepreter
+.. autoexception:: anyio.BrokenWorkerInterpreter
 .. autoexception:: anyio.BrokenWorkerProcess
 .. autoexception:: anyio.BusyResourceError
 .. autoexception:: anyio.ClosedResourceError
@@ -237,5 +242,7 @@ Exceptions
 .. autoexception:: anyio.DelimiterNotFound
 .. autoexception:: anyio.EndOfStream
 .. autoexception:: anyio.IncompleteRead
+.. autoexception:: anyio.NoEventLoopError
+.. autoexception:: anyio.RunFinishedError
 .. autoexception:: anyio.TypedAttributeLookupError
 .. autoexception:: anyio.WouldBlock

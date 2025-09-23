@@ -15,7 +15,34 @@ If the task is just starting, it will run until it first tries to run an operati
 requiring waiting, such as :func:`~sleep`.
 
 A task group contains its own cancel scope. The entire task group can be cancelled by
-cancelling this scope.
+cancelling this scope::
+
+    from anyio import create_task_group, get_cancelled_exc_class, sleep, run
+
+
+    async def waiter(index: int):
+        try:
+            await sleep(1)
+        except get_cancelled_exc_class():
+            print(f"Waiter {index} cancelled")
+            raise
+
+
+    async def taskfunc():
+        async with create_task_group() as tg:
+            # Start a couple tasks and wait until they are blocked
+            tg.start_soon(waiter, 1)
+            tg.start_soon(waiter, 2)
+            await sleep(0.1)
+
+            # Cancel the scope and exit the task group
+            tg.cancel_scope.cancel()
+
+    run(taskfunc)
+
+    # Output:
+    # Waiter 1 cancelled
+    # Waiter 2 cancelled
 
 .. _Trio: https://trio.readthedocs.io/en/latest/reference-core.html
    #cancellation-and-timeouts
@@ -110,7 +137,23 @@ To accomplish this, open a new cancel scope with the ``shield=True`` argument::
 The shielded block will be exempt from cancellation except when the shielded block
 itself is being cancelled. Shielding a cancel scope is often best combined with
 :func:`~move_on_after` or :func:`~fail_after`, both of which also accept
-``shield=True``.
+``shield=True``::
+
+    async def do_something(resource):
+        try:
+            ...
+        except BaseException:
+            # Here we wait 10 seconds for resource.aclose() to complete,
+            # but if the operation doesn't complete within that period, we move on
+            # and re-raise the caught exception anyway
+            with move_on_after(10, shield=True):
+                await resource.aclose()
+
+            raise
+
+    run(main)
+
+.. _finalization:
 
 Finalization
 ------------
@@ -156,6 +199,32 @@ cancelled scope::
                 await some_cleanup_function()
 
             raise
+
+Specifying the reason for cancellation
+--------------------------------------
+
+To help with debugging, it is possible to specify a reason why you're cancelling a
+cancel scope::
+
+    async def do_something():
+        with CancelScope() as scope:
+            scope.cancel("Testing cancellation")
+            try:
+                await sleep(1)
+            except get_cancelled_exc_class() as exc:
+                print(exc)  # Print the cancellation message
+                raise  # Always re-raise cancellation exceptions!
+
+        raise
+
+While the exact resulting message from the cancellation exception varies by the event
+loop implementation, it will contain at least the following pieces of information:
+
+* The cancellation reason (if one was given)
+* The task name where :meth:`CancelScope.cancel` was called (if cancelled from a task)
+
+.. note:: Calling :meth:`~CancelScope.cancel` on an already cancelled scope will not
+    change the cancel message.
 
 .. _cancel_scope_stack_corruption:
 

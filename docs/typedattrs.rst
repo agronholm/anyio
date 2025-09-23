@@ -15,7 +15,10 @@ override attributes from the wrapped objects when necessary.
 
 A common use case is finding the IP address of the remote side of a TCP connection when
 the stream may be either :class:`~.abc.SocketStream` or
-:class:`~.streams.tls.TLSStream`::
+:class:`~.streams.tls.TLSStream`. To get the remote address, you would call the stream's
+:meth:`~TypedAttributeProvider.extra` method and pass
+:attr:`SocketAttribute.remote_address <.abc.SocketAttribute.remote_address>` as the
+argument::
 
     from anyio import connect_tcp
     from anyio.abc import SocketAttribute

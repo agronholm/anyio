@@ -2,7 +2,8 @@ Testing with AnyIO
 ==================
 
 AnyIO provides built-in support for testing your library or application in the form of a
-pytest_ plugin.
+pytest_ plugin. This plugin is part of the AnyIO distribution, so nothing extra needs to
+be installed to use it.
 
 .. _pytest: https://docs.pytest.org/en/latest/
 
@@ -10,12 +11,27 @@ Creating asynchronous tests
 ---------------------------
 
 Pytest does not natively support running asynchronous test functions, so they have to be
-marked for the AnyIO pytest plugin to pick them up. This can be done in one of two ways:
+marked for the AnyIO pytest plugin to pick them up. This can be done in one of three
+ways:
 
+#. Setting the ``anyio_mode = "auto"`` option in the pytest configuration
 #. Using the ``pytest.mark.anyio`` marker
 #. Using the ``anyio_backend`` fixture, either directly or via another fixture
 
-The simplest way is thus the following::
+The simplest way is thus the following:
+
+.. code-block:: toml
+
+    [tool.pytest.ini_options]
+    anyio_mode = "auto"
+
+.. note:: This does not work if ``pytest-asyncio`` is installed and configured to use
+    its own ``auto`` mode, as it will conflict with the AnyIO plugin. To prevent this
+    from happening, you can remove the ``asyncio_mode`` option from your pytest
+    configuration, thus making ``pytest-asyncio`` use its default strict mode.
+
+In case your AnyIO tests need to coexist with other async test plugins, the next best
+option is to use the ``pytest.mark.anyio`` marker::
 
     import pytest
 
@@ -25,6 +41,8 @@ The simplest way is thus the following::
 
     async def test_something():
         ...
+
+.. note:: The marker only affects asynchronous test functions.
 
 Marking modules, classes or functions with this marker has the same effect as applying
 the ``pytest.mark.usefixtures('anyio_backend')`` on them.
@@ -146,9 +164,9 @@ Built-in utility fixtures
 Some useful pytest fixtures are provided to make testing network services easier:
 
 * ``free_tcp_port_factory``: session scoped fixture returning a callable
-  (:class:`~pytest_plugin.FreePortFactory`) that generates unused TCP port numbers
+  (:class:`~.pytest_plugin.FreePortFactory`) that generates unused TCP port numbers
 * ``free_udp_port_factory``: session scoped fixture returning a callable
-  (:class:`~pytest_plugin.FreePortFactory`) that generates unused UDP port numbers
+  (:class:`~.pytest_plugin.FreePortFactory`) that generates unused UDP port numbers
 * ``free_tcp_port``: function level fixture that invokes the ``free_tcp_port_factory``
   fixture to generate a free TCP port number
 * ``free_udp_port``: function level fixture that invokes the ``free_udp_port_factory``

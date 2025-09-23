@@ -2,15 +2,13 @@ from __future__ import annotations
 
 import atexit
 import os
-import pickle
 import sys
 from collections import deque
 from collections.abc import Callable
-from textwrap import dedent
 from typing import Any, Final, TypeVar
 
 from . import current_time, to_thread
-from ._core._exceptions import BrokenWorkerIntepreter
+from ._core._exceptions import BrokenWorkerInterpreter
 from ._core._synchronization import CapacityLimiter
 from .lowlevel import RunVar
 
@@ -19,127 +17,144 @@ if sys.version_info >= (3, 11):
 else:
     from typing_extensions import TypeVarTuple, Unpack
 
-UNBOUND: Final = 2  # I have no clue how this works, but it was used in the stdlib
-FMT_UNPICKLED: Final = 0
-FMT_PICKLED: Final = 1
+if sys.version_info >= (3, 14):
+    from concurrent.interpreters import ExecutionFailed, create
+
+    def _interp_call(func: Callable[..., Any], args: tuple[Any, ...]):
+        try:
+            retval = func(*args)
+        except BaseException as exc:
+            return exc, True
+        else:
+            return retval, False
+
+    class Worker:
+        last_used: float = 0
+
+        def __init__(self) -> None:
+            self._interpreter = create()
+
+        def destroy(self) -> None:
+            self._interpreter.close()
+
+        def call(
+            self,
+            func: Callable[..., T_Retval],
+            args: tuple[Any, ...],
+        ) -> T_Retval:
+            try:
+                res, is_exception = self._interpreter.call(_interp_call, func, args)
+            except ExecutionFailed as exc:
+                raise BrokenWorkerInterpreter(exc.excinfo) from exc
+
+            if is_exception:
+                raise res
+
+            return res
+elif sys.version_info >= (3, 13):
+    import _interpqueues
+    import _interpreters
+
+    UNBOUND: Final = 2  # I have no clue how this works, but it was used in the stdlib
+    FMT_UNPICKLED: Final = 0
+    FMT_PICKLED: Final = 1
+    QUEUE_PICKLE_ARGS: Final = (FMT_PICKLED, UNBOUND)
+    QUEUE_UNPICKLE_ARGS: Final = (FMT_UNPICKLED, UNBOUND)
+
+    _run_func = compile(
+        """
+import _interpqueues
+from _interpreters import NotShareableError
+from pickle import loads, dumps, HIGHEST_PROTOCOL
+
+QUEUE_PICKLE_ARGS = (1, 2)
+QUEUE_UNPICKLE_ARGS = (0, 2)
+
+item = _interpqueues.get(queue_id)[0]
+try:
+    func, args = loads(item)
+    retval = func(*args)
+except BaseException as exc:
+    is_exception = True
+    retval = exc
+else:
+    is_exception = False
+
+try:
+    _interpqueues.put(queue_id, (retval, is_exception), *QUEUE_UNPICKLE_ARGS)
+except NotShareableError:
+    retval = dumps(retval, HIGHEST_PROTOCOL)
+    _interpqueues.put(queue_id, (retval, is_exception), *QUEUE_PICKLE_ARGS)
+    """,
+        "<string>",
+        "exec",
+    )
+
+    class Worker:
+        last_used: float = 0
+
+        def __init__(self) -> None:
+            self._interpreter_id = _interpreters.create()
+            self._queue_id = _interpqueues.create(1, *QUEUE_UNPICKLE_ARGS)
+            _interpreters.set___main___attrs(
+                self._interpreter_id, {"queue_id": self._queue_id}
+            )
+
+        def destroy(self) -> None:
+            _interpqueues.destroy(self._queue_id)
+            _interpreters.destroy(self._interpreter_id)
+
+        def call(
+            self,
+            func: Callable[..., T_Retval],
+            args: tuple[Any, ...],
+        ) -> T_Retval:
+            import pickle
+
+            item = pickle.dumps((func, args), pickle.HIGHEST_PROTOCOL)
+            _interpqueues.put(self._queue_id, item, *QUEUE_PICKLE_ARGS)
+            exc_info = _interpreters.exec(self._interpreter_id, _run_func)
+            if exc_info:
+                raise BrokenWorkerInterpreter(exc_info)
+
+            res = _interpqueues.get(self._queue_id)
+            (res, is_exception), fmt = res[:2]
+            if fmt == FMT_PICKLED:
+                res = pickle.loads(res)
+
+            if is_exception:
+                raise res
+
+            return res
+else:
+
+    class Worker:
+        last_used: float = 0
+
+        def __init__(self) -> None:
+            raise RuntimeError("subinterpreters require at least Python 3.13")
+
+        def call(
+            self,
+            func: Callable[..., T_Retval],
+            args: tuple[Any, ...],
+        ) -> T_Retval:
+            raise NotImplementedError
+
+        def destroy(self) -> None:
+            pass
+
+
 DEFAULT_CPU_COUNT: Final = 8  # this is just an arbitrarily selected value
 MAX_WORKER_IDLE_TIME = (
     30  # seconds a subinterpreter can be idle before becoming eligible for pruning
-)
-QUEUE_PICKLE_ARGS: Final = (
-    (UNBOUND,) if sys.version_info >= (3, 14, 0, "beta", 2) else (FMT_PICKLED, UNBOUND)
-)
-QUEUE_UNPICKLE_ARGS: Final = (
-    (UNBOUND,)
-    if sys.version_info >= (3, 14, 0, "beta", 2)
-    else (FMT_UNPICKLED, UNBOUND)
 )
 
 T_Retval = TypeVar("T_Retval")
 PosArgsT = TypeVarTuple("PosArgsT")
 
-_idle_workers = RunVar[deque["Worker"]]("_available_workers")
+_idle_workers = RunVar[deque[Worker]]("_available_workers")
 _default_interpreter_limiter = RunVar[CapacityLimiter]("_default_interpreter_limiter")
-
-
-class Worker:
-    _run_func = compile(
-        dedent("""
-        import _interpqueues as queues
-        import _interpreters as interpreters
-        from pickle import loads, dumps, HIGHEST_PROTOCOL
-
-        item = queues.get(queue_id)[0]
-        try:
-            func, args = loads(item)
-            retval = func(*args)
-        except BaseException as exc:
-            is_exception = True
-            retval = exc
-        else:
-            is_exception = False
-
-        try:
-            queues.put(queue_id, (retval, is_exception), *QUEUE_UNPICKLE_ARGS)
-        except interpreters.NotShareableError:
-            retval = dumps(retval, HIGHEST_PROTOCOL)
-            queues.put(queue_id, (retval, is_exception), *QUEUE_PICKLE_ARGS)
-        """),
-        "<string>",
-        "exec",
-    )
-
-    last_used: float = 0
-
-    _initialized: bool = False
-    _interpreter_id: int
-    _queue_id: int
-
-    def initialize(self) -> None:
-        import _interpqueues as queues
-        import _interpreters as interpreters
-
-        self._interpreter_id = interpreters.create()
-        self._queue_id = queues.create(2, *QUEUE_UNPICKLE_ARGS)
-        self._initialized = True
-        interpreters.set___main___attrs(
-            self._interpreter_id,
-            {
-                "queue_id": self._queue_id,
-                "QUEUE_PICKLE_ARGS": QUEUE_PICKLE_ARGS,
-                "QUEUE_UNPICKLE_ARGS": QUEUE_UNPICKLE_ARGS,
-            },
-        )
-
-    def destroy(self) -> None:
-        import _interpqueues as queues
-        import _interpreters as interpreters
-
-        if self._initialized:
-            interpreters.destroy(self._interpreter_id)
-            queues.destroy(self._queue_id)
-
-    def _call(
-        self,
-        func: Callable[..., T_Retval],
-        args: tuple[Any],
-    ) -> tuple[Any, bool]:
-        import _interpqueues as queues
-        import _interpreters as interpreters
-
-        if not self._initialized:
-            self.initialize()
-
-        payload = pickle.dumps((func, args), pickle.HIGHEST_PROTOCOL)
-        queues.put(self._queue_id, payload, *QUEUE_PICKLE_ARGS)
-
-        res: Any
-        is_exception: bool
-        if exc_info := interpreters.exec(self._interpreter_id, self._run_func):
-            raise BrokenWorkerIntepreter(exc_info)
-
-        (res, is_exception), fmt = queues.get(self._queue_id)[:2]
-        if fmt == FMT_PICKLED:
-            res = pickle.loads(res)
-
-        return res, is_exception
-
-    async def call(
-        self,
-        func: Callable[..., T_Retval],
-        args: tuple[Any],
-        limiter: CapacityLimiter,
-    ) -> T_Retval:
-        result, is_exception = await to_thread.run_sync(
-            self._call,
-            func,
-            args,
-            limiter=limiter,
-        )
-        if is_exception:
-            raise result
-
-        return result
 
 
 def _stop_workers(workers: deque[Worker]) -> None:
@@ -157,25 +172,19 @@ async def run_sync(
     """
     Call the given function with the given arguments in a subinterpreter.
 
-    If the ``cancellable`` option is enabled and the task waiting for its completion is
-    cancelled, the call will still run its course but its return value (or any raised
-    exception) will be ignored.
-
-    .. warning:: This feature is **experimental**. The upstream interpreter API has not
-        yet been finalized or thoroughly tested, so don't rely on this for anything
-        mission critical.
+    .. warning:: On Python 3.13, the :mod:`concurrent.interpreters` module was not yet
+        available, so the code path for that Python version relies on an undocumented,
+        private API. As such, it is recommended to not rely on this function for anything
+        mission-critical on Python 3.13.
 
     :param func: a callable
-    :param args: positional arguments for the callable
-    :param limiter: capacity limiter to use to limit the total amount of subinterpreters
+    :param args: the positional arguments for the callable
+    :param limiter: capacity limiter to use to limit the total number of subinterpreters
         running (if omitted, the default limiter is used)
     :return: the result of the call
-    :raises BrokenWorkerIntepreter: if there's an internal error in a subinterpreter
+    :raises BrokenWorkerInterpreter: if there's an internal error in a subinterpreter
 
     """
-    if sys.version_info <= (3, 13):
-        raise RuntimeError("subinterpreters require at least Python 3.13")
-
     if limiter is None:
         limiter = current_default_interpreter_limiter()
 
@@ -193,7 +202,12 @@ async def run_sync(
             worker = Worker()
 
     try:
-        return await worker.call(func, args, limiter)
+        return await to_thread.run_sync(
+            worker.call,
+            func,
+            args,
+            limiter=limiter,
+        )
     finally:
         # Prune workers that have been idle for too long
         now = current_time()
@@ -209,8 +223,8 @@ async def run_sync(
 
 def current_default_interpreter_limiter() -> CapacityLimiter:
     """
-    Return the capacity limiter that is used by default to limit the number of
-    concurrently running subinterpreters.
+    Return the capacity limiter used by default to limit the number of concurrently
+    running subinterpreters.
 
     Defaults to the number of CPU cores.
 

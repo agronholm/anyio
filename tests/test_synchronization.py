@@ -14,15 +14,15 @@ from anyio import (
     WouldBlock,
     create_task_group,
     fail_after,
+    move_on_after,
     run,
     to_thread,
     wait_all_tasks_blocked,
 )
 from anyio.abc import CapacityLimiter, TaskStatus
+from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params
-
-pytestmark = pytest.mark.anyio
 
 
 class TestLock:
@@ -399,6 +399,13 @@ class TestCondition:
         assert task_started
         assert not notified
 
+    async def test_wait_no_lock(self) -> None:
+        condition = Condition()
+        with pytest.raises(
+            RuntimeError, match="The current task is not holding the underlying lock"
+        ):
+            await condition.wait()
+
     async def test_statistics(self) -> None:
         async def waiter() -> None:
             async with condition:
@@ -442,6 +449,30 @@ class TestCondition:
             backend=anyio_backend_name,
             backend_options=anyio_backend_options,
         )
+
+    async def test_wait_for(self) -> None:
+        result = None
+
+        async def waiter() -> None:
+            nonlocal result
+            async with condition:
+                result = await condition.wait_for(lambda: value)
+
+        value = None
+        condition = Condition()
+        async with create_task_group() as tg:
+            tg.start_soon(waiter)
+            await wait_all_tasks_blocked()
+            async with condition:
+                condition.notify_all()
+
+            await wait_all_tasks_blocked()
+            assert result is None
+            value = "foo"
+            async with condition:
+                condition.notify_all()
+
+        assert result == "foo"
 
 
 class TestSemaphore:
@@ -832,3 +863,32 @@ class TestCapacityLimiter:
         # Regression test for #515
         limiter = CapacityLimiter(total_tokens=1)
         assert limiter.total_tokens == 1
+
+    async def test_acquire_cancelled(self) -> None:
+        # Regression test for #947
+        limiter = CapacityLimiter(1)
+
+        async def borrower(
+            event: Event, *, task_status: TaskStatus[CancelScope]
+        ) -> None:
+            with CancelScope() as scope:
+                task_status.started(scope)
+                async with limiter:
+                    event.set()
+                    await checkpoint()
+
+        async with create_task_group() as tg:
+            async with limiter:
+                event1 = Event()
+                scope1 = await tg.start(borrower, event1)
+                event2 = Event()
+                await tg.start(borrower, event2)
+                scope1.cancel()
+
+            with move_on_after(0.1):
+                await event2.wait()
+                return
+
+            tg.cancel_scope.cancel()
+
+        pytest.fail("The second borrower failed to acquire the limiter")
