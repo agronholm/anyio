@@ -65,7 +65,7 @@ this name which runs everything on all supported backends.
 If you change the backends/options for the entire project, then put something like this
 in your top level ``conftest.py``::
 
-    @pytest.fixture
+    @pytest.fixture(scope="module")
     def anyio_backend():
         return 'asyncio'
 
