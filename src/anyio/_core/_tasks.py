@@ -294,10 +294,14 @@ class TaskHandle(Generic[T]):
                 f"{self.__class__.__qualname__} cannot be awaited multiple times"
             )
 
-        if not self._event.is_set():
-            yield from self._event.wait().__await__()
-
         self._awaited = True
+        if not self._event.is_set():
+            try:
+                yield from self._event.wait().__await__()
+            except BaseException:
+                self._awaited = False
+                raise
+
         if self._exception is not None:
             try:
                 raise self._exception
