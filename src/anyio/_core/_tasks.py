@@ -565,7 +565,7 @@ async def as_completed(
         yield iterator
 
 
-async def gather(*coros: Coroutine[Any, Any, Any]) -> Sequence[Any]:
+async def gather(*coros: Coroutine[Any, Any, T]) -> Sequence[T]:
     """
     Run a number of coroutines in a task group and return their results.
 
@@ -574,7 +574,7 @@ async def gather(*coros: Coroutine[Any, Any, Any]) -> Sequence[Any]:
         were passed
 
     """
-    task_handles: list[TaskHandle[Any]] = []
+    task_handles: list[TaskHandle[T]] = []
     async with EnhancedTaskGroup() as tg:
         coro_iterator = iter(coros)
         for coro in coro_iterator:
