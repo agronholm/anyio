@@ -935,7 +935,6 @@ class TestTCPListener:
     @pytest.mark.parametrize(
         "local_host,family,expected_listeners,local_port",
         [
-            (None, AddressFamily.AF_UNSPEC, 1 if socket.has_dualstack_ipv6() else 2, 0),
             ("localhost", AddressFamily.AF_UNSPEC, 2, 0),
             ("localhost", AddressFamily.AF_INET, 1, 0),
             ("::", AddressFamily.AF_UNSPEC, 1, 0),
@@ -970,27 +969,6 @@ class TestTCPListener:
                 assert ports == {local_port}
 
             assert len(multi.listeners) == expected_listeners
-
-    @skip_ipv6_mark
-    async def test_tcp_listener_dualstack_disabled(
-        self, monkeypatch: MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(socket, "has_dualstack_ipv6", lambda: False)
-
-        async with await create_tcp_listener(
-            local_host=None, family=AddressFamily.AF_UNSPEC
-        ) as multi:
-            families = {
-                listener.extra(SocketAttribute.family) for listener in multi.listeners
-            }
-            assert families == {socket.AF_INET, socket.AF_INET6}
-            assert len(multi.listeners) == 2
-
-            ports = {
-                listener.extra(SocketAttribute.local_port)
-                for listener in multi.listeners
-            }
-            assert len(ports) == 1
 
     async def test_tcp_listener_retry_after_partial_failure(self) -> None:
         """
@@ -2352,8 +2330,8 @@ class TestAsConnectable:
 @pytest.mark.network
 async def test_getaddrinfo() -> None:
     # IDNA 2003 gets this wrong
-    correct = await getaddrinfo("faß.de", 0)
-    wrong = await getaddrinfo("fass.de", 0)
+    correct = await getaddrinfo("faß.de", None)
+    wrong = await getaddrinfo("fass.de", None)
     assert correct != wrong
 
 

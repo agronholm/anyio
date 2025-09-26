@@ -351,9 +351,9 @@ async def create_tcp_listener(
     # https://github.com/MagicStack/uvloop/issues/539
     gai_res = await getaddrinfo(
         local_host,
-        local_port,
+        local_port or None,
         family=family,
-        type=socket.SOCK_STREAM if sys.platform == "win32" else 0,
+        type=socket.SOCK_STREAM if sys.platform == "win32" or sys.platform == "sunos5" else 0,
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
 

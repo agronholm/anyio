@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fix ``getaddrinfo()`` usage and related tests on illumos
+  (`#692 <https://github.com/agronholm/anyio/issues/692>`_; PR by @mtelka)
+
 **4.11.0**
 
 - Added support for cancellation reasons (the ``reason`` parameter to
