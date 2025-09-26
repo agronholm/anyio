@@ -563,3 +563,27 @@ async def as_completed(
     """
     async with AsyncResultsIterator(coros, max_at_once, max_per_second) as iterator:
         yield iterator
+
+
+async def gather(*coros: Coroutine[Any, Any, Any]) -> Sequence[Any]:
+    """
+    Run a number of coroutines in a task group and return their results.
+
+    :param coros: coroutine objects to run as tasks
+    :return: a sequence of return values from the coroutines in the same order as they
+        were passed
+
+    """
+    task_handles: list[TaskHandle[Any]] = []
+    async with EnhancedTaskGroup() as tg:
+        coro_iterator = iter(coros)
+        for coro in coro_iterator:
+            try:
+                task_handles.append(tg.create_task(coro))
+            except Exception:
+                for coro in coro_iterator:
+                    coro.close()
+
+                raise
+
+    return [await handle for handle in task_handles]
