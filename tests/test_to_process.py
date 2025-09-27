@@ -31,6 +31,17 @@ async def test_run_sync_in_process_pool() -> None:
     assert await to_process.run_sync(os.getpid) == worker_pid
 
 
+async def test_run_sync_with_kwargs() -> None:
+    """
+    Test that the function runs in a different process, and not the same process in both
+    calls.
+
+    """
+    worker_pid = await to_process.run_sync(os.getpid, close_fds=False)
+    assert worker_pid != os.getpid()
+    assert await to_process.run_sync(os.getpid, close_fds=False) != worker_pid
+
+
 async def test_identical_sys_path() -> None:
     """Test that partial() can be used to pass keyword arguments."""
     assert await to_process.run_sync(eval, "sys.path") == sys.path
