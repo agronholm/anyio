@@ -2330,8 +2330,8 @@ class TestAsConnectable:
 @pytest.mark.network
 async def test_getaddrinfo() -> None:
     # IDNA 2003 gets this wrong
-    correct = await getaddrinfo("faß.de", None)
-    wrong = await getaddrinfo("fass.de", None)
+    correct = await getaddrinfo("faß.de", 0)
+    wrong = await getaddrinfo("fass.de", 0)
     assert correct != wrong
 
 
