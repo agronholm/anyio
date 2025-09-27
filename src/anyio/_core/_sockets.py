@@ -345,15 +345,16 @@ async def create_tcp_listener(
 
         return sock
 
-    # We passing type=0 on non-Windows platforms as a workaround for a uvloop bug
-    # where we don't get the correct scope ID for IPv6 link-local addresses when passing
-    # type=socket.SOCK_STREAM to getaddrinfo():
+    # We passing type=0 on non-Windows and non-illumos platforms as a
+    # workaround for a uvloop bug where we don't get the correct scope ID for
+    # IPv6 link-local addresses when passing type=socket.SOCK_STREAM to
+    # getaddrinfo():
     # https://github.com/MagicStack/uvloop/issues/539
     gai_res = await getaddrinfo(
         local_host,
         local_port,
         family=family,
-        type=socket.SOCK_STREAM if sys.platform == "win32" else 0,
+        type=socket.SOCK_STREAM if sys.platform in ("win32", "sunos5") else 0,
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
 
@@ -646,8 +647,12 @@ async def getaddrinfo(
     else:
         encoded_host = host
 
+    # It is undocumented what should happen when getaddrinfo() is called with
+    # port=0 and actually it fails on illumos.  So convert port=0 to port=None
+    # which is documented and works well.
+    # See also: https://github.com/agronholm/anyio/issues/692
     gai_res = await get_async_backend().getaddrinfo(
-        encoded_host, port, family=family, type=type, proto=proto, flags=flags
+        encoded_host, port or None, family=family, type=type, proto=proto, flags=flags
     )
     return [
         (family, type, proto, canonname, convert_ipv6_sockaddr(sockaddr))
