@@ -354,7 +354,7 @@ async def create_tcp_listener(
         local_port or None,
         family=family,
         type=socket.SOCK_STREAM
-        if sys.platform == "win32" or sys.platform == "sunos5"
+        if sys.platform in ("win32", "sunos5")
         else 0,
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
