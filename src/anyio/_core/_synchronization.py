@@ -741,41 +741,6 @@ class CapacityLimiterAdapter(CapacityLimiter):
         return self._internal_limiter.statistics()
 
 
-class ResourceGuard:
-    """
-    A context manager for ensuring that a resource is only used by a single task at a
-    time.
-
-    Entering this context manager while the previous has not exited it yet will trigger
-    :exc:`BusyResourceError`.
-
-    :param action: the action to guard against (visible in the :exc:`BusyResourceError`
-        when triggered, e.g. "Another task is already {action} this resource")
-
-    .. versionadded:: 4.1
-    """
-
-    __slots__ = "action", "_guarded"
-
-    def __init__(self, action: str = "using"):
-        self.action: str = action
-        self._guarded = False
-
-    def __enter__(self) -> None:
-        if self._guarded:
-            raise BusyResourceError(self.action)
-
-        self._guarded = True
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        self._guarded = False
-
-
 class RateLimiter(AsyncContextManagerMixin):
     """
     Provides rate limiting via an internal semaphore which is periodically incremented.
@@ -863,3 +828,38 @@ class RateLimiter(AsyncContextManagerMixin):
                 tg.cancel_scope.cancel()
         finally:
             self._semaphore = None
+
+
+class ResourceGuard:
+    """
+    A context manager for ensuring that a resource is only used by a single task at a
+    time.
+
+    Entering this context manager while the previous has not exited it yet will trigger
+    :exc:`BusyResourceError`.
+
+    :param action: the action to guard against (visible in the :exc:`BusyResourceError`
+        when triggered, e.g. "Another task is already {action} this resource")
+
+    .. versionadded:: 4.1
+    """
+
+    __slots__ = "action", "_guarded"
+
+    def __init__(self, action: str = "using"):
+        self.action: str = action
+        self._guarded = False
+
+    def __enter__(self) -> None:
+        if self._guarded:
+            raise BusyResourceError(self.action)
+
+        self._guarded = True
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self._guarded = False
