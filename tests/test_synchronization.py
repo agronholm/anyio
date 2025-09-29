@@ -926,54 +926,38 @@ class TestRateLimiter:
         return sleeper
 
     async def test_acquire(self, fake_sleep: FakeSleeper) -> None:
-        async with RateLimiter(5, 1) as limiter:
-            # Right after two acquire() calls, the limiter should have two fewer tokens
-            # available
+        limiter = RateLimiter(5, 1)
+        # Right after two acquire() calls, the limiter should have two fewer tokens
+        # available
+        await limiter.acquire()
+        await limiter.acquire()
+        stats = limiter.statistics()
+        assert stats.max_tokens == 5
+        assert stats.available_tokens == 3
+        assert stats.tasks_waiting == 0
+
+        # Let the tokens reset
+        await fake_sleep.step()
+        # assert limiter.statistics().available_tokens == 5
+
+        # Acquire all available tokens and check that the statistics reflect that
+        for _ in range(5):
+            await limiter.acquire()
+
+        stats = limiter.statistics()
+        assert stats.max_tokens == 5
+        # assert stats.available_tokens == 0
+        assert stats.tasks_waiting == 0
+
+        # With all the tokens in use, the next acquire() should block
+        with pytest.raises(TimeoutError), fail_after(0.1):
             await limiter.acquire()
             await limiter.acquire()
-            stats = limiter.statistics()
-            assert stats.max_tokens == 5
-            assert stats.available_tokens == 3
-            assert stats.tasks_waiting == 0
-
-            # Let the tokens reset
-            await fake_sleep.step()
-            # assert limiter.statistics().available_tokens == 5
-
-            # Acquire all available tokens and check that the statistics reflect that
-            for _ in range(5):
-                await limiter.acquire()
-
-            stats = limiter.statistics()
-            assert stats.max_tokens == 5
-            # assert stats.available_tokens == 0
-            assert stats.tasks_waiting == 0
-
-            # With all the tokens in use, the next acquire() should block
-            with pytest.raises(TimeoutError), fail_after(0.1):
-                await limiter.acquire()
-                await limiter.acquire()
-                await limiter.acquire()
-                await limiter.acquire()
+            await limiter.acquire()
+            await limiter.acquire()
 
     async def test_max_per_second(self) -> None:
         """Test that with the limiter, the loop takes about 2 seconds to finish."""
         limiter = RateLimiter.from_max_per_second(5)
         assert limiter.tokens == 1
         assert limiter.interval == 1 / 5
-
-    async def test_use_outside_of_acm(self) -> None:
-        """
-        Test that attempts to acquire the limiter before or after it has been entered
-        as an ACM, it will raise a RuntimeError.
-
-        """
-        limiter = RateLimiter(5)
-        with pytest.raises(RuntimeError, match="This rate limiter is not active"):
-            await limiter.acquire()
-
-        async with limiter:
-            await limiter.acquire()
-
-        with pytest.raises(RuntimeError, match="This rate limiter is not active"):
-            await limiter.acquire()

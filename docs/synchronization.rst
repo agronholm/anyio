@@ -244,12 +244,12 @@ Here's a simple example::
 
 
     async def main(count: int, max_per_second: int) -> None:
-        async with RateLimiter.from_max_per_second(max_per_second) as limiter:
-            start_time = current_time()
-            for num in range(count):
-                await limiter.acquire()
-                duration = current_time() - start_time
-                print(f"[{duration:.3f}] Performed action")
+        limiter = RateLimiter.from_max_per_second(max_per_second)
+        start_time = current_time()
+        for num in range(count):
+            await limiter.acquire()
+            duration = current_time() - start_time
+            print(f"[{duration:.3f}] Performed action")
 
     run(main, 10, 3)
 
@@ -277,10 +277,8 @@ that 5 operations are allowed within a 2 second period::
         print(f"[{duration:.3f}] Performed action")
 
     async def main(count: int, tokens: int, interval: int) -> None:
-        async with (
-            RateLimiter(tokens, interval) as limiter,
-            create_task_group() as tg
-        ):
+        limiter = RateLimiter(tokens, interval)
+        async with create_task_group() as tg:
             start_time = current_time()
             for num in range(count):
                 await limiter.acquire()

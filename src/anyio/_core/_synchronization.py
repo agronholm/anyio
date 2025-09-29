@@ -3,8 +3,7 @@ from __future__ import annotations
 import math
 import sys
 from collections import deque
-from collections.abc import AsyncGenerator, Callable
-from contextlib import asynccontextmanager
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
 from types import TracebackType
@@ -13,7 +12,6 @@ from typing import TypeVar
 from sniffio import AsyncLibraryNotFoundError
 
 from ..lowlevel import checkpoint_if_cancelled
-from ._contextmanagers import AsyncContextManagerMixin
 from ._eventloop import current_time, get_async_backend, sleep
 from ._exceptions import BusyResourceError
 from ._tasks import CancelScope
@@ -741,19 +739,13 @@ class CapacityLimiterAdapter(CapacityLimiter):
         return self._internal_limiter.statistics()
 
 
-class RateLimiter(AsyncContextManagerMixin):
+class RateLimiter:
     """
     Provides rate limiting via an internal semaphore which is periodically incremented.
 
     :param tokens: number of operations allowed within the time window
     :param interval: the time window, in seconds (or a :class:`~datetime.timedelta),
         that ``tokens`` applies to
-
-    .. note:: Any use of the provided semaphore must happen while the rate limiter is
-        managed with an ``async with`` block, as otherwise consumers would be
-        indefinitely blocked because the semaphore value would never be incremented.
-        Attempting to use the rate limiter outside an ``async with`` block will raise a
-        :exc:`RuntimeError`.
     """
 
     def __init__(
@@ -775,7 +767,7 @@ class RateLimiter(AsyncContextManagerMixin):
             raise ValueError("interval must be positive")
 
         self._available: int = tokens
-        self._lock: Lock | None = None
+        self._lock = Lock()
         self._next = current_time() + self._interval
 
     @property
@@ -846,14 +838,6 @@ class RateLimiter(AsyncContextManagerMixin):
             available_tokens=self._available,
             max_tokens=self._tokens,
         )
-
-    @asynccontextmanager
-    async def __asynccontextmanager__(self) -> AsyncGenerator[Self]:
-        try:
-            self._lock = Lock()
-            yield self
-        finally:
-            self._lock = None
 
 
 class ResourceGuard:
