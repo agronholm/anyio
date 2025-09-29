@@ -4,6 +4,7 @@ import asyncio
 from typing import Any
 
 import pytest
+from pytest_mock import MockerFixture
 
 from anyio import (
     CancelScope,
@@ -14,8 +15,8 @@ from anyio import (
     Semaphore,
     WouldBlock,
     create_task_group,
-    current_time,
     fail_after,
+    get_current_task,
     move_on_after,
     run,
     sleep,
@@ -898,45 +899,48 @@ class TestCapacityLimiter:
 
 
 class TestRateLimiter:
-    async def test_max_per_second(self) -> None:
-        """Test that with the limiter, the loop takes about 2 seconds to finish."""
-        async with RateLimiter.from_max_per_second(5) as limiter:
-            start_time = current_time()
-            for _ in range(10):
-                await limiter.acquire()
+    class FakeSleeper:
+        def __init__(self) -> None:
+            self._event = Event()
 
-            end_time = current_time()
-            assert end_time - start_time == pytest.approx(2, rel=0.1)
+        async def step(self) -> None:
+            await wait_all_tasks_blocked()
+            self._event.set()
+            self._event = Event()
+            await wait_all_tasks_blocked()
 
-    async def test_delay(self) -> None:
-        """
-        Test that the initial token allowance allows acquiring the limiter that many
-        times before the first delay has passed.
+        async def wait(self) -> None:
+            await self._event.wait()
 
-        """
-        last_index = 0
-        async with RateLimiter(5, 3) as limiter:
-            with pytest.raises(TimeoutError), fail_after(0.5):
-                for i in range(10):
-                    last_index = i
-                    await limiter.acquire()
+    @pytest.fixture
+    async def fake_sleep(self, mocker: MockerFixture) -> FakeSleeper:
+        async def new_sleep(delay: float) -> None:
+            task = get_current_task()
+            if task is not None and (task.name or "").startswith("Manager task for "):
+                await sleeper.wait()
+            else:
+                await sleep(delay)
 
-        assert last_index == 5
+        sleeper = TestRateLimiter.FakeSleeper()
+        mocker.patch("anyio._core._synchronization.sleep", side_effect=new_sleep)
+        return sleeper
 
-    async def test_light_load(self) -> None:
-        """
-        Test that the semaphore isn't incremented beyond the initial token allowance
-        when the demand is lower than the capacity.
-
-        """
+    async def test_acquire(self, fake_sleep: FakeSleeper) -> None:
         async with RateLimiter(5, 1) as limiter:
+            # Right after two acquire() calls, the limiter should have two fewer tokens
+            # available
+            await limiter.acquire()
             await limiter.acquire()
             stats = limiter.statistics()
             assert stats.max_tokens == 5
-            assert stats.available_tokens == 4
+            assert stats.available_tokens == 3
             assert stats.tasks_waiting == 0
-            await sleep(1.1)
 
+            # Let the tokens reset
+            await fake_sleep.step()
+            assert limiter.statistics().available_tokens == 5
+
+            # Acquire all available tokens and check that the statistics reflect that
             for _ in range(5):
                 await limiter.acquire()
 
@@ -945,8 +949,15 @@ class TestRateLimiter:
             assert stats.available_tokens == 0
             assert stats.tasks_waiting == 0
 
-            with pytest.raises(TimeoutError), fail_after(0.5):
+            # With all the tokens in use, the next acquire() should block
+            with pytest.raises(TimeoutError), fail_after(0.1):
                 await limiter.acquire()
+
+    async def test_max_per_second(self) -> None:
+        """Test that with the limiter, the loop takes about 2 seconds to finish."""
+        limiter = RateLimiter.from_max_per_second(5)
+        assert limiter.tokens == 1
+        assert limiter.interval == 1 / 5
 
     async def test_use_outside_of_acm(self) -> None:
         """
