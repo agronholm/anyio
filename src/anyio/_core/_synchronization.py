@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import timedelta
 from types import TracebackType
-from typing import TypeVar, cast
+from typing import TypeVar
 
 from sniffio import AsyncLibraryNotFoundError
 
@@ -16,7 +16,7 @@ from ..lowlevel import checkpoint_if_cancelled
 from ._contextmanagers import AsyncContextManagerMixin
 from ._eventloop import current_time, get_async_backend, sleep
 from ._exceptions import BusyResourceError
-from ._tasks import CancelScope, create_task_group
+from ._tasks import CancelScope
 from ._testing import TaskInfo, get_current_task
 
 if sys.version_info >= (3, 11):
@@ -854,7 +854,6 @@ class RateLimiter(AsyncContextManagerMixin):
             yield self
         finally:
             self._lock = None
-
 
 
 class ResourceGuard:
