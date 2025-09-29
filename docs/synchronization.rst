@@ -232,8 +232,8 @@ Rate limiters
 Rate limiters allow you to limit the rate of your asynchronous actions, in terms of
 actions per second. They can be configured with two parameters:
 
-* ``allowance``: how many operation are allowed within the time window
-* ``delay``: the delay after which the used operation slots are restored
+* ``tokens``: how many operation are allowed within the time window
+* ``interval``: the delay after which the used operation slots are restored
 
 The :meth:`RateLimiter.max_per_second` class method is provided as a convenience to
 create a rate limiter with the specified rate of allowed operations per second.
@@ -265,7 +265,7 @@ Here's a simple example::
     # [2.678] Performed action
     # [3.012] Performed action
 
-Here's a more advanced example that uses explicit ``allowance`` and ``delay`` to specify
+Here's a more advanced example that uses explicit ``tokens`` and ``interval`` to specify
 that 5 operations are allowed within a 2 second period::
 
     from anyio import RateLimiter, create_task_group, current_time, run, sleep
@@ -276,9 +276,9 @@ that 5 operations are allowed within a 2 second period::
         await sleep(2)  # Simulate some activity
         print(f"[{duration:.3f}] Performed action")
 
-    async def main(count: int, slots: int, delay: int) -> None:
+    async def main(count: int, tokens: int, interval: int) -> None:
         async with (
-            RateLimiter(slots, delay) as limiter,
+            RateLimiter(tokens, interval) as limiter,
             create_task_group() as tg
         ):
             start_time = current_time()

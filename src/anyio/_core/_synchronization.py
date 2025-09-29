@@ -745,9 +745,9 @@ class RateLimiter(AsyncContextManagerMixin):
     """
     Provides rate limiting via an internal semaphore which is periodically incremented.
 
-    :param allowance: number of operations allowed within the time window
-    :param delay: the time window, in seconds (or a :class:`~datetime.timedelta), that
-        ``allowance`` applies to
+    :param tokens: number of operations allowed within the time window
+    :param interval: the time window, in seconds (or a :class:`~datetime.timedelta),
+        that ``tokens`` applies to
 
     .. note:: Any use of the provided semaphore must happen while the rate limiter is
         managed with an ``async with`` block, as otherwise consumers would be
@@ -758,20 +758,41 @@ class RateLimiter(AsyncContextManagerMixin):
 
     def __init__(
         self,
-        allowance: int,
-        delay: float | timedelta = 1,
+        tokens: int,
+        interval: float | timedelta = 1,
     ):
-        self.allowance = allowance
-        self._delay = delay.total_seconds() if isinstance(delay, timedelta) else delay
+        if not isinstance(tokens, int) or tokens < 1:
+            raise ValueError("tokens must be a positive integer")
+
+        if not isinstance(interval, (int, float, timedelta)):
+            raise ValueError("interval must be an integer, float or timedelta")
+
+        self._tokens = tokens
+        self._interval = (
+            interval.total_seconds() if isinstance(interval, timedelta) else interval
+        )
         self._semaphore: Semaphore | None = None
+
+        if self._interval <= 0:
+            raise ValueError("interval must be positive")
+
+    @property
+    def tokens(self) -> int:
+        """The configured maximum number of tokens."""
+        return self._tokens
+
+    @property
+    def interval(self) -> float:
+        """The configured time window, in seconds."""
+        return self._interval
 
     @classmethod
     def from_max_per_second(cls, max_per_second: int, /) -> Self:
         """
         Create a rate limiter with the given maximum number of operations per second.
 
-        This is the equivalent of creating a rate limiter with ``allowance=1`` and
-        ``delay=1 / max_per_second``.
+        This is the equivalent of creating a rate limiter with ``tokens=1`` and
+        ``interval=1 / max_per_second``.
 
         :param max_per_second: number of operations allowed per second
         :return: a newly created rate limiter
@@ -799,28 +820,28 @@ class RateLimiter(AsyncContextManagerMixin):
         if self._semaphore is None:
             return RateLimiterStatistics(
                 tasks_waiting=0,
-                available_tokens=self.allowance,
-                max_tokens=self.allowance,
+                available_tokens=self._tokens,
+                max_tokens=self._tokens,
             )
 
         semaphore_stats = self._semaphore.statistics()
         return RateLimiterStatistics(
             tasks_waiting=semaphore_stats.tasks_waiting,
             available_tokens=self._semaphore.value,
-            max_tokens=self.allowance,
+            max_tokens=self._tokens,
         )
 
     async def _adjust_value(self) -> None:
         semaphore = cast(Semaphore, self._semaphore)
         while True:
-            await sleep(self._delay)
+            await sleep(self._interval)
 
-            for _ in range(self.allowance - semaphore.value):
+            for _ in range(self._tokens - semaphore.value):
                 semaphore.release()
 
     @asynccontextmanager
     async def __asynccontextmanager__(self) -> AsyncGenerator[Self]:
-        self._semaphore = Semaphore(self.allowance, max_value=self.allowance)
+        self._semaphore = Semaphore(self._tokens, max_value=self._tokens)
         try:
             async with create_task_group() as tg:
                 tg.start_soon(self._adjust_value, name=f"Manager task for {self!r}")

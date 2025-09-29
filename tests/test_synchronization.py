@@ -910,8 +910,8 @@ class TestRateLimiter:
 
     async def test_delay(self) -> None:
         """
-        Test that the initial allowance allows acquiring the limiter that many times
-        before the first delay has passed.
+        Test that the initial token allowance allows acquiring the limiter that many
+        times before the first delay has passed.
 
         """
         last_index = 0
@@ -925,8 +925,8 @@ class TestRateLimiter:
 
     async def test_light_load(self) -> None:
         """
-        Test that the semaphore isn't incremented beyond the allowance when the demand
-        is lower than the capacity.
+        Test that the semaphore isn't incremented beyond the initial token allowance
+        when the demand is lower than the capacity.
 
         """
         async with RateLimiter(5, 1) as limiter:
