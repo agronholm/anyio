@@ -14,7 +14,7 @@ from sniffio import AsyncLibraryNotFoundError
 
 from ..lowlevel import checkpoint_if_cancelled
 from ._contextmanagers import AsyncContextManagerMixin
-from ._eventloop import get_async_backend, sleep
+from ._eventloop import current_time, get_async_backend, sleep
 from ._exceptions import BusyResourceError
 from ._tasks import CancelScope, create_task_group
 from ._testing import TaskInfo, get_current_task
@@ -771,10 +771,12 @@ class RateLimiter(AsyncContextManagerMixin):
         self._interval = (
             interval.total_seconds() if isinstance(interval, timedelta) else interval
         )
-        self._semaphore: Semaphore | None = None
-
         if self._interval <= 0:
             raise ValueError("interval must be positive")
+
+        self._available: int = tokens
+        self._lock: Lock | None = None
+        self._next = current_time() + self._interval
 
     @property
     def tokens(self) -> int:
@@ -807,48 +809,52 @@ class RateLimiter(AsyncContextManagerMixin):
         This method must be called before running the related rate-sensitive operation.
 
         """
-        if self._semaphore is None:
+        if self._lock is None:
             raise RuntimeError(
                 "This rate limiter is not active. It must be used within an "
                 "'async with' block."
             )
 
-        await self._semaphore.acquire()
+        if self._available > 0:
+            self._available -= 1
+            return
+
+        async with self._lock:
+            if self._available == 0:
+                tm = current_time()
+                if self._next > tm:
+                    await sleep(self._next - tm)
+                    tm = current_time()
+
+                self._available = self._tokens
+                self._next = tm + self._interval
+
+            self._available -= 1
 
     def statistics(self) -> RateLimiterStatistics:
         """Return the statistics for the underlying semaphore."""
-        if self._semaphore is None:
+        if self._lock is None:
             return RateLimiterStatistics(
                 tasks_waiting=0,
-                available_tokens=self._tokens,
+                available_tokens=self._available,
                 max_tokens=self._tokens,
             )
 
-        semaphore_stats = self._semaphore.statistics()
+        lock_stats = self._lock.statistics()
         return RateLimiterStatistics(
-            tasks_waiting=semaphore_stats.tasks_waiting,
-            available_tokens=self._semaphore.value,
+            tasks_waiting=lock_stats.tasks_waiting,
+            available_tokens=self._available,
             max_tokens=self._tokens,
         )
 
-    async def _adjust_value(self) -> None:
-        semaphore = cast(Semaphore, self._semaphore)
-        while True:
-            await sleep(self._interval)
-
-            for _ in range(self._tokens - semaphore.value):
-                semaphore.release()
-
     @asynccontextmanager
     async def __asynccontextmanager__(self) -> AsyncGenerator[Self]:
-        self._semaphore = Semaphore(self._tokens, max_value=self._tokens)
         try:
-            async with create_task_group() as tg:
-                tg.start_soon(self._adjust_value, name=f"Manager task for {self!r}")
-                yield self
-                tg.cancel_scope.cancel()
+            self._lock = Lock()
+            yield self
         finally:
-            self._semaphore = None
+            self._lock = None
+
 
 
 class ResourceGuard:
