@@ -6,7 +6,7 @@ Context manager mix-in classes
 Python classes that want to offer context management functionality normally implement
 ``__enter__()`` and ``__exit__()`` (for synchronous context managers) or
 ``__aenter__()`` and ``__aexit__()`` (for asynchronous context managers). While this
-offers precise control and re-entrancy support, embedding _other_ context managers in
+offers precise control and re-entrancy support, embedding *other* context managers in
 this logic can be very error prone. To make this easier, AnyIO provides two context
 manager mix-in classes, :class:`ContextManagerMixin` and
 :class:`AsyncContextManagerMixin`. These classes provide implementations of
