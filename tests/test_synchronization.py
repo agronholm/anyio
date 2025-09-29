@@ -10,12 +10,15 @@ from anyio import (
     Condition,
     Event,
     Lock,
+    RateLimiter,
     Semaphore,
     WouldBlock,
     create_task_group,
+    current_time,
     fail_after,
     move_on_after,
     run,
+    sleep,
     to_thread,
     wait_all_tasks_blocked,
 )
@@ -892,3 +895,71 @@ class TestCapacityLimiter:
             tg.cancel_scope.cancel()
 
         pytest.fail("The second borrower failed to acquire the limiter")
+
+
+class TestRateLimiter:
+    async def test_max_per_second(self) -> None:
+        """Test that with the limiter, the loop takes about 2 seconds to finish."""
+        async with RateLimiter.from_max_per_second(5) as limiter:
+            start_time = current_time()
+            for _ in range(10):
+                await limiter.acquire()
+
+            end_time = current_time()
+            assert end_time - start_time == pytest.approx(2, rel=0.1)
+
+    async def test_delay(self) -> None:
+        """
+        Test that the initial allowance allows acquiring the limiter that many times
+        before the first delay has passed.
+
+        """
+        last_index = 0
+        async with RateLimiter(5, 3) as limiter:
+            with pytest.raises(TimeoutError), fail_after(0.5):
+                for i in range(10):
+                    last_index = i
+                    await limiter.acquire()
+
+        assert last_index == 5
+
+    async def test_light_load(self) -> None:
+        """
+        Test that the semaphore isn't incremented beyond the allowance when the demand
+        is lower than the capacity.
+
+        """
+        async with RateLimiter(5, 1) as limiter:
+            await limiter.acquire()
+            stats = limiter.statistics()
+            assert stats.max_tokens == 5
+            assert stats.available_tokens == 4
+            assert stats.tasks_waiting == 0
+            await sleep(1.1)
+
+            for _ in range(5):
+                await limiter.acquire()
+
+            stats = limiter.statistics()
+            assert stats.max_tokens == 5
+            assert stats.available_tokens == 0
+            assert stats.tasks_waiting == 0
+
+            with pytest.raises(TimeoutError), fail_after(0.5):
+                await limiter.acquire()
+
+    async def test_use_outside_of_acm(self) -> None:
+        """
+        Test that attempts to acquire the limiter before or after it has been entered
+        as an ACM, it will raise a RuntimeError.
+
+        """
+        limiter = RateLimiter(5)
+        with pytest.raises(RuntimeError, match="This rate limiter is not active"):
+            await limiter.acquire()
+
+        async with limiter:
+            await limiter.acquire()
+
+        with pytest.raises(RuntimeError, match="This rate limiter is not active"):
+            await limiter.acquire()

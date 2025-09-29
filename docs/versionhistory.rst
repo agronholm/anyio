@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Added the ``RateLimiter`` synchronization primitive for enforcing time-limited rate on
+  operations
+
 **4.11.0**
 
 - Added support for cancellation reasons (the ``reason`` parameter to

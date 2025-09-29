@@ -1,19 +1,28 @@
 from __future__ import annotations
 
 import math
+import sys
 from collections import deque
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import timedelta
 from types import TracebackType
-from typing import TypeVar
+from typing import TypeVar, cast
 
 from sniffio import AsyncLibraryNotFoundError
 
 from ..lowlevel import checkpoint_if_cancelled
-from ._eventloop import get_async_backend
+from ._contextmanagers import AsyncContextManagerMixin
+from ._eventloop import get_async_backend, sleep
 from ._exceptions import BusyResourceError
-from ._tasks import CancelScope
+from ._tasks import CancelScope, create_task_group
 from ._testing import TaskInfo, get_current_task
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
 
 T = TypeVar("T")
 
@@ -79,6 +88,20 @@ class SemaphoreStatistics:
     """
 
     tasks_waiting: int
+
+
+@dataclass(frozen=True)
+class RateLimiterStatistics:
+    """
+    :ivar int tasks_waiting: the number of tasks waiting on
+        :meth:`~.RateLimiter.acquire`
+    :ivar int available_tokens: the number of available slots on the limiter
+    :ivar int max_tokens: the number of total slots on the limiter
+    """
+
+    tasks_waiting: int  #: the number of tasks waiting to acquire the limiter
+    available_tokens: int  #: the number of available slots on the limiter
+    max_tokens: int  #: the number of total slots on the limiter
 
 
 class Event:
@@ -751,3 +774,92 @@ class ResourceGuard:
         exc_tb: TracebackType | None,
     ) -> None:
         self._guarded = False
+
+
+class RateLimiter(AsyncContextManagerMixin):
+    """
+    Provides rate limiting via an internal semaphore which is periodically incremented.
+
+    :param allowance: number of operations allowed within the time window
+    :param delay: the time window, in seconds (or a :class:`~datetime.timedelta), that
+        ``allowance`` applies to
+
+    .. note:: Any use of the provided semaphore must happen while the rate limiter is
+        managed with an ``async with`` block, as otherwise consumers would be
+        indefinitely blocked because the semaphore value would never be incremented.
+        Attempting to use the rate limiter outside an ``async with`` block will raise a
+        :exc:`RuntimeError`.
+    """
+
+    def __init__(
+        self,
+        allowance: int,
+        delay: float | timedelta = 1,
+    ):
+        self.allowance = allowance
+        self._delay = delay.total_seconds() if isinstance(delay, timedelta) else delay
+        self._semaphore: Semaphore | None = None
+
+    @classmethod
+    def from_max_per_second(cls, max_per_second: int, /) -> Self:
+        """
+        Create a rate limiter with the given maximum number of operations per second.
+
+        This is the equivalent of creating a rate limiter with ``allowance=1`` and
+        ``delay=1 / max_per_second``.
+
+        :param max_per_second: number of operations allowed per second
+        :return: a newly created rate limiter
+
+        """
+        return cls(1, 1 / max_per_second)
+
+    async def acquire(self) -> None:
+        """
+        Ensure that the rate limit is not exceeded.
+
+        This method must be called before running the related rate-sensitive operation.
+
+        """
+        if self._semaphore is None:
+            raise RuntimeError(
+                "This rate limiter is not active. It must be used within an "
+                "'async with' block."
+            )
+
+        await self._semaphore.acquire()
+
+    def statistics(self) -> RateLimiterStatistics:
+        """Return the statistics for the underlying semaphore."""
+        if self._semaphore is None:
+            return RateLimiterStatistics(
+                tasks_waiting=0,
+                available_tokens=self.allowance,
+                max_tokens=self.allowance,
+            )
+
+        semaphore_stats = self._semaphore.statistics()
+        return RateLimiterStatistics(
+            tasks_waiting=semaphore_stats.tasks_waiting,
+            available_tokens=self._semaphore.value,
+            max_tokens=self.allowance,
+        )
+
+    async def _adjust_value(self) -> None:
+        semaphore = cast(Semaphore, self._semaphore)
+        while True:
+            await sleep(self._delay)
+
+            for _ in range(self.allowance - semaphore.value):
+                semaphore.release()
+
+    @asynccontextmanager
+    async def __asynccontextmanager__(self) -> AsyncGenerator[Self]:
+        self._semaphore = Semaphore(self.allowance, max_value=self.allowance)
+        try:
+            async with create_task_group() as tg:
+                tg.start_soon(self._adjust_value)
+                yield self
+                tg.cancel_scope.cancel()
+        finally:
+            self._semaphore = None
