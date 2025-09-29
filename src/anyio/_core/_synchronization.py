@@ -858,7 +858,7 @@ class RateLimiter(AsyncContextManagerMixin):
         self._semaphore = Semaphore(self.allowance, max_value=self.allowance)
         try:
             async with create_task_group() as tg:
-                tg.start_soon(self._adjust_value)
+                tg.start_soon(self._adjust_value, name=f"Manager task for {self!r}")
                 yield self
                 tg.cancel_scope.cancel()
         finally:
