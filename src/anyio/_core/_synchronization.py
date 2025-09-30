@@ -7,7 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
 from types import TracebackType
-from typing import TypeVar
+from typing import TypeVar, cast
 
 from sniffio import AsyncLibraryNotFoundError
 
@@ -792,42 +792,61 @@ class RateLimiter:
         """
         return cls(1, 1 / max_per_second)
 
+    def _update_available(self, slot_time: float | None = None) -> bool:
+        """
+        Update the number of available tokens.
+        Returns True if tokens are available.
+
+        :param slot_time: If set, do not update if the next-slot time has
+                          changed (via a call to statistics form another task)
+
+        :return: a flag whether a slot is available
+        """
+        now = current_time()
+
+        if self._next is None:
+            # First call. Availability must be guaranteed by __init__.
+            assert self._available > 0
+            self._next = now + self._interval
+            return True
+
+        if slot_time is None:
+            if self._next > now:
+                # Need to sleep?
+                return self._available > 0
+        elif slot_time != self._next:
+            # Another task called .statistics() while we were about to wake up
+            assert self._available > 0
+            return True
+
+        self._available = self._tokens
+        self._next = now + self._interval
+        return True
+
     async def acquire(self) -> None:
         """
         Ensure that the rate limit is not exceeded.
 
         This method must be called before running the related rate-sensitive operation.
-
         """
         async with self._lock:
             # Initialize or refresh the next token pool refresh time
-            now = current_time()
-            if self._next is None or self._next <= now:
-                self._next = now + self._interval
-                self._available = self._tokens
-
-            # If no tokens are available, wait until the next token pool refresh time
-            elif self._available == 0:
-                await sleep_until(self._next)
-                self._available = self._tokens
+            if not self._update_available():
+                slot_time = self._next
+                await sleep_until(cast(float, self._next))
+                self._update_available(slot_time)
 
             self._available -= 1
 
     def statistics(self) -> RateLimiterStatistics:
-        """Return the statistics for the underlying semaphore."""
-        if self._next is None:
-            return RateLimiterStatistics(
-                tasks_waiting=0,
-                available_tokens=self._available,
-            )
+        """Return the statistics for the underlying lock."""
 
-        if current_time() >= self._next:
-            self._available = self._tokens
-            self._next = None
+        # Refresh token availability
+        self._update_available()
 
         lock_stats = self._lock.statistics()
         return RateLimiterStatistics(
-            tasks_waiting=lock_stats.tasks_waiting,
+            tasks_waiting=lock_stats.tasks_waiting + self._lock.locked(),
             available_tokens=self._available,
         )
 
