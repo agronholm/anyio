@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import timedelta
 from typing import Any
 
 import pytest
@@ -15,11 +16,10 @@ from anyio import (
     Semaphore,
     WouldBlock,
     create_task_group,
+    current_time,
     fail_after,
-    get_current_task,
     move_on_after,
     run,
-    sleep,
     to_thread,
     wait_all_tasks_blocked,
 )
@@ -899,64 +899,50 @@ class TestCapacityLimiter:
 
 
 class TestRateLimiter:
-    class FakeSleeper:
-        def __init__(self) -> None:
-            self._event = Event()
+    @pytest.mark.parametrize(
+        "interval",
+        [
+            pytest.param(62, id="int"),
+            pytest.param(62.0, id="float"),
+            pytest.param(timedelta(minutes=1, seconds=2), id="timedelta"),
+        ],
+    )
+    def test_properties(self, interval: float | timedelta) -> None:
+        limiter = RateLimiter(5, interval)
+        assert limiter.tokens == 5
+        assert limiter.interval == 62
 
-        async def step(self) -> None:
-            await wait_all_tasks_blocked()
-            self._event.set()
-            self._event = Event()
-            await wait_all_tasks_blocked()
-
-        async def wait(self) -> None:
-            await self._event.wait()
-
-    @pytest.fixture
-    async def fake_sleep(self, mocker: MockerFixture) -> FakeSleeper:
-        async def new_sleep(delay: float) -> None:
-            task = get_current_task()
-            if task is not None and (task.name or "").startswith("Manager task for "):
-                await sleeper.wait()
-            else:
-                await sleep(delay)
-
-        sleeper = TestRateLimiter.FakeSleeper()
-        mocker.patch("anyio._core._synchronization.sleep", side_effect=new_sleep)
-        return sleeper
-
-    async def test_acquire(self, fake_sleep: FakeSleeper) -> None:
+    async def test_acquire(self, mocker: MockerFixture) -> None:
+        mock_clock = mocker.patch(
+            "anyio._core._synchronization.current_time", return_value=current_time()
+        )
         limiter = RateLimiter(5, 1)
+
         # Right after two acquire() calls, the limiter should have two fewer tokens
         # available
         await limiter.acquire()
         await limiter.acquire()
         stats = limiter.statistics()
-        assert stats.max_tokens == 5
         assert stats.available_tokens == 3
         assert stats.tasks_waiting == 0
 
-        # Let the tokens reset
-        await fake_sleep.step()
-        # assert limiter.statistics().available_tokens == 5
+        # Add 1.1 seconds to the clock so that all the tokens are now free
+        mock_clock.return_value += 1100
+        assert limiter.statistics().available_tokens == 5
 
         # Acquire all available tokens and check that the statistics reflect that
         for _ in range(5):
             await limiter.acquire()
 
         stats = limiter.statistics()
-        assert stats.max_tokens == 5
-        # assert stats.available_tokens == 0
+        assert stats.available_tokens == 0
         assert stats.tasks_waiting == 0
 
         # With all the tokens in use, the next acquire() should block
         with pytest.raises(TimeoutError), fail_after(0.1):
             await limiter.acquire()
-            await limiter.acquire()
-            await limiter.acquire()
-            await limiter.acquire()
 
-    async def test_max_per_second(self) -> None:
+    def test_max_per_second(self) -> None:
         """Test that with the limiter, the loop takes about 2 seconds to finish."""
         limiter = RateLimiter.from_max_per_second(5)
         assert limiter.tokens == 1

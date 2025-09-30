@@ -12,7 +12,7 @@ from typing import TypeVar
 from sniffio import AsyncLibraryNotFoundError
 
 from ..lowlevel import checkpoint_if_cancelled
-from ._eventloop import current_time, get_async_backend, sleep
+from ._eventloop import current_time, get_async_backend, sleep_until
 from ._exceptions import BusyResourceError
 from ._tasks import CancelScope
 from ._testing import TaskInfo, get_current_task
@@ -94,12 +94,10 @@ class RateLimiterStatistics:
     :ivar int tasks_waiting: the number of tasks waiting on
         :meth:`~.RateLimiter.acquire`
     :ivar int available_tokens: the number of available slots on the limiter
-    :ivar int max_tokens: the number of total slots on the limiter
     """
 
     tasks_waiting: int  #: the number of tasks waiting to acquire the limiter
     available_tokens: int  #: the number of available slots on the limiter
-    max_tokens: int  #: the number of total slots on the limiter
 
 
 class Event:
@@ -768,7 +766,7 @@ class RateLimiter:
 
         self._available: int = tokens
         self._lock = Lock()
-        self._next = current_time() + self._interval
+        self._next: float | None = None
 
     @property
     def tokens(self) -> int:
@@ -801,42 +799,35 @@ class RateLimiter:
         This method must be called before running the related rate-sensitive operation.
 
         """
-        if self._lock is None:
-            raise RuntimeError(
-                "This rate limiter is not active. It must be used within an "
-                "'async with' block."
-            )
-
-        if self._available > 0:
-            self._available -= 1
-            return
-
         async with self._lock:
-            if self._available == 0:
-                tm = current_time()
-                if self._next > tm:
-                    await sleep(self._next - tm)
-                    tm = current_time()
+            # Initialize or refresh the next token pool refresh time
+            now = current_time()
+            if self._next is None or self._next <= now:
+                self._next = now + self._interval
 
+            # If no tokens are available, wait until the next token pool refresh time
+            if self._available == 0:
+                await sleep_until(self._next)
                 self._available = self._tokens
-                self._next = tm + self._interval
 
             self._available -= 1
 
     def statistics(self) -> RateLimiterStatistics:
         """Return the statistics for the underlying semaphore."""
-        if self._lock is None:
+        if self._next is None:
             return RateLimiterStatistics(
                 tasks_waiting=0,
                 available_tokens=self._available,
-                max_tokens=self._tokens,
             )
+
+        if current_time() >= self._next:
+            self._available = self._tokens
+            self._next = None
 
         lock_stats = self._lock.statistics()
         return RateLimiterStatistics(
             tasks_waiting=lock_stats.tasks_waiting,
             available_tokens=self._available,
-            max_tokens=self._tokens,
         )
 
 
