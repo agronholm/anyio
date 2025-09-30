@@ -943,7 +943,6 @@ class TestRateLimiter:
             await limiter.acquire()
 
     def test_max_per_second(self) -> None:
-        """Test that with the limiter, the loop takes about 2 seconds to finish."""
         limiter = RateLimiter.from_max_per_second(5)
         assert limiter.tokens == 1
         assert limiter.interval == 1 / 5
