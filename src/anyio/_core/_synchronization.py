@@ -754,26 +754,29 @@ class RateLimiter:
         *,
         initial_tokens: int | None = None,
     ):
-        if not isinstance(tokens, int) or tokens < 1:
-            raise ValueError("tokens must be a positive integer")
+        if not isinstance(tokens, int):
+            raise TypeError("tokens must be an integer")
+        elif tokens < 1:
+            raise ValueError("tokens must be positive")
 
-        if initial_tokens is not None and (
-            not isinstance(initial_tokens, int) or initial_tokens < 0
-        ):
-            raise ValueError("initial_tokens must be a non-negative integer or None")
+        if initial_tokens is not None:
+            if not isinstance(initial_tokens, int):
+                raise TypeError("initial_tokens must be an integer or None")
+            elif initial_tokens < 0:
+                raise ValueError("initial_tokens must not be negative")
 
-        if not isinstance(interval, (int, float, timedelta)):
-            raise ValueError("interval must be an integer, float or timedelta")
+        if isinstance(interval, timedelta):
+            interval = interval.total_seconds()
+
+        if not isinstance(interval, (int, float)):
+            raise TypeError("interval must be an integer, float or timedelta")
+        elif interval <= 0:
+            raise ValueError("interval must be positive")
 
         self._tokens = tokens
         self._initial_tokens = tokens if initial_tokens is None else initial_tokens
-        self._interval = (
-            interval.total_seconds() if isinstance(interval, timedelta) else interval
-        )
-        if self._interval <= 0:
-            raise ValueError("interval must be positive")
-
-        self._available: int = self._initial_tokens
+        self._interval = interval
+        self._available = self._initial_tokens
         self._lock = Lock()
         self._next: float | None = None
 

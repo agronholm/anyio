@@ -914,38 +914,61 @@ class TestRateLimiter:
         assert limiter.interval == 62
 
     @pytest.mark.parametrize(
-        "value",
+        "value, exc_class, error",
         [
-            pytest.param(-1, id="negative"),
-            pytest.param(0, id="zero"),
-            pytest.param("6", id="bad_type"),
+            pytest.param(-1, ValueError, "^tokens must be positive", id="negative"),
+            pytest.param(0, ValueError, "^tokens must be positive", id="zero"),
+            pytest.param("6", TypeError, "^tokens must be an integer", id="bad_type"),
         ],
     )
-    def test_bad_tokens(self, value: Any) -> None:
-        with pytest.raises(ValueError, match="^tokens must be "):
+    def test_bad_tokens(
+        self, value: Any, exc_class: type[Exception], error: str
+    ) -> None:
+        with pytest.raises(exc_class, match=error):
             RateLimiter(value, 1)
 
     @pytest.mark.parametrize(
-        "value",
+        "value, exc_class, error",
         [
-            pytest.param(-1, id="float"),
-            pytest.param(timedelta(seconds=-6), id="timedelta"),
-            pytest.param("6", id="bad_type"),
+            pytest.param(-1, ValueError, "^interval must be positive", id="float"),
+            pytest.param(
+                timedelta(seconds=-6),
+                ValueError,
+                "^interval must be positive",
+                id="timedelta",
+            ),
+            pytest.param(
+                "6",
+                TypeError,
+                "^interval must be an integer, float or timedelta",
+                id="bad_type",
+            ),
         ],
     )
-    def test_bad_interval(self, value: Any) -> None:
-        with pytest.raises(ValueError, match="^interval must be "):
+    def test_bad_interval(
+        self, value: Any, exc_class: type[Exception], error: str
+    ) -> None:
+        with pytest.raises(exc_class, match=error):
             RateLimiter(1, value)
 
     @pytest.mark.parametrize(
-        "value",
+        "value, exc_class, error",
         [
-            pytest.param(-1, id="negative"),
-            pytest.param("6", id="bad_type"),
+            pytest.param(
+                -1, ValueError, "^initial_tokens must not be negative", id="negative"
+            ),
+            pytest.param(
+                "6",
+                TypeError,
+                "^initial_tokens must be an integer or None",
+                id="bad_type",
+            ),
         ],
     )
-    def test_bad_initial_tokens(self, value: Any) -> None:
-        with pytest.raises(ValueError, match="^initial_tokens must be "):
+    def test_bad_initial_tokens(
+        self, value: Any, exc_class: type[Exception], error: str
+    ) -> None:
+        with pytest.raises(exc_class, match=error):
             RateLimiter(1, 1, initial_tokens=value)
 
     async def test_acquire(self, mocker: MockerFixture) -> None:
