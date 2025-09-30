@@ -814,20 +814,15 @@ class RateLimiter:
 
     def statistics(self) -> RateLimiterStatistics:
         """Return the statistics for the underlying semaphore."""
-        if self._next is None:
-            return RateLimiterStatistics(
-                tasks_waiting=0,
-                available_tokens=self._available,
-            )
-
-        if current_time() >= self._next:
-            self._available = self._tokens
-            self._next = None
+        if self._next is not None and current_time() >= self._next:
+            available = self._tokens
+        else:
+            available = self._available
 
         lock_stats = self._lock.statistics()
         return RateLimiterStatistics(
             tasks_waiting=lock_stats.tasks_waiting,
-            available_tokens=self._available,
+            available_tokens=available,
         )
 
 
