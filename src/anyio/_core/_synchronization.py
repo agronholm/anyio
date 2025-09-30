@@ -815,7 +815,7 @@ class RateLimiter:
             self._available -= 1
 
     def statistics(self) -> RateLimiterStatistics:
-        """Return the statistics for the underlying semaphore."""
+        """Return statistics about the current state of this limiter."""
         if self._next is not None and current_time() >= self._next:
             available = self._tokens
         else:
