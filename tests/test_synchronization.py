@@ -936,8 +936,9 @@ class TestRateLimiter:
         assert limiter.statistics().available_tokens == 5
 
         # Acquire all available tokens and check that the statistics reflect that
-        for _ in range(5):
-            await limiter.acquire()
+        with fail_after(3):
+            for _ in range(5):
+                await limiter.acquire()
 
         stats = limiter.statistics()
         assert stats.available_tokens == 0
