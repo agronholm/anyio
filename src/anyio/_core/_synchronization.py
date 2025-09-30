@@ -744,27 +744,36 @@ class RateLimiter:
     :param tokens: number of operations allowed within the time window
     :param interval: the time window, in seconds (or a :class:`~datetime.timedelta),
         that ``tokens`` applies to
+    :param initial_tokens: the number of tokens available on the initial time window
     """
 
     def __init__(
         self,
         tokens: int,
         interval: float | timedelta = 1,
+        *,
+        initial_tokens: int | None = None,
     ):
         if not isinstance(tokens, int) or tokens < 1:
             raise ValueError("tokens must be a positive integer")
+
+        if initial_tokens is not None and (
+            not isinstance(initial_tokens, int) or initial_tokens < 0
+        ):
+            raise ValueError("initial_tokens must be a non-negative integer or None")
 
         if not isinstance(interval, (int, float, timedelta)):
             raise ValueError("interval must be an integer, float or timedelta")
 
         self._tokens = tokens
+        self._initial_tokens = tokens if initial_tokens is None else initial_tokens
         self._interval = (
             interval.total_seconds() if isinstance(interval, timedelta) else interval
         )
         if self._interval <= 0:
             raise ValueError("interval must be positive")
 
-        self._available: int = tokens
+        self._available: int = self._initial_tokens
         self._lock = Lock()
         self._next: float | None = None
 
@@ -774,12 +783,19 @@ class RateLimiter:
         return self._tokens
 
     @property
+    def initial_tokens(self) -> int:
+        """The configured initial number of tokens."""
+        return self._initial_tokens
+
+    @property
     def interval(self) -> float:
         """The configured time window, in seconds."""
         return self._interval
 
     @classmethod
-    def from_max_per_second(cls, max_per_second: int, /) -> Self:
+    def from_max_per_second(
+        cls, max_per_second: int, /, *, initial_tokens: int | None = None
+    ) -> Self:
         """
         Create a rate limiter with the given maximum number of operations per second.
 
@@ -787,10 +803,11 @@ class RateLimiter:
         ``interval=1 / max_per_second``.
 
         :param max_per_second: number of operations allowed per second
+        :param initial_tokens: the number of tokens available on the initial time window
         :return: a newly created rate limiter
 
         """
-        return cls(1, 1 / max_per_second)
+        return cls(1, 1 / max_per_second, initial_tokens=initial_tokens)
 
     async def acquire(self) -> None:
         """
@@ -802,7 +819,9 @@ class RateLimiter:
         async with self._lock:
             # Initialize or refresh the next token pool refresh time
             now = current_time()
-            if self._next is None or self._next <= now:
+            if self._next is None:
+                self._next = now + self._interval
+            elif self._next <= now:
                 self._available = self._tokens
                 self._next = now + self._interval
 

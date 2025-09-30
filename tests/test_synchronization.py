@@ -908,9 +908,45 @@ class TestRateLimiter:
         ],
     )
     def test_properties(self, interval: float | timedelta) -> None:
-        limiter = RateLimiter(5, interval)
+        limiter = RateLimiter(5, interval, initial_tokens=10)
         assert limiter.tokens == 5
+        assert limiter.initial_tokens == 10
         assert limiter.interval == 62
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            pytest.param(-1, id="negative"),
+            pytest.param(0, id="zero"),
+            pytest.param("6", id="bad_type"),
+        ],
+    )
+    def test_bad_tokens(self, value: Any) -> None:
+        with pytest.raises(ValueError, match="^tokens must be "):
+            RateLimiter(value, 1)
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            pytest.param(-1, id="float"),
+            pytest.param(timedelta(seconds=-6), id="timedelta"),
+            pytest.param("6", id="bad_type"),
+        ],
+    )
+    def test_bad_interval(self, value: Any) -> None:
+        with pytest.raises(ValueError, match="^interval must be "):
+            RateLimiter(1, value)
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            pytest.param(-1, id="negative"),
+            pytest.param("6", id="bad_type"),
+        ],
+    )
+    def test_bad_initial_tokens(self, value: Any) -> None:
+        with pytest.raises(ValueError, match="^initial_tokens must be "):
+            RateLimiter(1, 1, initial_tokens=value)
 
     async def test_acquire(self, mocker: MockerFixture) -> None:
         mock_clock = mocker.patch(
@@ -948,7 +984,21 @@ class TestRateLimiter:
         with pytest.raises(TimeoutError), fail_after(0.1):
             await limiter.acquire()
 
+    async def test_no_initial_tokens(self) -> None:
+        """Test that with initial_tokens=0, the acquire() call blocks from the start."""
+        limiter = RateLimiter(5, 1, initial_tokens=0)
+
+        # Check that there should be no available tokens
+        stats = limiter.statistics()
+        assert stats.available_tokens == 0
+        assert stats.tasks_waiting == 0
+
+        # With no available tokens, the first acquire() call should block
+        with pytest.raises(TimeoutError), fail_after(0.1):
+            await limiter.acquire()
+
     def test_max_per_second(self) -> None:
-        limiter = RateLimiter.from_max_per_second(5)
+        limiter = RateLimiter.from_max_per_second(5, initial_tokens=10)
         assert limiter.tokens == 1
+        assert limiter.initial_tokens == 10
         assert limiter.interval == 1 / 5
