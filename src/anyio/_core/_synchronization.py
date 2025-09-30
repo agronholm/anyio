@@ -804,9 +804,10 @@ class RateLimiter:
             now = current_time()
             if self._next is None or self._next <= now:
                 self._next = now + self._interval
+                self._available = self._tokens
 
             # If no tokens are available, wait until the next token pool refresh time
-            if self._available == 0:
+            elif self._available == 0:
                 await sleep_until(self._next)
                 self._available = self._tokens
 
