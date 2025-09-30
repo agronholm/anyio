@@ -918,6 +918,11 @@ class TestRateLimiter:
         )
         limiter = RateLimiter(5, 1)
 
+        # Test the special case where the limiter has never been acquired
+        stats = limiter.statistics()
+        assert stats.available_tokens == 5
+        assert stats.tasks_waiting == 0
+
         # Right after two acquire() calls, the limiter should have two fewer tokens
         # available
         await limiter.acquire()
