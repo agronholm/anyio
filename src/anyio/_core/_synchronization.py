@@ -741,21 +741,40 @@ class RateLimiter:
     """
     Provides rate limiting via an internal semaphore which is periodically incremented.
 
-    :param tokens: number of operations allowed within the time window
-    :param interval: the time window, in seconds (or a :class:`~datetime.timedelta),
+    :param tokens: number of operations allowed within each time window
+    :param interval: the time window, in seconds (or a :class:`~datetime.timedelta`),
         that ``tokens`` applies to
+    :param initial: number of operations allowed in the first time window.
+                    The default is `tokens`. May be zero.
+    :param burst_rate: percentage of a slot's unused operations that are
+                       carried over to the next interval (must be 0 ... 1)
+    :param burst_max: upper limit for carried-over operations
+
+    Each time window starts with its first operation.
     """
 
     def __init__(
         self,
         tokens: int,
         interval: float | timedelta = 1,
+        burst_rate: float = 0,
+        burst_max: int | None = None,
+        initial: int | None = None,
     ):
         if not isinstance(tokens, int) or tokens < 1:
             raise ValueError("tokens must be a positive integer")
 
         if not isinstance(interval, (int, float, timedelta)):
             raise ValueError("interval must be an integer, float or timedelta")
+
+        if not isinstance(burst_rate, (int, float)) or not (0 <= burst_rate <= 1):
+            raise ValueError("burst rate must be between zero and one")
+
+        if burst_max is not None and (not isinstance(burst_max, int) or burst_max < 0):
+            raise ValueError("burst rate must be a positive integer, or None")
+
+        if initial is not None and (not isinstance(initial, int) or initial < 0):
+            raise ValueError("initial value must be a non-negative integer")
 
         self._tokens = tokens
         self._interval = (
@@ -764,7 +783,9 @@ class RateLimiter:
         if self._interval <= 0:
             raise ValueError("interval must be positive")
 
-        self._available: int = tokens
+        self._available: int = tokens if initial is None else initial
+        self._burst_rate = burst_rate
+        self._burst_max = burst_max
         self._lock = Lock()
         self._next: float | None = None
 
@@ -805,10 +826,9 @@ class RateLimiter:
         now = current_time()
 
         if self._next is None:
-            # First call. Availability must be guaranteed by __init__.
-            assert self._available > 0
+            # First call.
             self._next = now + self._interval
-            return True
+            return self._available > 0
 
         if slot_time is None:
             if self._next > now:
@@ -819,7 +839,19 @@ class RateLimiter:
             assert self._available > 0
             return True
 
-        self._available = self._tokens
+        # Calculate burst increment
+        if self._burst_rate:
+            tokens = int(
+                self._burst_rate
+                * (self._available + self._tokens * (now - self._next) / self._interval)
+            )
+            if tokens < 0:
+                tokens = 0
+            elif self._burst_max is not None:
+                tokens = min(self._burst_max, tokens)
+        else:
+            tokens = 0
+        self._available = self._tokens + tokens
         self._next = now + self._interval
         return True
 
