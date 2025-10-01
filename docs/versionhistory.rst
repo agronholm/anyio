@@ -38,7 +38,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``ClosedResourceError`` on Trio. They now both raise a ``ClosedResourceError`` in this
   scenario. (`#671 <https://github.com/agronholm/anyio/issues/671>`_)
 
-
 **4.10.0**
 
 - Added the ``feed_data()`` method to the ``BufferedByteReceiveStream`` class, allowing
