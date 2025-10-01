@@ -3,6 +3,15 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+
+**UNRELEASED**
+
+- Set ``None`` as the default type argument for ``anyio.abc.TaskStatus``
+- Added support for ``uvloop=True`` on Windows via the winloop_ implementation
+  (`#960 <https://github.com/agronholm/anyio/pull/960>`_; PR by @Vizonex)
+
+.. _winloop: https://github.com/Vizonex/Winloop
+
 **4.11.0**
 
 - Added support for cancellation reasons (the ``reason`` parameter to
