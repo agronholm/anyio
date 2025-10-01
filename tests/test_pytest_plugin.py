@@ -14,8 +14,7 @@ pytestmark = [
     pytest.mark.filterwarnings(
         "ignore:The TerminalReporter.writer attribute is deprecated"
         ":pytest.PytestDeprecationWarning:"
-    ),
-    pytest.mark.anyio,
+    )
 ]
 
 pytest_args = "-v", "-p", "anyio", "-p", "no:asyncio", "-p", "no:trio"
@@ -568,6 +567,80 @@ def test_async_fixture_params(testdir: Pytester) -> None:
 
     result = testdir.runpytest(*pytest_args)
     result.assert_outcomes(passed=len(get_all_backends()) * 2)
+
+
+def test_auto_mode(testdir: Pytester) -> None:
+    testdir.makepyprojecttoml(
+        """
+        [tool.pytest.ini_options]
+        anyio_mode = "auto"
+        """
+    )
+    testdir.makepyfile(
+        """
+        import inspect
+        import pytest
+
+        @pytest.fixture
+        async def fixt(request):
+            return 1
+
+        async def test_params(fixt):
+            assert fixt == 1
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=len(get_all_backends()))
+
+
+def test_auto_mode_conflict_warning(testdir: Pytester) -> None:
+    testdir.makepyprojecttoml(
+        """
+        [tool.pytest.ini_options]
+        anyio_mode = "auto"
+        asyncio_mode = "auto"
+        asyncio_default_fixture_loop_scope = "function"
+        """
+    )
+    testdir.makeconftest(
+        """
+        import pytest
+
+        class FakeAsyncioPlugin:
+            def pytest_addoption(self, parser, pluginmanager):
+                parser.addini(
+                    "asyncio_mode",
+                    default="strict",
+                    type="string",
+                    help="dummy asyncio plugin"
+                )
+
+        def pytest_addhooks(pluginmanager):
+            if not pluginmanager.has_plugin("asyncio"):
+                pluginmanager.register(FakeAsyncioPlugin(), "asyncio")
+        """
+    )
+    testdir.makepyfile(
+        """
+        import inspect
+        import pytest
+
+        @pytest.fixture
+        async def fixt(request):
+            return 1
+
+        async def test_params(fixt):
+            assert fixt == 1
+        """
+    )
+
+    result = testdir.runpytest("-p", "anyio")
+    result.assert_outcomes(passed=len(get_all_backends()))
+    assert (
+        "PytestConfigWarning: AnyIO auto mode has been enabled together with "
+        "pytest-asyncio auto mode. This may cause unexpected behavior."
+    ) in result.stdout.str()
 
 
 class TestFreePortFactory:

@@ -24,8 +24,6 @@ from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params
 
-pytestmark = pytest.mark.anyio
-
 
 class TestLock:
     async def test_contextmanager(self) -> None:
@@ -401,6 +399,13 @@ class TestCondition:
         assert task_started
         assert not notified
 
+    async def test_wait_no_lock(self) -> None:
+        condition = Condition()
+        with pytest.raises(
+            RuntimeError, match="The current task is not holding the underlying lock"
+        ):
+            await condition.wait()
+
     async def test_statistics(self) -> None:
         async def waiter() -> None:
             async with condition:
@@ -444,6 +449,30 @@ class TestCondition:
             backend=anyio_backend_name,
             backend_options=anyio_backend_options,
         )
+
+    async def test_wait_for(self) -> None:
+        result = None
+
+        async def waiter() -> None:
+            nonlocal result
+            async with condition:
+                result = await condition.wait_for(lambda: value)
+
+        value = None
+        condition = Condition()
+        async with create_task_group() as tg:
+            tg.start_soon(waiter)
+            await wait_all_tasks_blocked()
+            async with condition:
+                condition.notify_all()
+
+            await wait_all_tasks_blocked()
+            assert result is None
+            value = "foo"
+            async with condition:
+                condition.notify_all()
+
+        assert result == "foo"
 
 
 class TestSemaphore:

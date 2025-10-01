@@ -20,8 +20,6 @@ from anyio import (
     mkstemp,
 )
 
-pytestmark = pytest.mark.anyio
-
 
 class TestTemporaryFile:
     async def test_temporary_file(self) -> None:

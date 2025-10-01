@@ -213,8 +213,10 @@ Low level operations
 .. autofunction:: anyio.lowlevel.checkpoint
 .. autofunction:: anyio.lowlevel.checkpoint_if_cancelled
 .. autofunction:: anyio.lowlevel.cancel_shielded_checkpoint
+.. autofunction:: anyio.lowlevel.current_token
 
 .. autoclass:: anyio.lowlevel.RunVar
+.. autoclass:: anyio.lowlevel.EventLoopToken
 
 Testing and debugging
 ---------------------
@@ -237,5 +239,7 @@ Exceptions
 .. autoexception:: anyio.DelimiterNotFound
 .. autoexception:: anyio.EndOfStream
 .. autoexception:: anyio.IncompleteRead
+.. autoexception:: anyio.NoEventLoopError
+.. autoexception:: anyio.RunFinishedError
 .. autoexception:: anyio.TypedAttributeLookupError
 .. autoexception:: anyio.WouldBlock

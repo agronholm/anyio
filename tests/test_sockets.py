@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import array
+import errno
 import gc
 import io
 import os
@@ -20,6 +21,7 @@ from ssl import SSLContext, SSLError
 from threading import Thread
 from typing import TYPE_CHECKING, Any, Literal, NoReturn, Protocol, TypeVar, cast
 from unittest import mock
+from unittest.mock import MagicMock, patch
 
 import psutil
 import pytest
@@ -27,6 +29,7 @@ from _pytest.fixtures import SubRequest
 from _pytest.logging import LogCaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
 from _pytest.tmpdir import TempPathFactory
+from pytest import FixtureRequest
 from pytest_mock.plugin import MockerFixture
 
 from anyio import (
@@ -87,8 +90,6 @@ if TYPE_CHECKING:
 AnyIPAddressFamily = Literal[
     AddressFamily.AF_UNSPEC, AddressFamily.AF_INET, AddressFamily.AF_INET6
 ]
-
-pytestmark = pytest.mark.anyio
 
 # If a socket can bind to ::1, the current environment has IPv6 properly configured
 has_ipv6 = False
@@ -513,26 +514,40 @@ class TestTCPStream:
         with pytest.raises(ClosedResourceError):
             await stream.send(b"foo")
 
-    async def test_send_after_peer_closed(self, family: AnyIPAddressFamily) -> None:
-        def serve_once() -> None:
+    async def test_receive_after_peer_closed(
+        self, family: AnyIPAddressFamily, request: FixtureRequest
+    ) -> None:
+        server_sock = socket.create_server(("localhost", 0), family=family)
+        request.addfinalizer(server_sock.close)
+        server_sock.settimeout(1)
+        server_addr = server_sock.getsockname()[:2]
+
+        async with await connect_tcp(*server_addr) as stream:
             client_sock, _ = server_sock.accept()
             client_sock.close()
-            server_sock.close()
+            with pytest.raises(EndOfStream):
+                await stream.receive(1)
 
-        server_sock = socket.socket(family, socket.SOCK_STREAM)
+        with pytest.raises(ClosedResourceError):
+            await stream.receive(1)
+
+    async def test_send_after_peer_closed(
+        self, family: AnyIPAddressFamily, request: FixtureRequest
+    ) -> None:
+        server_sock = socket.create_server(("localhost", 0), family=family)
+        request.addfinalizer(server_sock.close)
         server_sock.settimeout(1)
-        server_sock.bind(("localhost", 0))
         server_addr = server_sock.getsockname()[:2]
-        server_sock.listen()
-        thread = Thread(target=serve_once, daemon=True)
-        thread.start()
 
-        with pytest.raises(BrokenResourceError):
-            async with await connect_tcp(*server_addr) as stream:
+        async with await connect_tcp(*server_addr) as stream:
+            client_sock, _ = server_sock.accept()
+            client_sock.close()
+            with pytest.raises(BrokenResourceError):
                 for _ in range(1000):
                     await stream.send(b"foo")
 
-        thread.join()
+        with pytest.raises(ClosedResourceError):
+            await stream.send(b"foo")
 
     async def test_connect_tcp_with_tls(
         self,
@@ -719,7 +734,20 @@ class TestTCPListener:
             for listener in multi.listeners:
                 client = socket.socket(listener.extra(SocketAttribute.family))
                 client.settimeout(1)
-                client.connect(listener.extra(SocketAttribute.local_address))
+                addr = listener.extra(SocketAttribute.local_address)
+                host, port = addr[0], addr[1]
+
+                # On Windows, connecting to ANY (:: or 0.0.0.0) is invalid (WinError 10049).
+                # Replace it with loopback (::1 or 127.0.0.1) to make the test portable.
+                if sys.platform == "win32" and host in ("::", "0.0.0.0"):
+                    family = listener.extra(SocketAttribute.family)
+                    if family == socket.AF_INET6:
+                        addr = ("::1", port)
+                    elif family == socket.AF_INET:
+                        addr = ("127.0.0.1", port)
+
+                client.connect(addr)
+
                 assert isinstance(listener, SocketListener)
                 stream = await listener.accept()
                 client.sendall(b"blah")
@@ -903,6 +931,135 @@ class TestTCPListener:
         sock_or_fd = sock_or_fd_factory(family, socket.SOCK_STREAM)
         with pytest.raises(ValueError, match="the socket must be bound"):
             await SocketListener.from_socket(sock_or_fd)
+
+    @pytest.mark.parametrize(
+        "local_host,family,expected_listeners,local_port",
+        [
+            (None, AddressFamily.AF_UNSPEC, 1 if socket.has_dualstack_ipv6() else 2, 0),
+            ("localhost", AddressFamily.AF_UNSPEC, 2, 0),
+            ("localhost", AddressFamily.AF_INET, 1, 0),
+            ("::", AddressFamily.AF_UNSPEC, 1, 0),
+            ("127.0.0.1", AddressFamily.AF_INET, 1, 0),
+            ("::1", AddressFamily.AF_INET6, 1, 0),
+            (
+                None,
+                AddressFamily.AF_UNSPEC,
+                1 if socket.has_dualstack_ipv6() else 2,
+                54321,
+            ),
+            ("localhost", AddressFamily.AF_UNSPEC, 2, 54321),
+            ("localhost", AddressFamily.AF_INET, 1, 54321),
+        ],
+    )
+    async def test_tcp_listener_same_port(
+        self,
+        local_host: str | None,
+        family: AnyIPAddressFamily,
+        expected_listeners: int,
+        local_port: int,
+    ) -> None:
+        async with await create_tcp_listener(
+            local_host=local_host, family=family, local_port=local_port
+        ) as multi:
+            ports = {
+                listener.extra(SocketAttribute.local_port)
+                for listener in multi.listeners
+            }
+            assert len(ports) == 1
+            if local_port != 0:
+                assert ports == {local_port}
+
+            assert len(multi.listeners) == expected_listeners
+
+    @skip_ipv6_mark
+    async def test_tcp_listener_dualstack_disabled(
+        self, monkeypatch: MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(socket, "has_dualstack_ipv6", lambda: False)
+
+        async with await create_tcp_listener(
+            local_host=None, family=AddressFamily.AF_UNSPEC
+        ) as multi:
+            families = {
+                listener.extra(SocketAttribute.family) for listener in multi.listeners
+            }
+            assert families == {socket.AF_INET, socket.AF_INET6}
+            assert len(multi.listeners) == 2
+
+            ports = {
+                listener.extra(SocketAttribute.local_port)
+                for listener in multi.listeners
+            }
+            assert len(ports) == 1
+
+    async def test_tcp_listener_retry_after_partial_failure(self) -> None:
+        """
+        Simulate a case where the first bind() succeeds with an ephemeral port,
+        the second bind() fails with EADDRINUSE, and verify that create_tcp_listener
+        retries and eventually succeeds with all listeners bound to the same port.
+        """
+
+        real_bind = socket.socket.bind
+        bind_count = 0
+        fail_once = True
+
+        def fake_bind(
+            self: socket.socket, addr: tuple[str, int] | tuple[str, int, int, int]
+        ) -> None:
+            nonlocal bind_count, fail_once
+            port = addr[1] if isinstance(addr, tuple) and len(addr) >= 2 else None
+            bind_count += 1
+
+            if bind_count == 1 and port == 0:
+                return real_bind(self, addr)
+
+            if fail_once and port != 0:
+                fail_once = False
+                raise OSError(errno.EADDRINUSE, "simulated collision on second bind")
+
+            return real_bind(self, addr)
+
+        with patch.object(socket.socket, "bind", new=fake_bind):
+            async with await create_tcp_listener(
+                local_host="localhost", family=socket.AF_UNSPEC, local_port=0
+            ) as multi:
+                assert bind_count >= 2
+
+                ports = {
+                    listener.extra(SocketAttribute.local_port)
+                    for listener in multi.listeners
+                }
+                assert len(ports) == 1
+                assert all(
+                    isinstance(listener, SocketListener) for listener in multi.listeners
+                )
+
+    async def test_tcp_listener_total_bind_failure(self) -> None:
+        """
+        Test for a situation where bind() always fails when other listeners are being
+        bound to the same port as the first listener which was randomly assigned a free
+        port by the kernel.
+        """
+
+        def raise_oserror(addr: tuple[str, int]) -> None:
+            # Pretend that every explicitly requested port is already in use
+            if addr[1] != 0:
+                raise OSError(errno.EADDRINUSE, "bind failure")
+
+        mock_socket_instance = MagicMock()
+        mock_socket_instance.bind.side_effect = raise_oserror
+        asynclib = get_async_backend()
+        with (
+            patch("anyio._core._sockets.socket") as mock_anyio_sockets,
+            patch.object(
+                asynclib, "create_tcp_listener", return_value=MagicMock(SocketListener)
+            ),
+            pytest.raises(
+                OSError, match="Could not create 2 listeners with a consistent port"
+            ),
+        ):
+            mock_anyio_sockets.socket.configure_mock(return_value=mock_socket_instance)
+            await create_tcp_listener(local_host="localhost")
 
 
 @pytest.mark.skipif(
@@ -1440,7 +1597,13 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
                         stream: SocketStream = await connect_unix(local_address)
                     else:
                         assert isinstance(local_address, tuple)
-                        stream = await connect_tcp(*local_address)
+                        host, port = local_address
+                        host = (
+                            "::1"
+                            if listener.extra(SocketAttribute.family) == socket.AF_INET6
+                            else "127.0.0.1"
+                        )
+                        stream = await connect_tcp(host, port)
 
                     expected_addresses.append(
                         stream.extra(SocketAttribute.local_address)

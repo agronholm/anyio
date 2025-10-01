@@ -64,18 +64,37 @@ def get_runner(
             _runner_stack = _current_runner = None
 
 
-def pytest_configure(config: Any) -> None:
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addini(
+        "anyio_mode",
+        default="strict",
+        help='AnyIO plugin mode (either "strict" or "auto")',
+        type="string",
+    )
+
+
+def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers",
         "anyio: mark the (coroutine function) test to be run asynchronously via anyio.",
     )
+    if (
+        config.getini("anyio_mode") == "auto"
+        and config.pluginmanager.has_plugin("asyncio")
+        and config.getini("asyncio_mode") == "auto"
+    ):
+        config.issue_config_time_warning(
+            pytest.PytestConfigWarning(
+                "AnyIO auto mode has been enabled together with pytest-asyncio auto "
+                "mode. This may cause unexpected behavior."
+            ),
+            1,
+        )
 
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_fixture_setup(fixturedef: Any, request: Any) -> Generator[Any]:
-    def wrapper(
-        *args: Any, anyio_backend: Any, request: SubRequest, **kwargs: Any
-    ) -> Any:
+    def wrapper(anyio_backend: Any, request: SubRequest, **kwargs: Any) -> Any:
         # Rebind any fixture methods to the request instance
         if (
             request.instance
@@ -123,13 +142,20 @@ def pytest_fixture_setup(fixturedef: Any, request: Any) -> Generator[Any]:
 
 
 @pytest.hookimpl(tryfirst=True)
-def pytest_pycollect_makeitem(collector: Any, name: Any, obj: Any) -> None:
+def pytest_pycollect_makeitem(
+    collector: pytest.Module | pytest.Class, name: str, obj: object
+) -> None:
     if collector.istestfunction(obj, name):
         inner_func = obj.hypothesis.inner_test if hasattr(obj, "hypothesis") else obj
         if iscoroutinefunction(inner_func):
+            anyio_auto_mode = collector.config.getini("anyio_mode") == "auto"
             marker = collector.get_closest_marker("anyio")
             own_markers = getattr(obj, "pytestmark", ())
-            if marker or any(marker.name == "anyio" for marker in own_markers):
+            if (
+                anyio_auto_mode
+                or marker
+                or any(marker.name == "anyio" for marker in own_markers)
+            ):
                 pytest.mark.usefixtures("anyio_backend")(obj)
 
 

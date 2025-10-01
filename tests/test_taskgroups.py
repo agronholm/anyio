@@ -37,8 +37,6 @@ from .conftest import asyncio_params, no_other_refs
 if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup, ExceptionGroup
 
-pytestmark = pytest.mark.anyio
-
 
 async def async_error(text: str, delay: float = 0.1) -> NoReturn:
     try:
@@ -541,7 +539,13 @@ async def test_cancel_scope_cleared() -> None:
 async def test_fail_after(delay: float) -> None:
     with pytest.raises(TimeoutError):
         with fail_after(delay) as scope:
-            await sleep(1)
+            try:
+                await sleep(1)
+            except get_cancelled_exc_class() as exc:
+                assert "deadline" in str(exc)
+                raise
+            else:
+                pytest.fail("sleep() should have raised a cancellation exception")
 
     assert scope.cancel_called
     assert scope.cancelled_caught
@@ -1057,28 +1061,6 @@ async def test_triple_nested_shield_checkpoint_in_middle() -> None:
         tg.start_soon(taskfunc)
 
     assert not got_past_checkpoint
-
-
-def test_task_group_in_generator(
-    anyio_backend_name: str, anyio_backend_options: dict[str, Any]
-) -> None:
-    async def task_group_generator() -> AsyncGenerator[None, None]:
-        async with create_task_group():
-            yield
-
-    gen = task_group_generator()
-    anyio.run(
-        gen.__anext__,
-        backend=anyio_backend_name,
-        backend_options=anyio_backend_options,
-    )
-    pytest.raises(
-        StopAsyncIteration,
-        anyio.run,
-        gen.__anext__,
-        backend=anyio_backend_name,
-        backend_options=anyio_backend_options,
-    )
 
 
 async def test_exception_group_filtering() -> None:
@@ -1822,3 +1804,15 @@ async def test_exception_groups_suppresses_exc_context() -> None:
             raise Exception("Error")
 
     assert exc_info.value.__suppress_context__
+
+
+async def test_cancel_reason() -> None:
+    with CancelScope() as scope:
+        scope.cancel("test reason")
+        with pytest.raises(get_cancelled_exc_class()) as exc_info:
+            await checkpoint()
+
+    task = get_current_task()
+    assert task and task.name
+    exc_info.match("test reason")
+    exc_info.match(task.name)

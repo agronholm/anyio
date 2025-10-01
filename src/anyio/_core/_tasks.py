@@ -30,8 +30,13 @@ class CancelScope:
     ) -> CancelScope:
         return get_async_backend().create_cancel_scope(shield=shield, deadline=deadline)
 
-    def cancel(self) -> None:
-        """Cancel this scope immediately."""
+    def cancel(self, reason: str | None = None) -> None:
+        """
+        Cancel this scope immediately.
+
+        :param reason: a message describing the reason for the cancellation
+
+        """
         raise NotImplementedError
 
     @property

@@ -12,8 +12,6 @@ from anyio.lowlevel import (
     checkpoint_if_cancelled,
 )
 
-pytestmark = pytest.mark.anyio
-
 
 @pytest.mark.parametrize("cancel", [False, True])
 async def test_checkpoint_if_cancelled(cancel: bool) -> None:

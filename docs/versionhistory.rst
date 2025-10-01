@@ -3,6 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+
 **UNRELEASED**
 
 - Set ``None`` as the default type argument for ``anyio.abc.TaskStatus``
@@ -10,6 +11,33 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#960 <https://github.com/agronholm/anyio/pull/960>`_; PR by @Vizonex)
 
 .. _winloop: https://github.com/Vizonex/Winloop
+
+**4.11.0**
+
+- Added support for cancellation reasons (the ``reason`` parameter to
+  ``CancelScope.cancel()``)
+  (`#975 <https://github.com/agronholm/anyio/pull/975>`_)
+- Bumped the minimum version of Trio to v0.31.0
+- Added the ability to enter the event loop from foreign (non-worker) threads by
+  passing the return value of ``anyio.lowlevel.current_token()`` to
+  ``anyio.from_thread.run()`` and ``anyio.from_thread.run_sync()`` as the ``token``
+  keyword argument (`#256 <https://github.com/agronholm/anyio/issues/256>`_)
+- Added pytest option (``anyio_mode = "auto"``) to make the pytest plugin automatically
+  handle all async tests
+  (`#971 <https://github.com/agronholm/anyio/pull/971>`_)
+- Added the ``anyio.Condition.wait_for()`` method for feature parity with asyncio
+  (`#974 <https://github.com/agronholm/anyio/pull/974>`_)
+- Changed the default type argument of ``anyio.abc.TaskStatus`` from ``Any`` to ``None``
+  (`#964 <https://github.com/agronholm/anyio/pull/964>`_)
+- Fixed TCP listener behavior to guarantee the same ephemeral port is used for all
+  socket listeners when ``local_port=0``
+  (`#857 <https://github.com/agronholm/anyio/issues/857>`_; PR by @11kkw and @agronholm)
+- Fixed inconsistency between Trio and asyncio where a TCP stream that previously
+  raised a ``BrokenResourceError`` on ``send()`` would still raise
+  ``BrokenResourceError`` after the stream was closed on asyncio, but
+  ``ClosedResourceError`` on Trio. They now both raise a ``ClosedResourceError`` in this
+  scenario. (`#671 <https://github.com/agronholm/anyio/issues/671>`_)
+
 
 **4.10.0**
 

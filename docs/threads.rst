@@ -74,42 +74,107 @@ to be called inside the event loop thread using :func:`~from_thread.run_sync`::
 
     run(main)
 
-Calling asynchronous code from an external thread
--------------------------------------------------
+Accessing the event loop from a foreign thread
+----------------------------------------------
 
-If you need to run async code from a thread that is not a worker thread spawned by the
-event loop, you need a *blocking portal*. This needs to be obtained from within the
-event loop thread.
+If you need to run code in the event loop from a thread that is not an AnyIO worker
+thread (that wasn't spawned by :func:`anyio.to_thread.run_sync`), there are two ways you
+can do this:
 
-One way to do this is to start a new event loop with a portal, using
-:class:`~from_thread.start_blocking_portal` (which takes mostly the same arguments as
-:func:`~run`::
+#. Obtain an *event loop token* from :func:`~.lowlevel.current_token` and then pass that
+   as ``token`` to either :func:`~.from_thread.run` or :func:`~.from_thread.run_sync`
+   (whichever is appropriate)
+#. Run a :class:`~.from_thread.BlockingPortal` in an existing task and make the portal
+   object available to the external thread
 
-    from anyio.from_thread import start_blocking_portal
+The first method is the easier one::
 
+    from threading import Thread
 
-    with start_blocking_portal(backend='trio') as portal:
-        portal.call(...)
+    from anyio import Event, run, from_thread
+    from anyio.lowlevel import current_token
 
-If you already have an event loop running and wish to grant access to external threads,
-you can create a :class:`~.BlockingPortal` directly::
+    def external_func(event, token):
+        # Enter the event loop using the given token to set the asynchronous event
+        from_thread.run_sync(event.set, token=token)
 
-    from anyio import run
+    async def main():
+        event = Event()
+
+        # Start a new thread, independent of AnyIO's worker threads
+        thread = Thread(target=external_func, args=[event, current_token()])
+        thread.start()
+
+        # Wait for the external thread to set the event
+        await event.wait()
+
+    run(main)
+
+The next section will demonstrate how to do the same with blocking portals.
+
+Running code from threads using blocking portals
+------------------------------------------------
+
+Blocking portals (:class:`~.from_thread.BlockingPortal`) offer a somewhat more
+comprehensive array of functionality for accessing event loops from other threads than
+just running one-off functions with :func:`~.from_thread.run` or
+:func:`~.from_thread.run_sync`. A blocking portal runs its own task group, allowing the
+portal to spawn new tasks and thus offer extra functionality that requires task
+spawning, such as wrapping asynchronous context managers.
+
+Starting a blocking portal
+++++++++++++++++++++++++++
+
+There are two principal ways to create a blocking portal:
+
+#. Running it in a task in an existing event loop
+#. Starting a dedicated event loop in a new thread
+
+The first option involves using a :class:`~.BlockingPortal` instance as an async context
+manager and keeping it open::
+
+    from anyio import to_thread, run
     from anyio.from_thread import BlockingPortal
+
+
+    async def async_func() -> None:
+        print("This runs on the event loop")
+
+
+    def sync_func_run_in_thread(portal: BlockingPortal) -> None:
+        portal.call(async_func)
 
 
     async def main():
         async with BlockingPortal() as portal:
-            # ...hand off the portal to external threads...
-            await portal.sleep_until_stopped()
+            # Here the portal stays open until the worker thread has run the function
+            await to_thread.run_sync(sync_func_run_in_thread, portal)
+
 
     run(main)
 
-Spawning tasks from worker threads
-----------------------------------
+The second option using :func:`~.from_thread.start_blocking_portal` to launch a new
+event loop in its own dedicated thread::
 
-When you need to spawn a task to be run in the background, you can do so using
-:meth:`~.BlockingPortal.start_task_soon`::
+    from anyio.from_thread import start_blocking_portal
+
+
+    async def async_func() -> None:
+        print("This runs on the event loop")
+
+
+    with start_blocking_portal() as portal:
+        portal.call(async_func)
+
+.. note:: The event loop is shut down as soon as you exit the context manager.
+
+Spawning tasks
+++++++++++++++
+
+To spawn a task from the blocking portal, you can use
+:meth:`~.BlockingPortal.start_task_soon`. It will return a
+:class:`~concurrent.futures.Future` object that you can wait on to get the result when
+the task finishes::
 
     from concurrent.futures import as_completed
 
@@ -155,8 +220,8 @@ to signal readiness by calling ``task_status.started()``::
         print('Task has finished with return value', return_value)
 
 
-Using asynchronous context managers from worker threads
--------------------------------------------------------
+Using asynchronous context managers
++++++++++++++++++++++++++++++++++++
 
 You can use :meth:`~.BlockingPortal.wrap_async_context_manager` to wrap an asynchronous
 context managers as a synchronous one::
@@ -178,6 +243,29 @@ context managers as a synchronous one::
 
 .. note:: You cannot use wrapped async context managers in synchronous callbacks inside
    the event loop thread.
+
+Starting an on-demand, shared blocking portal
++++++++++++++++++++++++++++++++++++++++++++++
+
+If you're building a synchronous API that needs to start a blocking portal on demand,
+you might need a more efficient solution than just starting a blocking portal for each
+call. To that end, you can use :class:`~.from_thread.BlockingPortalProvider`::
+
+    from anyio.from_thread import BlockingPortalProvider
+
+    class MyAPI:
+        def __init__(self, async_obj) -> None:
+            self._async_obj = async_obj
+            self._portal_provider = BlockingPortalProvider()
+
+        def do_stuff(self) -> None:
+            with self._portal_provider as portal:
+                portal.call(self._async_obj.do_async_stuff)
+
+Now, no matter how many threads call the ``do_stuff()`` method on a ``MyAPI`` instance
+at the same time, the same blocking portal will be used to handle the async calls
+inside. It's easy to see that this is much more efficient than having each call spawn
+its own blocking portal.
 
 Context propagation
 -------------------
@@ -209,10 +297,10 @@ maximum of 40 threads to be spawned. You can adjust this limit like this::
 Reacting to cancellation in worker threads
 ------------------------------------------
 
-While there is no mechanism in Python to cancel code running in a thread, AnyIO provides a
-mechanism that allows user code to voluntarily check if the host task's scope has been cancelled,
-and if it has, raise a cancellation exception. This can be done by simply calling
-:func:`from_thread.check_cancelled`::
+While there is no mechanism in Python to cancel code running in a thread, AnyIO provides
+a mechanism that allows user code to voluntarily check if the host task's scope has been
+cancelled, and if it has, raise a cancellation exception. This can be done by simply
+calling :func:`from_thread.check_cancelled`::
 
     import time
 
@@ -227,27 +315,3 @@ and if it has, raise a cancellation exception. This can be done by simply callin
     async def foo():
         with move_on_after(3):
             await to_thread.run_sync(sync_function)
-
-
-Sharing a blocking portal on demand
------------------------------------
-
-If you're building a synchronous API that needs to start a blocking portal on demand,
-you might need a more efficient solution than just starting a blocking portal for each
-call. To that end, you can use :class:`~.from_thread.BlockingPortalProvider`::
-
-    from anyio.from_thread import BlockingPortalProvider
-
-    class MyAPI:
-        def __init__(self, async_obj) -> None:
-            self._async_obj = async_obj
-            self._portal_provider = BlockingPortalProvider()
-
-        def do_stuff(self) -> None:
-            with self._portal_provider as portal:
-                portal.call(self._async_obj.do_async_stuff)
-
-Now, no matter how many threads call the ``do_stuff()`` method on a ``MyAPI`` instance
-at the same time, the same blocking portal will be used to handle the async calls
-inside. It's easy to see that this is much more efficient than having each call spawn
-its own blocking portal.

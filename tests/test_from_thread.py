@@ -6,7 +6,7 @@ import threading
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from concurrent import futures
-from concurrent.futures import CancelledError, Future
+from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
 from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
 from typing import Any, Literal, NoReturn, TypeVar
@@ -18,6 +18,7 @@ from _pytest.logging import LogCaptureFixture
 from anyio import (
     CancelScope,
     Event,
+    RunFinishedError,
     create_task_group,
     fail_after,
     from_thread,
@@ -29,16 +30,15 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
+from anyio._core._exceptions import NoEventLoopError
 from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
-from anyio.lowlevel import checkpoint
+from anyio.lowlevel import EventLoopToken, checkpoint, current_token
 
 from .conftest import asyncio_params
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
-
-pytestmark = pytest.mark.anyio
 
 T_Retval = TypeVar("T_Retval")
 
@@ -121,6 +121,14 @@ async def test_thread_cancelled_and_abandoned() -> None:
         thread_finished_future.result(3)
 
 
+def test_thread_cancelled_not_in_worker_thread() -> None:
+    with pytest.raises(
+        NoEventLoopError,
+        match="This function can only be called inside an AnyIO worker thread",
+    ):
+        from_thread.check_cancelled()
+
+
 async def test_cancelscope_propagation() -> None:
     async def async_time_bomb() -> None:
         cancel_scope.cancel()
@@ -172,6 +180,23 @@ class TestRunAsyncFromThread:
         result = await to_thread.run_sync(thread_worker_sync, sync_add, 1, 2)
         assert result == 3
 
+    async def test_run_async_from_unclaimed_thread(self) -> None:
+        async def asyncfunc() -> int:
+            event.set()
+            return 7
+
+        def externalthread() -> int:
+            return from_thread.run(asyncfunc, token=token)
+
+        event = Event()
+        token = current_token()
+        with ThreadPoolExecutor(1) as executor:
+            future = executor.submit(externalthread)
+            await event.wait()
+            result = await to_thread.run_sync(future.result)
+
+        assert result == 7
+
     def test_run_sync_from_thread_pooling(self) -> None:
         async def main() -> None:
             thread_ids = set()
@@ -214,12 +239,24 @@ class TestRunAsyncFromThread:
 
         assert await to_thread.run_sync(worker, 0)
 
-    def test_run_async_from_unclaimed_thread(self) -> None:
-        async def foo() -> None:
-            pass
+    def test_run_async_no_event_loop(self) -> None:
+        exc = pytest.raises(RuntimeError, from_thread.run, sleep, 0.1)
+        exc.match(
+            "Not running inside an AnyIO worker thread, and no event loop token was "
+            "provided"
+        )
 
-        exc = pytest.raises(RuntimeError, from_thread.run, foo)
-        exc.match("This function can only be run from an AnyIO worker thread")
+    def test_run_async_closed_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        async def get_token() -> EventLoopToken:
+            return current_token()
+
+        token = run(
+            get_token, backend=anyio_backend_name, backend_options=anyio_backend_options
+        )
+        with pytest.raises(RunFinishedError):
+            from_thread.run(sleep, 0.1, token=token)
 
     async def test_contextvar_propagation(self, anyio_backend_name: str) -> None:
         var = ContextVar("var", default=1)
@@ -246,12 +283,40 @@ class TestRunAsyncFromThread:
 
 
 class TestRunSyncFromThread:
-    def test_run_sync_from_unclaimed_thread(self) -> None:
+    async def test_run_sync_from_unclaimed_thread(self) -> None:
+        def external_thread() -> int:
+            from_thread.run_sync(event.set, token=token)
+            return 7
+
+        event = Event()
+        token = current_token()
+        with ThreadPoolExecutor(1) as executor:
+            future = executor.submit(external_thread)
+            await event.wait()
+            result = await to_thread.run_sync(future.result)
+
+        assert result == 7
+
+    def test_run_sync_from_unclaimed_thread_no_token(self) -> None:
         def foo() -> None:
             pass
 
         exc = pytest.raises(RuntimeError, from_thread.run_sync, foo)
-        exc.match("This function can only be run from an AnyIO worker thread")
+        exc.match(
+            "Not running inside an AnyIO worker thread, and no event loop token was provided"
+        )
+
+    def test_run_sync_closed_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        async def get_token() -> EventLoopToken:
+            return current_token()
+
+        token = run(
+            get_token, backend=anyio_backend_name, backend_options=anyio_backend_options
+        )
+        with pytest.raises(RunFinishedError):
+            from_thread.run_sync(current_token, token=token)
 
     async def test_contextvar_propagation(self) -> None:
         var = ContextVar("var", default=1)

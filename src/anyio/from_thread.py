@@ -20,12 +20,17 @@ from typing import (
     overload,
 )
 
-from ._core import _eventloop
-from ._core._eventloop import get_async_backend, get_cancelled_exc_class, threadlocals
+from ._core._eventloop import (
+    get_async_backend,
+    get_cancelled_exc_class,
+    threadlocals,
+)
+from ._core._eventloop import run as run_eventloop
+from ._core._exceptions import NoEventLoopError
 from ._core._synchronization import Event
 from ._core._tasks import CancelScope, create_task_group
-from .abc import AsyncBackend
 from .abc._tasks import TaskStatus
+from .lowlevel import EventLoopToken
 
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
@@ -37,48 +42,73 @@ T_co = TypeVar("T_co", covariant=True)
 PosArgsT = TypeVarTuple("PosArgsT")
 
 
+def _token_or_error(token: EventLoopToken | None) -> EventLoopToken:
+    if token is not None:
+        return token
+
+    try:
+        return threadlocals.current_token
+    except AttributeError:
+        raise NoEventLoopError(
+            "Not running inside an AnyIO worker thread, and no event loop token was "
+            "provided"
+        ) from None
+
+
 def run(
-    func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]], *args: Unpack[PosArgsT]
+    func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+    *args: Unpack[PosArgsT],
+    token: EventLoopToken | None = None,
 ) -> T_Retval:
     """
     Call a coroutine function from a worker thread.
 
     :param func: a coroutine function
     :param args: positional arguments for the callable
+    :param token: an event loop token to use to get back to the event loop thread
+        (required if calling this function from outside an AnyIO worker thread)
     :return: the return value of the coroutine function
+    :raises MissingTokenError: if no token was provided and called from outside an
+        AnyIO worker thread
+    :raises RunFinishedError: if the event loop tied to ``token`` is no longer running
+
+    .. versionchanged:: 4.11.0
+        Added the ``token`` parameter.
 
     """
-    try:
-        async_backend = threadlocals.current_async_backend
-        token = threadlocals.current_token
-    except AttributeError:
-        raise RuntimeError(
-            "This function can only be run from an AnyIO worker thread"
-        ) from None
-
-    return async_backend.run_async_from_thread(func, args, token=token)
+    explicit_token = token is not None
+    token = _token_or_error(token)
+    return token.backend_class.run_async_from_thread(
+        func, args, token=token.native_token if explicit_token else None
+    )
 
 
 def run_sync(
-    func: Callable[[Unpack[PosArgsT]], T_Retval], *args: Unpack[PosArgsT]
+    func: Callable[[Unpack[PosArgsT]], T_Retval],
+    *args: Unpack[PosArgsT],
+    token: EventLoopToken | None = None,
 ) -> T_Retval:
     """
     Call a function in the event loop thread from a worker thread.
 
     :param func: a callable
     :param args: positional arguments for the callable
+    :param token: an event loop token to use to get back to the event loop thread
+        (required if calling this function from outside an AnyIO worker thread)
     :return: the return value of the callable
+    :raises MissingTokenError: if no token was provided and called from outside an
+        AnyIO worker thread
+    :raises RunFinishedError: if the event loop tied to ``token`` is no longer running
+
+    .. versionchanged:: 4.11.0
+        Added the ``token`` parameter.
 
     """
-    try:
-        async_backend = threadlocals.current_async_backend
-        token = threadlocals.current_token
-    except AttributeError:
-        raise RuntimeError(
-            "This function can only be run from an AnyIO worker thread"
-        ) from None
-
-    return async_backend.run_sync_from_thread(func, args, token=token)
+    explicit_token = token is not None
+    token = _token_or_error(token)
+    return token.backend_class.run_sync_from_thread(
+        func, args, token=token.native_token if explicit_token else None
+    )
 
 
 class _BlockingAsyncContextManager(Generic[T_co], AbstractContextManager):
@@ -194,7 +224,7 @@ class BlockingPortal:
         self._event_loop_thread_id = None
         self._stop_event.set()
         if cancel_remaining:
-            self._task_group.cancel_scope.cancel()
+            self._task_group.cancel_scope.cancel("the blocking portal is shutting down")
 
     async def _call_func(
         self,
@@ -208,14 +238,14 @@ class BlockingPortal:
                 None,
                 get_ident(),
             ):
-                self.call(scope.cancel)
+                self.call(scope.cancel, "the future was cancelled")
 
         try:
             retval_or_awaitable = func(*args, **kwargs)
             if isawaitable(retval_or_awaitable):
                 with CancelScope() as scope:
                     if future.cancelled():
-                        scope.cancel()
+                        scope.cancel("the future was cancelled")
                     else:
                         future.add_done_callback(callback)
 
@@ -486,7 +516,7 @@ def start_blocking_portal(
     def run_blocking_portal() -> None:
         if future.set_running_or_notify_cancel():
             try:
-                _eventloop.run(
+                run_eventloop(
                     run_portal, backend=backend, backend_options=backend_options
                 )
             except BaseException as exc:
@@ -526,10 +556,10 @@ def check_cancelled() -> None:
 
     """
     try:
-        async_backend: AsyncBackend = threadlocals.current_async_backend
+        token: EventLoopToken = threadlocals.current_token
     except AttributeError:
-        raise RuntimeError(
-            "This function can only be run from an AnyIO worker thread"
+        raise NoEventLoopError(
+            "This function can only be called inside an AnyIO worker thread"
         ) from None
 
-    async_backend.check_cancelled()
+    token.backend_class.check_cancelled()

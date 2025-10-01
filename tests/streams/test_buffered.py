@@ -16,8 +16,6 @@ from anyio.streams.buffered import (
 )
 from anyio.streams.stapled import StapledObjectStream
 
-pytestmark = pytest.mark.anyio
-
 
 async def test_receive_exactly() -> None:
     send_stream, receive_stream = create_memory_object_stream[bytes](2)

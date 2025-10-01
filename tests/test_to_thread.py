@@ -27,8 +27,6 @@ from anyio.from_thread import BlockingPortalProvider
 
 from .conftest import asyncio_params, no_other_refs
 
-pytestmark = pytest.mark.anyio
-
 
 async def test_run_in_thread_cancelled() -> None:
     state = 0
