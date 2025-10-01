@@ -196,6 +196,7 @@ Synchronization
 .. autoclass:: anyio.Condition
 .. autoclass:: anyio.Semaphore
 .. autoclass:: anyio.CapacityLimiter
+.. autoclass:: anyio.RateLimiter
 .. autoclass:: anyio.ResourceGuard
 
 .. autoclass:: anyio.LockStatistics
@@ -203,6 +204,7 @@ Synchronization
 .. autoclass:: anyio.ConditionStatistics
 .. autoclass:: anyio.CapacityLimiterStatistics
 .. autoclass:: anyio.SemaphoreStatistics
+.. autoclass:: anyio.RateLimiterStatistics
 
 Operating system signals
 ------------------------

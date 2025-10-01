@@ -226,6 +226,77 @@ Example::
     # Task number 8 is now working with the shared resource
     # Task number 9 is now working with the shared resource
 
+Rate limiters
+-------------
+
+Rate limiters allow you to limit the rate of your asynchronous actions, in terms of
+actions per second. They can be configured with two parameters:
+
+* ``tokens``: how many operation are allowed within the time window
+* ``interval``: the delay after which the used operation slots are restored
+
+The :meth:`RateLimiter.max_per_second` class method is provided as a convenience to
+create a rate limiter with the specified rate of allowed operations per second.
+
+Here's a simple example::
+
+    from anyio import RateLimiter, current_time, run
+
+
+    async def main(count: int, max_per_second: int) -> None:
+        limiter = RateLimiter.from_max_per_second(max_per_second)
+        start_time = current_time()
+        for num in range(count):
+            await limiter.acquire()
+            duration = current_time() - start_time
+            print(f"[{duration:.3f}] Performed action")
+
+    run(main, 10, 3)
+
+    # Output:
+    # [0.000] Performed action
+    # [0.335] Performed action
+    # [0.669] Performed action
+    # [1.004] Performed action
+    # [1.339] Performed action
+    # [1.674] Performed action
+    # [2.008] Performed action
+    # [2.343] Performed action
+    # [2.678] Performed action
+    # [3.012] Performed action
+
+Here's a more advanced example that uses explicit ``tokens`` and ``interval`` to specify
+that 5 operations are allowed within a 2 second period::
+
+    from anyio import RateLimiter, create_task_group, current_time, run, sleep
+
+
+    async def your_task_function(start_time: float) -> None:
+        duration = current_time() - start_time
+        await sleep(2)  # Simulate some activity
+        print(f"[{duration:.3f}] Performed action")
+
+    async def main(count: int, tokens: int, interval: int) -> None:
+        limiter = RateLimiter(tokens, interval)
+        async with create_task_group() as tg:
+            start_time = current_time()
+            for num in range(count):
+                await limiter.acquire()
+                tg.start_soon(your_task_function, start_time)
+
+    run(main, 10, 5, 2)
+
+    # Output:
+    # [0.000] Performed action
+    # [0.000] Performed action
+    # [0.000] Performed action
+    # [0.000] Performed action
+    # [0.000] Performed action
+    # [2.003] Performed action
+    # [2.003] Performed action
+    # [2.003] Performed action
+    # [2.004] Performed action
+
 Resource guards
 ---------------
 
