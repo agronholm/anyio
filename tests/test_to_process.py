@@ -48,6 +48,10 @@ def process_func(receiver: int, sender: int) -> None:
     os.write(sender, data + b", World!")
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="The test hangs on Windows",
+)
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_run_sync_with_kwargs() -> None:
     """
