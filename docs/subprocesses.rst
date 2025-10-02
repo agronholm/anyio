@@ -98,7 +98,6 @@ in this case a new subprocess will always be created, as it would not be possibl
 to reuse a worker process created with different keyword arguments::
 
   import os
-  import time
   from functools import partial
 
   from anyio import create_task_group, run, to_process, to_thread
