@@ -61,6 +61,8 @@ from ._core._synchronization import Event as Event
 from ._core._synchronization import EventStatistics as EventStatistics
 from ._core._synchronization import Lock as Lock
 from ._core._synchronization import LockStatistics as LockStatistics
+from ._core._synchronization import RateLimiter as RateLimiter
+from ._core._synchronization import RateLimiterStatistics as RateLimiterStatistics
 from ._core._synchronization import ResourceGuard as ResourceGuard
 from ._core._synchronization import Semaphore as Semaphore
 from ._core._synchronization import SemaphoreStatistics as SemaphoreStatistics

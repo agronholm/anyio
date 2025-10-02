@@ -3,10 +3,10 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-
 **UNRELEASED**
 
-- Set ``None`` as the default type argument for ``anyio.abc.TaskStatus``
+- Added the ``RateLimiter`` synchronization primitive for enforcing time-limited rate on
+  operations
 - Added support for ``uvloop=True`` on Windows via the winloop_ implementation
   (`#960 <https://github.com/agronholm/anyio/pull/960>`_; PR by @Vizonex)
 
