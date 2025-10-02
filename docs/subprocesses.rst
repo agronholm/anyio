@@ -118,7 +118,6 @@ to reuse a worker process created with different keyword arguments::
           data = await to_thread.run_sync(os.read, receiver1, 1024)
       print(data)  # b'Hello, World!'
 
-
   # This check is important when the application uses to_process.run_sync()
   if __name__ == '__main__':
       run(main)
