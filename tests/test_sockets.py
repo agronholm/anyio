@@ -364,32 +364,27 @@ class TestTCPStream:
         ],
     )
     async def test_happy_eyeballs(
-        self, local_addr: str, expected_client_addr: str, fake_localhost_dns: None
+        self,
+        request: FixtureRequest,
+        local_addr: str,
+        expected_client_addr: str,
+        fake_localhost_dns: None,
     ) -> None:
-        client_addr = None, None
-
-        def serve() -> None:
-            nonlocal client_addr
-            client, client_addr = server_sock.accept()
-            client.close()
-
         family = (
             AddressFamily.AF_INET
             if local_addr == "127.0.0.1"
             else AddressFamily.AF_INET6
         )
         server_sock = socket.socket(family)
+        request.addfinalizer(server_sock.close)
         server_sock.bind((local_addr, 0))
         server_sock.listen()
         port = server_sock.getsockname()[1]
-        thread = Thread(target=serve, daemon=True)
-        thread.start()
 
         async with await connect_tcp("localhost", port):
-            pass
+            client_sock, client_addr = server_sock.accept()
+            client_sock.close()
 
-        thread.join()
-        server_sock.close()
         assert client_addr[0] == expected_client_addr
 
     @pytest.mark.skipif(
