@@ -43,7 +43,7 @@ async def test_run_sync_not_in_process_pool() -> None:
     assert await to_process.run_sync(os.getpid, close_fds=False) != worker_pid
 
 
-def process_func(receiver, sender):
+def process_func(receiver: int, sender: int) -> None:
     data = os.read(receiver, 1024)
     os.write(sender, data + b", World!")
 
