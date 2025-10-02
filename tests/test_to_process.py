@@ -31,6 +31,7 @@ async def test_run_sync_in_process_pool() -> None:
     assert worker_pid != os.getpid()
     assert await to_process.run_sync(os.getpid) == worker_pid
 
+
 async def test_run_sync_not_in_process_pool() -> None:
     """
     Test that the function runs in a different process, and not the same process in both
@@ -60,7 +61,16 @@ async def test_run_sync_with_kwargs() -> None:
 
     with fail_after(4):
         async with create_task_group() as tg:
-            tg.start_soon(partial(to_process.run_sync, process_func, receiver0, sender1, close_fds=False, cancellable=True))
+            tg.start_soon(
+                partial(
+                    to_process.run_sync,
+                    process_func,
+                    receiver0,
+                    sender1,
+                    close_fds=False,
+                    cancellable=True,
+                )
+            )
             os.write(sender0, b"Hello")
             data = await to_thread.run_sync(os.read, receiver1, 1024)
 
