@@ -2351,14 +2351,19 @@ async def test_getaddrinfo() -> None:
 @pytest.mark.parametrize("sock_type", [socket.SOCK_STREAM, socket.SOCK_STREAM])
 async def test_getaddrinfo_ipv6addr(
     sock_type: Literal[socket.SocketKind.SOCK_STREAM],
+    event_loop_implementation_name: str | None,
 ) -> None:
     # IDNA trips up over raw IPv6 addresses
-    proto = 0 if platform.system() == "Windows" else 6
+    if platform.system() == "Windows" and event_loop_implementation_name != "winloop":
+        expected_proto = 0
+    else:
+        expected_proto = 6
+
     assert await getaddrinfo("::1", 0, type=sock_type) == [
         (
             socket.AF_INET6,
             socket.SOCK_STREAM,
-            proto,
+            expected_proto,
             "",
             ("::1", 0),
         )
