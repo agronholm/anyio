@@ -10,9 +10,9 @@ Fixes #. <!-- Provide issue number if exists -->
 If this is a user-facing code change, like a bugfix or a new feature, please ensure that
 you've fulfilled the following conditions (where applicable):
 
-- [ ] You've added tests (in `tests/`) added which would fail without your patch
-- [ ] You've updated the documentation (in `docs/`, in case of behavior changes or new
-features)
+- [ ] You've added tests (in `tests/`) which would fail without your patch
+- [ ] You've updated the documentation (in `docs/`), in case of behavior changes or new
+features
 - [ ] You've added a new changelog entry (in `docs/versionhistory.rst`).
 
 If this is a trivial change, like a typo fix or a code reformatting, then you can ignore

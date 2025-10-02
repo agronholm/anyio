@@ -2158,9 +2158,14 @@ class TestRunner(abc.TestRunner):
         loop_factory: Callable[[], AbstractEventLoop] | None = None,
     ) -> None:
         if use_uvloop and loop_factory is None:
-            import uvloop
+            if sys.platform != "win32":
+                import uvloop
 
-            loop_factory = uvloop.new_event_loop
+                loop_factory = uvloop.new_event_loop
+            else:
+                import winloop
+
+                loop_factory = winloop.new_event_loop
 
         self._runner = Runner(debug=debug, loop_factory=loop_factory)
         self._exceptions: list[BaseException] = []
@@ -2317,9 +2322,14 @@ class AsyncIOBackend(AsyncBackend):
         debug = options.get("debug", None)
         loop_factory = options.get("loop_factory", None)
         if loop_factory is None and options.get("use_uvloop", False):
-            import uvloop
+            if sys.platform != "win32":
+                import uvloop
 
-            loop_factory = uvloop.new_event_loop
+                loop_factory = uvloop.new_event_loop
+            else:
+                import winloop
+
+                loop_factory = winloop.new_event_loop
 
         with Runner(debug=debug, loop_factory=loop_factory) as runner:
             return runner.run(wrapper())

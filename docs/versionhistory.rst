@@ -7,6 +7,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added the ``RateLimiter`` synchronization primitive for enforcing time-limited rate on
   operations
+- Added support for ``uvloop=True`` on Windows via the winloop_ implementation
+  (`#960 <https://github.com/agronholm/anyio/pull/960>`_; PR by @Vizonex)
+
+.. _winloop: https://github.com/Vizonex/Winloop
 
 **4.11.0**
 
