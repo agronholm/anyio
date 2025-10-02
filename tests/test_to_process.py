@@ -15,6 +15,7 @@ from anyio import (
     create_task_group,
     fail_after,
     to_process,
+    to_thread,
     wait_all_tasks_blocked,
 )
 from anyio.abc import Process
@@ -30,8 +31,7 @@ async def test_run_sync_in_process_pool() -> None:
     assert worker_pid != os.getpid()
     assert await to_process.run_sync(os.getpid) == worker_pid
 
-
-async def test_run_sync_with_kwargs() -> None:
+async def test_run_sync_not_in_process_pool() -> None:
     """
     Test that the function runs in a different process, and not the same process in both
     calls.
@@ -40,6 +40,31 @@ async def test_run_sync_with_kwargs() -> None:
     worker_pid = await to_process.run_sync(os.getpid, close_fds=False)
     assert worker_pid != os.getpid()
     assert await to_process.run_sync(os.getpid, close_fds=False) != worker_pid
+
+
+def process_func(receiver, sender):
+    data = os.read(receiver, 1024)
+    os.write(sender, data + b", World!")
+
+
+async def test_run_sync_with_kwargs() -> None:
+    """
+    Test that keyword arguments are passed to the process.
+
+    """
+
+    receiver0, sender0 = os.pipe()
+    receiver1, sender1 = os.pipe()
+    os.set_inheritable(receiver0, True)
+    os.set_inheritable(sender1, True)
+
+    with fail_after(4):
+        async with create_task_group() as tg:
+            tg.start_soon(partial(to_process.run_sync, process_func, receiver0, sender1, close_fds=False, cancellable=True))
+            os.write(sender0, b"Hello")
+            data = await to_thread.run_sync(os.read, receiver1, 1024)
+
+    assert data == b"Hello, World!"
 
 
 async def test_identical_sys_path() -> None:
