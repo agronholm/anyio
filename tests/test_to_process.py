@@ -43,7 +43,13 @@ async def test_run_sync_not_in_process_pool() -> None:
 
 
 def process_func(receiver: int) -> bytes:
-    data = os.read(receiver, 1024)
+    if sys.platform == "win32":
+        from msvcrt import open_osfhandle
+
+        fd = open_osfhandle(receiver, os.O_RDONLY)
+    else:
+        fd = receiver
+    data = os.read(fd, 1024)
     return data + b", World!"
 
 
@@ -54,12 +60,20 @@ async def test_run_sync_with_kwargs() -> None:
 
     """
 
-    receiver, sender = os.pipe()
-    os.set_inheritable(receiver, True)
+    receiver_fd, sender_fd = os.pipe()
+
+    if sys.platform == "win32":
+        from msvcrt import get_osfhandle
+
+        receiver = get_osfhandle(receiver_fd)
+        os.set_handle_inheritable(receiver)
+    else:
+        receiver = receiver_fd
+        os.set_inheritable(receiver, True)
 
     try:
         with fail_after(4):
-            os.write(sender, b"Hello")
+            os.write(sender_fd, b"Hello")
             data = await to_process.run_sync(
                 process_func,
                 receiver,
@@ -69,8 +83,8 @@ async def test_run_sync_with_kwargs() -> None:
 
         assert data == b"Hello, World!"
     finally:
-        os.close(sender)
-        os.close(receiver)
+        os.close(sender_fd)
+        os.close(receiver_fd)
 
 
 async def test_identical_sys_path() -> None:
