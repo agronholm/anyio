@@ -66,7 +66,7 @@ async def test_run_sync_with_kwargs() -> None:
         from msvcrt import get_osfhandle
 
         receiver = get_osfhandle(receiver_fd)
-        os.set_handle_inheritable(receiver)
+        os.set_handle_inheritable(receiver, True)
     else:
         receiver = receiver_fd
         os.set_inheritable(receiver, True)
