@@ -40,7 +40,7 @@ async def run_sync(  # type: ignore[return]
     *args: Unpack[PosArgsT],
     cancellable: bool = False,
     limiter: CapacityLimiter | None = None,
-    **kwargs: Any,
+    popen_args: dict[str, Any] | None = None,
 ) -> T_Retval:
     """
     Call the given function with the given arguments in a worker process.
@@ -55,7 +55,7 @@ async def run_sync(  # type: ignore[return]
         running
     :param limiter: capacity limiter to use to limit the total amount of processes
         running (if omitted, the default limiter is used)
-    :param kwargs: keyword arguments passed to :class:`subprocess.Popen`. If any,
+    :param popen_args: arguments passed to :class:`subprocess.Popen`. If any,
         a new subprocess will always be created instead of using a process pool
         (and potentially reusing a worker process).
     :return: an awaitable that yields the return value of the function.
@@ -100,11 +100,14 @@ async def run_sync(  # type: ignore[return]
             return retval
 
     async def _open_process(
-        **kwargs: Any,
+        popen_args: dict[str, Any] | None = None,
     ) -> tuple[Process, ByteSendStream, BufferedByteReceiveStream]:
         command = [sys.executable, "-u", "-m", __name__]
         process = await open_process(
-            command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, **kwargs
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            popen_args=popen_args,
         )
         try:
             stdin = cast(ByteSendStream, process.stdin)
@@ -149,8 +152,8 @@ async def run_sync(  # type: ignore[return]
         _process_pool_idle_workers.set(idle_workers)
         get_async_backend().setup_process_pool_exit_at_shutdown(workers)
 
-    if kwargs:
-        process, stdin, buffered = await _open_process(**kwargs)
+    if popen_args is not None:
+        process, stdin, buffered = await _open_process(popen_args)
     else:
         async with limiter or current_default_process_limiter():
             # Pop processes from the pool (starting from the most recently used) until we
@@ -193,7 +196,7 @@ async def run_sync(  # type: ignore[return]
                 T_Retval, await send_raw_command(request, process, stdin, buffered)
             )
         finally:
-            if kwargs:
+            if popen_args is not None:
                 try:
                     process.kill()
                     with CancelScope(shield=True):

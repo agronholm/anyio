@@ -93,10 +93,10 @@ This is done by using :func:`.to_process.run_sync`::
     if __name__ == '__main__':
         run(main)
 
-Any keyword argument to :func:`.to_process.run_sync` (other than ``cancellable`` and
-``limiter``) will be passed to :class:`subprocess.Popen`, but note that in this case
-a new subprocess will always be created, as it would not be possible to reuse a worker
-process created with different keyword arguments. For instance, the following example
+If you want to pass arguments down to :class:`subprocess.Popen` (which is called under the hood),
+you can do so by calling :func:`.to_process.run_sync` with a ``popen_args`` dictionary.
+Note that in this case a new subprocess will always be created, as it would not be possible
+to reuse a worker process created with different arguments. For instance, the following example
 works (on Linux) because ``close_fds=False`` is passed::
 
   import os
@@ -115,7 +115,15 @@ works (on Linux) because ``close_fds=False`` is passed::
       os.set_inheritable(receiver0, True)
       os.set_inheritable(sender1, True)
       async with create_task_group() as tg:
-          tg.start_soon(partial(to_process.run_sync, cpu_intensive_function, receiver0, sender1, close_fds=False))
+          tg.start_soon(
+              partial(
+                  to_process.run_sync,
+                  cpu_intensive_function,
+                  receiver0,
+                  sender1,
+                  popen_args={"close_fds": False},
+              )
+          )
           os.write(sender0, b"Hello")
           data = await to_thread.run_sync(os.read, receiver1, 1024)
       print(data)  # b'Hello, World!'

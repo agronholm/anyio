@@ -38,9 +38,12 @@ async def test_run_sync_not_in_process_pool() -> None:
     calls.
 
     """
-    worker_pid = await to_process.run_sync(os.getpid, close_fds=False)
+    worker_pid = await to_process.run_sync(os.getpid, popen_args={"close_fds": False})
     assert worker_pid != os.getpid()
-    assert await to_process.run_sync(os.getpid, close_fds=False) != worker_pid
+    assert (
+        await to_process.run_sync(os.getpid, popen_args={"close_fds": False})
+        != worker_pid
+    )
 
 
 def process_func(receiver: int) -> bytes:
@@ -54,9 +57,9 @@ def process_func(receiver: int) -> bytes:
     return data + b", World!"
 
 
-async def test_run_sync_with_kwargs(event_loop_implementation_name: str) -> None:
+async def test_run_sync_with_popen_args(event_loop_implementation_name: str) -> None:
     """
-    Test that keyword arguments are passed to the process.
+    Test that arguments are passed to Popen.
 
     """
     if platform.system() == "Darwin" and event_loop_implementation_name == "uvloop":
@@ -79,8 +82,8 @@ async def test_run_sync_with_kwargs(event_loop_implementation_name: str) -> None
             data = await to_process.run_sync(
                 process_func,
                 receiver,
-                close_fds=False,
                 cancellable=True,
+                popen_args={"close_fds": False},
             )
 
         assert data == b"Hello, World!"
