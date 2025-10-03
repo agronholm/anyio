@@ -54,6 +54,7 @@ def process_func(receiver: int, sender: int) -> None:
     sys.platform == "win32",
     reason="The test hangs on Windows",
 )
+@pytest.mark.parametrize("anyio_backend", ["asyncio", "trio"])
 async def test_run_sync_with_kwargs() -> None:
     """
     Test that keyword arguments are passed to the process.
