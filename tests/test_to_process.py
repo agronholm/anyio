@@ -15,7 +15,6 @@ from anyio import (
     create_task_group,
     fail_after,
     to_process,
-    to_thread,
     wait_all_tasks_blocked,
 )
 from anyio.abc import Process
