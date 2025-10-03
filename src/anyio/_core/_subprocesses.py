@@ -37,6 +37,7 @@ async def run_process(
     group: str | int | None = None,
     extra_groups: Iterable[str | int] | None = None,
     umask: int = -1,
+    popen_args: dict[str, Any] | None = None,
 ) -> CompletedProcess[bytes]:
     """
     Run an external command in a subprocess and wait until it completes.
@@ -72,6 +73,7 @@ async def run_process(
         POSIX only)
     :param umask: if not negative, this umask is applied in the child process before
         running the given command (Python >= 3.9, POSIX only)
+    :param popen_args: arguments passed to :class:`subprocess.Popen`
     :return: an object representing the completed process
     :raises ~subprocess.CalledProcessError: if ``check`` is ``True`` and the process
         exits with a nonzero return code
@@ -103,6 +105,7 @@ async def run_process(
         group=group,
         extra_groups=extra_groups,
         umask=umask,
+        popen_args=popen_args,
     ) as process:
         stream_contents: list[bytes | None] = [None, None]
         async with create_task_group() as tg:
@@ -141,6 +144,7 @@ async def open_process(
     group: str | int | None = None,
     extra_groups: Iterable[str | int] | None = None,
     umask: int = -1,
+    popen_args: dict[str, Any] | None = None,
 ) -> Process:
     """
     Start an external command in a subprocess.
@@ -171,10 +175,14 @@ async def open_process(
     :param extra_groups: supplementary groups to set in the subprocess (POSIX only)
     :param umask: if not negative, this umask is applied in the child process before
         running the given command (POSIX only)
+    :param popen_args: arguments passed to :class:`subprocess.Popen`
     :return: an asynchronous process object
 
     """
     kwargs: dict[str, Any] = {}
+    if popen_args is not None:
+        kwargs.update(popen_args)
+
     if user is not None:
         kwargs["user"] = user
 
