@@ -46,6 +46,8 @@ async def test_run_sync_not_in_process_pool() -> None:
 def process_func(receiver: int, sender: int) -> None:
     data = os.read(receiver, 1024)
     os.write(sender, data + b", World!")
+    os.close(receiver)
+    os.close(sender)
 
 
 @pytest.mark.skipif(
@@ -79,6 +81,8 @@ async def test_run_sync_with_kwargs() -> None:
             data = await to_thread.run_sync(os.read, receiver1, 1024)
 
     assert data == b"Hello, World!"
+    os.close(sender0)
+    os.close(receiver1)
 
 
 async def test_identical_sys_path() -> None:
