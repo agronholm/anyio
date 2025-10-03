@@ -54,7 +54,7 @@ def process_func(receiver: int) -> bytes:
     return data + b", World!"
 
 
-async def test_run_sync_with_kwargs(event_loop_implementation_name) -> None:
+async def test_run_sync_with_kwargs(event_loop_implementation_name: str) -> None:
     """
     Test that keyword arguments are passed to the process.
 
