@@ -95,7 +95,8 @@ This is done by using :func:`.to_process.run_sync`::
 
 You can pass keyword arguments directly to :class:`subprocess.Popen`, but note that
 in this case a new subprocess will always be created, as it would not be possible
-to reuse a worker process created with different keyword arguments::
+to reuse a worker process created with different keyword arguments. For instance,
+the following example works (on Linux) because ``close_fds=False`` is passed::
 
   import os
   from functools import partial
