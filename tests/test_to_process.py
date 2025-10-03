@@ -59,8 +59,12 @@ async def test_run_sync_with_kwargs() -> None:
 
     receiver0, sender0 = os.pipe()
     receiver1, sender1 = os.pipe()
-    os.set_inheritable(receiver0, True)
-    os.set_inheritable(sender1, True)
+    if sys.platform == "win32":
+        os.set_handle_inheritable(receiver0, True)
+        os.set_handle_inheritable(sender1, True)
+    else:
+        os.set_inheritable(receiver0, True)
+        os.set_inheritable(sender1, True)
 
     with fail_after(4):
         async with create_task_group() as tg:
