@@ -50,10 +50,6 @@ def process_func(receiver: int, sender: int) -> None:
     os.close(sender)
 
 
-@pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="The test hangs on Windows",
-)
 @pytest.mark.parametrize("anyio_backend", ["asyncio", "trio"])
 async def test_run_sync_with_kwargs() -> None:
     """
