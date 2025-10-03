@@ -43,17 +43,11 @@ async def test_run_sync_not_in_process_pool() -> None:
     assert await to_process.run_sync(os.getpid, close_fds=False) != worker_pid
 
 
-def process_func(receiver: int, sender: int) -> None:
+def process_func(receiver: int) -> bytes:
     data = os.read(receiver, 1024)
-    os.write(sender, data + b", World!")
-    os.close(receiver)
-    os.close(sender)
+    return data + b", World!"
 
 
-@pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="The test hangs on Windows",
-)
 @pytest.mark.parametrize("anyio_backend", ["asyncio", "trio"])
 async def test_run_sync_with_kwargs() -> None:
     """
@@ -61,29 +55,23 @@ async def test_run_sync_with_kwargs() -> None:
 
     """
 
-    receiver0, sender0 = os.pipe()
-    receiver1, sender1 = os.pipe()
-    os.set_inheritable(receiver0, True)
-    os.set_inheritable(sender1, True)
+    receiver, sender = os.pipe()
+    os.set_inheritable(receiver, True)
 
-    with fail_after(4):
-        async with create_task_group() as tg:
-            tg.start_soon(
-                partial(
-                    to_process.run_sync,
-                    process_func,
-                    receiver0,
-                    sender1,
-                    close_fds=False,
-                    cancellable=True,
-                )
+    try:
+        with fail_after(4):
+            os.write(sender, b"Hello")
+            data = await to_process.run_sync(
+                process_func,
+                receiver,
+                close_fds=False,
+                cancellable=True,
             )
-            os.write(sender0, b"Hello")
-            data = await to_thread.run_sync(os.read, receiver1, 1024)
 
-    assert data == b"Hello, World!"
-    os.close(sender0)
-    os.close(receiver1)
+        assert data == b"Hello, World!"
+    finally:
+        os.close(sender)
+        os.close(receiver)
 
 
 async def test_identical_sys_path() -> None:
