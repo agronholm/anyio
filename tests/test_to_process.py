@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import platform
 import os
 import sys
 import time
@@ -53,11 +54,13 @@ def process_func(receiver: int) -> bytes:
     return data + b", World!"
 
 
-async def test_run_sync_with_kwargs() -> None:
+async def test_run_sync_with_kwargs(event_loop_implementation_name) -> None:
     """
     Test that keyword arguments are passed to the process.
 
     """
+    if platform.system() == "Darwin" and event_loop_implementation_name == "uvloop":
+        pytest.skip("The test fails on macOS with uvloop (Bad file descriptor)")
 
     receiver_fd, sender_fd = os.pipe()
 
