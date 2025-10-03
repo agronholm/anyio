@@ -93,10 +93,11 @@ This is done by using :func:`.to_process.run_sync`::
     if __name__ == '__main__':
         run(main)
 
-You can pass keyword arguments directly to :class:`subprocess.Popen`, but note that
-in this case a new subprocess will always be created, as it would not be possible
-to reuse a worker process created with different keyword arguments. For instance,
-the following example works (on Linux) because ``close_fds=False`` is passed::
+Any keyword argument to :func:`.to_process.run_sync` (other than ``cancellable`` and
+``limiter``) will be passed to :class:`subprocess.Popen`, but note that in this case
+a new subprocess will always be created, as it would not be possible to reuse a worker
+process created with different keyword arguments. For instance, the following example
+works (on Linux) because ``close_fds=False`` is passed::
 
   import os
   from functools import partial
