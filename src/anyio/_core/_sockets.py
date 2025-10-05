@@ -231,7 +231,7 @@ async def connect_tcp(
             retval = await handle
             if isinstance(retval, SocketStream):
                 connected_stream = retval
-                results.cancel_all()
+                results.cancel()
             else:
                 oserrors.append(retval)
 

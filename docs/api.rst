@@ -234,7 +234,6 @@ Testing and debugging
 Exceptions
 ----------
 
-.. autoexception:: anyio.AwaitedTaskCancelled
 .. autoexception:: anyio.BrokenResourceError
 .. autoexception:: anyio.BrokenWorkerInterpreter
 .. autoexception:: anyio.BrokenWorkerProcess
@@ -246,5 +245,7 @@ Exceptions
 .. autoexception:: anyio.IncompleteRead
 .. autoexception:: anyio.NoEventLoopError
 .. autoexception:: anyio.RunFinishedError
+.. autoexception:: anyio.TaskAborted
+.. autoexception:: anyio.TaskCancelled
 .. autoexception:: anyio.TypedAttributeLookupError
 .. autoexception:: anyio.WouldBlock
