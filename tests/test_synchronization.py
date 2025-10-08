@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import timedelta
 from typing import Any
 
 import pytest
+from pytest_mock import MockerFixture
 
 from anyio import (
     CancelScope,
     Condition,
     Event,
     Lock,
+    RateLimiter,
     Semaphore,
     WouldBlock,
     create_task_group,
+    current_time,
     fail_after,
     move_on_after,
     run,
@@ -892,3 +896,132 @@ class TestCapacityLimiter:
             tg.cancel_scope.cancel()
 
         pytest.fail("The second borrower failed to acquire the limiter")
+
+
+class TestRateLimiter:
+    @pytest.mark.parametrize(
+        "interval",
+        [
+            pytest.param(62, id="int"),
+            pytest.param(62.0, id="float"),
+            pytest.param(timedelta(minutes=1, seconds=2), id="timedelta"),
+        ],
+    )
+    def test_properties(self, interval: float | timedelta) -> None:
+        limiter = RateLimiter(5, interval, initial_tokens=10)
+        assert limiter.tokens == 5
+        assert limiter.initial_tokens == 10
+        assert limiter.interval == 62
+
+    @pytest.mark.parametrize(
+        "value, exc_class, error",
+        [
+            pytest.param(-1, ValueError, "^tokens must be positive", id="negative"),
+            pytest.param(0, ValueError, "^tokens must be positive", id="zero"),
+            pytest.param("6", TypeError, "^tokens must be an integer", id="bad_type"),
+        ],
+    )
+    def test_bad_tokens(
+        self, value: Any, exc_class: type[Exception], error: str
+    ) -> None:
+        with pytest.raises(exc_class, match=error):
+            RateLimiter(value, 1)
+
+    @pytest.mark.parametrize(
+        "value, exc_class, error",
+        [
+            pytest.param(-1, ValueError, "^interval must be positive", id="float"),
+            pytest.param(
+                timedelta(seconds=-6),
+                ValueError,
+                "^interval must be positive",
+                id="timedelta",
+            ),
+            pytest.param(
+                "6",
+                TypeError,
+                "^interval must be an integer, float or timedelta",
+                id="bad_type",
+            ),
+        ],
+    )
+    def test_bad_interval(
+        self, value: Any, exc_class: type[Exception], error: str
+    ) -> None:
+        with pytest.raises(exc_class, match=error):
+            RateLimiter(1, value)
+
+    @pytest.mark.parametrize(
+        "value, exc_class, error",
+        [
+            pytest.param(
+                -1, ValueError, "^initial_tokens must not be negative", id="negative"
+            ),
+            pytest.param(
+                "6",
+                TypeError,
+                "^initial_tokens must be an integer or None",
+                id="bad_type",
+            ),
+        ],
+    )
+    def test_bad_initial_tokens(
+        self, value: Any, exc_class: type[Exception], error: str
+    ) -> None:
+        with pytest.raises(exc_class, match=error):
+            RateLimiter(1, 1, initial_tokens=value)
+
+    async def test_acquire(self, mocker: MockerFixture) -> None:
+        mock_clock = mocker.patch(
+            "anyio._core._synchronization.current_time", return_value=current_time()
+        )
+        limiter = RateLimiter(5, 1)
+
+        # Test the special case where the limiter has never been acquired
+        stats = limiter.statistics()
+        assert stats.available_tokens == 5
+        assert stats.tasks_waiting == 0
+
+        # Right after two acquire() calls, the limiter should have two fewer tokens
+        # available
+        await limiter.acquire()
+        await limiter.acquire()
+        stats = limiter.statistics()
+        assert stats.available_tokens == 3
+        assert stats.tasks_waiting == 0
+
+        # Add 1.1 seconds to the clock so that all the tokens are now free
+        mock_clock.return_value += 1100
+        assert limiter.statistics().available_tokens == 5
+
+        # Acquire all available tokens and check that the statistics reflect that
+        with fail_after(3):
+            for _ in range(5):
+                await limiter.acquire()
+
+        stats = limiter.statistics()
+        assert stats.available_tokens == 0
+        assert stats.tasks_waiting == 0
+
+        # With all the tokens in use, the next acquire() should block
+        with pytest.raises(TimeoutError), fail_after(0.1):
+            await limiter.acquire()
+
+    async def test_no_initial_tokens(self) -> None:
+        """Test that with initial_tokens=0, the acquire() call blocks from the start."""
+        limiter = RateLimiter(5, 1, initial_tokens=0)
+
+        # Check that there should be no available tokens
+        stats = limiter.statistics()
+        assert stats.available_tokens == 0
+        assert stats.tasks_waiting == 0
+
+        # With no available tokens, the first acquire() call should block
+        with pytest.raises(TimeoutError), fail_after(0.1):
+            await limiter.acquire()
+
+    def test_max_per_second(self) -> None:
+        limiter = RateLimiter.from_max_per_second(5, initial_tokens=10)
+        assert limiter.tokens == 1
+        assert limiter.initial_tokens == 10
+        assert limiter.interval == 1 / 5
