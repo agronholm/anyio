@@ -43,6 +43,8 @@ Task groups
 
 .. autoclass:: anyio.EnhancedTaskGroup
 .. autoclass:: anyio.TaskHandle
+.. autoclass:: anyio.TaskLimiter
+.. autoclass:: anyio.abc.AbstractTaskLimiter
 .. autoclass:: anyio.abc.TaskGroup
 .. autoclass:: anyio.abc.TaskStatus
 
@@ -196,6 +198,7 @@ Synchronization
 .. autoclass:: anyio.Condition
 .. autoclass:: anyio.Semaphore
 .. autoclass:: anyio.CapacityLimiter
+.. autoclass:: anyio.RateLimiter
 .. autoclass:: anyio.ResourceGuard
 
 .. autoclass:: anyio.LockStatistics
@@ -203,6 +206,7 @@ Synchronization
 .. autoclass:: anyio.ConditionStatistics
 .. autoclass:: anyio.CapacityLimiterStatistics
 .. autoclass:: anyio.SemaphoreStatistics
+.. autoclass:: anyio.RateLimiterStatistics
 
 Operating system signals
 ------------------------
@@ -232,7 +236,6 @@ Testing and debugging
 Exceptions
 ----------
 
-.. autoexception:: anyio.AwaitedTaskCancelled
 .. autoexception:: anyio.BrokenResourceError
 .. autoexception:: anyio.BrokenWorkerInterpreter
 .. autoexception:: anyio.BrokenWorkerProcess
@@ -244,5 +247,7 @@ Exceptions
 .. autoexception:: anyio.IncompleteRead
 .. autoexception:: anyio.NoEventLoopError
 .. autoexception:: anyio.RunFinishedError
+.. autoexception:: anyio.TaskAborted
+.. autoexception:: anyio.TaskCancelled
 .. autoexception:: anyio.TypedAttributeLookupError
 .. autoexception:: anyio.WouldBlock

@@ -13,7 +13,7 @@ from os import PathLike, chmod
 from socket import AddressFamily, SocketKind
 from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
-from .. import ConnectionFailed, to_thread
+from .. import to_thread
 from ..abc import (
     ByteStreamConnectable,
     ConnectedUDPSocket,
@@ -29,8 +29,10 @@ from ..abc import (
 from ..streams.stapled import MultiListener
 from ..streams.tls import TLSConnectable, TLSStream
 from ._eventloop import get_async_backend
+from ._exceptions import ConnectionFailed
 from ._resources import aclose_forcefully
-from ._tasks import as_completed
+from ._synchronization import RateLimiter
+from ._tasks import AsyncResultsIterator, TaskLimiter
 
 if TYPE_CHECKING:
     from _typeshed import FileDescriptorLike
@@ -218,9 +220,9 @@ async def connect_tcp(
 
     oserrors: list[OSError] = []
     connected_stream: SocketStream | None = None
-    async with as_completed(
+    async with AsyncResultsIterator(
         [try_connect(remote_ip) for _af, remote_ip in target_addrs],
-        max_per_second=1 // happy_eyeballs_delay,
+        task_limiter=TaskLimiter(None, RateLimiter(1, happy_eyeballs_delay)),
     ) as results:
         async for handle in results:
             if handle.cancelled:
@@ -229,7 +231,7 @@ async def connect_tcp(
             retval = await handle
             if isinstance(retval, SocketStream):
                 connected_stream = retval
-                results.cancel_all()
+                results.cancel()
             else:
                 oserrors.append(retval)
 

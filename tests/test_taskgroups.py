@@ -18,6 +18,9 @@ import anyio
 from anyio import (
     TASK_STATUS_IGNORED,
     CancelScope,
+    EnhancedTaskGroup,
+    Event,
+    TaskCancelled,
     create_task_group,
     current_effective_deadline,
     current_time,
@@ -1816,3 +1819,141 @@ async def test_cancel_reason() -> None:
     assert task and task.name
     exc_info.match("test reason")
     exc_info.match(task.name)
+
+
+class TestEnhancedTaskGroup:
+    async def test_create_task_bad_type(self) -> None:
+        async with EnhancedTaskGroup() as tg:
+            with pytest.raises(TypeError, match="expected a coroutine, got int"):
+                tg.create_task(1)  # type: ignore[arg-type]
+
+    async def test_create_task(self) -> None:
+        async def corofunc(x: int, *, y: int) -> int:
+            await checkpoint()
+            return x * y
+
+        async with EnhancedTaskGroup() as tg:
+            task = tg.create_task(corofunc(2, y=3))
+            assert await task == 6
+            with pytest.raises(RuntimeError):
+                task.start_value  # noqa: B018
+
+        assert await task == 6
+
+    async def test_create_task_exception_while_awaiting_task(self) -> None:
+        async def corofunc() -> int:
+            raise RuntimeError("dummy error")
+
+        expected_excs = [
+            pytest.RaisesExc(RuntimeError, match="dummy error") for _ in range(2)
+        ]
+        with pytest.RaisesGroup(*expected_excs):
+            async with EnhancedTaskGroup() as tg:
+                await tg.create_task(corofunc())
+
+    async def test_create_task_await_on_cancelled_handle(self) -> None:
+        async def corofunc() -> None:
+            await sleep(10)
+
+        async with EnhancedTaskGroup() as tg:
+            task = tg.create_task(corofunc())
+            task.cancel()
+            with pytest.raises(TaskCancelled):
+                await task
+
+        with pytest.raises(TaskCancelled):
+            await task
+
+    async def test_start_task_corofunc(self) -> None:
+        async def corofunc(x: int, *, y: int) -> int:
+            await continue_event.wait()
+            return x * y
+
+        continue_event = Event()
+        async with EnhancedTaskGroup() as tg:
+            task = await tg.start_task(corofunc(2, y=3))
+            assert task._start_value is None
+            with pytest.raises(RuntimeError, match="this task has not returned yet"):
+                task.return_value  # noqa: B018
+
+            continue_event.set()
+            assert await task == 6
+
+        assert await task == 6
+
+    async def test_start_task_coro_await_on_cancelled_handle(self) -> None:
+        async def corofunc() -> None:
+            await sleep(10)
+
+        async with EnhancedTaskGroup() as tg:
+            task = await tg.start_task(corofunc())
+            task.cancel()
+            with pytest.raises(TaskCancelled):
+                await task
+
+        with pytest.raises(TaskCancelled):
+            await task
+
+    async def test_start_task_asyncgen(self) -> None:
+        async def asyncgenfunc(x: int, *, y: int) -> AsyncGenerator[int, Any]:
+            await checkpoint()
+            yield x * y
+            await continue_event.wait()
+
+        continue_event = Event()
+        async with EnhancedTaskGroup() as tg:
+            task = await tg.start_task(asyncgenfunc(2, y=3))
+            assert task.start_value == 6
+            with pytest.raises(RuntimeError, match="this task has not returned yet"):
+                task.return_value  # noqa: B018
+
+            continue_event.set()
+            assert await task is None  # type: ignore[func-returns-value]
+            assert task.return_value is None
+
+        assert await task is None  # type: ignore[func-returns-value]
+
+    async def test_start_task_asyncgen_no_yield(self) -> None:
+        async def asyncgenfunc() -> AsyncGenerator[None, Any]:
+            if False:
+                yield
+
+        with pytest.RaisesGroup(
+            pytest.RaisesExc(
+                RuntimeError, match="finished without yielding a start value"
+            )
+        ):
+            async with EnhancedTaskGroup() as tg:
+                await tg.start_task(asyncgenfunc())
+
+    async def test_start_task_asyncgen_too_many_yields(self) -> None:
+        async def asyncgenfunc() -> AsyncGenerator[None, Any]:
+            yield
+            yield
+
+        with pytest.RaisesGroup(
+            pytest.RaisesExc(RuntimeError, match="yielded too many times")
+        ):
+            async with EnhancedTaskGroup() as tg:
+                await tg.start_task(asyncgenfunc())
+
+    async def test_start_task_asyncgen_exception_before_first_yield(self) -> None:
+        async def asyncgenfunc() -> AsyncGenerator[None, Any]:
+            raise Exception("dummy error")
+            yield
+
+        async with EnhancedTaskGroup() as tg:
+            with pytest.raises(Exception, match="dummy error"):
+                await tg.start_task(asyncgenfunc())
+
+    async def test_start_task_asyncgen_exception_after_first_yield(self) -> None:
+        async def asyncgenfunc() -> AsyncGenerator[None, Any]:
+            yield
+            raise RuntimeError("dummy error")
+
+        with pytest.RaisesGroup(pytest.RaisesExc(RuntimeError, match="dummy error")):
+            async with EnhancedTaskGroup() as tg:
+                task = await tg.start_task(asyncgenfunc())
+
+        with pytest.raises(RuntimeError, match="dummy error"):
+            await task

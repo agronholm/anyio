@@ -115,3 +115,21 @@ class TaskGroup(metaclass=ABCMeta):
         exc_tb: TracebackType | None,
     ) -> bool:
         """Exit the task group context waiting for all tasks to finish."""
+
+
+class AbstractTaskLimiter(metaclass=ABCMeta):
+    """
+    Used by :class:`~..EnhancedTaskGroup` to limit the number of concurrently running
+    tasks and the rate at which tasks are scheduled.
+    """
+
+    @abstractmethod
+    async def acquire(self, borrower: object = None) -> None:
+        """This method is called when the operation is about to be performed."""
+
+    @abstractmethod
+    async def release(self, borrower: object = None) -> None:
+        """
+        This method is called inside the newly created task after the operation has been
+        performed, regardless of success.
+        """

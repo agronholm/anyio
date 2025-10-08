@@ -2,35 +2,54 @@ from __future__ import annotations
 
 import math
 import sys
+from asyncio import iscoroutine
 from collections import deque
 from collections.abc import (
     AsyncGenerator,
+    AsyncIterable,
     Callable,
     Coroutine,
     Generator,
     Iterable,
-    Mapping,
     Sequence,
 )
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import (
+    AbstractAsyncContextManager,
+    AsyncExitStack,
+    asynccontextmanager,
+    contextmanager,
+)
+from contextvars import ContextVar
+from inspect import isasyncgen
+from operator import delitem
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, overload
 
-from ..abc._tasks import TaskGroup, TaskStatus
-from ._eventloop import current_time, get_async_backend, get_cancelled_exc_class, sleep
+from ..abc import AbstractTaskLimiter, TaskGroup, TaskStatus
+from ._contextmanagers import AsyncContextManagerMixin
+from ._eventloop import get_async_backend, get_cancelled_exc_class
+from ._exceptions import EndOfStream, TaskAborted, TaskCancelled
 
 if sys.version_info >= (3, 11):
-    from typing import Self, TypeVarTuple, Unpack
+    from typing import Self, TypeVarTuple
 else:
-    from typing_extensions import Self, TypeVarTuple, Unpack
+    from typing_extensions import Self, TypeVarTuple
+
+if sys.version_info >= (3, 13):
+    from typing import TypeVar
+else:
+    from typing_extensions import TypeVar
 
 if TYPE_CHECKING:
     from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
-    from ._synchronization import Semaphore
+    from ._synchronization import CapacityLimiter, Event, RateLimiter
 
 T = TypeVar("T")
 TRetval = TypeVar("TRetval")
+TStartval = TypeVar("TStartval", default=None)
 PosArgsT = TypeVarTuple("PosArgsT")
+
+_current_task_handle: ContextVar[TaskHandle] = ContextVar("_current_task_handle")
 
 
 class _IgnoredTaskStatus(TaskStatus[object]):
@@ -187,33 +206,7 @@ def create_task_group() -> TaskGroup:
     return get_async_backend().create_task_group()
 
 
-class AwaitedTaskTerminated(Exception):
-    """
-    Raised when awaiting on a :class:`TaskHandle` which was terminated by a
-    `BaseException`.
-
-    This exception class exists because a :exc:`BaseException` (i.e. one
-    that is not an :exc:`Exception`) should not be suppressed, nor
-    forwarded to another scope.
-    """
-
-
-class AwaitedTaskCancelled(AwaitedTaskTerminated):
-    """
-    Raised when awaiting on a :class:`TaskHandle` which was cancelled.
-
-    This subclass of :exc:`AwaitedTaskTerminated` exists in order to
-    differentiate between the cancellation of the host task (the one
-    awaiting on a task) and the cancellation of the task it's awaiting on.
-
-    Additionally, raising :class:`asyncio.CancelledError` when waiting on
-    a task would potentially cause cancellation counters (Python 3.11 and later) to
-    be incorrectly decremented, as they should only be decremented when the task
-    itself has been cancelled.
-    """
-
-
-class TaskHandle(Generic[T]):
+class TaskHandle(Generic[T, TStartval]):
     """
     Returned from task-spawning methods in :class:`EnhancedTaskGroup`. Can be awaited on
     to get the return value of the task (or the raised exception). If the task was
@@ -225,7 +218,7 @@ class TaskHandle(Generic[T]):
         "__weakref__",
         "_cancel_scope",
         "_name",
-        "_event",
+        "_finished_event",
         "_return_value",
         "_exception",
         "_start_value",
@@ -233,33 +226,16 @@ class TaskHandle(Generic[T]):
     )
 
     _return_value: T
-    _start_value: Any
+    _start_value: TStartval
 
     def __init__(self, name: str | None) -> None:
         from ._synchronization import Event
 
-        self._cancel_scope: CancelScope = CancelScope()
         self._name = name
-        self._event = Event()
+        self._cancel_scope = CancelScope()
+        self._finished_event = Event()
         self._exception: BaseException | None = None
         self._awaited = False
-
-    def set_return_value(self, value: T) -> None:
-        self._return_value = value
-        self._event.set()
-
-    def set_exception(self, exception: BaseException) -> None:
-        if not isinstance(exception, Exception):
-            exc = (
-                AwaitedTaskCancelled
-                if isinstance(exception, get_cancelled_exc_class())
-                else AwaitedTaskTerminated
-            )(f"the task being awaited on ({self.name!r}) was cancelled")
-            exc.__cause__ = exception
-            exception = exc
-
-        self._exception = exception
-        self._event.set()
 
     def cancel(self) -> None:
         self._cancel_scope.cancel()
@@ -279,47 +255,96 @@ class TaskHandle(Generic[T]):
         return self._exception
 
     @property
-    def start_value(self) -> Any:
+    def start_value(self) -> TStartval:
         try:
             return self._start_value
         except AttributeError:
-            raise ValueError(
-                "this task handle has no start value (the task was not started with "
+            raise RuntimeError(
+                "this task has no start value (the task was not started with "
                 "'await tg.start(...)`)"
             ) from None
 
-    def __await__(self) -> Generator[Any, None, T]:
-        if self._awaited:
-            raise RuntimeError(
-                f"{self.__class__.__qualname__} cannot be awaited multiple times"
-            )
+    @property
+    def return_value(self) -> T:
+        try:
+            return self._return_value
+        except AttributeError:
+            if self._exception is not None:
+                raise RuntimeError(
+                    f"this task raised an exception "
+                    f"({self._exception.__class__.__qualname__})"
+                ) from None
 
-        self._awaited = True
-        if not self._event.is_set():
+            raise RuntimeError("this task has not returned yet") from None
+
+    def _set_exception(self, exception: BaseException) -> None:
+        if not isinstance(exception, Exception):
+            exc = (
+                TaskCancelled
+                if isinstance(exception, get_cancelled_exc_class())
+                else TaskAborted
+            )(f"the task being awaited on ({self.name!r}) was cancelled")
+            exc.__cause__ = exception
+            exception = exc
+
+        self._exception = exception
+        self._finished_event.set()
+
+    def _set_return_value(self, val: T) -> None:
+        assert self._exception is None
+        self._return_value = val
+        self._finished_event.set()
+
+    def __await__(self) -> Generator[Any, Any, T]:
+        if not self._finished_event.is_set():
             try:
-                yield from self._event.wait().__await__()
+                yield from self._finished_event.wait().__await__()
             except BaseException:
                 self._awaited = False
                 raise
 
         if self._exception is not None:
-            try:
-                raise self._exception
-            finally:
-                del self._exception
+            raise self._exception
 
-        try:
-            return self._return_value
-        finally:
-            del self._return_value
+        return self._return_value
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__qualname__} name={self.name!r}>"
 
 
+class TaskLimiter(AbstractTaskLimiter):
+    def __init__(
+        self,
+        concurrency_limiter: CapacityLimiter | None = None,
+        rate_limiter: RateLimiter | None = None,
+    ):
+        self._concurrency_limiter = concurrency_limiter
+        self._rate_limiter = rate_limiter
+
+    async def acquire(self, borrower: object = None) -> None:
+        if self._concurrency_limiter is not None:
+            await self._concurrency_limiter.acquire_on_behalf_of(borrower)
+
+        if self._rate_limiter is not None:
+            try:
+                await self._rate_limiter.acquire()
+            except BaseException:
+                if self._concurrency_limiter is not None:
+                    self._concurrency_limiter.release_on_behalf_of(borrower)
+
+                raise
+
+    async def release(self, borrower: object = None) -> None:
+        if self._concurrency_limiter is not None:
+            self._concurrency_limiter.release_on_behalf_of(borrower)
+
+
 class EnhancedTaskGroup:
     async def __aenter__(self) -> Self:
-        self._tasks: dict[Coroutine[Any, Any, Any], TaskHandle[Any]] = {}
+        self._tasks: dict[
+            Coroutine[Any, Any, Any] | AsyncGenerator[Any, Any],
+            TaskHandle[Any, Any],
+        ] = {}
         self._task_group = create_task_group()
         await self._task_group.__aenter__()
         return self
@@ -332,83 +357,220 @@ class EnhancedTaskGroup:
     ) -> bool | None:
         return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
 
-    async def _run_coro(
-        self, coro: Coroutine[Any, Any, T], handle: TaskHandle[T]
-    ) -> None:
-        __tracebackhide__ = True
-        with handle._cancel_scope:
-            try:
-                retval = await coro
-            except BaseException as exc:
-                handle.set_exception(exc)
-                raise
-            else:
-                handle.set_return_value(retval)
-                del retval
-            finally:
-                del self._tasks[coro]
-
-    async def _run_start_func(
+    async def _release_task_limiter(
         self,
-        func: Callable[..., Coroutine[Any, Any, T]],
-        args: tuple[Any],
-        kwargs: Mapping[str, Any],
-        handle: TaskHandle[T],
-        *,
-        task_status: TaskStatus[Any],
+        task_limiter: AbstractTaskLimiter,
+        coro_or_asyncgen: Coroutine | AsyncGenerator,
+    ) -> None:
+        with CancelScope(shield=True):
+            await task_limiter.release(coro_or_asyncgen)
+
+    def _create_run_exit_stack(
+        self,
+        coro_or_asyncgen: Coroutine | AsyncGenerator,
+        handle: TaskHandle[Any, Any],
+        task_limiter: AbstractTaskLimiter | None,
+    ) -> AsyncExitStack:
+        exit_stack = AsyncExitStack()
+        exit_stack.enter_context(handle._cancel_scope)
+        exit_stack.callback(delitem, self._tasks, coro_or_asyncgen)
+        if task_limiter is not None:
+            exit_stack.push_async_callback(
+                self._release_task_limiter, task_limiter, coro_or_asyncgen
+            )
+
+        token = _current_task_handle.set(handle)
+        exit_stack.callback(_current_task_handle.reset, token)
+        return exit_stack
+
+    async def _run_coro(
+        self,
+        coro: Coroutine[Any, Any, T],
+        handle: TaskHandle[T, None],
+        start_event: Event | None = None,
+        task_limiter: AbstractTaskLimiter | None = None,
     ) -> None:
         __tracebackhide__ = True
-        coro = func(*args, task_status=task_status, **kwargs)
-        self._tasks[coro] = handle
-        with handle._cancel_scope:
+        async with self._create_run_exit_stack(coro, handle, task_limiter):
+            if start_event is not None:
+                start_event.set()
+
             try:
                 retval = await coro
             except BaseException as exc:
-                handle.set_exception(exc)
+                handle._set_exception(exc)
                 raise
             else:
-                handle.set_return_value(retval)
-            finally:
-                del self._tasks[coro]
+                handle._set_return_value(retval)
+                del retval
+
+    async def _run_asyncgen(
+        self,
+        asyncgen: AsyncGenerator[T, Any],
+        handle: TaskHandle[None, T],
+        start_event: Event,
+        start_exception_container: list[Exception | None],
+        task_limiter: AbstractTaskLimiter | None,
+    ) -> None:
+        __tracebackhide__ = True
+        async with self._create_run_exit_stack(asyncgen, handle, task_limiter):
+            try:
+                handle._start_value = await asyncgen.__anext__()
+            except BaseException as exc:
+                if isinstance(exc, StopAsyncIteration):
+                    exc = RuntimeError(
+                        f"the async generator for task {handle.name!r} finished "
+                        f"without yielding a start value"
+                    )
+
+                start_exception_container[0] = (
+                    TaskAborted(exc) if not isinstance(exc, Exception) else exc
+                )
+                start_event.set()
+
+                # Re-raise base exceptions
+                if not isinstance(exc, Exception):
+                    raise
+            else:
+                start_event.set()
+                try:
+                    await asyncgen.__anext__()
+                except StopAsyncIteration:
+                    handle._set_return_value(None)
+                except BaseException as exc:
+                    handle._set_exception(exc)
+                    raise
+                else:
+                    error = RuntimeError(
+                        f"the async generator for task {handle.name!r} yielded too "
+                        f"many times"
+                    )
+                    handle._set_exception(error)
+                    raise error
 
     @property
     def cancel_scope(self) -> CancelScope:
         return self._task_group.cancel_scope
 
-    async def start(
-        self,
-        func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T]],
-        /,
-        *args: Unpack[PosArgsT],
-        name: str | None = None,
-        kwargs: Mapping[str, Any] | None = None,
-    ) -> TaskHandle[T]:
-        handle = TaskHandle[T](name)
-        handle._start_value = await self._task_group.start(
-            self._run_start_func, func, args, kwargs or {}, handle
-        )
-        return handle
-
-    def start_soon(
-        self,
-        func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T]],
-        /,
-        *args: Unpack[PosArgsT],
-        name: str | None = None,
-        kwargs: Mapping[str, Any] | None = None,
-    ) -> TaskHandle[T]:
-        coro = func(*args, **(kwargs or {}))
-        return self.create_task(coro, name=name)
-
     def create_task(
-        self, coro: Coroutine[Any, Any, T], /, *, name: str | None = None
+        self,
+        coro: Coroutine[Any, Any, T],
+        /,
+        *,
+        name: str | None = None,
     ) -> TaskHandle[T]:
-        handle = TaskHandle[T](name)
-        self._tasks[coro] = handle
+        """
+        Create a new task and schedule it to run.
+
+        :param coro: a coroutine object
+        :param name: optional name to give the task
+        :return: a task handle
+
+        """
+        if not iscoroutine(coro):
+            raise TypeError(f"expected a coroutine, got {coro.__class__.__qualname__}")
+
+        handle = self._tasks[coro] = TaskHandle[T](name)
         self._task_group.start_soon(self._run_coro, coro, handle, name=name)
         return handle
 
-    def cancel_all(self) -> None:
+    @overload
+    async def start_task(
+        self,
+        coro_or_asyncgen: AsyncGenerator[T, Any],
+        /,
+        *,
+        name: str | None = None,
+        task_limiter: AbstractTaskLimiter | None = None,
+    ) -> TaskHandle[None, T]: ...
+
+    @overload
+    async def start_task(
+        self,
+        coro_or_asyncgen: Coroutine[Any, Any, T],
+        /,
+        *,
+        name: str | None = None,
+        task_limiter: AbstractTaskLimiter | None = None,
+    ) -> TaskHandle[T]: ...
+
+    async def start_task(
+        self,
+        coro_or_asyncgen: Coroutine[Any, Any, T] | AsyncGenerator[T, Any],
+        /,
+        *,
+        name: str | None = None,
+        task_limiter: AbstractTaskLimiter | None = None,
+    ) -> TaskHandle[T] | TaskHandle[None, T]:
+        """
+        Create a new task and wait until it has started.
+
+        If a coroutine object is given, this call will return as soon as the event loop
+        has started running the task, but before the coroutine has been started.
+
+        If an async generator object is given, this call will return once the async
+        generator has yielded its start value. The start value is available through the
+        ``start_value`` attribute of the returned task handle.
+
+        In all cases, this method first acquires the task limiter, if one was given,
+        before scheduling the task to run.
+
+        :param coro_or_asyncgen: a coroutine object or an async generator object
+        :param name: optional name to give the task
+        :param task_limiter: limits the number of tasks running concurrently and the
+            rate at which new tasks are started
+        :return: a task handle
+
+        """
+        from ._synchronization import Event
+
+        # Acquire the task limiter, and release it in _run_coro() or _run_asyncgen()
+        if task_limiter is not None:
+            try:
+                await task_limiter.acquire(coro_or_asyncgen)
+            except BaseException:
+                if isinstance(coro_or_asyncgen, AsyncGenerator):
+                    await coro_or_asyncgen.aclose()
+                else:
+                    coro_or_asyncgen.close()
+
+                raise
+
+        start_event = Event()
+        handle: TaskHandle[T] | TaskHandle[None, T]
+        if isasyncgen(coro_or_asyncgen):
+            handle = asyncgen_handle = self._tasks[coro_or_asyncgen] = TaskHandle[
+                None, T
+            ](name)
+            start_exception_container: list[Exception | None] = [None]
+            self._task_group.start_soon(
+                self._run_asyncgen,
+                coro_or_asyncgen,
+                asyncgen_handle,
+                start_event,
+                start_exception_container,
+                task_limiter,
+                name=name,
+            )
+            await start_event.wait()
+            if (exc := start_exception_container.pop()) is not None:
+                raise exc
+        elif iscoroutine(coro_or_asyncgen):
+            handle = coro_handle = self._tasks[coro_or_asyncgen] = TaskHandle[T](name)
+            coro_handle._start_value = None
+            self._task_group.start_soon(
+                self._run_coro, coro_or_asyncgen, coro_handle, start_event, name=name
+            )
+            await start_event.wait()
+        else:
+            raise TypeError(
+                "Expected a coroutine or an async generator, got "
+                f"{coro_or_asyncgen.__class__.__qualname__}"
+            )
+
+        return handle
+
+    def cancel(self) -> None:
         """
         Cancel all currently running child tasks.
 
@@ -419,42 +581,21 @@ class EnhancedTaskGroup:
             task.cancel()
 
 
-class AsyncResultsIterator:
-    _coros: deque[Coroutine[Any, Any, Any]]
+class AsyncResultsIterator(AsyncContextManagerMixin):
     _task_group: EnhancedTaskGroup
-    _semaphore: Semaphore
-    _send: MemoryObjectSendStream[TaskHandle]
     _receive: MemoryObjectReceiveStream[TaskHandle]
-    _rate: float | None
 
     def __init__(
         self,
         coros: Iterable[Coroutine[Any, Any, Any]],
-        max_at_once: int | None = None,
-        max_task_per_second: float | None = None,
+        task_limiter: AbstractTaskLimiter | None = None,
     ) -> None:
-        from ._streams import create_memory_object_stream
-        from ._synchronization import Semaphore
+        self._coros: deque[Coroutine[Any, Any, Any]] = deque(coros)
+        self._task_limiter = task_limiter
 
-        if max_task_per_second is not None:
-            if (
-                not isinstance(max_task_per_second, (int, float))
-                or max_task_per_second < 0
-            ):
-                raise ValueError("max_task_per_second must be a positive number")
-
-        self._tasks: dict[Coroutine[Any, Any, Any], TaskHandle[Any]] = {}
-        self._coros = deque(coros)
-        self._task_group: EnhancedTaskGroup = EnhancedTaskGroup()
-        self._send, self._receive = create_memory_object_stream[Any](len(self._coros))
-        self._semaphore = Semaphore(max_at_once or len(self._coros), fast_acquire=True)
-        self._rate = (
-            (1 / max_task_per_second) if max_task_per_second is not None else None
-        )
-
-    def cancel_all(self) -> None:
+    def cancel(self) -> None:
         """Cancel all the currently running tasks within this result iterator."""
-        self._task_group.cancel_all()
+        self._task_group.cancel()
         self._clear_coros()
 
     def _clear_coros(self) -> None:
@@ -463,127 +604,166 @@ class AsyncResultsIterator:
 
         self._coros.clear()
 
-    async def _run_task(self, coro: Coroutine[Any, Any, Any]) -> Any:
+    async def _run_task(
+        self, coro: Coroutine[Any, Any, T], send: MemoryObjectSendStream[TaskHandle]
+    ) -> T:
         try:
             return await coro
         finally:
-            self._send.send_nowait(self._tasks[coro])
-            self._semaphore.release()
-            del self._tasks[coro]
+            send.send_nowait(_current_task_handle.get())
 
-    async def _feed_tasks(self) -> None:
-        start_time = current_time()
+    async def _feed_tasks(self, send: MemoryObjectSendStream[TaskHandle]) -> None:
         tasks_spawned = 0
-        while self._coros:
-            # Apply concurrency limit
-            await self._semaphore.acquire()
+        with send:
+            async with EnhancedTaskGroup() as tg:
+                while self._coros:
+                    coro = self._coros.popleft()
+                    try:
+                        await tg.start_task(
+                            self._run_task(coro, send),
+                            name=f"Task {tasks_spawned} of {self}",
+                            task_limiter=self._task_limiter,
+                        )
+                    except BaseException:
+                        coro.close()
+                        raise
 
-            # Apply rate limit
-            if self._rate is not None:
-                next_allowed_time = start_time + self._rate * tasks_spawned
-                if delay := max(next_allowed_time - current_time(), 0):
-                    await sleep(delay)
+                    tasks_spawned += 1
 
-            coro = self._coros.popleft()
-            self._tasks[coro] = self._task_group.create_task(
-                self._run_task(coro),
-                name=f"Task {tasks_spawned} of result iterator {id(self):x}",
+    @asynccontextmanager
+    async def __asynccontextmanager__(self) -> AsyncGenerator[Self]:
+        from anyio import create_memory_object_stream
+
+        async with AsyncExitStack() as exit_stack:
+            exit_stack.callback(self._clear_coros)
+            send, self._receive = create_memory_object_stream[TaskHandle](
+                len(self._coros)
             )
-            tasks_spawned += 1
-
-    async def __aenter__(self) -> Self:
-        await self._task_group.__aenter__()
-        try:
-            self._task_group.start_soon(self._feed_tasks)
-        except BaseException as exc:
-            await self._task_group.__aexit__(type(exc), exc, exc.__traceback__)
-            raise
-
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> bool | None:
-        try:
-            return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
-        finally:
-            self._send.close()
-            self._receive.close()
-            self._clear_coros()
+            exit_stack.enter_context(self._receive)
+            self._task_group = await exit_stack.enter_async_context(EnhancedTaskGroup())
+            await self._task_group.start_task(self._feed_tasks(send))
+            yield self
 
     def __aiter__(self) -> Self:
         return self
 
     async def __anext__(self) -> TaskHandle[Any]:
-        if not self._coros and not self._tasks:
-            raise StopAsyncIteration
-
-        return await self._receive.receive()
+        try:
+            return await self._receive.receive()
+        except EndOfStream:
+            raise StopAsyncIteration from None
 
 
 async def amap(
     func: Callable[[T], Coroutine[Any, Any, TRetval]],
     args: Iterable[T],
+    *,
+    task_limiter: AbstractTaskLimiter | None = None,
 ) -> Sequence[TRetval]:
     """
     Run the given coroutine function concurrently for multiple argument values.
 
     :param func: a coroutine function that takes a single argument
     :param args: a sequence of argument values to pass to ``func``
+    :param task_limiter: limits the number of tasks running concurrently and the rate at
+        which new tasks are started
     :return: task results for each argument in the same order as they were passed
 
     """
     async with EnhancedTaskGroup() as tg:
-        tasks = [tg.start_soon(func, arg) for arg in args]
+        tasks = [
+            await tg.start_task(func(arg), task_limiter=task_limiter) for arg in args
+        ]
 
     return [await task for task in tasks]
 
 
-@asynccontextmanager
-async def as_completed(
-    coros: Iterable[Coroutine[Any, Any, Any]],
+def as_completed(
+    coros: Iterable[Coroutine[Any, Any, T]],
     /,
     *,
-    max_at_once: int | None = None,
-    max_per_second: float | None = None,
-) -> AsyncGenerator[AsyncResultsIterator]:
+    task_limiter: AbstractTaskLimiter | None = None,
+) -> AbstractAsyncContextManager[AsyncIterable[TaskHandle[T]]]:
     """
     Run the given coroutines concurrently in a task group and yield task handles as they
     complete.
 
     :param coros: an iterable of coroutine objects to run as tasks
-    :param max_at_once: how many tasks to allow to run at once
-    :param max_per_second: how many tasks to allow to be launched per second
+    :param task_limiter: limits the number of tasks running concurrently and the rate at
+        which new tasks are started
     :return: an async context manager yielding an async iterator that yields task
         handles in the order they finished
 
     """
-    async with AsyncResultsIterator(coros, max_at_once, max_per_second) as iterator:
-        yield iterator
+    return AsyncResultsIterator(coros, task_limiter)
 
 
-async def gather(*coros: Coroutine[Any, Any, T]) -> Sequence[T]:
+async def gather(
+    *coros: Coroutine[Any, Any, T],
+    task_limiter: AbstractTaskLimiter | None = None,
+) -> Sequence[T]:
     """
     Run a number of coroutines in a task group and return their results.
 
     :param coros: coroutine objects to run as tasks
+    :param task_limiter: limits the number of tasks running concurrently and the rate at
+        which new tasks are started
     :return: a sequence of return values from the coroutines in the same order as they
         were passed
 
     """
-    task_handles: list[TaskHandle[T]] = []
+    async with EnhancedTaskGroup() as tg:
+        coro_iterator = iter(coros)
+        try:
+            tasks = [
+                await tg.start_task(coro, task_limiter=task_limiter) for coro in coros
+            ]
+        except BaseException:
+            for coro in coro_iterator:
+                coro.close()
+
+            raise
+
+    return [await handle for handle in tasks]
+
+
+async def race(
+    *coros: Coroutine[Any, Any, T],
+    task_limiter: AbstractTaskLimiter | None = None,
+) -> T:
+    """
+    Run the given coroutines concurrently and return the first one to complete.
+
+    When the first task completes, the remaining tasks are cancelled and their results
+    are discarded. If any task raises an exception, it is propagated to the caller in an
+    exception group.
+
+    :param coros: coroutine objects to run as tasks
+    :param task_limiter: limits the number of tasks running concurrently and the rate at
+        which new tasks are started
+    :return: the return value of the first completed task
+
+    """
+    if not coros:
+        raise ValueError("race() takes at least one coroutine")
+
+    retval_container: list[T] = []
+
+    async def helper(coro_: Coroutine[Any, Any, T]) -> None:
+        local_retval = await coro_
+        if not retval_container:
+            retval_container.append(local_retval)
+            tg.cancel()
+
     async with EnhancedTaskGroup() as tg:
         coro_iterator = iter(coros)
         for coro in coro_iterator:
             try:
-                task_handles.append(tg.create_task(coro))
-            except Exception:
-                for coro in coro_iterator:
-                    coro.close()
+                await tg.start_task(helper(coro), task_limiter=task_limiter)
+            except BaseException:
+                for coro_ in coro_iterator:
+                    coro_.close()
 
                 raise
 
-    return [await handle for handle in task_handles]
+    return retval_container[0]

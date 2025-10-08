@@ -364,32 +364,27 @@ class TestTCPStream:
         ],
     )
     async def test_happy_eyeballs(
-        self, local_addr: str, expected_client_addr: str, fake_localhost_dns: None
+        self,
+        request: FixtureRequest,
+        local_addr: str,
+        expected_client_addr: str,
+        fake_localhost_dns: None,
     ) -> None:
-        client_addr = None, None
-
-        def serve() -> None:
-            nonlocal client_addr
-            client, client_addr = server_sock.accept()
-            client.close()
-
         family = (
             AddressFamily.AF_INET
             if local_addr == "127.0.0.1"
             else AddressFamily.AF_INET6
         )
         server_sock = socket.socket(family)
+        request.addfinalizer(server_sock.close)
         server_sock.bind((local_addr, 0))
         server_sock.listen()
         port = server_sock.getsockname()[1]
-        thread = Thread(target=serve, daemon=True)
-        thread.start()
 
         async with await connect_tcp("localhost", port):
-            pass
+            client_sock, client_addr = server_sock.accept()
+            client_sock.close()
 
-        thread.join()
-        server_sock.close()
         assert client_addr[0] == expected_client_addr
 
     @pytest.mark.skipif(
@@ -617,28 +612,19 @@ class TestTCPStream:
         See https://github.com/encode/httpcore/issues/382 for details.
         """
 
-        def serve() -> None:
-            sock, addr = server_sock.accept()
-            event.wait(3)
-            sock.close()
-            del sock
-            gc.collect()
-
         with socket.socket(family, socket.SOCK_STREAM) as server_sock:
             server_sock.settimeout(1)
             server_sock.bind(("localhost", 0))
             server_sock.listen()
             server_addr = server_sock.getsockname()[:2]
-            event = threading.Event()
-            thread = Thread(target=serve)
-            thread.start()
             async with await connect_tcp(*server_addr) as stream:
+                sock = server_sock.accept()[0]
                 await stream.send(b"GET")
-                event.set()
+                sock.close()
+                del sock
                 with pytest.raises(BrokenResourceError):
                     await stream.receive()
 
-            thread.join()
             gc.collect()
             caplog_text = "\n".join(
                 msg
