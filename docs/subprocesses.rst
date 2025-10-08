@@ -93,6 +93,45 @@ This is done by using :func:`.to_process.run_sync`::
     if __name__ == '__main__':
         run(main)
 
+If you want to pass arguments down to :class:`subprocess.Popen` (which is called under the hood),
+you can do so by calling :func:`.to_process.run_sync` with a ``popen_args`` dictionary.
+Note that in this case a new subprocess will always be created, as it would not be possible
+to reuse a worker process created with different arguments. For instance, the following example
+works (on Linux) because ``close_fds=False`` is passed::
+
+  import os
+  from functools import partial
+
+  from anyio import create_task_group, run, to_process, to_thread
+
+
+  def cpu_intensive_function(receiver, sender):
+      data = os.read(receiver, 1024)
+      os.write(sender, data + b", World!")
+
+  async def main():
+      receiver0, sender0 = os.pipe()
+      receiver1, sender1 = os.pipe()
+      os.set_inheritable(receiver0, True)
+      os.set_inheritable(sender1, True)
+      async with create_task_group() as tg:
+          tg.start_soon(
+              partial(
+                  to_process.run_sync,
+                  cpu_intensive_function,
+                  receiver0,
+                  sender1,
+                  popen_args={"close_fds": False},
+              )
+          )
+          os.write(sender0, b"Hello")
+          data = await to_thread.run_sync(os.read, receiver1, 1024)
+      print(data)  # b'Hello, World!'
+
+  # This check is important when the application uses to_process.run_sync()
+  if __name__ == '__main__':
+      run(main)
+
 Technical details
 *****************
 

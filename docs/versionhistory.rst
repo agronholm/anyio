@@ -9,6 +9,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Set ``None`` as the default type argument for ``anyio.abc.TaskStatus``
 - Added support for ``uvloop=True`` on Windows via the winloop_ implementation
   (`#960 <https://github.com/agronholm/anyio/pull/960>`_; PR by @Vizonex)
+- Allowed passing keyword arguments to subprocesses
+  (`#993 <https://github.com/agronholm/anyio/pull/993>`_; PR by @davidbrochart)
 
 .. _winloop: https://github.com/Vizonex/Winloop
 
