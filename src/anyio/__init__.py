@@ -72,6 +72,7 @@ from ._core._tasks import TASK_STATUS_IGNORED as TASK_STATUS_IGNORED
 from ._core._tasks import CancelScope as CancelScope
 from ._core._tasks import EnhancedTaskGroup as EnhancedTaskGroup
 from ._core._tasks import TaskHandle as TaskHandle
+from ._core._tasks import TaskLimiter as TaskLimiter
 from ._core._tasks import amap as amap
 from ._core._tasks import as_completed as as_completed
 from ._core._tasks import create_task_group as create_task_group

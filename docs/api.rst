@@ -43,6 +43,8 @@ Task groups
 
 .. autoclass:: anyio.EnhancedTaskGroup
 .. autoclass:: anyio.TaskHandle
+.. autoclass:: anyio.TaskLimiter
+.. autoclass:: anyio.abc.AbstractTaskLimiter
 .. autoclass:: anyio.abc.TaskGroup
 .. autoclass:: anyio.abc.TaskStatus
 

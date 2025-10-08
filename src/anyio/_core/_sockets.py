@@ -32,7 +32,7 @@ from ._eventloop import get_async_backend
 from ._exceptions import ConnectionFailed
 from ._resources import aclose_forcefully
 from ._synchronization import RateLimiter
-from ._tasks import AsyncResultsIterator
+from ._tasks import AsyncResultsIterator, TaskLimiter
 
 if TYPE_CHECKING:
     from _typeshed import FileDescriptorLike
@@ -222,7 +222,7 @@ async def connect_tcp(
     connected_stream: SocketStream | None = None
     async with AsyncResultsIterator(
         [try_connect(remote_ip) for _af, remote_ip in target_addrs],
-        rate_limiter=RateLimiter(1, happy_eyeballs_delay),
+        task_limiter=TaskLimiter(None, RateLimiter(1, happy_eyeballs_delay)),
     ) as results:
         async for handle in results:
             if handle.cancelled:
