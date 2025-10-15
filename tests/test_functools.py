@@ -42,7 +42,7 @@ class TestCache:
 class TestAsyncLRUCache:
     def test_cache_parameters(self) -> None:
         @lru_cache(maxsize=10, typed=True)
-        def func(x: int) -> int:
+        async def func(x: int) -> int:
             return x
 
         assert func.cache_parameters() == {"maxsize": 10, "typed": True}
