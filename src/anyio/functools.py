@@ -28,16 +28,16 @@ else:
 T = TypeVar("T")
 S = TypeVar("S")
 P = ParamSpec("P")
-lru_cache_items = RunVar[defaultdict[Callable, tuple[OrderedDict, Lock]]](
-    "lru_cache_items"
-)
+lru_cache_items: RunVar[
+    defaultdict[Callable[..., Any], tuple[OrderedDict[Hashable, Any], Lock]]
+] = RunVar("lru_cache_items")
 
 
 class _InitialMissingType:
     pass
 
 
-initial_missing = _InitialMissingType()
+initial_missing: _InitialMissingType = _InitialMissingType()
 
 
 class AsyncCacheInfo(NamedTuple):
@@ -163,7 +163,7 @@ def cache(
 @overload
 def lru_cache(
     *, maxsize: int | None = 128, typed: bool = False
-) -> _LRUCacheWrapper: ...
+) -> _LRUCacheWrapper[Any]: ...
 
 
 @overload
@@ -182,7 +182,9 @@ def lru_cache(
     *,
     maxsize: int | None = 128,
     typed: bool = False,
-) -> AsyncLRUCacheWrapper[P, T] | functools._lru_cache_wrapper[T] | _LRUCacheWrapper:
+) -> (
+    AsyncLRUCacheWrapper[P, T] | functools._lru_cache_wrapper[T] | _LRUCacheWrapper[Any]
+):
     """
     An asynchronous version of :func:`functools.lru_cache`.
 
@@ -193,7 +195,7 @@ def lru_cache(
 
     """
     if func is None:
-        return _LRUCacheWrapper(maxsize, typed)
+        return _LRUCacheWrapper[Any](maxsize, typed)
 
     return _LRUCacheWrapper[T](maxsize, typed)(func)
 
