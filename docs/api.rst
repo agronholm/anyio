@@ -207,6 +207,15 @@ Operating system signals
 
 .. autofunction:: anyio.open_signal_receiver
 
+.. _async-functools:
+
+Asynchronous functools
+----------------------
+
+.. autofunction:: anyio.functools.cache
+.. autofunction:: anyio.functools.lru_cache
+.. autofunction:: anyio.functools.reduce
+
 Low level operations
 --------------------
 
