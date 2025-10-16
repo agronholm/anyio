@@ -1613,8 +1613,8 @@ class UDPSocket(abc.UDPSocket):
         return self._transport.get_extra_info("socket")
 
     async def aclose(self) -> None:
+        self._closed = True
         if not self._transport.is_closing():
-            self._closed = True
             self._transport.close()
 
     async def receive(self) -> tuple[bytes, IPSockAddrType]:
@@ -1661,8 +1661,8 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
         return self._transport.get_extra_info("socket")
 
     async def aclose(self) -> None:
+        self._closed = True
         if not self._transport.is_closing():
-            self._closed = True
             self._transport.close()
 
     async def receive(self) -> bytes:
