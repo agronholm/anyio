@@ -34,7 +34,7 @@ from collections.abc import (
 from concurrent.futures import Future
 from contextlib import AbstractContextManager, suppress
 from contextvars import Context, copy_context
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial, wraps
 from inspect import (
     CORO_RUNNING,
@@ -1052,12 +1052,26 @@ class StreamReaderWrapper(abc.ByteReceiveStream):
 @dataclass(eq=False)
 class StreamWriterWrapper(abc.ByteSendStream):
     _stream: asyncio.StreamWriter
+    _closed: bool = field(init=False, default=False)
 
     async def send(self, item: bytes) -> None:
-        self._stream.write(item)
-        await self._stream.drain()
+        await AsyncIOBackend.checkpoint()
+        try:
+            self._stream.write(item)
+            await self._stream.drain()
+        except (ConnectionResetError, BrokenPipeError, RuntimeError) as exc:
+            # If closed by us and/or the peer:
+            # * on stdlib, drain() raises ConnectionResetError or BrokenPipeError
+            # * on uvloop, write() raises RuntimeError and drain() doesn't appear to
+            #   raise anything
+            if self._closed:
+                raise ClosedResourceError from exc.__cause__
+            elif self._stream.is_closing():
+                raise BrokenResourceError from exc.__cause__
+            raise
 
     async def aclose(self) -> None:
+        self._closed = True
         self._stream.close()
         await AsyncIOBackend.checkpoint()
 
