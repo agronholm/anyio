@@ -10,11 +10,12 @@ from textwrap import dedent
 from typing import Any
 
 import pytest
-from pytest import FixtureRequest
 
 from anyio import (
+    BrokenResourceError,
     CancelScope,
     ClosedResourceError,
+    EndOfStream,
     create_task_group,
     open_process,
     run_process,
@@ -236,10 +237,7 @@ async def test_process_aexit_cancellation_doesnt_orphan_process() -> None:
     assert process.returncode != 0
 
 
-async def test_process_aexit_cancellation_closes_standard_streams(
-    request: FixtureRequest,
-    anyio_backend_name: str,
-) -> None:
+async def test_process_aexit_cancellation_closes_standard_streams() -> None:
     """
     Regression test for #669.
 
@@ -248,12 +246,6 @@ async def test_process_aexit_cancellation_closes_standard_streams(
     closed stream.
 
     """
-    if anyio_backend_name == "asyncio":
-        # Avoid pytest.xfail here due to https://github.com/pytest-dev/pytest/issues/9027
-        request.node.add_marker(
-            pytest.mark.xfail(reason="#671 needs to be resolved first")
-        )
-
     with CancelScope() as scope:
         async with await open_process(
             [sys.executable, "-c", "import time; time.sleep(1)"]
@@ -272,6 +264,27 @@ async def test_process_aexit_cancellation_closes_standard_streams(
 
     assert process.stderr is not None
 
+    with pytest.raises(ClosedResourceError):
+        await process.stderr.receive(1)
+
+
+async def test_exceptions_after_subprocess_closes_standard_streams() -> None:
+    async with await open_process([sys.executable, "-c", ""]) as process:
+        await process.wait()
+        assert process.stdin is not None
+        assert process.stderr is not None
+        assert process.stdout is not None
+        with pytest.raises(BrokenResourceError):
+            await process.stdin.send(b"foo")
+        with pytest.raises(EndOfStream):
+            await process.stdout.receive(1)
+        with pytest.raises(EndOfStream):
+            await process.stderr.receive(1)
+
+    with pytest.raises(ClosedResourceError):
+        await process.stdin.send(b"foo")
+    with pytest.raises(ClosedResourceError):
+        await process.stdout.receive(1)
     with pytest.raises(ClosedResourceError):
         await process.stderr.receive(1)
 
