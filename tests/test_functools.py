@@ -189,6 +189,12 @@ class TestAsyncLRUCache:
 
 
 class TestReduce:
+    async def test_not_iterable(self) -> None:
+        with pytest.raises(
+            TypeError, match="argument 2 must be an iterable or async iterable"
+        ):
+            await reduce(lambda x, y: x + y, 1)  # type: ignore[call-overload]
+
     async def test_no_initial(self) -> None:
         async def func(x: int, y: int) -> int:
             await checkpoint()

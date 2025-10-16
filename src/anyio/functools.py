@@ -234,7 +234,7 @@ async def reduce(  # type: ignore[misc]
 
         async for element in async_it:
             value = await function(value, element)
-    else:
+    elif isinstance(iterable, Iterable):
         it = iter(iterable)
         if initial is initial_missing:
             value = cast(T, next(it))
@@ -243,5 +243,7 @@ async def reduce(  # type: ignore[misc]
 
         for element in it:
             value = await function(value, element)
+    else:
+        raise TypeError("reduce() argument 2 must be an iterable or async iterable")
 
     return value
