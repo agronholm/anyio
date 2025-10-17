@@ -87,7 +87,9 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
                 (type(val), key, val) for key, val in kwargs.items()
             )
         else:
-            key = (args, frozenset(kwargs.items()))
+            key = args
+            for item in kwargs.items():
+                key += item
 
         try:
             cache = lru_cache_items.get()
