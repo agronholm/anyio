@@ -97,10 +97,19 @@ class RunvarToken(Generic[T]):
         self._value: T | Literal[_NoValueSet.NO_VALUE_SET] = value
         self._redeemed = False
 
+    def __enter__(self) -> RunvarToken[T]:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self._var.reset(self)
+
 
 class RunVar(Generic[T]):
     """
     Like a :class:`~contextvars.ContextVar`, except scoped to the running event loop.
+
+    Can be used as a context manager, Just like :class:`~contextvars.ContextVar`, that
+    will reset the variable to its previous value when the context block is exited.
     """
 
     __slots__ = "_name", "_default"
