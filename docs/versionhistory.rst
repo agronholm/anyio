@@ -7,6 +7,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added support for ``uvloop=True`` on Windows via the winloop_ implementation
   (`#960 <https://github.com/agronholm/anyio/pull/960>`_; PR by @Vizonex)
+- Added support for use as a context manager to ``anyio.lowlevel.RunVar``
 
 .. _winloop: https://github.com/Vizonex/Winloop
 
