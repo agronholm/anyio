@@ -82,14 +82,16 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
             self._misses += 1
             return value
 
+        # The key is constructed as a flat tuple to avoid memory overhead
+        key: tuple[Any, ...] = args
+        if kwargs:
+            # initial_missing is used as a separator
+            key += (initial_missing,) + sum(kwargs.items(), ())
+
         if self._typed:
-            key: Hashable = tuple((type(arg), arg) for arg in args) + tuple(
-                (type(val), key, val) for key, val in kwargs.items()
-            )
-        else:
-            key = args
-            for item in kwargs.items():
-                key += item
+            key += tuple(type(arg) for arg in args)
+            if kwargs:
+                key += (initial_missing,) + tuple(type(val) for val in kwargs.values())
 
         try:
             cache = lru_cache_items.get()

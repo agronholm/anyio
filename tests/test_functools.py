@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from decimal import Decimal
+from typing import Any
 
 import pytest
 
@@ -186,6 +187,20 @@ class TestAsyncLRUCache:
         statistics = func.cache_info()
         assert statistics.hits == 1
         assert statistics.misses == 1
+
+    async def test_args_kwargs_cache_key(self) -> None:
+        counter = 0
+
+        @lru_cache
+        async def func(*args: Any, **kwargs: Any) -> int:
+            nonlocal counter
+            await checkpoint()
+            counter += 1
+            return counter
+
+        # These two calls should be cached with different keys
+        assert await func(1, "y", 2) == 1
+        assert await func(1, y=2) == 2
 
 
 class TestReduce:
