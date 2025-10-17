@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass
+from types import TracebackType
 from typing import Any, Generic, Literal, TypeVar, final, overload
 from weakref import WeakKeyDictionary
 
@@ -100,7 +101,12 @@ class RunvarToken(Generic[T]):
     def __enter__(self) -> RunvarToken[T]:
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         self._var.reset(self)
 
 
