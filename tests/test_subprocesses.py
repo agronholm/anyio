@@ -276,15 +276,19 @@ async def test_exceptions_after_subprocess_closes_standard_streams() -> None:
         assert process.stdout is not None
         with pytest.raises(BrokenResourceError):
             await process.stdin.send(b"foo")
+
         with pytest.raises(EndOfStream):
             await process.stdout.receive(1)
+
         with pytest.raises(EndOfStream):
             await process.stderr.receive(1)
 
     with pytest.raises(ClosedResourceError):
         await process.stdin.send(b"foo")
+
     with pytest.raises(ClosedResourceError):
         await process.stdout.receive(1)
+
     with pytest.raises(ClosedResourceError):
         await process.stderr.receive(1)
 
