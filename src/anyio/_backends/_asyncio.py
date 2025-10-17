@@ -1068,6 +1068,7 @@ class StreamWriterWrapper(abc.ByteSendStream):
                 raise ClosedResourceError from exc.__cause__
             elif self._stream.is_closing():
                 raise BrokenResourceError from exc.__cause__
+
             raise
 
     async def aclose(self) -> None:
