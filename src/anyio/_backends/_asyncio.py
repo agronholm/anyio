@@ -1065,9 +1065,9 @@ class StreamWriterWrapper(abc.ByteSendStream):
             # * on uvloop, write() raises RuntimeError and drain() doesn't appear to
             #   raise anything
             if self._closed:
-                raise ClosedResourceError from exc.__cause__
+                raise ClosedResourceError from exc
             elif self._stream.is_closing():
-                raise BrokenResourceError from exc.__cause__
+                raise BrokenResourceError from exc
 
             raise
 
