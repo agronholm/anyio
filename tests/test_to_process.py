@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import platform
 import sys
 import time
 from functools import partial
@@ -29,6 +30,66 @@ async def test_run_sync_in_process_pool() -> None:
     worker_pid = await to_process.run_sync(os.getpid)
     assert worker_pid != os.getpid()
     assert await to_process.run_sync(os.getpid) == worker_pid
+
+
+async def test_run_sync_not_in_process_pool() -> None:
+    """
+    Test that the function runs in a different process, and not the same process in both
+    calls.
+
+    """
+    worker_pid = await to_process.run_sync(os.getpid, popen_args={"close_fds": False})
+    assert worker_pid != os.getpid()
+    assert (
+        await to_process.run_sync(os.getpid, popen_args={"close_fds": False})
+        != worker_pid
+    )
+
+
+def process_func(receiver: int) -> bytes:
+    if sys.platform == "win32":
+        from msvcrt import open_osfhandle
+
+        fd = open_osfhandle(receiver, os.O_RDONLY)
+    else:
+        fd = receiver
+    data = os.read(fd, 1024)
+    return data + b", World!"
+
+
+async def test_run_sync_with_popen_args(event_loop_implementation_name: str) -> None:
+    """
+    Test that arguments are passed to Popen.
+
+    """
+    if platform.system() == "Darwin" and event_loop_implementation_name == "uvloop":
+        pytest.skip("The test fails on macOS with uvloop (Bad file descriptor)")
+
+    receiver_fd, sender_fd = os.pipe()
+
+    if sys.platform == "win32":
+        from msvcrt import get_osfhandle
+
+        receiver = get_osfhandle(receiver_fd)
+        os.set_handle_inheritable(receiver, True)
+    else:
+        receiver = receiver_fd
+        os.set_inheritable(receiver, True)
+
+    try:
+        with fail_after(4):
+            os.write(sender_fd, b"Hello")
+            data = await to_process.run_sync(
+                process_func,
+                receiver,
+                cancellable=True,
+                popen_args={"close_fds": False},
+            )
+
+        assert data == b"Hello, World!"
+    finally:
+        os.close(sender_fd)
+        os.close(receiver_fd)
 
 
 async def test_identical_sys_path() -> None:
