@@ -213,7 +213,7 @@ class TestReduce:
     async def test_no_initial(self) -> None:
         async def func(x: int, y: int) -> int:
             await checkpoint()
-            return x + int(y)
+            return x + y
 
         assert await reduce(func, [1, 2, 3]) == 6
 
