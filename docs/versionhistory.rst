@@ -52,6 +52,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``ConnectedUNIXDatagramSocket.from_socket()``
 - Added a hierarchy of connectable stream classes for transparently connecting to
   various remote or local endpoints for exchanging bytes or objects
+- Added ``BufferedByteStream``, a full-duplex variant of ``BufferedByteReceiveStream``
 - Added context manager mix-in classes (``anyio.ContextManagerMixin`` and
   ``anyio.AsyncContextManagerMixin``) to help write classes that embed other context
   managers, particularly cancel scopes or task groups
