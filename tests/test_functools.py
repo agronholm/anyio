@@ -269,3 +269,16 @@ class TestReduce:
             yield "3"
 
         assert await reduce(func, asyncgen(), 2) == 8
+
+    async def test_empty_asynciter_no_initial(self) -> None:
+        class AIter:
+            def __aiter__(self) -> Self:
+                return self
+
+            async def __anext__(self) -> NoReturn:
+                raise StopAsyncIteration
+
+        with pytest.raises(
+            TypeError, match=r"reduce\(\) of empty async iterable with no initial value"
+        ):
+            await reduce(lambda x, y: x + y, AIter())
