@@ -41,6 +41,10 @@ class TestCache:
 
 
 class TestAsyncLRUCache:
+    def test_bad_func_argument(self) -> None:
+        with pytest.raises(TypeError, match="argument 1 must be a callable"):
+            lru_cache(10)  # type: ignore[call-overload]
+
     def test_cache_parameters(self) -> None:
         @lru_cache(maxsize=10, typed=True)
         async def func(x: int) -> int:
