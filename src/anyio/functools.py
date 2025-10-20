@@ -4,7 +4,7 @@ __all__ = ("cache", "lru_cache", "reduce")
 
 import functools
 import sys
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 from collections.abc import (
     AsyncIterable,
     Awaitable,
@@ -16,6 +16,7 @@ from collections.abc import (
 from functools import update_wrapper
 from inspect import iscoroutinefunction
 from typing import Any, Generic, NamedTuple, TypedDict, TypeVar, cast, overload
+from weakref import WeakKeyDictionary
 
 from ._core._synchronization import Lock
 from .lowlevel import RunVar
@@ -29,7 +30,7 @@ T = TypeVar("T")
 S = TypeVar("S")
 P = ParamSpec("P")
 lru_cache_items: RunVar[
-    defaultdict[Callable[..., Any], tuple[OrderedDict[Hashable, Any], Lock]]
+    WeakKeyDictionary[Callable[..., Any], tuple[OrderedDict[Hashable, Any], Lock]]
 ] = RunVar("lru_cache_items")
 
 
@@ -96,10 +97,15 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
         try:
             cache = lru_cache_items.get()
         except LookupError:
-            cache = defaultdict(lambda: (OrderedDict(), Lock()))
+            cache = WeakKeyDictionary()
             lru_cache_items.set(cache)
 
-        cache_entry, lock = cache[self]
+        try:
+            cache_entry, lock = cache[self]
+        except KeyError:
+            cache_entry, lock = OrderedDict(), Lock()
+            cache[self] = cache_entry, lock
+
         async with lock:
             try:
                 value = cache_entry[key]
