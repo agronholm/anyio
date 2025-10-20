@@ -99,7 +99,7 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
             cache = defaultdict(lambda: (OrderedDict(), Lock()))
             lru_cache_items.set(cache)
 
-        cache_entry, lock = cache[self.__wrapped__]
+        cache_entry, lock = cache[self]
         async with lock:
             try:
                 value = cache_entry[key]

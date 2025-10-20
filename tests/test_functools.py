@@ -202,6 +202,22 @@ class TestAsyncLRUCache:
         assert await func(1, "y", 2) == 1
         assert await func(1, y=2) == 2
 
+    async def test_cache_same_function_twice(self) -> None:
+        counter = 0
+
+        async def func() -> int:
+            nonlocal counter
+            await checkpoint()
+            counter += 1
+            return counter
+
+        cached_1 = lru_cache()(func)
+        cached_2 = lru_cache()(func)
+
+        # This should yield two cache misses
+        assert await cached_1() == 1
+        assert await cached_2() == 2
+
 
 class TestReduce:
     async def test_not_iterable(self) -> None:
