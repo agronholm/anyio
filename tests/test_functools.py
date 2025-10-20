@@ -249,7 +249,7 @@ class TestReduce:
     async def test_asynciter_no_initial(self) -> None:
         async def func(x: int, y: int) -> int:
             await checkpoint()
-            return x + int(y)
+            return x + y
 
         async def asyncgen() -> AsyncIterator[int]:
             yield 1
