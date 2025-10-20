@@ -201,6 +201,9 @@ def lru_cache(
     if func is None:
         return _LRUCacheWrapper[Any](maxsize, typed)
 
+    if not callable(func):
+        raise TypeError("the first argument must be callable")
+
     return _LRUCacheWrapper[T](maxsize, typed)(func)
 
 
