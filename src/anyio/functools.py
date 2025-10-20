@@ -241,7 +241,12 @@ async def reduce(  # type: ignore[misc]
     if isinstance(iterable, AsyncIterable):
         async_it = iterable.__aiter__()
         if initial is initial_missing:
-            value = cast(T, await async_it.__anext__())
+            try:
+                value = cast(T, await async_it.__anext__())
+            except StopAsyncIteration:
+                raise TypeError(
+                    "reduce() of empty sequence with no initial value"
+                ) from None
         else:
             value = cast(T, initial)
 
@@ -250,7 +255,12 @@ async def reduce(  # type: ignore[misc]
     elif isinstance(iterable, Iterable):
         it = iter(iterable)
         if initial is initial_missing:
-            value = cast(T, next(it))
+            try:
+                value = cast(T, next(it))
+            except StopIteration:
+                raise TypeError(
+                    "reduce() of empty sequence with no initial value"
+                ) from None
         else:
             value = cast(T, initial)
 

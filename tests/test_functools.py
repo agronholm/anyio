@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from decimal import Decimal
-from typing import Any
+from typing import Any, NoReturn
 
 import pytest
 
@@ -42,7 +42,7 @@ class TestCache:
 
 class TestAsyncLRUCache:
     def test_bad_func_argument(self) -> None:
-        with pytest.raises(TypeError, match="argument 1 must be a callable"):
+        with pytest.raises(TypeError, match="the first argument must be callable"):
             lru_cache(10)  # type: ignore[call-overload]
 
     def test_cache_parameters(self) -> None:
@@ -246,7 +246,7 @@ class TestReduce:
 
     async def test_empty_iter_no_initial(self) -> None:
         with pytest.raises(
-            TypeError, match=r"reduce\(\) of empty iterable with no initial value"
+            TypeError, match=r"reduce\(\) of empty sequence with no initial value"
         ):
             await reduce(lambda x, y: x + y, [])
 
@@ -274,15 +274,21 @@ class TestReduce:
 
         assert await reduce(func, asyncgen(), 2) == 8
 
-    async def test_empty_asynciter_no_initial(self) -> None:
+    async def test_empty_iterable_no_initial(self) -> None:
+        with pytest.raises(
+            TypeError, match=r"reduce\(\) of empty sequence with no initial value"
+        ):
+            await reduce(lambda x, y: x + y, ())
+
+    async def test_empty_async_iterable_no_initial(self) -> None:
         class AIter:
-            def __aiter__(self) -> Self:
+            def __aiter__(self) -> AIter:
                 return self
 
             async def __anext__(self) -> NoReturn:
                 raise StopAsyncIteration
 
         with pytest.raises(
-            TypeError, match=r"reduce\(\) of empty async iterable with no initial value"
+            TypeError, match=r"reduce\(\) of empty sequence with no initial value"
         ):
             await reduce(lambda x, y: x + y, AIter())
