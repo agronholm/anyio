@@ -227,7 +227,16 @@ async def reduce(  # type: ignore[misc]
     /,
     initial: T | _InitialMissingType = initial_missing,
 ) -> T:
-    """Asynchronous version of :func:`functools.reduce`."""
+    """
+    Asynchronous version of :func:`functools.reduce`.
+
+    :param function: a coroutine function that takes two arguments: the accumulated
+        value and the next element from the iterable
+    :param iterable: an iterable or async iterable
+    :param initial: the initial value (if missing, the first element of the iterable is
+        used as the initial value)
+
+    """
     element: Any
     if isinstance(iterable, AsyncIterable):
         async_it = iterable.__aiter__()
