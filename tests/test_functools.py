@@ -240,6 +240,12 @@ class TestReduce:
 
         assert await reduce(func, ["1", "2", "3"], 2) == 8
 
+    async def test_empty_iter_no_initial(self) -> None:
+        with pytest.raises(
+            TypeError, match=r"reduce\(\) of empty iterable with no initial value"
+        ):
+            await reduce(lambda x, y: x + y, [])
+
     async def test_asynciter_no_initial(self) -> None:
         async def func(x: int, y: int) -> int:
             await checkpoint()
