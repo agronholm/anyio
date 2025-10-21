@@ -9,6 +9,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#960 <https://github.com/agronholm/anyio/pull/960>`_; PR by @Vizonex)
 - Added support for use as a context manager to ``anyio.lowlevel.RunVar``
 - Added ``__all__`` declarations to public submodules (``anyio.lowlevel`` etc.)
+  (`#1009 <https://github.com/agronholm/anyio/pull/1009>`_)
 
 .. _winloop: https://github.com/Vizonex/Winloop
 
