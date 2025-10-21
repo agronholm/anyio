@@ -275,6 +275,23 @@ async def test_exceptions_after_subprocess_closes_standard_streams() -> None:
         assert process.stderr is not None
         assert process.stdout is not None
         with pytest.raises(BrokenResourceError):
+            # * On Trio, stdin.send() will always raise if the peer's end of the pipe is
+            #   closed.
+            # * On asyncio, even though process.wait() finished, some event loop
+            #   implementations do not yet inform us that the peer's end of the pipe is
+            #   closed; the event loop needs to run some rounds of callbacks before it
+            #   will get that information to us. In particular:
+            #   * On stdlib asyncio, stdin.send() will now always raise
+            #     BrokenResourceError.
+            #   * On uvloop, the second stdin.send() will raise BrokenResourceError.
+            #   * On Winloop 0.3.0, the third stdin.send() will raise
+            #     BrokenResourceError. The second also might, but it depends on
+            #     scheduling order.
+            #   * On Winloop 0.3.1, the second stdin() will raise BrokenResourceError.
+            for _ in range(3):
+                await process.stdin.send(b"foo")
+
+        with pytest.raises(BrokenResourceError):
             await process.stdin.send(b"foo")
 
         with pytest.raises(EndOfStream):
