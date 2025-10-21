@@ -1,5 +1,14 @@
 from __future__ import annotations
 
+__all__ = (
+    "BlockingPortal",
+    "BlockingPortalProvider",
+    "check_cancelled",
+    "run",
+    "run_sync",
+    "start_blocking_portal",
+)
+
 import sys
 from collections.abc import Awaitable, Callable, Generator
 from concurrent.futures import Future
