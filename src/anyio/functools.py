@@ -30,7 +30,7 @@ T = TypeVar("T")
 S = TypeVar("S")
 P = ParamSpec("P")
 lru_cache_items: RunVar[
-    WeakKeyDictionary[Callable[..., Any], tuple[OrderedDict[Hashable, Any], Lock]]
+    WeakKeyDictionary[AsyncLRUCacheWrapper, tuple[OrderedDict[Hashable, Any], Lock]]
 ] = RunVar("lru_cache_items")
 
 
