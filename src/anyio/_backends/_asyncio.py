@@ -1063,8 +1063,7 @@ class StreamWriterWrapper(abc.ByteSendStream):
         except (ConnectionResetError, BrokenPipeError, RuntimeError) as exc:
             # If closed by us and/or the peer:
             # * on stdlib, drain() raises ConnectionResetError or BrokenPipeError
-            # * on uvloop, write() raises RuntimeError and drain() doesn't appear to
-            #   raise anything
+            # * on uvloop and Winloop, write() eventually starts raising RuntimeError
             if self._closed:
                 raise ClosedResourceError from exc
             elif self._stream.is_closing():
