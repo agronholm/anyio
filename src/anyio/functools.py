@@ -73,7 +73,7 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
 
     def cache_clear(self) -> None:
         if cache := lru_cache_items.get(None):
-            cache.pop(self.__wrapped__, None)
+            cache.pop(self, None)
             self._hits = self._misses = self._currsize = 0
 
     async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> T:
