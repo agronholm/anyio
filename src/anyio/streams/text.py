@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+__all__ = (
+    "TextConnectable",
+    "TextReceiveStream",
+    "TextSendStream",
+    "TextStream",
+)
+
 import codecs
 import sys
 from collections.abc import Callable, Mapping
