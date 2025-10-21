@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import heapq
 import warnings
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Generic, NamedTuple, TypeVar
+from typing import Generic, NamedTuple, Protocol, TypeVar
 
 from .. import (
     BrokenResourceError,
@@ -19,6 +20,26 @@ from ..lowlevel import checkpoint
 T_Item = TypeVar("T_Item")
 T_co = TypeVar("T_co", covariant=True)
 T_contra = TypeVar("T_contra", contravariant=True)
+
+
+class Buffer(Protocol, Generic[T_Item]):
+    def append(self, /, v: T_Item) -> None: ...
+    def popleft(self) -> T_Item: ...
+    def __len__(self) -> int: ...
+
+
+@dataclass(eq=False)
+class HeapQ(Buffer[T_Item]):
+    items: list[T_Item] = field(default_factory=list, init=False)
+
+    def append(self, v: T_Item) -> None:
+        heapq.heappush(self.items, v)
+
+    def popleft(self) -> T_Item:
+        return heapq.heappop(self.items)
+
+    def __len__(self) -> int:
+        return len(self.items)
 
 
 class MemoryObjectStreamStatistics(NamedTuple):
@@ -48,7 +69,7 @@ class MemoryObjectItemReceiver(Generic[T_Item]):
 @dataclass(eq=False)
 class MemoryObjectStreamState(Generic[T_Item]):
     max_buffer_size: float = field()
-    buffer: deque[T_Item] = field(init=False, default_factory=deque)
+    buffer: Buffer[T_Item] = field(init=False, default_factory=deque)
     open_send_channels: int = field(init=False, default=0)
     open_receive_channels: int = field(init=False, default=0)
     waiting_receivers: OrderedDict[Event, MemoryObjectItemReceiver[T_Item]] = field(
@@ -67,6 +88,11 @@ class MemoryObjectStreamState(Generic[T_Item]):
             len(self.waiting_senders),
             len(self.waiting_receivers),
         )
+
+
+@dataclass(eq=False)
+class PriorityMemoryObjectStreamState(MemoryObjectStreamState[T_Item]):
+    buffer: HeapQ[T_Item] = field(init=False, default_factory=HeapQ)
 
 
 @dataclass(eq=False)
