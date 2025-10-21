@@ -1055,7 +1055,8 @@ class StreamWriterWrapper(abc.ByteSendStream):
     _closed: bool = field(init=False, default=False)
 
     async def send(self, item: bytes) -> None:
-        await AsyncIOBackend.checkpoint()
+        await AsyncIOBackend.checkpoint_if_cancelled()
+        stream_paused = self._stream._protocol._paused  # type: ignore[attr-defined]
         try:
             self._stream.write(item)
             await self._stream.drain()
@@ -1070,6 +1071,9 @@ class StreamWriterWrapper(abc.ByteSendStream):
                 raise BrokenResourceError from exc
 
             raise
+
+        if not stream_paused:
+            await AsyncIOBackend.cancel_shielded_checkpoint()
 
     async def aclose(self) -> None:
         self._closed = True
