@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+__all__ = (
+    "MemoryObjectReceiveStream",
+    "MemoryObjectSendStream",
+    "MemoryObjectStreamStatistics",
+)
+
 import warnings
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
