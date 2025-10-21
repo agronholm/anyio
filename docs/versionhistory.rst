@@ -8,6 +8,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added support for ``uvloop=True`` on Windows via the winloop_ implementation
   (`#960 <https://github.com/agronholm/anyio/pull/960>`_; PR by @Vizonex)
 - Added support for use as a context manager to ``anyio.lowlevel.RunVar``
+- Added ``__all__`` declarations to public submodules (``anyio.lowlevel`` etc.)
+  (`#1009 <https://github.com/agronholm/anyio/pull/1009>`_)
 - Fixed ``Process.stdin.send()`` not raising ``ClosedResourceError`` and
   ``BrokenResourceError`` on asyncio. Previously, a non-AnyIO exception was raised in
   such cases (`#671 <https://github.com/agronholm/anyio/issues/671>`_; PR by
