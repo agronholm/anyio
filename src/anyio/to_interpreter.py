@@ -33,7 +33,7 @@ if sys.version_info >= (3, 14):
         else:
             return retval, False
 
-    class Worker:
+    class _Worker:
         last_used: float = 0
 
         def __init__(self) -> None:
