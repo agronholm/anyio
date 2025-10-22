@@ -6,7 +6,7 @@ from typing import Any, NoReturn
 
 import pytest
 
-from anyio import Event, create_task_group, wait_all_tasks_blocked
+from anyio import Event, create_task_group, fail_after, wait_all_tasks_blocked
 from anyio.functools import cache, lru_cache, reduce
 from anyio.lowlevel import checkpoint
 
@@ -221,6 +221,26 @@ class TestAsyncLRUCache:
         # This should yield two cache misses
         assert await cached_1() == 1
         assert await cached_2() == 2
+
+    async def test_lock_granularity(self) -> None:
+        """
+        Test that calls to the cached function with different arguments can occur
+        concurrently and do not wait for a shared lock.
+
+        """
+
+        @lru_cache
+        async def func(set_event: bool) -> None:
+            if set_event:
+                event.set()
+            else:
+                await event.wait()
+
+        event = Event()
+        with fail_after(5):
+            async with create_task_group() as tg:
+                tg.start_soon(func, False)
+                tg.start_soon(func, True)
 
 
 class TestReduce:
