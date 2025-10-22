@@ -35,7 +35,7 @@ from typing import (
 from weakref import WeakKeyDictionary
 
 from ._core._synchronization import Lock
-from .lowlevel import RunVar
+from .lowlevel import RunVar, checkpoint
 
 if sys.version_info >= (3, 11):
     from typing import ParamSpec
@@ -273,6 +273,7 @@ async def reduce(  # type: ignore[misc]
 
     """
     element: Any
+    function_called = False
     if isinstance(iterable, AsyncIterable):
         async_it = iterable.__aiter__()
         if initial is initial_missing:
@@ -287,6 +288,7 @@ async def reduce(  # type: ignore[misc]
 
         async for element in async_it:
             value = await function(value, element)
+            function_called = True
     elif isinstance(iterable, Iterable):
         it = iter(iterable)
         if initial is initial_missing:
@@ -301,7 +303,13 @@ async def reduce(  # type: ignore[misc]
 
         for element in it:
             value = await function(value, element)
+            function_called = True
     else:
         raise TypeError("reduce() argument 2 must be an iterable or async iterable")
+
+    # Make sure there is at least one checkpoint, even if an empty iterable and an
+    # initial value were given
+    if not function_called:
+        await checkpoint()
 
     return value

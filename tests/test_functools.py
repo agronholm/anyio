@@ -6,7 +6,14 @@ from typing import Any, NoReturn
 
 import pytest
 
-from anyio import Event, create_task_group, fail_after, wait_all_tasks_blocked
+from anyio import (
+    CancelScope,
+    Event,
+    create_task_group,
+    fail_after,
+    get_cancelled_exc_class,
+    wait_all_tasks_blocked,
+)
 from anyio.functools import cache, lru_cache, reduce
 from anyio.lowlevel import checkpoint
 
