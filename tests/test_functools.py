@@ -312,3 +312,30 @@ class TestReduce:
             TypeError, match=r"reduce\(\) of empty sequence with no initial value"
         ):
             await reduce(lambda x, y: x + y, AIter())
+
+    async def test_checkpoints_empty_iterable(self) -> None:
+        async def func(x: int, y: int) -> int:
+            await checkpoint()
+            return x + y
+
+        with CancelScope() as cs:
+            cs.cancel()
+            with pytest.raises(get_cancelled_exc_class()):
+                await reduce(func, [], 1)
+
+    async def test_checkpoints_empty_async_iterable(self) -> None:
+        async def func(x: int, y: int) -> int:
+            await checkpoint()
+            return x + y
+
+        class AIter:
+            def __aiter__(self) -> AIter:
+                return self
+
+            async def __anext__(self) -> NoReturn:
+                raise StopAsyncIteration
+
+        with CancelScope() as cs:
+            cs.cancel()
+            with pytest.raises(get_cancelled_exc_class()):
+                await reduce(func, AIter(), 1)
