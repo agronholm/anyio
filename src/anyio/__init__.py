@@ -85,6 +85,7 @@ from ._core._testing import wait_all_tasks_blocked as wait_all_tasks_blocked
 from ._core._typedattr import TypedAttributeProvider as TypedAttributeProvider
 from ._core._typedattr import TypedAttributeSet as TypedAttributeSet
 from ._core._typedattr import typed_attribute as typed_attribute
+from ._core._utils import safe_asyncgen as safe_asyncgen
 
 # Re-export imports so they look like they live directly in this package
 for __value in list(locals().values()):
