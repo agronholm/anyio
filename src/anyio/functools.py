@@ -1,6 +1,13 @@
 from __future__ import annotations
 
-__all__ = ("cache", "lru_cache", "reduce")
+__all__ = (
+    "AsyncCacheInfo",
+    "AsyncCacheParameters",
+    "AsyncLRUCacheWrapper",
+    "cache",
+    "lru_cache",
+    "reduce",
+)
 
 import functools
 import sys
@@ -15,7 +22,16 @@ from collections.abc import (
 )
 from functools import update_wrapper
 from inspect import iscoroutinefunction
-from typing import Any, Generic, NamedTuple, TypedDict, TypeVar, cast, overload
+from typing import (
+    Any,
+    Generic,
+    NamedTuple,
+    TypedDict,
+    TypeVar,
+    cast,
+    final,
+    overload,
+)
 from weakref import WeakKeyDictionary
 
 from ._core._synchronization import Lock
@@ -55,6 +71,7 @@ class AsyncCacheParameters(TypedDict):
     typed: bool
 
 
+@final
 class AsyncLRUCacheWrapper(Generic[P, T]):
     def __init__(
         self, func: Callable[..., Awaitable[T]], maxsize: int | None, typed: bool
@@ -71,7 +88,7 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
         return AsyncCacheInfo(self._hits, self._misses, self._maxsize, self._currsize)
 
     def cache_parameters(self) -> AsyncCacheParameters:
-        return AsyncCacheParameters(maxsize=self._maxsize, typed=self._typed)
+        return {"maxsize": self._maxsize, "typed": self._typed}
 
     def cache_clear(self) -> None:
         if cache := lru_cache_items.get(None):
