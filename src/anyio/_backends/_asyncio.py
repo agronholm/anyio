@@ -151,18 +151,18 @@ else:
 
         def __exit__(
             self,
-            exc_type: type[BaseException],
-            exc_val: BaseException,
-            exc_tb: TracebackType,
+            exc_type: type[BaseException] | None,
+            exc_val: BaseException | None,
+            exc_tb: TracebackType | None,
         ) -> None:
             self.close()
 
         def close(self) -> None:
             """Shutdown and close event loop."""
-            if self._state is not _State.INITIALIZED:
+            loop = self._loop
+            if self._state is not _State.INITIALIZED or loop is None:
                 return
             try:
-                loop = self._loop
                 _cancel_all_tasks(loop)
                 loop.run_until_complete(loop.shutdown_asyncgens())
                 if hasattr(loop, "shutdown_default_executor"):
