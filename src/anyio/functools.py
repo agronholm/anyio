@@ -47,7 +47,8 @@ S = TypeVar("S")
 P = ParamSpec("P")
 lru_cache_items: RunVar[
     WeakKeyDictionary[
-        AsyncLRUCacheWrapper[Any, Any], OrderedDict[Hashable, tuple[Any, Lock]]
+        AsyncLRUCacheWrapper[Any, Any],
+        OrderedDict[Hashable, tuple[_InitialMissingType, Lock] | tuple[Any, None]],
     ]
 ] = RunVar("lru_cache_items")
 
@@ -128,12 +129,19 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
         try:
             cached_value, lock = cache_entry[key]
         except KeyError:
+            # We're the first task to call this function
             cached_value, lock = initial_missing, Lock(fast_acquire=True)
             cache_entry[key] = cached_value, lock
 
+        if lock is None:
+            # The value was already cached
+            self._hits += 1
+            cache_entry.move_to_end(key)
+            return cast(T, cached_value)
+
         async with lock:
-            # Check if another task filled the cache while we awaited the lock
-            if (value := cache_entry[key][0]) is initial_missing:
+            # Check if another task filled the cache while we acquired the lock
+            if (cached_value := cache_entry[key][0]) is initial_missing:
                 self._misses += 1
                 if self._maxsize is not None and self._currsize >= self._maxsize:
                     cache_entry.popitem(last=False)
@@ -141,8 +149,9 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
                     self._currsize += 1
 
                 value = await self.__wrapped__(*args, **kwargs)
-                cache_entry[key] = value, lock
+                cache_entry[key] = value, None
             else:
+                # Another task filled the cache while we were waiting for the lock
                 self._hits += 1
                 cache_entry.move_to_end(key)
                 value = cast(T, cached_value)
