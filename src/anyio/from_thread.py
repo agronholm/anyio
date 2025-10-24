@@ -244,9 +244,9 @@ class BlockingPortal:
     ) -> None:
         def callback(f: Future[T_Retval]) -> None:
             if f.cancelled():
-                if self._event_loop_thread_id in (None, get_ident()):
+                if self._event_loop_thread_id == get_ident():
                     scope.cancel("the future was cancelled")
-                else:
+                elif self._event_loop_thread_id is not None:
                     self.call(scope.cancel, "the future was cancelled")
 
         try:
