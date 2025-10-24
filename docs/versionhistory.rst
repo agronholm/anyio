@@ -12,6 +12,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added support for use as a context manager to ``anyio.lowlevel.RunVar``
 - Added ``__all__`` declarations to public submodules (``anyio.lowlevel`` etc.)
   (`#1009 <https://github.com/agronholm/anyio/pull/1009>`_)
+- Fixed ``Process.stdin.send()`` not raising ``ClosedResourceError`` and
+  ``BrokenResourceError`` on asyncio. Previously, a non-AnyIO exception was raised in
+  such cases (`#671 <https://github.com/agronholm/anyio/issues/671>`_; PR by
+  @gschaffner)
+- Fixed ``Process.stdin.send()`` not checkpointing before writing data on asyncio
+  (`#1002 <https://github.com/agronholm/anyio/issues/1002>`_; PR by @gschaffner)
 
 .. _winloop: https://github.com/Vizonex/Winloop
 
