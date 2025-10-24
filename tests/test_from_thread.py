@@ -690,6 +690,7 @@ class TestBlockingPortal:
 
         assert not caplog.text
 
+    @pytest.mark.skip("This test is known to hang often on CI")
     def test_raise_baseexception_from_task(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:

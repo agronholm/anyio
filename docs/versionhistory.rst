@@ -10,6 +10,14 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added support for ``uvloop=True`` on Windows via the winloop_ implementation
   (`#960 <https://github.com/agronholm/anyio/pull/960>`_; PR by @Vizonex)
 - Added support for use as a context manager to ``anyio.lowlevel.RunVar``
+- Added ``__all__`` declarations to public submodules (``anyio.lowlevel`` etc.)
+  (`#1009 <https://github.com/agronholm/anyio/pull/1009>`_)
+- Fixed ``Process.stdin.send()`` not raising ``ClosedResourceError`` and
+  ``BrokenResourceError`` on asyncio. Previously, a non-AnyIO exception was raised in
+  such cases (`#671 <https://github.com/agronholm/anyio/issues/671>`_; PR by
+  @gschaffner)
+- Fixed ``Process.stdin.send()`` not checkpointing before writing data on asyncio
+  (`#1002 <https://github.com/agronholm/anyio/issues/1002>`_; PR by @gschaffner)
 
 .. _winloop: https://github.com/Vizonex/Winloop
 
@@ -54,6 +62,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``ConnectedUNIXDatagramSocket.from_socket()``
 - Added a hierarchy of connectable stream classes for transparently connecting to
   various remote or local endpoints for exchanging bytes or objects
+- Added ``BufferedByteStream``, a full-duplex variant of ``BufferedByteReceiveStream``
 - Added context manager mix-in classes (``anyio.ContextManagerMixin`` and
   ``anyio.AsyncContextManagerMixin``) to help write classes that embed other context
   managers, particularly cancel scopes or task groups

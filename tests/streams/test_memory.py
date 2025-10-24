@@ -19,9 +19,9 @@ from anyio import (
 )
 from anyio.abc import ObjectReceiveStream, ObjectSendStream, TaskStatus
 from anyio.streams.memory import (
-    MemoryObjectItemReceiver,
     MemoryObjectReceiveStream,
     MemoryObjectSendStream,
+    _MemoryObjectItemReceiver,
 )
 
 from ..conftest import asyncio_params
@@ -512,7 +512,7 @@ async def test_memory_object_item_receiver_repr() -> None:
     Test the repr of `MemoryObjectItemReceiver`.
     Since when `item` is not set, the default dataclass repr raises an AttributeError.
     """
-    receiver = MemoryObjectItemReceiver[str]()
+    receiver = _MemoryObjectItemReceiver[str]()
 
     assert str(receiver) is not None
     receiver_repr = repr(receiver)
