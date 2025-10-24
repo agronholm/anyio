@@ -135,13 +135,13 @@ class TestAsyncLRUCache:
     )
     async def test_caching(self, typed: bool, expected_entries: int) -> None:
         @lru_cache(typed=typed)
-        async def func(x: float | Decimal) -> int:
+        async def func(x: float | Decimal, y: float | Decimal) -> int:
             await checkpoint()
-            return int(x)
+            return int(x) * int(y)
 
         for _ in range(2):
-            assert await func(3.0) == 3
-            assert await func(Decimal("3.0")) == 3
+            assert await func(3.0, y=4.0) == 12
+            assert await func(Decimal("3.0"), y=Decimal("4.0")) == 12
 
         statistics = func.cache_info()
         assert statistics.hits == 4 - expected_entries
