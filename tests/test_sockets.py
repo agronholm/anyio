@@ -621,28 +621,19 @@ class TestTCPStream:
         See https://github.com/encode/httpcore/issues/382 for details.
         """
 
-        def serve() -> None:
-            sock, addr = server_sock.accept()
-            event.wait(3)
-            sock.close()
-            del sock
-            gc.collect()
-
         with socket.socket(family, socket.SOCK_STREAM) as server_sock:
             server_sock.settimeout(1)
             server_sock.bind(("localhost", 0))
             server_sock.listen()
             server_addr = server_sock.getsockname()[:2]
-            event = threading.Event()
-            thread = Thread(target=serve)
-            thread.start()
             async with await connect_tcp(*server_addr) as stream:
+                sock = server_sock.accept()[0]
                 await stream.send(b"GET")
-                event.set()
+                sock.close()
+                del sock
                 with pytest.raises(BrokenResourceError):
                     await stream.receive()
 
-            thread.join()
             gc.collect()
             caplog_text = "\n".join(
                 msg
