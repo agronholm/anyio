@@ -57,7 +57,11 @@ class TestAsyncLRUCache:
         async def func(x: int) -> int:
             return x
 
-        assert func.cache_parameters() == {"maxsize": 10, "typed": True}
+        assert func.cache_parameters() == {
+            "maxsize": 10,
+            "typed": True,
+            "always_checkpoint": False,
+        }
 
     def test_wrap_sync_callable(self) -> None:
         @lru_cache(maxsize=10, typed=True)
@@ -248,6 +252,19 @@ class TestAsyncLRUCache:
             async with create_task_group() as tg:
                 tg.start_soon(func, False)
                 tg.start_soon(func, True)
+
+    async def test_always_checkpoint(self) -> None:
+        @lru_cache(always_checkpoint=True)
+        async def func(x: int) -> int:
+            return x
+
+        # With always_checkpoint=1, calling the function in a cancelled cancel scope
+        # when the cache has been filled will raise a cancellation exception due to the
+        # forced checkpoint
+        await func(1)
+        with CancelScope() as scope, pytest.raises(get_cancelled_exc_class()):
+            scope.cancel()
+            await func(1)
 
 
 class TestReduce:
