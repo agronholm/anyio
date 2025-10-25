@@ -18,6 +18,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   @gschaffner)
 - Fixed ``Process.stdin.send()`` not checkpointing before writing data on asyncio
   (`#1002 <https://github.com/agronholm/anyio/issues/1002>`_; PR by @gschaffner)
+- Fixed a race condition where cancelling a ``Future`` from
+  ``BlockingPortal.start_task_soon()`` would sometimes not cancel the async function
+  (`#1011 <https://github.com/agronholm/anyio/issues/1011>`_; PR by @gschaffner)
 
 .. _winloop: https://github.com/Vizonex/Winloop
 
