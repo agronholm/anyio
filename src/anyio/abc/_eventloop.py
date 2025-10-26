@@ -17,6 +17,8 @@ from typing import (
     overload,
 )
 
+from anyio.abc._tasks import BoundedTaskGroup
+
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
 else:
@@ -167,6 +169,13 @@ class AsyncBackend(metaclass=ABCMeta):
     @classmethod
     @abstractmethod
     def create_task_group(cls) -> TaskGroup:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def create_bounded_task_group(
+        cls, limiter: Semaphore | CapacityLimiter
+    ) -> BoundedTaskGroup:
         pass
 
     @classmethod

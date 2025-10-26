@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import functools
 import math
+import sys
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from types import TracebackType
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from sniffio import AsyncLibraryNotFoundError
 
@@ -15,7 +17,29 @@ from ._exceptions import BusyResourceError
 from ._tasks import CancelScope
 from ._testing import TaskInfo, get_current_task
 
+if sys.version_info >= (3, 11):
+    from typing import TypeVarTuple, Unpack
+else:
+    from typing_extensions import TypeVarTuple, Unpack
+
+
 T = TypeVar("T")
+PosArgsT = TypeVarTuple("PosArgsT")
+
+
+def wrap_in_limiter(
+    func: Callable[[Unpack[PosArgsT]], Awaitable[Any]],
+    limiter: Semaphore | CapacityLimiter,
+) -> Callable[[Unpack[PosArgsT]], Awaitable[Any]]:
+    @functools.wraps(func)
+    async def wrapper(*args: Unpack[PosArgsT], **kwargs: Any) -> Any:
+        async with limiter:
+            task_status = kwargs.pop("task_status", None)
+            if task_status:
+                task_status.started()
+            return await func(*args, **kwargs)
+
+    return wrapper
 
 
 @dataclass(frozen=True)

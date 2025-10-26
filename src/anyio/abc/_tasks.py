@@ -17,6 +17,7 @@ else:
     from typing_extensions import TypeVarTuple, Unpack
 
 if TYPE_CHECKING:
+    from .._core._synchronization import CapacityLimiter, Semaphore
     from .._core._tasks import CancelScope
 
 T_Retval = TypeVar("T_Retval")
@@ -115,3 +116,16 @@ class TaskGroup(metaclass=ABCMeta):
         exc_tb: TracebackType | None,
     ) -> bool:
         """Exit the task group context waiting for all tasks to finish."""
+
+
+class BoundedTaskGroup(TaskGroup, metaclass=ABCMeta):
+    """
+    A task group that limits the number of concurrently running tasks.
+    """
+
+    @abstractmethod
+    def __init__(self, limiter: Semaphore | CapacityLimiter):
+        """
+        :param limiter: the capacity limiter to use
+        """
+        ...

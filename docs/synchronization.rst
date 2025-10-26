@@ -250,3 +250,23 @@ Queues
 
 In place of queues, AnyIO offers a more powerful construct:
 :ref:`memory object streams <memory object streams>`.
+
+Bounded Task Groups
+-----------------
+
+:class:`anyio.abc.BoundedTaskGroup` synchronizes the tasks of a :class:`anyio.abc.TaskGroup` with
+the underlying :class:`Semaphore` or :class:`CapacityLimiter`
+
+Example::
+
+    from anyio import Semaphore, CapacityLimiter, create_bounded_task_group
+
+    semaphore = Semaphore(1)
+    async with create_bounded_task_group(semaphore) as tg:
+        tg.start_soon(acquire, name="task 1")
+        tg.start_soon(acquire, name="task 2")
+
+    semaphore = Semaphore(1)
+    async with create_bounded_task_group(semaphore) as tg:
+        tg.start_soon(acquire, name="task 1")
+        tg.start_soon(acquire, name="task 2")

@@ -34,6 +34,7 @@ from ._streams import UnreliableObjectReceiveStream as UnreliableObjectReceiveSt
 from ._streams import UnreliableObjectSendStream as UnreliableObjectSendStream
 from ._streams import UnreliableObjectStream as UnreliableObjectStream
 from ._subprocesses import Process as Process
+from ._tasks import BoundedTaskGroup as BoundedTaskGroup
 from ._tasks import TaskGroup as TaskGroup
 from ._tasks import TaskStatus as TaskStatus
 from ._testing import TestRunner as TestRunner

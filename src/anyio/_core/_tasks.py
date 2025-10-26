@@ -4,9 +4,15 @@ import math
 from collections.abc import Generator
 from contextlib import contextmanager
 from types import TracebackType
+from typing import TYPE_CHECKING
 
-from ..abc._tasks import TaskGroup, TaskStatus
+from ..abc._tasks import BoundedTaskGroup, TaskGroup, TaskStatus
 from ._eventloop import get_async_backend
+
+if TYPE_CHECKING:
+    from anyio._core._synchronization import CapacityLimiter, Semaphore
+
+    from ..abc._tasks import BoundedTaskGroup, TaskGroup, TaskStatus
 
 
 class _IgnoredTaskStatus(TaskStatus[object]):
@@ -161,3 +167,13 @@ def create_task_group() -> TaskGroup:
 
     """
     return get_async_backend().create_task_group()
+
+
+def create_bounded_task_group(limiter: Semaphore | CapacityLimiter) -> BoundedTaskGroup:
+    """
+    Create a bounded task group.
+
+    :return: a bounded task group
+
+    """
+    return get_async_backend().create_bounded_task_group(limiter)

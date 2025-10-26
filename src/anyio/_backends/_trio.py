@@ -76,6 +76,7 @@ from .._core._synchronization import Lock as BaseLock
 from .._core._synchronization import (
     ResourceGuard,
     SemaphoreStatistics,
+    wrap_in_limiter,
 )
 from .._core._synchronization import Semaphore as BaseSemaphore
 from .._core._tasks import CancelScope as BaseCancelScope
@@ -222,6 +223,30 @@ class TaskGroup(abc.TaskGroup):
             )
 
         return await self._nursery.start(func, *args, name=name)
+
+
+class BoundedTaskGroup(TaskGroup, abc.BoundedTaskGroup):
+    def __init__(
+        self,
+        limiter: BaseSemaphore | BaseCapacityLimiter,
+    ):
+        super().__init__()
+        self._limiter = limiter
+
+    def start_soon(
+        self,
+        func: Callable[[Unpack[PosArgsT]], Awaitable[Any]],
+        *args: Unpack[PosArgsT],
+        name: object = None,
+    ) -> None:
+        wrapped_func = wrap_in_limiter(func, self._limiter)
+        super().start_soon(wrapped_func, *args, name=name)
+
+    async def start(
+        self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
+    ) -> Any:
+        wrapped_func = wrap_in_limiter(func, self._limiter)
+        return await super().start(wrapped_func, *args, name=name)
 
 
 #
@@ -1042,6 +1067,12 @@ class TrioBackend(AsyncBackend):
     @classmethod
     def create_task_group(cls) -> abc.TaskGroup:
         return TaskGroup()
+
+    @classmethod
+    def create_bounded_task_group(
+        cls, limiter: BaseSemaphore | BaseCapacityLimiter
+    ) -> abc.BoundedTaskGroup:
+        return BoundedTaskGroup(limiter)
 
     @classmethod
     def create_event(cls) -> abc.Event:
