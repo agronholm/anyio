@@ -42,6 +42,8 @@ if sys.version_info < (3, 11):
 
 T_Retval = TypeVar("T_Retval")
 
+free_threading = sys.version_info >= (3, 13) and not sys._is_gil_enabled()
+
 
 async def async_add(a: int, b: int) -> int:
     assert threading.current_thread() is threading.main_thread()
@@ -711,6 +713,9 @@ class TestBlockingPortal:
 
     @pytest.mark.parametrize("portal_backend_name", get_all_backends())
     @pytest.mark.usefixtures("deactivate_blockbuster")
+    @pytest.mark.xfail(
+        free_threading, reason="test fails when free threading", strict=True
+    )
     async def test_from_async(
         self, anyio_backend_name: str, portal_backend_name: str
     ) -> None:

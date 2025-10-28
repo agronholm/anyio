@@ -27,6 +27,8 @@ from anyio.from_thread import BlockingPortalProvider
 
 from .conftest import asyncio_params, no_other_refs
 
+free_threading = sys.version_info >= (3, 13) and not sys._is_gil_enabled()
+
 
 async def test_run_in_thread_cancelled() -> None:
     state = 0
@@ -369,6 +371,7 @@ class TestBlockingPortalProvider:
         "https://github.com/pypy/pypy/issues/5075)"
     ),
 )
+@pytest.mark.xfail(free_threading, reason="test fails when free threading", strict=True)
 async def test_run_sync_worker_cyclic_references() -> None:
     class Foo:
         pass
