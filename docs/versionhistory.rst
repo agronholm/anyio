@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Keep GitHub Actions up to date with GitHub's Dependabot
+  (`#1017 <https://github.com/agronholm/anyio/pull/1017>`_; PR by @cclauss)
 - Added an asynchronous implementation of the ``functools`` module
   (`#1001 <https://github.com/agronholm/anyio/pull/1001>`_)
 - Added support for ``uvloop=True`` on Windows via the winloop_ implementation
