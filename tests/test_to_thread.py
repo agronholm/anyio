@@ -371,7 +371,9 @@ class TestBlockingPortalProvider:
         "https://github.com/pypy/pypy/issues/5075)"
     ),
 )
-@pytest.mark.xfail(free_threading, reason="test fails when free threading")
+@pytest.mark.xfail(
+    free_threading, reason="test fails when free threading", strict=False
+)
 async def test_run_sync_worker_cyclic_references() -> None:
     class Foo:
         pass
