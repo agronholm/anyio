@@ -66,16 +66,16 @@ jobs:
         include:
         - os: macos-latest
           python-version: "3.9"
-          extras: ["[trio]"]
+          extras: "[trio]"
         - os: macos-latest
           python-version: "3.14"
-          extras: ["[trio]"]
+          extras: "[trio]"
         - os: windows-latest
           python-version: "3.9"
-          extras: ["[trio]"]
+          extras: "[trio]"
         - os: windows-latest
           python-version: "3.14"
-          extras: ["[trio]"]
+          extras: "[trio]"
         - name: only asyncio
           os: ubuntu-latest
           python-version: "3.14"
