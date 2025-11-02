@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from typing import Any
 
 import pytest
@@ -666,9 +667,17 @@ class TestCapacityLimiter:
             "total_tokens must be an int or math.inf"
         )
 
-    async def test_bad_init_value(self) -> None:
-        pytest.raises(ValueError, CapacityLimiter, -1).match(
-            "total_tokens must be >= 0"
+    async def test_bad_init_value(self, anyio_backend_name: str) -> None:
+        # TODO: Remove this once Python 3.9 is dropped
+        if sys.version_info < (3, 10) and anyio_backend_name == "trio":
+            bad_value = 0
+            min_value = 1
+        else:
+            bad_value = -1
+            min_value = 0
+
+        pytest.raises(ValueError, CapacityLimiter, bad_value).match(
+            f"total_tokens must be >= {min_value}"
         )
 
     async def test_borrow(self) -> None:
