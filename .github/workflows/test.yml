@@ -62,7 +62,7 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14", pypy-3.11]
-        extras: ["trio"]
+        extras: ["[trio]"]
         include:
         - os: macos-latest
           python-version: "3.9"
@@ -94,7 +94,7 @@ jobs:
         cache: pip
         cache-dependency-path: pyproject.toml
     - name: Install the project and its dependencies
-      run: pip install --group test -e .[${{ matrix.extras }}]
+      run: pip install --group test -e .${{ matrix.extras }}
     - name: Patch /etc/hosts
       if: runner.os != 'Windows'
       run: |
