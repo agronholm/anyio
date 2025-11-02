@@ -66,13 +66,18 @@ jobs:
         include:
         - os: macos-latest
           python-version: "3.9"
+          extras: ["[trio]"]
         - os: macos-latest
           python-version: "3.14"
+          extras: ["[trio]"]
         - os: windows-latest
           python-version: "3.9"
+          extras: ["[trio]"]
         - os: windows-latest
           python-version: "3.14"
-        - os: ubuntu-latest
+          extras: ["[trio]"]
+        - name: only asyncio
+          os: ubuntu-latest
           python-version: "3.14"
           extras: ""
     runs-on: ${{ matrix.os }}
