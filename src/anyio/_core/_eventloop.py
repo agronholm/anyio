@@ -14,6 +14,12 @@ if sys.version_info >= (3, 11):
 else:
     from typing_extensions import TypeVarTuple, Unpack
 
+sniffio: Any
+try:
+    import sniffio
+except ModuleNotFoundError:
+    sniffio = None
+
 if TYPE_CHECKING:
     from ..abc import AsyncBackend
 
@@ -192,9 +198,7 @@ def get_async_backend(asynclib_name: str | None = None) -> type[AsyncBackend]:
 
 
 def current_async_library() -> str | None:
-    try:
-        import sniffio
-    except ModuleNotFoundError:
+    if sniffio is None:
         # If sniffio is not installed, we assume we're either running asyncio or nothing
         import asyncio
 
@@ -213,16 +217,13 @@ def current_async_library() -> str | None:
 
 
 def set_current_async_library(asynclib_name: str | None) -> Token | None:
-    try:
-        import sniffio
-    except ModuleNotFoundError:
-        return None  # no-op if sniffio is not installed
+    # no-op if sniffio is not installed
+    if sniffio is None:
+        return None
 
     return sniffio.current_async_library_cvar.set(asynclib_name)
 
 
 def reset_current_async_library(token: Token | None) -> None:
     if token is not None:
-        import sniffio
-
         sniffio.current_async_library_cvar.reset(token)
