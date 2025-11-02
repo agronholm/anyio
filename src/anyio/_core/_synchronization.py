@@ -540,6 +540,8 @@ class CapacityLimiter:
 
         .. versionchanged:: 3.0
             The property is now writable.
+        .. versionchanged:: 4.12
+            The value can now be set to 0.
 
         """
         raise NotImplementedError

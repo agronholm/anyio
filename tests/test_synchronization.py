@@ -667,7 +667,9 @@ class TestCapacityLimiter:
         )
 
     async def test_bad_init_value(self) -> None:
-        pytest.raises(ValueError, CapacityLimiter, 0).match("total_tokens must be >= 1")
+        pytest.raises(ValueError, CapacityLimiter, -1).match(
+            "total_tokens must be >= 0"
+        )
 
     async def test_borrow(self) -> None:
         limiter = CapacityLimiter(2)
