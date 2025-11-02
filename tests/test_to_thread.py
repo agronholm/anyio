@@ -11,7 +11,6 @@ from functools import partial
 from typing import Any, NoReturn
 
 import pytest
-import sniffio
 
 import anyio.to_thread
 from anyio import (
@@ -23,6 +22,7 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
+from anyio._core._eventloop import current_async_library
 from anyio.from_thread import BlockingPortalProvider
 
 from .conftest import asyncio_params, no_other_refs
@@ -157,8 +157,7 @@ async def test_contextvar_propagation() -> None:
 
 
 async def test_asynclib_detection() -> None:
-    with pytest.raises(sniffio.AsyncLibraryNotFoundError):
-        await to_thread.run_sync(sniffio.current_async_library)
+    assert await to_thread.run_sync(current_async_library) is None
 
 
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
@@ -307,7 +306,7 @@ class TestBlockingPortalProvider:
         threads: set[threading.Thread] = set()
 
         async def check_thread() -> None:
-            assert sniffio.current_async_library() == anyio_backend_name
+            assert current_async_library() == anyio_backend_name
             threads.add(threading.current_thread())
 
         active_threads_before = threading.active_count()
@@ -324,7 +323,7 @@ class TestBlockingPortalProvider:
         threads: set[threading.Thread] = set()
 
         async def check_thread() -> None:
-            assert sniffio.current_async_library() == anyio_backend_name
+            assert current_async_library() == anyio_backend_name
             threads.add(threading.current_thread())
 
         with provider as portal1:
@@ -343,7 +342,7 @@ class TestBlockingPortalProvider:
         event = Event()
 
         async def check_thread() -> None:
-            assert sniffio.current_async_library() == anyio_backend_name
+            assert current_async_library() == anyio_backend_name
             await event.wait()
             threads.add(threading.current_thread())
 

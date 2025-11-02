@@ -59,8 +59,6 @@ from typing import (
 )
 from weakref import WeakKeyDictionary
 
-import sniffio
-
 from .. import (
     CapacityLimiterStatistics,
     EventStatistics,
@@ -68,7 +66,11 @@ from .. import (
     TaskInfo,
     abc,
 )
-from .._core._eventloop import claim_worker_thread, threadlocals
+from .._core._eventloop import (
+    claim_worker_thread,
+    set_current_async_library,
+    threadlocals,
+)
 from .._core._exceptions import (
     BrokenResourceError,
     BusyResourceError,
@@ -2504,7 +2506,7 @@ class AsyncIOBackend(AsyncBackend):
                         expired_worker.stop()
 
                 context = copy_context()
-                context.run(sniffio.current_async_library_cvar.set, None)
+                context.run(set_current_async_library, None)
                 if abandon_on_cancel or scope._parent_scope is None:
                     worker_scope = scope
                 else:
@@ -2553,7 +2555,7 @@ class AsyncIOBackend(AsyncBackend):
             raise RunFinishedError
 
         context = copy_context()
-        context.run(sniffio.current_async_library_cvar.set, "asyncio")
+        context.run(set_current_async_library, "asyncio")
         scope = getattr(threadlocals, "current_cancel_scope", None)
         f: concurrent.futures.Future[T_Retval] = context.run(
             asyncio.run_coroutine_threadsafe, task_wrapper(), loop=loop
@@ -2570,7 +2572,7 @@ class AsyncIOBackend(AsyncBackend):
         @wraps(func)
         def wrapper() -> None:
             try:
-                sniffio.current_async_library_cvar.set("asyncio")
+                set_current_async_library("asyncio")
                 f.set_result(func(*args))
             except BaseException as exc:
                 f.set_exception(exc)
