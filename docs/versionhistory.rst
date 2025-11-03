@@ -16,7 +16,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#1019 <https://github.com/agronholm/anyio/pull/1019>`_; requires Python 3.10 or
   later when using Trio)
 - Dropped ``sniffio`` as a direct dependency and added the ``get_available_backends()``
-  function
+  function (`#1021 <https://github.com/agronholm/anyio/pull/1021>`_)
 - Fixed ``Process.stdin.send()`` not raising ``ClosedResourceError`` and
   ``BrokenResourceError`` on asyncio. Previously, a non-AnyIO exception was raised in
   such cases (`#671 <https://github.com/agronholm/anyio/issues/671>`_; PR by
