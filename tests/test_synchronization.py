@@ -680,6 +680,13 @@ class TestCapacityLimiter:
             f"total_tokens must be >= {min_value}"
         )
 
+    async def test_zero_tokens(self, anyio_backend_name: str) -> None:
+        if sys.version_info < (3, 10) and anyio_backend_name == "trio":
+            pytest.skip("Trio does not support zero-capacity limiters on Python 3.9")
+
+        limiter = CapacityLimiter(0)
+        assert limiter.total_tokens == 0
+
     async def test_borrow(self) -> None:
         limiter = CapacityLimiter(2)
         assert limiter.total_tokens == 2

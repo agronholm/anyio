@@ -1989,7 +1989,8 @@ class CapacityLimiter(BaseCapacityLimiter):
     def total_tokens(self, value: float) -> None:
         if not isinstance(value, int) and not math.isinf(value):
             raise TypeError("total_tokens must be an int or math.inf")
-        if value < 1:
+
+        if value < 0:
             raise ValueError("total_tokens must be >= 0")
 
         waiters_to_notify = max(value - self._total_tokens, 0)
