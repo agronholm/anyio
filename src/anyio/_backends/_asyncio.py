@@ -1061,9 +1061,21 @@ def _forcibly_shutdown_process_pool_on_exit(
     Forcibly shuts down worker processes belonging to this event loop."""
     child_watcher: asyncio.AbstractChildWatcher | None
     try:
-        child_watcher = asyncio.get_event_loop_policy().get_child_watcher()
-    except NotImplementedError:
+        policy = asyncio.get_event_loop_policy()
+        if hasattr(policy, "get_child_watcher"):
+            child_watcher = policy.get_child_watcher()
+    except (AttributeError, NotImplementedError):
         child_watcher = None
+
+    # If watcher still exists, make remove_child_handler safe
+    def _safe_remove(pid: int) -> None:
+        if not child_watcher:
+            return
+        try:
+            if hasattr(child_watcher, "remove_child_handler"):
+                child_watcher.remove_child_handler(pid)
+        except Exception:
+            pass
 
     # Close as much as possible (w/o async/await) to avoid warnings
     for process in workers:
@@ -1076,6 +1088,7 @@ def _forcibly_shutdown_process_pool_on_exit(
         process.kill()
         if child_watcher:
             child_watcher.remove_child_handler(process.pid)
+        _safe_remove(process.pid)
 
 
 async def _shutdown_process_pool_on_exit(workers: set[Process]) -> None:

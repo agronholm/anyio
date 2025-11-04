@@ -506,7 +506,14 @@ class Path:
         return await to_thread.run_sync(self._path.read_text, encoding, errors)
 
     def relative_to(self, *other: str | PathLike[str]) -> Path:
-        return Path(self._path.relative_to(*other))
+        # Python 3.14 compatibility: pathlib.PurePath.relative_to no longer accepts multiple arguments
+        if len(other) == 1:
+            rel = self._path.relative_to(other[0])
+        else:
+            rel = self._path
+            for p in other:
+                rel = rel.relative_to(p)
+        return Path(rel)
 
     async def readlink(self) -> Path:
         target = await to_thread.run_sync(os.readlink, self._path)
