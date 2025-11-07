@@ -6,6 +6,7 @@ Event loop
 
 .. autofunction:: anyio.run
 .. autofunction:: anyio.get_all_backends
+.. autofunction:: anyio.get_available_backends
 .. autofunction:: anyio.get_cancelled_exc_class
 .. autofunction:: anyio.sleep
 .. autofunction:: anyio.sleep_forever

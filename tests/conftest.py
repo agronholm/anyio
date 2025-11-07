@@ -10,10 +10,12 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import Mock
 
 import pytest
-import sniffio
 import trustme
 from _pytest.fixtures import SubRequest
 from trustme import CA
+
+from anyio import get_all_backends, get_available_backends
+from anyio._core._eventloop import current_async_library
 
 if TYPE_CHECKING:
     from blockbuster import BlockBuster
@@ -66,6 +68,24 @@ if sys.version_info >= (3, 12):
         ),
     )
 
+backend_params = asyncio_params.copy()
+available_backends = set(get_available_backends())
+for backend_name in get_all_backends():
+    if backend_name == "asyncio":
+        continue
+
+    backend_params.append(
+        pytest.param(
+            backend_name,
+            marks=[
+                pytest.mark.skipif(
+                    backend_name not in available_backends,
+                    reason=f"{backend_name} is not available",
+                )
+            ],
+        )
+    )
+
 
 @pytest.fixture(autouse=True)
 def blockbuster() -> Iterator[BlockBuster | None]:
@@ -95,7 +115,7 @@ def deactivate_blockbuster(blockbuster: BlockBuster | None) -> None:
         blockbuster.deactivate()
 
 
-@pytest.fixture(params=[*asyncio_params, pytest.param("trio")])
+@pytest.fixture(params=backend_params)
 def anyio_backend(request: SubRequest) -> tuple[str, dict[str, Any]]:
     return request.param
 
@@ -160,12 +180,7 @@ else:
 
 @pytest.fixture
 async def event_loop_implementation_name() -> str | None:
-    try:
-        name = sniffio.current_async_library()
-    except sniffio.AsyncLibraryNotFoundError:
-        return None
-
-    if name == "asyncio":
+    if (name := current_async_library()) == "asyncio":
         return asyncio.get_running_loop().__module__
 
     return name
