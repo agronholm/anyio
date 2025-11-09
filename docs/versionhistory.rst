@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added support for asyncio's `task call graphs`_ on Python 3.14 and later when using
+  AnyIO's task groups
 - Added an asynchronous implementation of the ``functools`` module
   (`#1001 <https://github.com/agronholm/anyio/pull/1001>`_)
 - Added support for ``uvloop=True`` on Windows via the winloop_ implementation
@@ -27,6 +29,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``BlockingPortal.start_task_soon()`` would sometimes not cancel the async function
   (`#1011 <https://github.com/agronholm/anyio/issues/1011>`_; PR by @gschaffner)
 
+.. _task call graphs: https://docs.python.org/3/library/asyncio-graph.html
 .. _winloop: https://github.com/Vizonex/Winloop
 
 **4.11.0**
