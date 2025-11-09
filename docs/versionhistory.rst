@@ -7,6 +7,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added support for asyncio's `task call graphs`_ on Python 3.14 and later when using
   AnyIO's task groups
+  (`#1025 <https://github.com/agronholm/anyio/pull/1025>`_)
 - Added an asynchronous implementation of the ``functools`` module
   (`#1001 <https://github.com/agronholm/anyio/pull/1001>`_)
 - Added support for ``uvloop=True`` on Windows via the winloop_ implementation
