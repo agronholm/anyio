@@ -1835,6 +1835,9 @@ async def test_asyncio_call_graph(native: bool) -> None:
         nonlocal graph
 
         if depth == 2:
+            # The checkpoint is a workaround for eager factories where call graph
+            # capturing doesn't work before the first yield
+            await checkpoint()
             graph = asyncio.capture_call_graph(asyncio.current_task(), depth=depth)
             return
 
