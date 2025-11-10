@@ -10,7 +10,12 @@ from types import TracebackType
 from typing import TypeVar
 
 from ..lowlevel import checkpoint_if_cancelled
-from ._eventloop import NoCurrentAsyncBackend, current_time, get_async_backend, sleep_until
+from ._eventloop import (
+    NoCurrentAsyncBackend,
+    current_time,
+    get_async_backend,
+    sleep_until,
+)
 from ._exceptions import BusyResourceError
 from ._tasks import CancelScope
 from ._testing import TaskInfo, get_current_task
