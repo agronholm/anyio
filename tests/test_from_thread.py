@@ -12,7 +12,6 @@ from contextvars import ContextVar
 from typing import Any, Literal, NoReturn, TypeVar
 
 import pytest
-import sniffio
 from _pytest.logging import LogCaptureFixture
 
 from anyio import (
@@ -22,7 +21,7 @@ from anyio import (
     create_task_group,
     fail_after,
     from_thread,
-    get_all_backends,
+    get_available_backends,
     get_cancelled_exc_class,
     get_current_task,
     run,
@@ -272,6 +271,8 @@ class TestRunAsyncFromThread:
         assert await to_thread.run_sync(worker) == 6
 
     async def test_sniffio(self, anyio_backend_name: str) -> None:
+        sniffio = pytest.importorskip("sniffio", reason="sniffio is not installed")
+
         async def async_func() -> str:
             return sniffio.current_async_library()
 
@@ -328,6 +329,8 @@ class TestRunSyncFromThread:
         assert await to_thread.run_sync(worker) == 6
 
     async def test_sniffio(self, anyio_backend_name: str) -> None:
+        sniffio = pytest.importorskip("sniffio")
+
         def worker() -> str:
             sniffio.current_async_library_cvar.set("something invalid for async_func")
             return from_thread.run_sync(sniffio.current_async_library)
@@ -709,7 +712,7 @@ class TestBlockingPortal:
 
             assert exc.value.__context__ is None
 
-    @pytest.mark.parametrize("portal_backend_name", get_all_backends())
+    @pytest.mark.parametrize("portal_backend_name", get_available_backends())
     @pytest.mark.usefixtures("deactivate_blockbuster")
     async def test_from_async(
         self, anyio_backend_name: str, portal_backend_name: str

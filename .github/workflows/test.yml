@@ -15,10 +15,10 @@ jobs:
       tests-changed: ${{ steps.changed-files.outputs.tests_any_changed }}
       docs-changed: ${{ steps.changed-files.outputs.doc_any_changed }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Get changed files by category
       id: changed-files
-      uses: tj-actions/changed-files@v46
+      uses: tj-actions/changed-files@v47
       with:
         files_yaml: |
           workflow:
@@ -42,9 +42,9 @@ jobs:
         || (needs.changed-files.outputs.src-changed == 'true')
       }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: 3.x
     - uses: actions/cache@v4
@@ -62,15 +62,24 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14", pypy-3.11]
+        extras: ["[trio]"]
         include:
         - os: macos-latest
           python-version: "3.9"
+          extras: "[trio]"
         - os: macos-latest
           python-version: "3.14"
+          extras: "[trio]"
         - os: windows-latest
           python-version: "3.9"
+          extras: "[trio]"
         - os: windows-latest
           python-version: "3.14"
+          extras: "[trio]"
+        - name: only asyncio
+          os: ubuntu-latest
+          python-version: "3.14"
+          extras: ""
     runs-on: ${{ matrix.os }}
     needs: changed-files
     if: |
@@ -81,16 +90,16 @@ jobs:
         || (needs.changed-files.outputs.tests-changed == 'true')
       }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
         allow-prereleases: true
         cache: pip
         cache-dependency-path: pyproject.toml
     - name: Install the project and its dependencies
-      run: pip install --group test -e .
+      run: pip install --group test -e .${{ matrix.extras }}
     - name: Patch /etc/hosts
       if: runner.os != 'Windows'
       run: |
@@ -125,9 +134,9 @@ jobs:
         || (needs.changed-files.outputs.docs-changed == 'true')
       }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: "3.11"
         cache: pip

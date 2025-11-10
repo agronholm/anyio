@@ -7,17 +7,27 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added the ``RateLimiter`` synchronization primitive for enforcing time-limited rate on
   operations
+- Added an asynchronous implementation of the ``functools`` module
+  (`#1001 <https://github.com/agronholm/anyio/pull/1001>`_)
 - Added support for ``uvloop=True`` on Windows via the winloop_ implementation
   (`#960 <https://github.com/agronholm/anyio/pull/960>`_; PR by @Vizonex)
 - Added support for use as a context manager to ``anyio.lowlevel.RunVar``
 - Added ``__all__`` declarations to public submodules (``anyio.lowlevel`` etc.)
   (`#1009 <https://github.com/agronholm/anyio/pull/1009>`_)
+- Added the ability to set the token count of a ``CapacityLimiter`` to zero
+  (`#1019 <https://github.com/agronholm/anyio/pull/1019>`_; requires Python 3.10 or
+  later when using Trio)
+- Dropped ``sniffio`` as a direct dependency and added the ``get_available_backends()``
+  function (`#1021 <https://github.com/agronholm/anyio/pull/1021>`_)
 - Fixed ``Process.stdin.send()`` not raising ``ClosedResourceError`` and
   ``BrokenResourceError`` on asyncio. Previously, a non-AnyIO exception was raised in
   such cases (`#671 <https://github.com/agronholm/anyio/issues/671>`_; PR by
   @gschaffner)
 - Fixed ``Process.stdin.send()`` not checkpointing before writing data on asyncio
   (`#1002 <https://github.com/agronholm/anyio/issues/1002>`_; PR by @gschaffner)
+- Fixed a race condition where cancelling a ``Future`` from
+  ``BlockingPortal.start_task_soon()`` would sometimes not cancel the async function
+  (`#1011 <https://github.com/agronholm/anyio/issues/1011>`_; PR by @gschaffner)
 
 .. _winloop: https://github.com/Vizonex/Winloop
 

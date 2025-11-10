@@ -541,3 +541,9 @@ method pairs with a single method where you write your logic just like with
 .. seealso:: :doc:`contextmanagers`
 
 .. _Trio: https://github.com/python-trio/trio
+
+Asynchronous functools
+----------------------
+
+The :mod:`functools` module does not support coroutine functions, so AnyIO offers its
+own version that does. See :ref:`async-functools` for the list of implemented functions.

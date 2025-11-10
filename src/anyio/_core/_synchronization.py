@@ -9,10 +9,8 @@ from datetime import timedelta
 from types import TracebackType
 from typing import TypeVar
 
-from sniffio import AsyncLibraryNotFoundError
-
 from ..lowlevel import checkpoint_if_cancelled
-from ._eventloop import current_time, get_async_backend, sleep_until
+from ._eventloop import NoCurrentAsyncBackend, current_time, get_async_backend, sleep_until
 from ._exceptions import BusyResourceError
 from ._tasks import CancelScope
 from ._testing import TaskInfo, get_current_task
@@ -104,7 +102,7 @@ class Event:
     def __new__(cls) -> Event:
         try:
             return get_async_backend().create_event()
-        except AsyncLibraryNotFoundError:
+        except NoCurrentAsyncBackend:
             return EventAdapter()
 
     def set(self) -> None:
@@ -172,7 +170,7 @@ class Lock:
     def __new__(cls, *, fast_acquire: bool = False) -> Lock:
         try:
             return get_async_backend().create_lock(fast_acquire=fast_acquire)
-        except AsyncLibraryNotFoundError:
+        except NoCurrentAsyncBackend:
             return LockAdapter(fast_acquire=fast_acquire)
 
     async def __aenter__(self) -> None:
@@ -399,7 +397,7 @@ class Semaphore:
             return get_async_backend().create_semaphore(
                 initial_value, max_value=max_value, fast_acquire=fast_acquire
             )
-        except AsyncLibraryNotFoundError:
+        except NoCurrentAsyncBackend:
             return SemaphoreAdapter(initial_value, max_value=max_value)
 
     def __init__(
@@ -534,7 +532,7 @@ class CapacityLimiter:
     def __new__(cls, total_tokens: float) -> CapacityLimiter:
         try:
             return get_async_backend().create_capacity_limiter(total_tokens)
-        except AsyncLibraryNotFoundError:
+        except NoCurrentAsyncBackend:
             return CapacityLimiterAdapter(total_tokens)
 
     async def __aenter__(self) -> None:
@@ -559,6 +557,8 @@ class CapacityLimiter:
 
         .. versionchanged:: 3.0
             The property is now writable.
+        .. versionchanged:: 4.12
+            The value can now be set to 0.
 
         """
         raise NotImplementedError
