@@ -12,6 +12,7 @@ import sys
 import tempfile
 import threading
 import time
+import warnings
 from collections.abc import Generator, Iterable, Iterator
 from contextlib import suppress
 from ipaddress import IPv4Address, IPv6Address
@@ -143,8 +144,11 @@ def check_asyncio_bug(anyio_backend_name: str, family: AnyIPAddressFamily) -> No
     ):
         import asyncio
 
-        policy = asyncio.get_event_loop_policy()
-        if policy.__class__.__name__ == "WindowsProactorEventLoopPolicy":
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            policy = asyncio.get_event_loop_policy()
+
+        if policy.__class__.__name__.endswith("WindowsProactorEventLoopPolicy"):
             pytest.skip("Does not work due to a known bug (39148)")
 
 

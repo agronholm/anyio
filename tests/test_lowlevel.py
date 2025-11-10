@@ -137,3 +137,13 @@ class TestRunVar:
 
         assert var1.get() == 2
         assert var2.get() == "b"
+
+    async def test_context_manager(self) -> None:
+        var = RunVar[int]("var", default=3)
+        with var.set(4):
+            with var.set(5):
+                assert var.get() == 5
+
+            assert var.get() == 4
+
+        assert var.get() == 3

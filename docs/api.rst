@@ -6,6 +6,7 @@ Event loop
 
 .. autofunction:: anyio.run
 .. autofunction:: anyio.get_all_backends
+.. autofunction:: anyio.get_available_backends
 .. autofunction:: anyio.get_cancelled_exc_class
 .. autofunction:: anyio.sleep
 .. autofunction:: anyio.sleep_forever
@@ -206,6 +207,15 @@ Operating system signals
 ------------------------
 
 .. autofunction:: anyio.open_signal_receiver
+
+.. _async-functools:
+
+Asynchronous functools
+----------------------
+
+.. autofunction:: anyio.functools.cache
+.. autofunction:: anyio.functools.lru_cache
+.. autofunction:: anyio.functools.reduce
 
 Low level operations
 --------------------

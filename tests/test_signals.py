@@ -14,6 +14,10 @@ pytestmark = [
         sys.platform == "win32",
         reason="Signal delivery cannot be tested on Windows",
     ),
+    # Workaround for https://github.com/MagicStack/uvloop/issues/703
+    pytest.mark.filterwarnings(
+        "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning"
+    ),
 ]
 
 

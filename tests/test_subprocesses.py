@@ -10,11 +10,12 @@ from textwrap import dedent
 from typing import Any
 
 import pytest
-from pytest import FixtureRequest
 
 from anyio import (
+    BrokenResourceError,
     CancelScope,
     ClosedResourceError,
+    EndOfStream,
     create_task_group,
     open_process,
     run_process,
@@ -236,10 +237,7 @@ async def test_process_aexit_cancellation_doesnt_orphan_process() -> None:
     assert process.returncode != 0
 
 
-async def test_process_aexit_cancellation_closes_standard_streams(
-    request: FixtureRequest,
-    anyio_backend_name: str,
-) -> None:
+async def test_process_aexit_cancellation_closes_standard_streams() -> None:
     """
     Regression test for #669.
 
@@ -248,12 +246,6 @@ async def test_process_aexit_cancellation_closes_standard_streams(
     closed stream.
 
     """
-    if anyio_backend_name == "asyncio":
-        # Avoid pytest.xfail here due to https://github.com/pytest-dev/pytest/issues/9027
-        request.node.add_marker(
-            pytest.mark.xfail(reason="#671 needs to be resolved first")
-        )
-
     with CancelScope() as scope:
         async with await open_process(
             [sys.executable, "-c", "import time; time.sleep(1)"]
@@ -271,6 +263,48 @@ async def test_process_aexit_cancellation_closes_standard_streams(
         await process.stdout.receive(1)
 
     assert process.stderr is not None
+
+    with pytest.raises(ClosedResourceError):
+        await process.stderr.receive(1)
+
+
+async def test_exceptions_after_subprocess_closes_standard_streams() -> None:
+    async with await open_process([sys.executable, "-c", ""]) as process:
+        await process.wait()
+        assert process.stdin is not None
+        assert process.stderr is not None
+        assert process.stdout is not None
+        with pytest.raises(BrokenResourceError):
+            # * On Trio, stdin.send() will always raise if the peer's end of the pipe is
+            #   closed.
+            # * On asyncio, even though process.wait() finished, some event loop
+            #   implementations do not yet inform us that the peer's end of the pipe is
+            #   closed; the event loop needs to run some rounds of callbacks before it
+            #   will get that information to us. In particular:
+            #   * On stdlib asyncio, stdin.send() will now always raise
+            #     BrokenResourceError.
+            #   * On uvloop, the second stdin.send() will raise BrokenResourceError.
+            #   * On Winloop 0.3.0, the third stdin.send() will raise
+            #     BrokenResourceError. The second also might, but it depends on
+            #     scheduling order.
+            #   * On Winloop 0.3.1, the second stdin() will raise BrokenResourceError.
+            for _ in range(3):
+                await process.stdin.send(b"foo")
+
+        with pytest.raises(BrokenResourceError):
+            await process.stdin.send(b"foo")
+
+        with pytest.raises(EndOfStream):
+            await process.stdout.receive(1)
+
+        with pytest.raises(EndOfStream):
+            await process.stderr.receive(1)
+
+    with pytest.raises(ClosedResourceError):
+        await process.stdin.send(b"foo")
+
+    with pytest.raises(ClosedResourceError):
+        await process.stdout.receive(1)
 
     with pytest.raises(ClosedResourceError):
         await process.stderr.receive(1)

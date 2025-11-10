@@ -5,15 +5,20 @@ import sys
 import threading
 from collections.abc import Awaitable, Callable, Generator
 from contextlib import contextmanager
+from contextvars import Token
 from importlib import import_module
 from typing import TYPE_CHECKING, Any, TypeVar
-
-import sniffio
 
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
 else:
     from typing_extensions import TypeVarTuple, Unpack
+
+sniffio: Any
+try:
+    import sniffio
+except ModuleNotFoundError:
+    sniffio = None
 
 if TYPE_CHECKING:
     from ..abc import AsyncBackend
@@ -51,11 +56,7 @@ def run(
     :raises LookupError: if the named backend is not found
 
     """
-    try:
-        asynclib_name = sniffio.current_async_library()
-    except sniffio.AsyncLibraryNotFoundError:
-        pass
-    else:
+    if asynclib_name := current_async_library():
         raise RuntimeError(f"Already running {asynclib_name} in this thread")
 
     try:
@@ -64,17 +65,16 @@ def run(
         raise LookupError(f"No such backend: {backend}") from exc
 
     token = None
-    if sniffio.current_async_library_cvar.get(None) is None:
+    if asynclib_name is None:
         # Since we're in control of the event loop, we can cache the name of the async
         # library
-        token = sniffio.current_async_library_cvar.set(backend)
+        token = set_current_async_library(backend)
 
     try:
         backend_options = backend_options or {}
         return async_backend.run(func, args, {}, backend_options)
     finally:
-        if token:
-            sniffio.current_async_library_cvar.reset(token)
+        reset_current_async_library(token)
 
 
 async def sleep(delay: float) -> None:
@@ -128,6 +128,27 @@ def get_all_backends() -> tuple[str, ...]:
     return BACKENDS
 
 
+def get_available_backends() -> tuple[str, ...]:
+    """
+    Test for the availability of built-in backends.
+
+    :return a tuple of the built-in backend names that were successfully imported
+
+    .. versionadded:: 4.12
+
+    """
+    available_backends: list[str] = []
+    for backend_name in get_all_backends():
+        try:
+            get_async_backend(backend_name)
+        except ImportError:
+            continue
+
+        available_backends.append(backend_name)
+
+    return tuple(available_backends)
+
+
 def get_cancelled_exc_class() -> type[BaseException]:
     """Return the current async library's cancellation exception class."""
     return get_async_backend().cancelled_exception_class()
@@ -151,9 +172,19 @@ def claim_worker_thread(
         del threadlocals.current_token
 
 
+class NoCurrentAsyncBackend(Exception):
+    def __init__(self) -> None:
+        super().__init__(
+            f"Not currently running on any asynchronous event loop"
+            f"Available async backends: {', '.join(get_all_backends())}"
+        )
+
+
 def get_async_backend(asynclib_name: str | None = None) -> type[AsyncBackend]:
     if asynclib_name is None:
-        asynclib_name = sniffio.current_async_library()
+        asynclib_name = current_async_library()
+        if not asynclib_name:
+            raise NoCurrentAsyncBackend
 
     # We use our own dict instead of sys.modules to get the already imported back-end
     # class because the appropriate modules in sys.modules could potentially be only
@@ -164,3 +195,35 @@ def get_async_backend(asynclib_name: str | None = None) -> type[AsyncBackend]:
         module = import_module(f"anyio._backends._{asynclib_name}")
         loaded_backends[asynclib_name] = module.backend_class
         return module.backend_class
+
+
+def current_async_library() -> str | None:
+    if sniffio is None:
+        # If sniffio is not installed, we assume we're either running asyncio or nothing
+        import asyncio
+
+        try:
+            asyncio.get_running_loop()
+            return "asyncio"
+        except RuntimeError:
+            pass
+    else:
+        try:
+            return sniffio.current_async_library()
+        except sniffio.AsyncLibraryNotFoundError:
+            pass
+
+    return None
+
+
+def set_current_async_library(asynclib_name: str | None) -> Token | None:
+    # no-op if sniffio is not installed
+    if sniffio is None:
+        return None
+
+    return sniffio.current_async_library_cvar.set(asynclib_name)
+
+
+def reset_current_async_library(token: Token | None) -> None:
+    if token is not None:
+        sniffio.current_async_library_cvar.reset(token)

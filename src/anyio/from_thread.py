@@ -1,5 +1,14 @@
 from __future__ import annotations
 
+__all__ = (
+    "BlockingPortal",
+    "BlockingPortalProvider",
+    "check_cancelled",
+    "run",
+    "run_sync",
+    "start_blocking_portal",
+)
+
 import sys
 from collections.abc import Awaitable, Callable, Generator
 from concurrent.futures import Future
@@ -234,21 +243,17 @@ class BlockingPortal:
         future: Future[T_Retval],
     ) -> None:
         def callback(f: Future[T_Retval]) -> None:
-            if f.cancelled() and self._event_loop_thread_id not in (
-                None,
-                get_ident(),
-            ):
-                self.call(scope.cancel, "the future was cancelled")
+            if f.cancelled():
+                if self._event_loop_thread_id == get_ident():
+                    scope.cancel("the future was cancelled")
+                elif self._event_loop_thread_id is not None:
+                    self.call(scope.cancel, "the future was cancelled")
 
         try:
             retval_or_awaitable = func(*args, **kwargs)
             if isawaitable(retval_or_awaitable):
                 with CancelScope() as scope:
-                    if future.cancelled():
-                        scope.cancel("the future was cancelled")
-                    else:
-                        future.add_done_callback(callback)
-
+                    future.add_done_callback(callback)
                     retval = await retval_or_awaitable
             else:
                 retval = retval_or_awaitable

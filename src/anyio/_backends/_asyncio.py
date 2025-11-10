@@ -34,7 +34,7 @@ from collections.abc import (
 from concurrent.futures import Future
 from contextlib import AbstractContextManager, suppress
 from contextvars import Context, copy_context
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial, wraps
 from inspect import (
     CORO_RUNNING,
@@ -59,8 +59,6 @@ from typing import (
 )
 from weakref import WeakKeyDictionary
 
-import sniffio
-
 from .. import (
     CapacityLimiterStatistics,
     EventStatistics,
@@ -68,7 +66,11 @@ from .. import (
     TaskInfo,
     abc,
 )
-from .._core._eventloop import claim_worker_thread, threadlocals
+from .._core._eventloop import (
+    claim_worker_thread,
+    set_current_async_library,
+    threadlocals,
+)
 from .._core._exceptions import (
     BrokenResourceError,
     BusyResourceError,
@@ -151,18 +153,18 @@ else:
 
         def __exit__(
             self,
-            exc_type: type[BaseException],
-            exc_val: BaseException,
-            exc_tb: TracebackType,
+            exc_type: type[BaseException] | None,
+            exc_val: BaseException | None,
+            exc_tb: TracebackType | None,
         ) -> None:
             self.close()
 
         def close(self) -> None:
             """Shutdown and close event loop."""
-            if self._state is not _State.INITIALIZED:
+            loop = self._loop
+            if self._state is not _State.INITIALIZED or loop is None:
                 return
             try:
-                loop = self._loop
                 _cancel_all_tasks(loop)
                 loop.run_until_complete(loop.shutdown_asyncgens())
                 if hasattr(loop, "shutdown_default_executor"):
@@ -1052,12 +1054,30 @@ class StreamReaderWrapper(abc.ByteReceiveStream):
 @dataclass(eq=False)
 class StreamWriterWrapper(abc.ByteSendStream):
     _stream: asyncio.StreamWriter
+    _closed: bool = field(init=False, default=False)
 
     async def send(self, item: bytes) -> None:
-        self._stream.write(item)
-        await self._stream.drain()
+        await AsyncIOBackend.checkpoint_if_cancelled()
+        stream_paused = self._stream._protocol._paused  # type: ignore[attr-defined]
+        try:
+            self._stream.write(item)
+            await self._stream.drain()
+        except (ConnectionResetError, BrokenPipeError, RuntimeError) as exc:
+            # If closed by us and/or the peer:
+            # * on stdlib, drain() raises ConnectionResetError or BrokenPipeError
+            # * on uvloop and Winloop, write() eventually starts raising RuntimeError
+            if self._closed:
+                raise ClosedResourceError from exc
+            elif self._stream.is_closing():
+                raise BrokenResourceError from exc
+
+            raise
+
+        if not stream_paused:
+            await AsyncIOBackend.cancel_shielded_checkpoint()
 
     async def aclose(self) -> None:
+        self._closed = True
         self._stream.close()
         await AsyncIOBackend.checkpoint()
 
@@ -1599,8 +1619,8 @@ class UDPSocket(abc.UDPSocket):
         return self._transport.get_extra_info("socket")
 
     async def aclose(self) -> None:
+        self._closed = True
         if not self._transport.is_closing():
-            self._closed = True
             self._transport.close()
 
     async def receive(self) -> tuple[bytes, IPSockAddrType]:
@@ -1647,8 +1667,8 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
         return self._transport.get_extra_info("socket")
 
     async def aclose(self) -> None:
+        self._closed = True
         if not self._transport.is_closing():
-            self._closed = True
             self._transport.close()
 
     async def receive(self) -> bytes:
@@ -1971,8 +1991,9 @@ class CapacityLimiter(BaseCapacityLimiter):
     def total_tokens(self, value: float) -> None:
         if not isinstance(value, int) and not math.isinf(value):
             raise TypeError("total_tokens must be an int or math.inf")
-        if value < 1:
-            raise ValueError("total_tokens must be >= 1")
+
+        if value < 0:
+            raise ValueError("total_tokens must be >= 0")
 
         waiters_to_notify = max(value - self._total_tokens, 0)
         self._total_tokens = value
@@ -2485,7 +2506,7 @@ class AsyncIOBackend(AsyncBackend):
                         expired_worker.stop()
 
                 context = copy_context()
-                context.run(sniffio.current_async_library_cvar.set, None)
+                context.run(set_current_async_library, None)
                 if abandon_on_cancel or scope._parent_scope is None:
                     worker_scope = scope
                 else:
@@ -2534,7 +2555,7 @@ class AsyncIOBackend(AsyncBackend):
             raise RunFinishedError
 
         context = copy_context()
-        context.run(sniffio.current_async_library_cvar.set, "asyncio")
+        context.run(set_current_async_library, "asyncio")
         scope = getattr(threadlocals, "current_cancel_scope", None)
         f: concurrent.futures.Future[T_Retval] = context.run(
             asyncio.run_coroutine_threadsafe, task_wrapper(), loop=loop
@@ -2551,7 +2572,7 @@ class AsyncIOBackend(AsyncBackend):
         @wraps(func)
         def wrapper() -> None:
             try:
-                sniffio.current_async_library_cvar.set("asyncio")
+                set_current_async_library("asyncio")
                 f.set_result(func(*args))
             except BaseException as exc:
                 f.set_exception(exc)
