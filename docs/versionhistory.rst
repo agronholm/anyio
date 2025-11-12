@@ -27,6 +27,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed a race condition where cancelling a ``Future`` from
   ``BlockingPortal.start_task_soon()`` would sometimes not cancel the async function
   (`#1011 <https://github.com/agronholm/anyio/issues/1011>`_; PR by @gschaffner)
+- Fixed regression caused by (`#971 <https://github.com/agronholm/anyio/pull/971>`_) breaking compatibility with pytest<=6.1.2 (`#1028 <https://github.com/agronholm/anyio/issues/1028>`_; PR by @saper)
 
 .. _winloop: https://github.com/Vizonex/Winloop
 
