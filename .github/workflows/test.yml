@@ -62,34 +62,28 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14", pypy-3.11]
-        extras: ["[trio]"]
-        lowest_bound: [false]
+        uv-options: ["--extra trio"]
         include:
         - os: macos-latest
           python-version: "3.9"
-          extras: "[trio]"
-          lowest_bound: false
+          uv-options: "--extra trio"
         - os: macos-latest
           python-version: "3.14"
-          extras: "[trio]"
-          lowest_bound: false
+          uv-options: "--extra trio"
         - os: windows-latest
           python-version: "3.9"
-          extras: "[trio]"
-          lowest_bound: false
+          uv-options: "--extra trio"
         - os: windows-latest
           python-version: "3.14"
-          extras: "[trio]"
-          lowest_bound: false
+          uv-options: "--extra trio"
         - name: only asyncio
           os: ubuntu-latest
           python-version: "3.14"
-          extras: ""
-          lowest_bound: false
+          uv-options: "--extra trio"
         - name: oldest dependencies
           os: ubuntu-latest
           python-version: "3.9"
-          lowest_bound: true
+          uv-options: "--extra trio --resolution lowest-direct"
     runs-on: ${{ matrix.os }}
     needs: changed-files
     if: |
@@ -108,14 +102,6 @@ jobs:
         allow-prereleases: true
         cache: pip
         cache-dependency-path: pyproject.toml
-    - name: Install the project and its dependencies
-      if: matrix.lowest_bound == false
-      run: pip install --group test -e .${{ matrix.extras }}
-    - name: Install the project and its dependencies (lowest bound)
-      if: matrix.lowest_bound == true
-      run: |
-        pip install uv
-        uv sync --resolution lowest-direct --group test --extra trio
     - name: Patch /etc/hosts
       if: runner.os != 'Windows'
       run: |
@@ -126,13 +112,15 @@ jobs:
       run: |
         Add-Content -Path C:\Windows\System32\drivers\etc\hosts -Value "1.2.3.4 xn--fa-hia.de"
         Add-Content -Path C:\Windows\System32\drivers\etc\hosts -Value "5.6.7.8 fass.de"
+    - name: Install uv
+      run: pip install uv
     - name: Test with pytest
-      run: coverage run -m pytest -v
+      run: uv run --group test ${{ matrix.uv-options }} coverage run -m pytest -v
       timeout-minutes: 5
       env:
         PYTEST_DISABLE_PLUGIN_AUTOLOAD: 1
     - name: Generate coverage report
-      run: coverage xml
+      run: uv run coverage xml
     - name: Upload Coverage
       uses: coverallsapp/github-action@v2
       with:
