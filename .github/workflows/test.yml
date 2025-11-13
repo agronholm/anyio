@@ -116,7 +116,7 @@ jobs:
       if: matrix.lowest_bound == true
       run: |
         pip install uv
-        uv sync --resolution lowest-direct --no-group doc
+        uv sync --resolution lowest-direct --group test
     - name: Patch /etc/hosts
       if: runner.os != 'Windows'
       run: |
