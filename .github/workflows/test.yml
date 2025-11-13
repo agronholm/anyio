@@ -63,6 +63,7 @@ jobs:
         os: [ubuntu-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14", pypy-3.11]
         extras: ["[trio]"]
+        lowest_bound: [false]
         include:
         - os: macos-latest
           python-version: "3.9"
@@ -80,6 +81,10 @@ jobs:
           os: ubuntu-latest
           python-version: "3.14"
           extras: ""
+        - name: oldest dependencies
+          os: ubuntu-latest
+          python-version: "3.9"
+          extras: "[trio]"
     runs-on: ${{ matrix.os }}
     needs: changed-files
     if: |
@@ -99,7 +104,11 @@ jobs:
         cache: pip
         cache-dependency-path: pyproject.toml
     - name: Install the project and its dependencies
+      if: not lowest_bound
       run: pip install --group test -e .${{ matrix.extras }}
+    - name: Install the project and its dependencies (lowest bound)
+      if: not lowest_bound
+      run: uv sync --resolution lowest-direct
     - name: Patch /etc/hosts
       if: runner.os != 'Windows'
       run: |
