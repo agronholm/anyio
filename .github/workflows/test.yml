@@ -68,23 +68,29 @@ jobs:
         - os: macos-latest
           python-version: "3.9"
           extras: "[trio]"
+          lowest_bound: false
         - os: macos-latest
           python-version: "3.14"
           extras: "[trio]"
+          lowest_bound: false
         - os: windows-latest
           python-version: "3.9"
           extras: "[trio]"
+          lowest_bound: false
         - os: windows-latest
           python-version: "3.14"
           extras: "[trio]"
+          lowest_bound: false
         - name: only asyncio
           os: ubuntu-latest
           python-version: "3.14"
           extras: ""
+          lowest_bound: false
         - name: oldest dependencies
           os: ubuntu-latest
           python-version: "3.9"
           extras: "[trio]"
+          lowest_bound: true
     runs-on: ${{ matrix.os }}
     needs: changed-files
     if: |
