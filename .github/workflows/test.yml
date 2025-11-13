@@ -66,19 +66,16 @@ jobs:
         include:
         - os: macos-latest
           python-version: "3.9"
-          uv-options: "--extra trio"
         - os: macos-latest
           python-version: "3.14"
-          uv-options: "--extra trio"
         - os: windows-latest
           python-version: "3.9"
-          uv-options: "--extra trio"
         - os: windows-latest
           python-version: "3.14"
-          uv-options: "--extra trio"
         - name: only asyncio
           os: ubuntu-latest
           python-version: "3.14"
+          uv-options: ""
         - name: oldest dependencies
           os: ubuntu-latest
           python-version: "3.9"
