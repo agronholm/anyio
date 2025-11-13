@@ -114,7 +114,9 @@ jobs:
       run: pip install --group test -e .${{ matrix.extras }}
     - name: Install the project and its dependencies (lowest bound)
       if: matrix.lowest_bound == true
-      run: uv sync --resolution lowest-direct
+      run: |
+        pip install uv
+        uv sync --resolution lowest-direct --no-group doc
     - name: Patch /etc/hosts
       if: runner.os != 'Windows'
       run: |
