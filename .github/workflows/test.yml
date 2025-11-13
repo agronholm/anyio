@@ -66,12 +66,16 @@ jobs:
         include:
         - os: macos-latest
           python-version: "3.9"
+          uv-options: "--extra trio"
         - os: macos-latest
           python-version: "3.14"
+          uv-options: "--extra trio"
         - os: windows-latest
           python-version: "3.9"
+          uv-options: "--extra trio"
         - os: windows-latest
           python-version: "3.14"
+          uv-options: "--extra trio"
         - name: only asyncio
           os: ubuntu-latest
           python-version: "3.14"
@@ -141,10 +145,10 @@ jobs:
         python-version: "3.11"
         cache: pip
         cache-dependency-path: pyproject.toml
-    - name: Install the project and its dependencies
-      run: pip install --group doc -e .
+    - name: Install uv
+      run: pip install uv
     - name: Build documentation
-      run: sphinx-build -W docs build/sphinx
+      run: uv run --group doc sphinx-build -W docs build/sphinx
 
   coveralls:
     name: Finish Coveralls
