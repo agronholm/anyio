@@ -105,7 +105,13 @@ jobs:
         cache: pip
         cache-dependency-path: pyproject.toml
     - name: Install the project and its dependencies
-      run: pip install --group test -e .${{ matrix.extras }}
+      if: matrix.lowest-bound == false
+      run: pip install --group test -e .
+    - name: Install the project and its dependencies (lowest bound)
+      if: matrix.lowest-bound == true
+      run: |
+        pip install uv
+        uv pip install --system --resolution lowest-direct --group test -e .
     - name: Patch /etc/hosts
       if: runner.os != 'Windows'
       run: |
@@ -116,15 +122,6 @@ jobs:
       run: |
         Add-Content -Path C:\Windows\System32\drivers\etc\hosts -Value "1.2.3.4 xn--fa-hia.de"
         Add-Content -Path C:\Windows\System32\drivers\etc\hosts -Value "5.6.7.8 fass.de"
-    - name: Install the project and its dependencies
-      if: matrix.lowest-bound == false
-      run: pip install --group test -e .
-    - name: Install the project and its dependencies (lowest bound)
-      if: matrix.lowest-bound == true
-      run: |
-        pip install uv
-        uv pip install --system --resolution lowest-direct --group test -e .
-        pip list
     - name: Test with pytest
       run: coverage run -m pytest -v
       timeout-minutes: 5
