@@ -63,7 +63,7 @@ jobs:
         os: [ubuntu-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14", pypy-3.11]
         extras: ["[trio]"]
-        lowest-bound: "false"
+        lowest-bound: [false]
         include:
         - os: macos-latest
           python-version: "3.9"
@@ -85,7 +85,7 @@ jobs:
           os: ubuntu-latest
           python-version: "3.9"
           extras: "[trio]"
-          lowest-bound: "true"
+          lowest-bound: true
     runs-on: ${{ matrix.os }}
     needs: changed-files
     if: |
@@ -117,10 +117,10 @@ jobs:
         Add-Content -Path C:\Windows\System32\drivers\etc\hosts -Value "1.2.3.4 xn--fa-hia.de"
         Add-Content -Path C:\Windows\System32\drivers\etc\hosts -Value "5.6.7.8 fass.de"
     - name: Install the project and its dependencies
-      if: matrix.lowest-bound == "false"
+      if: matrix.lowest-bound == false
       run: pip install --group test -e .
     - name: Install the project and its dependencies (lowest bound)
-      if: matrix.lowest-bound == "true"
+      if: matrix.lowest-bound == true
       run: |
         pip install uv
         uv pip install --system --group test -e .
