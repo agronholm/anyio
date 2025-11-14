@@ -63,7 +63,6 @@ jobs:
         os: [ubuntu-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14", pypy-3.11]
         extras: ["[trio]"]
-        lowest-bound: [false]
         include:
         - os: macos-latest
           python-version: "3.9"
@@ -123,7 +122,8 @@ jobs:
       if: matrix.lowest-bound == true
       run: |
         pip install uv
-        uv pip install -v --system --resolution lowest-direct --group test -e .
+        uv pip install --system --resolution lowest-direct --group test -e .
+        pip list
     - name: Test with pytest
       run: coverage run -m pytest -v
       timeout-minutes: 5
