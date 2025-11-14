@@ -106,12 +106,12 @@ jobs:
         cache-dependency-path: pyproject.toml
     - name: Install the project and its dependencies
       if: matrix.lowest-bound == false
-      run: pip install --group test -e .
+      run: pip install --group test -e .${{ matrix.extras }}
     - name: Install the project and its dependencies (lowest bound)
       if: matrix.lowest-bound == true
       run: |
         pip install uv
-        uv pip install --system --resolution lowest-direct --group test -e .
+        uv pip install --system --resolution lowest-direct --group test -e .${{ matrix.extras }}
     - name: Patch /etc/hosts
       if: runner.os != 'Windows'
       run: |
