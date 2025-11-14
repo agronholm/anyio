@@ -74,7 +74,6 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "anyio_mode",
         default="strict",
         help='AnyIO plugin mode (either "strict" or "auto")',
-        type="string",
     )
 
 
