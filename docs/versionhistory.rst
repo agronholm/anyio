@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added the ``RateLimiter`` synchronization primitive for enforcing time-limited rate on
+  operations
 - Added an asynchronous implementation of the ``functools`` module
   (`#1001 <https://github.com/agronholm/anyio/pull/1001>`_)
 - Added support for ``uvloop=True`` on Windows via the winloop_ implementation

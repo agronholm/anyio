@@ -1,17 +1,29 @@
 from __future__ import annotations
 
 import math
+import sys
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import timedelta
 from types import TracebackType
 from typing import TypeVar
 
 from ..lowlevel import checkpoint_if_cancelled
-from ._eventloop import NoCurrentAsyncBackend, get_async_backend
+from ._eventloop import (
+    NoCurrentAsyncBackend,
+    current_time,
+    get_async_backend,
+    sleep_until,
+)
 from ._exceptions import BusyResourceError
 from ._tasks import CancelScope
 from ._testing import TaskInfo, get_current_task
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
 
 T = TypeVar("T")
 
@@ -77,6 +89,18 @@ class SemaphoreStatistics:
     """
 
     tasks_waiting: int
+
+
+@dataclass(frozen=True)
+class RateLimiterStatistics:
+    """
+    :ivar int tasks_waiting: the number of tasks waiting on
+        :meth:`~.RateLimiter.acquire`
+    :ivar int available_tokens: the number of available slots on the limiter
+    """
+
+    tasks_waiting: int  #: the number of tasks waiting to acquire the limiter
+    available_tokens: int  #: the number of available slots on the limiter
 
 
 class Event:
@@ -716,6 +740,119 @@ class CapacityLimiterAdapter(CapacityLimiter):
             )
 
         return self._internal_limiter.statistics()
+
+
+class RateLimiter:
+    """
+    Provides rate limiting via an internal semaphore which is periodically incremented.
+
+    :param tokens: number of operations allowed within the time window
+    :param interval: the time window, in seconds (or a :class:`~datetime.timedelta),
+        that ``tokens`` applies to
+    :param initial_tokens: the number of tokens available on the initial time window
+    """
+
+    def __init__(
+        self,
+        tokens: int,
+        interval: float | timedelta = 1,
+        *,
+        initial_tokens: int | None = None,
+    ):
+        if not isinstance(tokens, int):
+            raise TypeError("tokens must be an integer")
+        elif tokens < 1:
+            raise ValueError("tokens must be positive")
+
+        if initial_tokens is not None:
+            if not isinstance(initial_tokens, int):
+                raise TypeError("initial_tokens must be an integer or None")
+            elif initial_tokens < 0:
+                raise ValueError("initial_tokens must not be negative")
+
+        if isinstance(interval, timedelta):
+            interval = interval.total_seconds()
+
+        if not isinstance(interval, (int, float)):
+            raise TypeError("interval must be an integer, float or timedelta")
+        elif interval <= 0:
+            raise ValueError("interval must be positive")
+
+        self._tokens = tokens
+        self._initial_tokens = tokens if initial_tokens is None else initial_tokens
+        self._interval = interval
+        self._available = self._initial_tokens
+        self._lock = Lock()
+        self._next: float | None = None
+
+    @property
+    def tokens(self) -> int:
+        """The configured maximum number of tokens."""
+        return self._tokens
+
+    @property
+    def initial_tokens(self) -> int:
+        """The configured initial number of tokens."""
+        return self._initial_tokens
+
+    @property
+    def interval(self) -> float:
+        """The configured time window, in seconds."""
+        return self._interval
+
+    @classmethod
+    def from_max_per_second(
+        cls, max_per_second: int, /, *, initial_tokens: int | None = None
+    ) -> Self:
+        """
+        Create a rate limiter with the given maximum number of operations per second.
+
+        This is the equivalent of creating a rate limiter with ``tokens=1`` and
+        ``interval=1 / max_per_second``.
+
+        :param max_per_second: number of operations allowed per second
+        :param initial_tokens: the number of tokens available on the initial time window
+        :return: a newly created rate limiter
+
+        """
+        return cls(1, 1 / max_per_second, initial_tokens=initial_tokens)
+
+    async def acquire(self) -> None:
+        """
+        Ensure that the rate limit is not exceeded.
+
+        This method must be called before running the related rate-sensitive operation.
+
+        """
+        async with self._lock:
+            # Initialize or refresh the next token pool refresh time
+            now = current_time()
+            if self._next is None:
+                self._next = now + self._interval
+            elif self._next <= now:
+                self._available = self._tokens
+                self._next = now + self._interval
+
+            # If no tokens are available, wait until the next token pool refresh time
+            if self._available == 0:
+                await sleep_until(self._next)
+                self._available = self._tokens
+                self._next = current_time() + self._interval
+
+            self._available -= 1
+
+    def statistics(self) -> RateLimiterStatistics:
+        """Return statistics about the current state of this limiter."""
+        if self._next is not None and current_time() >= self._next:
+            available = self._tokens
+        else:
+            available = self._available
+
+        lock_stats = self._lock.statistics()
+        return RateLimiterStatistics(
+            tasks_waiting=lock_stats.tasks_waiting,
+            available_tokens=available,
+        )
 
 
 class ResourceGuard:
