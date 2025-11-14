@@ -63,6 +63,7 @@ jobs:
         os: [ubuntu-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14", pypy-3.11]
         extras: ["[trio]"]
+        lowest-bound: false
         include:
         - os: macos-latest
           python-version: "3.9"
@@ -79,10 +80,11 @@ jobs:
         - name: only asyncio
           os: ubuntu-latest
           python-version: "3.14"
-          uv-options: ""
+          extras: ""
         - name: oldest dependencies
           os: ubuntu-latest
           python-version: "3.9"
+          extras: "[trio]"
           lowest-bound: true
     runs-on: ${{ matrix.os }}
     needs: changed-files
