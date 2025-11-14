@@ -368,21 +368,52 @@ class TestBlockingPortalProvider:
         "https://github.com/pypy/pypy/issues/5075)"
     ),
 )
-async def test_run_sync_worker_cyclic_references() -> None:
+async def test_run_sync_worker_cyclic_references(anyio_backend_name: str) -> None:
     class Foo:
         pass
 
-    def foo(_: Foo) -> None:
-        pass
+    def foo(_: Foo) -> Foo:
+        return Foo()
 
     cvar = ContextVar[Foo]("cvar")
     contextval = Foo()
     arg = Foo()
     cvar.set(contextval)
-    await to_thread.run_sync(foo, arg)
+    v = await to_thread.run_sync(foo, arg)
+
     cvar.set(Foo())
     gc.collect()
 
     assert gc.get_referrers(contextval) == no_other_refs()
     assert gc.get_referrers(foo) == no_other_refs()
     assert gc.get_referrers(arg) == no_other_refs()
+    if anyio_backend_name == "asyncio":
+        assert gc.get_referrers(v) == no_other_refs()
+
+
+@pytest.mark.skipif(
+    sys.implementation.name == "pypy",
+    reason=(
+        "gc.get_referrers is broken on PyPy (see "
+        "https://github.com/pypy/pypy/issues/5075)"
+    ),
+)
+async def test_run_sync_worker_cyclic_references_exc(anyio_backend_name: str) -> None:
+    if anyio_backend_name == "trio":
+        pytest.skip()
+
+    class MyException(Exception):
+        pass
+
+    def throw() -> None:
+        raise MyException
+
+    e = None
+    try:
+        await to_thread.run_sync(throw)
+    except MyException as err:
+        e = err
+
+    gc.collect()
+
+    assert gc.get_referrers(e) == no_other_refs()
