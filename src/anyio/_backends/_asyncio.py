@@ -803,6 +803,11 @@ class TaskGroup(abc.TaskGroup):
         task_status_future: asyncio.Future | None = None,
     ) -> asyncio.Task:
         def task_done(_task: asyncio.Task) -> None:
+            if sys.version_info >= (3, 14) and self.cancel_scope._host_task is not None:
+                asyncio.future_discard_from_awaited_by(
+                    _task, self.cancel_scope._host_task
+                )
+
             task_state = _task_states[_task]
             assert task_state.cancel_scope is not None
             assert _task in task_state.cancel_scope._tasks
@@ -884,6 +889,9 @@ class TaskGroup(abc.TaskGroup):
         )
         self.cancel_scope._tasks.add(task)
         self._tasks.add(task)
+        if sys.version_info >= (3, 14) and self.cancel_scope._host_task is not None:
+            asyncio.future_add_to_awaited_by(task, self.cancel_scope._host_task)
+
         task.add_done_callback(task_done)
         return task
 
@@ -1145,7 +1153,7 @@ def _forcibly_shutdown_process_pool_on_exit(
 ) -> None:
     """
     Forcibly shuts down worker processes belonging to this event loop."""
-    child_watcher: asyncio.AbstractChildWatcher | None = None
+    child_watcher: asyncio.AbstractChildWatcher | None = None  # type: ignore[name-defined]
     if sys.version_info < (3, 12):
         try:
             child_watcher = asyncio.get_event_loop_policy().get_child_watcher()

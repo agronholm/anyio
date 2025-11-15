@@ -334,7 +334,7 @@ class TestPath:
         source_path = Path(tmp_path) / "source"
         destination_path = Path(tmp_path) / "destination"
         await source_path.write_text("hello")
-        result = await source_path.copy(destination_path)  # type: ignore[attr-defined]
+        result = await source_path.copy(destination_path)
         assert await result.read_text() == "hello"
 
     @pytest.mark.skipif(
@@ -346,7 +346,7 @@ class TestPath:
         destination_path = Path(tmp_path) / "destination"
         await destination_path.mkdir()
         await source_path.write_text("hello")
-        result = await source_path.copy_into(destination_path)  # type: ignore[attr-defined]
+        result = await source_path.copy_into(destination_path)
         assert await result.read_text() == "hello"
 
     @pytest.mark.skipif(
@@ -357,7 +357,7 @@ class TestPath:
         source_path = Path(tmp_path) / "source"
         destination_path = Path(tmp_path) / "destination"
         await source_path.write_text("hello")
-        result = await source_path.move(destination_path)  # type: ignore[attr-defined]
+        result = await source_path.move(destination_path)
         assert await result.read_text() == "hello"
         assert not await source_path.exists()
 
@@ -370,7 +370,7 @@ class TestPath:
         destination_path = Path(tmp_path) / "destination"
         await destination_path.mkdir()
         await source_path.write_text("hello")
-        result = await source_path.move_into(destination_path)  # type: ignore[attr-defined]
+        result = await source_path.move_into(destination_path)
         assert await result.read_text() == "hello"
         assert not await source_path.exists()
 

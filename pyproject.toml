@@ -107,7 +107,7 @@ ignore = ["B009", "PERF203"]
 "tests/test_tempfile.py" = ["ASYNC230"]
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.14"
 strict = true
 disallow_any_generics = false
 warn_return_any = false

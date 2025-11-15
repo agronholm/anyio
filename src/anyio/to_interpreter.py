@@ -25,7 +25,9 @@ else:
 if sys.version_info >= (3, 14):
     from concurrent.interpreters import ExecutionFailed, create
 
-    def _interp_call(func: Callable[..., Any], args: tuple[Any, ...]):
+    def _interp_call(
+        func: Callable[..., Any], args: tuple[Any, ...]
+    ) -> tuple[Any, bool]:
         try:
             retval = func(*args)
         except BaseException as exc:
