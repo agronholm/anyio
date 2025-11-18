@@ -501,7 +501,7 @@ class Path:
         # - The pattern parameter accepts a path-like object.
         def glob(
             self,
-            pattern: PathLike,
+            pattern: PathLike[str],
             *,
             case_sensitive: bool | None = None,
             recurse_symlinks: bool = False,
@@ -692,7 +692,7 @@ class Path:
         # - The pattern parameter accepts a path-like object.
         def rglob(
             self,
-            pattern: PathLike,
+            pattern: PathLike[str],
             *,
             case_sensitive: bool | None = None,
             recurse_symlinks: bool = False,
