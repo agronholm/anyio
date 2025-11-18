@@ -499,15 +499,15 @@ class Path:
         # Changed in Python 3.13:
         # - The recurse_symlinks parameter was added.
         # - The pattern parameter accepts a path-like object.
-        def glob(
+        def glob(  # type: ignore[misc] # mypy doesn't allow for differing signatures in a conditional block
             self,
-            pattern: PathLike[str],
+            pattern: str | PathLike[str],
             *,
             case_sensitive: bool | None = None,
             recurse_symlinks: bool = False,
         ) -> AsyncIterator[Path]:
             gen = self._path.glob(
-                pattern,
+                pattern,  # type: ignore[arg-type]
                 case_sensitive=case_sensitive,
                 recurse_symlinks=recurse_symlinks,
             )
@@ -690,15 +690,15 @@ class Path:
         # Changed in Python 3.13:
         # - The recurse_symlinks parameter was added.
         # - The pattern parameter accepts a path-like object.
-        def rglob(
+        def rglob(  # type: ignore[misc] # mypy doesn't allow for differing signatures in a conditional block
             self,
-            pattern: PathLike[str],
+            pattern: str | PathLike[str],
             *,
             case_sensitive: bool | None = None,
             recurse_symlinks: bool = False,
         ) -> AsyncIterator[Path]:
             gen = self._path.rglob(
-                pattern,
+                pattern,  # type: ignore[arg-type]
                 case_sensitive=case_sensitive,
                 recurse_symlinks=recurse_symlinks,
             )
