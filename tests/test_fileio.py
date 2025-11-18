@@ -77,13 +77,13 @@ class TestAsyncFile:
 class TestPath:
     @pytest.fixture
     async def populated_tmpdir(self, tmp_path: pathlib.Path) -> Path:
-        tmp_path = Path(tmp_path)
+        path = Path(tmp_path)
 
-        await (tmp_path / "testfile").touch()
-        await (tmp_path / "testfile2").touch()
+        await (path / "testfile").touch()
+        await (path / "testfile2").touch()
 
-        subdir = tmp_path / "subdir"
-        sibdir = tmp_path / "sibdir"
+        subdir = path / "subdir"
+        sibdir = path / "sibdir"
 
         for subpath in (subdir, sibdir):
             await subpath.mkdir()
@@ -92,7 +92,7 @@ class TestPath:
 
         await (subdir / "symlink").symlink_to(sibdir)
 
-        return tmp_path
+        return path
 
     async def test_properties(self) -> None:
         """
@@ -432,7 +432,7 @@ class TestPath:
     async def test_glob_313(self, populated_tmpdir: Path) -> None:
         found_paths = [
             path.relative_to(populated_tmpdir)
-            async for path in populated_tmpdir.glob("**/*.txt", recurse_symlinks=True)
+            async for path in populated_tmpdir.glob("**/*.txt", recurse_symlinks=True)  # type: ignore[call-arg]
         ]
 
         expected_paths = [
@@ -498,7 +498,7 @@ class TestPath:
     async def test_rglob_313(self, populated_tmpdir: Path) -> None:
         found_paths = [
             path.relative_to(populated_tmpdir)
-            async for path in populated_tmpdir.glob("**/*.txt", recurse_symlinks=True)
+            async for path in populated_tmpdir.rglob("**/*.txt", recurse_symlinks=True)  # type: ignore[call-arg]
         ]
 
         expected_paths = [
