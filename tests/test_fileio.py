@@ -402,7 +402,7 @@ class TestPath:
         sys.version_info < (3, 12),
         reason="Path.glob() case_sensitive parameter is only available on Python 3.12+",
     )
-    async def test_glob_312(self, populated_tmpdir: Path) -> None:
+    async def test_glob_case_sensitive(self, populated_tmpdir: Path) -> None:
         # glob added case_sensitive parameter in 3.12
         match_glob = "**/DUMMY*.txt"
         # expect no paths with case-sensitive matching
@@ -429,7 +429,7 @@ class TestPath:
         sys.version_info < (3, 13),
         reason="Path.glob() recurse_symlinks parameter is only available on Python 3.13+",
     )
-    async def test_glob_313(self, populated_tmpdir: Path) -> None:
+    async def test_glob_recurse_symlinks(self, populated_tmpdir: Path) -> None:
         found_paths = [
             path.relative_to(populated_tmpdir)
             async for path in populated_tmpdir.glob("**/*.txt", recurse_symlinks=True)  # type: ignore[call-arg]
@@ -463,7 +463,7 @@ class TestPath:
         sys.version_info < (3, 12),
         reason="Path.rglob() case_sensitive parameter is only available on Python 3.12+",
     )
-    async def test_rglob_312(self, populated_tmpdir: Path) -> None:
+    async def test_rglob_case_sensitive(self, populated_tmpdir: Path) -> None:
         # glob added case_sensitive parameter in 3.12
         match_glob_uppercase = "*.TXT"
 
@@ -495,7 +495,7 @@ class TestPath:
         sys.version_info < (3, 13),
         reason="Path.rglob() recurse_symlinks parameter is only available on Python 3.13+",
     )
-    async def test_rglob_313(self, populated_tmpdir: Path) -> None:
+    async def test_rglob_recurse_symlinks(self, populated_tmpdir: Path) -> None:
         found_paths = [
             path.relative_to(populated_tmpdir)
             async for path in populated_tmpdir.rglob("**/*.txt", recurse_symlinks=True)  # type: ignore[call-arg]
