@@ -479,9 +479,39 @@ class Path:
             await to_thread.run_sync(self._path.expanduser, abandon_on_cancel=True)
         )
 
-    def glob(self, pattern: str) -> AsyncIterator[Path]:
-        gen = self._path.glob(pattern)
-        return _PathIterator(gen)
+    if sys.version_info < (3, 12):
+        # Python 3.11 and earlier
+        def glob(self, pattern: str) -> AsyncIterator[Path]:
+            gen = self._path.glob(pattern)
+            return _PathIterator(gen)
+    elif (3, 12) <= sys.version_info < (3, 13):
+        # changed in Python 3.12:
+        # - The case_sensitive parameter was added.
+        def glob(
+            self,
+            pattern: str,
+            *,
+            case_sensitive: bool | None = None,
+        ) -> AsyncIterator[Path]:
+            gen = self._path.glob(pattern, case_sensitive=case_sensitive)
+            return _PathIterator(gen)
+    elif sys.version_info >= (3, 13):
+        # Changed in Python 3.13:
+        # - The recurse_symlinks parameter was added.
+        # - The pattern parameter accepts a path-like object.
+        def glob(  # type: ignore[misc] # mypy doesn't allow for differing signatures in a conditional block
+            self,
+            pattern: str | PathLike[str],
+            *,
+            case_sensitive: bool | None = None,
+            recurse_symlinks: bool = False,
+        ) -> AsyncIterator[Path]:
+            gen = self._path.glob(
+                pattern,  # type: ignore[arg-type]
+                case_sensitive=case_sensitive,
+                recurse_symlinks=recurse_symlinks,
+            )
+            return _PathIterator(gen)
 
     async def group(self) -> str:
         return await to_thread.run_sync(self._path.group, abandon_on_cancel=True)
@@ -643,9 +673,36 @@ class Path:
         func = partial(self._path.resolve, strict=strict)
         return Path(await to_thread.run_sync(func, abandon_on_cancel=True))
 
-    def rglob(self, pattern: str) -> AsyncIterator[Path]:
-        gen = self._path.rglob(pattern)
-        return _PathIterator(gen)
+    if sys.version_info < (3, 12):
+        # Pre Python 3.12
+        def rglob(self, pattern: str) -> AsyncIterator[Path]:
+            gen = self._path.rglob(pattern)
+            return _PathIterator(gen)
+    elif (3, 12) <= sys.version_info < (3, 13):
+        # Changed in Python 3.12:
+        # - The case_sensitive parameter was added.
+        def rglob(
+            self, pattern: str, *, case_sensitive: bool | None = None
+        ) -> AsyncIterator[Path]:
+            gen = self._path.rglob(pattern, case_sensitive=case_sensitive)
+            return _PathIterator(gen)
+    elif sys.version_info >= (3, 13):
+        # Changed in Python 3.13:
+        # - The recurse_symlinks parameter was added.
+        # - The pattern parameter accepts a path-like object.
+        def rglob(  # type: ignore[misc] # mypy doesn't allow for differing signatures in a conditional block
+            self,
+            pattern: str | PathLike[str],
+            *,
+            case_sensitive: bool | None = None,
+            recurse_symlinks: bool = False,
+        ) -> AsyncIterator[Path]:
+            gen = self._path.rglob(
+                pattern,  # type: ignore[arg-type]
+                case_sensitive=case_sensitive,
+                recurse_symlinks=recurse_symlinks,
+            )
+            return _PathIterator(gen)
 
     async def rmdir(self) -> None:
         await to_thread.run_sync(self._path.rmdir)
