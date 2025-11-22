@@ -5,6 +5,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added support for asyncio's `task call graphs`_ on Python 3.14 and later when using
+  AnyIO's task groups
+  (`#1025 <https://github.com/agronholm/anyio/pull/1025>`_)
 - Added an asynchronous implementation of the ``functools`` module
   (`#1001 <https://github.com/agronholm/anyio/pull/1001>`_)
 - Added support for ``uvloop=True`` on Windows via the winloop_ implementation
@@ -27,8 +30,14 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed a race condition where cancelling a ``Future`` from
   ``BlockingPortal.start_task_soon()`` would sometimes not cancel the async function
   (`#1011 <https://github.com/agronholm/anyio/issues/1011>`_; PR by @gschaffner)
-- Fixed regression caused by (`#971 <https://github.com/agronholm/anyio/pull/971>`_) breaking compatibility with pytest<=6.1.2 (`#1028 <https://github.com/agronholm/anyio/issues/1028>`_; PR by @saper)
+- Fixed the presence of the pytest plugin causing breakage with older versions of
+  pytest (<= 6.1.2)
+  (`#1028 <https://github.com/agronholm/anyio/issues/1028>`_; PR by @saper)
+- Added parameters ``case_sensitive`` and ``recurse_symlinks`` along with support for
+  path-like objects to ``anyio.Path.glob()`` and ``anyio.Path.rglob()``
+  (`#1033 <https://github.com/agronholm/anyio/pull/1033>`_; PR by @northisup)
 
+.. _task call graphs: https://docs.python.org/3/library/asyncio-graph.html
 .. _winloop: https://github.com/Vizonex/Winloop
 
 **4.11.0**

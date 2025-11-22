@@ -69,17 +69,18 @@ async def test_success() -> None:
 
 
 @pytest.mark.parametrize(
-    "module",
+    "modulename",
     [
-        pytest.param(asyncio, id="asyncio"),
-        pytest.param(pytest.importorskip("trio"), id="trio"),
+        pytest.param("asyncio"),
+        pytest.param("trio"),
     ],
 )
-def test_run_natively(module: Any) -> None:
+def test_run_natively(modulename: str) -> None:
     async def testfunc() -> None:
         async with create_task_group() as tg:
             tg.start_soon(sleep, 0)
 
+    module = pytest.importorskip(modulename, reason=f"{modulename} is not available")
     if module is asyncio:
         asyncio.run(testfunc())
     else:
@@ -1816,3 +1817,48 @@ async def test_cancel_reason() -> None:
     assert task and task.name
     exc_info.match("test reason")
     exc_info.match(task.name)
+
+
+@pytest.mark.parametrize(
+    "native",
+    [
+        pytest.param(False, id="anyio"),
+        pytest.param(True, id="asyncio"),
+    ],
+)
+@pytest.mark.skipif(sys.version_info < (3, 14), reason="Requires Python 3.14")
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_asyncio_call_graph(native: bool) -> None:
+    graph: asyncio.FutureCallGraph | None = None
+
+    async def taskfunc(depth: int) -> None:
+        nonlocal graph
+
+        if depth == 2:
+            # The checkpoint is a workaround for eager factories where call graph
+            # capturing doesn't work before the first yield
+            await checkpoint()
+            graph = asyncio.capture_call_graph(asyncio.current_task(), depth=depth)
+            return
+
+        if native:
+            async with asyncio.TaskGroup() as tg:
+                tg.create_task(taskfunc(depth + 1), name=f"depth-{depth + 1}")
+        else:
+            async with create_task_group() as tg:
+                tg.start_soon(taskfunc, depth + 1, name=f"depth-{depth + 1}")
+
+    current_task = asyncio.current_task()
+    assert current_task is not None
+    current_task.set_name("root")
+    await taskfunc(0)
+    assert graph is not None
+    assert isinstance(graph.future, asyncio.Task)
+    task_names: list[str] = [graph.future.get_name()]
+    while graph.awaited_by:
+        assert len(graph.awaited_by) == 1
+        graph = graph.awaited_by[0]
+        assert isinstance(graph.future, asyncio.Task)
+        task_names.append(graph.future.get_name())
+
+    assert task_names == ["depth-2", "depth-1", "root"]
