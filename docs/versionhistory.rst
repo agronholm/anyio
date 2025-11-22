@@ -19,6 +19,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added the ability to set the token count of a ``CapacityLimiter`` to zero
   (`#1019 <https://github.com/agronholm/anyio/pull/1019>`_; requires Python 3.10 or
   later when using Trio)
+- Added parameters ``case_sensitive`` and ``recurse_symlinks`` along with support for
+  path-like objects to ``anyio.Path.glob()`` and ``anyio.Path.rglob()``
+  (`#1033 <https://github.com/agronholm/anyio/pull/1033>`_; PR by @northisup)
 - Dropped ``sniffio`` as a direct dependency and added the ``get_available_backends()``
   function (`#1021 <https://github.com/agronholm/anyio/pull/1021>`_)
 - Fixed ``Process.stdin.send()`` not raising ``ClosedResourceError`` and
@@ -33,9 +36,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed the presence of the pytest plugin causing breakage with older versions of
   pytest (<= 6.1.2)
   (`#1028 <https://github.com/agronholm/anyio/issues/1028>`_; PR by @saper)
-- Added parameters ``case_sensitive`` and ``recurse_symlinks`` along with support for
-  path-like objects to ``anyio.Path.glob()`` and ``anyio.Path.rglob()``
-  (`#1033 <https://github.com/agronholm/anyio/pull/1033>`_; PR by @northisup)
 
 .. _task call graphs: https://docs.python.org/3/library/asyncio-graph.html
 .. _winloop: https://github.com/Vizonex/Winloop
