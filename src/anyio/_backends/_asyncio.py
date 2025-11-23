@@ -53,7 +53,10 @@ from typing import (
     IO,
     TYPE_CHECKING,
     Any,
+    Generic,
+    NoReturn,
     Optional,
+    Protocol,
     TypeVar,
     cast,
 )
@@ -304,6 +307,7 @@ else:
 
 
 T_Retval = TypeVar("T_Retval")
+T_co = TypeVar("T_co", covariant=True)
 T_contra = TypeVar("T_contra", contravariant=True)
 PosArgsT = TypeVarTuple("PosArgsT")
 P = ParamSpec("P")
@@ -931,6 +935,32 @@ class TaskGroup(abc.TaskGroup):
 _Retval_Queue_Type = tuple[Optional[T_Retval], Optional[BaseException]]
 
 
+class _SupportsUnwrap(Protocol, Generic[T_co]):
+    def unwrap(self) -> T_co: ...
+
+
+class _Value(_SupportsUnwrap[T_Retval]):
+    def __init__(self, v: T_Retval) -> None:
+        self._v = v
+
+    def unwrap(self) -> T_Retval:
+        try:
+            return self._v
+        finally:
+            del self._v
+
+
+class _Error(_SupportsUnwrap[NoReturn]):
+    def __init__(self, e: BaseException) -> None:
+        self._e = e
+
+    def unwrap(self) -> NoReturn:
+        try:
+            raise self._e
+        finally:
+            del self._e
+
+
 class WorkerThread(Thread):
     MAX_IDLE_TIME = 10  # seconds
 
@@ -965,9 +995,9 @@ class WorkerThread(Thread):
                     new_exc.__cause__ = exc
                     exc = new_exc
 
-                future.set_exception(exc)
+                future.set_result(_Error(exc))
             else:
-                future.set_result(result)
+                future.set_result(_Value(result))
 
     def run(self) -> None:
         with claim_worker_thread(AsyncIOBackend, self.loop):
@@ -2485,7 +2515,9 @@ class AsyncIOBackend(AsyncBackend):
 
         async with limiter or cls.current_default_thread_limiter():
             with CancelScope(shield=not abandon_on_cancel) as scope:
-                future = asyncio.Future[T_Retval]()
+                future: asyncio.Future[_SupportsUnwrap[T_Retval]] = (
+                    get_running_loop().create_future()
+                )
                 root_task = find_root_task()
                 if not idle_workers:
                     worker = WorkerThread(root_task, workers, idle_workers)
@@ -2521,7 +2553,7 @@ class AsyncIOBackend(AsyncBackend):
                     worker_scope = scope._parent_scope
 
                 worker.queue.put_nowait((context, func, args, future, worker_scope))
-                return await future
+                return (await future).unwrap()
 
     @classmethod
     def check_cancelled(cls) -> None:
