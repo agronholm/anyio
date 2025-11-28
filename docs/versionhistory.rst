@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**v4.12.0**
 
 - Added support for asyncio's `task call graphs`_ on Python 3.14 and later when using
   AnyIO's task groups
