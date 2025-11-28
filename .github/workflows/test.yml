@@ -15,7 +15,7 @@ jobs:
       tests-changed: ${{ steps.changed-files.outputs.tests_any_changed }}
       docs-changed: ${{ steps.changed-files.outputs.doc_any_changed }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Get changed files by category
       id: changed-files
       uses: tj-actions/changed-files@v47
@@ -42,7 +42,7 @@ jobs:
         || (needs.changed-files.outputs.src-changed == 'true')
       }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Set up Python
       uses: actions/setup-python@v6
       with:
@@ -96,7 +96,7 @@ jobs:
         || (needs.changed-files.outputs.tests-changed == 'true')
       }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -146,7 +146,7 @@ jobs:
         || (needs.changed-files.outputs.docs-changed == 'true')
       }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
