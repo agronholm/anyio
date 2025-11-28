@@ -1161,7 +1161,7 @@ def _forcibly_shutdown_process_pool_on_exit(
             pass
 
     # Close as much as possible (w/o async/await) to avoid warnings
-    for process in workers:
+    for process in workers.copy():
         if process.returncode is None:
             continue
 
@@ -1185,6 +1185,7 @@ async def _shutdown_process_pool_on_exit(workers: set[abc.Process]) -> None:
     try:
         await sleep(math.inf)
     except asyncio.CancelledError:
+        workers = workers.copy()
         for process in workers:
             if process.returncode is None:
                 process.kill()

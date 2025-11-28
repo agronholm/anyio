@@ -36,6 +36,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed the presence of the pytest plugin causing breakage with older versions of
   pytest (<= 6.1.2)
   (`#1028 <https://github.com/agronholm/anyio/issues/1028>`_; PR by @saper)
+- Fixed a rarely occurring ``RuntimeError: Set changed size during iteration`` while
+  shutting down the process pool when using the asyncio backend
+  (`#985 <https://github.com/agronholm/anyio/issues/985>`_
 
 .. _task call graphs: https://docs.python.org/3/library/asyncio-graph.html
 .. _winloop: https://github.com/Vizonex/Winloop
