@@ -32,6 +32,7 @@ from typing import (
     Any,
     Generic,
     NoReturn,
+    ParamSpec,
     TypeVar,
     cast,
     overload,
@@ -85,11 +86,6 @@ from ..streams.memory import MemoryObjectSendStream
 
 if TYPE_CHECKING:
     from _typeshed import FileDescriptorLike
-
-if sys.version_info >= (3, 10):
-    from typing import ParamSpec
-else:
-    from typing_extensions import ParamSpec
 
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack

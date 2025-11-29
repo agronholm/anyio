@@ -784,14 +784,9 @@ class Path:
         errors: str | None = None,
         newline: str | None = None,
     ) -> int:
-        # Path.write_text() does not support the "newline" parameter before Python 3.10
-        def sync_write_text() -> int:
-            with self._path.open(
-                "w", encoding=encoding, errors=errors, newline=newline
-            ) as fp:
-                return fp.write(data)
-
-        return await to_thread.run_sync(sync_write_text)
+        return await to_thread.run_sync(
+            self._path.write_text, data, encoding, errors, newline
+        )
 
 
 PathLike.register(Path)
