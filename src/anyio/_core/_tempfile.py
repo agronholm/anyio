@@ -463,7 +463,6 @@ class TemporaryDirectory(Generic[AnyStr]):
     :param prefix: Prefix to be added to the temporary directory name.
     :param dir: The parent directory where the temporary directory is created.
     :param ignore_cleanup_errors: Whether to ignore errors during cleanup
-        (Python 3.10+).
     :param delete: Whether to delete the directory upon closing (Python 3.12+).
     """
 
@@ -489,10 +488,8 @@ class TemporaryDirectory(Generic[AnyStr]):
             "suffix": self.suffix,
             "prefix": self.prefix,
             "dir": self.dir,
+            "ignore_cleanup_errors": self.ignore_cleanup_errors,
         }
-        if sys.version_info >= (3, 10):
-            params["ignore_cleanup_errors"] = self.ignore_cleanup_errors
-
         if sys.version_info >= (3, 12):
             params["delete"] = self.delete
 

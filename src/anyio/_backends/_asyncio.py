@@ -53,7 +53,7 @@ from typing import (
     IO,
     TYPE_CHECKING,
     Any,
-    Optional,
+    ParamSpec,
     TypeVar,
     cast,
 )
@@ -108,11 +108,6 @@ if TYPE_CHECKING:
     from _typeshed import FileDescriptorLike
 else:
     FileDescriptorLike = object
-
-if sys.version_info >= (3, 10):
-    from typing import ParamSpec
-else:
-    from typing_extensions import ParamSpec
 
 if sys.version_info >= (3, 11):
     from asyncio import Runner
@@ -928,7 +923,7 @@ class TaskGroup(abc.TaskGroup):
 # Threads
 #
 
-_Retval_Queue_Type = tuple[Optional[T_Retval], Optional[BaseException]]
+_Retval_Queue_Type = tuple[T_Retval | None, BaseException | None]
 
 
 class WorkerThread(Thread):

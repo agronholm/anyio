@@ -12,8 +12,8 @@ from typing import (
     IO,
     TYPE_CHECKING,
     Any,
+    TypeAlias,
     TypeVar,
-    Union,
     overload,
 )
 
@@ -21,11 +21,6 @@ if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
 else:
     from typing_extensions import TypeVarTuple, Unpack
-
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-else:
-    from typing_extensions import TypeAlias
 
 if TYPE_CHECKING:
     from _typeshed import FileDescriptorLike
@@ -50,7 +45,7 @@ if TYPE_CHECKING:
 
 T_Retval = TypeVar("T_Retval")
 PosArgsT = TypeVarTuple("PosArgsT")
-StrOrBytesPath: TypeAlias = Union[str, bytes, "PathLike[str]", "PathLike[bytes]"]
+StrOrBytesPath: TypeAlias = str | bytes | PathLike[str] | PathLike[bytes]
 
 
 class AsyncBackend(metaclass=ABCMeta):

@@ -18,14 +18,13 @@ classifiers = [
     "Typing :: Typed",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
 ]
-requires-python = ">= 3.9"
+requires-python = ">= 3.10"
 dependencies = [
     "exceptiongroup >= 1.0.2; python_version < '3.11'",
     "idna >= 2.8",
@@ -40,10 +39,7 @@ Changelog = "https://anyio.readthedocs.io/en/stable/versionhistory.html"
 "Issue tracker" = "https://github.com/agronholm/anyio/issues"
 
 [project.optional-dependencies]
-trio = [
-    "trio >= 0.32.0; python_version >= '3.10'",
-    "trio >= 0.31.0; python_version < '3.10'",
-]
+trio = ["trio >= 0.32.0"]
 
 [project.entry-points]
 pytest11 = {anyio = "anyio.pytest_plugin"}
@@ -58,7 +54,7 @@ test = [
     "pytest >= 7.0",
     "pytest-mock >= 3.14",
     "trustme >= 1.0.0",
-    "truststore >= 0.9.1; python_version >= '3.10'",
+    "truststore >= 0.9.1",
     """\
     uvloop >= 0.22.1; platform_python_implementation == 'CPython' \
     and platform_system != 'Windows' \
@@ -122,8 +118,6 @@ filterwarnings = [
     "error",
     # Ignore resource warnings due to a CPython/Windows bug (https://bugs.python.org/issue44428)
     "ignore:unclosed transport <_ProactorSocketTransport.*:ResourceWarning",
-    # Workaround for Python 3.9.7 (see https://bugs.python.org/issue45097)
-    "ignore:The loop argument is deprecated since Python 3\\.8, and scheduled for removal in Python 3\\.10\\.:DeprecationWarning:asyncio",
 ]
 markers = [
     "network: marks tests as requiring Internet access",
@@ -144,7 +138,7 @@ exclude_also = [
 ]
 
 [tool.tox]
-env_list = ["pre-commit", "py39", "py310", "py311", "py312", "py313", "py314", "pypy3", "only_asyncio"]
+env_list = ["pre-commit", "py310", "py311", "py312", "py313", "py314", "pypy3", "only_asyncio"]
 skip_missing_interpreters = true
 requires = ["tox >= 4.22"]
 

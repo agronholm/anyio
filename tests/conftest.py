@@ -152,13 +152,7 @@ def asyncio_event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
     else:
         loop = asyncio.new_event_loop()
 
-    if sys.version_info < (3, 10):
-        asyncio.set_event_loop(loop)
-
     yield loop
-
-    if sys.version_info < (3, 10):
-        asyncio.set_event_loop(None)
 
     loop.close()
 
