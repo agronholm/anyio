@@ -9,6 +9,8 @@ from contextvars import Token
 from importlib import import_module
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from ._exceptions import NoEventLoopError
+
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
 else:
@@ -172,19 +174,14 @@ def claim_worker_thread(
         del threadlocals.current_token
 
 
-class NoCurrentAsyncBackend(Exception):
-    def __init__(self) -> None:
-        super().__init__(
-            f"Not currently running on any asynchronous event loop"
-            f"Available async backends: {', '.join(get_all_backends())}"
-        )
-
-
 def get_async_backend(asynclib_name: str | None = None) -> type[AsyncBackend]:
     if asynclib_name is None:
         asynclib_name = current_async_library()
         if not asynclib_name:
-            raise NoCurrentAsyncBackend
+            raise NoEventLoopError(
+                f"Not currently running on any asynchronous event loop. "
+                f"Available async backends: {', '.join(get_all_backends())}"
+            )
 
     # We use our own dict instead of sys.modules to get the already imported back-end
     # class because the appropriate modules in sys.modules could potentially be only
