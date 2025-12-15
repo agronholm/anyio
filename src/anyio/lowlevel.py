@@ -32,9 +32,9 @@ async def checkpoint() -> None:
         await checkpoint_if_cancelled()
         await cancel_shielded_checkpoint()
 
-
     :raises NoEventLoopError: if no supported asynchronous event loop is running in the
         current thread
+
     .. versionadded:: 3.0
 
     """
@@ -49,6 +49,7 @@ async def checkpoint_if_cancelled() -> None:
 
     :raises NoEventLoopError: if no supported asynchronous event loop is running in the
         current thread
+
     .. versionadded:: 3.0
 
     """
@@ -66,6 +67,7 @@ async def cancel_shielded_checkpoint() -> None:
 
     :raises NoEventLoopError: if no supported asynchronous event loop is running in the
         current thread
+
     .. versionadded:: 3.0
 
     """
@@ -92,6 +94,7 @@ def current_token() -> EventLoopToken:
 
     :raises NoEventLoopError: if no supported asynchronous event loop is running in the
         current thread
+
     .. versionadded:: 4.11.0
 
     """
