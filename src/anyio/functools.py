@@ -24,6 +24,7 @@ from functools import update_wrapper
 from inspect import iscoroutinefunction
 from typing import (
     Any,
+    Concatenate,
     Generic,
     NamedTuple,
     TypedDict,
@@ -38,13 +39,14 @@ from ._core._synchronization import Lock
 from .lowlevel import RunVar, checkpoint
 
 if sys.version_info >= (3, 11):
-    from typing import ParamSpec
+    from typing import ParamSpec, Self
 else:
-    from typing_extensions import ParamSpec
+    from typing_extensions import ParamSpec, Self
 
 T = TypeVar("T")
 S = TypeVar("S")
 P = ParamSpec("P")
+P2 = ParamSpec("P2")
 lru_cache_items: RunVar[
     WeakKeyDictionary[
         AsyncLRUCacheWrapper[Any, Any],
@@ -73,11 +75,20 @@ class AsyncCacheParameters(TypedDict):
     always_checkpoint: bool
 
 
+class _LRUInstanceMethodWrapper(Generic[P, T]):
+    def __init__(self, wrapper: AsyncLRUCacheWrapper[P, T], instance: T):
+        self.__wrapper = wrapper
+        self.__instance = instance
+
+    async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> T:
+        return await self.__wrapper(self.__instance, *args, **kwargs)
+
+
 @final
 class AsyncLRUCacheWrapper(Generic[P, T]):
     def __init__(
         self,
-        func: Callable[..., Awaitable[T]],
+        func: Callable[P, Awaitable[T]],
         maxsize: int | None,
         typed: bool,
         always_checkpoint: bool,
@@ -173,6 +184,25 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
                 value = cast(T, cached_value)
 
         return value
+
+    @overload
+    def __get__(
+        self, instance: T, owner: type[T] | None = ...
+    ) -> _LRUInstanceMethodWrapper[P, T]: ...
+
+    @overload
+    def __get__(self, instance: None, owner: type[T]) -> Self: ...
+
+    def __get__(
+        self, instance: T | None, owner: type[T] | None = None
+    ) -> Self | _LRUInstanceMethodWrapper[P, T]:
+        if owner is None:
+            return self
+
+        assert instance is not None
+        wrapper = _LRUInstanceMethodWrapper(self, instance)
+        update_wrapper(wrapper, self.__wrapped__)
+        return wrapper
 
 
 class _LRUCacheWrapper(Generic[T]):

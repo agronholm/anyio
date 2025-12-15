@@ -266,6 +266,33 @@ class TestAsyncLRUCache:
             scope.cancel()
             await func(1)
 
+    async def test_cached_class_method(self) -> None:
+        class Foo:
+            @classmethod
+            @lru_cache
+            async def cls_method(cls, x: int) -> int:
+                return x
+
+        for _ in range(2):
+            assert await Foo.cls_method(1) == 1
+            assert await Foo.cls_method(2) == 2
+
+    async def test_cached_instance_method(self) -> None:
+        class Foo:
+            async def instance_method(self, x: int) -> int:
+                return x
+
+        foo2 = lru_cache(Foo.instance_method)
+        reveal_type(foo2)
+
+        foo = Foo()
+        await foo2(foo, 1)
+        reveal_type(Foo.instance_method)
+        reveal_type(foo.instance_method)
+        for _ in range(2):
+            assert await foo.instance_method(1) == 1
+            assert await foo.instance_method(2) == 2
+
 
 class TestReduce:
     async def test_not_iterable(self) -> None:
