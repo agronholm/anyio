@@ -9,6 +9,8 @@ from contextvars import Token
 from importlib import import_module
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from ._exceptions import NoEventLoopError
+
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
 else:
@@ -118,6 +120,8 @@ def current_time() -> float:
     Return the current value of the event loop's internal clock.
 
     :return: the clock value (seconds)
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
 
     """
     return get_async_backend().current_time()
@@ -150,7 +154,13 @@ def get_available_backends() -> tuple[str, ...]:
 
 
 def get_cancelled_exc_class() -> type[BaseException]:
-    """Return the current async library's cancellation exception class."""
+    """
+    Return the current async library's cancellation exception class.
+
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
+
+    """
     return get_async_backend().cancelled_exception_class()
 
 
@@ -172,19 +182,14 @@ def claim_worker_thread(
         del threadlocals.current_token
 
 
-class NoCurrentAsyncBackend(Exception):
-    def __init__(self) -> None:
-        super().__init__(
-            f"Not currently running on any asynchronous event loop"
-            f"Available async backends: {', '.join(get_all_backends())}"
-        )
-
-
 def get_async_backend(asynclib_name: str | None = None) -> type[AsyncBackend]:
     if asynclib_name is None:
         asynclib_name = current_async_library()
         if not asynclib_name:
-            raise NoCurrentAsyncBackend
+            raise NoEventLoopError(
+                f"Not currently running on any asynchronous event loop. "
+                f"Available async backends: {', '.join(get_all_backends())}"
+            )
 
     # We use our own dict instead of sys.modules to get the already imported back-end
     # class because the appropriate modules in sys.modules could potentially be only

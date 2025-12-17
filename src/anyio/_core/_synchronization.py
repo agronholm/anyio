@@ -8,8 +8,8 @@ from types import TracebackType
 from typing import TypeVar
 
 from ..lowlevel import checkpoint_if_cancelled
-from ._eventloop import NoCurrentAsyncBackend, get_async_backend
-from ._exceptions import BusyResourceError
+from ._eventloop import get_async_backend
+from ._exceptions import BusyResourceError, NoEventLoopError
 from ._tasks import CancelScope
 from ._testing import TaskInfo, get_current_task
 
@@ -83,7 +83,7 @@ class Event:
     def __new__(cls) -> Event:
         try:
             return get_async_backend().create_event()
-        except NoCurrentAsyncBackend:
+        except NoEventLoopError:
             return EventAdapter()
 
     def set(self) -> None:
@@ -151,7 +151,7 @@ class Lock:
     def __new__(cls, *, fast_acquire: bool = False) -> Lock:
         try:
             return get_async_backend().create_lock(fast_acquire=fast_acquire)
-        except NoCurrentAsyncBackend:
+        except NoEventLoopError:
             return LockAdapter(fast_acquire=fast_acquire)
 
     async def __aenter__(self) -> None:
@@ -378,7 +378,7 @@ class Semaphore:
             return get_async_backend().create_semaphore(
                 initial_value, max_value=max_value, fast_acquire=fast_acquire
             )
-        except NoCurrentAsyncBackend:
+        except NoEventLoopError:
             return SemaphoreAdapter(initial_value, max_value=max_value)
 
     def __init__(
@@ -513,7 +513,7 @@ class CapacityLimiter:
     def __new__(cls, total_tokens: float) -> CapacityLimiter:
         try:
             return get_async_backend().create_capacity_limiter(total_tokens)
-        except NoCurrentAsyncBackend:
+        except NoEventLoopError:
             return CapacityLimiterAdapter(total_tokens)
 
     async def __aenter__(self) -> None:

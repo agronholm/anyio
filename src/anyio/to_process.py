@@ -60,6 +60,8 @@ async def run_sync(  # type: ignore[return]
         running
     :param limiter: capacity limiter to use to limit the total amount of processes
         running (if omitted, the default limiter is used)
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
     :return: an awaitable that yields the return value of the function.
 
     """
