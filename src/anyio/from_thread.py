@@ -183,7 +183,12 @@ class _BlockingPortalTaskStatus(TaskStatus):
 
 
 class BlockingPortal:
-    """An object that lets external threads run code in an asynchronous event loop."""
+    """
+    An object that lets external threads run code in an asynchronous event loop.
+
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
+    """
 
     def __init__(self) -> None:
         self._token = current_token()
