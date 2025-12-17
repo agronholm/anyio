@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from decimal import Decimal
-from typing import Any, NoReturn
+from typing import Any, NoReturn, reveal_type
 
 import pytest
 
