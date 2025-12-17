@@ -41,7 +41,9 @@ from .lowlevel import RunVar, checkpoint
 if sys.version_info >= (3, 11):
     from typing import Concatenate, ParamSpec, Self
 else:
-    from typing_extensions import Concatenate, ParamSpec, Self
+    from typing import Concatenate
+
+    from typing_extensions import ParamSpec, Self
 
 T = TypeVar("T")
 S = TypeVar("S")
@@ -76,7 +78,9 @@ class AsyncCacheParameters(TypedDict):
 
 
 class _LRUInstanceMethodWrapper(Generic[S, P, T]):
-    def __init__(self, wrapper: AsyncLRUCacheWrapper[Concatenate[S, P], T], instance: S):
+    def __init__(
+        self, wrapper: AsyncLRUCacheWrapper[Concatenate[S, P], T], instance: S
+    ):
         self.__wrapper = wrapper
         self.__instance = instance
 
@@ -187,7 +191,9 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
 
     @overload
     def __get__(
-        self: AsyncLRUCacheWrapper[Concatenate[S, P2], T], instance: S, owner: type[S] | None = ...
+        self: AsyncLRUCacheWrapper[Concatenate[S, P2], T],
+        instance: S,
+        owner: type[S] | None = ...,
     ) -> _LRUInstanceMethodWrapper[S, P2, T]: ...
 
     @overload
