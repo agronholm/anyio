@@ -195,7 +195,6 @@ class BlockingPortal:
         self._event_loop_thread_id: int | None = get_ident()
         self._stop_event = Event()
         self._task_group = create_task_group()
-        self._cancelled_exc_class = get_cancelled_exc_class()
 
     async def __aenter__(self) -> BlockingPortal:
         await self._task_group.__aenter__()
@@ -260,7 +259,7 @@ class BlockingPortal:
                     retval = await retval_or_awaitable
             else:
                 retval = retval_or_awaitable
-        except self._cancelled_exc_class:
+        except get_cancelled_exc_class():
             future.cancel()
             future.set_running_or_notify_cancel()
         except BaseException as exc:
