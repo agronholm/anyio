@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from decimal import Decimal
-from typing import Any, NoReturn, reveal_type
+from typing import Any, NoReturn
 
 import pytest
 
@@ -283,12 +283,9 @@ class TestAsyncLRUCache:
                 return x
 
         foo2 = lru_cache(Foo.instance_method)
-        reveal_type(foo2)
 
         foo = Foo()
         await foo2(foo, 1)
-        reveal_type(Foo.instance_method)
-        reveal_type(foo.instance_method)
         for _ in range(2):
             assert await foo.instance_method(1) == 1
             assert await foo.instance_method(2) == 2

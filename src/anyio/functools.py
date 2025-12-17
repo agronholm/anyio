@@ -41,8 +41,6 @@ from .lowlevel import RunVar, checkpoint
 if sys.version_info >= (3, 11):
     from typing import Concatenate, ParamSpec, Self
 else:
-    from typing import Concatenate
-
     from typing_extensions import ParamSpec, Self
 
 T = TypeVar("T")
@@ -206,7 +204,7 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
             return self
 
         assert instance is not None
-        wrapper = _LRUInstanceMethodWrapper(cast(Any, self), instance)
+        wrapper = _LRUInstanceMethodWrapper[Any, ..., Any](cast(Any, self), instance)
         update_wrapper(wrapper, self.__wrapped__)
         return wrapper
 
