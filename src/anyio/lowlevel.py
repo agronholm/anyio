@@ -32,6 +32,8 @@ async def checkpoint() -> None:
         await checkpoint_if_cancelled()
         await cancel_shielded_checkpoint()
 
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
 
     .. versionadded:: 3.0
 
@@ -44,6 +46,9 @@ async def checkpoint_if_cancelled() -> None:
     Enter a checkpoint if the enclosing cancel scope has been cancelled.
 
     This does not allow the scheduler to switch to a different task.
+
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
 
     .. versionadded:: 3.0
 
@@ -60,6 +65,8 @@ async def cancel_shielded_checkpoint() -> None:
         with CancelScope(shield=True):
             await checkpoint()
 
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
 
     .. versionadded:: 3.0
 
@@ -84,6 +91,9 @@ def current_token() -> EventLoopToken:
     """
     Return a token object that can be used to call code in the current event loop from
     another thread.
+
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
 
     .. versionadded:: 4.11.0
 

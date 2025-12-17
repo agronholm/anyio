@@ -46,6 +46,8 @@ async def run_sync(
         ``abandon_on_cancel`` if both parameters are passed
     :param limiter: capacity limiter to use to limit the total amount of threads running
         (if omitted, the default limiter is used)
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
     :return: an awaitable that yields the return value of the function.
 
     """
@@ -68,6 +70,8 @@ def current_default_thread_limiter() -> CapacityLimiter:
     Return the capacity limiter that is used by default to limit the number of
     concurrent threads.
 
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
     :return: a capacity limiter object
 
     """
