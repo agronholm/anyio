@@ -14,10 +14,10 @@ def open_signal_receiver(
     Start receiving operating system signals.
 
     :param signals: signals to receive (e.g. ``signal.SIGINT``)
-    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
-        current thread
     :return: an asynchronous context manager for an asynchronous iterator which yields
         signal numbers
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
 
     .. warning:: Windows does not support signals natively so it is best to avoid
         relying on this in cross-platform applications.

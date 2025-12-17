@@ -120,6 +120,8 @@ def current_time() -> float:
     Return the current value of the event loop's internal clock.
 
     :return: the clock value (seconds)
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
 
     """
     return get_async_backend().current_time()
@@ -152,7 +154,13 @@ def get_available_backends() -> tuple[str, ...]:
 
 
 def get_cancelled_exc_class() -> type[BaseException]:
-    """Return the current async library's cancellation exception class."""
+    """
+    Return the current async library's cancellation exception class.
+
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
+
+    """
     return get_async_backend().cancelled_exception_class()
 
 
