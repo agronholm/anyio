@@ -6,6 +6,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **UNRELEASED**
 
 - Dropped support for Python 3.9
+- Changed all functions currently raising the private ``NoCurrentAsyncBackend``
+  exception (since v4.12.0) to instead raise the public ``NoEventLoopError`` exception
+  (`#1048 <https://github.com/agronholm/anyio/issues/1048>`_)
 
 **4.12.0**
 
