@@ -17,10 +17,8 @@ from collections.abc import (
     Iterable,
     Sequence,
 )
-from concurrent.futures import Future
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
-from functools import partial
 from io import IOBase
 from os import PathLike
 from signal import Signals
@@ -222,38 +220,6 @@ class TaskGroup(abc.TaskGroup):
             )
 
         return await self._nursery.start(func, *args, name=name)
-
-
-#
-# Threads
-#
-
-
-class BlockingPortal(abc.BlockingPortal):
-    def __new__(cls) -> BlockingPortal:
-        return object.__new__(cls)
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._token = trio.lowlevel.current_trio_token()
-
-    def _spawn_task_from_thread(
-        self,
-        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
-        args: tuple[Unpack[PosArgsT]],
-        kwargs: dict[str, Any],
-        name: object,
-        future: Future[T_Retval],
-    ) -> None:
-        trio.from_thread.run_sync(
-            partial(self._task_group.start_soon, name=name),
-            self._call_func,
-            func,
-            args,
-            kwargs,
-            future,
-            trio_token=self._token,
-        )
 
 
 #
@@ -1113,10 +1079,6 @@ class TrioBackend(AsyncBackend):
             return trio.from_thread.run_sync(func, *args, trio_token=trio_token)
         except trio.RunFinishedError:
             raise RunFinishedError from None
-
-    @classmethod
-    def create_blocking_portal(cls) -> abc.BlockingPortal:
-        return BlockingPortal()
 
     @classmethod
     async def open_process(

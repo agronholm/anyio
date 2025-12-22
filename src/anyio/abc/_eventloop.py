@@ -33,7 +33,6 @@ if TYPE_CHECKING:
     from .._core._synchronization import CapacityLimiter, Event, Lock, Semaphore
     from .._core._tasks import CancelScope
     from .._core._testing import TaskInfo
-    from ..from_thread import BlockingPortal
     from ._sockets import (
         ConnectedUDPSocket,
         ConnectedUNIXDatagramSocket,
@@ -229,11 +228,6 @@ class AsyncBackend(metaclass=ABCMeta):
         args: tuple[Unpack[PosArgsT]],
         token: object,
     ) -> T_Retval:
-        pass
-
-    @classmethod
-    @abstractmethod
-    def create_blocking_portal(cls) -> BlockingPortal:
         pass
 
     @classmethod
