@@ -18,6 +18,7 @@ from contextlib import (
     contextmanager,
 )
 from dataclasses import dataclass, field
+from functools import partial
 from inspect import isawaitable
 from threading import Lock, Thread, current_thread, get_ident
 from types import TracebackType
@@ -30,7 +31,6 @@ from typing import (
 )
 
 from ._core._eventloop import (
-    get_async_backend,
     get_cancelled_exc_class,
     threadlocals,
 )
@@ -39,7 +39,7 @@ from ._core._exceptions import NoEventLoopError
 from ._core._synchronization import Event
 from ._core._tasks import CancelScope, create_task_group
 from .abc._tasks import TaskStatus
-from .lowlevel import EventLoopToken
+from .lowlevel import EventLoopToken, current_token
 
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
@@ -183,16 +183,18 @@ class _BlockingPortalTaskStatus(TaskStatus):
 
 
 class BlockingPortal:
-    """An object that lets external threads run code in an asynchronous event loop."""
+    """
+    An object that lets external threads run code in an asynchronous event loop.
 
-    def __new__(cls) -> BlockingPortal:
-        return get_async_backend().create_blocking_portal()
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
+    """
 
     def __init__(self) -> None:
+        self._token = current_token()
         self._event_loop_thread_id: int | None = get_ident()
         self._stop_event = Event()
         self._task_group = create_task_group()
-        self._cancelled_exc_class = get_cancelled_exc_class()
 
     async def __aenter__(self) -> BlockingPortal:
         await self._task_group.__aenter__()
@@ -257,7 +259,7 @@ class BlockingPortal:
                     retval = await retval_or_awaitable
             else:
                 retval = retval_or_awaitable
-        except self._cancelled_exc_class:
+        except get_cancelled_exc_class():
             future.cancel()
             future.set_running_or_notify_cancel()
         except BaseException as exc:
@@ -284,8 +286,6 @@ class BlockingPortal:
         """
         Spawn a new task using the given callable.
 
-        Implementers must ensure that the future is resolved when the task finishes.
-
         :param func: a callable
         :param args: positional arguments to be passed to the callable
         :param kwargs: keyword arguments to be passed to the callable
@@ -294,7 +294,15 @@ class BlockingPortal:
             or the exception raised during its execution
 
         """
-        raise NotImplementedError
+        run_sync(
+            partial(self._task_group.start_soon, name=name),
+            self._call_func,
+            func,
+            args,
+            kwargs,
+            future,
+            token=self._token,
+        )
 
     @overload
     def call(
