@@ -39,7 +39,7 @@ from ._core._synchronization import Lock
 from .lowlevel import RunVar, checkpoint
 
 if sys.version_info >= (3, 11):
-    from typing import ParamSpec, Self
+    from typing import Concatenate, ParamSpec, Self
 else:
     from typing_extensions import ParamSpec, Self
 
@@ -75,8 +75,10 @@ class AsyncCacheParameters(TypedDict):
     always_checkpoint: bool
 
 
-class _LRUInstanceMethodWrapper(Generic[P, T]):
-    def __init__(self, wrapper: AsyncLRUCacheWrapper[P, T], instance: T):
+class _LRUInstanceMethodWrapper(Generic[S, P, T]):
+    def __init__(
+        self, wrapper: AsyncLRUCacheWrapper[Concatenate[S, P], T], instance: S
+    ):
         self.__wrapper = wrapper
         self.__instance = instance
 
@@ -187,20 +189,22 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
 
     @overload
     def __get__(
-        self, instance: T, owner: type[T] | None = ...
-    ) -> _LRUInstanceMethodWrapper[P, T]: ...
+        self: AsyncLRUCacheWrapper[Concatenate[S, P2], T],
+        instance: S,
+        owner: type[S] | None = ...,
+    ) -> _LRUInstanceMethodWrapper[S, P2, T]: ...
 
     @overload
     def __get__(self, instance: None, owner: type[T]) -> Self: ...
 
     def __get__(
-        self, instance: T | None, owner: type[T] | None = None
-    ) -> Self | _LRUInstanceMethodWrapper[P, T]:
+        self, instance: object | None, owner: type | None = None
+    ) -> Self | _LRUInstanceMethodWrapper[Any, ..., Any]:
         if owner is None:
             return self
 
         assert instance is not None
-        wrapper = _LRUInstanceMethodWrapper(self, instance)
+        wrapper = _LRUInstanceMethodWrapper[Any, ..., Any](cast(Any, self), instance)
         update_wrapper(wrapper, self.__wrapped__)
         return wrapper
 
