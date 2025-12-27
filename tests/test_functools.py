@@ -266,6 +266,17 @@ class TestAsyncLRUCache:
             scope.cancel()
             await func(1)
 
+    async def test_cached_static_method(self) -> None:
+        class Foo:
+            @staticmethod
+            @lru_cache
+            async def static_method(x: int) -> int:
+                return x
+
+        for _ in range(2):
+            assert await Foo.static_method(1) == 1
+            assert await Foo.static_method(2) == 2
+
     async def test_cached_class_method(self) -> None:
         class Foo:
             @classmethod
@@ -279,13 +290,11 @@ class TestAsyncLRUCache:
 
     async def test_cached_instance_method(self) -> None:
         class Foo:
+            @lru_cache
             async def instance_method(self, x: int) -> int:
                 return x
 
-        foo2 = lru_cache(Foo.instance_method)
-
         foo = Foo()
-        await foo2(foo, 1)
         for _ in range(2):
             assert await foo.instance_method(1) == 1
             assert await foo.instance_method(2) == 2

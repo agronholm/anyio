@@ -24,7 +24,6 @@ from functools import update_wrapper
 from inspect import iscoroutinefunction
 from typing import (
     Any,
-    Concatenate,
     Generic,
     NamedTuple,
     TypedDict,
@@ -39,14 +38,13 @@ from ._core._synchronization import Lock
 from .lowlevel import RunVar, checkpoint
 
 if sys.version_info >= (3, 11):
-    from typing import Concatenate, ParamSpec, Self
+    from typing import ParamSpec, Self
 else:
     from typing_extensions import ParamSpec, Self
 
 T = TypeVar("T")
 S = TypeVar("S")
 P = ParamSpec("P")
-P2 = ParamSpec("P2")
 lru_cache_items: RunVar[
     WeakKeyDictionary[
         AsyncLRUCacheWrapper[Any, Any],
@@ -75,14 +73,12 @@ class AsyncCacheParameters(TypedDict):
     always_checkpoint: bool
 
 
-class _LRUInstanceMethodWrapper(Generic[S, P, T]):
-    def __init__(
-        self, wrapper: AsyncLRUCacheWrapper[Concatenate[S, P], T], instance: S
-    ):
+class _LRUMethodWrapper(Generic[T]):
+    def __init__(self, wrapper: AsyncLRUCacheWrapper[..., T], instance: object):
         self.__wrapper = wrapper
         self.__instance = instance
 
-    async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> T:
+    async def __call__(self, *args: Any, **kwargs: Any) -> T:
         return await self.__wrapper(self.__instance, *args, **kwargs)
 
 
@@ -188,23 +184,23 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
         return value
 
     @overload
-    def __get__(
-        self: AsyncLRUCacheWrapper[Concatenate[S, P2], T],
-        instance: S,
-        owner: type[S] | None = ...,
-    ) -> _LRUInstanceMethodWrapper[S, P2, T]: ...
+    def __get__(self, instance: None, owner: type[T]) -> Self: ...
 
     @overload
-    def __get__(self, instance: None, owner: type[T]) -> Self: ...
+    def __get__(
+        self,
+        instance: object,
+        owner: type | None = ...,
+    ) -> _LRUMethodWrapper[T]: ...
 
     def __get__(
         self, instance: object | None, owner: type | None = None
-    ) -> Self | _LRUInstanceMethodWrapper[Any, ..., Any]:
+    ) -> Self | _LRUMethodWrapper[T]:
         if owner is None:
             return self
 
         assert instance is not None
-        wrapper = _LRUInstanceMethodWrapper[Any, ..., Any](cast(Any, self), instance)
+        wrapper = _LRUMethodWrapper(self, instance)
         update_wrapper(wrapper, self.__wrapped__)
         return wrapper
 
