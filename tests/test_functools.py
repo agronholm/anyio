@@ -15,6 +15,7 @@ from anyio import (
     wait_all_tasks_blocked,
 )
 from anyio.functools import (
+    AsyncLRUCacheWrapper,
     _LRUMethodWrapper,
     cache,
     lru_cache,
@@ -271,7 +272,10 @@ class TestAsyncLRUCache:
             scope.cancel()
             await func(1)
 
-    async def _do_cache_tests(self, wrapper: _LRUMethodWrapper[int]) -> None:
+    @staticmethod
+    async def _do_cache_tests(
+        wrapper: _LRUMethodWrapper[int] | AsyncLRUCacheWrapper[..., int],
+    ) -> None:
         for _ in range(2):
             assert await wrapper(1) == 1
             assert await wrapper(2) == 2

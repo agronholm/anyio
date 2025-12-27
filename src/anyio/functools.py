@@ -193,7 +193,7 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
         return value
 
     @overload
-    def __get__(self, instance: None, owner: type[T]) -> Self: ...
+    def __get__(self, instance: None, owner: type) -> Self: ...
 
     @overload
     def __get__(
