@@ -61,3 +61,11 @@ It even works with the popular Hypothesis_ library.
 .. _pytest: https://docs.pytest.org/en/latest/
 .. _functools: https://docs.python.org/3/library/functools.html
 .. _Hypothesis: https://hypothesis.works/
+
+Security contact information
+----------------------------
+
+To report a security vulnerability, please use the `Tidelift security contact`_.
+Tidelift will coordinate the fix and disclosure.
+
+.. _Tidelift security contact: https://tidelift.com/security
