@@ -78,6 +78,15 @@ class _LRUMethodWrapper(Generic[T]):
         self.__wrapper = wrapper
         self.__instance = instance
 
+    def cache_info(self) -> AsyncCacheInfo:
+        return self.__wrapper.cache_info()
+
+    def cache_parameters(self) -> AsyncCacheParameters:
+        return self.__wrapper.cache_parameters()
+
+    def cache_clear(self) -> None:
+        self.__wrapper.cache_clear()
+
     async def __call__(self, *args: Any, **kwargs: Any) -> T:
         return await self.__wrapper(self.__instance, *args, **kwargs)
 
