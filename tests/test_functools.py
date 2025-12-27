@@ -273,13 +273,9 @@ class TestAsyncLRUCache:
             await func(1)
 
     @staticmethod
-    async def _do_cache_tests(
+    async def _do_cache_asserts(
         wrapper: _LRUMethodWrapper[int] | AsyncLRUCacheWrapper[..., int],
     ) -> None:
-        for _ in range(2):
-            assert await wrapper(1) == 1
-            assert await wrapper(2) == 2
-
         assert wrapper.cache_parameters() == {
             "always_checkpoint": False,
             "maxsize": 128,
@@ -301,7 +297,11 @@ class TestAsyncLRUCache:
             async def static_method(x: int) -> int:
                 return x
 
-        await self._do_cache_tests(Foo.static_method)
+        for _ in range(2):
+            assert await Foo.static_method(1) == 1
+            assert await Foo.static_method(2) == 2
+
+        await self._do_cache_asserts(Foo.static_method)
 
     async def test_cached_class_method(self) -> None:
         class Foo:
@@ -310,7 +310,11 @@ class TestAsyncLRUCache:
             async def cls_method(cls, x: int) -> int:
                 return x
 
-        await self._do_cache_tests(Foo.cls_method)
+        for _ in range(2):
+            assert await Foo.cls_method(1) == 1
+            assert await Foo.cls_method(2) == 2
+
+        await self._do_cache_asserts(Foo.cls_method)
 
     async def test_cached_instance_method(self) -> None:
         class Foo:
@@ -318,7 +322,12 @@ class TestAsyncLRUCache:
             async def instance_method(self, x: int) -> int:
                 return x
 
-        await self._do_cache_tests(Foo().instance_method)
+        foo = Foo()
+        for _ in range(2):
+            assert await foo.instance_method(1) == 1
+            assert await foo.instance_method(2) == 2
+
+        await self._do_cache_asserts(Foo().instance_method)
 
 
 class TestReduce:

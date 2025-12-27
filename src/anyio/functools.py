@@ -38,9 +38,9 @@ from ._core._synchronization import Lock
 from .lowlevel import RunVar, checkpoint
 
 if sys.version_info >= (3, 11):
-    from typing import ParamSpec, Self
+    from typing import ParamSpec
 else:
-    from typing_extensions import ParamSpec, Self
+    from typing_extensions import ParamSpec
 
 T = TypeVar("T")
 S = TypeVar("S")
@@ -88,6 +88,9 @@ class _LRUMethodWrapper(Generic[T]):
         self.__wrapper.cache_clear()
 
     async def __call__(self, *args: Any, **kwargs: Any) -> T:
+        if self.__instance is None:
+            return await self.__wrapper(*args, **kwargs)
+
         return await self.__wrapper(self.__instance, *args, **kwargs)
 
 
@@ -192,23 +195,9 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
 
         return value
 
-    @overload
-    def __get__(self, instance: None, owner: type) -> Self: ...
-
-    @overload
     def __get__(
-        self,
-        instance: object,
-        owner: type | None = ...,
-    ) -> _LRUMethodWrapper[T]: ...
-
-    def __get__(
-        self, instance: object | None, owner: type | None = None
-    ) -> Self | _LRUMethodWrapper[T]:
-        if owner is None:
-            return self
-
-        assert instance is not None
+        self, instance: object, owner: type | None = None
+    ) -> _LRUMethodWrapper[T]:
         wrapper = _LRUMethodWrapper(self, instance)
         update_wrapper(wrapper, self.__wrapped__)
         return wrapper
