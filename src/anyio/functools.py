@@ -73,11 +73,32 @@ class AsyncCacheParameters(TypedDict):
     always_checkpoint: bool
 
 
+class _LRUMethodWrapper(Generic[T]):
+    def __init__(self, wrapper: AsyncLRUCacheWrapper[..., T], instance: object):
+        self.__wrapper = wrapper
+        self.__instance = instance
+
+    def cache_info(self) -> AsyncCacheInfo:
+        return self.__wrapper.cache_info()
+
+    def cache_parameters(self) -> AsyncCacheParameters:
+        return self.__wrapper.cache_parameters()
+
+    def cache_clear(self) -> None:
+        self.__wrapper.cache_clear()
+
+    async def __call__(self, *args: Any, **kwargs: Any) -> T:
+        if self.__instance is None:
+            return await self.__wrapper(*args, **kwargs)
+
+        return await self.__wrapper(self.__instance, *args, **kwargs)
+
+
 @final
 class AsyncLRUCacheWrapper(Generic[P, T]):
     def __init__(
         self,
-        func: Callable[..., Awaitable[T]],
+        func: Callable[P, Awaitable[T]],
         maxsize: int | None,
         typed: bool,
         always_checkpoint: bool,
@@ -173,6 +194,13 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
                 value = cast(T, cached_value)
 
         return value
+
+    def __get__(
+        self, instance: object, owner: type | None = None
+    ) -> _LRUMethodWrapper[T]:
+        wrapper = _LRUMethodWrapper(self, instance)
+        update_wrapper(wrapper, self.__wrapped__)
+        return wrapper
 
 
 class _LRUCacheWrapper(Generic[T]):

@@ -14,7 +14,13 @@ from anyio import (
     get_cancelled_exc_class,
     wait_all_tasks_blocked,
 )
-from anyio.functools import cache, lru_cache, reduce
+from anyio.functools import (
+    AsyncLRUCacheWrapper,
+    _LRUMethodWrapper,
+    cache,
+    lru_cache,
+    reduce,
+)
 from anyio.lowlevel import checkpoint
 
 
@@ -265,6 +271,63 @@ class TestAsyncLRUCache:
         with CancelScope() as scope, pytest.raises(get_cancelled_exc_class()):
             scope.cancel()
             await func(1)
+
+    @staticmethod
+    async def _do_cache_asserts(
+        wrapper: _LRUMethodWrapper[int] | AsyncLRUCacheWrapper[..., int],
+    ) -> None:
+        assert wrapper.cache_parameters() == {
+            "always_checkpoint": False,
+            "maxsize": 128,
+            "typed": False,
+        }
+        statistics = wrapper.cache_info()
+        assert statistics.hits == 2
+        assert statistics.misses == 2
+
+        wrapper.cache_clear()
+        statistics = wrapper.cache_info()
+        assert statistics.hits == 0
+        assert statistics.misses == 0
+
+    async def test_cached_static_method(self) -> None:
+        class Foo:
+            @staticmethod
+            @lru_cache
+            async def static_method(x: int) -> int:
+                return x
+
+        for _ in range(2):
+            assert await Foo.static_method(1) == 1
+            assert await Foo.static_method(2) == 2
+
+        await self._do_cache_asserts(Foo.static_method)
+
+    async def test_cached_class_method(self) -> None:
+        class Foo:
+            @classmethod
+            @lru_cache
+            async def cls_method(cls, x: int) -> int:
+                return x
+
+        for _ in range(2):
+            assert await Foo.cls_method(1) == 1
+            assert await Foo.cls_method(2) == 2
+
+        await self._do_cache_asserts(Foo.cls_method)
+
+    async def test_cached_instance_method(self) -> None:
+        class Foo:
+            @lru_cache
+            async def instance_method(self, x: int) -> int:
+                return x
+
+        foo = Foo()
+        for _ in range(2):
+            assert await foo.instance_method(1) == 1
+            assert await foo.instance_method(2) == 2
+
+        await self._do_cache_asserts(Foo().instance_method)
 
 
 class TestReduce:
