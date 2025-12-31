@@ -93,7 +93,7 @@ async def test_get_running_tasks() -> None:
         "task2",
         "tests.test_debugging.test_get_running_tasks.<locals>.inspect",
     ]
-    for task, expected_name in zip(task_infos, expected_names):
+    for task, expected_name in zip(task_infos, expected_names, strict=True):
         assert task.parent_id == host_task.id
         assert task.name == expected_name
         assert repr(task).endswith(f"TaskInfo(id={task.id}, name={expected_name!r})")

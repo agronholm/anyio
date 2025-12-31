@@ -4,6 +4,7 @@ from ._core._contextmanagers import AsyncContextManagerMixin as AsyncContextMana
 from ._core._contextmanagers import ContextManagerMixin as ContextManagerMixin
 from ._core._eventloop import current_time as current_time
 from ._core._eventloop import get_all_backends as get_all_backends
+from ._core._eventloop import get_available_backends as get_available_backends
 from ._core._eventloop import get_cancelled_exc_class as get_cancelled_exc_class
 from ._core._eventloop import run as run
 from ._core._eventloop import sleep as sleep

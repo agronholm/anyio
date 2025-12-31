@@ -1,7 +1,18 @@
 from __future__ import annotations
 
+__all__ = (
+    "EventLoopToken",
+    "RunvarToken",
+    "RunVar",
+    "checkpoint",
+    "checkpoint_if_cancelled",
+    "cancel_shielded_checkpoint",
+    "current_token",
+)
+
 import enum
 from dataclasses import dataclass
+from types import TracebackType
 from typing import Any, Generic, Literal, TypeVar, final, overload
 from weakref import WeakKeyDictionary
 
@@ -20,7 +31,6 @@ async def checkpoint() -> None:
 
         await checkpoint_if_cancelled()
         await cancel_shielded_checkpoint()
-
 
     .. versionadded:: 3.0
 
@@ -49,7 +59,6 @@ async def cancel_shielded_checkpoint() -> None:
         with CancelScope(shield=True):
             await checkpoint()
 
-
     .. versionadded:: 3.0
 
     """
@@ -74,6 +83,9 @@ def current_token() -> EventLoopToken:
     Return a token object that can be used to call code in the current event loop from
     another thread.
 
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
+
     .. versionadded:: 4.11.0
 
     """
@@ -97,10 +109,24 @@ class RunvarToken(Generic[T]):
         self._value: T | Literal[_NoValueSet.NO_VALUE_SET] = value
         self._redeemed = False
 
+    def __enter__(self) -> RunvarToken[T]:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self._var.reset(self)
+
 
 class RunVar(Generic[T]):
     """
     Like a :class:`~contextvars.ContextVar`, except scoped to the running event loop.
+
+    Can be used as a context manager, Just like :class:`~contextvars.ContextVar`, that
+    will reset the variable to its previous value when the context block is exited.
     """
 
     __slots__ = "_name", "_default"

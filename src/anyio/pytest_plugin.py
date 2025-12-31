@@ -8,11 +8,16 @@ from inspect import isasyncgenfunction, iscoroutinefunction, ismethod
 from typing import Any, cast
 
 import pytest
-import sniffio
 from _pytest.fixtures import SubRequest
 from _pytest.outcomes import Exit
 
-from ._core._eventloop import get_all_backends, get_async_backend
+from . import get_available_backends
+from ._core._eventloop import (
+    current_async_library,
+    get_async_backend,
+    reset_current_async_library,
+    set_current_async_library,
+)
 from ._core._exceptions import iterate_exceptions
 from .abc import TestRunner
 
@@ -42,11 +47,11 @@ def get_runner(
     if _current_runner is None:
         asynclib = get_async_backend(backend_name)
         _runner_stack = ExitStack()
-        if sniffio.current_async_library_cvar.get(None) is None:
+        if current_async_library() is None:
             # Since we're in control of the event loop, we can cache the name of the
             # async library
-            token = sniffio.current_async_library_cvar.set(backend_name)
-            _runner_stack.callback(sniffio.current_async_library_cvar.reset, token)
+            token = set_current_async_library(backend_name)
+            _runner_stack.callback(reset_current_async_library, token)
 
         backend_options = backend_options or {}
         _current_runner = _runner_stack.enter_context(
@@ -69,7 +74,6 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "anyio_mode",
         default="strict",
         help='AnyIO plugin mode (either "strict" or "auto")',
-        type="string",
     )
 
 
@@ -196,7 +200,7 @@ def pytest_pyfunc_call(pyfuncitem: Any) -> bool | None:
     return None
 
 
-@pytest.fixture(scope="module", params=get_all_backends())
+@pytest.fixture(scope="module", params=get_available_backends())
 def anyio_backend(request: Any) -> Any:
     return request.param
 

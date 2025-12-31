@@ -3,13 +3,51 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-
 **UNRELEASED**
 
-- Set ``None`` as the default type argument for ``anyio.abc.TaskStatus``
+- Dropped support for Python 3.9
+- Changed all functions currently raising the private ``NoCurrentAsyncBackend``
+  exception (since v4.12.0) to instead raise the public ``NoEventLoopError`` exception
+  (`#1048 <https://github.com/agronholm/anyio/issues/1048>`_)
+
+**4.12.0**
+
+- Added support for asyncio's `task call graphs`_ on Python 3.14 and later when using
+  AnyIO's task groups
+  (`#1025 <https://github.com/agronholm/anyio/pull/1025>`_)
+- Added an asynchronous implementation of the ``functools`` module
+  (`#1001 <https://github.com/agronholm/anyio/pull/1001>`_)
 - Added support for ``uvloop=True`` on Windows via the winloop_ implementation
   (`#960 <https://github.com/agronholm/anyio/pull/960>`_; PR by @Vizonex)
+- Added support for use as a context manager to ``anyio.lowlevel.RunVar``
+  (`#1003 <https://github.com/agronholm/anyio/pull/1003>`_)
+- Added ``__all__`` declarations to public submodules (``anyio.lowlevel`` etc.)
+  (`#1009 <https://github.com/agronholm/anyio/pull/1009>`_)
+- Added the ability to set the token count of a ``CapacityLimiter`` to zero
+  (`#1019 <https://github.com/agronholm/anyio/pull/1019>`_; requires Python 3.10 or
+  later when using Trio)
+- Added parameters ``case_sensitive`` and ``recurse_symlinks`` along with support for
+  path-like objects to ``anyio.Path.glob()`` and ``anyio.Path.rglob()``
+  (`#1033 <https://github.com/agronholm/anyio/pull/1033>`_; PR by @northisup)
+- Dropped ``sniffio`` as a direct dependency and added the ``get_available_backends()``
+  function (`#1021 <https://github.com/agronholm/anyio/pull/1021>`_)
+- Fixed ``Process.stdin.send()`` not raising ``ClosedResourceError`` and
+  ``BrokenResourceError`` on asyncio. Previously, a non-AnyIO exception was raised in
+  such cases (`#671 <https://github.com/agronholm/anyio/issues/671>`_; PR by
+  @gschaffner)
+- Fixed ``Process.stdin.send()`` not checkpointing before writing data on asyncio
+  (`#1002 <https://github.com/agronholm/anyio/issues/1002>`_; PR by @gschaffner)
+- Fixed a race condition where cancelling a ``Future`` from
+  ``BlockingPortal.start_task_soon()`` would sometimes not cancel the async function
+  (`#1011 <https://github.com/agronholm/anyio/issues/1011>`_; PR by @gschaffner)
+- Fixed the presence of the pytest plugin causing breakage with older versions of
+  pytest (<= 6.1.2)
+  (`#1028 <https://github.com/agronholm/anyio/issues/1028>`_; PR by @saper)
+- Fixed a rarely occurring ``RuntimeError: Set changed size during iteration`` while
+  shutting down the process pool when using the asyncio backend
+  (`#985 <https://github.com/agronholm/anyio/issues/985>`_)
 
+.. _task call graphs: https://docs.python.org/3/library/asyncio-graph.html
 .. _winloop: https://github.com/Vizonex/Winloop
 
 **4.11.0**
@@ -53,6 +91,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``ConnectedUNIXDatagramSocket.from_socket()``
 - Added a hierarchy of connectable stream classes for transparently connecting to
   various remote or local endpoints for exchanging bytes or objects
+- Added ``BufferedByteStream``, a full-duplex variant of ``BufferedByteReceiveStream``
 - Added context manager mix-in classes (``anyio.ContextManagerMixin`` and
   ``anyio.AsyncContextManagerMixin``) to help write classes that embed other context
   managers, particularly cancel scopes or task groups

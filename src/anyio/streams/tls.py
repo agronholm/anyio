@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+__all__ = (
+    "TLSAttribute",
+    "TLSConnectable",
+    "TLSListener",
+    "TLSStream",
+)
+
 import logging
 import re
 import ssl
@@ -8,7 +15,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from functools import wraps
 from ssl import SSLContext
-from typing import Any, TypeVar
+from typing import Any, TypeAlias, TypeVar
 
 from .. import (
     BrokenResourceError,
@@ -26,11 +33,6 @@ from ..abc import (
     Listener,
     TaskGroup,
 )
-
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-else:
-    from typing_extensions import TypeAlias
 
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
