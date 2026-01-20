@@ -48,7 +48,7 @@ pytest11 = {anyio = "anyio.pytest_plugin"}
 test = [
     "blockbuster >= 1.5.23",
     "coverage[toml] >= 7",
-    "exceptiongroup >= 1.2.0",
+    "exceptiongroup >= 1.2.0; python_version < '3.11'",
     "hypothesis >= 4.18.2",
     "psutil >= 5.9",
     "pytest >= 7.0",
