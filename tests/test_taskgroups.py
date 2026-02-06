@@ -34,7 +34,7 @@ from anyio.lowlevel import checkpoint
 from .conftest import asyncio_params, no_other_refs
 
 if sys.version_info < (3, 11):
-    from exceptiongroup import BaseExceptionGroup, catch, ExceptionGroup
+    from exceptiongroup import BaseExceptionGroup, ExceptionGroup, catch
 
 
 async def async_error(text: str, delay: float = 0.1) -> NoReturn:
