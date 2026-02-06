@@ -1560,8 +1560,8 @@ async def test_reraise_cancelled_in_excgroup() -> None:
         else:
             try:
                 await anyio.sleep_forever()
-            except get_cancelled_exc_class() as excgroup:
-                handler(excgroup)
+            except get_cancelled_exc_class() as e:
+                handler(BaseExceptionGroup("", [e]))
 
 
 async def test_cancel_child_task_when_host_is_shielded() -> None:
