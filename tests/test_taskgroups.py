@@ -11,7 +11,6 @@ from typing import Any, NoReturn, cast
 from unittest import mock
 
 import pytest
-from exceptiongroup import catch
 from pytest import FixtureRequest, MonkeyPatch
 
 import anyio
@@ -35,7 +34,7 @@ from anyio.lowlevel import checkpoint
 from .conftest import asyncio_params, no_other_refs
 
 if sys.version_info < (3, 11):
-    from exceptiongroup import BaseExceptionGroup, ExceptionGroup
+    from exceptiongroup import BaseExceptionGroup, catch, ExceptionGroup
 
 
 async def async_error(text: str, delay: float = 0.1) -> NoReturn:
@@ -1555,8 +1554,14 @@ async def test_reraise_cancelled_in_excgroup() -> None:
 
     with CancelScope() as scope:
         scope.cancel()
-        with catch({get_cancelled_exc_class(): handler}):
-            await anyio.sleep_forever()
+        if sys.version_info < (3, 11):
+            with catch({get_cancelled_exc_class(): handler}):
+                await anyio.sleep_forever()
+        else:
+            try:
+                await anyio.sleep_forever()
+            except get_cancelled_exc_class() as excgroup:
+                handler(excgroup)
 
 
 async def test_cancel_child_task_when_host_is_shielded() -> None:

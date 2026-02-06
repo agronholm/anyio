@@ -6,6 +6,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **UNRELEASED**
 
 - Dropped support for Python 3.9
+- Dropped ``exceptiongroup`` from test dependencies
+  (`#1063 <https://github.com/agronholm/anyio/pull/1063>`_; PR by @dotlambda)
 
 **4.12.1**
 
