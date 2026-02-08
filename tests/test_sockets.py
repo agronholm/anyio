@@ -554,7 +554,6 @@ class TestTCPStream:
         with pytest.raises(ClosedResourceError):
             await stream.send(b"foo")
 
-    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_receive_exception_cause_preserved(
         self, family: AnyIPAddressFamily
     ) -> None:
@@ -591,7 +590,6 @@ class TestTCPStream:
 
             thread.join()
 
-    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_send_exception_cause_preserved(
         self, family: AnyIPAddressFamily
     ) -> None:
