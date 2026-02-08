@@ -1272,7 +1272,7 @@ class SocketStream(abc.SocketStream):
                 if self._closed:
                     raise ClosedResourceError from None
                 elif self._protocol.exception:
-                    raise self._protocol.exception from None
+                    raise self._protocol.exception
                 else:
                     raise EndOfStream from None
 
