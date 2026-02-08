@@ -9,6 +9,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``anyio.Path`` not being compatible with Python 3.15 due to the removal of
   ``pathlib.Path.is_reserved()`` and the addition of ``pathlib.Path.__vfspath__()``
   (`#1061 <https://github.com/agronholm/anyio/issues/1061>`_; PR by @veeceey)
+- Fixed the ``BrokenResourceError`` raised by the asyncio ``SocketStream`` not having
+  the original exception as its cause
+  (`#1055 <https://github.com/agronholm/anyio/issues/1055>`_; PR by @veeceey)
 
 **4.12.1**
 

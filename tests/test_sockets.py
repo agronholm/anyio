@@ -8,6 +8,7 @@ import os
 import platform
 import re
 import socket
+import struct
 import sys
 import tempfile
 import threading
@@ -552,6 +553,81 @@ class TestTCPStream:
 
         with pytest.raises(ClosedResourceError):
             await stream.send(b"foo")
+
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_receive_exception_cause_preserved(
+        self, family: AnyIPAddressFamily
+    ) -> None:
+        """
+        Test that when connection_lost is called with an exception, the resulting
+        BrokenResourceError has the original exception as its __cause__.
+
+        Regression test for https://github.com/agronholm/anyio/issues/1055.
+        """
+
+        def serve() -> None:
+            sock, addr = server_sock.accept()
+            event.wait(3)
+            sock.setsockopt(
+                socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
+            )
+            sock.close()
+
+        with socket.socket(family, socket.SOCK_STREAM) as server_sock:
+            server_sock.settimeout(1)
+            server_sock.bind(("localhost", 0))
+            server_sock.listen()
+            server_addr = server_sock.getsockname()[:2]
+            event = threading.Event()
+            thread = Thread(target=serve)
+            thread.start()
+            async with await connect_tcp(*server_addr) as stream:
+                await stream.send(b"GET")
+                event.set()
+                with pytest.raises(BrokenResourceError) as exc_info:
+                    await stream.receive()
+
+                assert exc_info.value.__cause__ is not None
+
+            thread.join()
+
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_send_exception_cause_preserved(
+        self, family: AnyIPAddressFamily
+    ) -> None:
+        """
+        Test that when connection_lost is called with an exception, the resulting
+        BrokenResourceError from send() has the original exception as its __cause__.
+
+        Regression test for https://github.com/agronholm/anyio/issues/1055.
+        """
+
+        def serve() -> None:
+            sock, addr = server_sock.accept()
+            event.wait(3)
+            sock.setsockopt(
+                socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
+            )
+            sock.close()
+
+        with socket.socket(family, socket.SOCK_STREAM) as server_sock:
+            server_sock.settimeout(1)
+            server_sock.bind(("localhost", 0))
+            server_sock.listen()
+            server_addr = server_sock.getsockname()[:2]
+            event = threading.Event()
+            thread = Thread(target=serve)
+            thread.start()
+            async with await connect_tcp(*server_addr) as stream:
+                await stream.send(b"GET")
+                event.set()
+                with pytest.raises(BrokenResourceError) as exc_info:
+                    for _ in range(1000):
+                        await stream.send(b"foo")
+
+                assert exc_info.value.__cause__ is not None
+
+            thread.join()
 
     async def test_connect_tcp_with_tls(
         self,
