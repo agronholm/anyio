@@ -10,6 +10,9 @@
 .. image:: https://badges.gitter.im/gitterHQ/gitter.svg
   :target: https://gitter.im/python-trio/AnyIO
   :alt: Gitter chat
+.. image:: https://tidelift.com/badges/package/pypi/anyio
+  :target: https://tidelift.com/subscription/pkg/pypi-anyio
+  :alt: Tidelift
 
 AnyIO is an asynchronous networking and concurrency library that works on top of either asyncio_ or
 Trio_. It implements Trio-like `structured concurrency`_ (SC) on top of asyncio and works in harmony
