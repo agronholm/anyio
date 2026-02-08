@@ -301,6 +301,11 @@ class Path:
     def __fspath__(self) -> str:
         return self._path.__fspath__()
 
+    if sys.version_info >= (3, 15):
+
+        def __vfspath__(self) -> str:
+            return self._path.__vfspath__()
+
     def __str__(self) -> str:
         return self._path.__str__()
 
@@ -561,8 +566,10 @@ class Path:
             os.path.ismount, self._path, abandon_on_cancel=True
         )
 
-    def is_reserved(self) -> bool:
-        return self._path.is_reserved()
+    if sys.version_info < (3, 15):
+
+        def is_reserved(self) -> bool:
+            return self._path.is_reserved()
 
     async def is_socket(self) -> bool:
         return await to_thread.run_sync(self._path.is_socket, abandon_on_cancel=True)

@@ -301,6 +301,10 @@ class TestPath:
         assert not await Path("/gfobj4ewiotj").is_mount()
         assert await Path("/").is_mount()
 
+    @pytest.mark.skipif(
+        sys.version_info >= (3, 15),
+        reason="is_reserved() was removed in Python 3.15",
+    )
     @pytest.mark.filterwarnings("ignore::DeprecationWarning")
     def test_is_reserved(self) -> None:
         expected_result = platform.system() == "Windows"
