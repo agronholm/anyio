@@ -8,6 +8,7 @@ import os
 import platform
 import re
 import socket
+import struct
 import sys
 import tempfile
 import threading
@@ -552,6 +553,57 @@ class TestTCPStream:
 
         with pytest.raises(ClosedResourceError):
             await stream.send(b"foo")
+
+    async def test_receive_exception_cause_preserved(
+        self, family: AnyIPAddressFamily, request: FixtureRequest
+    ) -> None:
+        """
+        Test that when connection_lost is called with an exception, the resulting
+        BrokenResourceError has the original exception as its __cause__.
+
+        Regression test for https://github.com/agronholm/anyio/issues/1055.
+        """
+        server_sock = socket.create_server(("localhost", 0), family=family)
+        request.addfinalizer(server_sock.close)
+        server_sock.settimeout(1)
+        server_addr = server_sock.getsockname()[:2]
+
+        async with await connect_tcp(*server_addr) as stream:
+            client_sock, _ = server_sock.accept()
+            client_sock.setsockopt(
+                socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
+            )
+            client_sock.close()
+            with pytest.raises(BrokenResourceError) as exc_info:
+                await stream.receive()
+
+            assert exc_info.value.__cause__ is not None
+
+    async def test_send_exception_cause_preserved(
+        self, family: AnyIPAddressFamily, request: FixtureRequest
+    ) -> None:
+        """
+        Test that when connection_lost is called with an exception, the resulting
+        BrokenResourceError from send() has the original exception as its __cause__.
+
+        Regression test for https://github.com/agronholm/anyio/issues/1055.
+        """
+        server_sock = socket.create_server(("localhost", 0), family=family)
+        request.addfinalizer(server_sock.close)
+        server_sock.settimeout(1)
+        server_addr = server_sock.getsockname()[:2]
+
+        async with await connect_tcp(*server_addr) as stream:
+            client_sock, _ = server_sock.accept()
+            client_sock.setsockopt(
+                socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
+            )
+            client_sock.close()
+            with pytest.raises(BrokenResourceError) as exc_info:
+                for _ in range(1000):
+                    await stream.send(b"foo")
+
+            assert exc_info.value.__cause__ is not None
 
     async def test_connect_tcp_with_tls(
         self,

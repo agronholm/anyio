@@ -1187,8 +1187,7 @@ class StreamProtocol(asyncio.Protocol):
 
     def connection_lost(self, exc: Exception | None) -> None:
         if exc:
-            self.exception = BrokenResourceError()
-            self.exception.__cause__ = exc
+            self.exception = exc
 
         self.read_event.set()
         self.write_event.set()
@@ -1272,7 +1271,7 @@ class SocketStream(abc.SocketStream):
                 if self._closed:
                     raise ClosedResourceError from None
                 elif self._protocol.exception:
-                    raise self._protocol.exception from None
+                    raise BrokenResourceError from self._protocol.exception
                 else:
                     raise EndOfStream from None
 
@@ -1295,7 +1294,7 @@ class SocketStream(abc.SocketStream):
             if self._closed:
                 raise ClosedResourceError
             elif self._protocol.exception is not None:
-                raise self._protocol.exception
+                raise BrokenResourceError from self._protocol.exception
 
             try:
                 self._transport.write(item)
