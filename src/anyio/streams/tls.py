@@ -274,9 +274,11 @@ class TLSStream(ByteStream):
                 True
             ),
             TLSAttribute.server_side: lambda: self._ssl_object.server_side,
-            TLSAttribute.shared_ciphers: lambda: self._ssl_object.shared_ciphers()
-            if self._ssl_object.server_side
-            else None,
+            TLSAttribute.shared_ciphers: lambda: (
+                self._ssl_object.shared_ciphers()
+                if self._ssl_object.server_side
+                else None
+            ),
             TLSAttribute.standard_compatible: lambda: self.standard_compatible,
             TLSAttribute.ssl_object: lambda: self._ssl_object,
             TLSAttribute.tls_version: self._ssl_object.version,
