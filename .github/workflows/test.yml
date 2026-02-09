@@ -15,7 +15,7 @@ jobs:
       tests-changed: ${{ steps.changed-files.outputs.tests_any_changed }}
       docs-changed: ${{ steps.changed-files.outputs.doc_any_changed }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Get changed files by category
       id: changed-files
       uses: tj-actions/changed-files@v47
@@ -42,12 +42,12 @@ jobs:
         || (needs.changed-files.outputs.src-changed == 'true')
       }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Set up Python
       uses: actions/setup-python@v6
       with:
         python-version: 3.x
-    - uses: actions/cache@v4
+    - uses: actions/cache@v5
       with:
         path: ~/.cache/pip
         key: pip-pyright
@@ -61,17 +61,18 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14", pypy-3.11]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14", pypy-3.11]
         extras: ["[trio]"]
+        lowest-bound: [false]
         include:
         - os: macos-latest
-          python-version: "3.9"
+          python-version: "3.10"
           extras: "[trio]"
         - os: macos-latest
           python-version: "3.14"
           extras: "[trio]"
         - os: windows-latest
-          python-version: "3.9"
+          python-version: "3.10"
           extras: "[trio]"
         - os: windows-latest
           python-version: "3.14"
@@ -80,6 +81,11 @@ jobs:
           os: ubuntu-latest
           python-version: "3.14"
           extras: ""
+        - name: oldest dependencies
+          os: ubuntu-latest
+          python-version: "3.10"
+          extras: "[trio]"
+          lowest-bound: true
     runs-on: ${{ matrix.os }}
     needs: changed-files
     if: |
@@ -90,7 +96,7 @@ jobs:
         || (needs.changed-files.outputs.tests-changed == 'true')
       }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -99,7 +105,13 @@ jobs:
         cache: pip
         cache-dependency-path: pyproject.toml
     - name: Install the project and its dependencies
+      if: matrix.lowest-bound == false
       run: pip install --group test -e .${{ matrix.extras }}
+    - name: Install the project and its dependencies (lowest bound)
+      if: matrix.lowest-bound == true
+      run: |
+        pip install uv
+        uv pip install --system --resolution lowest-direct --group test -e .${{ matrix.extras }}
     - name: Patch /etc/hosts
       if: runner.os != 'Windows'
       run: |
@@ -134,7 +146,7 @@ jobs:
         || (needs.changed-files.outputs.docs-changed == 'true')
       }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:

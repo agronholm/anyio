@@ -5,6 +5,27 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Dropped support for Python 3.9
+- Fixed ``anyio.Path`` not being compatible with Python 3.15 due to the removal of
+  ``pathlib.Path.is_reserved()`` and the addition of ``pathlib.Path.__vfspath__()``
+  (`#1061 <https://github.com/agronholm/anyio/issues/1061>`_; PR by @veeceey)
+- Fixed the ``BrokenResourceError`` raised by the asyncio ``SocketStream`` not having
+  the original exception as its cause
+  (`#1055 <https://github.com/agronholm/anyio/issues/1055>`_; PR by @veeceey)
+
+**4.12.1**
+
+- Changed all functions currently raising the private ``NoCurrentAsyncBackend``
+  exception (since v4.12.0) to instead raise the public ``NoEventLoopError`` exception
+  (`#1048 <https://github.com/agronholm/anyio/issues/1048>`_)
+- Fixed ``anyio.functools.lru_cache`` not working with instance methods
+  (`#1042 <https://github.com/agronholm/anyio/issues/1042>`_)
+
+**4.12.0**
+
+- Added support for asyncio's `task call graphs`_ on Python 3.14 and later when using
+  AnyIO's task groups
+  (`#1025 <https://github.com/agronholm/anyio/pull/1025>`_)
 - Added an asynchronous implementation of the ``functools`` module
   (`#1001 <https://github.com/agronholm/anyio/pull/1001>`_)
 - Added support for ``uvloop=True`` on Windows via the winloop_ implementation
@@ -18,6 +39,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added the ability to set the token count of a ``CapacityLimiter`` to zero
   (`#1019 <https://github.com/agronholm/anyio/pull/1019>`_; requires Python 3.10 or
   later when using Trio)
+- Added parameters ``case_sensitive`` and ``recurse_symlinks`` along with support for
+  path-like objects to ``anyio.Path.glob()`` and ``anyio.Path.rglob()``
+  (`#1033 <https://github.com/agronholm/anyio/pull/1033>`_; PR by @northisup)
 - Dropped ``sniffio`` as a direct dependency and added the ``get_available_backends()``
   function (`#1021 <https://github.com/agronholm/anyio/pull/1021>`_)
 - Fixed ``Process.stdin.send()`` not raising ``ClosedResourceError`` and
@@ -29,7 +53,14 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed a race condition where cancelling a ``Future`` from
   ``BlockingPortal.start_task_soon()`` would sometimes not cancel the async function
   (`#1011 <https://github.com/agronholm/anyio/issues/1011>`_; PR by @gschaffner)
+- Fixed the presence of the pytest plugin causing breakage with older versions of
+  pytest (<= 6.1.2)
+  (`#1028 <https://github.com/agronholm/anyio/issues/1028>`_; PR by @saper)
+- Fixed a rarely occurring ``RuntimeError: Set changed size during iteration`` while
+  shutting down the process pool when using the asyncio backend
+  (`#985 <https://github.com/agronholm/anyio/issues/985>`_)
 
+.. _task call graphs: https://docs.python.org/3/library/asyncio-graph.html
 .. _winloop: https://github.com/Vizonex/Winloop
 
 **4.11.0**

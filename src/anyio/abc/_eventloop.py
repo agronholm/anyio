@@ -12,8 +12,8 @@ from typing import (
     IO,
     TYPE_CHECKING,
     Any,
+    TypeAlias,
     TypeVar,
-    Union,
     overload,
 )
 
@@ -22,18 +22,12 @@ if sys.version_info >= (3, 11):
 else:
     from typing_extensions import TypeVarTuple, Unpack
 
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-else:
-    from typing_extensions import TypeAlias
-
 if TYPE_CHECKING:
     from _typeshed import FileDescriptorLike
 
     from .._core._synchronization import CapacityLimiter, Event, Lock, Semaphore
     from .._core._tasks import CancelScope
     from .._core._testing import TaskInfo
-    from ..from_thread import BlockingPortal
     from ._sockets import (
         ConnectedUDPSocket,
         ConnectedUNIXDatagramSocket,
@@ -50,7 +44,7 @@ if TYPE_CHECKING:
 
 T_Retval = TypeVar("T_Retval")
 PosArgsT = TypeVarTuple("PosArgsT")
-StrOrBytesPath: TypeAlias = Union[str, bytes, "PathLike[str]", "PathLike[bytes]"]
+StrOrBytesPath: TypeAlias = str | bytes | PathLike[str] | PathLike[bytes]
 
 
 class AsyncBackend(metaclass=ABCMeta):
@@ -229,11 +223,6 @@ class AsyncBackend(metaclass=ABCMeta):
         args: tuple[Unpack[PosArgsT]],
         token: object,
     ) -> T_Retval:
-        pass
-
-    @classmethod
-    @abstractmethod
-    def create_blocking_portal(cls) -> BlockingPortal:
         pass
 
     @classmethod

@@ -64,6 +64,8 @@ async def run_sync(  # type: ignore[return]
     :param popen_args: arguments passed to :class:`subprocess.Popen`. If any,
         a new subprocess will always be created instead of using a process pool
         (and potentially reusing a worker process).
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
     :return: an awaitable that yields the return value of the function.
 
     """

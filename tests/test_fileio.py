@@ -6,6 +6,7 @@ import platform
 import socket
 import stat
 import sys
+from collections.abc import AsyncIterable
 
 import pytest
 from _pytest.tmpdir import TempPathFactory
@@ -75,19 +76,23 @@ class TestAsyncFile:
 
 class TestPath:
     @pytest.fixture
-    def populated_tmpdir(self, tmp_path: pathlib.Path) -> pathlib.Path:
-        tmp_path.joinpath("testfile").touch()
-        tmp_path.joinpath("testfile2").touch()
+    async def populated_tmpdir(self, tmp_path: pathlib.Path) -> Path:
+        path = Path(tmp_path)
 
-        subdir = tmp_path / "subdir"
-        sibdir = tmp_path / "sibdir"
+        await (path / "testfile").touch()
+        await (path / "testfile2").touch()
+
+        subdir = path / "subdir"
+        sibdir = path / "sibdir"
 
         for subpath in (subdir, sibdir):
-            subpath.mkdir()
-            subpath.joinpath("dummyfile1.txt").touch()
-            subpath.joinpath("dummyfile2.txt").touch()
+            await subpath.mkdir()
+            await (subpath / "dummyfile1.txt").touch()
+            await (subpath / "dummyfile2.txt").touch()
 
-        return tmp_path
+        await (subdir / "symlink").symlink_to(sibdir)
+
+        return path
 
     async def test_properties(self) -> None:
         """
@@ -296,6 +301,10 @@ class TestPath:
         assert not await Path("/gfobj4ewiotj").is_mount()
         assert await Path("/").is_mount()
 
+    @pytest.mark.skipif(
+        sys.version_info >= (3, 15),
+        reason="is_reserved() was removed in Python 3.15",
+    )
     @pytest.mark.filterwarnings("ignore::DeprecationWarning")
     def test_is_reserved(self) -> None:
         expected_result = platform.system() == "Windows"
@@ -334,7 +343,7 @@ class TestPath:
         source_path = Path(tmp_path) / "source"
         destination_path = Path(tmp_path) / "destination"
         await source_path.write_text("hello")
-        result = await source_path.copy(destination_path)  # type: ignore[attr-defined]
+        result = await source_path.copy(destination_path)
         assert await result.read_text() == "hello"
 
     @pytest.mark.skipif(
@@ -346,7 +355,7 @@ class TestPath:
         destination_path = Path(tmp_path) / "destination"
         await destination_path.mkdir()
         await source_path.write_text("hello")
-        result = await source_path.copy_into(destination_path)  # type: ignore[attr-defined]
+        result = await source_path.copy_into(destination_path)
         assert await result.read_text() == "hello"
 
     @pytest.mark.skipif(
@@ -357,7 +366,7 @@ class TestPath:
         source_path = Path(tmp_path) / "source"
         destination_path = Path(tmp_path) / "destination"
         await source_path.write_text("hello")
-        result = await source_path.move(destination_path)  # type: ignore[attr-defined]
+        result = await source_path.move(destination_path)
         assert await result.read_text() == "hello"
         assert not await source_path.exists()
 
@@ -370,13 +379,13 @@ class TestPath:
         destination_path = Path(tmp_path) / "destination"
         await destination_path.mkdir()
         await source_path.write_text("hello")
-        result = await source_path.move_into(destination_path)  # type: ignore[attr-defined]
+        result = await source_path.move_into(destination_path)
         assert await result.read_text() == "hello"
         assert not await source_path.exists()
 
-    async def test_glob(self, populated_tmpdir: pathlib.Path) -> None:
+    async def test_glob(self, populated_tmpdir: Path) -> None:
         all_paths = []
-        async for path in Path(populated_tmpdir).glob("**/*.txt"):
+        async for path in populated_tmpdir.glob("**/*.txt"):
             assert isinstance(path, Path)
             all_paths.append(path.relative_to(populated_tmpdir))
 
@@ -388,9 +397,61 @@ class TestPath:
             Path("subdir") / "dummyfile2.txt",
         ]
 
-    async def test_rglob(self, populated_tmpdir: pathlib.Path) -> None:
+    async def _relpath_list(
+        self, real_path: Path, path: AsyncIterable[Path]
+    ) -> list[Path]:
+        return [path.relative_to(real_path) async for path in path]
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 12),
+        reason="Path.glob() case_sensitive parameter is only available on Python 3.12+",
+    )
+    async def test_glob_case_sensitive(self, populated_tmpdir: Path) -> None:
+        # glob added case_sensitive parameter in 3.12
+        match_glob = "**/DUMMY*.txt"
+        # expect no paths with case-sensitive matching
+        sensitive_paths = [
+            path.relative_to(populated_tmpdir)
+            async for path in populated_tmpdir.glob(match_glob, case_sensitive=True)
+        ]
+        assert len(sensitive_paths) == 0
+
+        insensitive_paths = [
+            path.relative_to(populated_tmpdir)
+            async for path in populated_tmpdir.glob(match_glob, case_sensitive=False)
+        ]
+
+        expected_paths = [
+            Path("sibdir") / "dummyfile1.txt",
+            Path("sibdir") / "dummyfile2.txt",
+            Path("subdir") / "dummyfile1.txt",
+            Path("subdir") / "dummyfile2.txt",
+        ]
+        assert sorted(insensitive_paths) == sorted(expected_paths)
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 13),
+        reason="Path.glob() recurse_symlinks parameter is only available on Python 3.13+",
+    )
+    async def test_glob_recurse_symlinks(self, populated_tmpdir: Path) -> None:
+        found_paths = [
+            path.relative_to(populated_tmpdir)
+            async for path in populated_tmpdir.glob("**/*.txt", recurse_symlinks=True)  # type: ignore[call-arg]
+        ]
+
+        expected_paths = [
+            Path("sibdir") / "dummyfile1.txt",
+            Path("sibdir") / "dummyfile2.txt",
+            Path("subdir") / "dummyfile1.txt",
+            Path("subdir") / "dummyfile2.txt",
+            Path("subdir") / "symlink" / "dummyfile1.txt",
+            Path("subdir") / "symlink" / "dummyfile2.txt",
+        ]
+        assert sorted(found_paths) == sorted(expected_paths)
+
+    async def test_rglob(self, populated_tmpdir: Path) -> None:
         all_paths = []
-        async for path in Path(populated_tmpdir).rglob("*.txt"):
+        async for path in populated_tmpdir.rglob("*.txt"):
             assert isinstance(path, Path)
             all_paths.append(path.relative_to(populated_tmpdir))
 
@@ -402,9 +463,61 @@ class TestPath:
             Path("subdir") / "dummyfile2.txt",
         ]
 
-    async def test_iterdir(self, populated_tmpdir: pathlib.Path) -> None:
+    @pytest.mark.skipif(
+        sys.version_info < (3, 12),
+        reason="Path.rglob() case_sensitive parameter is only available on Python 3.12+",
+    )
+    async def test_rglob_case_sensitive(self, populated_tmpdir: Path) -> None:
+        # glob added case_sensitive parameter in 3.12
+        match_glob_uppercase = "*.TXT"
+
+        # expect no paths with case-sensitive matching
+        sensitive_paths = [
+            path.relative_to(populated_tmpdir)
+            async for path in populated_tmpdir.rglob(
+                match_glob_uppercase, case_sensitive=True
+            )
+        ]
+        assert len(sensitive_paths) == 0
+
+        insensitive_paths = [
+            path.relative_to(populated_tmpdir)
+            async for path in populated_tmpdir.rglob(
+                match_glob_uppercase, case_sensitive=False
+            )
+        ]
+
+        expected_paths = [
+            Path("sibdir") / "dummyfile1.txt",
+            Path("sibdir") / "dummyfile2.txt",
+            Path("subdir") / "dummyfile1.txt",
+            Path("subdir") / "dummyfile2.txt",
+        ]
+        assert sorted(insensitive_paths) == sorted(expected_paths)
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 13),
+        reason="Path.rglob() recurse_symlinks parameter is only available on Python 3.13+",
+    )
+    async def test_rglob_recurse_symlinks(self, populated_tmpdir: Path) -> None:
+        found_paths = [
+            path.relative_to(populated_tmpdir)
+            async for path in populated_tmpdir.rglob("**/*.txt", recurse_symlinks=True)  # type: ignore[call-arg]
+        ]
+
+        expected_paths = [
+            Path("sibdir") / "dummyfile1.txt",
+            Path("sibdir") / "dummyfile2.txt",
+            Path("subdir") / "dummyfile1.txt",
+            Path("subdir") / "dummyfile2.txt",
+            Path("subdir") / "symlink" / "dummyfile1.txt",
+            Path("subdir") / "symlink" / "dummyfile2.txt",
+        ]
+        assert sorted(found_paths) == sorted(expected_paths)
+
+    async def test_iterdir(self, populated_tmpdir: Path) -> None:
         all_paths = []
-        async for path in Path(populated_tmpdir).iterdir():
+        async for path in populated_tmpdir.iterdir():
             assert isinstance(path, Path)
             all_paths.append(path.name)
 
@@ -533,11 +646,11 @@ class TestPath:
     )
     async def test_relative_to_sibling(
         self,
-        populated_tmpdir: pathlib.Path,
+        populated_tmpdir: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        subdir = Path(populated_tmpdir / "subdir")
-        sibdir = Path(populated_tmpdir / "sibdir")
+        subdir = populated_tmpdir / "subdir"
+        sibdir = populated_tmpdir / "sibdir"
 
         with pytest.raises(ValueError):
             subdir.relative_to(sibdir, walk_up=False)

@@ -53,7 +53,7 @@ from typing import (
     IO,
     TYPE_CHECKING,
     Any,
-    Optional,
+    ParamSpec,
     TypeVar,
     cast,
 )
@@ -108,11 +108,6 @@ if TYPE_CHECKING:
     from _typeshed import FileDescriptorLike
 else:
     FileDescriptorLike = object
-
-if sys.version_info >= (3, 10):
-    from typing import ParamSpec
-else:
-    from typing_extensions import ParamSpec
 
 if sys.version_info >= (3, 11):
     from asyncio import Runner
@@ -803,6 +798,11 @@ class TaskGroup(abc.TaskGroup):
         task_status_future: asyncio.Future | None = None,
     ) -> asyncio.Task:
         def task_done(_task: asyncio.Task) -> None:
+            if sys.version_info >= (3, 14) and self.cancel_scope._host_task is not None:
+                asyncio.future_discard_from_awaited_by(
+                    _task, self.cancel_scope._host_task
+                )
+
             task_state = _task_states[_task]
             assert task_state.cancel_scope is not None
             assert _task in task_state.cancel_scope._tasks
@@ -884,6 +884,9 @@ class TaskGroup(abc.TaskGroup):
         )
         self.cancel_scope._tasks.add(task)
         self._tasks.add(task)
+        if sys.version_info >= (3, 14) and self.cancel_scope._host_task is not None:
+            asyncio.future_add_to_awaited_by(task, self.cancel_scope._host_task)
+
         task.add_done_callback(task_done)
         return task
 
@@ -920,7 +923,7 @@ class TaskGroup(abc.TaskGroup):
 # Threads
 #
 
-_Retval_Queue_Type = tuple[Optional[T_Retval], Optional[BaseException]]
+_Retval_Queue_Type = tuple[T_Retval | None, BaseException | None]
 
 
 class WorkerThread(Thread):
@@ -1005,29 +1008,6 @@ _threadpool_idle_workers: RunVar[deque[WorkerThread]] = RunVar(
     "_threadpool_idle_workers"
 )
 _threadpool_workers: RunVar[set[WorkerThread]] = RunVar("_threadpool_workers")
-
-
-class BlockingPortal(abc.BlockingPortal):
-    def __new__(cls) -> BlockingPortal:
-        return object.__new__(cls)
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._loop = get_running_loop()
-
-    def _spawn_task_from_thread(
-        self,
-        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
-        args: tuple[Unpack[PosArgsT]],
-        kwargs: dict[str, Any],
-        name: object,
-        future: Future[T_Retval],
-    ) -> None:
-        AsyncIOBackend.run_sync_from_thread(
-            partial(self._task_group.start_soon, name=name),
-            (self._call_func, func, args, kwargs, future),
-            self._loop,
-        )
 
 
 #
@@ -1145,7 +1125,7 @@ def _forcibly_shutdown_process_pool_on_exit(
 ) -> None:
     """
     Forcibly shuts down worker processes belonging to this event loop."""
-    child_watcher: asyncio.AbstractChildWatcher | None = None
+    child_watcher: asyncio.AbstractChildWatcher | None = None  # type: ignore[name-defined]
     if sys.version_info < (3, 12):
         try:
             child_watcher = asyncio.get_event_loop_policy().get_child_watcher()
@@ -1153,7 +1133,7 @@ def _forcibly_shutdown_process_pool_on_exit(
             pass
 
     # Close as much as possible (w/o async/await) to avoid warnings
-    for process in workers:
+    for process in workers.copy():
         if process.returncode is None:
             continue
 
@@ -1177,6 +1157,7 @@ async def _shutdown_process_pool_on_exit(workers: set[abc.Process]) -> None:
     try:
         await sleep(math.inf)
     except asyncio.CancelledError:
+        workers = workers.copy()
         for process in workers:
             if process.returncode is None:
                 process.kill()
@@ -1206,8 +1187,7 @@ class StreamProtocol(asyncio.Protocol):
 
     def connection_lost(self, exc: Exception | None) -> None:
         if exc:
-            self.exception = BrokenResourceError()
-            self.exception.__cause__ = exc
+            self.exception = exc
 
         self.read_event.set()
         self.write_event.set()
@@ -1291,7 +1271,7 @@ class SocketStream(abc.SocketStream):
                 if self._closed:
                     raise ClosedResourceError from None
                 elif self._protocol.exception:
-                    raise self._protocol.exception from None
+                    raise BrokenResourceError from self._protocol.exception
                 else:
                     raise EndOfStream from None
 
@@ -1314,7 +1294,7 @@ class SocketStream(abc.SocketStream):
             if self._closed:
                 raise ClosedResourceError
             elif self._protocol.exception is not None:
-                raise self._protocol.exception
+                raise BrokenResourceError from self._protocol.exception
 
             try:
                 self._transport.write(item)
@@ -2588,10 +2568,6 @@ class AsyncIOBackend(AsyncBackend):
         f: concurrent.futures.Future[T_Retval] = Future()
         loop.call_soon_threadsafe(wrapper)
         return f.result()
-
-    @classmethod
-    def create_blocking_portal(cls) -> abc.BlockingPortal:
-        return BlockingPortal()
 
     @classmethod
     async def open_process(

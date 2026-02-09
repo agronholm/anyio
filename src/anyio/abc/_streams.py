@@ -1,19 +1,13 @@
 from __future__ import annotations
 
-import sys
 from abc import ABCMeta, abstractmethod
 from collections.abc import Callable
-from typing import Any, Generic, TypeVar, Union
+from typing import Any, Generic, TypeAlias, TypeVar
 
 from .._core._exceptions import EndOfStream
 from .._core._typedattr import TypedAttributeProvider
 from ._resources import AsyncResource
 from ._tasks import TaskGroup
-
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-else:
-    from typing_extensions import TypeAlias
 
 T_Item = TypeVar("T_Item")
 T_co = TypeVar("T_co", covariant=True)
@@ -178,21 +172,21 @@ class ByteStream(ByteReceiveStream, ByteSendStream):
 
 
 #: Type alias for all unreliable bytes-oriented receive streams.
-AnyUnreliableByteReceiveStream: TypeAlias = Union[
-    UnreliableObjectReceiveStream[bytes], ByteReceiveStream
-]
+AnyUnreliableByteReceiveStream: TypeAlias = (
+    UnreliableObjectReceiveStream[bytes] | ByteReceiveStream
+)
 #: Type alias for all unreliable bytes-oriented send streams.
-AnyUnreliableByteSendStream: TypeAlias = Union[
-    UnreliableObjectSendStream[bytes], ByteSendStream
-]
+AnyUnreliableByteSendStream: TypeAlias = (
+    UnreliableObjectSendStream[bytes] | ByteSendStream
+)
 #: Type alias for all unreliable bytes-oriented streams.
-AnyUnreliableByteStream: TypeAlias = Union[UnreliableObjectStream[bytes], ByteStream]
+AnyUnreliableByteStream: TypeAlias = UnreliableObjectStream[bytes] | ByteStream
 #: Type alias for all bytes-oriented receive streams.
-AnyByteReceiveStream: TypeAlias = Union[ObjectReceiveStream[bytes], ByteReceiveStream]
+AnyByteReceiveStream: TypeAlias = ObjectReceiveStream[bytes] | ByteReceiveStream
 #: Type alias for all bytes-oriented send streams.
-AnyByteSendStream: TypeAlias = Union[ObjectSendStream[bytes], ByteSendStream]
+AnyByteSendStream: TypeAlias = ObjectSendStream[bytes] | ByteSendStream
 #: Type alias for all bytes-oriented streams.
-AnyByteStream: TypeAlias = Union[ObjectStream[bytes], ByteStream]
+AnyByteStream: TypeAlias = ObjectStream[bytes] | ByteStream
 
 
 class Listener(Generic[T_co], AsyncResource, TypedAttributeProvider):
@@ -234,6 +228,6 @@ class ByteStreamConnectable(metaclass=ABCMeta):
 
 
 #: Type alias for all connectables returning bytestreams or bytes-oriented object streams
-AnyByteStreamConnectable: TypeAlias = Union[
-    ObjectStreamConnectable[bytes], ByteStreamConnectable
-]
+AnyByteStreamConnectable: TypeAlias = (
+    ObjectStreamConnectable[bytes] | ByteStreamConnectable
+)

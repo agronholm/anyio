@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -24,7 +24,7 @@ jobs:
       - name: Create packages
         run: python -m build
       - name: Archive packages
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: dist
           path: dist
@@ -38,7 +38,10 @@ jobs:
       id-token: write
     steps:
       - name: Retrieve packages
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist
       - name: Upload packages
         uses: pypa/gh-action-pypi-publish@release/v1
 
@@ -49,7 +52,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - id: changelog
         uses: agronholm/release-notes@v1
         with:

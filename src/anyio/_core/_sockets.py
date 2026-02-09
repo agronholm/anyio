@@ -664,6 +664,8 @@ def getnameinfo(sockaddr: IPSockAddrType, flags: int = 0) -> Awaitable[tuple[str
     :param sockaddr: socket address (e.g. (ipaddress, port) for IPv4)
     :param flags: flags to pass to upstream ``getnameinfo()``
     :return: a tuple of (host name, service name)
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
 
     .. seealso:: :func:`socket.getnameinfo`
 
@@ -687,6 +689,8 @@ def wait_socket_readable(sock: socket.socket) -> Awaitable[None]:
         socket to become readable
     :raises ~anyio.BusyResourceError: if another task is already waiting for the socket
         to become readable
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
 
     """
     return get_async_backend().wait_readable(sock.fileno())
@@ -711,6 +715,8 @@ def wait_socket_writable(sock: socket.socket) -> Awaitable[None]:
         socket to become writable
     :raises ~anyio.BusyResourceError: if another task is already waiting for the socket
         to become writable
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
 
     """
     return get_async_backend().wait_writable(sock.fileno())
@@ -742,6 +748,8 @@ def wait_readable(obj: FileDescriptorLike) -> Awaitable[None]:
         object to become readable
     :raises ~anyio.BusyResourceError: if another task is already waiting for the object
         to become readable
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
 
     """
     return get_async_backend().wait_readable(obj)
@@ -756,6 +764,8 @@ def wait_writable(obj: FileDescriptorLike) -> Awaitable[None]:
         object to become writable
     :raises ~anyio.BusyResourceError: if another task is already waiting for the object
         to become writable
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
 
     .. seealso:: See the documentation of :func:`wait_readable` for the definition of
        ``obj`` and notes on backend compatibility.
@@ -792,6 +802,8 @@ def notify_closing(obj: FileDescriptorLike) -> None:
     in anyway.
 
     :param obj: an object with a ``.fileno()`` method or an integer handle
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
 
     """
     get_async_backend().notify_closing(obj)

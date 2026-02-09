@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import errno
 import socket
-import sys
 from abc import abstractmethod
 from collections.abc import Callable, Collection, Mapping
 from contextlib import AsyncExitStack
 from io import IOBase
 from ipaddress import IPv4Address, IPv6Address
 from socket import AddressFamily
-from typing import Any, TypeVar, Union
+from typing import Any, TypeAlias, TypeVar
 
 from .._core._eventloop import get_async_backend
 from .._core._typedattr import (
@@ -20,14 +19,9 @@ from .._core._typedattr import (
 from ._streams import ByteStream, Listener, UnreliableObjectStream
 from ._tasks import TaskGroup
 
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-else:
-    from typing_extensions import TypeAlias
-
-IPAddressType: TypeAlias = Union[str, IPv4Address, IPv6Address]
+IPAddressType: TypeAlias = str | IPv4Address | IPv6Address
 IPSockAddrType: TypeAlias = tuple[str, int]
-SockAddrType: TypeAlias = Union[IPSockAddrType, str]
+SockAddrType: TypeAlias = IPSockAddrType | str
 UDPPacketType: TypeAlias = tuple[bytes, IPSockAddrType]
 UNIXDatagramPacketType: TypeAlias = tuple[bytes, str]
 T_Retval = TypeVar("T_Retval")

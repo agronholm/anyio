@@ -198,3 +198,55 @@ differences in its semantics, however:
   one of the tasks has triggered a shutdown of the task group
 * Tasks spawned from :class:`asyncio.TaskGroup` use different cancellation semantics
   (see the notes on :ref:`asyncio cancellation semantics <asyncio cancellation>`)
+
+Asyncio call graph introspection support
+----------------------------------------
+
+.. versionadded:: 4.12.0
+
+Python 3.14 added support for `call graph introspection`_ on asyncio which lets various
+tools display the tree of Tasks or Futures that are waiting for a specific Future. AnyIO
+supports this mechanism in its own task groups by adding and removing the task's
+"waiter" as appropriate, just like asyncio's own task group class does. Here's a small
+demonstration::
+
+    import asyncio
+
+    from anyio import create_task_group
+
+
+    async def foo(level=0):
+        if level == 3:
+            asyncio.print_call_graph(asyncio.current_task())
+            return
+
+        async with create_task_group() as tg:
+            tg.start_soon(foo, level + 1, name=f"Nesting level {level + 1}")
+
+    asyncio.run(foo())
+
+This results in an output like:
+
+.. code-block::
+
+    * Task(name='Nesting level 3', id=0x7f94f01c43f0)
+      + Call stack:
+      |   File '/usr/lib64/python3.14/asyncio/graph.py', line 276, in print_call_graph()
+      |   File '/tmp/foo.py', line 8, in async foo()
+      + Awaited by:
+        * Task(name='Nesting level 2', id=0x7f94f03334e0)
+          + Call stack:
+          |   File '/tmp/venv/lib64/python3.14/site-packages/anyio/_backends/_asyncio.py', line 755, in async TaskGroup.__aexit__()
+          |   File '/tmp/foo.py', line 11, in async foo()
+          + Awaited by:
+            * Task(name='Nesting level 1', id=0x7f94f03172f0)
+              + Call stack:
+              |   File '/tmp/venv/lib64/python3.14/site-packages/anyio/_backends/_asyncio.py', line 755, in async TaskGroup.__aexit__()
+              |   File '/tmp/foo.py', line 11, in async foo()
+              + Awaited by:
+                * Task(name='Task-1', id=0x7f94f0316f30)
+                  + Call stack:
+                  |   File '/tmp/venv/lib64/python3.14/site-packages/anyio/_backends/_asyncio.py', line 755, in async TaskGroup.__aexit__()
+                  |   File '/tmp/foo.py', line 11, in async foo()
+
+.. _call graph introspection: https://docs.python.org/3.14/library/asyncio-graph.html
