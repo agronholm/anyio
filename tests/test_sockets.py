@@ -555,7 +555,7 @@ class TestTCPStream:
             await stream.send(b"foo")
 
     async def test_receive_exception_cause_preserved(
-        self, family: AnyIPAddressFamily
+        self, family: AnyIPAddressFamily, request: FixtureRequest
     ) -> None:
         """
         Test that when connection_lost is called with an exception, the resulting
@@ -563,35 +563,24 @@ class TestTCPStream:
 
         Regression test for https://github.com/agronholm/anyio/issues/1055.
         """
+        server_sock = socket.create_server(("localhost", 0), family=family)
+        request.addfinalizer(server_sock.close)
+        server_sock.settimeout(1)
+        server_addr = server_sock.getsockname()[:2]
 
-        def serve() -> None:
-            sock, addr = server_sock.accept()
-            event.wait(3)
-            sock.setsockopt(
+        async with await connect_tcp(*server_addr) as stream:
+            client_sock, _ = server_sock.accept()
+            client_sock.setsockopt(
                 socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
             )
-            sock.close()
+            client_sock.close()
+            with pytest.raises(BrokenResourceError) as exc_info:
+                await stream.receive()
 
-        with socket.socket(family, socket.SOCK_STREAM) as server_sock:
-            server_sock.settimeout(1)
-            server_sock.bind(("localhost", 0))
-            server_sock.listen()
-            server_addr = server_sock.getsockname()[:2]
-            event = threading.Event()
-            thread = Thread(target=serve)
-            thread.start()
-            async with await connect_tcp(*server_addr) as stream:
-                await stream.send(b"GET")
-                event.set()
-                with pytest.raises(BrokenResourceError) as exc_info:
-                    await stream.receive()
-
-                assert exc_info.value.__cause__ is not None
-
-            thread.join()
+            assert exc_info.value.__cause__ is not None
 
     async def test_send_exception_cause_preserved(
-        self, family: AnyIPAddressFamily
+        self, family: AnyIPAddressFamily, request: FixtureRequest
     ) -> None:
         """
         Test that when connection_lost is called with an exception, the resulting
@@ -599,33 +588,22 @@ class TestTCPStream:
 
         Regression test for https://github.com/agronholm/anyio/issues/1055.
         """
+        server_sock = socket.create_server(("localhost", 0), family=family)
+        request.addfinalizer(server_sock.close)
+        server_sock.settimeout(1)
+        server_addr = server_sock.getsockname()[:2]
 
-        def serve() -> None:
-            sock, addr = server_sock.accept()
-            event.wait(3)
-            sock.setsockopt(
+        async with await connect_tcp(*server_addr) as stream:
+            client_sock, _ = server_sock.accept()
+            client_sock.setsockopt(
                 socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
             )
-            sock.close()
+            client_sock.close()
+            with pytest.raises(BrokenResourceError) as exc_info:
+                for _ in range(1000):
+                    await stream.send(b"foo")
 
-        with socket.socket(family, socket.SOCK_STREAM) as server_sock:
-            server_sock.settimeout(1)
-            server_sock.bind(("localhost", 0))
-            server_sock.listen()
-            server_addr = server_sock.getsockname()[:2]
-            event = threading.Event()
-            thread = Thread(target=serve)
-            thread.start()
-            async with await connect_tcp(*server_addr) as stream:
-                await stream.send(b"GET")
-                event.set()
-                with pytest.raises(BrokenResourceError) as exc_info:
-                    for _ in range(1000):
-                        await stream.send(b"foo")
-
-                assert exc_info.value.__cause__ is not None
-
-            thread.join()
+            assert exc_info.value.__cause__ is not None
 
     async def test_connect_tcp_with_tls(
         self,
