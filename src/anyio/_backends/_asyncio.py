@@ -719,6 +719,7 @@ class TaskGroup(abc.TaskGroup):
         self.cancel_scope: CancelScope = CancelScope()
         self._active = False
         self._exceptions: list[BaseException] = []
+        self._child_raised_cancelled_exc = False
         self._tasks: set[asyncio.Task] = set()
         self._on_completed_fut: asyncio.Future[None] | None = None
 
@@ -765,9 +766,16 @@ class TaskGroup(abc.TaskGroup):
 
                             self._on_completed_fut = None
                 else:
-                    # If there are no child tasks to wait on, run at least one checkpoint
-                    # anyway
-                    await AsyncIOBackend.cancel_shielded_checkpoint()
+                    # If there are no child tasks to wait on, run at least one schedule
+                    # point anyway
+                    try:
+                        await AsyncIOBackend.cancel_shielded_checkpoint()
+                    except CancelledError as exc:
+                        if exc_val is None or (
+                            isinstance(exc_val, CancelledError)
+                            and not is_anyio_cancellation(exc)
+                        ):
+                            exc_val = exc
 
                 self._active = False
                 if self._exceptions:
@@ -779,7 +787,29 @@ class TaskGroup(abc.TaskGroup):
                         "unhandled errors in a TaskGroup", self._exceptions
                     ) from None
                 elif exc_val:
-                    raise exc_val
+                    if isinstance(exc_val, CancelledError):
+                        # TaskGroup.__aexit__ is not allowed visit a cancellation point.
+                        # I.e. TaskGroup is not allowed to be the source of a _new_
+                        # cancellation exception. So we can't raise a CancelledError
+                        # unless we waited on a child that raised one. See the changelog
+                        # entry of https://github.com/python-trio/trio/pull/1696 and see
+                        # https://github.com/python-trio/trio/pull/3011.
+                        if self._child_raised_cancelled_exc:
+                            raise exc_val
+                        else:
+                            # If it's an AnyIO cancellation, eat it. If it's native,
+                            # reschedule it for the next loop cycle.
+                            if not is_anyio_cancellation(exc_val):
+                                task = cast(asyncio.Task, current_task())
+                                if sys.version_info >= (3, 11):
+                                    task.uncancel()
+
+                                if exc_val.args:
+                                    task.cancel(exc_val.args[0])
+                                else:
+                                    task.cancel()
+                    else:
+                        raise exc_val
             except BaseException as exc:
                 if self.cancel_scope.__exit__(type(exc), exc, exc.__traceback__):
                     return True
@@ -832,7 +862,9 @@ class TaskGroup(abc.TaskGroup):
                     return
 
                 if task_status_future is None or task_status_future.done():
-                    if not isinstance(exc, CancelledError):
+                    if isinstance(exc, CancelledError):
+                        self._child_raised_cancelled_exc = True
+                    else:
                         self._exceptions.append(exc)
 
                     if not self.cancel_scope._effectively_cancelled:
