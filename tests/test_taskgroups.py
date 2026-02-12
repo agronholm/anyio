@@ -1549,6 +1549,62 @@ async def test_cancel_before_entering_task_group() -> None:
             pytest.fail("This should not raise a cancellation exception")
 
 
+async def test_no_new_cancellation_from_task_group_aexit() -> None:
+    """
+    Test that `TaskGroup.__aexit__` does not visit a cancel point. I.e. test that
+    `TaskGroup.__aexit__` does not raise `get_cancelled_exc_class()` if none of its
+    children raised `get_cancelled_exc_class()`. See also
+    https://github.com/python-trio/trio/pull/1696 and
+    https://github.com/python-trio/trio/pull/3011.
+    """
+    started = False
+
+    async def taskfunc() -> None:
+        nonlocal started
+        started = True
+        with CancelScope(shield=True):
+            await sleep(0.1)
+
+    with CancelScope() as cs:
+        cs.cancel()
+        try:
+            async with create_task_group() as tg:
+                tg.start_soon(taskfunc)
+        except get_cancelled_exc_class():
+            pytest.fail("This should not raise a cancellation exception")
+
+    assert started
+    assert not tg.cancel_scope.cancelled_caught
+    assert not cs.cancelled_caught
+
+
+async def test_no_new_cancellation_from_empty_task_group_aexit() -> None:
+    with CancelScope() as cs:
+        cs.cancel()
+        try:
+            async with create_task_group() as tg:
+                pass
+        except get_cancelled_exc_class():
+            pytest.fail("This should not raise a cancellation exception")
+
+    assert not tg.cancel_scope.cancelled_caught
+    assert not cs.cancelled_caught
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_no_new_cancellation_from_empty_task_group_aexit_native_cancel() -> None:
+    cast(asyncio.Task, asyncio.current_task()).cancel("native")
+    async with create_task_group() as tg:
+        pass
+
+    assert not tg.cancel_scope.cancelled_caught
+
+    with pytest.raises(CancelledError) as exc_info:
+        await checkpoint()
+
+    assert exc_info.value.args[0] == "native"
+
+
 async def test_reraise_cancelled_in_excgroup() -> None:
     def handler(excgrp: BaseExceptionGroup) -> None:
         raise
