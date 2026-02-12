@@ -7,7 +7,7 @@ import sys
 import time
 from asyncio import CancelledError
 from collections.abc import AsyncGenerator, Coroutine, Generator
-from typing import Any, NoReturn, cast
+from typing import Any, Literal, NoReturn, cast
 from unittest import mock
 
 import pytest
@@ -18,6 +18,7 @@ import anyio
 from anyio import (
     TASK_STATUS_IGNORED,
     CancelScope,
+    Event,
     create_task_group,
     current_effective_deadline,
     current_time,
@@ -34,8 +35,11 @@ from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params, no_other_refs
 
-if sys.version_info < (3, 11):
+if sys.version_info >= (3, 11):
+    from typing import assert_never
+else:
     from exceptiongroup import BaseExceptionGroup, ExceptionGroup
+    from typing_extensions import assert_never
 
 
 async def async_error(text: str, delay: float = 0.1) -> NoReturn:
@@ -1603,6 +1607,80 @@ async def test_no_new_cancellation_from_empty_task_group_aexit_native_cancel() -
         await checkpoint()
 
     assert exc_info.value.args[0] == "native"
+
+
+@pytest.mark.parametrize("second_shielded_child", [False, True])
+@pytest.mark.parametrize(
+    "child",
+    [
+        "host_task",
+        "start_soon",
+        "start_soon_and_wait",
+        "start_soon_and_wait_and_checkpoint",
+        "start_soon_and_wait_and_shielded_checkpoint",
+    ],
+)
+async def test_outer_cancellation_propagated_by_task_group_aexit(
+    child: Literal[
+        "host_task",
+        "start_soon",
+        "start_soon_and_wait",
+        "start_soon_and_wait_and_checkpoint",
+        "start_soon_and_wait_and_shielded_checkpoint",
+    ],
+    second_shielded_child: bool,
+) -> None:
+    taskfunc_exited = Event()
+
+    async def taskfunc1() -> None:
+        try:
+            await checkpoint()
+        finally:
+            taskfunc_exited.set()
+
+    async def taskfunc2() -> None:
+        with CancelScope(shield=True):
+            await anyio.sleep(0.1)
+
+    with CancelScope() as cs:
+        cs.cancel()
+        try:
+            async with create_task_group() as tg:
+                if second_shielded_child:
+                    # Make TaskGroup.__aexit__ take the `if self._tasks` branch instead
+                    # of the `if not self._tasks` branch.
+                    tg.start_soon(taskfunc2)
+
+                if child == "host_task":
+                    await taskfunc1()
+                elif child == "start_soon":
+                    tg.start_soon(taskfunc1)
+                elif child == "start_soon_and_wait":
+                    tg.start_soon(taskfunc1)
+                    with CancelScope(shield=True):
+                        await taskfunc_exited.wait()
+                elif child == "start_soon_and_wait_and_checkpoint":
+                    tg.start_soon(taskfunc1)
+                    with CancelScope(shield=True):
+                        await taskfunc_exited.wait()
+                    await checkpoint()
+                elif child == "start_soon_and_wait_and_shielded_checkpoint":
+                    tg.start_soon(taskfunc1)
+                    with CancelScope(shield=True):
+                        await taskfunc_exited.wait()
+                        await checkpoint()
+                else:
+                    assert_never(child)
+        except get_cancelled_exc_class() as exc:
+            if isinstance(exc, get_cancelled_exc_class()):
+                raise
+
+            pytest.fail(f"Raised the wrong type of exception: {exc}")
+        else:
+            pytest.fail("Did not raise a cancellation exception")
+
+    assert not tg.cancel_scope.cancelled_caught
+    assert cs.cancelled_caught
 
 
 async def test_reraise_cancelled_in_excgroup() -> None:
