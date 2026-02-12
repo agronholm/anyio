@@ -719,7 +719,12 @@ class TaskGroup(abc.TaskGroup):
         self.cancel_scope: CancelScope = CancelScope()
         self._active = False
         self._exceptions: list[BaseException] = []
-        self._child_raised_cancelled_exc = False
+        # We track whether a child has exited raising any CancelledError (i.e. any
+        # level-CancelledError or any native-(i.e. edge)-CancelledError).
+        self._child_raised_cancellation = False
+        # If a child has exited raising a level-CancelledError, we store the
+        # cancellation message from (any) one of those level-CancelledErrors.
+        self._child_raised_anyio_cancellation_exc_args: tuple[Any, ...] | None = None
         self._tasks: set[asyncio.Task] = set()
         self._on_completed_fut: asyncio.Future[None] | None = None
 
@@ -794,7 +799,7 @@ class TaskGroup(abc.TaskGroup):
                         # unless we waited on a child that raised one. See the changelog
                         # entry of https://github.com/python-trio/trio/pull/1696 and see
                         # https://github.com/python-trio/trio/pull/3011.
-                        if self._child_raised_cancelled_exc:
+                        if self._child_raised_cancellation:
                             raise exc_val
                         else:
                             # If it's an AnyIO cancellation, eat it. If it's native,
@@ -810,6 +815,10 @@ class TaskGroup(abc.TaskGroup):
                                     task.cancel()
                     else:
                         raise exc_val
+                elif self._child_raised_anyio_cancellation_exc_args is not None:
+                    raise CancelledError(
+                        *self._child_raised_anyio_cancellation_exc_args
+                    )
             except BaseException as exc:
                 if self.cancel_scope.__exit__(type(exc), exc, exc.__traceback__):
                     return True
@@ -863,7 +872,9 @@ class TaskGroup(abc.TaskGroup):
 
                 if task_status_future is None or task_status_future.done():
                     if isinstance(exc, CancelledError):
-                        self._child_raised_cancelled_exc = True
+                        self._child_raised_cancellation = True
+                        if is_anyio_cancellation(exc):
+                            self._child_raised_anyio_cancellation_exc_args = exc.args
                     else:
                         self._exceptions.append(exc)
 
