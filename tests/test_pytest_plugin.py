@@ -676,3 +676,38 @@ class TestFreePortFactory:
         for family, addr in families:
             with socket.socket(family, socket.SOCK_DGRAM) as sock:
                 sock.bind((addr, free_udp_port))
+
+
+@pytest.mark.parametrize("anyio_backend", get_all_backends(), indirect=True)
+def test_func_as_parametrize_param_name(
+    anyio_backend_name: str, testdir: Pytester
+) -> None:
+    testdir.makeconftest(
+        """
+        import pytest
+
+        from anyio import sleep
+        from anyio._core._eventloop import current_async_library
+
+        @pytest.fixture
+        async def async_fixture():
+            await sleep(0)
+            return current_async_library()
+        """
+    )
+
+    testdir.makepyfile('''
+        import pytest
+
+        @pytest.mark.parametrize("func", [1])
+        @pytest.mark.anyio
+        async def test_func_as_parametrize_param_name(func: int) -> None:
+            """
+            Test that "func" can be used as a parameter name in
+            `pytest.mark.parametrize` when using the pytest plugin.
+            """
+            pass
+        ''')
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=len(get_available_backends()))
