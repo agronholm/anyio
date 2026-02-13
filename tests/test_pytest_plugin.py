@@ -678,10 +678,7 @@ class TestFreePortFactory:
                 sock.bind((addr, free_udp_port))
 
 
-@pytest.mark.parametrize("anyio_backend", get_all_backends(), indirect=True)
-def test_func_as_parametrize_param_name(
-    anyio_backend_name: str, testdir: Pytester
-) -> None:
+def test_func_as_parametrize_param_name(testdir: Pytester) -> None:
     """
     Test that "func" can be used as a parameter name in
     `pytest.mark.parametrize` when using the pytest plugin.
