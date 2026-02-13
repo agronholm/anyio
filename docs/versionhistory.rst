@@ -12,6 +12,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed the ``BrokenResourceError`` raised by the asyncio ``SocketStream`` not having
   the original exception as its cause
   (`#1055 <https://github.com/agronholm/anyio/issues/1055>`_; PR by @veeceey)
+- Fixed the ``TypeError`` raised when using "func" as a parameter name in
+  ``pytest.mark.parametrize`` when using the pytest plugin
+  (`#1068 <https://github.com/agronholm/anyio/pull/1068>`_; PR by @JohnnyDeuss)
 - Fixed ``TaskGroup`` raising a cancellation exception on asyncio in a level-cancelled
   scope or an edge-cancelled task when none of its children raised a cancellation
   exception (`#1069 <https://github.com/agronholm/anyio/issues/1069>`_; PR by

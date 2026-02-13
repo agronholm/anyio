@@ -2280,6 +2280,7 @@ class TestRunner(abc.TestRunner):
     async def _call_in_runner_task(
         self,
         func: Callable[P, Awaitable[T_Retval]],
+        /,
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> T_Retval:
