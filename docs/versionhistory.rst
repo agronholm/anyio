@@ -15,6 +15,14 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed the ``TypeError`` raised when using "func" as a parameter name in
   ``pytest.mark.parametrize`` when using the pytest plugin
   (`#1068 <https://github.com/agronholm/anyio/pull/1068>`_; PR by @JohnnyDeuss)
+- Fixed ``TaskGroup`` raising a cancellation exception on asyncio in a level-cancelled
+  scope or an edge-cancelled task when none of its children raised a cancellation
+  exception (`#1069 <https://github.com/agronholm/anyio/issues/1069>`_; PR by
+  @gschaffner)
+- Fixed ``TaskGroup`` not raising a cancellation exception on asyncio in a
+  level-cancelled scope when a child raised a level-cancellation exception but the body
+  of the ``TaskGroup``'s ``async with`` block finished without raising any exception
+  (`#1070 <https://github.com/agronholm/anyio/issues/1070>`_; PR by @gschaffner)
 
 **4.12.1**
 
