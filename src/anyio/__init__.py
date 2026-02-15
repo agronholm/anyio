@@ -74,7 +74,9 @@ from ._core._tasks import TaskHandle as TaskHandle
 from ._core._tasks import create_task_group as create_task_group
 from ._core._tasks import current_effective_deadline as current_effective_deadline
 from ._core._tasks import fail_after as fail_after
+from ._core._tasks import fail_at as fail_at
 from ._core._tasks import move_on_after as move_on_after
+from ._core._tasks import move_on_at as move_on_at
 from ._core._tempfile import NamedTemporaryFile as NamedTemporaryFile
 from ._core._tempfile import SpooledTemporaryFile as SpooledTemporaryFile
 from ._core._tempfile import TemporaryDirectory as TemporaryDirectory

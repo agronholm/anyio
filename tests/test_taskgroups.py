@@ -30,9 +30,11 @@ from anyio import (
     current_effective_deadline,
     current_time,
     fail_after,
+    fail_at,
     get_cancelled_exc_class,
     get_current_task,
     move_on_after,
+    move_on_at,
     sleep,
     sleep_forever,
     wait_all_tasks_blocked,
@@ -754,6 +756,54 @@ async def test_nested_move_on_after() -> None:
     assert outer_scope.cancelled_caught
     assert not inner_scope.cancel_called
     assert not inner_scope.cancelled_caught
+
+
+@pytest.mark.parametrize("delay", [0, 0.1], ids=["instant", "delayed"])
+async def test_fail_at(delay: float) -> None:
+    with pytest.raises(TimeoutError):
+        with fail_at(current_time() + delay) as scope:
+            try:
+                await sleep(1)
+            except get_cancelled_exc_class() as exc:
+                assert "deadline" in str(exc)
+                raise
+            else:
+                pytest.fail("sleep() should have raised a cancellation exception")
+
+    assert scope.cancel_called
+    assert scope.cancelled_caught
+
+
+async def test_fail_at_no_timeout() -> None:
+    with fail_at(None) as scope:
+        assert scope.deadline == float("inf")
+        await sleep(0.1)
+
+    assert not scope.cancel_called
+    assert not scope.cancelled_caught
+
+
+@pytest.mark.parametrize("delay", [0, 0.1], ids=["instant", "delayed"])
+async def test_move_on_at(delay: float) -> None:
+    result = False
+    with move_on_at(current_time() + delay) as scope:
+        await sleep(1)
+        result = True
+
+    assert not result
+    assert scope.cancel_called
+    assert scope.cancelled_caught
+
+
+async def test_move_on_at_no_timeout() -> None:
+    result = False
+    with move_on_at(None) as scope:
+        assert scope.deadline == float("inf")
+        await sleep(0.1)
+        result = True
+
+    assert result
+    assert not scope.cancel_called
 
 
 async def test_shielding() -> None:
