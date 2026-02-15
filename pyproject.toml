@@ -101,6 +101,7 @@ ignore = ["B009", "PERF203"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/test_tempfile.py" = ["ASYNC230"]
+"tests/*.py" = ["ASYNC240"]
 
 [tool.mypy]
 python_version = "3.14"

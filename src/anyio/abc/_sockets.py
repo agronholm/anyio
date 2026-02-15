@@ -160,8 +160,8 @@ class _SocketProvider(TypedAttributeProvider):
 
         # Provide local and remote ports for IP based sockets
         if self._raw_socket.family in (AddressFamily.AF_INET, AddressFamily.AF_INET6):
-            attributes[SocketAttribute.local_port] = (
-                lambda: self._raw_socket.getsockname()[1]
+            attributes[SocketAttribute.local_port] = lambda: (
+                self._raw_socket.getsockname()[1]
             )
             if peername is not None:
                 remote_port = peername[1]
