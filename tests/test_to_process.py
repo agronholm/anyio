@@ -135,9 +135,7 @@ def _check_main_importable() -> bool:
     return "__main__" in sys.modules
 
 
-async def test_entrypoint_main_module(
-    monkeypatch: MonkeyPatch, tmp_path: Path
-) -> None:
+async def test_entrypoint_main_module(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     """
     Test that worker process creation succeeds when __main__.__file__ points to an
     entry point script (no .py extension). Regression test for #1027.
