@@ -1347,13 +1347,10 @@ async def test_single_cancellation_exc() -> None:
                 await wait_all_tasks_blocked()
                 outer.cancel()
                 await sleep(5)
-        except BaseException as exc:
-            if isinstance(exc, get_cancelled_exc_class()):
-                raise
-
-            pytest.fail(f"Raised the wrong type of exception: {exc}")
-        else:
-            pytest.fail("Did not raise a cancellation exception")
+        except get_cancelled_exc_class():
+            raise
+        except Exception as exc:
+            pytest.fail(f"Raised the wrong type of exception: {exc.__class__.__name__}")
 
 
 async def test_start_soon_parent_id() -> None:
@@ -1662,13 +1659,10 @@ async def test_outer_cancellation_propagated_by_task_group_aexit(
                             await checkpoint()
                     case _:
                         pytest.fail("Execution should not reach this point")
-        except BaseException as exc:
-            if isinstance(exc, get_cancelled_exc_class()):
-                raise
-
-            pytest.fail(f"Raised the wrong type of exception: {exc}")
-        else:
-            pytest.fail("Did not raise a cancellation exception")
+        except get_cancelled_exc_class():
+            raise
+        except Exception as exc:
+            pytest.fail(f"Raised the wrong type of exception: {exc.__class__.__name__}")
 
     assert not tg.cancel_scope.cancelled_caught
     assert cs.cancelled_caught
