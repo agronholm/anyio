@@ -208,6 +208,7 @@ async def run_sync(
         except IndexError:
             worker = _Worker()
 
+    broken = False
     try:
         return await to_thread.run_sync(
             worker.call,
@@ -215,17 +216,25 @@ async def run_sync(
             args,
             limiter=limiter,
         )
+    except BrokenWorkerInterpreter:
+        broken = True
+        raise
     finally:
-        # Prune workers that have been idle for too long
-        now = current_time()
-        while idle_workers:
-            if now - idle_workers[0].last_used <= MAX_WORKER_IDLE_TIME:
-                break
+        if broken:
+            await to_thread.run_sync(worker.destroy, limiter=limiter)
+        else:
+            # Prune workers that have been idle for too long
+            now = current_time()
+            while idle_workers:
+                if now - idle_workers[0].last_used <= MAX_WORKER_IDLE_TIME:
+                    break
 
-            await to_thread.run_sync(idle_workers.popleft().destroy, limiter=limiter)
+                await to_thread.run_sync(
+                    idle_workers.popleft().destroy, limiter=limiter
+                )
 
-        worker.last_used = current_time()
-        idle_workers.append(worker)
+            worker.last_used = current_time()
+            idle_workers.append(worker)
 
 
 def current_default_interpreter_limiter() -> CapacityLimiter:
