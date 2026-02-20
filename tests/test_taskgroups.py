@@ -7,7 +7,7 @@ import sys
 import time
 from asyncio import CancelledError
 from collections.abc import AsyncGenerator, Coroutine, Generator
-from typing import Any, Literal, NoReturn, cast
+from typing import Any, NoReturn, cast
 from unittest import mock
 
 import pytest
@@ -35,11 +35,8 @@ from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params, no_other_refs
 
-if sys.version_info >= (3, 11):
-    from typing import assert_never
-else:
+if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup, ExceptionGroup
-    from typing_extensions import assert_never
 
 
 async def async_error(text: str, delay: float = 0.1) -> NoReturn:
@@ -1621,14 +1618,7 @@ async def test_no_new_cancellation_from_empty_task_group_aexit_native_cancel() -
     ],
 )
 async def test_outer_cancellation_propagated_by_task_group_aexit(
-    child: Literal[
-        "host_task",
-        "start_soon",
-        "start_soon_and_wait",
-        "start_soon_and_wait_and_checkpoint",
-        "start_soon_and_wait_and_shielded_checkpoint",
-    ],
-    second_shielded_child: bool,
+    child: str, second_shielded_child: bool
 ) -> None:
     taskfunc_exited = Event()
 
@@ -1671,7 +1661,7 @@ async def test_outer_cancellation_propagated_by_task_group_aexit(
                             await taskfunc_exited.wait()
                             await checkpoint()
                     case _:
-                        assert_never(child)
+                        pytest.fail("Execution should not reach this point")
         except get_cancelled_exc_class() as exc:
             if isinstance(exc, get_cancelled_exc_class()):
                 raise
