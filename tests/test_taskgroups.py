@@ -1651,26 +1651,27 @@ async def test_outer_cancellation_propagated_by_task_group_aexit(
                     # of the `if not self._tasks` branch.
                     tg.start_soon(taskfunc2)
 
-                if child == "host_task":
-                    await taskfunc1()
-                elif child == "start_soon":
-                    tg.start_soon(taskfunc1)
-                elif child == "start_soon_and_wait":
-                    tg.start_soon(taskfunc1)
-                    with CancelScope(shield=True):
-                        await taskfunc_exited.wait()
-                elif child == "start_soon_and_wait_and_checkpoint":
-                    tg.start_soon(taskfunc1)
-                    with CancelScope(shield=True):
-                        await taskfunc_exited.wait()
-                    await checkpoint()
-                elif child == "start_soon_and_wait_and_shielded_checkpoint":
-                    tg.start_soon(taskfunc1)
-                    with CancelScope(shield=True):
-                        await taskfunc_exited.wait()
+                match child:
+                    case "host_task":
+                        await taskfunc1()
+                    case "start_soon":
+                        tg.start_soon(taskfunc1)
+                    case "start_soon_and_wait":
+                        tg.start_soon(taskfunc1)
+                        with CancelScope(shield=True):
+                            await taskfunc_exited.wait()
+                    case "start_soon_and_wait_and_checkpoint":
+                        tg.start_soon(taskfunc1)
+                        with CancelScope(shield=True):
+                            await taskfunc_exited.wait()
                         await checkpoint()
-                else:
-                    assert_never(child)
+                    case "start_soon_and_wait_and_shielded_checkpoint":
+                        tg.start_soon(taskfunc1)
+                        with CancelScope(shield=True):
+                            await taskfunc_exited.wait()
+                            await checkpoint()
+                    case _:
+                        assert_never(child)
         except get_cancelled_exc_class() as exc:
             if isinstance(exc, get_cancelled_exc_class()):
                 raise
