@@ -1351,6 +1351,8 @@ async def test_single_cancellation_exc() -> None:
             raise
         except Exception as exc:
             pytest.fail(f"Raised the wrong type of exception: {exc.__class__.__name__}")
+        else:
+            pytest.fail("Did not raise a cancellation exception")
 
 
 async def test_start_soon_parent_id() -> None:
@@ -1663,6 +1665,8 @@ async def test_outer_cancellation_propagated_by_task_group_aexit(
             raise
         except Exception as exc:
             pytest.fail(f"Raised the wrong type of exception: {exc.__class__.__name__}")
+        else:
+            pytest.fail("Did not raise a cancellation exception")
 
     assert not tg.cancel_scope.cancelled_caught
     assert cs.cancelled_caught
