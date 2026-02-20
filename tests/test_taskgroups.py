@@ -1662,7 +1662,7 @@ async def test_outer_cancellation_propagated_by_task_group_aexit(
                             await checkpoint()
                     case _:
                         pytest.fail("Execution should not reach this point")
-        except get_cancelled_exc_class() as exc:
+        except BaseException as exc:
             if isinstance(exc, get_cancelled_exc_class()):
                 raise
 
