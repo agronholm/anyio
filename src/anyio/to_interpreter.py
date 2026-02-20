@@ -15,6 +15,7 @@ from typing import Any, Final, TypeVar
 from . import current_time, to_thread
 from ._core._exceptions import BrokenWorkerInterpreter
 from ._core._synchronization import CapacityLimiter
+from ._core._tasks import CancelScope
 from .lowlevel import RunVar
 
 if sys.version_info >= (3, 11):
@@ -221,7 +222,8 @@ async def run_sync(
         raise
     finally:
         if broken:
-            await to_thread.run_sync(worker.destroy, limiter=limiter)
+            with CancelScope(shield=True):
+                await to_thread.run_sync(worker.destroy, limiter=limiter)
         else:
             # Prune workers that have been idle for too long
             now = current_time()
@@ -229,9 +231,10 @@ async def run_sync(
                 if now - idle_workers[0].last_used <= MAX_WORKER_IDLE_TIME:
                     break
 
-                await to_thread.run_sync(
-                    idle_workers.popleft().destroy, limiter=limiter
-                )
+                with CancelScope(shield=True):
+                    await to_thread.run_sync(
+                        idle_workers.popleft().destroy, limiter=limiter
+                    )
 
             worker.last_used = current_time()
             idle_workers.append(worker)
