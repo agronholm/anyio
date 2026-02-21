@@ -1591,18 +1591,34 @@ async def test_no_new_cancellation_from_empty_task_group_aexit() -> None:
     assert not cs.cancelled_caught
 
 
+@pytest.mark.parametrize(
+    "taskgroup_factory",
+    [
+        "anyio",
+        pytest.param(
+            "asyncio",
+            marks=[
+                pytest.mark.skipif(
+                    sys.version_info < (3, 11), reason="Requires Python 3.11 or later"
+                )
+            ],
+        ),
+    ],
+)
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
-async def test_no_new_cancellation_from_empty_task_group_aexit_native_cancel() -> None:
+async def test_no_new_cancellation_from_empty_task_group_aexit_native_cancel(
+    taskgroup_factory: str,
+) -> None:
     cast(asyncio.Task, asyncio.current_task()).cancel("native")
-    async with create_task_group() as tg:
+    tg = asyncio.TaskGroup() if taskgroup_factory == "asyncio" else create_task_group()
+    async with tg:
         pass
 
-    assert not tg.cancel_scope.cancelled_caught
+    if isinstance(tg, TaskGroup):
+        assert not tg.cancel_scope.cancelled_caught
 
-    with pytest.raises(CancelledError) as exc_info:
+    with pytest.raises(CancelledError, match="^native$"):
         await checkpoint()
-
-    assert exc_info.value.args[0] == "native"
 
 
 @pytest.mark.parametrize("second_shielded_child", [False, True])
