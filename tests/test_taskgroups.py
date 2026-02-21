@@ -1131,7 +1131,7 @@ def test_cancel_generator_based_task() -> None:
             await asyncio.sleep(1)
             pytest.fail("Execution should not have reached this line")
 
-    @asyncio.coroutine  # type: ignore[attr-defined]
+    @asyncio.coroutine  # type: ignore[attr-defined, untyped-decorator]
     def generator_part() -> Generator[object, BaseException, None]:
         yield from native_coro_part()  # type: ignore[misc]
 
@@ -1152,7 +1152,7 @@ async def test_schedule_old_style_coroutine_func() -> None:
     generator-style coroutine function.
     """
 
-    @asyncio.coroutine  # type: ignore[attr-defined]
+    @asyncio.coroutine  # type: ignore[attr-defined, untyped-decorator]
     def corofunc() -> Generator[Any, Any, None]:
         yield from asyncio.sleep(1)  # type: ignore[misc]
 
