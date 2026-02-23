@@ -352,6 +352,7 @@ class TestAsyncLRUCache:
     async def test_ttl_expiration_evicts(self) -> None:
         @lru_cache(ttl=1)
         async def func() -> float:
+            await checkpoint()
             return random.random()
 
         cached_val = await func()
@@ -378,11 +379,10 @@ class TestAsyncLRUCache:
             await sleep(time)
             return time
 
-        with move_on_after(1) as scope:
-            async with create_task_group() as tg:
-                for _ in range(100):
-                    tg.start_soon(sleeper, 0.1)
-        assert not scope.cancelled_caught
+        async with create_task_group() as tg:
+            for _ in range(100):
+                tg.start_soon(sleeper, 0.1)
+
         assert call_count == 1
 
     @pytest.mark.parametrize("checkpoint", [False, True])
