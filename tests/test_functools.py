@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import random
 from collections.abc import AsyncIterator
 from decimal import Decimal
 from typing import Any, NoReturn
@@ -335,13 +334,19 @@ class TestAsyncLRUCache:
         await self._do_cache_asserts(Foo().instance_method)
 
     async def test_ttl_cache_hit(self) -> None:
+        called = False
+
         @lru_cache(ttl=1)
         async def func() -> float:
-            return random.random()
+            nonlocal called
+            previous = called
+            called = True
+            await checkpoint()
+            return previous
 
-        cached_val = await func()
+        assert not await func()
         # Should be a cache hit
-        assert await func() == cached_val
+        assert not await func()
 
         statistics = func.cache_info()
         assert statistics.hits == 1
@@ -350,17 +355,23 @@ class TestAsyncLRUCache:
         assert statistics.ttl == 1
 
     async def test_ttl_expiration_evicts(self) -> None:
-        @lru_cache(ttl=1)
-        async def func() -> float:
-            await checkpoint()
-            return random.random()
+        called = False
 
-        cached_val = await func()
+        @lru_cache(ttl=1)
+        async def func() -> bool:
+            nonlocal called
+            previous = called
+            called = True
+            await checkpoint()
+            return previous
+
+        # returns False
+        assert not await func()
         # Should be a hit
-        assert await func() == cached_val
+        assert not await func()
         await sleep(1)
         # Should be a miss now
-        assert await func() != cached_val
+        assert await func()
 
         statistics = func.cache_info()
         assert statistics.hits == 1
@@ -373,11 +384,10 @@ class TestAsyncLRUCache:
         call_count = 0
 
         @lru_cache(ttl=1, always_checkpoint=checkpoint)
-        async def sleeper(time: float) -> float:
+        async def sleeper(time: float) -> None:
             nonlocal call_count
             call_count += 1
             await sleep(time)
-            return time
 
         async with create_task_group() as tg:
             for _ in range(100):
@@ -388,13 +398,13 @@ class TestAsyncLRUCache:
     @pytest.mark.parametrize("checkpoint", [False, True])
     async def test_ttl_sequential(self, checkpoint: bool) -> None:
         @lru_cache(ttl=1, always_checkpoint=checkpoint)
-        async def sleeper(time: float) -> float:
+        async def sleeper(time: float) -> None:
             await sleep(time)
-            return time
 
         with move_on_after(1) as scope:
             for _ in range(100):
                 await sleeper(0.1)
+
         assert not scope.cancelled_caught
 
 
