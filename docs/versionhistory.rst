@@ -15,6 +15,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed the ``TypeError`` raised when using "func" as a parameter name in
   ``pytest.mark.parametrize`` when using the pytest plugin
   (`#1068 <https://github.com/agronholm/anyio/pull/1068>`_; PR by @JohnnyDeuss)
+- Added a ``ttl`` parameter to the ``anyio.functools.lru_cache`` wrapper
+  (`#1073 <https://github.com/agronholm/anyio/pull/1073>`_; PR by @Graeme22)
 
 **4.12.1**
 

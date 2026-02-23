@@ -34,6 +34,7 @@ from typing import (
 )
 from weakref import WeakKeyDictionary
 
+from ._core._eventloop import current_time
 from ._core._synchronization import Lock
 from .lowlevel import RunVar, checkpoint
 
@@ -48,7 +49,11 @@ P = ParamSpec("P")
 lru_cache_items: RunVar[
     WeakKeyDictionary[
         AsyncLRUCacheWrapper[Any, Any],
-        OrderedDict[Hashable, tuple[_InitialMissingType, Lock] | tuple[Any, None]],
+        OrderedDict[
+            Hashable,
+            tuple[_InitialMissingType, Lock, float | None]
+            | tuple[Any, None, float | None],
+        ],
     ]
 ] = RunVar("lru_cache_items")
 
@@ -65,12 +70,14 @@ class AsyncCacheInfo(NamedTuple):
     misses: int
     maxsize: int | None
     currsize: int
+    ttl: int | None
 
 
 class AsyncCacheParameters(TypedDict):
     maxsize: int | None
     typed: bool
     always_checkpoint: bool
+    ttl: int | None
 
 
 class _LRUMethodWrapper(Generic[T]):
@@ -102,6 +109,7 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
         maxsize: int | None,
         typed: bool,
         always_checkpoint: bool,
+        ttl: int | None,
     ):
         self.__wrapped__ = func
         self._hits: int = 0
@@ -110,16 +118,20 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
         self._currsize: int = 0
         self._typed = typed
         self._always_checkpoint = always_checkpoint
+        self._ttl = ttl
         update_wrapper(self, func)
 
     def cache_info(self) -> AsyncCacheInfo:
-        return AsyncCacheInfo(self._hits, self._misses, self._maxsize, self._currsize)
+        return AsyncCacheInfo(
+            self._hits, self._misses, self._maxsize, self._currsize, self._ttl
+        )
 
     def cache_parameters(self) -> AsyncCacheParameters:
         return {
             "maxsize": self._maxsize,
             "typed": self._typed,
             "always_checkpoint": self._always_checkpoint,
+            "ttl": self._ttl,
         }
 
     def cache_clear(self) -> None:
@@ -158,23 +170,33 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
 
         cached_value: T | _InitialMissingType
         try:
-            cached_value, lock = cache_entry[key]
+            cached_value, lock, expires_at = cache_entry[key]
         except KeyError:
             # We're the first task to call this function
-            cached_value, lock = (
+            cached_value, lock, expires_at = (
                 initial_missing,
                 Lock(fast_acquire=not self._always_checkpoint),
+                None,
             )
-            cache_entry[key] = cached_value, lock
+            cache_entry[key] = cached_value, lock, expires_at
 
         if lock is None:
-            # The value was already cached
-            self._hits += 1
-            cache_entry.move_to_end(key)
-            if self._always_checkpoint:
-                await checkpoint()
+            if expires_at is not None and current_time() >= expires_at:
+                self._currsize -= 1
+                cached_value, lock, expires_at = (
+                    initial_missing,
+                    Lock(fast_acquire=not self._always_checkpoint),
+                    None,
+                )
+                cache_entry[key] = cached_value, lock, expires_at
+            else:
+                # The value was already cached
+                self._hits += 1
+                cache_entry.move_to_end(key)
+                if self._always_checkpoint:
+                    await checkpoint()
 
-            return cast(T, cached_value)
+                return cast(T, cached_value)
 
         async with lock:
             # Check if another task filled the cache while we acquired the lock
@@ -186,7 +208,10 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
                     self._currsize += 1
 
                 value = await self.__wrapped__(*args, **kwargs)
-                cache_entry[key] = value, None
+                expires_at = (
+                    current_time() + self._ttl if self._ttl is not None else None
+                )
+                cache_entry[key] = value, None, expires_at
             else:
                 # Another task filled the cache while we were waiting for the lock
                 self._hits += 1
@@ -204,10 +229,13 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
 
 
 class _LRUCacheWrapper(Generic[T]):
-    def __init__(self, maxsize: int | None, typed: bool, always_checkpoint: bool):
+    def __init__(
+        self, maxsize: int | None, typed: bool, always_checkpoint: bool, ttl: int | None
+    ):
         self._maxsize = maxsize
         self._typed = typed
         self._always_checkpoint = always_checkpoint
+        self._ttl = ttl
 
     @overload
     def __call__(  # type: ignore[overload-overlap]
@@ -224,7 +252,7 @@ class _LRUCacheWrapper(Generic[T]):
     ) -> AsyncLRUCacheWrapper[P, T] | functools._lru_cache_wrapper[T]:
         if iscoroutinefunction(f):
             return AsyncLRUCacheWrapper(
-                f, self._maxsize, self._typed, self._always_checkpoint
+                f, self._maxsize, self._typed, self._always_checkpoint, self._ttl
             )
 
         return functools.lru_cache(maxsize=self._maxsize, typed=self._typed)(f)  # type: ignore[arg-type]
@@ -254,7 +282,11 @@ def cache(
 
 @overload
 def lru_cache(
-    *, maxsize: int | None = ..., typed: bool = ..., always_checkpoint: bool = ...
+    *,
+    maxsize: int | None = ...,
+    typed: bool = ...,
+    always_checkpoint: bool = ...,
+    ttl: int | None = ...,
 ) -> _LRUCacheWrapper[Any]: ...
 
 
@@ -275,6 +307,7 @@ def lru_cache(
     maxsize: int | None = 128,
     typed: bool = False,
     always_checkpoint: bool = False,
+    ttl: int | None = None,
 ) -> (
     AsyncLRUCacheWrapper[P, T] | functools._lru_cache_wrapper[T] | _LRUCacheWrapper[Any]
 ):
@@ -286,17 +319,18 @@ def lru_cache(
 
     :param always_checkpoint: if ``True``, every call to the cached function will be
         guaranteed to yield control to the event loop at least once
+    :param ttl: time in seconds after which to invalidate cache entries
 
     .. note:: Caches and locks are managed on a per-event loop basis.
 
     """
     if func is None:
-        return _LRUCacheWrapper[Any](maxsize, typed, always_checkpoint)
+        return _LRUCacheWrapper[Any](maxsize, typed, always_checkpoint, ttl)
 
     if not callable(func):
         raise TypeError("the first argument must be callable")
 
-    return _LRUCacheWrapper[T](maxsize, typed, always_checkpoint)(func)
+    return _LRUCacheWrapper[T](maxsize, typed, always_checkpoint, ttl)(func)
 
 
 @overload

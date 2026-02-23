@@ -39,10 +39,10 @@ repos:
     rev: v1.19.1
     hooks:
       - id: mypy
+        pass_filenames: false
         additional_dependencies:
           - pytest
           - trio >= 0.26
-          - packaging
 
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0
