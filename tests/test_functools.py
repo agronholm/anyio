@@ -12,6 +12,8 @@ from anyio import (
     create_task_group,
     fail_after,
     get_cancelled_exc_class,
+    move_on_after,
+    sleep,
     wait_all_tasks_blocked,
 )
 from anyio.functools import (
@@ -59,7 +61,7 @@ class TestAsyncLRUCache:
             lru_cache(10)  # type: ignore[call-overload]
 
     def test_cache_parameters(self) -> None:
-        @lru_cache(maxsize=10, typed=True)
+        @lru_cache(maxsize=10, typed=True, ttl=3)
         async def func(x: int) -> int:
             return x
 
@@ -67,6 +69,7 @@ class TestAsyncLRUCache:
             "maxsize": 10,
             "typed": True,
             "always_checkpoint": False,
+            "ttl": 3,
         }
 
     def test_wrap_sync_callable(self) -> None:
@@ -110,14 +113,14 @@ class TestAsyncLRUCache:
             assert await func(2) == 2
 
         statistics = func.cache_info()
-        assert statistics == (3, 2, 128, 2)
+        assert statistics == (3, 2, 128, 2, None)
         assert statistics.hits == 3
         assert statistics.misses == 2
         assert statistics.maxsize == 128
         assert statistics.currsize == 2
 
         func.cache_clear()
-        assert func.cache_info() == (0, 0, 128, 0)
+        assert func.cache_info() == (0, 0, 128, 0, None)
 
     async def test_untyped_caching(self) -> None:
         @lru_cache
@@ -280,6 +283,7 @@ class TestAsyncLRUCache:
             "always_checkpoint": False,
             "maxsize": 128,
             "typed": False,
+            "ttl": None,
         }
         statistics = wrapper.cache_info()
         assert statistics.hits == 2
@@ -328,6 +332,80 @@ class TestAsyncLRUCache:
             assert await foo.instance_method(2) == 2
 
         await self._do_cache_asserts(Foo().instance_method)
+
+    async def test_ttl_cache_hit(self) -> None:
+        called = False
+
+        @lru_cache(ttl=1)
+        async def func() -> float:
+            nonlocal called
+            previous = called
+            called = True
+            await checkpoint()
+            return previous
+
+        assert not await func()
+        # Should be a cache hit
+        assert not await func()
+
+        statistics = func.cache_info()
+        assert statistics.hits == 1
+        assert statistics.misses == 1
+        assert statistics.currsize == 1
+        assert statistics.ttl == 1
+
+    async def test_ttl_expiration_evicts(self) -> None:
+        called = False
+
+        @lru_cache(ttl=1)
+        async def func() -> bool:
+            nonlocal called
+            previous = called
+            called = True
+            await checkpoint()
+            return previous
+
+        # returns False
+        assert not await func()
+        # Should be a hit
+        assert not await func()
+        await sleep(1)
+        # Should be a miss now
+        assert await func()
+
+        statistics = func.cache_info()
+        assert statistics.hits == 1
+        assert statistics.misses == 2
+        assert statistics.currsize == 1
+        assert statistics.ttl == 1
+
+    @pytest.mark.parametrize("checkpoint", [False, True])
+    async def test_ttl_contested_lock(self, checkpoint: bool) -> None:
+        call_count = 0
+
+        @lru_cache(ttl=1, always_checkpoint=checkpoint)
+        async def sleeper(time: float) -> None:
+            nonlocal call_count
+            call_count += 1
+            await sleep(time)
+
+        async with create_task_group() as tg:
+            for _ in range(100):
+                tg.start_soon(sleeper, 0.1)
+
+        assert call_count == 1
+
+    @pytest.mark.parametrize("checkpoint", [False, True])
+    async def test_ttl_sequential(self, checkpoint: bool) -> None:
+        @lru_cache(ttl=1, always_checkpoint=checkpoint)
+        async def sleeper(time: float) -> None:
+            await sleep(time)
+
+        with move_on_after(1) as scope:
+            for _ in range(100):
+                await sleeper(0.1)
+
+        assert not scope.cancelled_caught
 
 
 class TestReduce:
