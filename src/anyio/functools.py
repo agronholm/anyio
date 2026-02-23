@@ -182,7 +182,6 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
 
         if lock is None:
             if expires_at is not None and current_time() >= expires_at:
-                del cache_entry[key]
                 self._currsize -= 1
                 cached_value, lock, expires_at = (
                     initial_missing,
