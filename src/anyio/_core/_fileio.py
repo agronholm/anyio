@@ -67,8 +67,10 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
                 print(line)
     """
 
+    _fp: Any
+
     def __init__(self, fp: IO[AnyStr]) -> None:
-        self._fp: Any = fp
+        self._fp = fp
 
     def __getattr__(self, name: str) -> object:
         return getattr(self._fp, name)
