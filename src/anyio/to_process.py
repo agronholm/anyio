@@ -10,6 +10,7 @@ import os
 import pickle
 import subprocess
 import sys
+import types
 from collections import deque
 from collections.abc import Callable
 from importlib.util import module_from_spec, spec_from_file_location
@@ -242,6 +243,13 @@ def process_worker() -> None:
                             sys.modules["__main__"] = main
                     except BaseException as exc:
                         exception = exc
+
+                # Ensure __main__ is always present in sys.modules (entry
+                # point scripts without .py extension cause
+                # spec_from_file_location to return None, leaving __main__
+                # deleted)
+                if "__main__" not in sys.modules:
+                    sys.modules["__main__"] = types.ModuleType("__main__")
         try:
             if exception is not None:
                 status = b"EXCEPTION"
