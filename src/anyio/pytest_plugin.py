@@ -9,7 +9,7 @@ from inspect import isasyncgenfunction, iscoroutinefunction, ismethod
 from typing import Any, cast
 
 import pytest
-from _pytest.fixtures import SubRequest
+from _pytest.fixtures import FuncFixtureInfo, SubRequest
 from _pytest.outcomes import Exit
 from _pytest.python import CallSpec2
 from _pytest.scope import Scope
@@ -197,16 +197,25 @@ def pytest_collection_finish(session: pytest.Session) -> None:
                         idlist=[backend],
                         marks=[],
                     )
+                fi = item._fixtureinfo
+                new_names_closure = list(fi.names_closure)
+                if "anyio_backend" not in new_names_closure:
+                    new_names_closure.append("anyio_backend")
+                new_fixtureinfo = FuncFixtureInfo(
+                    argnames=fi.argnames,
+                    initialnames=fi.initialnames,
+                    names_closure=new_names_closure,
+                    name2fixturedefs=fi.name2fixturedefs,
+                )
                 new_item = pytest.Function.from_parent(
                     item.parent,
                     name=f"{item.originalname}[{backend}]",
                     callspec=callspec,
                     callobj=item.obj,
-                    fixtureinfo=item._fixtureinfo,
+                    fixtureinfo=new_fixtureinfo,
                     keywords=item.keywords,
                     originalname=item.originalname,
                 )
-                new_item.fixturenames.append("anyio_backend")
                 new_items.append(new_item)
             session.items[i : i + 1] = new_items
 
