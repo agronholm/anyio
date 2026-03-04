@@ -179,6 +179,7 @@ def pytest_collection_finish(session: pytest.Session) -> None:
                 cs_fields = {f.name for f in dataclasses.fields(CallSpec2)}
             except TypeError:
                 cs_fields = set()
+
             for param_index, backend in enumerate(get_available_backends()):
                 if "_arg2scope" in cs_fields:  # pytest >= 8
                     callspec = CallSpec2(
@@ -197,10 +198,12 @@ def pytest_collection_finish(session: pytest.Session) -> None:
                         idlist=[backend],
                         marks=[],
                     )
+
                 fi = item._fixtureinfo
                 new_names_closure = list(fi.names_closure)
                 if "anyio_backend" not in new_names_closure:
                     new_names_closure.append("anyio_backend")
+
                 new_fixtureinfo = FuncFixtureInfo(
                     argnames=fi.argnames,
                     initialnames=fi.initialnames,
@@ -217,6 +220,7 @@ def pytest_collection_finish(session: pytest.Session) -> None:
                     originalname=item.originalname,
                 )
                 new_items.append(new_item)
+
             session.items[i : i + 1] = new_items
 
 
