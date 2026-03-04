@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import socket
 import sys
 from collections.abc import Callable, Generator, Iterator
@@ -10,7 +11,8 @@ from typing import Any, cast
 import pytest
 from _pytest.fixtures import SubRequest
 from _pytest.outcomes import Exit
-from _pytest.python import CallSpec2, Scope
+from _pytest.python import CallSpec2
+from _pytest.scope import Scope
 
 from . import get_available_backends
 from ._core._eventloop import (
@@ -173,16 +175,28 @@ def pytest_collection_finish(session: pytest.Session) -> None:
             and "anyio_backend" not in item.fixturenames
         ):
             new_items = []
+            try:
+                cs_fields = {f.name for f in dataclasses.fields(CallSpec2)}
+            except TypeError:
+                cs_fields = set()
             for param_index, backend in enumerate(get_available_backends()):
-                callspec = CallSpec2().setmulti(
-                    argnames=["anyio_backend"],
-                    valset=[backend],
-                    id=backend,
-                    marks=[],
-                    scope=Scope.Module,
-                    param_index=param_index,
-                    nodeid=item.nodeid,
-                )
+                if "_arg2scope" in cs_fields:  # pytest >= 8
+                    callspec = CallSpec2(
+                        params={"anyio_backend": backend},
+                        indices={"anyio_backend": param_index},
+                        _arg2scope={"anyio_backend": Scope.Module},
+                        _idlist=[backend],
+                        marks=[],
+                    )
+                else:  # pytest 7.x
+                    callspec = CallSpec2(  # type: ignore[call-arg]
+                        funcargs={},
+                        params={"anyio_backend": backend},
+                        indices={"anyio_backend": param_index},
+                        arg2scope={"anyio_backend": Scope.Module},
+                        idlist=[backend],
+                        marks=[],
+                    )
                 new_item = pytest.Function.from_parent(
                     item.parent,
                     name=f"{item.originalname}[{backend}]",
