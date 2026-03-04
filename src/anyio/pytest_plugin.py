@@ -10,6 +10,7 @@ from typing import Any, cast
 import pytest
 from _pytest.fixtures import SubRequest
 from _pytest.outcomes import Exit
+from _pytest.python import CallSpec2, Scope
 
 from . import get_available_backends
 from ._core._eventloop import (
@@ -161,6 +162,39 @@ def pytest_pycollect_makeitem(
                 or any(marker.name == "anyio" for marker in own_markers)
             ):
                 pytest.mark.usefixtures("anyio_backend")(obj)
+
+
+def pytest_collection_finish(session: pytest.Session) -> None:
+    for i, item in reversed(list(enumerate(session.items))):
+        if (
+            isinstance(item, pytest.Function)
+            and iscoroutinefunction(item.function)
+            and item.get_closest_marker("anyio") is not None
+            and "anyio_backend" not in item.fixturenames
+        ):
+            new_items = []
+            for param_index, backend in enumerate(get_available_backends()):
+                callspec = CallSpec2().setmulti(
+                    argnames=["anyio_backend"],
+                    valset=[backend],
+                    id=backend,
+                    marks=[],
+                    scope=Scope.Module,
+                    param_index=param_index,
+                    nodeid=item.nodeid,
+                )
+                new_item = pytest.Function.from_parent(
+                    item.parent,
+                    name=f"{item.originalname}[{backend}]",
+                    callspec=callspec,
+                    callobj=item.obj,
+                    fixtureinfo=item._fixtureinfo,
+                    keywords=item.keywords,
+                    originalname=item.originalname,
+                )
+                new_item.fixturenames.append("anyio_backend")
+                new_items.append(new_item)
+            session.items[i : i + 1] = new_items
 
 
 @pytest.hookimpl(tryfirst=True)
