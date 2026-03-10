@@ -335,6 +335,11 @@ class Condition:
         except BaseException:
             if not event.is_set():
                 self._waiters.remove(event)
+            else:
+                # Notification was consumed but we're being cancelled.
+                # Forward to the next waiter to avoid a lost wakeup.
+                if self._waiters:
+                    self._waiters.popleft().set()
 
             raise
         finally:
