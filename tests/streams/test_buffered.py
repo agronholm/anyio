@@ -17,6 +17,21 @@ from anyio.streams.buffered import (
 from anyio.streams.stapled import StapledObjectStream
 
 
+@pytest.mark.parametrize("max_bytes", [0, -1])
+async def test_receive_max_bytes_validation(max_bytes: int) -> None:
+    """receive() raises ValueError when max_bytes < 1.
+
+    Regression test for https://github.com/agronholm/anyio/issues/1081
+    """
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
+    buffered_stream = BufferedByteReceiveStream(receive_stream)
+    with pytest.raises(ValueError, match="max_bytes"):
+        await buffered_stream.receive(max_bytes)
+
+    send_stream.close()
+    receive_stream.close()
+
+
 async def test_receive_exactly() -> None:
     send_stream, receive_stream = create_memory_object_stream[bytes](2)
     buffered_stream = BufferedByteReceiveStream(receive_stream)

@@ -268,6 +268,21 @@ class TestTCPStream:
             assert stream.extra(SocketAttribute.remote_address) == server_addr
             assert stream.extra(SocketAttribute.remote_port) == server_addr[1]
 
+    @pytest.mark.parametrize("max_bytes", [0, -1])
+    async def test_receive_max_bytes_validation(
+        self,
+        server_sock: socket.socket,
+        server_addr: tuple[str, int],
+        max_bytes: int,
+    ) -> None:
+        """receive() raises ValueError when max_bytes < 1.
+
+        Regression test for https://github.com/agronholm/anyio/issues/1081
+        """
+        async with await connect_tcp(*server_addr) as stream:
+            with pytest.raises(ValueError, match="max_bytes"):
+                await stream.receive(max_bytes)
+
     async def test_send_receive(
         self, server_sock: socket.socket, server_addr: tuple[str, int]
     ) -> None:
@@ -1174,6 +1189,21 @@ class TestUNIXStream:
             pytest.raises(
                 TypedAttributeLookupError, stream.extra, SocketAttribute.remote_port
             )
+
+    @pytest.mark.parametrize("max_bytes", [0, -1])
+    async def test_receive_max_bytes_validation(
+        self,
+        server_sock: socket.socket,
+        socket_path: Path,
+        max_bytes: int,
+    ) -> None:
+        """receive() raises ValueError when max_bytes < 1.
+
+        Regression test for https://github.com/agronholm/anyio/issues/1081
+        """
+        async with await connect_unix(socket_path) as stream:
+            with pytest.raises(ValueError, match="max_bytes"):
+                await stream.receive(max_bytes)
 
     async def test_send_receive(
         self, server_sock: socket.socket, socket_path_or_str: Path | str

@@ -228,6 +228,9 @@ class ReceiveStreamWrapper(abc.ByteReceiveStream):
     _stream: trio.abc.ReceiveStream
 
     async def receive(self, max_bytes: int | None = None) -> bytes:
+        if max_bytes is not None and max_bytes < 1:
+            raise ValueError("max_bytes must be a positive integer")
+
         try:
             data = await self._stream.receive_some(max_bytes)
         except trio.ClosedResourceError as exc:
@@ -383,6 +386,9 @@ class SocketStream(_TrioSocketMixin, abc.SocketStream):
         self._send_guard = ResourceGuard("writing to")
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be a positive integer")
+
         with self._receive_guard:
             try:
                 data = await self._trio_socket.recv(max_bytes)

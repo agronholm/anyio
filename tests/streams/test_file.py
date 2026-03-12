@@ -37,6 +37,18 @@ class TestFileReadStream:
             async with FileReadStream(file) as stream:
                 await self._run_filestream_test(stream)
 
+    @pytest.mark.parametrize("max_bytes", [0, -1])
+    async def test_receive_max_bytes_validation(
+        self, file_path: Path, max_bytes: int
+    ) -> None:
+        """receive() raises ValueError when max_bytes < 1.
+
+        Regression test for https://github.com/agronholm/anyio/issues/1081
+        """
+        async with await FileReadStream.from_path(file_path) as stream:
+            with pytest.raises(ValueError, match="max_bytes"):
+                await stream.receive(max_bytes)
+
     async def test_read_after_close(self, file_path: Path) -> None:
         async with await FileReadStream.from_path(file_path) as stream:
             pass
