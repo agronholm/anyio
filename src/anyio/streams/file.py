@@ -10,7 +10,7 @@ from collections.abc import Callable, Mapping
 from io import SEEK_SET, UnsupportedOperation
 from os import PathLike
 from pathlib import Path
-from typing import Any, BinaryIO, cast
+from typing import IO, Any, BinaryIO, cast
 
 from .. import (
     BrokenResourceError,
@@ -33,7 +33,7 @@ class FileStreamAttribute(TypedAttributeSet):
 
 
 class _BaseFileStream:
-    def __init__(self, file: BinaryIO):
+    def __init__(self, file: IO[bytes]):
         self._file = file
 
     async def aclose(self) -> None:
