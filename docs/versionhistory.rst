@@ -20,8 +20,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed the pytest plugin not running tests that had the ``anyio`` marker added
   programmatically via ``pytest_collection_modifyitems``
   (`#422 <https://github.com/agronholm/anyio/issues/422>`_; PR by @chbndrhnns)
-- Fixed ``FileReadStream`` and ``FileWriteStream`` not accepting ``IO[bytes]`` objects
-  (such as ``AsyncFile[bytes].wrapped``) due to the type hint requiring ``BinaryIO``
+- Broadened the type annotation of``FileReadStream`` and ``FileWriteStream`` to accept
+  ``IO[bytes]`` instead of the narrower ``BinaryIO``
   (`#1078 <https://github.com/agronholm/anyio/issues/1078>`_; PR by @rexkirshner)
 
 **4.12.1**
