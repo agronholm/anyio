@@ -6,6 +6,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 **UNRELEASED**
 
 - Dropped support for Python 3.9
+- Allowed passing keyword arguments to subprocesses
+  (`#993 <https://github.com/agronholm/anyio/pull/993>`_; PR by @davidbrochart)
 - Fixed ``anyio.Path`` not being compatible with Python 3.15 due to the removal of
   ``pathlib.Path.is_reserved()`` and the addition of ``pathlib.Path.__vfspath__()``
   (`#1061 <https://github.com/agronholm/anyio/issues/1061>`_; PR by @veeceey)
