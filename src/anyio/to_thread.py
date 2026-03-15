@@ -32,9 +32,9 @@ async def run_sync(
     """
     Call the given function with the given arguments in a worker thread.
 
-    If the ``cancellable`` option is enabled and the task waiting for its completion is
-    cancelled, the thread will still run its course but its return value (or any raised
-    exception) will be ignored.
+    If the ``abandon_on_cancel`` option is enabled and the task waiting for its
+    completion is cancelled, the thread will still run its course but its
+    return value (or any raised exception) will be ignored.
 
     :param func: a callable
     :param args: positional arguments for the callable
