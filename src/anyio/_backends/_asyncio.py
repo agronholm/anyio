@@ -1020,6 +1020,9 @@ class StreamReaderWrapper(abc.ByteReceiveStream):
     _stream: asyncio.StreamReader
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be at least 1")
+        
         data = await self._stream.read(max_bytes)
         if data:
             return data
@@ -1253,6 +1256,9 @@ class SocketStream(abc.SocketStream):
         return self._transport.get_extra_info("socket")
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be at least 1")
+        
         with self._receive_guard:
             if (
                 not self._protocol.read_event.is_set()
@@ -1377,6 +1383,9 @@ class UNIXSocketStream(_RawSocketMixin, abc.UNIXSocketStream):
             self._raw_socket.shutdown(socket.SHUT_WR)
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be at least 1")
+        
         loop = get_running_loop()
         await AsyncIOBackend.checkpoint()
         with self._receive_guard:
