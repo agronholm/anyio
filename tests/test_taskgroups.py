@@ -1063,8 +1063,8 @@ async def test_triple_nested_shield_checkpoint_in_middle() -> None:
     assert not got_past_checkpoint
 
 
-async def test_exception_group_filtering() -> None:
-    """Test that CancelledErrors are filtered out of nested exception groups."""
+async def test_nested_task_group_filtering() -> None:
+    """Test that CancelledErrors are filtered out of nested exception groups from task groups."""
 
     async def fail(name: str) -> NoReturn:
         try:
@@ -1087,6 +1087,74 @@ async def test_exception_group_filtering() -> None:
     assert isinstance(exc.value.exceptions[1], ExceptionGroup)
     assert len(exc.value.exceptions[1].exceptions) == 1
     assert str(exc.value.exceptions[1].exceptions[0]) == "child task failed"
+
+
+async def test_exception_group_filtering() -> None:
+    """
+    Test that CancelledErrors are filtered out of exception groups containing other exceptions.
+
+    See also test_reraise_cancelled_in_excgroup.
+    """
+
+    body_exc = RuntimeError()
+
+    def check_body_exc(exc: RuntimeError, /) -> bool:
+        return exc is body_exc
+
+    with pytest.RaisesGroup(pytest.RaisesExc(RuntimeError, check=check_body_exc)):
+        with CancelScope() as cs:
+            cs.cancel()
+            try:
+                raise body_exc
+            except BaseException as exc:
+                exceptions = [exc]
+
+                try:
+                    await checkpoint()
+                except BaseException as exc2:
+                    exceptions.append(exc2)
+                else:
+                    pytest.fail("Did not raise a cancellation exception")
+
+                try:
+                    raise BaseExceptionGroup("", exceptions)
+                finally:
+                    # Prevent reference cycles.
+                    del exceptions
+
+
+async def test_nested_exception_group_filtering() -> None:
+    """
+    Test that CancelledErrors are filtered out of nested exception groups containing other exceptions.
+    """
+
+    body_exc = RuntimeError()
+
+    def check_body_exc(exc: RuntimeError, /) -> bool:
+        return exc is body_exc
+
+    with pytest.RaisesGroup(
+        pytest.RaisesGroup(pytest.RaisesExc(RuntimeError, check=check_body_exc))
+    ):
+        with CancelScope() as cs:
+            cs.cancel()
+            try:
+                raise body_exc
+            except BaseException as exc:
+                exceptions = [exc]
+
+                try:
+                    await checkpoint()
+                except BaseException as exc2:
+                    exceptions.append(exc2)
+                else:
+                    pytest.fail("Did not raise a cancellation exception")
+
+                try:
+                    raise BaseExceptionGroup("", (BaseExceptionGroup("", exceptions),))
+                finally:
+                    # Prevent reference cycles.
+                    del exceptions
 
 
 async def test_cancel_propagation_with_inner_spawn() -> None:
