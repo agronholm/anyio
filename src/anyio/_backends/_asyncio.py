@@ -508,7 +508,16 @@ class CancelScope(BaseCancelScope):
                     if remaining is None:
                         return True
 
-                    raise remaining
+                    context = remaining.__context__
+                    try:
+                        # Preserve __cause__ and __suppress_context__ by avoiding `raise
+                        # ... from ...`
+                        raise remaining
+                    finally:
+                        # Preserve __context__
+                        remaining.__context__ = context
+                        del context
+
                 else:
                     if isinstance(exc_val, CancelledError) and is_anyio_cancellation(
                         exc_val
