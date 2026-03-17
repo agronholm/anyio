@@ -1101,7 +1101,9 @@ async def test_exception_group_filtering() -> None:
     def check_body_exc(exc: RuntimeError, /) -> bool:
         return exc is body_exc
 
-    with pytest.RaisesGroup(pytest.RaisesExc(RuntimeError, check=check_body_exc)):
+    with pytest.RaisesGroup(
+        pytest.RaisesExc(RuntimeError, check=check_body_exc)
+    ) as exc_info:
         with CancelScope() as cs:
             cs.cancel()
             try:
@@ -1117,10 +1119,14 @@ async def test_exception_group_filtering() -> None:
                     pytest.fail("Did not raise a cancellation exception")
 
                 try:
-                    raise BaseExceptionGroup("", exceptions)
+                    original_group = BaseExceptionGroup("", exceptions)
+                    raise original_group
                 finally:
                     # Prevent reference cycles.
                     del exceptions
+
+    assert exc_info.value.__cause__ == original_group.__cause__
+    assert exc_info.value.__context__ == original_group.__context__
 
 
 async def test_nested_exception_group_filtering() -> None:
@@ -1135,7 +1141,7 @@ async def test_nested_exception_group_filtering() -> None:
 
     with pytest.RaisesGroup(
         pytest.RaisesGroup(pytest.RaisesExc(RuntimeError, check=check_body_exc))
-    ):
+    ) as exc_info:
         with CancelScope() as cs:
             cs.cancel()
             try:
@@ -1151,10 +1157,16 @@ async def test_nested_exception_group_filtering() -> None:
                     pytest.fail("Did not raise a cancellation exception")
 
                 try:
-                    raise BaseExceptionGroup("", (BaseExceptionGroup("", exceptions),))
+                    original_group = BaseExceptionGroup(
+                        "", (BaseExceptionGroup("", exceptions),)
+                    )
+                    raise original_group
                 finally:
                     # Prevent reference cycles.
                     del exceptions
+
+    assert exc_info.value.__cause__ == original_group.__cause__
+    assert exc_info.value.__context__ == original_group.__context__
 
 
 async def test_cancel_propagation_with_inner_spawn() -> None:
