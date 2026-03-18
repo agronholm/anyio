@@ -1134,7 +1134,7 @@ def _forcibly_shutdown_process_pool_on_exit(
 
     # Close as much as possible (w/o async/await) to avoid warnings
     for process in workers.copy():
-        if process.returncode is None:
+        if process.returncode is not None:
             continue
 
         process._stdin._stream._transport.close()  # type: ignore[union-attr]
