@@ -1308,6 +1308,35 @@ async def test_cancelscope_exit_in_wrong_task() -> None:
     )
 
 
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_child_task_cancels_scope_when_parent_scope_cancelled() -> None:
+    """
+    Regression test for #787 (weak case).
+
+    When a child task exits with an unhandled exception, the task group's
+    cancel scope must be cancelled even if an outer scope is already cancelled.
+    Previously the ``_effectively_cancelled`` guard in ``task_done`` prevented
+    this, leaving the host task unaware that a child had failed.
+    """
+
+    async def taskfunc() -> None:
+        raise Exception("child task failed")
+
+    with pytest.raises(BaseExceptionGroup) as exc:
+        with CancelScope() as outer_scope:
+            async with create_task_group() as tg:
+                outer_scope.cancel()
+                tg.start_soon(taskfunc)
+                with CancelScope(shield=True):
+                    await wait_all_tasks_blocked()
+                    await sleep(0.1)
+                tg.cancel_scope.shield = True
+                assert tg.cancel_scope.cancel_called
+
+    assert len(exc.value.exceptions) == 1
+    assert str(exc.value.exceptions[0]) == "child task failed"
+
+
 def test_unhandled_exception_group(caplog: pytest.LogCaptureFixture) -> None:
     def crash() -> NoReturn:
         raise KeyboardInterrupt
