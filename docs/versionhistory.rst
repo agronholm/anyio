@@ -5,6 +5,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed a child task failing without cancelling its task group's scope on asyncio
+  when an outer cancel scope was already cancelled
+  (`#787 <https://github.com/agronholm/anyio/issues/787>`_)
 - Dropped support for Python 3.9
 - Fixed ``anyio.Path`` not being compatible with Python 3.15 due to the removal of
   ``pathlib.Path.is_reserved()`` and the addition of ``pathlib.Path.__vfspath__()``

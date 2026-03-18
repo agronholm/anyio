@@ -835,8 +835,7 @@ class TaskGroup(abc.TaskGroup):
                     if not isinstance(exc, CancelledError):
                         self._exceptions.append(exc)
 
-                    if not self.cancel_scope._effectively_cancelled:
-                        self.cancel_scope.cancel()
+                    self.cancel_scope.cancel()
                 else:
                     task_status_future.set_exception(exc)
             elif task_status_future is not None and not task_status_future.done():
