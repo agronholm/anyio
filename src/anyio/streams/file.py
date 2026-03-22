@@ -10,7 +10,7 @@ from collections.abc import Callable, Mapping
 from io import SEEK_SET, UnsupportedOperation
 from os import PathLike
 from pathlib import Path
-from typing import Any, BinaryIO, cast
+from typing import IO, Any, BinaryIO, cast
 
 from .. import (
     BrokenResourceError,
@@ -25,7 +25,7 @@ from ..abc import ByteReceiveStream, ByteSendStream
 
 class FileStreamAttribute(TypedAttributeSet):
     #: the open file descriptor
-    file: BinaryIO = typed_attribute()
+    file: IO[bytes] = typed_attribute()
     #: the path of the file on the file system, if available (file must be a real file)
     path: Path = typed_attribute()
     #: the file number, if available (file must be a real file or a TTY)
@@ -33,7 +33,7 @@ class FileStreamAttribute(TypedAttributeSet):
 
 
 class _BaseFileStream:
-    def __init__(self, file: BinaryIO):
+    def __init__(self, file: IO[bytes]):
         self._file = file
 
     async def aclose(self) -> None:
