@@ -20,6 +20,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed the pytest plugin not running tests that had the ``anyio`` marker added
   programmatically via ``pytest_collection_modifyitems``
   (`#422 <https://github.com/agronholm/anyio/issues/422>`_; PR by @chbndrhnns)
+- Widened the type annotations of file I/O streams to accept ``IO[bytes]``
+  instead of just ``BinaryIO``
+  (`#1078 <https://github.com/agronholm/anyio/issues/1078>`_)
 - Fixed cancellation exceptions leaking from a ``CancelScope`` on asyncio when they are
   contained in an exception group alongside non-cancellation exceptions (`#1091
   <https://github.com/agronholm/anyio/issues/1091>`_; PR by @gschaffner)
