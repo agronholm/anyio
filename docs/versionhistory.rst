@@ -17,6 +17,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#1068 <https://github.com/agronholm/anyio/pull/1068>`_; PR by @JohnnyDeuss)
 - Added a ``ttl`` parameter to the ``anyio.functools.lru_cache`` wrapper
   (`#1073 <https://github.com/agronholm/anyio/pull/1073>`_; PR by @Graeme22)
+- Fixed the pytest plugin not running tests that had the ``anyio`` marker added
+  programmatically via ``pytest_collection_modifyitems``
+  (`#422 <https://github.com/agronholm/anyio/issues/422>`_; PR by @chbndrhnns)
+- Widened the type annotations of file I/O streams to accept ``IO[bytes]``
+  instead of just ``BinaryIO``
+  (`#1078 <https://github.com/agronholm/anyio/issues/1078>`_)
 
 **4.12.1**
 

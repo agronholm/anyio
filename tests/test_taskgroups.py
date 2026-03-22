@@ -11,7 +11,6 @@ from typing import Any, NoReturn, cast
 from unittest import mock
 
 import pytest
-from exceptiongroup import catch
 from pytest import FixtureRequest, MonkeyPatch
 
 import anyio
@@ -1550,13 +1549,12 @@ async def test_cancel_before_entering_task_group() -> None:
 
 
 async def test_reraise_cancelled_in_excgroup() -> None:
-    def handler(excgrp: BaseExceptionGroup) -> None:
-        raise
-
     with CancelScope() as scope:
         scope.cancel()
-        with catch({get_cancelled_exc_class(): handler}):
+        try:
             await anyio.sleep_forever()
+        except get_cancelled_exc_class() as exc:
+            raise BaseExceptionGroup("", [exc]) from None
 
 
 async def test_cancel_child_task_when_host_is_shielded() -> None:
