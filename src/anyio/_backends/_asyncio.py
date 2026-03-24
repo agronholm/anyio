@@ -78,7 +78,6 @@ from .._core._exceptions import (
     EndOfStream,
     RunFinishedError,
     WouldBlock,
-    iterate_exceptions,
 )
 from .._core._sockets import convert_ipv6_sockaddr
 from .._core._streams import create_memory_object_stream
@@ -493,17 +492,39 @@ class CancelScope(BaseCancelScope):
                     self._pending_uncancellations -= 1
 
                 # Update cancelled_caught and check for exceptions we must not swallow
-                cannot_swallow_exc_val = False
-                if exc_val is not None:
-                    for exc in iterate_exceptions(exc_val):
-                        if isinstance(exc, CancelledError) and is_anyio_cancellation(
-                            exc
-                        ):
-                            self._cancelled_caught = True
-                        else:
-                            cannot_swallow_exc_val = True
+                if isinstance(exc_val, BaseExceptionGroup):
+                    cancelleds_caught, remaining = exc_val.split(
+                        lambda exc: (
+                            isinstance(exc, CancelledError)
+                            and is_anyio_cancellation(exc)
+                        )
+                    )
 
-                return self._cancelled_caught and not cannot_swallow_exc_val
+                    if cancelleds_caught is None:
+                        return False
+
+                    self._cancelled_caught = True
+
+                    if remaining is None:
+                        return True
+
+                    context = remaining.__context__
+                    try:
+                        # Preserve __cause__ and __suppress_context__ by avoiding `raise
+                        # ... from ...`
+                        raise remaining
+                    finally:
+                        # Preserve __context__
+                        remaining.__context__ = context
+                        del context
+                else:
+                    if isinstance(exc_val, CancelledError) and is_anyio_cancellation(
+                        exc_val
+                    ):
+                        self._cancelled_caught = True
+                        return True
+                    else:
+                        return False
             else:
                 if self._pending_uncancellations:
                     assert self._parent_scope is not None

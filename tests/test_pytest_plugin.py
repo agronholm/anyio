@@ -678,6 +678,35 @@ class TestFreePortFactory:
                 sock.bind((addr, free_udp_port))
 
 
+def test_programmatic_anyio_mark(testdir: Pytester) -> None:
+    """Test that the anyio marker added programmatically via pytest_collection_modifyitems
+    causes the test to be run (regression test for issue #422)."""
+    testdir.makeconftest(
+        """
+        import inspect
+        import pytest
+
+
+        def pytest_collection_modifyitems(session, config, items):
+            for item in items:
+                if (
+                    isinstance(item, pytest.Function)
+                    and inspect.iscoroutinefunction(item.function)
+                ):
+                    item.add_marker(pytest.mark.anyio)
+        """
+    )
+    testdir.makepyfile(
+        """
+        async def test_programmatically_marked():
+            pass
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=len(get_available_backends()))
+
+
 def test_func_as_parametrize_param_name(testdir: Pytester) -> None:
     """
     Test that "func" can be used as a parameter name in

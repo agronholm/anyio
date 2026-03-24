@@ -11,7 +11,6 @@ from typing import Any, NoReturn, cast
 from unittest import mock
 
 import pytest
-from exceptiongroup import catch
 from pytest import FixtureRequest, MonkeyPatch
 
 import anyio
@@ -1064,8 +1063,8 @@ async def test_triple_nested_shield_checkpoint_in_middle() -> None:
     assert not got_past_checkpoint
 
 
-async def test_exception_group_filtering() -> None:
-    """Test that CancelledErrors are filtered out of nested exception groups."""
+async def test_nested_task_group_filtering() -> None:
+    """Test that CancelledErrors are filtered out of nested exception groups from task groups."""
 
     async def fail(name: str) -> NoReturn:
         try:
@@ -1088,6 +1087,86 @@ async def test_exception_group_filtering() -> None:
     assert isinstance(exc.value.exceptions[1], ExceptionGroup)
     assert len(exc.value.exceptions[1].exceptions) == 1
     assert str(exc.value.exceptions[1].exceptions[0]) == "child task failed"
+
+
+async def test_exception_group_filtering() -> None:
+    """
+    Test that CancelledErrors are filtered out of exception groups containing other exceptions.
+
+    See also test_reraise_cancelled_in_excgroup.
+    """
+
+    body_exc = RuntimeError()
+
+    def check_body_exc(exc: RuntimeError, /) -> bool:
+        return exc is body_exc
+
+    with pytest.RaisesGroup(
+        pytest.RaisesExc(RuntimeError, check=check_body_exc)
+    ) as exc_info:
+        with CancelScope() as cs:
+            cs.cancel()
+            try:
+                raise body_exc
+            except BaseException as exc:
+                exceptions = [exc]
+
+                try:
+                    await checkpoint()
+                except BaseException as exc2:
+                    exceptions.append(exc2)
+                else:
+                    pytest.fail("Did not raise a cancellation exception")
+
+                try:
+                    original_group = BaseExceptionGroup("", exceptions)
+                    raise original_group
+                finally:
+                    # Prevent reference cycles.
+                    del exceptions
+
+    assert exc_info.value.__cause__ == original_group.__cause__
+    assert exc_info.value.__context__ == original_group.__context__
+
+
+async def test_nested_exception_group_filtering() -> None:
+    """
+    Test that CancelledErrors are filtered out of nested exception groups containing other exceptions.
+    """
+
+    body_exc = RuntimeError()
+
+    def check_body_exc(exc: RuntimeError, /) -> bool:
+        return exc is body_exc
+
+    with pytest.RaisesGroup(
+        pytest.RaisesGroup(pytest.RaisesExc(RuntimeError, check=check_body_exc))
+    ) as exc_info:
+        with CancelScope() as cs:
+            cs.cancel()
+            try:
+                raise body_exc
+            except BaseException as exc:
+                exceptions = [exc]
+
+                try:
+                    await checkpoint()
+                except BaseException as exc2:
+                    exceptions.append(exc2)
+                else:
+                    pytest.fail("Did not raise a cancellation exception")
+
+                try:
+                    original_group = BaseExceptionGroup(
+                        "", (BaseExceptionGroup("", exceptions),)
+                    )
+                    raise original_group
+                finally:
+                    # Prevent reference cycles.
+                    del exceptions
+
+    assert exc_info.value.__cause__ == original_group.__cause__
+    assert exc_info.value.__context__ == original_group.__context__
 
 
 async def test_cancel_propagation_with_inner_spawn() -> None:
@@ -1550,13 +1629,12 @@ async def test_cancel_before_entering_task_group() -> None:
 
 
 async def test_reraise_cancelled_in_excgroup() -> None:
-    def handler(excgrp: BaseExceptionGroup) -> None:
-        raise
-
     with CancelScope() as scope:
         scope.cancel()
-        with catch({get_cancelled_exc_class(): handler}):
+        try:
             await anyio.sleep_forever()
+        except get_cancelled_exc_class() as exc:
+            raise BaseExceptionGroup("", [exc]) from None
 
 
 async def test_cancel_child_task_when_host_is_shielded() -> None:

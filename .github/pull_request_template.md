@@ -1,4 +1,8 @@
 <!-- Thank you for your contribution! -->
+
+**NOTE** Erasing or replacing the contents of this template will result in your pull
+request being summarily closed without consideration!
+
 ## Changes
 
 Fixes #. <!-- Provide issue number if exists -->
