@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**4.13.0**
 
 - Dropped support for Python 3.9
 - Added a ``ttl`` parameter to the ``anyio.functools.lru_cache`` wrapper
