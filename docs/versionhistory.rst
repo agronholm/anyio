@@ -5,6 +5,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **4.13.0**
 
+- Fixed a child task failing without cancelling its task group's scope on asyncio
+  when an outer cancel scope was already cancelled
+  (`#787 <https://github.com/agronholm/anyio/issues/787>`_)
 - Dropped support for Python 3.9
 - Added a ``ttl`` parameter to the ``anyio.functools.lru_cache`` wrapper
   (`#1073 <https://github.com/agronholm/anyio/pull/1073>`_; PR by @Graeme22)
