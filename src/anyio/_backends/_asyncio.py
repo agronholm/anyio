@@ -517,7 +517,6 @@ class CancelScope(BaseCancelScope):
                         # Preserve __context__
                         remaining.__context__ = context
                         del context
-
                 else:
                     if isinstance(exc_val, CancelledError) and is_anyio_cancellation(
                         exc_val
