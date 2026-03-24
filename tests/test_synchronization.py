@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from contextlib import AbstractContextManager
 from typing import Any
 
 import pytest
@@ -399,6 +400,24 @@ class TestCondition:
 
         assert task_started
         assert not notified
+
+    async def test_notification_handover_on_cancel(self) -> None:
+        condition = Condition()
+
+        async def acquirer(scope: AbstractContextManager[CancelScope]) -> None:
+            with scope:
+                async with condition:
+                    await condition.wait()
+
+        async with create_task_group() as tg:
+            scope1 = CancelScope()
+            scope2 = fail_after(3)
+            tg.start_soon(acquirer, scope1)
+            tg.start_soon(acquirer, scope2)
+            await wait_all_tasks_blocked()
+            async with condition:
+                scope1.cancel()
+                condition.notify(1)
 
     async def test_wait_no_lock(self) -> None:
         condition = Condition()

@@ -335,6 +335,10 @@ class Condition:
         except BaseException:
             if not event.is_set():
                 self._waiters.remove(event)
+            elif self._waiters:
+                # This task was notified by could not act on it, so pass
+                # it on to the next task
+                self._waiters.popleft().set()
 
             raise
         finally:

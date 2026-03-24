@@ -26,6 +26,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed cancellation exceptions leaking from a ``CancelScope`` on asyncio when they are
   contained in an exception group alongside non-cancellation exceptions (`#1091
   <https://github.com/agronholm/anyio/issues/1091>`_; PR by @gschaffner)
+- Fixed ``Condition.wait()`` not passing on a notification when the task is cancelled
+  but already received a notification
 
 **4.12.1**
 
