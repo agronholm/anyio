@@ -28,6 +28,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   <https://github.com/agronholm/anyio/issues/1091>`_; PR by @gschaffner)
 - Fixed ``Condition.wait()`` not passing on a notification when the task is cancelled
   but already received a notification
+- Fixed inverted condition in the process pool shutdown phase which would cause
+  still-running pooled processes not to be terminated
+  (`#1074 <https://github.com/agronholm/anyio/pull/1074>`_; PR by @bysiber)
 
 **4.12.1**
 
