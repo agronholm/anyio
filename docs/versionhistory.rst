@@ -23,6 +23,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Widened the type annotations of file I/O streams to accept ``IO[bytes]``
   instead of just ``BinaryIO``
   (`#1078 <https://github.com/agronholm/anyio/issues/1078>`_)
+- Fixed cancellation exceptions leaking from a ``CancelScope`` on asyncio when they are
+  contained in an exception group alongside non-cancellation exceptions (`#1091
+  <https://github.com/agronholm/anyio/issues/1091>`_; PR by @gschaffner)
 
 **4.12.1**
 
