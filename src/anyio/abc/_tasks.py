@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import sys
 from abc import ABCMeta, abstractmethod
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
+from contextvars import Context
+from functools import partial
+from inspect import iscoroutine
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Protocol, overload
 
@@ -17,7 +20,7 @@ else:
     from typing_extensions import TypeVarTuple, Unpack
 
 if TYPE_CHECKING:
-    from .._core._tasks import CancelScope
+    from .._core._tasks import CancelScope, TaskHandle
 
 T_Retval = TypeVar("T_Retval")
 T_contra = TypeVar("T_contra", contravariant=True, default=None)
@@ -54,6 +57,53 @@ class TaskGroup(metaclass=ABCMeta):
     """
 
     cancel_scope: CancelScope
+
+    def create_task(
+        self,
+        coro: Coroutine[Any, Any, T_Retval],
+        *,
+        name: str | None = None,
+        context: Context | None = None,
+    ) -> TaskHandle[T_Retval]:
+        """
+        Create a new task from a coroutine object and schedule it to run.
+
+        :param coro: a coroutine object
+        :param name: optional name to give the task
+        :param context: optional context to run the task in
+        :return: a task handle
+
+        """
+        from .._core._tasks import TaskHandle
+
+        if not iscoroutine(coro):
+            raise TypeError(f"expected a coroutine, got {coro.__class__.__qualname__}")
+
+        handle = TaskHandle[T_Retval](name)
+        if context is not None:
+            context.run(
+                self.start_soon, partial(self._run_coro, coro, handle), name=name
+            )
+        else:
+            self.start_soon(self._run_coro, coro, handle, name=name)
+
+        return handle
+
+    @staticmethod
+    async def _run_coro(
+        coro: Coroutine[Any, Any, T_Retval],
+        handle: TaskHandle[T_Retval, None],
+    ) -> None:
+        __tracebackhide__ = True
+        with handle._cancel_scope:
+            try:
+                retval = await coro
+            except BaseException as exc:
+                handle._set_exception(exc)
+                if not isinstance(exc, Exception):
+                    raise
+            else:
+                handle._set_return_value(retval)
 
     @abstractmethod
     def start_soon(

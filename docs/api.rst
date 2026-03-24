@@ -41,6 +41,7 @@ Task groups
 -----------
 
 .. autofunction:: anyio.create_task_group
+.. autoclass:: anyio.TaskHandle
 
 .. autoclass:: anyio.abc.TaskGroup
 .. autoclass:: anyio.abc.TaskStatus
@@ -251,5 +252,7 @@ Exceptions
 .. autoexception:: anyio.IncompleteRead
 .. autoexception:: anyio.NoEventLoopError
 .. autoexception:: anyio.RunFinishedError
+.. autoexception:: anyio.TaskAborted
+.. autoexception:: anyio.TaskCancelled
 .. autoexception:: anyio.TypedAttributeLookupError
 .. autoexception:: anyio.WouldBlock

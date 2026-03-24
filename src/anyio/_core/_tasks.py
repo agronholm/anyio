@@ -1,12 +1,37 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Generator
-from contextlib import contextmanager
+import sys
+from collections.abc import (
+    Generator,
+)
+from contextlib import (
+    contextmanager,
+)
+from contextvars import ContextVar
 from types import TracebackType
+from typing import Any, Generic
 
-from ..abc._tasks import TaskGroup, TaskStatus
-from ._eventloop import get_async_backend
+from ..abc import TaskGroup, TaskStatus
+from ._eventloop import get_async_backend, get_cancelled_exc_class
+from ._exceptions import TaskAborted, TaskCancelled
+
+if sys.version_info >= (3, 11):
+    from typing import TypeVarTuple
+else:
+    from typing_extensions import TypeVarTuple
+
+if sys.version_info >= (3, 13):
+    from typing import TypeVar
+else:
+    from typing_extensions import TypeVar
+
+T = TypeVar("T")
+TRetval = TypeVar("TRetval")
+TStartval = TypeVar("TStartval", default=None)
+PosArgsT = TypeVarTuple("PosArgsT")
+
+_current_task_handle: ContextVar[TaskHandle] = ContextVar("_current_task_handle")
 
 
 class _IgnoredTaskStatus(TaskStatus[object]):
@@ -171,3 +196,109 @@ def create_task_group() -> TaskGroup:
 
     """
     return get_async_backend().create_task_group()
+
+
+class TaskHandle(Generic[T, TStartval]):
+    """
+    Returned from :meth:`TaskGroup.create_task() <.abc.TaskGroup.create_task>`.
+    Can be awaited on to get the return value of the task (or the raised exception).
+    If the task was terminated by a :exc:`BaseException`, :exc:`TaskAborted` will be
+    raised (or its subclass :exc:`TaskCancelled` if the task was cancelled).
+    """
+
+    __slots__ = (
+        "__weakref__",
+        "_cancel_scope",
+        "_name",
+        "_finished_event",
+        "_return_value",
+        "_exception",
+        "_start_value",
+        "_awaited",
+    )
+
+    _return_value: T
+    _start_value: TStartval
+
+    def __init__(self, name: str | None) -> None:
+        from ._synchronization import Event
+
+        self._name = name
+        self._cancel_scope = CancelScope()
+        self._finished_event = Event()
+        self._exception: BaseException | None = None
+        self._awaited = False
+
+    def cancel(self) -> None:
+        self._cancel_scope.cancel()
+
+    @property
+    def cancelled(self) -> bool:
+        return self._cancel_scope.cancel_called or isinstance(
+            self._exception, get_cancelled_exc_class()
+        )
+
+    @property
+    def name(self) -> str | None:
+        return self._name
+
+    @property
+    def exception(self) -> BaseException | None:
+        return self._exception
+
+    @property
+    def start_value(self) -> TStartval:
+        try:
+            return self._start_value
+        except AttributeError:
+            raise RuntimeError(
+                "this task has no start value (the task was not started with "
+                "'await tg.start(...)`)"
+            ) from None
+
+    @property
+    def return_value(self) -> T:
+        try:
+            return self._return_value
+        except AttributeError:
+            if self._exception is not None:
+                raise RuntimeError(
+                    f"this task raised an exception "
+                    f"({self._exception.__class__.__qualname__})"
+                ) from None
+
+            raise RuntimeError("this task has not returned yet") from None
+
+    def _set_exception(self, exception: BaseException) -> None:
+        if not isinstance(exception, Exception):
+            exc = (
+                TaskCancelled
+                if isinstance(exception, get_cancelled_exc_class())
+                else TaskAborted
+            )(f"the task being awaited on ({self.name!r}) was cancelled")
+            exc.__cause__ = exception
+            exception = exc
+
+        self._exception = exception
+        self._finished_event.set()
+
+    def _set_return_value(self, val: T) -> None:
+        assert self._exception is None
+        self._return_value = val
+        self._finished_event.set()
+
+    def __await__(self) -> Generator[Any, Any, T]:
+        if not self._finished_event.is_set():
+            try:
+                yield from self._finished_event.wait().__await__()
+            except BaseException:
+                self._awaited = False
+                raise
+
+        if self._exception is not None:
+            raise self._exception
+
+        return self._return_value
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__qualname__} name={self.name!r}>"

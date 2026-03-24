@@ -7,6 +7,7 @@ import sys
 import time
 from asyncio import CancelledError
 from collections.abc import AsyncGenerator, Coroutine, Generator
+from contextvars import ContextVar, copy_context
 from typing import Any, NoReturn, cast
 from unittest import mock
 
@@ -17,6 +18,7 @@ import anyio
 from anyio import (
     TASK_STATUS_IGNORED,
     CancelScope,
+    TaskAborted,
     create_task_group,
     current_effective_deadline,
     current_time,
@@ -1940,3 +1942,102 @@ async def test_asyncio_call_graph(native: bool) -> None:
         task_names.append(graph.future.get_name())
 
     assert task_names == ["depth-2", "depth-1", "root"]
+
+
+class TestCreateTask:
+    async def test_non_coro(self) -> None:
+        async def taskfunc() -> None:
+            pass
+
+        async with create_task_group() as tg:
+            with pytest.raises(TypeError):
+                tg.create_task(taskfunc)  # type: ignore[arg-type]
+
+    async def test_return_value(self) -> None:
+        async def taskfunc(x: int, y: int) -> int:
+            return x + y
+
+        async with create_task_group() as tg:
+            handle = tg.create_task(taskfunc(2, 4))
+            assert await handle == 6
+
+        assert handle.return_value == 6
+
+    async def test_exception(self) -> None:
+        async def taskfunc() -> NoReturn:
+            raise RuntimeError("dummy error")
+
+        async with create_task_group() as tg:
+            handle = tg.create_task(taskfunc())
+            with pytest.raises(RuntimeError, match="dummy error"):
+                await handle
+
+        assert isinstance(handle.exception, RuntimeError)
+        with pytest.raises(
+            RuntimeError, match=r"this task raised an exception \(RuntimeError\)"
+        ):
+            handle.return_value  # noqa: B018
+
+    def test_base_exception(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        async def taskfunc() -> NoReturn:
+            raise SystemExit(5)
+
+        async def main() -> None:
+            async with create_task_group() as tg:
+                handle = tg.create_task(taskfunc())
+                with pytest.raises(TaskAborted):
+                    await handle
+
+        with pytest.RaisesGroup(
+            pytest.RaisesExc(SystemExit, match="5"), allow_unwrapped=True
+        ):
+            anyio.run(
+                main, backend=anyio_backend_name, backend_options=anyio_backend_options
+            )
+
+    async def test_custom_name(self) -> None:
+        async def taskfunc() -> None:
+            assert get_current_task().name == "custom name"
+
+        async with create_task_group() as tg:
+            handle = tg.create_task(taskfunc(), name="custom name")
+            assert handle.name == "custom name"
+
+    @pytest.mark.parametrize("wait_until_running", [True, False])
+    async def test_cancel(self, wait_until_running: bool) -> None:
+        """
+        Test that the task function gets to run until the first
+        checkpoint when it's cancelled right after creation.
+        """
+        task_started = task_finished = False
+
+        async def task_func() -> None:
+            nonlocal task_started, task_finished
+            task_started = True
+            await checkpoint()
+            task_finished = True
+
+        async with create_task_group() as tg:
+            handle = tg.create_task(task_func())
+            if wait_until_running:
+                await wait_all_tasks_blocked()
+
+            handle.cancel()
+
+        assert handle.cancelled
+        assert task_started
+        assert task_finished == wait_until_running
+
+    async def test_custom_context(self) -> None:
+        ctxvar = ContextVar[int]("ctxvar")
+        ctx = copy_context()
+        ctx.run(ctxvar.set, 42)
+
+        async def taskfunc() -> int:
+            return ctxvar.get()
+
+        assert ctxvar.get(None) is None
+        async with create_task_group() as tg:
+            assert await tg.create_task(taskfunc(), context=ctx) == 42
