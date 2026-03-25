@@ -22,7 +22,6 @@ else:
     from typing_extensions import TypeVarTuple
 
 T = TypeVar("T")
-TRetval = TypeVar("TRetval")
 PosArgsT = TypeVarTuple("PosArgsT")
 
 _current_task_handle: ContextVar[TaskHandle] = ContextVar("_current_task_handle")
