@@ -206,7 +206,6 @@ class TaskHandle(Generic[T]):
         "_finished_event",
         "_return_value",
         "_exception",
-        "_awaited",
     )
 
     _return_value: T
@@ -218,7 +217,6 @@ class TaskHandle(Generic[T]):
         self._cancel_scope = CancelScope()
         self._finished_event = Event()
         self._exception: BaseException | None = None
-        self._awaited = False
 
     def cancel(self) -> None:
         self._cancel_scope.cancel()
@@ -273,7 +271,6 @@ class TaskHandle(Generic[T]):
             try:
                 yield from self._finished_event.wait().__await__()
             except BaseException:
-                self._awaited = False
                 raise
 
         if self._exception is not None:
