@@ -268,10 +268,7 @@ class TaskHandle(Generic[T]):
 
     def __await__(self) -> Generator[Any, Any, T]:
         if not self._finished_event.is_set():
-            try:
-                yield from self._finished_event.wait().__await__()
-            except BaseException:
-                raise
+            yield from self._finished_event.wait().__await__()
 
         if self._exception is not None:
             raise self._exception
