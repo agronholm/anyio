@@ -92,7 +92,7 @@ class TaskGroup(metaclass=ABCMeta):
     @staticmethod
     async def _run_coro(
         coro: Coroutine[Any, Any, T_Retval],
-        handle: TaskHandle[T_Retval, None],
+        handle: TaskHandle[T_Retval],
     ) -> None:
         __tracebackhide__ = True
         with handle._cancel_scope:

@@ -10,7 +10,7 @@ from contextlib import (
 )
 from contextvars import ContextVar
 from types import TracebackType
-from typing import Any, Generic
+from typing import Any, Generic, TypeVar
 
 from ..abc import TaskGroup, TaskStatus
 from ._eventloop import get_async_backend, get_cancelled_exc_class
@@ -21,14 +21,8 @@ if sys.version_info >= (3, 11):
 else:
     from typing_extensions import TypeVarTuple
 
-if sys.version_info >= (3, 13):
-    from typing import TypeVar
-else:
-    from typing_extensions import TypeVar
-
 T = TypeVar("T")
 TRetval = TypeVar("TRetval")
-TStartval = TypeVar("TStartval", default=None)
 PosArgsT = TypeVarTuple("PosArgsT")
 
 _current_task_handle: ContextVar[TaskHandle] = ContextVar("_current_task_handle")
@@ -198,7 +192,7 @@ def create_task_group() -> TaskGroup:
     return get_async_backend().create_task_group()
 
 
-class TaskHandle(Generic[T, TStartval]):
+class TaskHandle(Generic[T]):
     """
     Returned from :meth:`TaskGroup.create_task() <.abc.TaskGroup.create_task>`.
     Can be awaited on to get the return value of the task (or the raised exception).
@@ -213,12 +207,10 @@ class TaskHandle(Generic[T, TStartval]):
         "_finished_event",
         "_return_value",
         "_exception",
-        "_start_value",
         "_awaited",
     )
 
     _return_value: T
-    _start_value: TStartval
 
     def __init__(self, name: str | None) -> None:
         from ._synchronization import Event
@@ -245,16 +237,6 @@ class TaskHandle(Generic[T, TStartval]):
     @property
     def exception(self) -> BaseException | None:
         return self._exception
-
-    @property
-    def start_value(self) -> TStartval:
-        try:
-            return self._start_value
-        except AttributeError:
-            raise RuntimeError(
-                "this task has no start value (the task was not started with "
-                "'await tg.start(...)`)"
-            ) from None
 
     @property
     def return_value(self) -> T:
