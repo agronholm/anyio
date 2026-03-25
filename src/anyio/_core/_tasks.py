@@ -22,6 +22,7 @@ else:
     from typing_extensions import TypeVarTuple
 
 T = TypeVar("T")
+T_co = TypeVar("T_co", covariant=True)
 PosArgsT = TypeVarTuple("PosArgsT")
 
 _current_task_handle: ContextVar[TaskHandle] = ContextVar("_current_task_handle")
@@ -191,7 +192,7 @@ def create_task_group() -> TaskGroup:
     return get_async_backend().create_task_group()
 
 
-class TaskHandle(Generic[T]):
+class TaskHandle(Generic[T_co]):
     """
     Returned from :meth:`TaskGroup.create_task() <.abc.TaskGroup.create_task>`.
     Can be awaited on to get the return value of the task (or the raised exception).
@@ -208,7 +209,7 @@ class TaskHandle(Generic[T]):
         "_exception",
     )
 
-    _return_value: T
+    _return_value: T_co
 
     def __init__(self, name: str | None) -> None:
         from ._synchronization import Event
@@ -236,7 +237,7 @@ class TaskHandle(Generic[T]):
         return self._exception
 
     @property
-    def return_value(self) -> T:
+    def return_value(self) -> T_co:
         try:
             return self._return_value
         except AttributeError:
@@ -261,12 +262,12 @@ class TaskHandle(Generic[T]):
         self._exception = exception
         self._finished_event.set()
 
-    def _set_return_value(self, val: T) -> None:
+    def _set_return_value(self: TaskHandle[T], val: T) -> None:
         assert self._exception is None
         self._return_value = val
         self._finished_event.set()
 
-    def __await__(self) -> Generator[Any, Any, T]:
+    def __await__(self) -> Generator[Any, Any, T_co]:
         if not self._finished_event.is_set():
             yield from self._finished_event.wait().__await__()
 
