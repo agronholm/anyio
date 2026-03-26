@@ -21,6 +21,8 @@ from anyio import (
     CancelScope,
     Event,
     TaskAborted,
+    TaskCancelled,
+    TaskHandle,
     create_task_group,
     current_effective_deadline,
     current_time,
@@ -1952,7 +1954,7 @@ class TestCreateTask:
             pass
 
         async with create_task_group() as tg:
-            with pytest.raises(TypeError):
+            with pytest.raises(TypeError, match="expected a coroutine, got "):
                 tg.create_task(taskfunc)  # type: ignore[arg-type]
 
     async def test_return_value(self) -> None:
@@ -2001,8 +2003,13 @@ class TestCreateTask:
         async def main() -> None:
             async with create_task_group() as tg:
                 handle = tg.create_task(taskfunc())
-                with pytest.raises(TaskAborted):
+                with pytest.raises(
+                    TaskAborted,
+                    match=r"the task being awaited on \('taskfunc'\) was aborted",
+                ):
                     await handle
+
+                assert handle.status is TaskHandle.Status.ABORTED
 
         with pytest.RaisesGroup(
             pytest.RaisesExc(SystemExit, match="5"), allow_unwrapped=True
@@ -2035,6 +2042,11 @@ class TestCreateTask:
                 r"<TaskHandle cancelled name='taskfunc' coro=<coroutine object(.+)>>",
                 repr(handle),
             )
+            with pytest.raises(
+                TaskCancelled,
+                match=r"the task being awaited on \('taskfunc'\) was cancelled",
+            ):
+                await handle
 
         assert handle.cancelled
         assert task_started

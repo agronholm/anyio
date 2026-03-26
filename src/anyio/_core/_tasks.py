@@ -10,6 +10,7 @@ from contextlib import (
     contextmanager,
 )
 from contextvars import ContextVar
+from enum import Enum, auto
 from types import TracebackType
 from typing import Any, Generic, TypeVar, final
 
@@ -200,7 +201,36 @@ class TaskHandle(Generic[T_co]):
     Can be awaited on to get the return value of the task (or the raised exception).
     If the task was terminated by a :exc:`BaseException`, :exc:`TaskAborted` will be
     raised (or its subclass :exc:`TaskCancelled` if the task was cancelled).
+
+    .. versionadded:: 4.14.0
     """
+
+    class Status(Enum):
+        """
+        The status of a task handle.
+
+        .. attribute:: PENDING
+
+            The task has not finished yet.
+        .. attribute:: FINISHED
+
+            The task has finished with a return value.
+        .. attribute:: CANCELLED
+
+            The task was cancelled.
+        .. attribute:: ABORTED
+
+            The task was aborted due to a base exception other than a cancellation.
+        .. attribute:: ERRORED
+
+            The task raised an exception (non-base).
+        """
+
+        PENDING = auto()
+        FINISHED = auto()
+        CANCELLED = auto()
+        ABORTED = auto()
+        ERRORED = auto()
 
     __slots__ = (
         "__weakref__",
@@ -210,6 +240,7 @@ class TaskHandle(Generic[T_co]):
         "_finished_event",
         "_return_value",
         "_exception",
+        "_status",
     )
 
     _return_value: T_co
@@ -222,9 +253,23 @@ class TaskHandle(Generic[T_co]):
         self._finished_event = Event()
         self._name = name or coro.__name__
         self._exception: BaseException | None = None
+        self._status = TaskHandle.Status.PENDING
 
     def cancel(self) -> None:
+        if self._status is TaskHandle.Status.PENDING:
+            self._status = TaskHandle.Status.CANCELLED
+
         self._cancel_scope.cancel()
+
+    @property
+    def coro(self) -> Coroutine[Any, Any, T_co]:
+        """The coroutine object that was passed to :meth:`TaskGroup.create_task`."""
+        return self._coro
+
+    @property
+    def status(self) -> TaskHandle.Status:
+        """The current status of the task."""
+        return self._status
 
     @property
     def cancelled(self) -> bool:
@@ -255,20 +300,29 @@ class TaskHandle(Generic[T_co]):
 
     def _set_exception(self, exception: BaseException) -> None:
         if not isinstance(exception, Exception):
-            exc = (
-                TaskCancelled
-                if isinstance(exception, get_cancelled_exc_class())
-                else TaskAborted
-            )(f"the task being awaited on ({self.name!r}) was cancelled")
-            exc.__cause__ = exception
-            exception = exc
+            if isinstance(exception, get_cancelled_exc_class()):
+                exc: Exception = TaskCancelled(
+                    f"the task being awaited on ({self.name!r}) was cancelled"
+                )
+                self._status = TaskHandle.Status.CANCELLED
+            else:
+                exc = TaskAborted(
+                    f"the task being awaited on ({self.name!r}) was aborted"
+                )
+                self._status = TaskHandle.Status.ABORTED
 
-        self._exception = exception
+            exc.__cause__ = exception
+            self._exception = exc
+        else:
+            self._exception = exception
+            self._status = TaskHandle.Status.ERRORED
+
         self._finished_event.set()
 
     def _set_return_value(self: TaskHandle[T], val: T) -> None:
         assert self._exception is None
         self._return_value = val
+        self._status = TaskHandle.Status.FINISHED
         self._finished_event.set()
 
     def __await__(self) -> Generator[Any, Any, T_co]:
@@ -281,19 +335,7 @@ class TaskHandle(Generic[T_co]):
         return self._return_value
 
     def __repr__(self) -> str:
-        if self._finished_event.is_set():
-            match self._exception:
-                case None:
-                    status = "finished"
-                case TaskCancelled():
-                    status = "cancelled"
-                case TaskAborted():
-                    status = "aborted"
-                case _:
-                    status = "errored"
-        elif self._cancel_scope.cancel_called:
-            status = "cancelled"
-        else:
-            status = "pending"
-
-        return f"<{self.__class__.__name__} {status} name={self._name!r} coro={self._coro!r}>"
+        return (
+            f"<{self.__class__.__name__} {self._status.name.lower()} "
+            f"name={self._name!r} coro={self._coro!r}>"
+        )
