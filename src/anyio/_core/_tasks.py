@@ -214,7 +214,7 @@ class TaskHandle(Generic[T_co]):
 
     _return_value: T_co
 
-    def __init__(self, coro: Coroutine, name: str | None) -> None:
+    def __init__(self, coro: Coroutine[Any, Any, T_co], name: str | None) -> None:
         from ._synchronization import Event
 
         self._coro = coro
