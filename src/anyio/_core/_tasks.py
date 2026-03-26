@@ -296,4 +296,4 @@ class TaskHandle(Generic[T_co]):
         else:
             status = "pending"
 
-        return f"<{self.__class__.__name__} coro={self._coro!r} name={self._name!r} status={status}>"
+        return f"<{self.__class__.__name__} {status} name={self._name!r} coro={self._coro!r}>"

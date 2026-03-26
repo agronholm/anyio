@@ -1962,12 +1962,12 @@ class TestCreateTask:
         async with create_task_group() as tg:
             handle = tg.create_task(taskfunc(2, 4))
             assert re.match(
-                r"<TaskHandle coro=<coroutine object(.+)> name='taskfunc' status=pending>",
+                r"<TaskHandle pending name='taskfunc' coro=<coroutine object(.+)>>",
                 repr(handle),
             )
             assert await handle == 6
             assert re.match(
-                r"<TaskHandle coro=<coroutine object(.+)> name='taskfunc' status=finished>",
+                r"<TaskHandle finished name='taskfunc' coro=<coroutine object(.+)>>",
                 repr(handle),
             )
 
@@ -1983,7 +1983,7 @@ class TestCreateTask:
                 await handle
 
         assert re.match(
-            r"<TaskHandle coro=<coroutine object(.+)> name='taskfunc' status=errored>",
+            r"<TaskHandle errored name='taskfunc' coro=<coroutine object(.+)>",
             repr(handle),
         )
         assert isinstance(handle.exception, RuntimeError)
@@ -2032,14 +2032,14 @@ class TestCreateTask:
 
             handle.cancel()
             assert re.match(
-                r"<TaskHandle coro=<coroutine object(.+)> name='taskfunc' status=cancelled>",
+                r"<TaskHandle cancelled name='taskfunc' coro=<coroutine object(.+)>>",
                 repr(handle),
             )
 
         assert handle.cancelled
         assert task_started
         assert re.match(
-            r"<TaskHandle coro=<coroutine object(.+)> name='taskfunc' status=cancelled>",
+            r"<TaskHandle cancelled name='taskfunc' coro=<coroutine object(.+)>>",
             repr(handle),
         )
 
@@ -2062,7 +2062,7 @@ class TestCreateTask:
         async with create_task_group() as tg:
             handle = tg.create_task(taskfunc())
             assert re.match(
-                r"<TaskHandle coro=<coroutine object(.+)> name='taskfunc' status=pending>",
+                r"<TaskHandle pending name='taskfunc' coro=<coroutine object(.+)>>",
                 repr(handle),
             )
             assert await handle == handle.name
@@ -2077,6 +2077,6 @@ class TestCreateTask:
             handle = tg.create_task(taskfunc(), name="custom name")
             assert handle.name == "custom name"
             assert re.match(
-                r"<TaskHandle coro=<coroutine object(.+)> name='custom name' status=pending>",
+                r"<TaskHandle pending name='custom name' coro=<coroutine object(.+)>>",
                 repr(handle),
             )
