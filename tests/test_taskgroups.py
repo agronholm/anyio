@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import gc
 import math
+import re
 import sys
 import time
 from asyncio import CancelledError
@@ -18,6 +19,7 @@ import anyio
 from anyio import (
     TASK_STATUS_IGNORED,
     CancelScope,
+    Event,
     TaskAborted,
     create_task_group,
     current_effective_deadline,
@@ -1959,7 +1961,15 @@ class TestCreateTask:
 
         async with create_task_group() as tg:
             handle = tg.create_task(taskfunc(2, 4))
+            assert re.match(
+                r"<TaskHandle coro=<coroutine object(.+)> name='taskfunc' status=pending>",
+                repr(handle),
+            )
             assert await handle == 6
+            assert re.match(
+                r"<TaskHandle coro=<coroutine object(.+)> name='taskfunc' status=finished>",
+                repr(handle),
+            )
 
         assert handle.return_value == 6
 
@@ -1972,6 +1982,10 @@ class TestCreateTask:
             with pytest.raises(RuntimeError, match="dummy error"):
                 await handle
 
+        assert re.match(
+            r"<TaskHandle coro=<coroutine object(.+)> name='taskfunc' status=errored>",
+            repr(handle),
+        )
         assert isinstance(handle.exception, RuntimeError)
         with pytest.raises(
             RuntimeError, match=r"this task raised an exception \(RuntimeError\)"
@@ -1997,38 +2011,37 @@ class TestCreateTask:
                 main, backend=anyio_backend_name, backend_options=anyio_backend_options
             )
 
-    async def test_custom_name(self) -> None:
-        async def taskfunc() -> None:
-            assert get_current_task().name == "custom name"
-
-        async with create_task_group() as tg:
-            handle = tg.create_task(taskfunc(), name="custom name")
-            assert handle.name == "custom name"
-
     @pytest.mark.parametrize("wait_until_running", [True, False])
     async def test_cancel(self, wait_until_running: bool) -> None:
         """
         Test that the task function gets to run until the first
         checkpoint when it's cancelled right after creation.
         """
-        task_started = task_finished = False
+        task_started = False
+        event = Event()
 
-        async def task_func() -> None:
-            nonlocal task_started, task_finished
+        async def taskfunc() -> None:
+            nonlocal task_started
             task_started = True
-            await checkpoint()
-            task_finished = True
+            await event.wait()
 
         async with create_task_group() as tg:
-            handle = tg.create_task(task_func())
+            handle = tg.create_task(taskfunc())
             if wait_until_running:
                 await wait_all_tasks_blocked()
 
             handle.cancel()
+            assert re.match(
+                r"<TaskHandle coro=<coroutine object(.+)> name='taskfunc' status=cancelled>",
+                repr(handle),
+            )
 
         assert handle.cancelled
         assert task_started
-        assert task_finished == wait_until_running
+        assert re.match(
+            r"<TaskHandle coro=<coroutine object(.+)> name='taskfunc' status=cancelled>",
+            repr(handle),
+        )
 
     async def test_custom_context(self) -> None:
         ctxvar = ContextVar[int]("ctxvar")
@@ -2041,3 +2054,29 @@ class TestCreateTask:
         assert ctxvar.get(None) is None
         async with create_task_group() as tg:
             assert await tg.create_task(taskfunc(), context=ctx) == 42
+
+    async def test_task_name_default(self) -> None:
+        async def taskfunc() -> str | None:
+            return get_current_task().name
+
+        async with create_task_group() as tg:
+            handle = tg.create_task(taskfunc())
+            assert re.match(
+                r"<TaskHandle coro=<coroutine object(.+)> name='taskfunc' status=pending>",
+                repr(handle),
+            )
+            assert await handle == handle.name
+
+        assert handle.name == "taskfunc"
+
+    async def test_task_name_custom_name(self) -> None:
+        async def taskfunc() -> None:
+            assert get_current_task().name == "custom name"
+
+        async with create_task_group() as tg:
+            handle = tg.create_task(taskfunc(), name="custom name")
+            assert handle.name == "custom name"
+            assert re.match(
+                r"<TaskHandle coro=<coroutine object(.+)> name='custom name' status=pending>",
+                repr(handle),
+            )
