@@ -2092,3 +2092,29 @@ class TestCreateTask:
                 r"<TaskHandle pending name='custom name' coro=<coroutine object(.+)>>",
                 repr(handle),
             )
+
+    async def test_await_twice(self) -> None:
+        async def taskfunc(x: int, y: int) -> int:
+            return x + y
+
+        async with create_task_group() as tg:
+            handle = tg.create_task(taskfunc(2, 4))
+            assert await handle == 6
+
+        with pytest.raises(
+            RuntimeError, match="TaskHandle has already been awaited on"
+        ):
+            await handle
+
+    async def test_cancel_during_first_await(self) -> None:
+        async def taskfunc(x: int, y: int) -> int:
+            await checkpoint()
+            return x + y
+
+        async with create_task_group() as tg:
+            handle = tg.create_task(taskfunc(2, 4))
+            with CancelScope() as scope:
+                scope.cancel()
+                await handle
+
+        assert await handle == 6

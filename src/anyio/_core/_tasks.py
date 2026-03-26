@@ -241,6 +241,7 @@ class TaskHandle(Generic[T_co]):
         "_return_value",
         "_exception",
         "_status",
+        "_awaited",
     )
 
     _return_value: T_co
@@ -254,6 +255,7 @@ class TaskHandle(Generic[T_co]):
         self._name = name or coro.__name__
         self._exception: BaseException | None = None
         self._status = TaskHandle.Status.PENDING
+        self._awaited = False
 
     def cancel(self) -> None:
         if self._status is TaskHandle.Status.PENDING:
@@ -326,8 +328,16 @@ class TaskHandle(Generic[T_co]):
         self._finished_event.set()
 
     def __await__(self) -> Generator[Any, Any, T_co]:
+        if self._awaited:
+            raise RuntimeError("TaskHandle has already been awaited on")
+
+        self._awaited = True
         if not self._finished_event.is_set():
-            yield from self._finished_event.wait().__await__()
+            try:
+                yield from self._finished_event.wait().__await__()
+            except BaseException:
+                self._awaited = False
+                raise
 
         if self._exception is not None:
             raise self._exception
