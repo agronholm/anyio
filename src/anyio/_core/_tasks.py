@@ -17,6 +17,7 @@ from typing import Any, Generic, TypeVar, final
 from ..abc import TaskGroup, TaskStatus
 from ._eventloop import get_async_backend, get_cancelled_exc_class
 from ._exceptions import TaskAborted, TaskCancelled
+from ._testing import get_current_task
 
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple
@@ -218,18 +219,14 @@ class TaskHandle(Generic[T_co]):
         .. attribute:: CANCELLED
 
             The task was cancelled.
-        .. attribute:: ABORTED
-
-            The task was aborted due to a base exception other than a cancellation.
         .. attribute:: ERRORED
 
-            The task raised an exception (non-base).
+            The task raised an exception.
         """
 
         PENDING = auto()
         FINISHED = auto()
         CANCELLED = auto()
-        ABORTED = auto()
         ERRORED = auto()
 
     __slots__ = (
@@ -241,7 +238,6 @@ class TaskHandle(Generic[T_co]):
         "_return_value",
         "_exception",
         "_status",
-        "_awaited",
     )
 
     _return_value: T_co
@@ -255,7 +251,26 @@ class TaskHandle(Generic[T_co]):
         self._name = name or coro.__name__
         self._exception: BaseException | None = None
         self._status = TaskHandle.Status.PENDING
-        self._awaited = False
+
+    async def _run_coro(self) -> None:
+        __tracebackhide__ = True
+        if self._name is None:
+            self._name = get_current_task().name
+
+        with self._cancel_scope:
+            try:
+                retval = await self._coro
+            except get_cancelled_exc_class():
+                self._status = TaskHandle.Status.CANCELLED
+            except BaseException as exc:
+                self._exception = exc
+                self._status = TaskHandle.Status.ERRORED
+                raise
+            else:
+                self._return_value = retval
+                self._status = TaskHandle.Status.FINISHED
+            finally:
+                self._finished_event.set()
 
     def cancel(self) -> None:
         if self._status is TaskHandle.Status.PENDING:
@@ -289,60 +304,21 @@ class TaskHandle(Generic[T_co]):
 
     @property
     def return_value(self) -> T_co:
-        try:
-            return self._return_value
-        except AttributeError:
-            if self._exception is not None:
-                raise RuntimeError(
-                    f"this task raised an exception "
-                    f"({self._exception.__class__.__qualname__})"
-                ) from None
-
-            raise RuntimeError("this task has not returned yet") from None
-
-    def _set_exception(self, exception: BaseException) -> None:
-        if not isinstance(exception, Exception):
-            if isinstance(exception, get_cancelled_exc_class()):
-                exc: Exception = TaskCancelled(
-                    f"the task being awaited on ({self.name!r}) was cancelled"
-                )
-                self._status = TaskHandle.Status.CANCELLED
-            else:
-                exc = TaskAborted(
-                    f"the task being awaited on ({self.name!r}) was aborted"
-                )
-                self._status = TaskHandle.Status.ABORTED
-
-            exc.__cause__ = exception
-            self._exception = exc
-        else:
-            self._exception = exception
-            self._status = TaskHandle.Status.ERRORED
-
-        self._finished_event.set()
-
-    def _set_return_value(self: TaskHandle[T], val: T) -> None:
-        assert self._exception is None
-        self._return_value = val
-        self._status = TaskHandle.Status.FINISHED
-        self._finished_event.set()
+        match self._status:
+            case TaskHandle.Status.PENDING:
+                raise RuntimeError("the task has not returned yet")
+            case TaskHandle.Status.FINISHED:
+                return self._return_value
+            case TaskHandle.Status.CANCELLED:
+                raise TaskCancelled("the task was cancelled")
+            case TaskHandle.Status.ERRORED:
+                raise TaskAborted("the task raised an exception") from self._exception
 
     def __await__(self) -> Generator[Any, Any, T_co]:
-        if self._awaited:
-            raise RuntimeError("TaskHandle has already been awaited on")
-
-        self._awaited = True
         if not self._finished_event.is_set():
-            try:
-                yield from self._finished_event.wait().__await__()
-            except BaseException:
-                self._awaited = False
-                raise
+            yield from self._finished_event.wait().__await__()
 
-        if self._exception is not None:
-            raise self._exception
-
-        return self._return_value
+        return self.return_value
 
     def __repr__(self) -> str:
         return (

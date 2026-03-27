@@ -1979,19 +1979,20 @@ class TestCreateTask:
         async def taskfunc() -> NoReturn:
             raise RuntimeError("dummy error")
 
-        async with create_task_group() as tg:
-            handle = tg.create_task(taskfunc())
-            with pytest.raises(RuntimeError, match="dummy error"):
-                await handle
+        with pytest.RaisesGroup(pytest.RaisesExc(RuntimeError, match="dummy error")):
+            async with create_task_group() as tg:
+                handle = tg.create_task(taskfunc())
+                with pytest.raises(TaskAborted, match="the task raised an exception"):
+                    await handle
+
+                assert handle.status is TaskHandle.Status.ERRORED
 
         assert re.match(
             r"<TaskHandle errored name='taskfunc' coro=<coroutine object(.+)>",
             repr(handle),
         )
         assert isinstance(handle.exception, RuntimeError)
-        with pytest.raises(
-            RuntimeError, match=r"this task raised an exception \(RuntimeError\)"
-        ):
+        with pytest.raises(TaskAborted, match="the task raised an exception"):
             handle.return_value  # noqa: B018
 
     def test_base_exception(
@@ -2003,13 +2004,10 @@ class TestCreateTask:
         async def main() -> None:
             async with create_task_group() as tg:
                 handle = tg.create_task(taskfunc())
-                with pytest.raises(
-                    TaskAborted,
-                    match=r"the task being awaited on \('taskfunc'\) was aborted",
-                ):
+                with pytest.raises(TaskAborted, match="the task raised an exception"):
                     await handle
 
-                assert handle.status is TaskHandle.Status.ABORTED
+                assert handle.status is TaskHandle.Status.ERRORED
 
         with pytest.RaisesGroup(
             pytest.RaisesExc(SystemExit, match="5"), allow_unwrapped=True
@@ -2042,10 +2040,7 @@ class TestCreateTask:
                 r"<TaskHandle cancelled name='taskfunc' coro=<coroutine object(.+)>>",
                 repr(handle),
             )
-            with pytest.raises(
-                TaskCancelled,
-                match=r"the task being awaited on \('taskfunc'\) was cancelled",
-            ):
+            with pytest.raises(TaskCancelled, match="the task was cancelled"):
                 await handle
 
         assert handle.cancelled
@@ -2092,29 +2087,3 @@ class TestCreateTask:
                 r"<TaskHandle pending name='custom name' coro=<coroutine object(.+)>>",
                 repr(handle),
             )
-
-    async def test_await_twice(self) -> None:
-        async def taskfunc(x: int, y: int) -> int:
-            return x + y
-
-        async with create_task_group() as tg:
-            handle = tg.create_task(taskfunc(2, 4))
-            assert await handle == 6
-
-        with pytest.raises(
-            RuntimeError, match="TaskHandle has already been awaited on"
-        ):
-            await handle
-
-    async def test_cancel_during_first_await(self) -> None:
-        async def taskfunc(x: int, y: int) -> int:
-            await checkpoint()
-            return x + y
-
-        async with create_task_group() as tg:
-            handle = tg.create_task(taskfunc(2, 4))
-            with CancelScope() as scope:
-                scope.cancel()
-                await handle
-
-        assert await handle == 6

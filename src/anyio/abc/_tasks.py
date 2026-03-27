@@ -9,8 +9,6 @@ from inspect import iscoroutine
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Protocol, overload
 
-from .._core._testing import get_current_task
-
 if sys.version_info >= (3, 13):
     from typing import TypeVar
 else:
@@ -85,32 +83,11 @@ class TaskGroup(metaclass=ABCMeta):
 
         handle = TaskHandle[T_Retval](coro, name)
         if context is not None:
-            context.run(
-                self.start_soon, partial(self._run_coro, coro, handle), name=handle.name
-            )
+            context.run(partial(self.start_soon, handle._run_coro, name=handle.name))
         else:
-            self.start_soon(self._run_coro, coro, handle, name=handle.name)
+            self.start_soon(handle._run_coro, name=handle.name)
 
         return handle
-
-    @staticmethod
-    async def _run_coro(
-        coro: Coroutine[Any, Any, T_Retval],
-        handle: TaskHandle[T_Retval],
-    ) -> None:
-        __tracebackhide__ = True
-        if handle._name is None:
-            handle._name = get_current_task().name
-
-        with handle._cancel_scope:
-            try:
-                retval = await coro
-            except BaseException as exc:
-                handle._set_exception(exc)
-                if not isinstance(exc, Exception):
-                    raise
-            else:
-                handle._set_return_value(retval)
 
     @abstractmethod
     def start_soon(
