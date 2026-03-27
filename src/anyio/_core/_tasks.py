@@ -16,7 +16,7 @@ from typing import Any, Generic, TypeVar, final
 
 from ..abc import TaskGroup, TaskStatus
 from ._eventloop import get_async_backend, get_cancelled_exc_class
-from ._exceptions import TaskAborted, TaskCancelled
+from ._exceptions import TaskCancelled, TaskError
 from ._testing import get_current_task
 
 if sys.version_info >= (3, 11):
@@ -312,7 +312,7 @@ class TaskHandle(Generic[T_co]):
             case TaskHandle.Status.CANCELLED:
                 raise TaskCancelled("the task was cancelled")
             case TaskHandle.Status.ERRORED:
-                raise TaskAborted("the task raised an exception") from self._exception
+                raise TaskError("the task raised an exception") from self._exception
 
     def __await__(self) -> Generator[Any, Any, T_co]:
         if not self._finished_event.is_set():

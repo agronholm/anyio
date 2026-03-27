@@ -20,8 +20,8 @@ from anyio import (
     TASK_STATUS_IGNORED,
     CancelScope,
     Event,
-    TaskAborted,
     TaskCancelled,
+    TaskError,
     TaskHandle,
     create_task_group,
     current_effective_deadline,
@@ -1982,7 +1982,7 @@ class TestCreateTask:
         with pytest.RaisesGroup(pytest.RaisesExc(RuntimeError, match="dummy error")):
             async with create_task_group() as tg:
                 handle = tg.create_task(taskfunc())
-                with pytest.raises(TaskAborted, match="the task raised an exception"):
+                with pytest.raises(TaskError, match="the task raised an exception"):
                     await handle
 
                 assert handle.status is TaskHandle.Status.ERRORED
@@ -1992,7 +1992,7 @@ class TestCreateTask:
             repr(handle),
         )
         assert isinstance(handle.exception, RuntimeError)
-        with pytest.raises(TaskAborted, match="the task raised an exception"):
+        with pytest.raises(TaskError, match="the task raised an exception"):
             handle.return_value  # noqa: B018
 
     def test_base_exception(
@@ -2004,7 +2004,7 @@ class TestCreateTask:
         async def main() -> None:
             async with create_task_group() as tg:
                 handle = tg.create_task(taskfunc())
-                with pytest.raises(TaskAborted, match="the task raised an exception"):
+                with pytest.raises(TaskError, match="the task raised an exception"):
                     await handle
 
                 assert handle.status is TaskHandle.Status.ERRORED
