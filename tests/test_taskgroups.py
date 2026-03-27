@@ -2008,6 +2008,10 @@ class TestCreateTask:
                     await handle
 
                 assert handle.status is TaskHandle.Status.ERRORED
+                assert re.match(
+                    r"<TaskHandle errored name='taskfunc' coro=<coroutine object(.+)>",
+                    repr(handle),
+                )
 
         with pytest.RaisesGroup(
             pytest.RaisesExc(SystemExit, match="5"), allow_unwrapped=True
