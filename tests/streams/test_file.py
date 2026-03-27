@@ -64,6 +64,16 @@ class TestFileReadStream:
             file = stream.extra(FileStreamAttribute.file)
             assert file.fileno() == fileno
 
+    @pytest.mark.parametrize("max_bytes", [0, -1, -5])
+    async def test_receive_invalid_max_bytes(
+        self, file_path: Path, max_bytes: int
+    ) -> None:
+        async with await FileReadStream.from_path(file_path) as stream:
+            with pytest.raises(
+                ValueError, match="max_bytes must be a positive integer"
+            ):
+                await stream.receive(max_bytes)
+
 
 class TestFileWriteStream:
     @pytest.fixture

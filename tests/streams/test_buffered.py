@@ -122,3 +122,41 @@ async def test_feed_data() -> None:
     buffered_stream.feed_data(b"foo")
     assert await buffered_stream.receive_exactly(10) == b"xxxfooabcd"
     await buffered_stream.aclose()
+
+
+@pytest.mark.parametrize("max_bytes", [0, -1, -5])
+async def test_receive_invalid_max_bytes(max_bytes: int) -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](2)
+    async with send_stream, BufferedByteReceiveStream(receive_stream) as stream:
+        await send_stream.send(b"data")
+        with pytest.raises(ValueError, match="max_bytes must be a positive integer"):
+            await stream.receive(max_bytes)
+
+
+@pytest.mark.parametrize("max_bytes", [0, -1, -5])
+async def test_receive_invalid_max_bytes_with_buffer(max_bytes: int) -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](2)
+    async with send_stream, BufferedByteReceiveStream(receive_stream) as stream:
+        await send_stream.send(b"data")
+        await stream.receive_exactly(1)
+        assert stream._buffer
+        with pytest.raises(ValueError, match="max_bytes must be a positive integer"):
+            await stream.receive(max_bytes)
+
+
+@pytest.mark.parametrize("nbytes", [0, -1, -5])
+async def test_receive_exactly_invalid_nbytes(nbytes: int) -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](2)
+    async with send_stream, BufferedByteReceiveStream(receive_stream) as stream:
+        await send_stream.send(b"data")
+        with pytest.raises(ValueError, match="nbytes must be a positive integer"):
+            await stream.receive_exactly(nbytes)
+
+
+@pytest.mark.parametrize("max_bytes", [0, -1, -5])
+async def test_receive_until_invalid_max_bytes(max_bytes: int) -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](2)
+    async with send_stream, BufferedByteReceiveStream(receive_stream) as stream:
+        await send_stream.send(b"data\n")
+        with pytest.raises(ValueError, match="max_bytes must be a positive integer"):
+            await stream.receive_until(b"\n", max_bytes)
