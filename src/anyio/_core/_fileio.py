@@ -583,7 +583,7 @@ class Path:
         # Python 3.11 and earlier
         def glob(self, pattern: str) -> AsyncIterator[Path]:
             gen = self._path.glob(pattern)
-            return _PathIterator(gen)
+            return _PathIterator(gen, self._limiter)
     elif (3, 12) <= sys.version_info < (3, 13):
         # changed in Python 3.12:
         # - The case_sensitive parameter was added.
