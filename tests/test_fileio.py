@@ -9,14 +9,20 @@ import sys
 from collections.abc import AsyncIterable
 
 import pytest
+from _pytest.fixtures import FixtureRequest
 from _pytest.tmpdir import TempPathFactory
 
-from anyio import AsyncFile, Path, open_file, wrap_file
+from anyio import AsyncFile, CapacityLimiter, Path, open_file, wrap_file
+
+
+@pytest.fixture(params=[False, True])
+async def limiter(request: FixtureRequest) -> CapacityLimiter | None:
+    return CapacityLimiter(10) if request.param else None
 
 
 class TestAsyncFile:
     @pytest.fixture(scope="class")
-    def testdata(cls) -> bytes:
+    def testdata(self) -> bytes:
         return b"".join(bytes([i] * 1000) for i in range(10))
 
     @pytest.fixture
@@ -27,8 +33,11 @@ class TestAsyncFile:
         file.write_bytes(testdata)
         return file
 
-    async def test_open_close(self, testdatafile: pathlib.Path) -> None:
-        f = await open_file(testdatafile)
+    async def test_open_close(
+        self, testdatafile: pathlib.Path, limiter: CapacityLimiter | None
+    ) -> None:
+        f = await open_file(testdatafile, limiter=limiter)
+        assert f.limiter is limiter
         await f.aclose()
 
     async def test_read(self, testdatafile: pathlib.Path, testdata: bytes) -> None:
@@ -65,10 +74,13 @@ class TestAsyncFile:
             async for line in f:
                 assert line == next(lines_i)
 
-    async def test_wrap_file(self, tmp_path: pathlib.Path) -> None:
+    async def test_wrap_file(
+        self, tmp_path: pathlib.Path, limiter: CapacityLimiter | None
+    ) -> None:
         path = tmp_path / "testdata"
         with path.open("w") as fp:
-            wrapped = wrap_file(fp)
+            wrapped = wrap_file(fp, limiter=limiter)
+            assert wrapped.limiter is limiter
             await wrapped.write("dummydata")
 
         assert path.read_text() == "dummydata"
@@ -76,8 +88,10 @@ class TestAsyncFile:
 
 class TestPath:
     @pytest.fixture
-    async def populated_tmpdir(self, tmp_path: pathlib.Path) -> Path:
-        path = Path(tmp_path)
+    async def populated_tmpdir(
+        self, tmp_path: pathlib.Path, limiter: CapacityLimiter | None
+    ) -> Path:
+        path = Path(tmp_path, limiter=limiter)
 
         await (path / "testfile").touch()
         await (path / "testfile2").touch()
@@ -137,14 +151,16 @@ class TestPath:
         assert path2 > path1
         assert path2 >= path1
 
-    def test_truediv(self) -> None:
-        result = Path("/foo") / "bar"
+    async def test_truediv(self, limiter: CapacityLimiter | None) -> None:
+        result = Path("/foo", limiter=limiter) / "bar"
         assert isinstance(result, Path)
+        assert result.limiter is limiter
         assert result == pathlib.Path("/foo/bar")
 
-    def test_rtruediv(self) -> None:
-        result = "/foo" / Path("bar")
+    async def test_rtruediv(self, limiter: CapacityLimiter | None) -> None:
+        result = "/foo" / Path("bar", limiter=limiter)
         assert isinstance(result, Path)
+        assert result.limiter is limiter
         assert result == pathlib.Path("/foo/bar")
 
     def test_parts_property(self) -> None:
@@ -162,17 +178,19 @@ class TestPath:
     def test_anchor_property(self) -> None:
         assert Path("/abc/xyz/foo.txt.zip").anchor == os.path.sep
 
-    def test_parents_property(self) -> None:
-        parents = Path("/abc/xyz/foo.txt").parents
+    async def test_parents_property(self, limiter: CapacityLimiter | None) -> None:
+        parents = Path("/abc/xyz/foo.txt", limiter=limiter).parents
         assert len(parents) == 3
         assert all(isinstance(parent, Path) for parent in parents)
+        assert all(parent.limiter is limiter for parent in parents)
         assert str(parents[0]) == f"{os.path.sep}abc{os.path.sep}xyz"
         assert str(parents[1]) == f"{os.path.sep}abc"
         assert str(parents[2]) == os.path.sep
 
-    def test_parent_property(self) -> None:
-        parent = Path("/abc/xyz/foo.txt").parent
+    async def test_parent_property(self, limiter: CapacityLimiter | None) -> None:
+        parent = Path("/abc/xyz/foo.txt", limiter=limiter).parent
         assert isinstance(parent, Path)
+        assert parent.limiter is limiter
         assert str(parent) == f"{os.path.sep}abc{os.path.sep}xyz"
 
     def test_name_property(self) -> None:
@@ -187,9 +205,10 @@ class TestPath:
     def test_stem_property(self) -> None:
         assert Path("/abc/xyz/foo.txt.zip").stem == "foo.txt"
 
-    async def test_absolute(self) -> None:
-        result = await Path("../foo/bar").absolute()
+    async def test_absolute(self, limiter: CapacityLimiter | None) -> None:
+        result = await Path("../foo/bar", limiter=limiter).absolute()
         assert isinstance(result, Path)
+        assert result.limiter is limiter
         assert result == pathlib.Path.cwd() / "../foo/bar"
 
     @pytest.mark.skipif(
@@ -208,13 +227,14 @@ class TestPath:
         sys.version_info < (3, 13),
         reason="Path.from_uri() is only available on Python 3.13+",
     )
-    def test_from_uri(self) -> None:
+    async def test_from_uri(self, limiter: CapacityLimiter | None) -> None:
         if platform.system() == "Windows":
             uri = "file:///C:/foo/bar"
         else:
             uri = "file:///foo/bar"
 
-        path = Path.from_uri(uri)
+        path = Path.from_uri(uri, limiter=limiter)
+        assert path.limiter is limiter
         assert isinstance(path, Path)
         assert path.as_uri() == uri
 
@@ -227,14 +247,16 @@ class TestPath:
         assert not await Path("~/btelkbee").exists()
         assert await Path(tmp_path).exists()
 
-    async def test_expanduser(self) -> None:
-        result = await Path("~/btelkbee").expanduser()
+    async def test_expanduser(self, limiter: CapacityLimiter | None) -> None:
+        result = await Path("~/btelkbee", limiter=limiter).expanduser()
         assert isinstance(result, Path)
+        assert result.limiter is limiter
         assert str(result) == os.path.expanduser(f"~{os.path.sep}btelkbee")
 
-    async def test_home(self) -> None:
-        result = await Path.home()
+    async def test_home(self, limiter: CapacityLimiter | None) -> None:
+        result = await Path.home(limiter=limiter)
         assert isinstance(result, Path)
+        assert result.limiter is limiter
         assert result == pathlib.Path.home()
 
     @pytest.mark.parametrize(
@@ -339,34 +361,43 @@ class TestPath:
         sys.version_info < (3, 14),
         reason="Path.copy() is only available on Python 3.14+",
     )
-    async def test_copy(self, tmp_path: pathlib.Path) -> None:
-        source_path = Path(tmp_path) / "source"
+    async def test_copy(
+        self, tmp_path: pathlib.Path, limiter: CapacityLimiter | None
+    ) -> None:
+        source_path = Path(tmp_path, limiter=limiter) / "source"
         destination_path = Path(tmp_path) / "destination"
         await source_path.write_text("hello")
         result = await source_path.copy(destination_path)
+        assert result.limiter is limiter
         assert await result.read_text() == "hello"
 
     @pytest.mark.skipif(
         sys.version_info < (3, 14),
         reason="Path.copy() is only available on Python 3.14+",
     )
-    async def test_copy_into(self, tmp_path: pathlib.Path) -> None:
-        source_path = Path(tmp_path) / "source"
+    async def test_copy_into(
+        self, tmp_path: pathlib.Path, limiter: CapacityLimiter | None
+    ) -> None:
+        source_path = Path(tmp_path, limiter=limiter) / "source"
         destination_path = Path(tmp_path) / "destination"
         await destination_path.mkdir()
         await source_path.write_text("hello")
         result = await source_path.copy_into(destination_path)
+        assert result.limiter is limiter
         assert await result.read_text() == "hello"
 
     @pytest.mark.skipif(
         sys.version_info < (3, 14),
         reason="Path.copy() is only available on Python 3.14+",
     )
-    async def test_move(self, tmp_path: pathlib.Path) -> None:
-        source_path = Path(tmp_path) / "source"
+    async def test_move(
+        self, tmp_path: pathlib.Path, limiter: CapacityLimiter | None
+    ) -> None:
+        source_path = Path(tmp_path, limiter=limiter) / "source"
         destination_path = Path(tmp_path) / "destination"
         await source_path.write_text("hello")
         result = await source_path.move(destination_path)
+        assert result.limiter is limiter
         assert await result.read_text() == "hello"
         assert not await source_path.exists()
 
@@ -374,19 +405,25 @@ class TestPath:
         sys.version_info < (3, 14),
         reason="Path.copy() is only available on Python 3.14+",
     )
-    async def test_move_into(self, tmp_path: pathlib.Path) -> None:
-        source_path = Path(tmp_path) / "source"
+    async def test_move_into(
+        self, tmp_path: pathlib.Path, limiter: CapacityLimiter | None
+    ) -> None:
+        source_path = Path(tmp_path, limiter=limiter) / "source"
         destination_path = Path(tmp_path) / "destination"
         await destination_path.mkdir()
         await source_path.write_text("hello")
         result = await source_path.move_into(destination_path)
+        assert result.limiter is limiter
         assert await result.read_text() == "hello"
         assert not await source_path.exists()
 
-    async def test_glob(self, populated_tmpdir: Path) -> None:
+    async def test_glob(
+        self, populated_tmpdir: Path, limiter: CapacityLimiter | None
+    ) -> None:
         all_paths = []
         async for path in populated_tmpdir.glob("**/*.txt"):
             assert isinstance(path, Path)
+            assert path.limiter is limiter
             all_paths.append(path.relative_to(populated_tmpdir))
 
         all_paths.sort()
@@ -449,10 +486,13 @@ class TestPath:
         ]
         assert sorted(found_paths) == sorted(expected_paths)
 
-    async def test_rglob(self, populated_tmpdir: Path) -> None:
+    async def test_rglob(
+        self, populated_tmpdir: Path, limiter: CapacityLimiter | None
+    ) -> None:
         all_paths = []
         async for path in populated_tmpdir.rglob("*.txt"):
             assert isinstance(path, Path)
+            assert path.limiter is limiter
             all_paths.append(path.relative_to(populated_tmpdir))
 
         all_paths.sort()
@@ -515,18 +555,22 @@ class TestPath:
         ]
         assert sorted(found_paths) == sorted(expected_paths)
 
-    async def test_iterdir(self, populated_tmpdir: Path) -> None:
+    async def test_iterdir(
+        self, populated_tmpdir: Path, limiter: CapacityLimiter | None
+    ) -> None:
         all_paths = []
         async for path in populated_tmpdir.iterdir():
             assert isinstance(path, Path)
+            assert path.limiter is limiter
             all_paths.append(path.name)
 
         all_paths.sort()
         assert all_paths == ["sibdir", "subdir", "testfile", "testfile2"]
 
-    def test_joinpath(self) -> None:
-        path = Path("/foo").joinpath("bar")
+    async def test_joinpath(self, limiter: CapacityLimiter | None) -> None:
+        path = Path("/foo", limiter=limiter).joinpath("bar")
         assert path == Path("/foo/bar")
+        assert path.limiter is limiter
 
     @pytest.mark.skipif(
         sys.version_info < (3, 13),
@@ -597,11 +641,14 @@ class TestPath:
         await Path(path).mkdir()
         assert path.is_dir()
 
-    async def test_open(self, tmp_path: pathlib.Path) -> None:
+    async def test_open(
+        self, tmp_path: pathlib.Path, limiter: CapacityLimiter | None
+    ) -> None:
         path = tmp_path / "testfile"
         path.write_bytes(b"bibbitibobbitiboo")
-        fp = await Path(path).open("rb")
+        fp = await Path(path, limiter=limiter).open("rb")
         assert isinstance(fp, AsyncFile)
+        assert fp.limiter is limiter
         assert fp.name == str(path)
         await fp.aclose()
 
@@ -619,11 +666,14 @@ class TestPath:
         platform.system() == "Windows",
         reason="symbolic links are not supported on Windows",
     )
-    async def test_readlink(self, tmp_path: pathlib.Path) -> None:
+    async def test_readlink(
+        self, tmp_path: pathlib.Path, limiter: CapacityLimiter | None
+    ) -> None:
         path = tmp_path.joinpath("testfile")
         path.symlink_to("/foo/bar/baz")
-        link_target = await Path(path).readlink()
+        link_target = await Path(path, limiter=limiter).readlink()
         assert isinstance(link_target, Path)
+        assert link_target.limiter is limiter
         assert str(link_target) == "/foo/bar/baz"
 
     async def test_read_bytes(self, tmp_path: pathlib.Path) -> None:
@@ -659,27 +709,36 @@ class TestPath:
         relpath = subdir.relative_to(sibdir, walk_up=True) / "dummyfile1.txt"
         assert os.access(relpath, os.R_OK)
 
-    async def test_rename(self, tmp_path: pathlib.Path) -> None:
+    async def test_rename(
+        self, tmp_path: pathlib.Path, limiter: CapacityLimiter | None
+    ) -> None:
         path = tmp_path / "somefile"
         path.touch()
         target = tmp_path / "anotherfile"
-        result = await Path(path).rename(Path(target))
+        result = await Path(path, limiter=limiter).rename(Path(target))
         assert isinstance(result, Path)
+        assert result.limiter is limiter
         assert result == target
 
-    async def test_replace(self, tmp_path: pathlib.Path) -> None:
+    async def test_replace(
+        self, tmp_path: pathlib.Path, limiter: CapacityLimiter | None
+    ) -> None:
         path = tmp_path / "somefile"
         path.write_text("hello")
         target = tmp_path / "anotherfile"
         target.write_text("world")
-        result = await Path(path).replace(Path(target))
+        result = await Path(path, limiter=limiter).replace(Path(target))
         assert isinstance(result, Path)
+        assert result.limiter is limiter
         assert result == target
         assert target.read_text() == "hello"
 
-    async def test_resolve(self, tmp_path: pathlib.Path) -> None:
+    async def test_resolve(
+        self, tmp_path: pathlib.Path, limiter: CapacityLimiter | None
+    ) -> None:
         path = tmp_path / "somedir" / ".." / "somefile"
-        result = await Path(path).resolve()
+        result = await Path(path, limiter=limiter).resolve()
+        assert result.limiter is limiter
         assert result == tmp_path / "somefile"
 
     async def test_rmdir(self, tmp_path: pathlib.Path) -> None:
@@ -728,21 +787,25 @@ class TestPath:
         sys.version_info < (3, 12),
         reason="Path.walk() is only available on Python 3.12+",
     )
-    async def test_walk(self, tmp_path: pathlib.Path) -> None:
+    async def test_walk(
+        self, tmp_path: pathlib.Path, limiter: CapacityLimiter | None
+    ) -> None:
         subdir = tmp_path / "subdir"
         subdir.mkdir()
         subdir.joinpath("file1").touch()
         subdir.joinpath("file2").touch()
 
         path = Path(tmp_path)
-        iterator = Path(tmp_path).walk().__aiter__()
+        iterator = Path(tmp_path, limiter=limiter).walk().__aiter__()
 
         root, dirs, files = await iterator.__anext__()
+        assert root.limiter is limiter
         assert root == path
         assert dirs == ["subdir"]
         assert files == []
 
         root, dirs, files = await iterator.__anext__()
+        assert root.limiter is limiter
         assert root == path / "subdir"
         assert dirs == []
         assert sorted(files) == ["file1", "file2"]
