@@ -631,7 +631,7 @@ class Path:
         await to_thread.run_sync(os.link, target, self, limiter=self._limiter)
 
     @classmethod
-    async def home(cls, limiter: CapacityLimiter | None = None) -> Path:
+    async def home(cls, *, limiter: CapacityLimiter | None = None) -> Path:
         home_path = await to_thread.run_sync(pathlib.Path.home, limiter=limiter)
         return cls(home_path, limiter=limiter)
 
