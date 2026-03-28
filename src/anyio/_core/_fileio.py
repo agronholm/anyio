@@ -537,7 +537,10 @@ class Path:
             # Upstream does not handle anyio.Path properly as a PathLike
             target = pathlib.Path(target)
             return Path(
-                await to_thread.run_sync(self._path.move, target, limiter=self._limiter)
+                await to_thread.run_sync(
+                    self._path.move, target, limiter=self._limiter
+                ),
+                limiter=self._limiter,
             )
 
         async def move_into(
@@ -547,7 +550,8 @@ class Path:
             return Path(
                 await to_thread.run_sync(
                     self._path.move_into, target_dir, limiter=self._limiter
-                )
+                ),
+                limiter=self._limiter,
             )
 
     def is_relative_to(self, other: str | PathLike[str]) -> bool:
