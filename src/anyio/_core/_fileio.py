@@ -74,26 +74,22 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
     def __init__(
         self, fp: IO[AnyStr], *, limiter: CapacityLimiter | None = None
     ) -> None:
-        self._fp: Any = fp
-        self.limiter = limiter
-
-    def __getattr__(self, name: str) -> object:
-        return getattr(self._fp, name)
-
-    @property
-    def limiter(self) -> CapacityLimiter | None:
-        """The capacity limiter used by this file object."""
-        return self._limiter
-
-    @limiter.setter
-    def limiter(self, limiter: CapacityLimiter | None) -> None:
         if limiter is not None and not isinstance(limiter, CapacityLimiter):
             raise TypeError(
                 f"limiter must be a CapacityLimiter or None, not "
                 f"{limiter.__class__.__name__}"
             )
 
+        self._fp: Any = fp
         self._limiter = limiter
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._fp, name)
+
+    @property
+    def limiter(self) -> CapacityLimiter | None:
+        """The capacity limiter used by this file object, if not the global limiter."""
+        return self._limiter
 
     @property
     def wrapped(self) -> IO[AnyStr]:
@@ -355,8 +351,14 @@ class Path:
     def __init__(
         self, *args: str | PathLike[str], limiter: CapacityLimiter | None = None
     ) -> None:
+        if limiter is not None and not isinstance(limiter, CapacityLimiter):
+            raise TypeError(
+                f"limiter must be a CapacityLimiter or None, not "
+                f"{limiter.__class__.__name__}"
+            )
+
         self._path: Final[pathlib.Path] = pathlib.Path(*args)
-        self.limiter = limiter
+        self._limiter = limiter
 
     def __fspath__(self) -> str:
         return self._path.__fspath__()
@@ -406,17 +408,8 @@ class Path:
 
     @property
     def limiter(self) -> CapacityLimiter | None:
+        """The capacity limiter used by this path, if not the global limiter."""
         return self._limiter
-
-    @limiter.setter
-    def limiter(self, limiter: CapacityLimiter | None) -> None:
-        if limiter is not None and not isinstance(limiter, CapacityLimiter):
-            raise TypeError(
-                f"limiter must be a CapacityLimiter or None, not "
-                f"{limiter.__class__.__name__}"
-            )
-
-        self._limiter = limiter
 
     @property
     def parts(self) -> tuple[str, ...]:
