@@ -140,9 +140,10 @@ class ByteReceiveStream(AsyncResource, TypedAttributeProvider):
         .. note:: Implementers of this interface should not return an empty
             :class:`bytes` object, and users should ignore them.
 
-        :param max_bytes: maximum number of bytes to receive
+        :param max_bytes: maximum number of bytes to receive (must be >= 1)
         :return: the received bytes
         :raises ~anyio.EndOfStream: if this stream has been closed from the other end
+        :raises ValueError: if ``max_bytes`` is less than 1
         """
 
 

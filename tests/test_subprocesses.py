@@ -374,6 +374,16 @@ async def test_close_early() -> None:
         pass
 
 
+@pytest.mark.parametrize("max_bytes", [0, -1, -5])
+async def test_receive_max_bytes_validation(max_bytes: int) -> None:
+    async with await open_process(
+        [sys.executable, "-c", "import sys; print('blah', end='')"]
+    ) as process:
+        assert process.stdout is not None
+        with pytest.raises(ValueError, match="max_bytes must be a positive integer"):
+            await process.stdout.receive(max_bytes)
+
+
 async def test_close_while_reading() -> None:
     code = dedent("""\
     import time
