@@ -69,7 +69,9 @@ class TestFileReadStream:
         self, max_bytes: int, file_path: Path
     ) -> None:
         async with await FileReadStream.from_path(file_path) as stream:
-            with pytest.raises(ValueError, match="max_bytes must be a positive integer"):
+            with pytest.raises(
+                ValueError, match="max_bytes must be a positive integer"
+            ):
                 await stream.receive(max_bytes)
 
 

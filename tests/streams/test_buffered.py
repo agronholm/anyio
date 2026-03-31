@@ -148,9 +148,7 @@ class TestMaxBytesValidation:
             BufferedByteReceiveStream(receive_stream) as buffered_stream,
         ):
             await send_stream.send(b"blah")
-            with pytest.raises(
-                ValueError, match="nbytes must be a positive integer"
-            ):
+            with pytest.raises(ValueError, match="nbytes must be a positive integer"):
                 await buffered_stream.receive_exactly(nbytes)
 
     @pytest.mark.parametrize("max_bytes", [0, -1, -5])

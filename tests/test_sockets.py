@@ -711,7 +711,9 @@ class TestTCPStream:
         server_addr: tuple[str, int],
     ) -> None:
         async with await connect_tcp(*server_addr) as stream:
-            with pytest.raises(ValueError, match="max_bytes must be a positive integer"):
+            with pytest.raises(
+                ValueError, match="max_bytes must be a positive integer"
+            ):
                 await stream.receive(max_bytes)
 
     async def test_from_socket(
@@ -1475,7 +1477,9 @@ class TestUNIXStream:
         socket_path_or_str: Path | str,
     ) -> None:
         async with await connect_unix(socket_path_or_str) as stream:
-            with pytest.raises(ValueError, match="max_bytes must be a positive integer"):
+            with pytest.raises(
+                ValueError, match="max_bytes must be a positive integer"
+            ):
                 await stream.receive(max_bytes)
 
     async def test_from_socket(

@@ -58,7 +58,9 @@ class TestTLSStream:
             wrapper = await TLSStream.wrap(
                 stream, hostname="localhost", ssl_context=client_context
             )
-            with pytest.raises(ValueError, match="max_bytes must be a positive integer"):
+            with pytest.raises(
+                ValueError, match="max_bytes must be a positive integer"
+            ):
                 await wrapper.receive(max_bytes)
 
         server_thread.join()
