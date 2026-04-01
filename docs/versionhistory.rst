@@ -7,6 +7,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added support for custom capacity limiters in async path and file I/O
   functions and classes
+- Fixed asyncio ``TestRunner.run_test()`` leaving the runner task alive when a
+  ``KeyboardInterrupt`` interrupts the event loop, which caused the test to
+  incorrectly resume during async fixture teardown
+  (`#1060 <https://github.com/agronholm/anyio/issues/1060>`_)
 
 **4.13.0**
 

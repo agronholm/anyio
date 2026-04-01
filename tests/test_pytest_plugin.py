@@ -476,6 +476,43 @@ def test_keyboardinterrupt_during_test(
     testdir.runpytest_subprocess(*pytest_args, timeout=3)
 
 
+@pytest.mark.parametrize("anyio_backend", ["asyncio"], indirect=True)
+def test_asyncio_no_test_resumption_after_keyboard_interrupt(
+    testdir: Pytester, anyio_backend_name: str
+) -> None:
+    """Regression test for #1060: a KeyboardInterrupt (e.g. Ctrl-C) that interrupts
+    the asyncio event loop mid-test must not allow the test to resume when the loop is
+    re-entered for async fixture teardown."""
+    testdir.makepyfile(
+        """
+        import os
+        import signal
+        import anyio
+        import pytest
+
+        @pytest.fixture
+        def anyio_backend():
+            return "asyncio"
+
+        @pytest.fixture
+        async def myfixture():
+            yield
+
+        @pytest.mark.anyio
+        async def test_keyboard_interrupt(myfixture):
+            # Schedule a real SIGINT so that the signal fires when control returns to
+            # the event loop, interrupting run_until_complete externally (same as Ctrl-C).
+            os.kill(os.getpid(), signal.SIGINT)
+            await anyio.sleep(3600)
+            # If the test is wrongly resumed after the interrupt, this line would run.
+            print("RESUMED_AFTER_INTERRUPT")
+        """
+    )
+
+    result = testdir.runpytest_subprocess(*pytest_args, timeout=5)
+    assert "RESUMED_AFTER_INTERRUPT" not in result.stdout.str()
+
+
 def test_async_fixture_in_test_class(testdir: Pytester) -> None:
     # Regression test for #633
     testdir.makepyfile(
