@@ -268,7 +268,7 @@ def cache(  # type: ignore[overload-overlap]
 def cache(func: Callable[..., T], /) -> functools._lru_cache_wrapper[T]: ...
 
 
-def cache(func: Callable[..., T] | Callable[P, Coroutine[Any, Any, T]], /) -> Any:
+def cache(func: Callable[..., Any] | Callable[P, Coroutine[Any, Any, Any]], /) -> Any:
     """
     A convenient shortcut for :func:`lru_cache` with ``maxsize=None``.
 
@@ -299,7 +299,7 @@ def lru_cache(func: Callable[..., T], /) -> functools._lru_cache_wrapper[T]: ...
 
 
 def lru_cache(
-    func: Callable[P, Coroutine[Any, Any, T]] | Callable[..., T] | None = None,
+    func: Callable[..., Coroutine[Any, Any, Any]] | Callable[..., Any] | None = None,
     /,
     *,
     maxsize: int | None = 128,
