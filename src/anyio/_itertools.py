@@ -4,6 +4,7 @@ import itertools
 import operator
 import sys
 from collections.abc import (
+    AsyncGenerator,
     AsyncIterable,
     AsyncIterator,
     Awaitable,
@@ -478,8 +479,8 @@ async def permutations(
 
 async def product(
     *iterables: Iterable[T] | AsyncIterable[T], repeat: int = 1
-) -> AsyncIterator[tuple[T, ...]]:
-    repeat = operator.index(cast(Any, repeat))
+) -> AsyncGenerator[tuple[T, ...], None]:
+    repeat = operator.index(repeat)
     if repeat < 0:
         raise ValueError("repeat argument cannot be negative")
 
