@@ -5,7 +5,17 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added support for custom capacity limiters in async path and file I/O
+  functions and classes
+
+**4.13.0**
+
 - Dropped support for Python 3.9
+- Added a ``ttl`` parameter to the ``anyio.functools.lru_cache`` wrapper
+  (`#1073 <https://github.com/agronholm/anyio/pull/1073>`_; PR by @Graeme22)
+- Widened the type annotations of file I/O streams to accept ``IO[bytes]``
+  instead of just ``BinaryIO``
+  (`#1078 <https://github.com/agronholm/anyio/issues/1078>`_)
 - Fixed ``anyio.Path`` not being compatible with Python 3.15 due to the removal of
   ``pathlib.Path.is_reserved()`` and the addition of ``pathlib.Path.__vfspath__()``
   (`#1061 <https://github.com/agronholm/anyio/issues/1061>`_; PR by @veeceey)
@@ -15,11 +25,17 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed the ``TypeError`` raised when using "func" as a parameter name in
   ``pytest.mark.parametrize`` when using the pytest plugin
   (`#1068 <https://github.com/agronholm/anyio/pull/1068>`_; PR by @JohnnyDeuss)
-- Added a ``ttl`` parameter to the ``anyio.functools.lru_cache`` wrapper
-  (`#1073 <https://github.com/agronholm/anyio/pull/1073>`_; PR by @Graeme22)
 - Fixed the pytest plugin not running tests that had the ``anyio`` marker added
   programmatically via ``pytest_collection_modifyitems``
   (`#422 <https://github.com/agronholm/anyio/issues/422>`_; PR by @chbndrhnns)
+- Fixed cancellation exceptions leaking from a ``CancelScope`` on asyncio when they are
+  contained in an exception group alongside non-cancellation exceptions (`#1091
+  <https://github.com/agronholm/anyio/issues/1091>`_; PR by @gschaffner)
+- Fixed ``Condition.wait()`` not passing on a notification when the task is cancelled
+  but already received a notification
+- Fixed inverted condition in the process pool shutdown phase which would cause
+  still-running pooled processes not to be terminated
+  (`#1074 <https://github.com/agronholm/anyio/pull/1074>`_; PR by @bysiber)
 
 **4.12.1**
 
