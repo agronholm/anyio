@@ -205,7 +205,7 @@ class Chain:
             await checkpoint()
 
 
-chain = Chain()
+chain: Chain = Chain()
 
 
 async def combinations(
