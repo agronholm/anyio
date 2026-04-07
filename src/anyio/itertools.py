@@ -1,5 +1,28 @@
 from __future__ import annotations
 
+__all__ = (
+    "accumulate",
+    "batched",
+    "Chain",
+    "combinations",
+    "combinations_with_replacement",
+    "compress",
+    "count",
+    "cycle",
+    "dropwhile",
+    "filterfalse",
+    "groupby",
+    "islice",
+    "pairwise",
+    "permutations",
+    "product",
+    "repeat",
+    "starmap",
+    "tee",
+    "takewhile",
+    "zip_longest",
+)
+
 import itertools
 import operator
 import sys

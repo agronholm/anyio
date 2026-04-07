@@ -6,7 +6,7 @@ from typing import Any, NoReturn, TypeVar, cast
 import pytest
 
 from anyio import CancelScope, get_cancelled_exc_class
-from anyio._itertools import (
+from anyio.itertools import (
     accumulate,
     batched,
     chain,
