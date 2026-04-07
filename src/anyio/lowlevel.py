@@ -202,8 +202,8 @@ class RunVar(Generic[T]):
         Restore this run variable to the value it held before the matching :meth:`set`.
 
         :param token: the token returned by :meth:`set`
-        :raises ValueError: if the token belongs to a different :class:`RunVar`
-        :raises ValueError: if the token has already been used
+        :raises ValueError: if the token belongs to a different :class:`RunVar` or the token
+            has already been used
 
         """
         if token._var is not self:
