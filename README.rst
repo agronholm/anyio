@@ -52,6 +52,7 @@ AnyIO offers the following functionality:
 * Asynchronous file I/O (using worker threads)
 * Signal handling
 * Asynchronous version of the functools_ module
+* Asynchronous version of the itertools_ module
 
 AnyIO also comes with its own pytest_ plugin which also supports asynchronous fixtures.
 It even works with the popular Hypothesis_ library.
@@ -63,6 +64,7 @@ It even works with the popular Hypothesis_ library.
 .. _Happy eyeballs: https://en.wikipedia.org/wiki/Happy_Eyeballs
 .. _pytest: https://docs.pytest.org/en/latest/
 .. _functools: https://docs.python.org/3/library/functools.html
+.. _itertools: https://docs.python.org/3/library/itertools.html
 .. _Hypothesis: https://hypothesis.works/
 
 Security contact information

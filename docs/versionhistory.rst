@@ -5,6 +5,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added an asynchronous implementation of the ``itertools`` module
 - Added support for custom capacity limiters in async path and file I/O
   functions and classes
 
