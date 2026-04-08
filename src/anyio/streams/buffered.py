@@ -175,6 +175,16 @@ class BufferedByteStream(BufferedByteReceiveStream, ByteStream):
 
 
 class BufferedConnectable(ByteStreamConnectable):
+    """
+    Wraps a byte stream connectable to produce :class:`BufferedByteStream` connections.
+
+    Use this when you want the streams returned by :meth:`connect` to have the buffered
+    receive API (e.g. :meth:`~BufferedByteReceiveStream.receive_exactly` and
+    :meth:`~BufferedByteReceiveStream.receive_until`).
+
+    :param connectable: the byte stream connectable to wrap
+    """
+
     def __init__(self, connectable: AnyByteStreamConnectable):
         """
         :param connectable: the connectable to wrap
