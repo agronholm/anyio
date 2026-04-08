@@ -197,8 +197,8 @@ class TaskGroup(abc.TaskGroup):
 
             raise
         finally:
-            self._active = False
             del exc_val, exc_tb
+            self._active = False
 
     def start_soon(
         self,
