@@ -174,6 +174,7 @@ class TaskGroup(abc.TaskGroup):
     async def __aenter__(self) -> TaskGroup:
         if self._entered:
             raise RuntimeError("TaskGroup cannot be entered more than once")
+
         self._entered = True
         self._active = True
         self._nursery = await self._nursery_manager.__aenter__()
