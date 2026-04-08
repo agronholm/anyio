@@ -1620,9 +1620,6 @@ class TestUncancel:
 
 async def test_taskgroup_reentry() -> None:
     """Test that entering a TaskGroup more than once raises RuntimeError."""
-    async with create_task_group():
-        pass
-
     tg = create_task_group()
     async with tg:
         pass
