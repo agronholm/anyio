@@ -1627,7 +1627,9 @@ async def test_taskgroup_reentry() -> None:
     async with tg:
         pass
 
-    with pytest.raises(RuntimeError, match="TaskGroup cannot be entered more than once"):
+    with pytest.raises(
+        RuntimeError, match="TaskGroup cannot be entered more than once"
+    ):
         async with tg:
             pass
 
