@@ -203,9 +203,7 @@ class TaskGroup(abc.TaskGroup):
         name: object = None,
     ) -> None:
         if not self._entered:
-            raise RuntimeError(
-                "This task group has not been entered yet."
-            )
+            raise RuntimeError("This task group has not been entered yet.")
 
         self._nursery.start_soon(func, *args, name=name)
 
@@ -213,9 +211,7 @@ class TaskGroup(abc.TaskGroup):
         self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
     ) -> Any:
         if not self._entered:
-            raise RuntimeError(
-                "This task group has not been entered yet."
-            )
+            raise RuntimeError("This task group has not been entered yet.")
 
         return await self._nursery.start(func, *args, name=name)
 
