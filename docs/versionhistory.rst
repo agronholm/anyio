@@ -7,6 +7,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added support for custom capacity limiters in async path and file I/O
   functions and classes
+- Fixed ``TaskGroup`` raising ``AttributeError`` instead of a clear error
+  when entered more than once
+  (`#1109 <https://github.com/agronholm/anyio/issues/1109>`_;
+  PR by @bahtya)
 
 **4.13.0**
 

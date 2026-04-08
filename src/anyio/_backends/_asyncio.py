@@ -739,13 +739,15 @@ class TaskGroup(abc.TaskGroup):
     def __init__(self) -> None:
         self.cancel_scope: CancelScope = CancelScope()
         self._active = False
+        self._entered = False
         self._exceptions: list[BaseException] = []
         self._tasks: set[asyncio.Task] = set()
         self._on_completed_fut: asyncio.Future[None] | None = None
 
     async def __aenter__(self) -> TaskGroup:
-        if self._active:
+        if self._entered:
             raise RuntimeError("TaskGroup cannot be entered more than once")
+        self._entered = True
         self.cancel_scope.__enter__()
         self._active = True
         self._exceptions = []
