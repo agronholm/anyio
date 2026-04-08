@@ -703,6 +703,19 @@ class TestTCPStream:
             )
             assert not caplog_text
 
+    @pytest.mark.parametrize("max_bytes", [0, -1, -5])
+    async def test_receive_max_bytes_validation(
+        self,
+        max_bytes: int,
+        server_sock: socket.socket,
+        server_addr: tuple[str, int],
+    ) -> None:
+        async with await connect_tcp(*server_addr) as stream:
+            with pytest.raises(
+                ValueError, match="max_bytes must be a positive integer"
+            ):
+                await stream.receive(max_bytes)
+
     async def test_from_socket(
         self, family: AnyIPAddressFamily, sock_or_fd_factory: SockFdFactoryProtocol
     ) -> None:
@@ -1455,6 +1468,19 @@ class TestUNIXStream:
 
             async with await connect_unix(actual_path):
                 pass
+
+    @pytest.mark.parametrize("max_bytes", [0, -1, -5])
+    async def test_receive_max_bytes_validation(
+        self,
+        max_bytes: int,
+        server_sock: socket.socket,
+        socket_path_or_str: Path | str,
+    ) -> None:
+        async with await connect_unix(socket_path_or_str) as stream:
+            with pytest.raises(
+                ValueError, match="max_bytes must be a positive integer"
+            ):
+                await stream.receive(max_bytes)
 
     async def test_from_socket(
         self, socket_path: Path, sock_or_fd_factory: SockFdFactoryProtocol

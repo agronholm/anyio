@@ -32,6 +32,40 @@ from anyio.streams.tls import TLSAttribute, TLSConnectable, TLSListener, TLSStre
 
 
 class TestTLSStream:
+    @pytest.mark.parametrize("max_bytes", [0, -1, -5])
+    async def test_receive_max_bytes_validation(
+        self,
+        max_bytes: int,
+        server_context: ssl.SSLContext,
+        client_context: ssl.SSLContext,
+    ) -> None:
+        def serve_sync() -> None:
+            conn, addr = server_sock.accept()
+            conn.settimeout(1)
+            conn.send(b"blah")
+            conn.close()
+
+        server_sock = server_context.wrap_socket(
+            socket.socket(), server_side=True, suppress_ragged_eofs=False
+        )
+        server_sock.settimeout(1)
+        server_sock.bind(("127.0.0.1", 0))
+        server_sock.listen()
+        server_thread = Thread(target=serve_sync)
+        server_thread.start()
+
+        async with await connect_tcp(*server_sock.getsockname()) as stream:
+            wrapper = await TLSStream.wrap(
+                stream, hostname="localhost", ssl_context=client_context
+            )
+            with pytest.raises(
+                ValueError, match="max_bytes must be a positive integer"
+            ):
+                await wrapper.receive(max_bytes)
+
+        server_thread.join()
+        server_sock.close()
+
     async def test_send_receive(
         self, server_context: ssl.SSLContext, client_context: ssl.SSLContext
     ) -> None:

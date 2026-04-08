@@ -7,6 +7,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added support for custom capacity limiters in async path and file I/O
   functions and classes
+- Fixed ``ByteReceiveStream.receive()`` accepting ``max_bytes < 1`` with
+  inconsistent behavior across backends and stream types. All implementations
+  now raise ``ValueError`` when ``max_bytes < 1``. Also fixed ``receive_exactly()``
+  and ``receive_until()`` on ``BufferedByteReceiveStream``
+  (`#1081 <https://github.com/agronholm/anyio/issues/1081>`_; PR by @joaquinhuigomez)
 
 **4.13.0**
 

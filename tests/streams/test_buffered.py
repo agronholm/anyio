@@ -109,6 +109,62 @@ async def test_buffered_connectable() -> None:
         assert await stream.receive_exactly(2) == b"cd"
 
 
+class TestMaxBytesValidation:
+    @pytest.mark.parametrize("max_bytes", [0, -1, -5])
+    async def test_receive_max_bytes_validation(self, max_bytes: int) -> None:
+        send_stream, receive_stream = create_memory_object_stream[bytes](2)
+        async with (
+            send_stream,
+            BufferedByteReceiveStream(receive_stream) as buffered_stream,
+        ):
+            await send_stream.send(b"blah")
+            with pytest.raises(
+                ValueError, match="max_bytes must be a positive integer"
+            ):
+                await buffered_stream.receive(max_bytes)
+
+    @pytest.mark.parametrize("max_bytes", [0, -1, -5])
+    async def test_receive_max_bytes_validation_with_buffer(
+        self, max_bytes: int
+    ) -> None:
+        send_stream, receive_stream = create_memory_object_stream[bytes](2)
+        async with (
+            send_stream,
+            BufferedByteReceiveStream(receive_stream) as buffered_stream,
+        ):
+            await send_stream.send(b"ablah")
+            await buffered_stream.receive_exactly(1)
+            assert buffered_stream._buffer
+            with pytest.raises(
+                ValueError, match="max_bytes must be a positive integer"
+            ):
+                await buffered_stream.receive(max_bytes)
+
+    @pytest.mark.parametrize("nbytes", [0, -1, -5])
+    async def test_receive_exactly_nbytes_validation(self, nbytes: int) -> None:
+        send_stream, receive_stream = create_memory_object_stream[bytes](2)
+        async with (
+            send_stream,
+            BufferedByteReceiveStream(receive_stream) as buffered_stream,
+        ):
+            await send_stream.send(b"blah")
+            with pytest.raises(ValueError, match="nbytes must be a positive integer"):
+                await buffered_stream.receive_exactly(nbytes)
+
+    @pytest.mark.parametrize("max_bytes", [0, -1, -5])
+    async def test_receive_until_max_bytes_validation(self, max_bytes: int) -> None:
+        send_stream, receive_stream = create_memory_object_stream[bytes](2)
+        async with (
+            send_stream,
+            BufferedByteReceiveStream(receive_stream) as buffered_stream,
+        ):
+            await send_stream.send(b"blah\n")
+            with pytest.raises(
+                ValueError, match="max_bytes must be a positive integer"
+            ):
+                await buffered_stream.receive_until(b"\n", max_bytes)
+
+
 async def test_feed_data() -> None:
     send_stream, receive_stream = create_memory_object_stream[bytes](1)
     buffered_stream = BufferedByteStream(
