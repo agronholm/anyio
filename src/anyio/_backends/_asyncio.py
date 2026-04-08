@@ -738,7 +738,6 @@ else:
 class TaskGroup(abc.TaskGroup):
     def __init__(self) -> None:
         self.cancel_scope: CancelScope = CancelScope()
-        self._active = False
         self._entered = False
         self._exceptions: list[BaseException] = []
         self._tasks: set[asyncio.Task] = set()
@@ -751,7 +750,6 @@ class TaskGroup(abc.TaskGroup):
         self._entered = True
 
         self.cancel_scope.__enter__()
-        self._active = True
         return self
 
     async def __aexit__(
@@ -796,7 +794,6 @@ class TaskGroup(abc.TaskGroup):
                     # anyway
                     await AsyncIOBackend.cancel_shielded_checkpoint()
 
-                self._active = False
                 if self._exceptions:
                     # The exception that got us here should already have been
                     # added to self._exceptions so it's ok to break exception
@@ -871,7 +868,7 @@ class TaskGroup(abc.TaskGroup):
                     RuntimeError("Child exited without calling task_status.started()")
                 )
 
-        if not self._active:
+        if not self._entered or not self.cancel_scope._active:
             raise RuntimeError(
                 "This task group is not active; no new tasks can be started."
             )
