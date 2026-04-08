@@ -228,7 +228,7 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
         return wrapper
 
 
-class _LRUCacheWrapper(Generic[T]):
+class _LRUCacheWrapper:
     def __init__(
         self, maxsize: int | None, typed: bool, always_checkpoint: bool, ttl: int | None
     ):
@@ -268,9 +268,7 @@ def cache(  # type: ignore[overload-overlap]
 def cache(func: Callable[..., T], /) -> functools._lru_cache_wrapper[T]: ...
 
 
-def cache(
-    func: Callable[..., T] | Callable[P, Coroutine[Any, Any, T]], /
-) -> AsyncLRUCacheWrapper[P, T] | functools._lru_cache_wrapper[T]:
+def cache(func: Callable[..., Any] | Callable[P, Coroutine[Any, Any, Any]], /) -> Any:
     """
     A convenient shortcut for :func:`lru_cache` with ``maxsize=None``.
 
@@ -287,7 +285,7 @@ def lru_cache(
     typed: bool = ...,
     always_checkpoint: bool = ...,
     ttl: int | None = ...,
-) -> _LRUCacheWrapper[Any]: ...
+) -> _LRUCacheWrapper: ...
 
 
 @overload
@@ -301,16 +299,14 @@ def lru_cache(func: Callable[..., T], /) -> functools._lru_cache_wrapper[T]: ...
 
 
 def lru_cache(
-    func: Callable[P, Coroutine[Any, Any, T]] | Callable[..., T] | None = None,
+    func: Callable[..., Coroutine[Any, Any, Any]] | Callable[..., Any] | None = None,
     /,
     *,
     maxsize: int | None = 128,
     typed: bool = False,
     always_checkpoint: bool = False,
     ttl: int | None = None,
-) -> (
-    AsyncLRUCacheWrapper[P, T] | functools._lru_cache_wrapper[T] | _LRUCacheWrapper[Any]
-):
+) -> Any:
     """
     An asynchronous version of :func:`functools.lru_cache`.
 
@@ -325,12 +321,12 @@ def lru_cache(
 
     """
     if func is None:
-        return _LRUCacheWrapper[Any](maxsize, typed, always_checkpoint, ttl)
+        return _LRUCacheWrapper(maxsize, typed, always_checkpoint, ttl)
 
     if not callable(func):
         raise TypeError("the first argument must be callable")
 
-    return _LRUCacheWrapper[T](maxsize, typed, always_checkpoint, ttl)(func)
+    return _LRUCacheWrapper(maxsize, typed, always_checkpoint, ttl)(func)
 
 
 @overload
