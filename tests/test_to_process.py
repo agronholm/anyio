@@ -128,3 +128,20 @@ async def test_nonexistent_main_module(
     script_path.touch()
     monkeypatch.setattr("__main__.__file__", str(script_path / "__main__.py"))
     await to_process.run_sync(os.getpid)
+
+
+def _check_main_importable() -> bool:
+    """Helper that runs in the worker process to check __main__ is accessible."""
+    return "__main__" in sys.modules
+
+
+async def test_entrypoint_main_module(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+    """
+    Test that worker process creation succeeds when __main__.__file__ points to an
+    entry point script (no .py extension). Regression test for #1027.
+    """
+
+    script_path = tmp_path / "my-entrypoint"
+    script_path.write_text("#!/usr/bin/env python3\n")
+    monkeypatch.setattr("__main__.__file__", str(script_path))
+    assert await to_process.run_sync(_check_main_importable) is True
