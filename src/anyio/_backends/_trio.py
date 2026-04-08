@@ -165,6 +165,8 @@ class CancelScope(BaseCancelScope):
 
 
 class TaskGroup(abc.TaskGroup):
+    _active = False
+
     def __init__(self) -> None:
         self._entered = False
         self._nursery_manager = trio.open_nursery(strict_exception_groups=True)
@@ -175,6 +177,7 @@ class TaskGroup(abc.TaskGroup):
             raise RuntimeError("TaskGroup cannot be entered more than once")
 
         self._entered = True
+        self._active = True
         self._nursery = await self._nursery_manager.__aenter__()
         self.cancel_scope = CancelScope(self._nursery.cancel_scope)
         return self
@@ -194,6 +197,7 @@ class TaskGroup(abc.TaskGroup):
 
             raise
         finally:
+            self._active = False
             del exc_val, exc_tb
 
     def start_soon(
@@ -202,16 +206,20 @@ class TaskGroup(abc.TaskGroup):
         *args: Unpack[PosArgsT],
         name: object = None,
     ) -> None:
-        if not self._entered:
-            raise RuntimeError("This task group has not been entered yet.")
+        if not self._active:
+            raise RuntimeError(
+                "This task group is not active; no new tasks can be started."
+            )
 
         self._nursery.start_soon(func, *args, name=name)
 
     async def start(
         self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
     ) -> Any:
-        if not self._entered:
-            raise RuntimeError("This task group has not been entered yet.")
+        if not self._active:
+            raise RuntimeError(
+                "This task group is not active; no new tasks can be started."
+            )
 
         return await self._nursery.start(func, *args, name=name)
 
