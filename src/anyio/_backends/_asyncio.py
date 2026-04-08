@@ -749,9 +749,9 @@ class TaskGroup(abc.TaskGroup):
             raise RuntimeError("TaskGroup cannot be entered more than once")
 
         self._entered = True
+
         self.cancel_scope.__enter__()
         self._active = True
-        self._exceptions = []
         return self
 
     async def __aexit__(
