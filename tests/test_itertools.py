@@ -11,6 +11,7 @@ from anyio.itertools import (
     batched,
     chain,
     combinations,
+    combinations_with_replacement,
     compress,
     count,
     cycle,
@@ -18,6 +19,7 @@ from anyio.itertools import (
     filterfalse,
     groupby,
     islice,
+    pairwise,
     permutations,
     product,
     repeat,
@@ -331,6 +333,117 @@ class TestCombinations:
             cs.cancel()
             with pytest.raises(get_cancelled_exc_class()):
                 await anext(combinations([], 1))
+
+
+class TestCombinationsWithReplacement:
+    async def test_iterable(self) -> None:
+        assert await collect(combinations_with_replacement([1, 2, 3], 2)) == [
+            (1, 1),
+            (1, 2),
+            (1, 3),
+            (2, 2),
+            (2, 3),
+            (3, 3),
+        ]
+
+    async def test_iterable_stepwise(self) -> None:
+        iterator = combinations_with_replacement([0, 1, 2], 2)
+        assert await anext(iterator) == (0, 0)
+        assert await anext(iterator) == (0, 1)
+        assert await anext(iterator) == (0, 2)
+        assert await anext(iterator) == (1, 1)
+        assert await anext(iterator) == (1, 2)
+        assert await anext(iterator) == (2, 2)
+        with pytest.raises(StopAsyncIteration):
+            await anext(iterator)
+
+    async def test_asynciter(self) -> None:
+        async def asyncgen() -> AsyncIterator[int]:
+            yield 1
+            yield 2
+            yield 3
+
+        assert await collect(combinations_with_replacement(asyncgen(), 2)) == [
+            (1, 1),
+            (1, 2),
+            (1, 3),
+            (2, 2),
+            (2, 3),
+            (3, 3),
+        ]
+
+    async def test_asynciter_stepwise(self) -> None:
+        async def asyncgen() -> AsyncIterator[int]:
+            yield 0
+            yield 1
+            yield 2
+
+        iterator = combinations_with_replacement(asyncgen(), 2)
+        assert await anext(iterator) == (0, 0)
+        assert await anext(iterator) == (0, 1)
+        assert await anext(iterator) == (0, 2)
+        assert await anext(iterator) == (1, 1)
+        assert await anext(iterator) == (1, 2)
+        assert await anext(iterator) == (2, 2)
+        with pytest.raises(StopAsyncIteration):
+            await anext(iterator)
+
+    async def test_zero_length(self) -> None:
+        assert await collect(combinations_with_replacement([1, 2, 3], 0)) == [()]
+
+    async def test_empty_iterable_zero_length(self) -> None:
+        assert await collect(combinations_with_replacement([], 0)) == [()]
+
+    async def test_empty_async_iterable_zero_length(self) -> None:
+        class AIter:
+            def __aiter__(self) -> AIter:
+                return self
+
+            async def __anext__(self) -> NoReturn:
+                raise StopAsyncIteration
+
+        assert await collect(combinations_with_replacement(AIter(), 0)) == [()]
+
+    async def test_r_greater_than_pool(self) -> None:
+        assert await collect(combinations_with_replacement([1, 2], 3)) == [
+            (1, 1, 1),
+            (1, 1, 2),
+            (1, 2, 2),
+            (2, 2, 2),
+        ]
+
+    async def test_empty_async_iterable_nonzero_length(self) -> None:
+        class AIter:
+            def __aiter__(self) -> AIter:
+                return self
+
+            async def __anext__(self) -> NoReturn:
+                raise StopAsyncIteration
+
+        assert await collect(combinations_with_replacement(AIter(), 1)) == []
+
+    async def test_negative_r(self) -> None:
+        with pytest.raises(ValueError, match="r must be non-negative"):
+            await anext(combinations_with_replacement([1, 2], -1))
+
+    async def test_checkpoints_empty_result(self) -> None:
+        with CancelScope() as cs:
+            cs.cancel()
+            with pytest.raises(get_cancelled_exc_class()):
+                await anext(combinations_with_replacement([], 1))
+
+    async def test_checkpoints_empty_async_iterable_result(self) -> None:
+        class AIter:
+            def __aiter__(self) -> AIter:
+                return self
+
+            async def __anext__(self) -> NoReturn:
+                raise StopAsyncIteration
+
+        with CancelScope() as cs:
+            cs.cancel()
+            with pytest.raises(get_cancelled_exc_class()):
+                await anext(combinations_with_replacement(AIter(), 1))
 
 
 class TestCompress:
@@ -817,6 +930,45 @@ class TestIslice:
             cs.cancel()
             with pytest.raises(get_cancelled_exc_class()):
                 await anext(islice([], 3))
+
+
+class TestPairwise:
+    async def test_iterable(self) -> None:
+        assert await collect(pairwise([1, 2, 3, 4])) == [(1, 2), (2, 3), (3, 4)]
+
+    async def test_asynciter(self) -> None:
+        class AIter:
+            def __init__(self) -> None:
+                self._iterator = iter([1, 2, 3, 4])
+
+            def __aiter__(self) -> AIter:
+                return self
+
+            async def __anext__(self) -> int:
+                try:
+                    return next(self._iterator)
+                except StopIteration:
+                    raise StopAsyncIteration from None
+
+        assert await collect(pairwise(AIter())) == [(1, 2), (2, 3), (3, 4)]
+
+    async def test_empty_iterable(self) -> None:
+        assert await collect(pairwise([])) == []
+
+    async def test_single_element_iterable(self) -> None:
+        assert await collect(pairwise([1])) == []
+
+    async def test_checkpoints_empty_iterable(self) -> None:
+        with CancelScope() as cs:
+            cs.cancel()
+            with pytest.raises(get_cancelled_exc_class()):
+                await anext(pairwise([]))
+
+    async def test_checkpoints_single_element_iterable(self) -> None:
+        with CancelScope() as cs:
+            cs.cancel()
+            with pytest.raises(get_cancelled_exc_class()):
+                await anext(pairwise([1]))
 
 
 class TestPermutations:

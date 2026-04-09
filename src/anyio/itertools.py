@@ -225,13 +225,14 @@ async def combinations_with_replacement(
     iterable: Iterable[T] | AsyncIterable[T], r: int
 ) -> AsyncIterator[tuple[T, ...]]:
     pool: list[T] = [element async for element in _iterate(iterable)]
-
-    if r > len(pool):
-        await checkpoint()
-        return
+    tuple_yielded = False
 
     for combination in itertools.combinations_with_replacement(pool, r):
+        tuple_yielded = True
         yield combination
+
+    if not tuple_yielded:
+        await checkpoint()
 
 
 async def compress(
