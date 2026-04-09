@@ -547,3 +547,9 @@ Asynchronous functools
 
 The :mod:`functools` module does not support coroutine functions, so AnyIO offers its
 own version that does. See :ref:`async-functools` for the list of implemented functions.
+
+Asynchronous itertools
+----------------------
+
+The :mod:`itertools` module does not support asynchronous iterables, so AnyIO offers its
+own version that does. See :ref:`async-itertools` for the list of implemented functions.
