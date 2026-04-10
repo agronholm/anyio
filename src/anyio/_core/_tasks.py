@@ -216,9 +216,12 @@ class TaskHandle(Generic[T_co]):
         .. attribute:: FINISHED
 
             The task has finished with a return value.
+        .. attribute:: CANCELLING
+
+            The task has been cancelled but has not finished yet.
         .. attribute:: CANCELLED
 
-            The task was cancelled.
+            The task was cancelled and has finished since.
         .. attribute:: ERRORED
 
             The task raised an exception.
@@ -226,6 +229,7 @@ class TaskHandle(Generic[T_co]):
 
         PENDING = auto()
         FINISHED = auto()
+        CANCELLING = auto()
         CANCELLED = auto()
         ERRORED = auto()
 
@@ -273,10 +277,19 @@ class TaskHandle(Generic[T_co]):
                 self._finished_event.set()
 
     def cancel(self) -> None:
-        if self._status is TaskHandle.Status.PENDING:
-            self._status = TaskHandle.Status.CANCELLED
+        """
+        Set the task to a cancelled state.
 
-        self._cancel_scope.cancel()
+        This will interrupt any interruptible asynchronous operation, and will cause
+        any further awaits on this task to get immediately cancelled, unless done in
+        a shielded cancel scope.
+
+        If the task has already finished, this method has no effect.
+
+        """
+        if self._status is TaskHandle.Status.PENDING:
+            self._status = TaskHandle.Status.CANCELLING
+            self._cancel_scope.cancel()
 
     @property
     def coro(self) -> Coroutine[Any, Any, T_co]:
@@ -285,39 +298,67 @@ class TaskHandle(Generic[T_co]):
 
     @property
     def status(self) -> TaskHandle.Status:
-        """The current status of the task."""
+        """
+        The current status of the task.
+
+        Every task starts in the :attr:`~TaskHandle.Status.PENDING` state, and then
+        transitions to one of the other states later. A pending task will transition
+        from :attr:`~TaskHandle.Status.CANCELLING` to one of the final statuses, but no
+        other status transitions will happen.
+
+        """
         return self._status
 
     @property
-    def cancelled(self) -> bool:
-        return self._cancel_scope.cancel_called or isinstance(
-            self._exception, get_cancelled_exc_class()
-        )
-
-    @property
     def name(self) -> str:
+        """The name of the task."""
         return self._name
 
     @property
     def exception(self) -> BaseException | None:
-        return self._exception
+        """
+        The exception raised by the task, or ``None`` if it finished without raising.
+
+        :raises RuntimeError: if the task has not returned yet
+        :raises TaskCancelled: if the task was cancelled
+
+        """
+        match self._status:
+            case TaskHandle.Status.PENDING:
+                raise RuntimeError("the task has not returned yet")
+            case TaskHandle.Status.FINISHED:
+                return None
+            case TaskHandle.Status.CANCELLING | TaskHandle.Status.CANCELLED:
+                raise TaskCancelled("the task was cancelled")
+            case TaskHandle.Status.ERRORED:
+                return self._exception
 
     @property
     def return_value(self) -> T_co:
+        """
+        The return value of the task.
+
+        :raises RuntimeError: if the task has not returned yet
+        :raises TaskCancelled: if the task was cancelled
+        :raises TaskError: if the task raised an exception
+
+        """
         match self._status:
             case TaskHandle.Status.PENDING:
                 raise RuntimeError("the task has not returned yet")
             case TaskHandle.Status.FINISHED:
                 return self._return_value
-            case TaskHandle.Status.CANCELLED:
+            case TaskHandle.Status.CANCELLING | TaskHandle.Status.CANCELLED:
                 raise TaskCancelled("the task was cancelled")
             case TaskHandle.Status.ERRORED:
                 raise TaskError("the task raised an exception") from self._exception
 
-    def __await__(self) -> Generator[Any, Any, T_co]:
-        if not self._finished_event.is_set():
-            yield from self._finished_event.wait().__await__()
+    async def wait(self) -> None:
+        """Wait for the task to finish."""
+        await self._finished_event.wait()
 
+    def __await__(self) -> Generator[Any, Any, T_co]:
+        yield from self._finished_event.wait().__await__()
         return self.return_value
 
     def __repr__(self) -> str:

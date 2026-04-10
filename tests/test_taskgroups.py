@@ -2040,14 +2040,15 @@ class TestCreateTask:
                 await wait_all_tasks_blocked()
 
             handle.cancel()
+            assert handle.status is TaskHandle.Status.CANCELLING
             assert re.match(
-                r"<TaskHandle cancelled name='taskfunc' coro=<coroutine object(.+)>>",
+                r"<TaskHandle cancelling name='taskfunc' coro=<coroutine object(.+)>>",
                 repr(handle),
             )
             with pytest.raises(TaskCancelled, match="the task was cancelled"):
                 await handle
 
-        assert handle.cancelled
+        assert handle.status is TaskHandle.Status.CANCELLED
         assert task_started
         assert re.match(
             r"<TaskHandle cancelled name='taskfunc' coro=<coroutine object(.+)>>",
