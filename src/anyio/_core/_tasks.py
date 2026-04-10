@@ -354,7 +354,13 @@ class TaskHandle(Generic[T_co]):
                 raise TaskError("the task raised an exception") from self._exception
 
     async def wait(self) -> None:
-        """Wait for the task to finish."""
+        """
+        Wait for the task to finish.
+
+        This method will return as soon as the task has finished, no matter how it
+        happened.
+
+        """
         await self._finished_event.wait()
 
     def __await__(self) -> Generator[Any, Any, T_co]:

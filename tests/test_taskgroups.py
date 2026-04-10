@@ -2092,3 +2092,17 @@ class TestCreateTask:
                 r"<TaskHandle pending name='custom name' coro=<coroutine object(.+)>>",
                 repr(handle),
             )
+
+    async def test_wait(self) -> None:
+        async def taskfunc() -> None:
+            raise RuntimeError("dummy error")
+
+        with pytest.RaisesGroup(pytest.RaisesExc(RuntimeError, match="dummy error")):
+            async with create_task_group() as tg:
+                handle = tg.create_task(taskfunc())
+                assert handle.status is TaskHandle.Status.PENDING
+                await handle.wait()
+
+        assert str(handle.exception) == "dummy error"
+        assert handle.status is TaskHandle.Status.ERRORED
+        await handle.wait()
