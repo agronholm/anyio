@@ -17,7 +17,6 @@ from typing import Any, Generic, TypeVar, final
 from ..abc import TaskGroup, TaskStatus
 from ._eventloop import get_async_backend, get_cancelled_exc_class
 from ._exceptions import TaskCancelled, TaskError
-from ._testing import get_current_task
 
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple
@@ -252,14 +251,12 @@ class TaskHandle(Generic[T_co]):
         self._coro = coro
         self._cancel_scope = CancelScope()
         self._finished_event = Event()
-        self._name = name or coro.__name__
+        self._name = name or coro.__qualname__
         self._exception: BaseException | None = None
         self._status = TaskHandle.Status.PENDING
 
     async def _run_coro(self) -> None:
         __tracebackhide__ = True
-        if self._name is None:
-            self._name = get_current_task().name
 
         with self._cancel_scope:
             try:

@@ -1949,6 +1949,15 @@ async def test_asyncio_call_graph(native: bool) -> None:
 
 
 class TestCreateTask:
+    async def test_coro_attr(self) -> None:
+        async def taskfunc() -> None:
+            pass
+
+        coro = taskfunc()
+        async with create_task_group() as tg:
+            handle = tg.create_task(coro)
+            assert handle.coro is coro
+
     async def test_non_coro(self) -> None:
         async def taskfunc() -> None:
             pass
@@ -1963,17 +1972,25 @@ class TestCreateTask:
 
         async with create_task_group() as tg:
             handle = tg.create_task(taskfunc(2, 4))
+            with pytest.raises(RuntimeError, match="the task has not returned yet"):
+                handle.return_value  # noqa: B018
+
             assert re.match(
-                r"<TaskHandle pending name='taskfunc' coro=<coroutine object(.+)>>",
+                r"<TaskHandle pending "
+                r"name='TestCreateTask.test_return_value.<locals>.taskfunc' "
+                r"coro=<coroutine object(.+)>>",
                 repr(handle),
             )
             assert await handle == 6
             assert re.match(
-                r"<TaskHandle finished name='taskfunc' coro=<coroutine object(.+)>>",
+                r"<TaskHandle finished "
+                r"name='TestCreateTask.test_return_value.<locals>.taskfunc' "
+                r"coro=<coroutine object(.+)>>",
                 repr(handle),
             )
 
         assert handle.return_value == 6
+        assert handle.exception is None
 
     async def test_exception(self) -> None:
         async def taskfunc() -> NoReturn:
@@ -1982,13 +1999,18 @@ class TestCreateTask:
         with pytest.RaisesGroup(pytest.RaisesExc(RuntimeError, match="dummy error")):
             async with create_task_group() as tg:
                 handle = tg.create_task(taskfunc())
+                with pytest.raises(RuntimeError, match="the task has not returned yet"):
+                    handle.exception  # noqa: B018
+
                 with pytest.raises(TaskError, match="the task raised an exception"):
                     await handle
 
                 assert handle.status is TaskHandle.Status.ERRORED
 
         assert re.match(
-            r"<TaskHandle errored name='taskfunc' coro=<coroutine object(.+)>",
+            r"<TaskHandle errored "
+            r"name='TestCreateTask.test_exception.<locals>.taskfunc' "
+            r"coro=<coroutine object(.+)>",
             repr(handle),
         )
         assert isinstance(handle.exception, RuntimeError)
@@ -2009,7 +2031,9 @@ class TestCreateTask:
 
                 assert handle.status is TaskHandle.Status.ERRORED
                 assert re.match(
-                    r"<TaskHandle errored name='taskfunc' coro=<coroutine object(.+)>",
+                    r"<TaskHandle errored "
+                    r"name='TestCreateTask.test_base_exception.<locals>.taskfunc' "
+                    r"coro=<coroutine object(.+)>",
                     repr(handle),
                 )
 
@@ -2042,16 +2066,26 @@ class TestCreateTask:
             handle.cancel()
             assert handle.status is TaskHandle.Status.CANCELLING
             assert re.match(
-                r"<TaskHandle cancelling name='taskfunc' coro=<coroutine object(.+)>>",
+                r"<TaskHandle cancelling "
+                r"name='TestCreateTask.test_cancel.<locals>.taskfunc' "
+                r"coro=<coroutine object(.+)>>",
                 repr(handle),
             )
+            with pytest.raises(TaskCancelled, match="the task was cancelled"):
+                handle.return_value  # noqa: B018
+
+            with pytest.raises(TaskCancelled, match="the task was cancelled"):
+                handle.exception  # noqa: B018
+
             with pytest.raises(TaskCancelled, match="the task was cancelled"):
                 await handle
 
         assert handle.status is TaskHandle.Status.CANCELLED
         assert task_started
         assert re.match(
-            r"<TaskHandle cancelled name='taskfunc' coro=<coroutine object(.+)>>",
+            r"<TaskHandle cancelled "
+            r"name='TestCreateTask.test_cancel.<locals>.taskfunc' "
+            r"coro=<coroutine object(.+)>>",
             repr(handle),
         )
 
@@ -2074,12 +2108,14 @@ class TestCreateTask:
         async with create_task_group() as tg:
             handle = tg.create_task(taskfunc())
             assert re.match(
-                r"<TaskHandle pending name='taskfunc' coro=<coroutine object(.+)>>",
+                r"<TaskHandle pending "
+                r"name='TestCreateTask.test_task_name_default.<locals>.taskfunc' "
+                r"coro=<coroutine object(.+)>>",
                 repr(handle),
             )
             assert await handle == handle.name
 
-        assert handle.name == "taskfunc"
+        assert handle.name == "TestCreateTask.test_task_name_default.<locals>.taskfunc"
 
     async def test_task_name_custom_name(self) -> None:
         async def taskfunc() -> None:
