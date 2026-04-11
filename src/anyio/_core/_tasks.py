@@ -329,8 +329,10 @@ class TaskHandle(Generic[T_co]):
                 raise TaskNotFinished("the task has not finished yet")
             case TaskHandle.Status.FINISHED:
                 return None
-            case TaskHandle.Status.CANCELLING | TaskHandle.Status.CANCELLED:
+            case TaskHandle.Status.CANCELLING:
                 raise TaskCancelled("the task was cancelled")
+            case TaskHandle.Status.CANCELLED:
+                raise TaskCancelled("the task was cancelled") from self._exception
             case TaskHandle.Status.ERRORED:
                 return self._exception
 
@@ -349,8 +351,10 @@ class TaskHandle(Generic[T_co]):
                 raise TaskNotFinished("the task has not finished yet")
             case TaskHandle.Status.FINISHED:
                 return self._return_value
-            case TaskHandle.Status.CANCELLING | TaskHandle.Status.CANCELLED:
+            case TaskHandle.Status.CANCELLING:
                 raise TaskCancelled("the task was cancelled")
+            case TaskHandle.Status.CANCELLED:
+                raise TaskCancelled("the task was cancelled") from self._exception
             case TaskHandle.Status.ERRORED:
                 raise TaskError("the task raised an exception") from self._exception
 

@@ -2083,6 +2083,11 @@ class TestCreateTask:
             with pytest.raises(TaskCancelled, match="the task was cancelled"):
                 await handle
 
+        with pytest.raises(TaskCancelled, match="the task was cancelled") as exc_info:
+            await handle
+
+        assert isinstance(exc_info.value.__cause__, get_cancelled_exc_class())
+
         assert handle.status is TaskHandle.Status.CANCELLED
         assert task_started
         assert re.match(
