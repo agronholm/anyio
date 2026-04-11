@@ -252,7 +252,7 @@ Exceptions
 .. autoexception:: anyio.IncompleteRead
 .. autoexception:: anyio.NoEventLoopError
 .. autoexception:: anyio.RunFinishedError
-.. autoexception:: anyio.TaskError
+.. autoexception:: anyio.TaskFailed
 .. autoexception:: anyio.TaskCancelled
 .. autoexception:: anyio.TaskNotFinished
 .. autoexception:: anyio.TypedAttributeLookupError

@@ -156,14 +156,14 @@ class RunFinishedError(RuntimeError):
         )
 
 
-class TaskError(Exception):
+class TaskFailed(Exception):
     """
     Raised when awaiting on, or attempting to access the return value of, a
     :class:`.TaskHandle` that raised an exception.
     """
 
 
-class TaskCancelled(TaskError):
+class TaskCancelled(TaskFailed):
     """
     Raised when awaiting on, or attempting to access the return value of, a
     :class:`.TaskHandle` that was cancelled.

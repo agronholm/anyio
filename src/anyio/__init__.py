@@ -22,7 +22,7 @@ from ._core._exceptions import IncompleteRead as IncompleteRead
 from ._core._exceptions import NoEventLoopError as NoEventLoopError
 from ._core._exceptions import RunFinishedError as RunFinishedError
 from ._core._exceptions import TaskCancelled as TaskCancelled
-from ._core._exceptions import TaskError as TaskError
+from ._core._exceptions import TaskFailed as TaskFailed
 from ._core._exceptions import TaskNotFinished as TaskNotFinished
 from ._core._exceptions import TypedAttributeLookupError as TypedAttributeLookupError
 from ._core._exceptions import WouldBlock as WouldBlock
