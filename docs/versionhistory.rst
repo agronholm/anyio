@@ -7,6 +7,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added support for custom capacity limiters in async path and file I/O
   functions and classes
+- Added the ``create_task()`` task group method for easier asyncio migration
+  and to allow retrieving task return values more easily
 
 **4.13.0**
 
