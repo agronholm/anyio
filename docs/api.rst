@@ -254,5 +254,6 @@ Exceptions
 .. autoexception:: anyio.RunFinishedError
 .. autoexception:: anyio.TaskError
 .. autoexception:: anyio.TaskCancelled
+.. autoexception:: anyio.TaskNotFinished
 .. autoexception:: anyio.TypedAttributeLookupError
 .. autoexception:: anyio.WouldBlock

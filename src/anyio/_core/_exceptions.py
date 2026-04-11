@@ -168,3 +168,10 @@ class TaskCancelled(TaskError):
     Raised when awaiting on, or attempting to access the return value of, a
     :class:`.TaskHandle` that was cancelled.
     """
+
+
+class TaskNotFinished(Exception):
+    """
+    Raised when attempting to access the return value or exception of a
+    :class:`.TaskHandle` that is still pending completion.
+    """

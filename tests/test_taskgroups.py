@@ -23,6 +23,7 @@ from anyio import (
     TaskCancelled,
     TaskError,
     TaskHandle,
+    TaskNotFinished,
     create_task_group,
     current_effective_deadline,
     current_time,
@@ -1972,7 +1973,7 @@ class TestCreateTask:
 
         async with create_task_group() as tg:
             handle = tg.create_task(taskfunc(2, 4))
-            with pytest.raises(RuntimeError, match="the task has not returned yet"):
+            with pytest.raises(TaskNotFinished, match="the task has not finished yet"):
                 handle.return_value  # noqa: B018
 
             assert re.match(
@@ -1999,7 +2000,9 @@ class TestCreateTask:
         with pytest.RaisesGroup(pytest.RaisesExc(RuntimeError, match="dummy error")):
             async with create_task_group() as tg:
                 handle = tg.create_task(taskfunc())
-                with pytest.raises(RuntimeError, match="the task has not returned yet"):
+                with pytest.raises(
+                    TaskNotFinished, match="the task has not finished yet"
+                ):
                     handle.exception  # noqa: B018
 
                 with pytest.raises(TaskError, match="the task raised an exception"):

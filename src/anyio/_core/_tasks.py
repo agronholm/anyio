@@ -16,7 +16,7 @@ from typing import Any, Generic, TypeVar, final
 
 from ..abc import TaskGroup, TaskStatus
 from ._eventloop import get_async_backend, get_cancelled_exc_class
-from ._exceptions import TaskCancelled, TaskError
+from ._exceptions import TaskCancelled, TaskError, TaskNotFinished
 
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple
@@ -316,13 +316,13 @@ class TaskHandle(Generic[T_co]):
         """
         The exception raised by the task, or ``None`` if it finished without raising.
 
-        :raises RuntimeError: if the task has not returned yet
+        :raises TaskNotFinished: if the task has not finished yet
         :raises TaskCancelled: if the task was cancelled
 
         """
         match self._status:
             case TaskHandle.Status.PENDING:
-                raise RuntimeError("the task has not returned yet")
+                raise TaskNotFinished("the task has not finished yet")
             case TaskHandle.Status.FINISHED:
                 return None
             case TaskHandle.Status.CANCELLING | TaskHandle.Status.CANCELLED:
@@ -335,14 +335,14 @@ class TaskHandle(Generic[T_co]):
         """
         The return value of the task.
 
-        :raises RuntimeError: if the task has not returned yet
+        :raises TaskNotFinished: if the task has not finished yet
         :raises TaskCancelled: if the task was cancelled
         :raises TaskError: if the task raised an exception
 
         """
         match self._status:
             case TaskHandle.Status.PENDING:
-                raise RuntimeError("the task has not returned yet")
+                raise TaskNotFinished("the task has not finished yet")
             case TaskHandle.Status.FINISHED:
                 return self._return_value
             case TaskHandle.Status.CANCELLING | TaskHandle.Status.CANCELLED:
