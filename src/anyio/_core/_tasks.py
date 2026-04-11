@@ -240,7 +240,6 @@ class TaskHandle(Generic[T_co]):
         "_finished_event",
         "_return_value",
         "_exception",
-        "_status",
     )
 
     _return_value: T_co
@@ -253,7 +252,6 @@ class TaskHandle(Generic[T_co]):
         self._finished_event = Event()
         self._name = name or coro.__qualname__
         self._exception: BaseException | None = None
-        self._status = TaskHandle.Status.PENDING
 
     async def _run_coro(self) -> None:
         __tracebackhide__ = True
@@ -261,15 +259,11 @@ class TaskHandle(Generic[T_co]):
         with self._cancel_scope:
             try:
                 retval = await self._coro
-            except get_cancelled_exc_class():
-                self._status = TaskHandle.Status.CANCELLED
             except BaseException as exc:
                 self._exception = exc
-                self._status = TaskHandle.Status.ERRORED
                 raise
             else:
                 self._return_value = retval
-                self._status = TaskHandle.Status.FINISHED
             finally:
                 self._finished_event.set()
 
@@ -284,8 +278,7 @@ class TaskHandle(Generic[T_co]):
         If the task has already finished, this method has no effect.
 
         """
-        if self._status is TaskHandle.Status.PENDING:
-            self._status = TaskHandle.Status.CANCELLING
+        if not self._finished_event.is_set():
             self._cancel_scope.cancel()
 
     @property
@@ -304,7 +297,18 @@ class TaskHandle(Generic[T_co]):
         other status transitions will happen.
 
         """
-        return self._status
+        if not self._finished_event.is_set():
+            if self._cancel_scope.cancel_called:
+                return TaskHandle.Status.CANCELLING
+            else:
+                return TaskHandle.Status.PENDING
+        elif self._exception is not None:
+            if isinstance(self._exception, get_cancelled_exc_class()):
+                return TaskHandle.Status.CANCELLED
+            else:
+                return TaskHandle.Status.ERRORED
+        else:
+            return TaskHandle.Status.FINISHED
 
     @property
     def name(self) -> str:
@@ -320,7 +324,7 @@ class TaskHandle(Generic[T_co]):
         :raises TaskCancelled: if the task was cancelled
 
         """
-        match self._status:
+        match self.status:
             case TaskHandle.Status.PENDING:
                 raise TaskNotFinished("the task has not finished yet")
             case TaskHandle.Status.FINISHED:
@@ -340,7 +344,7 @@ class TaskHandle(Generic[T_co]):
         :raises TaskError: if the task raised an exception
 
         """
-        match self._status:
+        match self.status:
             case TaskHandle.Status.PENDING:
                 raise TaskNotFinished("the task has not finished yet")
             case TaskHandle.Status.FINISHED:
@@ -366,6 +370,6 @@ class TaskHandle(Generic[T_co]):
 
     def __repr__(self) -> str:
         return (
-            f"<{self.__class__.__name__} {self._status.name.lower()} "
+            f"<{self.__class__.__name__} {self.status.name.lower()} "
             f"name={self._name!r} coro={self._coro!r}>"
         )
