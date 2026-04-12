@@ -199,7 +199,7 @@ class TaskHandle(Generic[T_co]):
     """
     Returned from :meth:`TaskGroup.create_task() <.abc.TaskGroup.create_task>`.
     Can be awaited on to get the return value of the task (or the raised exception).
-    If the task was terminated by a :exc:`BaseException`, :exc:`TaskAborted` will be
+    If the task was terminated by a :exc:`BaseException`, :exc:`TaskFailed` will be
     raised (or its subclass :exc:`TaskCancelled` if the task was cancelled).
 
     .. versionadded:: 4.14.0
@@ -221,7 +221,7 @@ class TaskHandle(Generic[T_co]):
         .. attribute:: CANCELLED
 
             The task was cancelled and has finished since.
-        .. attribute:: ERRORED
+        .. attribute:: FAILED
 
             The task raised an exception.
         """
@@ -276,7 +276,6 @@ class TaskHandle(Generic[T_co]):
         a shielded cancel scope.
 
         If the task has already finished, this method has no effect.
-
         """
         if not self._finished_event.is_set():
             self._cancel_scope.cancel()
@@ -364,7 +363,6 @@ class TaskHandle(Generic[T_co]):
 
         This method will return as soon as the task has finished, no matter how it
         happened.
-
         """
         await self._finished_event.wait()
 
