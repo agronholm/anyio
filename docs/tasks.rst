@@ -69,9 +69,6 @@ method which will return a :class:`~.TaskHandle`. This handle can be used to:
             handles[1].cancel()
             print(await handles[2])
 
-        # Should print:
-        #   2
-        #   Tasks finished: 0, 2, 3, 4
         print(
             'Tasks finished:',
             ', '.join(
@@ -79,6 +76,9 @@ method which will return a :class:`~.TaskHandle`. This handle can be used to:
                 if handle.status is TaskHandle.Status.FINISHED
             )
         )
+        # Should print:
+        #   2
+        #   Tasks finished: 0, 2, 3, 4
 
     run(main)
 
