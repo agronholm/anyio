@@ -53,7 +53,7 @@ method which will return a :class:`~.TaskHandle`. This handle can be used to:
 
 ::
 
-    from anyio import sleep, create_task_group, run, TaskHandle
+    from anyio import TaskHandle, create_task_group, run, sleep
 
 
     async def sometask(num: int) -> str:
