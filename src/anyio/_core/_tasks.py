@@ -290,11 +290,13 @@ class TaskHandle(Generic[T_co]):
         """
         The current status of the task.
 
-        Every task starts in the :attr:`~TaskHandle.Status.PENDING` state, and then
-        transitions to one of the other states later. A pending task will transition
-        from :attr:`~TaskHandle.Status.CANCELLING` to one of the final statuses, but no
-        other status transitions will happen.
-
+        Every task starts in the :attr:`~TaskHandle.Status.PENDING` state.
+        If a task is cancelled while in this state, it will transition to the
+        :attr:`~TaskHandle.Status.CANCELLING` state. When the task finishes, it will
+        transition to one of the three final states (
+        :attr:`~TaskHandle.Status.FINISHED`, :attr:`~TaskHandle.Status.FAILED`, or
+        :attr:`~TaskHandle.Status.CANCELLING`) depending on the exception the task
+        raised, if any. No other status transitions will happen.
         """
         if not self._finished_event.is_set():
             if self._cancel_scope.cancel_called:
