@@ -1697,7 +1697,9 @@ class TestUDPSocket:
         async with await create_udp_socket(
             local_host="localhost", family=family
         ) as sock:
-            host, port = sock.extra(SocketAttribute.local_address)  # type: ignore[misc]
+            host, port = cast(
+                tuple[str, int], sock.extra(SocketAttribute.local_address)
+            )
             await sock.sendto(b"blah", host, port)
             request, addr = await sock.receive()
             assert request == b"blah"
@@ -1716,8 +1718,8 @@ class TestUDPSocket:
         async with await create_udp_socket(
             family=family, local_host="localhost"
         ) as server:
-            host, port = server.extra(  # type: ignore[misc]
-                SocketAttribute.local_address
+            host, port = cast(
+                tuple[str, int], server.extra(SocketAttribute.local_address)
             )
             async with await create_udp_socket(
                 family=family, local_host="localhost"
@@ -1784,7 +1786,7 @@ class TestUDPSocket:
         udp = await create_udp_socket(
             family=AddressFamily.AF_INET, local_host="localhost"
         )
-        host, port = udp.extra(SocketAttribute.local_address)  # type: ignore[misc]
+        host, port = cast(tuple[str, int], udp.extra(SocketAttribute.local_address))
         await udp.aclose()
         with pytest.raises(ClosedResourceError):
             await udp.sendto(b"foo", host, port)
@@ -1841,12 +1843,14 @@ class TestConnectedUDPSocket:
         async with await create_udp_socket(
             family=family, local_host="localhost"
         ) as udp1:
-            host, port = udp1.extra(SocketAttribute.local_address)  # type: ignore[misc]
+            host, port = cast(
+                tuple[str, int], udp1.extra(SocketAttribute.local_address)
+            )
             async with await create_connected_udp_socket(
                 host, port, local_host="localhost", family=family
             ) as udp2:
-                host, port = udp2.extra(
-                    SocketAttribute.local_address  # type: ignore[misc]
+                host, port = cast(
+                    tuple[str, int], udp2.extra(SocketAttribute.local_address)
                 )
                 await udp2.send(b"blah")
                 request = await udp1.receive()
@@ -1864,10 +1868,12 @@ class TestConnectedUDPSocket:
         async with await create_udp_socket(
             family=family, local_host="localhost"
         ) as udp1:
-            host, port = udp1.extra(SocketAttribute.local_address)  # type: ignore[misc]
+            host, port = cast(
+                tuple[str, int], udp1.extra(SocketAttribute.local_address)
+            )
             async with await create_connected_udp_socket(host, port) as udp2:
-                host, port = udp2.extra(  # type: ignore[misc]
-                    SocketAttribute.local_address
+                host, port = cast(
+                    tuple[str, int], udp2.extra(SocketAttribute.local_address)
                 )
                 async with create_task_group() as tg:
                     tg.start_soon(serve)

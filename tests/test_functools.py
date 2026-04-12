@@ -17,6 +17,7 @@ from anyio import (
     wait_all_tasks_blocked,
 )
 from anyio.functools import (
+    AsyncCacheInfo,
     AsyncLRUCacheWrapper,
     _LRUMethodWrapper,
     cache,
@@ -113,7 +114,7 @@ class TestAsyncLRUCache:
             assert await func(2) == 2
 
         statistics = func.cache_info()
-        assert statistics == (3, 2, 128, 2, None)
+        assert statistics == AsyncCacheInfo(3, 2, 128, 2, None)
         assert statistics.hits == 3
         assert statistics.misses == 2
         assert statistics.maxsize == 128
