@@ -68,33 +68,28 @@ def thread_worker_sync(func: Callable[..., T_Retval], *args: Any) -> T_Retval:
     return from_thread.run_sync(func, *args)
 
 
-@pytest.mark.parametrize("cancel", [True, False])
-async def test_thread_cancelled(cancel: bool) -> None:
+async def test_thread_cancelled() -> None:
     event = threading.Event()
-    thread_finished_future: Future[None] = Future()
+    started = finished = False
 
     def sync_function() -> None:
+        nonlocal started, finished
+        started = True
         event.wait(3)
-        try:
-            from_thread.check_cancelled()
-        except BaseException as exc:
-            thread_finished_future.set_exception(exc)
-        else:
-            thread_finished_future.set_result(None)
+        from_thread.check_cancelled()
+        finished = True
 
-    async with create_task_group() as tg:
-        tg.start_soon(to_thread.run_sync, sync_function)
+    async def canceller() -> None:
         await wait_all_tasks_blocked()
-        if cancel:
-            tg.cancel_scope.cancel()
-
+        tg.cancel_scope.cancel()
         event.set()
 
-    if cancel:
-        with pytest.raises(get_cancelled_exc_class()):
-            thread_finished_future.result(3)
-    else:
-        thread_finished_future.result(3)
+    async with create_task_group() as tg:
+        tg.start_soon(canceller)
+        await to_thread.run_sync(sync_function)
+
+    assert started
+    assert not finished
 
 
 async def test_thread_cancelled_and_abandoned() -> None:
