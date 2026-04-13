@@ -9,7 +9,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   functions and classes
 
 **4.13.0**
-
+- Improved the error message when a known backend is not installed to suggest the install command
+  (`<https://github.com/agronholm/anyio/pull/1115>`_; PR by @EmmanuelNiyonshuti)
 - Dropped support for Python 3.9
 - Added a ``ttl`` parameter to the ``anyio.functools.lru_cache`` wrapper
   (`#1073 <https://github.com/agronholm/anyio/pull/1073>`_; PR by @Graeme22)
