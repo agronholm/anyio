@@ -51,16 +51,18 @@ def test_run_task() -> None:
     assert result == 3
 
 
-async def main() -> None:
-    pass
-
-
 def test_run_unknown_backend() -> None:
+    async def main() -> None:
+        pass
+
     with pytest.raises(LookupError, match="No such backend: asncio"):
         run(main, backend="asncio")
 
 
 def test_run_known_but_uninstalled_backend(monkeypatch: MonkeyPatch) -> None:
+    async def main() -> None:
+        pass
+
     monkeypatch.setattr("anyio._core._eventloop.BACKENDS", ("asyncio", "somebackend"))
     with pytest.raises(LookupError, match="pip install anyio\\[somebackend\\]"):
         run(main, backend="somebackend")
