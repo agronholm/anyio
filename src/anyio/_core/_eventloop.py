@@ -64,6 +64,12 @@ def run(
     try:
         async_backend = get_async_backend(backend)
     except ImportError as exc:
+        if backend in BACKENDS:
+            raise LookupError(
+                f"Backend {backend!r} is not available. "
+                f"Install it with: pip install anyio[{backend}]"
+            ) from exc
+
         raise LookupError(f"No such backend: {backend}") from exc
 
     token = None
