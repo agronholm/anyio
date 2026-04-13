@@ -69,6 +69,7 @@ def run(
                 f"backend '{backend}' is not available. "
                 f"Install it with: pip install anyio[{backend}]"
             ) from exc
+
         raise LookupError(f"No such backend: {backend}") from exc
 
     token = None

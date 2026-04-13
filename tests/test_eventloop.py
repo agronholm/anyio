@@ -55,8 +55,8 @@ def test_run_unknown_backend() -> None:
     async def main() -> None:
         pass
 
-    with pytest.raises(LookupError, match="No such backend: asncio"):
-        run(main, backend="asncio")
+    with pytest.raises(LookupError, match="No such backend: somebackend"):
+        run(main, backend="somebackend")
 
 
 def test_run_known_but_uninstalled_backend(monkeypatch: MonkeyPatch) -> None:
