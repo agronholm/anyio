@@ -66,7 +66,7 @@ def run(
     except ImportError as exc:
         if backend in BACKENDS:
             raise LookupError(
-                f"backend '{backend}' is not available. "
+                f"Backend {backend!r} is not available. "
                 f"Install it with: pip install anyio[{backend}]"
             ) from exc
 
