@@ -1625,6 +1625,19 @@ class TestUncancel:
         assert not task.cancelling()
 
 
+async def test_taskgroup_reentry() -> None:
+    """Test that entering a TaskGroup more than once raises RuntimeError."""
+    tg = create_task_group()
+    async with tg:
+        pass
+
+    with pytest.raises(
+        RuntimeError, match="TaskGroup cannot be entered more than once"
+    ):
+        async with tg:
+            pass
+
+
 async def test_cancel_before_entering_task_group() -> None:
     with CancelScope() as scope:
         scope.cancel()
