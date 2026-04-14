@@ -2008,10 +2008,10 @@ class TestCreateTask:
                 with pytest.raises(TaskFailed, match="the task raised an exception"):
                     await handle
 
-                assert handle.status is TaskHandle.Status.ERRORED
+                assert handle.status is TaskHandle.Status.FAILED
 
         assert re.match(
-            r"<TaskHandle errored "
+            r"<TaskHandle failed "
             r"name='TestCreateTask.test_exception.<locals>.taskfunc' "
             r"coro=<coroutine object(.+)>",
             repr(handle),
@@ -2032,9 +2032,9 @@ class TestCreateTask:
                 with pytest.raises(TaskFailed, match="the task raised an exception"):
                     await handle
 
-                assert handle.status is TaskHandle.Status.ERRORED
+                assert handle.status is TaskHandle.Status.FAILED
                 assert re.match(
-                    r"<TaskHandle errored "
+                    r"<TaskHandle failed "
                     r"name='TestCreateTask.test_base_exception.<locals>.taskfunc' "
                     r"coro=<coroutine object(.+)>",
                     repr(handle),
@@ -2148,5 +2148,5 @@ class TestCreateTask:
                 await handle.wait()
 
         assert str(handle.exception) == "dummy error"
-        assert handle.status is TaskHandle.Status.ERRORED
+        assert handle.status is TaskHandle.Status.FAILED
         await handle.wait()

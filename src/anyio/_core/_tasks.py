@@ -230,7 +230,7 @@ class TaskHandle(Generic[T_co]):
         FINISHED = auto()
         CANCELLING = auto()
         CANCELLED = auto()
-        ERRORED = auto()
+        FAILED = auto()
 
     __slots__ = (
         "__weakref__",
@@ -307,7 +307,7 @@ class TaskHandle(Generic[T_co]):
             if isinstance(self._exception, get_cancelled_exc_class()):
                 return TaskHandle.Status.CANCELLED
             else:
-                return TaskHandle.Status.ERRORED
+                return TaskHandle.Status.FAILED
         else:
             return TaskHandle.Status.FINISHED
 
@@ -334,7 +334,7 @@ class TaskHandle(Generic[T_co]):
                 raise TaskCancelled("the task was cancelled")
             case TaskHandle.Status.CANCELLED:
                 raise TaskCancelled("the task was cancelled") from self._exception
-            case TaskHandle.Status.ERRORED:
+            case TaskHandle.Status.FAILED:
                 return self._exception
 
     @property
@@ -356,7 +356,7 @@ class TaskHandle(Generic[T_co]):
                 raise TaskCancelled("the task was cancelled")
             case TaskHandle.Status.CANCELLED:
                 raise TaskCancelled("the task was cancelled") from self._exception
-            case TaskHandle.Status.ERRORED:
+            case TaskHandle.Status.FAILED:
                 raise TaskFailed("the task raised an exception") from self._exception
 
     async def wait(self) -> None:
