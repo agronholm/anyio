@@ -2522,7 +2522,7 @@ class AsyncIOBackend(AsyncBackend):
         scope: CancelScope | None = threadlocals.current_cancel_scope
         while scope is not None:
             if scope.cancel_called:
-                raise CancelledError(f"Cancelled by cancel scope {id(scope):x}")
+                raise CancelledError(f"Cancelled via cancel scope {id(scope):x}")
 
             if scope.shield:
                 return

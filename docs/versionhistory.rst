@@ -7,8 +7,16 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added support for custom capacity limiters in async path and file I/O
   functions and classes
+<<<<<<< improved-task-group
 - Added the ``create_task()`` task group method for easier asyncio migration
   and to allow retrieving task return values more easily
+=======
+- Improved the error message when a known backend is not installed to suggest the install command
+  (`#1115 <https://github.com/agronholm/anyio/pull/1115>`_; PR by @EmmanuelNiyonshuti)
+- Fixed cancellation exception escaping a cancel scope when triggered via
+  ``check_cancelled()`` in a worker thread
+  (`#1113 <https://github.com/agronholm/anyio/issues/1113>`_)
+>>>>>>> master
 
 **4.13.0**
 
