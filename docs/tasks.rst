@@ -49,6 +49,7 @@ method which will return a :class:`~.TaskHandle`. This handle can be used to:
 
 #. Wait for the task to finish before exiting the task group
 #. Retrieve the task's return value or exception
+#. Cancel the task
 #. Check the task's status
 
 ::
