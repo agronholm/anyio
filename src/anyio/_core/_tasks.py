@@ -344,7 +344,7 @@ class TaskHandle(Generic[T_co]):
 
         :raises TaskNotFinished: if the task has not finished yet
         :raises TaskCancelled: if the task was cancelled
-        :raises TaskError: if the task raised an exception
+        :raises TaskFailed: if the task raised an exception
 
         """
         match self.status:
