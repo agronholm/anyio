@@ -4,6 +4,7 @@ Version history
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
+
 - Fixed incorrect exception name in ``TaskHandle.return_value`` docstring
   (``TaskError`` to ``TaskFailed``)
   (`#1117 <https://github.com/agronholm/anyio/pull/1117>`_; PR by @EmmanuelNiyonshuti)
