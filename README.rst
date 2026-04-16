@@ -51,7 +51,7 @@ AnyIO offers the following functionality:
 * Subinterpreter support for code parallelization (on Python 3.13 and later)
 * Asynchronous file I/O (using worker threads)
 * Signal handling
-* Asynchronous versions of the itertools_ and functools_ modules
+* Asynchronous versions of the functools_ and itertools_ modules
 
 AnyIO also comes with its own pytest_ plugin which also supports asynchronous fixtures.
 It even works with the popular Hypothesis_ library.
