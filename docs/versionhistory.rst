@@ -5,6 +5,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added the ``local_port`` parameter to :func:`connect_tcp` to allow binding to a
+  specific local port before connecting
+  (`#1067 <https://github.com/agronholm/anyio/issues/1067>`_; PR by @nullwiz)
 - Added support for custom capacity limiters in async path and file I/O
   functions and classes
 - Added the ``create_task()`` task group method for easier asyncio migration
