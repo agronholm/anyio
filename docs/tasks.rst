@@ -41,6 +41,48 @@ Here's a demonstration::
 .. _Trio: https://trio.readthedocs.io/en/latest/reference-core.html
    #tasks-let-you-do-multiple-things-at-once
 
+Working with task handles
+-------------------------
+
+As an alternative way to spawn tasks, you can use the :meth:`~.TaskGroup.create_task`
+method which will return a :class:`~.TaskHandle`. This handle can be used to:
+
+#. Wait for the task to finish before exiting the task group
+#. Retrieve the task's return value or exception
+#. Cancel the task
+#. Check the task's status
+
+::
+
+    from anyio import TaskHandle, create_task_group, run, sleep
+
+
+    async def sometask(num: int) -> str:
+        await sleep(1)
+        return str(num)
+
+
+    async def main() -> None:
+        async with create_task_group() as tg:
+            handles = [
+                tg.create_task(sometask(num)) for num in range(5)
+            ]
+            handles[1].cancel()
+            print(await handles[2])
+
+        print(
+            'Tasks finished:',
+            ', '.join(
+                handle.return_value for handle in handles
+                if handle.status is TaskHandle.Status.FINISHED
+            )
+        )
+        # Should print:
+        #   2
+        #   Tasks finished: 0, 2, 3, 4
+
+    run(main)
+
 .. _start_initialize:
 
 Starting and initializing tasks

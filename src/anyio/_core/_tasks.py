@@ -1,12 +1,33 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Generator
-from contextlib import contextmanager
+import sys
+from collections.abc import (
+    Coroutine,
+    Generator,
+)
+from contextlib import (
+    contextmanager,
+)
+from contextvars import ContextVar
+from enum import Enum, auto
 from types import TracebackType
+from typing import Any, Generic, TypeVar, final
 
-from ..abc._tasks import TaskGroup, TaskStatus
-from ._eventloop import get_async_backend
+from ..abc import TaskGroup, TaskStatus
+from ._eventloop import get_async_backend, get_cancelled_exc_class
+from ._exceptions import TaskCancelled, TaskFailed, TaskNotFinished
+
+if sys.version_info >= (3, 11):
+    from typing import TypeVarTuple
+else:
+    from typing_extensions import TypeVarTuple
+
+T = TypeVar("T")
+T_co = TypeVar("T_co", covariant=True)
+PosArgsT = TypeVarTuple("PosArgsT")
+
+_current_task_handle: ContextVar[TaskHandle] = ContextVar("_current_task_handle")
 
 
 class _IgnoredTaskStatus(TaskStatus[object]):
@@ -171,3 +192,188 @@ def create_task_group() -> TaskGroup:
 
     """
     return get_async_backend().create_task_group()
+
+
+@final
+class TaskHandle(Generic[T_co]):
+    """
+    Returned from :meth:`TaskGroup.create_task() <.abc.TaskGroup.create_task>`.
+    Can be awaited on to get the return value of the task (or the raised exception).
+    If the task was terminated by a :exc:`BaseException`, :exc:`TaskFailed` will be
+    raised (or its subclass :exc:`TaskCancelled` if the task was cancelled).
+
+    .. versionadded:: 4.14.0
+    """
+
+    class Status(Enum):
+        """
+        The status of a task handle.
+
+        .. attribute:: PENDING
+
+            The task has not finished yet.
+        .. attribute:: FINISHED
+
+            The task has finished with a return value.
+        .. attribute:: CANCELLING
+
+            The task has been cancelled but has not finished yet.
+        .. attribute:: CANCELLED
+
+            The task was cancelled and has finished since.
+        .. attribute:: FAILED
+
+            The task raised an exception.
+        """
+
+        PENDING = auto()
+        FINISHED = auto()
+        CANCELLING = auto()
+        CANCELLED = auto()
+        FAILED = auto()
+
+    __slots__ = (
+        "__weakref__",
+        "_coro",
+        "_name",
+        "_cancel_scope",
+        "_finished_event",
+        "_return_value",
+        "_exception",
+    )
+
+    _return_value: T_co
+
+    def __init__(self, coro: Coroutine[Any, Any, T_co], name: str | None) -> None:
+        from ._synchronization import Event
+
+        self._coro = coro
+        self._cancel_scope = CancelScope()
+        self._finished_event = Event()
+        self._name = name or coro.__qualname__
+        self._exception: BaseException | None = None
+
+    async def _run_coro(self) -> None:
+        __tracebackhide__ = True
+
+        with self._cancel_scope:
+            try:
+                retval = await self._coro
+            except BaseException as exc:
+                self._exception = exc
+                raise
+            else:
+                self._return_value = retval
+            finally:
+                self._finished_event.set()
+
+    def cancel(self) -> None:
+        """
+        Set the task to a cancelled state.
+
+        This will interrupt any interruptible asynchronous operation, and will cause
+        any further awaits on this task to get immediately cancelled, unless done in
+        a shielded cancel scope.
+
+        If the task has already finished, this method has no effect.
+        """
+        if not self._finished_event.is_set():
+            self._cancel_scope.cancel()
+
+    @property
+    def coro(self) -> Coroutine[Any, Any, T_co]:
+        """The coroutine object that was passed to :meth:`TaskGroup.create_task`."""
+        return self._coro
+
+    @property
+    def status(self) -> TaskHandle.Status:
+        """
+        The current status of the task.
+
+        Every task starts in the :attr:`~TaskHandle.Status.PENDING` state.
+        If a task is cancelled while in this state, it will transition to the
+        :attr:`~TaskHandle.Status.CANCELLING` state. When the task finishes, it will
+        transition to one of the three final states (
+        :attr:`~TaskHandle.Status.FINISHED`, :attr:`~TaskHandle.Status.FAILED`, or
+        :attr:`~TaskHandle.Status.CANCELLING`) depending on the exception the task
+        raised, if any. No other status transitions will happen.
+        """
+        if not self._finished_event.is_set():
+            if self._cancel_scope.cancel_called:
+                return TaskHandle.Status.CANCELLING
+            else:
+                return TaskHandle.Status.PENDING
+        elif self._exception is not None:
+            if isinstance(self._exception, get_cancelled_exc_class()):
+                return TaskHandle.Status.CANCELLED
+            else:
+                return TaskHandle.Status.FAILED
+        else:
+            return TaskHandle.Status.FINISHED
+
+    @property
+    def name(self) -> str:
+        """The name of the task."""
+        return self._name
+
+    @property
+    def exception(self) -> BaseException | None:
+        """
+        The exception raised by the task, or ``None`` if it finished without raising.
+
+        :raises TaskNotFinished: if the task has not finished yet
+        :raises TaskCancelled: if the task was cancelled
+
+        """
+        match self.status:
+            case TaskHandle.Status.PENDING:
+                raise TaskNotFinished("the task has not finished yet")
+            case TaskHandle.Status.FINISHED:
+                return None
+            case TaskHandle.Status.CANCELLING:
+                raise TaskCancelled("the task was cancelled")
+            case TaskHandle.Status.CANCELLED:
+                raise TaskCancelled("the task was cancelled") from self._exception
+            case TaskHandle.Status.FAILED:
+                return self._exception
+
+    @property
+    def return_value(self) -> T_co:
+        """
+        The return value of the task.
+
+        :raises TaskNotFinished: if the task has not finished yet
+        :raises TaskCancelled: if the task was cancelled
+        :raises TaskFailed: if the task raised an exception
+
+        """
+        match self.status:
+            case TaskHandle.Status.PENDING:
+                raise TaskNotFinished("the task has not finished yet")
+            case TaskHandle.Status.FINISHED:
+                return self._return_value
+            case TaskHandle.Status.CANCELLING:
+                raise TaskCancelled("the task was cancelled")
+            case TaskHandle.Status.CANCELLED:
+                raise TaskCancelled("the task was cancelled") from self._exception
+            case TaskHandle.Status.FAILED:
+                raise TaskFailed("the task raised an exception") from self._exception
+
+    async def wait(self) -> None:
+        """
+        Wait for the task to finish.
+
+        This method will return as soon as the task has finished, no matter how it
+        happened.
+        """
+        await self._finished_event.wait()
+
+    def __await__(self) -> Generator[Any, Any, T_co]:
+        yield from self._finished_event.wait().__await__()
+        return self.return_value
+
+    def __repr__(self) -> str:
+        return (
+            f"<{self.__class__.__name__} {self.status.name.lower()} "
+            f"name={self._name!r} coro={self._coro!r}>"
+        )
