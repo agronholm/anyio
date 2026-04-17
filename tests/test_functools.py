@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from decimal import Decimal
-from typing import Any, NoReturn, assert_type
+from typing import Any, NoReturn
 
 import pytest
+from typing_extensions import assert_type
 
 from anyio import (
     CancelScope,
