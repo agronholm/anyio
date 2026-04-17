@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import sys
 from collections.abc import AsyncIterator
 from decimal import Decimal
 from typing import Any, NoReturn
 
 import pytest
-from typing_extensions import assert_type
 
 from anyio import (
     CancelScope,
@@ -26,6 +26,11 @@ from anyio.functools import (
     reduce,
 )
 from anyio.lowlevel import checkpoint
+
+if sys.version_info < (3, 13):
+    from typing_extensions import assert_type
+else:
+    from typing import assert_type
 
 
 class TestCache:
