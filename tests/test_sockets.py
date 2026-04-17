@@ -397,6 +397,18 @@ class TestTCPStream:
         server_sock.close()
         assert client_addr[0] == expected_client_addr
 
+    async def test_connect_tcp_with_local_port(
+        self,
+        server_sock: socket.socket,
+        server_addr: tuple[str, int],
+        family: AnyIPAddressFamily,
+    ) -> None:
+        local_addr = "127.0.0.1" if family == AddressFamily.AF_INET else "::1"
+        async with await connect_tcp(
+            *server_addr, local_host=local_addr, local_port=1234
+        ) as stream:
+            assert stream.extra(SocketAttribute.local_port) == 1234
+
     @pytest.mark.skipif(
         sys.implementation.name == "pypy",
         reason=(
