@@ -27,10 +27,10 @@ from anyio.functools import (
 )
 from anyio.lowlevel import checkpoint
 
-if sys.version_info < (3, 13):
-    from typing_extensions import assert_type
-else:
+if sys.version_info >= (3, 11):
     from typing import assert_type
+else:
+    from typing_extensions import assert_type
 
 
 class TestCache:
