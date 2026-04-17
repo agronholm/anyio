@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added an asynchronous implementation of the ``itertools`` module
+  (`#998 <https://github.com/agronholm/anyio/issues/998>`_; PR by @11kkw)
 - Added support for custom capacity limiters in async path and file I/O
   functions and classes
 - Added the ``create_task()`` task group method for easier asyncio migration
