@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from decimal import Decimal
-from typing import Any, NoReturn
+from typing import Any, NoReturn, assert_type
 
 import pytest
 
@@ -407,6 +407,18 @@ class TestAsyncLRUCache:
                 await sleeper(0.1)
 
         assert not scope.cancelled_caught
+
+    async def test_type_overloads(self) -> None:
+        @lru_cache(always_checkpoint=True)
+        async def sleeper(time: float) -> None:
+            pass
+
+        @lru_cache
+        async def foo() -> str:
+            return "bar"
+
+        assert_type(await sleeper(1), None)
+        assert_type(await foo(), str)
 
 
 class TestReduce:
