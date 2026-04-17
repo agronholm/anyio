@@ -66,7 +66,7 @@ async def connect_tcp(
     remote_port: int,
     *,
     local_host: IPAddressType | None = ...,
-    local_port: int = ...,
+    local_port: int | None = ...,
     ssl_context: ssl.SSLContext | None = ...,
     tls_standard_compatible: bool = ...,
     tls_hostname: str,
@@ -81,7 +81,7 @@ async def connect_tcp(
     remote_port: int,
     *,
     local_host: IPAddressType | None = ...,
-    local_port: int = ...,
+    local_port: int | None = ...,
     ssl_context: ssl.SSLContext,
     tls_standard_compatible: bool = ...,
     tls_hostname: str | None = ...,
@@ -96,7 +96,7 @@ async def connect_tcp(
     remote_port: int,
     *,
     local_host: IPAddressType | None = ...,
-    local_port: int = ...,
+    local_port: int | None = ...,
     tls: Literal[True],
     ssl_context: ssl.SSLContext | None = ...,
     tls_standard_compatible: bool = ...,
@@ -112,7 +112,7 @@ async def connect_tcp(
     remote_port: int,
     *,
     local_host: IPAddressType | None = ...,
-    local_port: int = ...,
+    local_port: int | None = ...,
     tls: Literal[False],
     ssl_context: ssl.SSLContext | None = ...,
     tls_standard_compatible: bool = ...,
@@ -128,7 +128,7 @@ async def connect_tcp(
     remote_port: int,
     *,
     local_host: IPAddressType | None = ...,
-    local_port: int = ...,
+    local_port: int | None = ...,
     happy_eyeballs_delay: float = ...,
 ) -> SocketStream: ...
 
@@ -138,7 +138,7 @@ async def connect_tcp(
     remote_port: int,
     *,
     local_host: IPAddressType | None = None,
-    local_port: int = 0,
+    local_port: int | None = None,
     tls: bool = False,
     ssl_context: ssl.SSLContext | None = None,
     tls_standard_compatible: bool = True,
@@ -204,7 +204,7 @@ async def connect_tcp(
     local_address: IPSockAddrType | None = None
     family = socket.AF_UNSPEC
     if local_host:
-        gai_res = await getaddrinfo(str(local_host), local_port or None)
+        gai_res = await getaddrinfo(str(local_host), local_port)
         family, *_, local_address = gai_res[0]
 
     target_host = str(remote_host)
