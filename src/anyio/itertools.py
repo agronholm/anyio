@@ -39,7 +39,8 @@ from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar, cast, overload
 
 from ._core._synchronization import Lock
-from .lowlevel import checkpoint
+from ._core._tasks import CancelScope
+from .lowlevel import cancel_shielded_checkpoint, checkpoint, checkpoint_if_cancelled
 
 T = TypeVar("T")
 R = TypeVar("R")
@@ -51,10 +52,15 @@ class _IterableAsyncIterator(AsyncIterator[T]):
     iterator: Iterator[T]
 
     async def __anext__(self) -> T:
+        await checkpoint_if_cancelled()
         try:
-            return next(self.iterator)
+            result = next(self.iterator)
         except StopIteration:
+            await cancel_shielded_checkpoint()
             raise StopAsyncIteration from None
+
+        await cancel_shielded_checkpoint()
+        return result
 
 
 def _iterate(iterable: Iterable[T] | AsyncIterable[T]) -> AsyncIterator[T]:
@@ -79,13 +85,13 @@ class _TeeState(Generic[T]):
     iterator: AsyncIterator[T]
     lock: Lock = field(default_factory=Lock)
 
-    async def fill(self, link: _TeeLink[T]) -> None:
+    async def fill(self, link: _TeeLink[T]) -> bool:
         if link.filled:
-            return
+            return False
 
         async with self.lock:
             if link.filled:
-                return
+                return True
 
             try:
                 link.value = await self.iterator.__anext__()
@@ -95,6 +101,7 @@ class _TeeState(Generic[T]):
                 link.next = _TeeLink()
 
             link.filled = True
+            return True
 
 
 class _TeeAsyncIterator(AsyncIterator[T]):
@@ -115,18 +122,24 @@ class _TeeAsyncIterator(AsyncIterator[T]):
         self._element_yielded = False
 
     async def __anext__(self) -> T:
-        await self._state.fill(self._link)
+        had_yieldpoint = await self._state.fill(self._link)
         if self._link.value is _tee_end:
             if not self._element_yielded:
                 await checkpoint()
 
             raise StopAsyncIteration
 
+        if not had_yieldpoint:
+            await checkpoint_if_cancelled()
+
         self._element_yielded = True
         value = cast(T, self._link.value)
         next_link = self._link.next
         assert next_link is not None
         self._link = next_link
+        if not had_yieldpoint:
+            await cancel_shielded_checkpoint()
+
         return value
 
 
@@ -148,7 +161,9 @@ async def accumulate(
             await checkpoint()
             return
     else:
+        await checkpoint_if_cancelled()
         total = initial
+        await cancel_shielded_checkpoint()
 
     yield total
 
@@ -195,11 +210,18 @@ class Chain:
         ),
     ) -> AsyncIterator[T]:
         element_yielded = False
+        outer_iter = _iterate(iterables)
 
-        async for iterable in _iterate(iterables):
-            async for element in _iterate(iterable):
-                element_yielded = True
-                yield element
+        try:
+            async for iterable in outer_iter:
+                async for element in _iterate(iterable):
+                    element_yielded = True
+                    yield element
+        finally:
+            aclose = getattr(outer_iter, "aclose", None)
+            if aclose is not None:
+                with CancelScope(shield=True):
+                    await aclose()
 
         if not element_yielded:
             await checkpoint()
@@ -212,12 +234,7 @@ async def combinations(
     iterable: Iterable[T] | AsyncIterable[T], r: int
 ) -> AsyncIterator[tuple[T, ...]]:
     pool: list[T] = [element async for element in _iterate(iterable)]
-
-    if r > len(pool):
-        await checkpoint()
-        return
-
-    for combination in itertools.combinations(pool, r):
+    async for combination in _iterate(itertools.combinations(pool, r)):
         yield combination
 
 
@@ -225,14 +242,8 @@ async def combinations_with_replacement(
     iterable: Iterable[T] | AsyncIterable[T], r: int
 ) -> AsyncIterator[tuple[T, ...]]:
     pool: list[T] = [element async for element in _iterate(iterable)]
-    tuple_yielded = False
-
-    for combination in itertools.combinations_with_replacement(pool, r):
-        tuple_yielded = True
+    async for combination in _iterate(itertools.combinations_with_replacement(pool, r)):
         yield combination
-
-    if not tuple_yielded:
-        await checkpoint()
 
 
 async def compress(
@@ -261,15 +272,18 @@ async def compress(
 async def count(start: int = 0, step: int = 1) -> AsyncIterator[int]:
     n = start
     while True:
-        yield n
+        await checkpoint_if_cancelled()
+        value = n
         n += step
+        await cancel_shielded_checkpoint()
+        yield value
 
 
 async def cycle(iterable: Iterable[T] | AsyncIterable[T]) -> AsyncIterator[T]:
     saved: list[T] = []
     async for element in _iterate(iterable):
-        yield element
         saved.append(element)
+        yield element
 
     if not saved:
         await checkpoint()
@@ -277,6 +291,7 @@ async def cycle(iterable: Iterable[T] | AsyncIterable[T]) -> AsyncIterator[T]:
 
     while True:
         for element in saved:
+            await checkpoint()
             yield element
 
 
@@ -344,9 +359,10 @@ async def groupby(
     async for element in iterator:
         next_key = element if key is None else await key(element)
         if next_key != group_key:
-            yield group_key, values
+            completed_group = group_key, values
             group_key = next_key
             values = [element]
+            yield completed_group
         else:
             values.append(element)
 
@@ -436,10 +452,11 @@ async def islice(
             return
 
         if index >= start and (index - start) % step == 0:
+            index += 1
             element_yielded = True
             yield element
-
-        index += 1
+        else:
+            index += 1
 
     if not element_yielded:
         await checkpoint()
@@ -458,8 +475,9 @@ async def pairwise(
     element_yielded = False
     async for element in iterator:
         element_yielded = True
-        yield previous, element
+        pair = (previous, element)
         previous = element
+        yield pair
 
     if not element_yielded:
         await checkpoint()
@@ -477,28 +495,8 @@ async def permutations(
     elif r < 0:
         raise ValueError("r must be non-negative")
 
-    if r > n:
-        await checkpoint()
-        return
-
-    indices = list(range(n))
-    cycles = list(range(n, n - r, -1))
-
-    yield tuple(pool[index] for index in indices[:r])
-
-    while n:
-        for i in reversed(range(r)):
-            cycles[i] -= 1
-            if cycles[i] == 0:
-                indices[i:] = indices[i + 1 :] + indices[i : i + 1]
-                cycles[i] = n - i
-            else:
-                j = cycles[i]
-                indices[i], indices[-j] = indices[-j], indices[i]
-                yield tuple(pool[index] for index in indices[:r])
-                break
-        else:
-            return
+    async for permutation in _iterate(itertools.permutations(pool, r)):
+        yield permutation
 
 
 async def product(
@@ -513,18 +511,14 @@ async def product(
         pool: list[T] = [element async for element in _iterate(iterable)]
         pools.append(tuple(pool))
 
-    tuple_yielded = False
-    for value in itertools.product(*pools, repeat=repeat):
-        tuple_yielded = True
+    async for value in _iterate(itertools.product(*pools, repeat=repeat)):
         yield value
-
-    if not tuple_yielded:
-        await checkpoint()
 
 
 async def repeat(element: T, times: int | None = None) -> AsyncIterator[T]:
     if times is None:
         while True:
+            await checkpoint()
             yield element
 
     remaining = operator.index(cast(Any, times))
@@ -533,8 +527,10 @@ async def repeat(element: T, times: int | None = None) -> AsyncIterator[T]:
         return
 
     while remaining > 0:
-        yield element
+        await checkpoint_if_cancelled()
         remaining -= 1
+        await cancel_shielded_checkpoint()
+        yield element
 
 
 async def starmap(

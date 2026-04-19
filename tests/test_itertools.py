@@ -11,7 +11,7 @@ from typing import Any, TypeVar, cast
 
 import pytest
 
-from anyio import CancelScope, get_cancelled_exc_class
+from anyio import CancelScope, create_task_group, get_cancelled_exc_class
 from anyio.itertools import (
     accumulate,
     batched,
@@ -34,7 +34,11 @@ from anyio.itertools import (
     tee,
     zip_longest,
 )
-from anyio.lowlevel import checkpoint
+from anyio.lowlevel import (
+    cancel_shielded_checkpoint,
+    checkpoint,
+    checkpoint_if_cancelled,
+)
 
 T = TypeVar("T")
 
@@ -51,10 +55,15 @@ class AIter(AsyncIterator[T]):
         return self
 
     async def __anext__(self) -> T:
+        await checkpoint_if_cancelled()
         try:
-            return next(self._iterator)
+            value = next(self._iterator)
         except StopIteration:
+            await cancel_shielded_checkpoint()
             raise StopAsyncIteration from None
+
+        await cancel_shielded_checkpoint()
+        return value
 
 
 def aiter_from(iterable: Iterable[T]) -> AsyncIterator[T]:
@@ -66,6 +75,30 @@ async def assert_cancelled_on_first_next(iterator: AsyncIterator[Any]) -> None:
         cs.cancel()
         with pytest.raises(get_cancelled_exc_class()):
             await anext(iterator)
+
+
+async def assert_checkpoints_on_first_next(iterator: AsyncIterator[Any]) -> None:
+    finished = second_finished = False
+
+    async def second_func() -> None:
+        nonlocal second_finished
+        assert not finished
+        second_finished = True
+
+    async with create_task_group() as tg:
+
+        async def func() -> None:
+            nonlocal finished
+            tg.start_soon(second_func)
+            with pytest.raises(StopAsyncIteration):
+                await anext(iterator)
+
+            finished = True
+
+        tg.start_soon(func)
+
+    assert finished
+    assert second_finished
 
 
 class TestAccumulate:
@@ -104,6 +137,14 @@ class TestAccumulate:
     async def test_checkpoints_empty_inputs(self) -> None:
         iterator: AsyncIterator[int]
         for iterator in (accumulate([]), accumulate(aiter_from([]))):
+            await assert_cancelled_on_first_next(iterator)
+
+    async def test_checkpoints_initial_value(self) -> None:
+        iterator: AsyncIterator[int]
+        for iterator in (
+            accumulate([], initial=1),
+            accumulate(aiter_from([]), initial=1),
+        ):
             await assert_cancelled_on_first_next(iterator)
 
 
@@ -253,6 +294,14 @@ class TestCombinations:
     async def test_checkpoints_empty_result(self) -> None:
         await assert_cancelled_on_first_next(combinations([], 1))
 
+    async def test_checkpoints_r_greater_than_pool(self) -> None:
+        await assert_checkpoints_on_first_next(combinations([1, 2], 3))
+
+    async def test_checkpoints_after_first_result(self) -> None:
+        iterator = combinations([0, 1, 2], 2)
+        assert await anext(iterator) == (0, 1)
+        await assert_cancelled_on_first_next(iterator)
+
 
 class TestCombinationsWithReplacement:
     async def test_basic_cases(self) -> None:
@@ -303,6 +352,14 @@ class TestCombinationsWithReplacement:
         ):
             await assert_cancelled_on_first_next(iterator)
 
+    async def test_checkpoints_empty_result(self) -> None:
+        await assert_checkpoints_on_first_next(combinations_with_replacement([], 1))
+
+    async def test_checkpoints_after_first_result(self) -> None:
+        iterator = combinations_with_replacement([0, 1, 2], 2)
+        assert await anext(iterator) == (0, 0)
+        await assert_cancelled_on_first_next(iterator)
+
 
 class TestCompress:
     async def test_basic_cases(self) -> None:
@@ -335,6 +392,13 @@ class TestCount:
             assert await anext(iterator) == 0
             assert await anext(iterator) == 1
             assert await anext(iterator) == 2
+        finally:
+            await iterator.aclose()
+
+    async def test_checkpoints(self) -> None:
+        iterator = cast(AsyncGenerator[int, None], count())
+        try:
+            await assert_cancelled_on_first_next(iterator)
         finally:
             await iterator.aclose()
 
@@ -372,6 +436,14 @@ class TestCycle:
         iterator: AsyncIterator[int]
         for iterator in (cycle([]), cycle(aiter_from([]))):
             await assert_cancelled_on_first_next(iterator)
+
+    async def test_checkpoints_replay(self) -> None:
+        iterator = cast(AsyncGenerator[int, None], cycle([1]))
+        try:
+            assert await anext(iterator) == 1
+            await assert_cancelled_on_first_next(iterator)
+        finally:
+            await iterator.aclose()
 
 
 class TestDropwhile:
@@ -664,6 +736,14 @@ class TestPermutations:
     async def test_checkpoints_empty_result(self) -> None:
         await assert_cancelled_on_first_next(permutations("AB", 3))
 
+    async def test_checkpoints_r_greater_than_pool(self) -> None:
+        await assert_checkpoints_on_first_next(permutations("AB", 3))
+
+    async def test_checkpoints_after_first_result(self) -> None:
+        iterator = permutations("ABC", 2)
+        assert await anext(iterator) == ("A", "B")
+        await assert_cancelled_on_first_next(iterator)
+
     async def test_custom_start_and_step(self) -> None:
         iterator = cast(AsyncGenerator[int, None], count(10, -3))
         try:
@@ -714,6 +794,14 @@ class TestProduct:
     async def test_checkpoints_empty_result(self) -> None:
         await assert_cancelled_on_first_next(product([], "ab"))
 
+    async def test_checkpoints_empty_result_non_cancelled(self) -> None:
+        await assert_checkpoints_on_first_next(product([], "ab"))
+
+    async def test_checkpoints_after_first_result(self) -> None:
+        iterator = product("AB", "xy")
+        assert await anext(iterator) == ("A", "x")
+        await assert_cancelled_on_first_next(iterator)
+
 
 class TestRepeat:
     async def test_infinite(self) -> None:
@@ -722,6 +810,13 @@ class TestRepeat:
             assert await anext(iterator) == "x"
             assert await anext(iterator) == "x"
             assert await anext(iterator) == "x"
+        finally:
+            await iterator.aclose()
+
+    async def test_checkpoints(self) -> None:
+        iterator = cast(AsyncGenerator[str, None], repeat("x"))
+        try:
+            await assert_cancelled_on_first_next(iterator)
         finally:
             await iterator.aclose()
 
@@ -885,6 +980,11 @@ class TestTee:
         iterator: AsyncIterator[int]
         (iterator,) = tee(cast(list[int], []), 1)
         await assert_cancelled_on_first_next(iterator)
+
+    async def test_checkpoints_buffered_replay(self) -> None:
+        iterator1, iterator2 = tee([1])
+        assert await anext(iterator1) == 1
+        await assert_cancelled_on_first_next(iterator2)
 
 
 class TestZipLongest:
