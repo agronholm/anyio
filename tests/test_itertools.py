@@ -387,7 +387,7 @@ class TestCompress:
 
 class TestCount:
     async def test_defaults(self) -> None:
-        iterator = cast(AsyncGenerator[int, None], count())
+        iterator = count()
         try:
             assert await anext(iterator) == 0
             assert await anext(iterator) == 1
@@ -396,7 +396,7 @@ class TestCount:
             await iterator.aclose()
 
     async def test_checkpoints(self) -> None:
-        iterator = cast(AsyncGenerator[int, None], count())
+        iterator = count()
         try:
             await assert_cancelled_on_first_next(iterator)
         finally:
@@ -745,7 +745,7 @@ class TestPermutations:
         await assert_cancelled_on_first_next(iterator)
 
     async def test_custom_start_and_step(self) -> None:
-        iterator = cast(AsyncGenerator[int, None], count(10, -3))
+        iterator = count(10, -3)
         try:
             assert await anext(iterator) == 10
             assert await anext(iterator) == 7

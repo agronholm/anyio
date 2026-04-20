@@ -93,11 +93,8 @@ class _TeeState(Generic[T]):
             if link.filled:
                 return True
 
-            try:
-                link.value = await self.iterator.__anext__()
-            except StopAsyncIteration:
-                link.value = _tee_end
-            else:
+            link.value = await anext(self.iterator, _tee_end)
+            if link.value is not _tee_end:
                 link.next = _TeeLink()
 
             link.filled = True
@@ -152,11 +149,11 @@ async def accumulate(
     function: Callable[[T, T], Awaitable[T]] = _operator_add,
     *,
     initial: T | None = None,
-) -> AsyncIterator[T]:
+) -> AsyncGenerator[T, None]:
     iterator = _iterate(iterable)
     if initial is None:
         try:
-            total = await iterator.__anext__()
+            total = await anext(iterator)
         except StopAsyncIteration:
             await checkpoint()
             return
@@ -174,7 +171,7 @@ async def accumulate(
 
 async def batched(
     iterable: Iterable[T] | AsyncIterable[T], n: int, *, strict: bool = False
-) -> AsyncIterator[tuple[T, ...]]:
+) -> AsyncGenerator[tuple[T, ...], None]:
     if n < 1:
         raise ValueError("n must be at least one")
 
@@ -184,7 +181,7 @@ async def batched(
         batch: list[T] = []
         for _ in range(n):
             try:
-                batch.append(await iterator.__anext__())
+                batch.append(await anext(iterator))
             except StopAsyncIteration:
                 if not batch:
                     await checkpoint()
@@ -199,7 +196,9 @@ async def batched(
 
 
 class Chain:
-    def __call__(self, *iterables: Iterable[T] | AsyncIterable[T]) -> AsyncIterator[T]:
+    def __call__(
+        self, *iterables: Iterable[T] | AsyncIterable[T]
+    ) -> AsyncGenerator[T, None]:
         return self.from_iterable(iterables)
 
     async def from_iterable(
@@ -208,7 +207,7 @@ class Chain:
             Iterable[Iterable[T] | AsyncIterable[T]]
             | AsyncIterable[Iterable[T] | AsyncIterable[T]]
         ),
-    ) -> AsyncIterator[T]:
+    ) -> AsyncGenerator[T, None]:
         element_yielded = False
         outer_iter = _iterate(iterables)
 
@@ -232,7 +231,7 @@ chain: Chain = Chain()
 
 async def combinations(
     iterable: Iterable[T] | AsyncIterable[T], r: int
-) -> AsyncIterator[tuple[T, ...]]:
+) -> AsyncGenerator[tuple[T, ...], None]:
     pool: list[T] = [element async for element in _iterate(iterable)]
     async for combination in _iterate(itertools.combinations(pool, r)):
         yield combination
@@ -240,7 +239,7 @@ async def combinations(
 
 async def combinations_with_replacement(
     iterable: Iterable[T] | AsyncIterable[T], r: int
-) -> AsyncIterator[tuple[T, ...]]:
+) -> AsyncGenerator[tuple[T, ...], None]:
     pool: list[T] = [element async for element in _iterate(iterable)]
     async for combination in _iterate(itertools.combinations_with_replacement(pool, r)):
         yield combination
@@ -249,15 +248,15 @@ async def combinations_with_replacement(
 async def compress(
     data: Iterable[T] | AsyncIterable[T],
     selectors: Iterable[object] | AsyncIterable[object],
-) -> AsyncIterator[T]:
+) -> AsyncGenerator[T, None]:
     data_iterator = _iterate(data)
     selector_iterator = _iterate(selectors)
     element_yielded = False
 
     while True:
         try:
-            datum = await data_iterator.__anext__()
-            selector = await selector_iterator.__anext__()
+            datum = await anext(data_iterator)
+            selector = await anext(selector_iterator)
         except StopAsyncIteration:
             if not element_yielded:
                 await checkpoint()
@@ -269,7 +268,7 @@ async def compress(
             yield datum
 
 
-async def count(start: int = 0, step: int = 1) -> AsyncIterator[int]:
+async def count(start: int = 0, step: int = 1) -> AsyncGenerator[int, None]:
     n = start
     while True:
         await checkpoint_if_cancelled()
@@ -279,7 +278,9 @@ async def count(start: int = 0, step: int = 1) -> AsyncIterator[int]:
         yield value
 
 
-async def cycle(iterable: Iterable[T] | AsyncIterable[T]) -> AsyncIterator[T]:
+async def cycle(
+    iterable: Iterable[T] | AsyncIterable[T],
+) -> AsyncGenerator[T, None]:
     saved: list[T] = []
     async for element in _iterate(iterable):
         saved.append(element)
@@ -298,7 +299,7 @@ async def cycle(iterable: Iterable[T] | AsyncIterable[T]) -> AsyncIterator[T]:
 async def dropwhile(
     predicate: Callable[[T], Awaitable[object]],
     iterable: Iterable[T] | AsyncIterable[T],
-) -> AsyncIterator[T]:
+) -> AsyncGenerator[T, None]:
     element_yielded = False
     dropping = True
 
@@ -317,7 +318,7 @@ async def dropwhile(
 async def filterfalse(
     predicate: Callable[[T], Awaitable[object]],
     iterable: Iterable[T] | AsyncIterable[T],
-) -> AsyncIterator[T]:
+) -> AsyncGenerator[T, None]:
     element_yielded = False
 
     async for element in _iterate(iterable):
@@ -332,23 +333,23 @@ async def filterfalse(
 @overload
 def groupby(
     iterable: Iterable[T] | AsyncIterable[T],
-) -> AsyncIterator[tuple[T, list[T]]]: ...
+) -> AsyncGenerator[tuple[T, list[T]], None]: ...
 
 
 @overload
 def groupby(
     iterable: Iterable[T] | AsyncIterable[T],
     key: Callable[[T], Awaitable[R]],
-) -> AsyncIterator[tuple[R, list[T]]]: ...
+) -> AsyncGenerator[tuple[R, list[T]], None]: ...
 
 
 async def groupby(
     iterable: Iterable[T] | AsyncIterable[T],
     key: Callable[[T], Awaitable[object]] | None = None,
-) -> AsyncIterator[tuple[object, list[T]]]:
+) -> AsyncGenerator[tuple[object, list[T]], None]:
     iterator = _iterate(iterable)
     try:
-        element = await iterator.__anext__()
+        element = await anext(iterator)
     except StopAsyncIteration:
         await checkpoint()
         return
@@ -374,7 +375,7 @@ def islice(
     iterable: Iterable[T] | AsyncIterable[T],
     stop: int | None,
     /,
-) -> AsyncIterator[T]: ...
+) -> AsyncGenerator[T, None]: ...
 
 
 @overload
@@ -384,13 +385,13 @@ def islice(
     stop: int | None,
     step: int | None = 1,
     /,
-) -> AsyncIterator[T]: ...
+) -> AsyncGenerator[T, None]: ...
 
 
 async def islice(
     iterable: Iterable[T] | AsyncIterable[T],
     *args: int | None,
-) -> AsyncIterator[T]:
+) -> AsyncGenerator[T, None]:
     if not args:
         raise TypeError("islice expected at least 2 arguments, got 1")
     if len(args) > 3:
@@ -444,7 +445,7 @@ async def islice(
 
     while stop is None or index < stop:
         try:
-            element = await iterator.__anext__()
+            element = await anext(iterator)
         except StopAsyncIteration:
             if not element_yielded:
                 await checkpoint()
@@ -464,10 +465,10 @@ async def islice(
 
 async def pairwise(
     iterable: Iterable[T] | AsyncIterable[T],
-) -> AsyncIterator[tuple[T, T]]:
+) -> AsyncGenerator[tuple[T, T], None]:
     iterator = _iterate(iterable)
     try:
-        previous = await iterator.__anext__()
+        previous = await anext(iterator)
     except StopAsyncIteration:
         await checkpoint()
         return
@@ -485,7 +486,7 @@ async def pairwise(
 
 async def permutations(
     iterable: Iterable[T] | AsyncIterable[T], r: int | None = None
-) -> AsyncIterator[tuple[T, ...]]:
+) -> AsyncGenerator[tuple[T, ...], None]:
     pool: list[T] = [element async for element in _iterate(iterable)]
     n = len(pool)
     if r is None:
@@ -515,7 +516,7 @@ async def product(
         yield value
 
 
-async def repeat(element: T, times: int | None = None) -> AsyncIterator[T]:
+async def repeat(element: T, times: int | None = None) -> AsyncGenerator[T, None]:
     if times is None:
         while True:
             await checkpoint()
@@ -539,7 +540,7 @@ async def starmap(
         Iterable[Iterable[object] | AsyncIterable[object]]
         | AsyncIterable[Iterable[object] | AsyncIterable[object]]
     ),
-) -> AsyncIterator[R]:
+) -> AsyncGenerator[R, None]:
     result_yielded = False
 
     async for args_iterable in _iterate(iterable):
@@ -569,7 +570,7 @@ def tee(
 async def takewhile(
     predicate: Callable[[T], Awaitable[object]],
     iterable: Iterable[T] | AsyncIterable[T],
-) -> AsyncIterator[T]:
+) -> AsyncGenerator[T, None]:
     element_yielded = False
 
     async for element in _iterate(iterable):
@@ -589,7 +590,7 @@ async def takewhile(
 async def zip_longest(
     *iterables: Iterable[object] | AsyncIterable[object],
     fillvalue: object = None,
-) -> AsyncIterator[tuple[object, ...]]:
+) -> AsyncGenerator[tuple[object, ...], None]:
     iterators = [_iterate(iterable) for iterable in iterables]
     num_active = len(iterators)
     if not num_active:
@@ -607,7 +608,7 @@ async def zip_longest(
                 continue
 
             try:
-                value = await iterator.__anext__()
+                value = await anext(iterator)
             except StopAsyncIteration:
                 active[index] = False
                 num_active -= 1
