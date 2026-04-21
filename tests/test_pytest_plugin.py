@@ -484,12 +484,10 @@ def test_keyboard_interrupt_does_not_resume_test(testdir: Pytester) -> None:
     # Regression test for #1060
     testdir.makepyfile(
         """
-        import os
-        import signal
         import anyio
         import asyncio
         import pytest
-        import threading
+        import signal
 
         @pytest.fixture
         def anyio_backend():
@@ -502,7 +500,7 @@ def test_keyboard_interrupt_does_not_resume_test(testdir: Pytester) -> None:
         @pytest.mark.anyio
         async def test_keyboard_interrupt(myfixture):
             loop = asyncio.get_running_loop()
-            loop.call_later(0.1, signal.raise_signal, signal.SIGINT)
+            loop.call_soon(signal.raise_signal, signal.SIGINT)
             await anyio.sleep(3600)
             print("RESUMED_AFTER_INTERRUPT")
         """
