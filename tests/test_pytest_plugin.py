@@ -487,6 +487,7 @@ def test_keyboard_interrupt_does_not_resume_test(testdir: Pytester) -> None:
         import os
         import signal
         import anyio
+        import asyncio
         import pytest
         import threading
 
@@ -500,15 +501,15 @@ def test_keyboard_interrupt_does_not_resume_test(testdir: Pytester) -> None:
 
         @pytest.mark.anyio
         async def test_keyboard_interrupt(myfixture):
-            # using a thread timer, the signal(Ctrl-C) fires after the coroutine has
-            # suspended
-            threading.Timer(0.1, lambda: os.kill(os.getpid(), signal.SIGINT)).start()
+            loop = asyncio.get_running_loop()
+            loop.call_later(0.1, signal.raise_signal, signal.SIGINT)
             await anyio.sleep(3600)
             print("RESUMED_AFTER_INTERRUPT")
         """
     )
 
     result = testdir.runpytest_subprocess(*pytest_args, timeout=5)
+    assert result.ret == 2
     assert "RESUMED_AFTER_INTERRUPT" not in result.stdout.str()
     assert "KeyboardInterrupt" in result.stdout.str()
 
