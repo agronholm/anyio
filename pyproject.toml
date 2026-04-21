@@ -52,6 +52,7 @@ test = [
     "psutil >= 5.9",
     "pytest >= 8.4",
     "pytest-mock >= 3.14",
+    "pytest-timeout >= 2.4.0",
     "trustme >= 1.0.0",
     "truststore >= 0.9.1",
     """\
@@ -110,9 +111,13 @@ warn_return_any = false
 files = ["src", "tests"]
 
 [tool.pytest.ini_options]
-addopts = "-rsfE --tb=short --strict-config --strict-markers -p anyio -p pytest_mock -p no:asyncio -p no:trio"
+addopts = """\
+  -rsfE --tb=short --strict-config --strict-markers -p anyio -p pytest_mock \
+  -p timeout -p no:asyncio -p no:trio \
+  """
 testpaths = ["tests"]
 anyio_mode = "auto"
+timeout = 20
 xfail_strict = true
 filterwarnings = [
     "error",
