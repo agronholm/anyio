@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import socket
+import sys
 from collections.abc import Sequence
 
 import pytest
@@ -476,6 +477,9 @@ def test_keyboardinterrupt_during_test(
     testdir.runpytest_subprocess(*pytest_args, timeout=3)
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="SIGINT behavior differs on Windows"
+)
 def test_keyboard_interrupt_does_not_resume_test(testdir: Pytester) -> None:
     # Regression test for #1060
     testdir.makepyfile(
