@@ -476,6 +476,39 @@ def test_keyboardinterrupt_during_test(
     testdir.runpytest_subprocess(*pytest_args, timeout=3)
 
 
+def test_keyboard_interrupt_does_not_resume_test(testdir: Pytester) -> None:
+    # Regression test for #1060
+    testdir.makepyfile(
+        """
+        import os
+        import signal
+        import anyio
+        import pytest
+        import threading
+
+        @pytest.fixture
+        def anyio_backend():
+            return "asyncio"
+
+        @pytest.fixture
+        async def myfixture():
+            yield
+
+        @pytest.mark.anyio
+        async def test_keyboard_interrupt(myfixture):
+            # using a thread timer, the signal(Ctrl-C) fires after the coroutine has
+            # suspended
+            threading.Timer(0.1, lambda: os.kill(os.getpid(), signal.SIGINT)).start()
+            await anyio.sleep(3600)
+            print("RESUMED_AFTER_INTERRUPT")
+        """
+    )
+
+    result = testdir.runpytest_subprocess(*pytest_args, timeout=5)
+    assert "RESUMED_AFTER_INTERRUPT" not in result.stdout.str()
+    assert "KeyboardInterrupt" in result.stdout.str()
+
+
 def test_async_fixture_in_test_class(testdir: Pytester) -> None:
     # Regression test for #633
     testdir.makepyfile(
