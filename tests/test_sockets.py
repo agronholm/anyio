@@ -531,7 +531,9 @@ class TestTCPStream:
         self, server_addr: tuple[str, int], max_bytes: int
     ) -> None:
         async with await connect_tcp(*server_addr) as stream:
-            with pytest.raises(ValueError, match="max_bytes must be a positive integer"):
+            with pytest.raises(
+                ValueError, match="max_bytes must be a positive integer"
+            ):
                 await stream.receive(max_bytes)
 
     async def test_send_after_close(self, server_addr: tuple[str, int]) -> None:
