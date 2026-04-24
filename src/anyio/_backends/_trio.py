@@ -388,6 +388,9 @@ class SocketStream(_TrioSocketMixin, abc.SocketStream):
         self._send_guard = ResourceGuard("writing to")
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be a positive integer")
+
         with self._receive_guard:
             try:
                 data = await self._trio_socket.recv(max_bytes)
