@@ -227,6 +227,7 @@ def pytest_collection_finish(session: pytest.Session) -> None:
 @pytest.hookimpl(tryfirst=True)
 def pytest_pyfunc_call(pyfuncitem: Any) -> bool | None:
     def run_with_hypothesis(**kwargs: Any) -> None:
+        kwargs.pop("self", None)
         with get_runner(backend_name, backend_options) as runner:
             runner.run_test(original_func, kwargs)
 
