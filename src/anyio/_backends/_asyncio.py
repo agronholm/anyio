@@ -729,10 +729,32 @@ class _AsyncioTaskStatus(abc.TaskStatus):
         _task_states[task].parent_id = self._parent_id
 
 
-if sys.version_info >= (3, 12):
-    _eager_task_factory_code: CodeType | None = asyncio.eager_task_factory.__code__
+if sys.version_info >= (3, 14):
+    _eager_task_factory_code: CodeType | None = None
+
+    def _create_task(*, coro: Coroutine[Any, Any, Any], name: str) -> asyncio.Task:
+        return create_task(coro, name=name, eager_start=False)
+
+elif sys.version_info >= (3, 12):
+    _eager_task_factory_code = asyncio.eager_task_factory.__code__
+
+    def _create_task(*, coro: Coroutine[Any, Any, Any], name: str) -> asyncio.Task:
+        loop = asyncio.get_running_loop()
+        if (
+            (factory := loop.get_task_factory())
+            and getattr(factory, "__code__", None) is _eager_task_factory_code
+            and (closure := getattr(factory, "__closure__", None))
+        ):
+            custom_task_constructor = closure[0].cell_contents
+            return custom_task_constructor(coro, loop=loop, name=name)
+        else:
+            return create_task(coro, name=name)
+
 else:
     _eager_task_factory_code = None
+
+    def _create_task(*, coro: Coroutine[Any, Any, Any], name: str) -> asyncio.Task:
+        return create_task(coro, name=name)
 
 
 class TaskGroup(abc.TaskGroup):
@@ -891,16 +913,7 @@ class TaskGroup(abc.TaskGroup):
             )
 
         name = get_callable_name(func) if name is None else str(name)
-        loop = asyncio.get_running_loop()
-        if (
-            (factory := loop.get_task_factory())
-            and getattr(factory, "__code__", None) is _eager_task_factory_code
-            and (closure := getattr(factory, "__closure__", None))
-        ):
-            custom_task_constructor = closure[0].cell_contents
-            task = custom_task_constructor(coro, loop=loop, name=name)
-        else:
-            task = create_task(coro, name=name)
+        task = _create_task(coro=coro, name=name)
 
         # Make the spawned task inherit the task group's cancel scope
         _task_states[task] = TaskState(
