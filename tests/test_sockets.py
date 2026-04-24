@@ -2471,6 +2471,9 @@ async def test_getaddrinfo_ipv6_disabled() -> None:
 
 
 async def test_getnameinfo() -> None:
+    if os.getenv("GITHUB_ACTIONS") and platform.system() == "Darwin":
+        pytest.skip("macOS GitHub Actions runner has broken getnameinfo")
+
     expected_result = socket.getnameinfo(("127.0.0.1", 6666), 0)
     result = await getnameinfo(("127.0.0.1", 6666))
     assert result == expected_result
