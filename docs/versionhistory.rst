@@ -23,6 +23,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#1109 <https://github.com/agronholm/anyio/issues/1109>`_; PR by @bahtya)
 - Fixed lost type information when passing arguments to ``lru_cache``
   (`#1104 <https://github.com/agronholm/anyio/pull/1104>`_; PR by @Graeme22)
+- Used ``eager_start=False`` on Python 3.14+ in the asyncio backend instead of
+  inspecting the task factory's ``__code__`` and ``__closure__``
+  (`#1125 <https://github.com/agronholm/anyio/issues/1125>`_; PR by @graingert)
 
 **4.13.0**
 
