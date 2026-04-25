@@ -25,7 +25,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#1104 <https://github.com/agronholm/anyio/pull/1104>`_; PR by @Graeme22)
 - Improve ``create_tcp_listener`` in case when rotation of the address list is needed,
   and some other minor code refactorings
-  (`#`_; PR by @albertedwardson)
+  (`#1127 <https://github.com/agronholm/anyio/pull/1127>`_; PR by @albertedwardson)
 
 **4.13.0**
 
