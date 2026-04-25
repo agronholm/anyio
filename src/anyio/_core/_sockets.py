@@ -6,6 +6,7 @@ import socket
 import ssl
 import stat
 import sys
+from collections import deque
 from collections.abc import Awaitable
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address, ip_address
@@ -342,7 +343,7 @@ async def create_tcp_listener(
 
             # Workaround for #554
             if fam == socket.AF_INET6 and "%" in bind_addr[0]:
-                addr, scope_id = bind_addr[0].split("%", 1)
+                addr, _, scope_id = bind_addr[0].partition("%")
                 bind_addr = (addr, bind_addr[1], 0, int(scope_id))
 
             sock.bind(bind_addr)
@@ -365,9 +366,11 @@ async def create_tcp_listener(
         flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
     )
 
-    # The set comprehension is here to work around a glibc bug:
+    # Workaround for a glibc bug:
     # https://sourceware.org/bugzilla/show_bug.cgi?id=14969
-    sockaddrs = sorted({res for res in gai_res if res[1] == SocketKind.SOCK_STREAM})
+    sockaddrs = deque(
+        {res: None for res in gai_res if res[1] == SocketKind.SOCK_STREAM}
+    )
 
     # Special case for dual-stack binding on the "any" interface
     if (
@@ -411,7 +414,7 @@ async def create_tcp_listener(
                     and bound_ephemeral_port
                 ):
                     errors.append(exc)
-                    sockaddrs.append(sockaddrs.pop(0))
+                    sockaddrs.append(sockaddrs.popleft())
                     continue
 
                 raise
@@ -843,7 +846,7 @@ def convert_ipv6_sockaddr(
             # PyPy (as of v7.3.11) leaves the interface name in the result, so
             # we discard it and only get the scope ID from the end
             # (https://foss.heptapod.net/pypy/pypy/-/issues/3938)
-            host = host.split("%")[0]
+            host = host.partition("%")[0]
 
             # Add scope_id to the address
             return f"{host}%{scope_id}", port
@@ -879,12 +882,12 @@ async def setup_unix_local_socket(
             try:
                 stat_result = os.stat(path)
             except OSError as e:
-                if e.errno not in (
+                if e.errno not in {
                     errno.ENOENT,
                     errno.ENOTDIR,
                     errno.EBADF,
                     errno.ELOOP,
-                ):
+                }:
                     raise
             else:
                 if stat.S_ISSOCK(stat_result.st_mode):

@@ -65,7 +65,7 @@ def _validate_socket(
 
         if require_bound:
             try:
-                if sock.family in (socket.AF_INET, socket.AF_INET6):
+                if sock.family in {socket.AF_INET, socket.AF_INET6}:
                     bound_addr = sock.getsockname()[1]
                 else:
                     bound_addr = sock.getsockname()
@@ -159,7 +159,7 @@ class _SocketProvider(TypedAttributeProvider):
             attributes[SocketAttribute.remote_address] = lambda: peername
 
         # Provide local and remote ports for IP based sockets
-        if self._raw_socket.family in (AddressFamily.AF_INET, AddressFamily.AF_INET6):
+        if self._raw_socket.family in {AddressFamily.AF_INET, AddressFamily.AF_INET6}:
             attributes[SocketAttribute.local_port] = lambda: (
                 self._raw_socket.getsockname()[1]
             )

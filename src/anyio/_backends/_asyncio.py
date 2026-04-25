@@ -313,8 +313,7 @@ def find_root_task() -> asyncio.Task:
     # Look for a task that has been started via run_until_complete()
     for task in all_tasks():
         if task._callbacks and not task.done():
-            callbacks = [cb for cb, context in task._callbacks]
-            for cb in callbacks:
+            for cb, _ in task._callbacks:
                 if (
                     cb is _run_until_complete_cb
                     or getattr(cb, "__module__", None) == "uvloop.loop"
@@ -356,7 +355,7 @@ def _task_started(task: asyncio.Task) -> bool:
     coro = task.get_coro()
     assert coro is not None
     try:
-        return getcoroutinestate(coro) in (CORO_RUNNING, CORO_SUSPENDED)
+        return getcoroutinestate(coro) in {CORO_RUNNING, CORO_SUSPENDED}
     except AttributeError:
         # task coro is async_genenerator_asend https://bugs.python.org/issue37771
         raise Exception(f"Cannot determine if task {task} has started or not") from None

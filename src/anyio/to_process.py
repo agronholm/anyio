@@ -70,8 +70,8 @@ async def run_sync(  # type: ignore[return]
         try:
             await stdin.send(pickled_cmd)
             response = await buffered.receive_until(b"\n", 50)
-            status, length = response.split(b" ")
-            if status not in (b"RETURN", b"EXCEPTION"):
+            status, _, length = response.partition(b" ")
+            if status not in {b"RETURN", b"EXCEPTION"}:
                 raise RuntimeError(
                     f"Worker process returned unexpected response: {response!r}"
                 )
