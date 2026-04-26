@@ -17,7 +17,7 @@ AnyIO is a high-level asynchronous concurrency and networking library for Python
 - Follow the existing code style — the project enforces it via Ruff (see `[tool.ruff]` in `pyproject.toml`).
 - Import order is managed by Ruff's isort integration; always add `from __future__ import annotations` as the first import.
 - Target Python 3.10+ idioms (use `X | Y` union syntax in annotations, etc.).
-- Always add a blank line after a control block ends and there is more code to follow. Do not add blank lines between related parts of the same control block (e.g. `if...elif...else`).
+- Always add a blank line after a control block ends, and there is more code to follow. Do not add blank lines between related parts of the same control block (e.g. `if...elif...else`).
 
 ## Pull Request Guidelines
 
