@@ -180,6 +180,23 @@ class TestPath:
         assert result.limiter is limiter
         assert result == pathlib.Path("/foo/bar")
 
+    async def test_rtruediv_preserve_subclass(
+        self, limiter: CapacityLimiter | None
+    ) -> None:
+        """
+        Test for #1130:
+        Ensure that __rtruediv__ preserves the subclass type when called on a Path subclass.
+
+        """
+
+        class SomeClass(Path):
+            pass
+
+        result = "/foo" / SomeClass("bar", limiter=limiter)
+        assert isinstance(result, SomeClass)
+        assert result.limiter is limiter
+        assert result == pathlib.Path("/foo/bar")
+
     def test_parts_property(self) -> None:
         assert Path("/abc/xyz/foo.txt").parts == (os.path.sep, "abc", "xyz", "foo.txt")
 

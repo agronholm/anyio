@@ -408,8 +408,8 @@ class Path:
     def __truediv__(self, other: str | PathLike[str]) -> Self:
         return type(self)(self._path / other, limiter=self._limiter)
 
-    def __rtruediv__(self, other: str | PathLike[str]) -> Path:
-        return Path(other, limiter=self._limiter) / self
+    def __rtruediv__(self, other: str | PathLike[str]) -> Self:
+        return type(self)(other, limiter=self._limiter) / self
 
     @property
     def limiter(self) -> CapacityLimiter | None:
