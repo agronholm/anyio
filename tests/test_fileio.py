@@ -163,7 +163,6 @@ class TestPath:
         """
         Test for #1130:
         Ensure that __truediv__ preserves the subclass type when called on a Path subclass.
-
         """
 
         class SomeClass(Path):
@@ -186,7 +185,6 @@ class TestPath:
         """
         Test for #1130:
         Ensure that __rtruediv__ preserves the subclass type when called on a Path subclass.
-
         """
 
         class SomeClass(Path):
