@@ -157,6 +157,23 @@ class TestPath:
         assert result.limiter is limiter
         assert result == pathlib.Path("/foo/bar")
 
+    async def test_truediv_preserve_subclass(
+        self, limiter: CapacityLimiter | None
+    ) -> None:
+        """
+        Test for #1130:
+        Ensure that __truediv__ preserves the subclass type when called on a Path subclass.
+
+        """
+
+        class SomeClass(Path):
+            pass
+
+        result = SomeClass("/foo", limiter=limiter) / "bar"
+        assert isinstance(result, SomeClass)
+        assert result.limiter is limiter
+        assert result == pathlib.Path("/foo/bar")
+
     async def test_rtruediv(self, limiter: CapacityLimiter | None) -> None:
         result = "/foo" / Path("bar", limiter=limiter)
         assert isinstance(result, Path)

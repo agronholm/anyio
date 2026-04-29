@@ -28,6 +28,11 @@ from .. import to_thread
 from ..abc import AsyncResource
 from ._synchronization import CapacityLimiter
 
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
+
 if sys.version_info >= (3, 14):
     from pathlib.types import PathInfo
 
@@ -400,8 +405,8 @@ class Path:
         target = other._path if isinstance(other, Path) else other
         return self._path.__ge__(target)
 
-    def __truediv__(self, other: str | PathLike[str]) -> Path:
-        return Path(self._path / other, limiter=self._limiter)
+    def __truediv__(self, other: str | PathLike[str]) -> Self:
+        return type(self)(self._path / other, limiter=self._limiter)
 
     def __rtruediv__(self, other: str | PathLike[str]) -> Path:
         return Path(other, limiter=self._limiter) / self
