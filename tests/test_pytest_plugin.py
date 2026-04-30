@@ -480,10 +480,11 @@ def test_keyboard_interrupt_does_not_resume_test(testdir: Pytester) -> None:
     # Regression test for #1060
     testdir.makepyfile(
         """
-        import anyio
         import asyncio
-        import pytest
         import signal
+
+        import anyio
+        import pytest
 
         @pytest.fixture
         def anyio_backend():
