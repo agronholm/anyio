@@ -21,12 +21,18 @@ from typing import (
     ClassVar,
     Final,
     Generic,
+    TypeVar,
     overload,
 )
 
 from .. import to_thread
 from ..abc import AsyncResource
 from ._synchronization import CapacityLimiter
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
 
 if sys.version_info >= (3, 14):
     from pathlib.types import PathInfo
@@ -37,6 +43,9 @@ if TYPE_CHECKING:
     from _typeshed import OpenBinaryMode, OpenTextMode, ReadableBuffer, WriteableBuffer
 else:
     ReadableBuffer = OpenBinaryMode = OpenTextMode = WriteableBuffer = object
+
+
+T = TypeVar("T", bound="Path")
 
 
 class AsyncFile(AsyncResource, Generic[AnyStr]):
@@ -251,18 +260,21 @@ def wrap_file(
 
 
 @dataclass(eq=False)
-class _PathIterator(AsyncIterator["Path"]):
+class _PathIterator(AsyncIterator[T]):
     iterator: Iterator[PathLike[str]]
     limiter: CapacityLimiter | None
+    # This was added to ensure that iterating over a subclass of Path yields instances
+    # of that subclass rather than the base Path class.
+    path_cls: type[T]
 
-    async def __anext__(self) -> Path:
+    async def __anext__(self) -> T:
         nextval = await to_thread.run_sync(
             next, self.iterator, None, abandon_on_cancel=True, limiter=self.limiter
         )
         if nextval is None:
             raise StopAsyncIteration from None
 
-        return Path(nextval, limiter=self.limiter)
+        return self.path_cls(nextval, limiter=self.limiter)
 
 
 class Path:
@@ -400,11 +412,11 @@ class Path:
         target = other._path if isinstance(other, Path) else other
         return self._path.__ge__(target)
 
-    def __truediv__(self, other: str | PathLike[str]) -> Path:
-        return Path(self._path / other, limiter=self._limiter)
+    def __truediv__(self, other: str | PathLike[str]) -> Self:
+        return type(self)(self._path / other, limiter=self._limiter)
 
-    def __rtruediv__(self, other: str | PathLike[str]) -> Path:
-        return Path(other, limiter=self._limiter) / self
+    def __rtruediv__(self, other: str | PathLike[str]) -> Self:
+        return type(self)(other, limiter=self._limiter) / self
 
     @property
     def limiter(self) -> CapacityLimiter | None:
@@ -428,12 +440,12 @@ class Path:
         return self._path.anchor
 
     @property
-    def parents(self) -> Sequence[Path]:
-        return tuple(Path(p, limiter=self._limiter) for p in self._path.parents)
+    def parents(self) -> Sequence[Self]:
+        return tuple(type(self)(p, limiter=self._limiter) for p in self._path.parents)
 
     @property
-    def parent(self) -> Path:
-        return Path(self._path.parent, limiter=self._limiter)
+    def parent(self) -> Self:
+        return type(self)(self._path.parent, limiter=self._limiter)
 
     @property
     def name(self) -> str:
@@ -451,9 +463,9 @@ class Path:
     def stem(self) -> str:
         return self._path.stem
 
-    async def absolute(self) -> Path:
+    async def absolute(self) -> Self:
         path = await to_thread.run_sync(self._path.absolute, limiter=self._limiter)
-        return Path(path, limiter=self._limiter)
+        return type(self)(path, limiter=self._limiter)
 
     def as_posix(self) -> str:
         return self._path.as_posix()
@@ -465,8 +477,8 @@ class Path:
         parser: ClassVar[ModuleType] = pathlib.Path.parser
 
         @classmethod
-        def from_uri(cls, uri: str, *, limiter: CapacityLimiter | None = None) -> Path:
-            return Path(pathlib.Path.from_uri(uri), limiter=limiter)
+        def from_uri(cls, uri: str, *, limiter: CapacityLimiter | None = None) -> Self:
+            return cls(pathlib.Path.from_uri(uri), limiter=limiter)
 
         def full_match(
             self, path_pattern: str, *, case_sensitive: bool | None = None
@@ -494,13 +506,13 @@ class Path:
             *,
             follow_symlinks: bool = True,
             preserve_metadata: bool = False,
-        ) -> Path:
+        ) -> Self:
             func = partial(
                 self._path.copy,
                 follow_symlinks=follow_symlinks,
                 preserve_metadata=preserve_metadata,
             )
-            return Path(
+            return type(self)(
                 await to_thread.run_sync(
                     func, pathlib.Path(target), limiter=self._limiter
                 ),
@@ -513,23 +525,23 @@ class Path:
             *,
             follow_symlinks: bool = True,
             preserve_metadata: bool = False,
-        ) -> Path:
+        ) -> Self:
             func = partial(
                 self._path.copy_into,
                 follow_symlinks=follow_symlinks,
                 preserve_metadata=preserve_metadata,
             )
-            return Path(
+            return type(self)(
                 await to_thread.run_sync(
                     func, pathlib.Path(target_dir), limiter=self._limiter
                 ),
                 limiter=self._limiter,
             )
 
-        async def move(self, target: str | os.PathLike[str]) -> Path:
+        async def move(self, target: str | os.PathLike[str]) -> Self:
             # Upstream does not handle anyio.Path properly as a PathLike
             target = pathlib.Path(target)
-            return Path(
+            return type(self)(
                 await to_thread.run_sync(
                     self._path.move, target, limiter=self._limiter
                 ),
@@ -539,8 +551,8 @@ class Path:
         async def move_into(
             self,
             target_dir: str | os.PathLike[str],
-        ) -> Path:
-            return Path(
+        ) -> Self:
+            return type(self)(
                 await to_thread.run_sync(
                     self._path.move_into, target_dir, limiter=self._limiter
                 ),
@@ -559,7 +571,7 @@ class Path:
         return await to_thread.run_sync(func, self._path, mode, limiter=self._limiter)
 
     @classmethod
-    async def cwd(cls, *, limiter: CapacityLimiter | None = None) -> Path:
+    async def cwd(cls, *, limiter: CapacityLimiter | None = None) -> Self:
         path = await to_thread.run_sync(pathlib.Path.cwd, limiter=limiter)
         return cls(path, limiter=limiter)
 
@@ -568,8 +580,8 @@ class Path:
             self._path.exists, abandon_on_cancel=True, limiter=self._limiter
         )
 
-    async def expanduser(self) -> Path:
-        return Path(
+    async def expanduser(self) -> Self:
+        return type(self)(
             await to_thread.run_sync(
                 self._path.expanduser, abandon_on_cancel=True, limiter=self._limiter
             ),
@@ -578,9 +590,9 @@ class Path:
 
     if sys.version_info < (3, 12):
         # Python 3.11 and earlier
-        def glob(self, pattern: str) -> AsyncIterator[Path]:
+        def glob(self, pattern: str) -> AsyncIterator[Self]:
             gen = self._path.glob(pattern)
-            return _PathIterator(gen, self._limiter)
+            return _PathIterator(gen, self._limiter, type(self))
     elif (3, 12) <= sys.version_info < (3, 13):
         # changed in Python 3.12:
         # - The case_sensitive parameter was added.
@@ -589,9 +601,9 @@ class Path:
             pattern: str,
             *,
             case_sensitive: bool | None = None,
-        ) -> AsyncIterator[Path]:
+        ) -> AsyncIterator[Self]:
             gen = self._path.glob(pattern, case_sensitive=case_sensitive)
-            return _PathIterator(gen, self._limiter)
+            return _PathIterator(gen, self._limiter, type(self))
     elif sys.version_info >= (3, 13):
         # Changed in Python 3.13:
         # - The recurse_symlinks parameter was added.
@@ -602,13 +614,13 @@ class Path:
             *,
             case_sensitive: bool | None = None,
             recurse_symlinks: bool = False,
-        ) -> AsyncIterator[Path]:
+        ) -> AsyncIterator[Self]:
             gen = self._path.glob(
                 pattern,  # type: ignore[arg-type]
                 case_sensitive=case_sensitive,
                 recurse_symlinks=recurse_symlinks,
             )
-            return _PathIterator(gen, self._limiter)
+            return _PathIterator(gen, self._limiter, type(self))
 
     async def group(self) -> str:
         return await to_thread.run_sync(
@@ -624,7 +636,7 @@ class Path:
         await to_thread.run_sync(os.link, target, self, limiter=self._limiter)
 
     @classmethod
-    async def home(cls, *, limiter: CapacityLimiter | None = None) -> Path:
+    async def home(cls, *, limiter: CapacityLimiter | None = None) -> Self:
         home_path = await to_thread.run_sync(pathlib.Path.home, limiter=limiter)
         return cls(home_path, limiter=limiter)
 
@@ -683,7 +695,7 @@ class Path:
             self._path.is_symlink, abandon_on_cancel=True, limiter=self._limiter
         )
 
-    async def iterdir(self) -> AsyncIterator[Path]:
+    async def iterdir(self) -> AsyncIterator[Self]:
         gen = (
             self._path.iterdir()
             if sys.version_info < (3, 13)
@@ -691,11 +703,11 @@ class Path:
                 self._path.iterdir, abandon_on_cancel=True, limiter=self._limiter
             )
         )
-        async for path in _PathIterator(gen, self._limiter):
+        async for path in _PathIterator(gen, self._limiter, type(self)):
             yield path
 
-    def joinpath(self, *args: str | PathLike[str]) -> Path:
-        return Path(self._path.joinpath(*args), limiter=self._limiter)
+    def joinpath(self, *args: str | PathLike[str]) -> Self:
+        return type(self)(self._path.joinpath(*args), limiter=self._limiter)
 
     async def lchmod(self, mode: int) -> None:
         await to_thread.run_sync(self._path.lchmod, mode, limiter=self._limiter)
@@ -770,41 +782,41 @@ class Path:
 
         def relative_to(
             self, *other: str | PathLike[str], walk_up: bool = False
-        ) -> Path:
+        ) -> Self:
             # relative_to() should work with any PathLike but it doesn't
             others = [pathlib.Path(other) for other in other]
-            return Path(
+            return type(self)(
                 self._path.relative_to(*others, walk_up=walk_up), limiter=self._limiter
             )
 
     else:
 
-        def relative_to(self, *other: str | PathLike[str]) -> Path:
-            return Path(self._path.relative_to(*other), limiter=self._limiter)
+        def relative_to(self, *other: str | PathLike[str]) -> Self:
+            return type(self)(self._path.relative_to(*other), limiter=self._limiter)
 
-    async def readlink(self) -> Path:
+    async def readlink(self) -> Self:
         target = await to_thread.run_sync(
             os.readlink, self._path, limiter=self._limiter
         )
-        return Path(target, limiter=self._limiter)
+        return type(self)(target, limiter=self._limiter)
 
-    async def rename(self, target: str | pathlib.PurePath | Path) -> Path:
+    async def rename(self, target: str | pathlib.PurePath | Path) -> Self:
         if isinstance(target, Path):
             target = target._path
 
         await to_thread.run_sync(self._path.rename, target, limiter=self._limiter)
-        return Path(target, limiter=self._limiter)
+        return type(self)(target, limiter=self._limiter)
 
-    async def replace(self, target: str | pathlib.PurePath | Path) -> Path:
+    async def replace(self, target: str | pathlib.PurePath | Path) -> Self:
         if isinstance(target, Path):
             target = target._path
 
         await to_thread.run_sync(self._path.replace, target, limiter=self._limiter)
-        return Path(target, limiter=self._limiter)
+        return type(self)(target, limiter=self._limiter)
 
-    async def resolve(self, strict: bool = False) -> Path:
+    async def resolve(self, strict: bool = False) -> Self:
         func = partial(self._path.resolve, strict=strict)
-        return Path(
+        return type(self)(
             await to_thread.run_sync(
                 func, abandon_on_cancel=True, limiter=self._limiter
             ),
@@ -813,17 +825,17 @@ class Path:
 
     if sys.version_info < (3, 12):
         # Pre Python 3.12
-        def rglob(self, pattern: str) -> AsyncIterator[Path]:
+        def rglob(self, pattern: str) -> AsyncIterator[Self]:
             gen = self._path.rglob(pattern)
-            return _PathIterator(gen, self._limiter)
+            return _PathIterator(gen, self._limiter, type(self))
     elif (3, 12) <= sys.version_info < (3, 13):
         # Changed in Python 3.12:
         # - The case_sensitive parameter was added.
         def rglob(
             self, pattern: str, *, case_sensitive: bool | None = None
-        ) -> AsyncIterator[Path]:
+        ) -> AsyncIterator[Self]:
             gen = self._path.rglob(pattern, case_sensitive=case_sensitive)
-            return _PathIterator(gen, self._limiter)
+            return _PathIterator(gen, self._limiter, type(self))
     elif sys.version_info >= (3, 13):
         # Changed in Python 3.13:
         # - The recurse_symlinks parameter was added.
@@ -834,13 +846,13 @@ class Path:
             *,
             case_sensitive: bool | None = None,
             recurse_symlinks: bool = False,
-        ) -> AsyncIterator[Path]:
+        ) -> AsyncIterator[Self]:
             gen = self._path.rglob(
                 pattern,  # type: ignore[arg-type]
                 case_sensitive=case_sensitive,
                 recurse_symlinks=recurse_symlinks,
             )
-            return _PathIterator(gen, self._limiter)
+            return _PathIterator(gen, self._limiter, type(self))
 
     async def rmdir(self) -> None:
         await to_thread.run_sync(self._path.rmdir, limiter=self._limiter)
@@ -893,7 +905,7 @@ class Path:
             top_down: bool = True,
             on_error: Callable[[OSError], object] | None = None,
             follow_symlinks: bool = False,
-        ) -> AsyncIterator[tuple[Path, list[str], list[str]]]:
+        ) -> AsyncIterator[tuple[Self, list[str], list[str]]]:
             def get_next_value() -> tuple[pathlib.Path, list[str], list[str]] | None:
                 try:
                     return next(gen)
@@ -907,21 +919,21 @@ class Path:
                     return
 
                 root, dirs, paths = value
-                yield Path(root, limiter=self._limiter), dirs, paths
+                yield type(self)(root, limiter=self._limiter), dirs, paths
 
-    def with_name(self, name: str) -> Path:
-        return Path(self._path.with_name(name), limiter=self._limiter)
+    def with_name(self, name: str) -> Self:
+        return type(self)(self._path.with_name(name), limiter=self._limiter)
 
-    def with_stem(self, stem: str) -> Path:
-        return Path(
+    def with_stem(self, stem: str) -> Self:
+        return type(self)(
             self._path.with_name(stem + self._path.suffix), limiter=self._limiter
         )
 
-    def with_suffix(self, suffix: str) -> Path:
-        return Path(self._path.with_suffix(suffix), limiter=self._limiter)
+    def with_suffix(self, suffix: str) -> Self:
+        return type(self)(self._path.with_suffix(suffix), limiter=self._limiter)
 
-    def with_segments(self, *pathsegments: str | PathLike[str]) -> Path:
-        return Path(*pathsegments, limiter=self._limiter)
+    def with_segments(self, *pathsegments: str | PathLike[str]) -> Self:
+        return type(self)(*pathsegments, limiter=self._limiter)
 
     async def write_bytes(self, data: bytes) -> int:
         return await to_thread.run_sync(
