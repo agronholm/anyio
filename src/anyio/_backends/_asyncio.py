@@ -2321,7 +2321,6 @@ class TestRunner(abc.TestRunner):
             )
         except Exception as exc:
             self._exceptions.append(exc)
-
         except BaseException:
             # A BaseException (e.g. KeyboardInterrupt, SystemExit) interrupted the event loop before
             # the test completed. Cancel _runner_task so it does not resume when the event
