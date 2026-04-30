@@ -16,7 +16,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   install command
   (`#1115 <https://github.com/agronholm/anyio/pull/1115>`_; PR by @EmmanuelNiyonshuti)
 - Improved ``anyio.Path`` to preserve subclass types by returning ``Self`` in methods
-  that return path objects.
+  that return path objects
   (`#1130 <https://github.com/agronholm/anyio/issues/1130>`_; PR by @EmmanuelNiyonshuti)
 - Fixed cancellation exception escaping a cancel scope when triggered via
   ``check_cancelled()`` in a worker thread
