@@ -435,8 +435,13 @@ class TestTLSListener:
                 await TLSListener.handle_handshake_error(exc, stream)
 
                 # Regression test for #608
-                assert len(caplog.records) == 1
-                logged_exc_info = caplog.records[0].exc_info
+                records = [
+                    record
+                    for record in caplog.records
+                    if record.name == "anyio.streams.tls"
+                ]
+                assert len(records) == 1
+                logged_exc_info = records[0].exc_info
                 logged_exc = logged_exc_info[1] if logged_exc_info is not None else None
                 assert logged_exc is exc
 
