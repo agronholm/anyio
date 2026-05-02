@@ -505,8 +505,8 @@ def test_keyboard_interrupt_does_not_resume_test(testdir: Pytester) -> None:
 
     result = testdir.runpytest_subprocess(*pytest_args, timeout=5)
     assert result.ret == 2
-    assert "RESUMED_AFTER_INTERRUPT" not in result.stdout.str()
-    assert "KeyboardInterrupt" in result.stdout.str()
+    result.stdout.no_fnmatch_line("*RESUMED_AFTER_INTERRUPT*")
+    result.stdout.fnmatch_lines(["*KeyboardInterrupt*"])
 
 
 def test_async_fixture_in_test_class(testdir: Pytester) -> None:
