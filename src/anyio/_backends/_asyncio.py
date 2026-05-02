@@ -2321,7 +2321,21 @@ class TestRunner(abc.TestRunner):
             )
         except Exception as exc:
             self._exceptions.append(exc)
+        except BaseException:
+            # A BaseException (e.g. KeyboardInterrupt, SystemExit) interrupted the event loop before
+            # the test completed. Cancel _runner_task so it does not resume when the event
+            # loop is re-entered during async generator fixture teardown.
+            if self._runner_task is not None and not self._runner_task.done():
+                self._runner_task.cancel()
+                try:
+                    self.get_loop().run_until_complete(self._runner_task)
+                except BaseException:
+                    pass
+                finally:
+                    self._runner_task = None
+                    self._send_stream.close()
 
+            raise
         self._raise_async_exceptions()
 
 
