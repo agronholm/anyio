@@ -2327,14 +2327,13 @@ class TestRunner(abc.TestRunner):
             # loop is re-entered during async generator fixture teardown.
             if self._runner_task is not None and not self._runner_task.done():
                 self._runner_task.cancel()
+                self._send_stream.close()
                 try:
                     self.get_loop().run_until_complete(self._runner_task)
-                except BaseException:
+                except CancelledError:
                     pass
                 finally:
                     self._runner_task = None
-                    self._send_stream.close()
-
             raise
         self._raise_async_exceptions()
 
