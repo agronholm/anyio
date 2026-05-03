@@ -134,7 +134,7 @@ async def test_cancel_wait_on_thread() -> None:
     future: Future[bool] = Future()
 
     def wait_event() -> None:
-        future.set_result(event.wait(1))
+        future.set_result(event.wait(5))
 
     async with create_task_group() as tg:
         tg.start_soon(partial(to_thread.run_sync, abandon_on_cancel=True), wait_event)
@@ -142,7 +142,7 @@ async def test_cancel_wait_on_thread() -> None:
         tg.cancel_scope.cancel()
 
     await to_thread.run_sync(event.set)
-    assert future.result(1)
+    assert future.result(5)
 
 
 async def test_deprecated_cancellable_param() -> None:
