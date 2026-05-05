@@ -1261,7 +1261,7 @@ class TrioBackend(AsyncBackend):
 
     @classmethod
     async def wrap_listener_socket(cls, sock: socket.socket) -> abc.SocketListener:
-        if sock.family == socket.AF_UNIX:
+        if hasattr(socket, "AF_UNIX") and sock.family == socket.AF_UNIX:
             return UNIXSocketListener(sock)
 
         return TCPSocketListener(sock)
