@@ -2928,6 +2928,9 @@ class AsyncIOBackend(AsyncBackend):
 
     @classmethod
     async def wrap_listener_socket(cls, sock: socket.socket) -> SocketListener:
+        if sock.family == socket.AF_UNIX:
+            return UNIXSocketListener(sock)
+
         return TCPSocketListener(sock)
 
     @classmethod
