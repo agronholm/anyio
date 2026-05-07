@@ -859,6 +859,14 @@ class TestPath:
         await Path(path).write_bytes(b"bibbitibobbitiboo")
         assert path.read_bytes() == b"bibbitibobbitiboo"
 
+    async def test_write_bytes_buffer(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / "testfile"
+        await Path(path).write_bytes(bytearray(b"bibbitibobbitiboo"))
+        assert path.read_bytes() == b"bibbitibobbitiboo"
+
+        await Path(path).write_bytes(memoryview(b"second"))
+        assert path.read_bytes() == b"second"
+
     async def test_write_text(self, tmp_path: pathlib.Path) -> None:
         path = tmp_path / "testfile"
         await Path(path).write_text("some text åäö", encoding="utf-8")

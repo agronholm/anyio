@@ -935,7 +935,7 @@ class Path:
     def with_segments(self, *pathsegments: str | PathLike[str]) -> Self:
         return type(self)(*pathsegments, limiter=self._limiter)
 
-    async def write_bytes(self, data: bytes) -> int:
+    async def write_bytes(self, data: ReadableBuffer) -> int:
         return await to_thread.run_sync(
             self._path.write_bytes, data, limiter=self._limiter
         )
