@@ -20,7 +20,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#1130 <https://github.com/agronholm/anyio/issues/1130>`_; PR by @EmmanuelNiyonshuti)
 - Changed the parameter type annotation in ``anyio.Path.write_bytes()`` to accept
   any ``ReadableBuffer``, thus allowing it to accept ``bytearray`` and ``memoryview`` to
-  match :meth:`pathlib.Path.write_bytes`
+  match ``pathlib.Path.write_bytes()``
   (`#1135 <https://github.com/agronholm/anyio/issues/1135>`_; PR by @SAY-5)
 - Fixed cancellation exception escaping a cancel scope when triggered via
   ``check_cancelled()`` in a worker thread
