@@ -854,9 +854,19 @@ class TestPath:
     def test_with_suffix(self) -> None:
         assert Path("/xyz/foo.txt.gz").with_suffix(".zip").name == "foo.txt.zip"
 
-    async def test_write_bytes(self, tmp_path: pathlib.Path) -> None:
+    @pytest.mark.parametrize(
+        "data",
+        [
+            pytest.param(b"bibbitibobbitiboo", id="bytes"),
+            pytest.param(bytearray(b"bibbitibobbitiboo"), id="bytearray"),
+            pytest.param(memoryview(b"bibbitibobbitiboo"), id="memoryview"),
+        ],
+    )
+    async def test_write_bytes(
+        self, tmp_path: pathlib.Path, data: bytes | bytearray | memoryview
+    ) -> None:
         path = tmp_path / "testfile"
-        await Path(path).write_bytes(b"bibbitibobbitiboo")
+        await Path(path).write_bytes(data)
         assert path.read_bytes() == b"bibbitibobbitiboo"
 
     async def test_write_text(self, tmp_path: pathlib.Path) -> None:
