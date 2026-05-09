@@ -5,6 +5,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed ``SocketListener.from_socket()`` returning a TCP listener (and failing on
+  ``accept()`` with ``ENOTSUP``) when handed an ``AF_UNIX`` listening socket;
+  it now returns a UNIX listener
+  (`#1132 <https://github.com/agronholm/anyio/issues/1132>`_; PR by @jbbqqf)
 - Added the ``local_port`` parameter to :func:`connect_tcp` to allow binding to a
   specific local port before connecting
   (`#1067 <https://github.com/agronholm/anyio/issues/1067>`_; PR by @nullwiz)

@@ -1261,6 +1261,12 @@ class TrioBackend(AsyncBackend):
 
     @classmethod
     async def wrap_listener_socket(cls, sock: socket.socket) -> abc.SocketListener:
+        # Dispatch on the underlying socket family: AF_UNIX listeners must use
+        # UNIXSocketListener, otherwise accept() would call setsockopt
+        # IPPROTO_TCP/TCP_NODELAY on the accepted UDS, which raises ENOTSUP.
+        if sock.family == socket.AF_UNIX:
+            return UNIXSocketListener(sock)
+
         return TCPSocketListener(sock)
 
     @classmethod

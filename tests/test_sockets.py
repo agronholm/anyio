@@ -1638,6 +1638,25 @@ class TestUNIXListener:
             assert isinstance(listener, SocketListener)
             assert listener.extra(SocketAttribute.family) == socket.AF_UNIX
 
+    async def test_from_socket_accept(
+        self, socket_path: Path, sock_or_fd_factory: SockFdFactoryProtocol
+    ) -> None:
+        # Regression test for #1132: SocketListener.from_socket(unix_sock) must
+        # produce a UNIXSocketListener, not a TCPSocketListener. The latter sets
+        # IPPROTO_TCP/TCP_NODELAY on accepted clients, which fails on AF_UNIX.
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.bind(str(socket_path))
+        sock.listen()
+        async with await SocketListener.from_socket(sock) as listener:
+            client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            client.settimeout(1)
+            client.connect(str(socket_path))
+            stream = await listener.accept()
+            client.sendall(b"ping")
+            assert await stream.receive() == b"ping"
+            client.close()
+            await stream.aclose()
+
 
 async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
     async def handle(stream: SocketStream) -> None:
