@@ -5,6 +5,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Documented the multiple-producer / multiple-consumer pattern with
+  ``MemoryObjectSendStream.clone()`` / ``MemoryObjectReceiveStream.clone()`` in
+  the streams guide, including the two failure modes worth avoiding
+  (`#330 <https://github.com/agronholm/anyio/issues/330>`_; PR by @jbbqqf)
 - Added the ``local_port`` parameter to :func:`connect_tcp` to allow binding to a
   specific local port before connecting
   (`#1067 <https://github.com/agronholm/anyio/issues/1067>`_; PR by @nullwiz)

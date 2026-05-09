@@ -87,6 +87,64 @@ stream as a context manager::
         with send_stream:
             send_stream.send_nowait('hello')
 
+Multiple producers and/or multiple consumers
+*********************************************
+
+The ``clone()`` method shines when several tasks have to share the same memory object
+stream. The general rule is: **every task should hold its own end (an original or a
+clone) and close that end when it is done**. The whole pipe is shut down only after
+*all* clones of one end have been closed, which makes orderly fan-in and fan-out
+shutdown possible without any reference-counting in user code.
+
+Here is the producer-consumer pattern with two of each, sharing a single memory object
+stream::
+
+    from anyio import create_memory_object_stream, create_task_group, run
+    from anyio.streams.memory import (
+        MemoryObjectReceiveStream,
+        MemoryObjectSendStream,
+    )
+
+
+    async def producer(name: str, send_stream: MemoryObjectSendStream[str]) -> None:
+        # ``async with`` closes *this* clone when the producer is done. The
+        # underlying send end is only really closed once both producers' clones
+        # are closed.
+        async with send_stream:
+            for i in range(3):
+                await send_stream.send(f'{i} from producer {name}')
+
+
+    async def consumer(name: str, receive_stream: MemoryObjectReceiveStream[str]) -> None:
+        async with receive_stream:
+            async for value in receive_stream:
+                print(f'consumer {name} got {value!r}')
+
+
+    async def main() -> None:
+        send_stream, receive_stream = create_memory_object_stream[str](max_buffer_size=4)
+        async with create_task_group() as tg:
+            # Hand each task its own *clone*; close the originals so only the clones
+            # are alive.
+            async with send_stream, receive_stream:
+                tg.start_soon(producer, 'A', send_stream.clone())
+                tg.start_soon(producer, 'B', send_stream.clone())
+                tg.start_soon(consumer, 'X', receive_stream.clone())
+                tg.start_soon(consumer, 'Y', receive_stream.clone())
+
+    run(main)
+
+Two patterns are dangerous and worth flagging:
+
+* **Sharing the same stream end across tasks without cloning** — the first task to exit
+  closes the end while the others are still using it, raising
+  :exc:`~ClosedResourceError` from a still-running ``send`` or ``receive``.
+* **Cloning for every task without ever closing the originals** — there is then no
+  one to close the last clone, the receive end never sees end-of-stream, and the
+  consumers hang forever in their ``async for``. Either close the original end
+  (as in the example above) or hand the original to one of the tasks instead of a
+  clone.
+
 Stapled streams
 ---------------
 
