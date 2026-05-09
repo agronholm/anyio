@@ -128,3 +128,37 @@ async def test_nonexistent_main_module(
     script_path.touch()
     monkeypatch.setattr("__main__.__file__", str(script_path / "__main__.py"))
     await to_process.run_sync(os.getpid)
+
+
+def _import_main() -> str:
+    # Runs in the worker process. dill, pickle and several other libraries
+    # assume "import __main__" works; make the assumption explicit so the
+    # regression has a concrete failure mode (ModuleNotFoundError on master).
+    import __main__
+
+    return type(__main__).__name__
+
+
+async def test_main_module_with_non_py_path(
+    monkeypatch: MonkeyPatch, tmp_path: Path
+) -> None:
+    """
+    Regression test for #1027.
+
+    When AnyIO's worker process is launched from a console-script entry point
+    (so ``__main__.__file__`` is a path *without* a ``.py`` / ``.pyc`` suffix),
+    ``importlib.util.spec_from_file_location`` returns ``None`` and the worker
+    used to drop ``__main__`` from ``sys.modules`` permanently. Subsequent
+    ``import __main__`` calls in user code (dill et al.) then raised
+    ``ModuleNotFoundError``.
+    """
+
+    # Create an existing file with no .py / .pyc suffix - mimics an installed
+    # console-script entry point.
+    script_path = tmp_path / "myapp"
+    script_path.write_text("#!/usr/bin/env python\n")
+    monkeypatch.setattr("__main__.__file__", str(script_path))
+
+    # On master this raises BrokenWorkerProcess (ModuleNotFoundError: '__main__')
+    # in the worker; with the fix, __main__ is restored and the import works.
+    assert await to_process.run_sync(_import_main) == "module"

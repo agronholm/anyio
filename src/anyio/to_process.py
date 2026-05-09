@@ -10,6 +10,7 @@ import os
 import pickle
 import subprocess
 import sys
+import types
 from collections import deque
 from collections.abc import Callable
 from importlib.util import module_from_spec, spec_from_file_location
@@ -231,6 +232,13 @@ def process_worker() -> None:
                 main_module_path: str | None
                 sys.path, main_module_path = args
                 del sys.modules["__main__"]
+                # Always restore *some* __main__: pickle.loads, dill, and many
+                # other libraries assume ``import __main__`` works. Without this
+                # fallback, console-script entry points (paths that don't end in
+                # .py / .pyc, where spec_from_file_location returns None)
+                # leave the worker without a __main__ module entirely. See
+                # https://github.com/agronholm/anyio/issues/1027.
+                sys.modules["__main__"] = types.ModuleType("__main__")
                 if main_module_path and os.path.isfile(main_module_path):
                     # Load the parent's main module but as __mp_main__ instead of
                     # __main__ (like multiprocessing does) to avoid infinite recursion

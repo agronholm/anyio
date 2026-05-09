@@ -5,6 +5,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed ``to_process.run_sync`` leaving the worker process without a
+  ``__main__`` module when the parent's ``__main__.__file__`` does not end in
+  ``.py`` / ``.pyc`` (typically a console-script entry point); the worker now
+  always restores some ``__main__`` module so that ``import __main__`` keeps
+  working for libraries such as ``dill``
+  (`#1027 <https://github.com/agronholm/anyio/issues/1027>`_; PR by @jbbqqf)
 - Added the ``local_port`` parameter to :func:`connect_tcp` to allow binding to a
   specific local port before connecting
   (`#1067 <https://github.com/agronholm/anyio/issues/1067>`_; PR by @nullwiz)
