@@ -1264,7 +1264,9 @@ class TrioBackend(AsyncBackend):
         # Dispatch on the underlying socket family: AF_UNIX listeners must use
         # UNIXSocketListener, otherwise accept() would call setsockopt
         # IPPROTO_TCP/TCP_NODELAY on the accepted UDS, which raises ENOTSUP.
-        if sock.family == socket.AF_UNIX:
+        # ``socket.AF_UNIX`` is unavailable on some platforms (e.g. Windows),
+        # so use getattr() to avoid an AttributeError at import/call time.
+        if sock.family == getattr(socket, "AF_UNIX", None):
             return UNIXSocketListener(sock)
 
         return TCPSocketListener(sock)
