@@ -532,6 +532,16 @@ class TestTCPStream:
         with pytest.raises(ClosedResourceError):
             await stream.send(b"foo")
 
+    @pytest.mark.parametrize("max_bytes", [-3, -1, 0])
+    async def test_receive_invalid_max_bytes(
+        self, max_bytes: int, server_addr: tuple[str, int]
+    ) -> None:
+        # Regression test for #1081: every backend must reject max_bytes < 1
+        # consistently with ValueError instead of returning b"" / fake EoF.
+        async with await connect_tcp(*server_addr) as stream:
+            with pytest.raises(ValueError, match="max_bytes"):
+                await stream.receive(max_bytes)
+
     async def test_receive_after_peer_closed(
         self, family: AnyIPAddressFamily, request: FixtureRequest
     ) -> None:
@@ -1200,6 +1210,19 @@ class TestUNIXStream:
             client.close()
 
         assert response == b"halb"
+
+    @pytest.mark.parametrize("max_bytes", [-3, -1, 0])
+    async def test_receive_invalid_max_bytes(
+        self,
+        max_bytes: int,
+        server_sock: socket.socket,
+        socket_path: Path,
+    ) -> None:
+        # Regression test for #1081: receive must consistently raise
+        # ValueError for max_bytes < 1, not return b"" or fake EndOfStream.
+        async with await connect_unix(socket_path) as stream:
+            with pytest.raises(ValueError, match="max_bytes"):
+                await stream.receive(max_bytes)
 
     async def test_receive_large_buffer(
         self, server_sock: socket.socket, socket_path: Path

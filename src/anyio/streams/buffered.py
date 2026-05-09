@@ -68,6 +68,13 @@ class BufferedByteReceiveStream(ByteReceiveStream):
         if self._closed:
             raise ClosedResourceError
 
+        # See ByteReceiveStream.receive: max_bytes must be >= 1, otherwise the
+        # buffer-slicing path below would silently return an empty chunk and
+        # the underlying-stream path would behave inconsistently across
+        # backends (#1081).
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be >= 1")
+
         if self._buffer:
             chunk = bytes(self._buffer[:max_bytes])
             del self._buffer[:max_bytes]

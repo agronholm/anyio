@@ -5,6 +5,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- ``ByteReceiveStream.receive()`` (and the built-in implementations on socket,
+  buffered and file streams across both backends) now consistently raises
+  ``ValueError`` when called with ``max_bytes`` < 1, instead of silently
+  returning ``b""`` or surfacing a spurious ``EndOfStream``
+  (`#1081 <https://github.com/agronholm/anyio/issues/1081>`_; PR by @jbbqqf)
 - Added the ``local_port`` parameter to :func:`connect_tcp` to allow binding to a
   specific local port before connecting
   (`#1067 <https://github.com/agronholm/anyio/issues/1067>`_; PR by @nullwiz)

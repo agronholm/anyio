@@ -388,6 +388,13 @@ class SocketStream(_TrioSocketMixin, abc.SocketStream):
         self._send_guard = ResourceGuard("writing to")
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
+        # ``socket.recv(0)`` returns ``b""`` on every platform, which the
+        # ByteReceiveStream contract repurposes as ``EndOfStream``. That
+        # produced a false EoF when the peer was still healthy, so we reject
+        # ``max_bytes < 1`` up front for cross-backend consistency (#1081).
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be >= 1")
+
         with self._receive_guard:
             try:
                 data = await self._trio_socket.recv(max_bytes)

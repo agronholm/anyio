@@ -79,6 +79,12 @@ class FileReadStream(_BaseFileStream, ByteReceiveStream):
         return cls(file)
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
+        # file.read(0) returns b"" and file.read(<0) reads until EOF; both are
+        # incompatible with the ByteReceiveStream contract, so we reject the
+        # value before delegating to the file (#1081).
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be >= 1")
+
         try:
             data = await to_thread.run_sync(self._file.read, max_bytes)
         except ValueError:

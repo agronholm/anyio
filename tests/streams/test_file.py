@@ -37,6 +37,17 @@ class TestFileReadStream:
             async with FileReadStream(file) as stream:
                 await self._run_filestream_test(stream)
 
+    @pytest.mark.parametrize("max_bytes", [-3, -1, 0])
+    async def test_receive_invalid_max_bytes(
+        self, max_bytes: int, file_path: Path
+    ) -> None:
+        # Regression test for #1081: FileReadStream.receive must reject
+        # max_bytes < 1 instead of returning b"" (which the contract repurposes
+        # as EndOfStream) or reading until EOF.
+        async with await FileReadStream.from_path(file_path) as stream:
+            with pytest.raises(ValueError, match="max_bytes"):
+                await stream.receive(max_bytes)
+
     async def test_read_after_close(self, file_path: Path) -> None:
         async with await FileReadStream.from_path(file_path) as stream:
             pass
