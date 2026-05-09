@@ -5,6 +5,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed 100% CPU spin in the asyncio backend's ``CancelScope._deliver_cancellation``
+  when a completed task remains in the scope's task set; done tasks are now
+  skipped instead of perpetually rescheduling the cancel-delivery callback
+  (`#1111 <https://github.com/agronholm/anyio/issues/1111>`_; PR by @jbbqqf)
 - Added the ``local_port`` parameter to :func:`connect_tcp` to allow binding to a
   specific local port before connecting
   (`#1067 <https://github.com/agronholm/anyio/issues/1067>`_; PR by @nullwiz)

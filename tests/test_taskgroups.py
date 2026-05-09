@@ -310,6 +310,50 @@ async def test_cancel_with_nested_task_groups() -> None:
     assert len(outer_cancel_spy.call_args_list) < 10
 
 
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_done_task_in_cancel_scope_does_not_spin() -> None:
+    """Regression test for #1111.
+
+    A done task leaked into ``CancelScope._tasks`` (for example because of
+    cancel-scope misuse) used to make ``_deliver_cancellation`` reschedule
+    itself indefinitely via ``call_soon``, locking the event loop at 100% CPU.
+    The loop must now skip done tasks instead of treating them as eligible.
+    """
+
+    async def short_task() -> None:
+        return
+
+    async with create_task_group() as tg:
+        # Spin up a child task that finishes immediately
+        task = asyncio.create_task(short_task())
+        await asyncio.sleep(0)  # let it run to completion
+        await asyncio.sleep(0)
+        assert task.done()
+
+        # Splice the completed task into the scope's _tasks set to mimic the
+        # "done task left in _tasks" misuse pattern from the original report.
+        tg.cancel_scope._tasks.add(task)  # type: ignore[attr-defined]
+
+        with mock.patch.object(
+            tg.cancel_scope,
+            "_deliver_cancellation",
+            wraps=tg.cancel_scope._deliver_cancellation,  # type: ignore[attr-defined]
+        ) as spy:
+            tg.cancel_scope.cancel()
+            # Yield to the loop a few times so any ``call_soon`` reschedules
+            # would fire; on master this loops forever and would time out.
+            for _ in range(20):
+                await asyncio.sleep(0)
+
+        # If the bug were present, spy.call_count would grow without bound (the
+        # original report observed thousands of calls in a tight loop). Bound
+        # it to a small constant: each scope should only need a handful of
+        # passes to drain.
+        assert spy.call_count < 10, (
+            f"_deliver_cancellation called {spy.call_count} times - spinning"
+        )
+
+
 async def test_start_exception_delivery(anyio_backend_name: str) -> None:
     def task_fn(*, task_status: TaskStatus[str] = TASK_STATUS_IGNORED) -> None:
         task_status.started("hello")
