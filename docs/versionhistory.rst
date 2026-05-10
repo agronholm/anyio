@@ -33,6 +33,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed test resumption after ``KeyboardInterrupt`` in async generator fixtures on the
   asyncio backend
   (`#1060 <https://github.com/agronholm/anyio/issues/1060>`_; PR by @EmmanuelNiyonshuti)
+- Fixed ``SocketListener.from_socket()`` returning a TCP listener for ``AF_UNIX``
+  listening sockets, causing ``accept()`` to fail with ``ENOTSUP``
+  (`#1132 <https://github.com/agronholm/anyio/issues/1132>`_; PR by @kudato)
 
 **4.13.0**
 
