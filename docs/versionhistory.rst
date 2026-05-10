@@ -17,6 +17,13 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Improved the error message when a known backend is not installed to suggest the
   install command
   (`#1115 <https://github.com/agronholm/anyio/pull/1115>`_; PR by @EmmanuelNiyonshuti)
+- Improved ``anyio.Path`` to preserve subclass types by returning ``Self`` in methods
+  that return path objects
+  (`#1130 <https://github.com/agronholm/anyio/issues/1130>`_; PR by @EmmanuelNiyonshuti)
+- Changed the parameter type annotation in ``anyio.Path.write_bytes()`` to accept
+  any ``ReadableBuffer``, thus allowing it to accept ``bytearray`` and ``memoryview`` to
+  match ``pathlib.Path.write_bytes()``
+  (`#1135 <https://github.com/agronholm/anyio/issues/1135>`_; PR by @SAY-5)
 - Fixed cancellation exception escaping a cancel scope when triggered via
   ``check_cancelled()`` in a worker thread
   (`#1113 <https://github.com/agronholm/anyio/issues/1113>`_)
@@ -25,6 +32,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#1109 <https://github.com/agronholm/anyio/issues/1109>`_; PR by @bahtya)
 - Fixed lost type information when passing arguments to ``lru_cache``
   (`#1104 <https://github.com/agronholm/anyio/pull/1104>`_; PR by @Graeme22)
+- Fixed test resumption after ``KeyboardInterrupt`` in async generator fixtures on the
+  asyncio backend
+  (`#1060 <https://github.com/agronholm/anyio/issues/1060>`_; PR by @EmmanuelNiyonshuti)
+- Fixed ``SocketListener.from_socket()`` returning a TCP listener for ``AF_UNIX``
+  listening sockets, causing ``accept()`` to fail with ``ENOTSUP``
+  (`#1132 <https://github.com/agronholm/anyio/issues/1132>`_; PR by @kudato)
 
 **4.13.0**
 

@@ -157,9 +157,41 @@ class TestPath:
         assert result.limiter is limiter
         assert result == pathlib.Path("/foo/bar")
 
+    async def test_truediv_preserve_subclass(
+        self, limiter: CapacityLimiter | None
+    ) -> None:
+        """
+        Test for #1130:
+        Ensure that __truediv__ preserves the subclass type when called on a Path subclass.
+        """
+
+        class SomeClass(Path):
+            pass
+
+        result = SomeClass("/foo", limiter=limiter) / "bar"
+        assert isinstance(result, SomeClass)
+        assert result.limiter is limiter
+        assert result == pathlib.Path("/foo/bar")
+
     async def test_rtruediv(self, limiter: CapacityLimiter | None) -> None:
         result = "/foo" / Path("bar", limiter=limiter)
         assert isinstance(result, Path)
+        assert result.limiter is limiter
+        assert result == pathlib.Path("/foo/bar")
+
+    async def test_rtruediv_preserve_subclass(
+        self, limiter: CapacityLimiter | None
+    ) -> None:
+        """
+        Test for #1130:
+        Ensure that __rtruediv__ preserves the subclass type when called on a Path subclass.
+        """
+
+        class SomeClass(Path):
+            pass
+
+        result = "/foo" / SomeClass("bar", limiter=limiter)
+        assert isinstance(result, SomeClass)
         assert result.limiter is limiter
         assert result == pathlib.Path("/foo/bar")
 
@@ -822,9 +854,19 @@ class TestPath:
     def test_with_suffix(self) -> None:
         assert Path("/xyz/foo.txt.gz").with_suffix(".zip").name == "foo.txt.zip"
 
-    async def test_write_bytes(self, tmp_path: pathlib.Path) -> None:
+    @pytest.mark.parametrize(
+        "data",
+        [
+            pytest.param(b"bibbitibobbitiboo", id="bytes"),
+            pytest.param(bytearray(b"bibbitibobbitiboo"), id="bytearray"),
+            pytest.param(memoryview(b"bibbitibobbitiboo"), id="memoryview"),
+        ],
+    )
+    async def test_write_bytes(
+        self, tmp_path: pathlib.Path, data: bytes | bytearray | memoryview
+    ) -> None:
         path = tmp_path / "testfile"
-        await Path(path).write_bytes(b"bibbitibobbitiboo")
+        await Path(path).write_bytes(data)
         assert path.read_bytes() == b"bibbitibobbitiboo"
 
     async def test_write_text(self, tmp_path: pathlib.Path) -> None:
