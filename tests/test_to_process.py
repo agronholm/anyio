@@ -132,7 +132,10 @@ async def test_nonexistent_main_module(
 
 def _check_main_importable() -> int:
     """Helper that runs in the worker process to check main was imported correctly"""
-    return sys.modules["__main__"].foo
+    assert sys.modules["__main__"].foo == 3
+
+    # python multiprocessing does it this way and there is probably code dependent on it.
+    assert sys.modules["__main__"] == sys.modules["__mp_main__"]
 
 
 async def test_entrypoint_main_module(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
