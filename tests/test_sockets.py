@@ -1639,14 +1639,11 @@ class TestUNIXListener:
 
             local_address = listener.extra(SocketAttribute.local_address)
             assert isinstance(local_address, str)
-            client = socket.socket(socket.AF_UNIX)
-            client.settimeout(1)
-            client.connect(local_address)
-            try:
+            with socket.socket(socket.AF_UNIX) as client:
+                client.settimeout(1)
+                client.connect(local_address)
                 async with await listener.accept() as stream:
                     assert stream.extra(SocketAttribute.family) == socket.AF_UNIX
-            finally:
-                client.close()
 
 
 async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
