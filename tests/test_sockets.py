@@ -1635,8 +1635,15 @@ class TestUNIXListener:
     async def test_from_socket(self, sock_or_fd_factory: SockFdFactoryProtocol) -> None:
         sock_or_fd = sock_or_fd_factory(socket.AF_UNIX, socket.SOCK_STREAM, bound=True)
         async with await SocketListener.from_socket(sock_or_fd) as listener:
-            assert isinstance(listener, SocketListener)
             assert listener.extra(SocketAttribute.family) == socket.AF_UNIX
+
+            local_address = listener.extra(SocketAttribute.local_address)
+            assert isinstance(local_address, str)
+            with socket.socket(socket.AF_UNIX) as client:
+                client.settimeout(1)
+                client.connect(local_address)
+                async with await listener.accept() as stream:
+                    assert stream.extra(SocketAttribute.family) == socket.AF_UNIX
 
 
 async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
