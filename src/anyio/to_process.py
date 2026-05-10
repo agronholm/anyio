@@ -8,11 +8,12 @@ __all__ = (
 
 import os
 import pickle
+import runpy
 import subprocess
 import sys
 from collections import deque
 from collections.abc import Callable
-from importlib.util import module_from_spec, spec_from_file_location
+from types import ModuleType
 from typing import TypeVar, cast
 
 from ._core._eventloop import current_time, get_async_backend, get_cancelled_exc_class
@@ -235,11 +236,12 @@ def process_worker() -> None:
                     # Load the parent's main module but as __mp_main__ instead of
                     # __main__ (like multiprocessing does) to avoid infinite recursion
                     try:
-                        spec = spec_from_file_location("__mp_main__", main_module_path)
-                        if spec and spec.loader:
-                            main = module_from_spec(spec)
-                            spec.loader.exec_module(main)
-                            sys.modules["__main__"] = main
+                        main = ModuleType("__mp_main__")
+                        main_content = runpy.run_path(
+                            main_module_path, run_name="__mp_main__"
+                        )
+                        main.__dict__.update(main_content)
+                        sys.modules["__main__"] = sys.modules["__mp_main__"] = main
                     except BaseException as exc:
                         exception = exc
         try:
