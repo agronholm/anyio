@@ -256,6 +256,37 @@ async def test_start_native_child_cancelled() -> None:
 
 
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_deliver_cancellation_skips_done_tasks() -> None:
+    """Regression test for #1111.
+
+    ``_deliver_cancellation`` must not retry indefinitely when a completed task
+    remains in ``CancelScope._tasks``. asyncio's ``Task.cancel()`` is a no-op
+    for done tasks, so without a ``task.done()`` check the scope reschedules
+    itself forever and spins the event loop at 100% CPU.
+    """
+    from anyio._backends._asyncio import CancelScope as AsyncioCancelScope
+
+    async def noop() -> None:
+        return None
+
+    done_task = asyncio.create_task(noop())
+    await done_task
+    assert done_task.done()
+
+    scope = AsyncioCancelScope.__new__(AsyncioCancelScope)
+    scope._tasks = {done_task}
+    scope._cancel_called = True
+    scope._cancel_reason = None
+    scope._host_task = None
+    scope._child_scopes = set()
+    scope._cancelled_caught = False
+    scope._pending_uncancellations = None
+
+    should_retry = scope._deliver_cancellation(scope)
+    assert should_retry is False
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_propagate_native_cancellation_from_taskgroup() -> None:
     async def taskfunc() -> None:
         async with create_task_group() as tg:

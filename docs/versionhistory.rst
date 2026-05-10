@@ -25,6 +25,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed cancellation exception escaping a cancel scope when triggered via
   ``check_cancelled()`` in a worker thread
   (`#1113 <https://github.com/agronholm/anyio/issues/1113>`_)
+- Fixed 100% CPU spin in the asyncio backend when a completed task remained in
+  ``CancelScope._tasks`` and ``_deliver_cancellation`` retried indefinitely
+  (`#1111 <https://github.com/agronholm/anyio/issues/1111>`_; PR by @SAY-5)
 - Fixed ``TaskGroup`` raising ``AttributeError`` instead of a clear error when entered
   more than once
   (`#1109 <https://github.com/agronholm/anyio/issues/1109>`_; PR by @bahtya)
