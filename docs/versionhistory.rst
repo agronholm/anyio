@@ -35,6 +35,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed test resumption after ``KeyboardInterrupt`` in async generator fixtures on the
   asyncio backend
   (`#1060 <https://github.com/agronholm/anyio/issues/1060>`_; PR by @EmmanuelNiyonshuti)
+- Fixed import of ``__main__`` in ``to_process`` workers when entrypoint script
+  doesn't end in ``.py``, such as when using ``console_script`` entrypoints.
+  (`#1027 <https://github.com/agronholm/anyio/issues/1027>`_; PR by @tapetersen)
 - Fixed ``SocketListener.from_socket()`` returning a TCP listener for ``AF_UNIX``
   listening sockets, causing ``accept()`` to fail with ``ENOTSUP``
   (`#1132 <https://github.com/agronholm/anyio/issues/1132>`_; PR by @kudato)

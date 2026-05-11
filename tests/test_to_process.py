@@ -128,3 +128,24 @@ async def test_nonexistent_main_module(
     script_path.touch()
     monkeypatch.setattr("__main__.__file__", str(script_path / "__main__.py"))
     await to_process.run_sync(os.getpid)
+
+
+def _check_main_importable() -> int:
+    """Helper that runs in the worker process to check main was imported correctly"""
+
+    # python multiprocessing does it this way and there is probably code dependent on it.
+    assert sys.modules["__main__"] == sys.modules["__mp_main__"]
+
+    return sys.modules["__main__"].foo
+
+
+async def test_entrypoint_main_module(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+    """
+    Test that worker process creation succeeds when __main__.__file__ points to an
+    entry point script (no .py extension). Regression test for #1027.
+    """
+
+    script_path = tmp_path / "my-entrypoint"
+    script_path.write_text("foo=3")
+    monkeypatch.setattr("__main__.__file__", str(script_path))
+    assert await to_process.run_sync(_check_main_importable) == 3
