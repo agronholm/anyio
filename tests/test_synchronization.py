@@ -13,6 +13,7 @@ from anyio import (
     Event,
     Lock,
     Semaphore,
+    TaskCancelled,
     WouldBlock,
     create_task_group,
     fail_after,
@@ -213,6 +214,47 @@ class TestLock:
         assert statistics.owner is None
         assert statistics.tasks_waiting == 0
         lock.acquire_nowait()
+
+    async def test_cancelled_head_waiter_does_not_orphan_later_waiter(
+        self,
+    ) -> None:
+        lock = Lock()
+        lock.acquire_nowait()
+        gate = Event()
+        last_task_acquired = False
+
+        async def acquire_after_gate() -> None:
+            nonlocal last_task_acquired
+            await gate.wait()
+            await lock.acquire()
+            try:
+                last_task_acquired = True
+            finally:
+                lock.release()
+
+        async with create_task_group() as tg:
+            task1 = tg.create_task(lock.acquire())
+            task2 = tg.create_task(lock.acquire())
+            last_task = tg.create_task(acquire_after_gate())
+            await wait_all_tasks_blocked()
+            assert lock.statistics().tasks_waiting == 2
+
+            gate.set()
+            task1.cancel()
+            task2.cancel()
+            lock.release()
+            with fail_after(1):
+                await last_task
+
+            with pytest.raises(TaskCancelled):
+                await task1
+
+            with pytest.raises(TaskCancelled):
+                await task2
+
+        assert last_task_acquired
+        assert not lock.locked()
+        assert lock.statistics().tasks_waiting == 0
 
     def test_instantiate_outside_event_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
@@ -660,6 +702,63 @@ class TestSemaphore:
         assert semaphore.value == 1
         assert semaphore.statistics().tasks_waiting == 0
         semaphore.acquire_nowait()
+
+    async def test_cancelled_head_waiter_does_not_orphan_later_waiter(
+        self,
+    ) -> None:
+        semaphore = Semaphore(0, max_value=1)
+        gate = Event()
+        last_task_acquired = False
+
+        async def acquire_after_gate() -> None:
+            nonlocal last_task_acquired
+            await gate.wait()
+            await semaphore.acquire()
+            try:
+                last_task_acquired = True
+            finally:
+                semaphore.release()
+
+        async with create_task_group() as tg:
+            task1 = tg.create_task(semaphore.acquire())
+            task2 = tg.create_task(semaphore.acquire())
+            last_task = tg.create_task(acquire_after_gate())
+            await wait_all_tasks_blocked()
+            assert semaphore.statistics().tasks_waiting == 2
+
+            gate.set()
+            task1.cancel()
+            task2.cancel()
+            semaphore.release()
+            with fail_after(1):
+                await last_task
+
+            with pytest.raises(TaskCancelled):
+                await task1
+
+            with pytest.raises(TaskCancelled):
+                await task2
+
+        assert last_task_acquired
+        assert semaphore.value == 1
+        assert semaphore.statistics().tasks_waiting == 0
+
+    async def test_cancelled_head_waiter_does_not_overrelease(self) -> None:
+        semaphore = Semaphore(0)
+
+        async with create_task_group() as tg:
+            task = tg.create_task(semaphore.acquire())
+            await wait_all_tasks_blocked()
+            assert semaphore.statistics().tasks_waiting == 1
+
+            task.cancel()
+            semaphore.release()
+
+            with pytest.raises(TaskCancelled):
+                await task
+
+        assert semaphore.value == 1
+        assert semaphore.statistics().tasks_waiting == 0
 
     def test_instantiate_outside_event_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
