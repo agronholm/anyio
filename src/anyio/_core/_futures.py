@@ -47,7 +47,7 @@ class Future(Generic[T]):
             case Future.Status.PENDING:
                 return
             case Future.Status.FINISHED:
-                raise FutureAlreadyFinished("future has already finished.")
+                raise FutureAlreadyFinished("future has already finished")
             case Future.Status.FAILED:
                 raise FutureAlreadyFinished("future already failed")
             case Future.Status.CANCELLING:
@@ -81,6 +81,20 @@ class Future(Generic[T]):
         self._check_status()
         self._exception = exception
         self._finished_event.set()
+
+    def cancel(self) -> None:
+        match self.status:
+            case Future.Status.PENDING:
+                return self._cancel_scope.cancel()
+            case Future.Status.FINISHED:
+                raise FutureAlreadyFinished("future has already finished")
+            case Future.Status.FAILED:
+                raise FutureAlreadyFinished("future already failed")
+            case Future.Status.CANCELLING:
+                return
+            case Future.Status.CANCELLED:
+                return
+
 
     @property
     def exception(self) -> BaseException | None:
