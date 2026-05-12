@@ -179,7 +179,7 @@ class TaskNotFinished(Exception):
 
 class FutureCancelled(Exception):
     """
-    Rasied when attempting to access the return value or exception of a
+    Raised when attempting to access the return value or exception of a
     :class `.Future`: that is still pending completion.
     """
 
