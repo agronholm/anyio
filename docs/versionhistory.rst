@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added an implementation of the ``asyncio.Future`` object for single pending objects.
+  (`#1146 <https://github.com/agronholm/anyio/pull/1146>`_; PR by @Vizonex)
 - Added an asynchronous implementation of the ``itertools`` module
   (`#998 <https://github.com/agronholm/anyio/issues/998>`_; PR by @11kkw)
 - Added the ``local_port`` parameter to :func:`connect_tcp` to allow binding to a
