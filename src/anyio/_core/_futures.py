@@ -1,153 +1,144 @@
 from __future__ import annotations
 
-import sys
-from collections.abc import Awaitable, Callable, Generator
+from collections.abc import Generator
 from enum import Enum, auto
-from typing import Any, TypeVar
+from typing import Any, Generic, TypeVar
 
-from .. import Event
-from ..lowlevel import RunVar
-from ._exceptions import FutureAlreadyFinished, FutureCancelled, FutureNotFinished
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
-
+from ._eventloop import get_cancelled_exc_class
+from ._exceptions import (
+    FutureAlreadyFinished,
+    FutureCancelled,
+    TaskFailed,
+    TaskNotFinished,
+)
+from ._synchronization import Event
+from ._tasks import CancelScope
 
 T = TypeVar("T")
 
 
-class Future(Awaitable[T]):
-    """A asynchronous container object for waiting on single objects to be completed."""
-
+class Future(Generic[T]):
     class Status(Enum):
+        """The status of a future handle."""
+
         PENDING = auto()
-        CANCELLED = auto()
         FINISHED = auto()
+        FAILED = auto()
+        CANCELLING = auto()
+        CANCELLED = auto()
 
-    def __init__(self) -> None:
-        self._event = Event()
-        self._state = self.Status.PENDING
-        self._result: T = None
+    __slots__ = (
+        "_result_value",
+        "_finished_event",
+        "_cancel_scope",
+        "_exception",
+        "_name",
+    )
+    _result_value: T
+
+    def __init__(self, *, name: str | None = None) -> None:
+        self._finished_event = Event()
+        self._cancel_scope = CancelScope()
         self._exception: BaseException | None = None
-        self._cancelled_exc: BaseException | None = None
+        self._name = name
 
-        self._done_callbacks: list[
-            tuple[RunVar[Any] | None, Callable[[Self], Any]]
-        ] = []
-        self._cancel_msg = None
+    def _check_status(self) -> None:
+        match self.status:
+            case Future.Status.PENDING:
+                return
+            case Future.Status.FINISHED:
+                raise FutureAlreadyFinished("future has already finished.")
+            case Future.Status.FAILED:
+                raise FutureAlreadyFinished("future already failed")
+            case Future.Status.CANCELLING:
+                raise FutureCancelled("future was cancelled")
+            case Future.Status.CANCELLED:
+                raise FutureCancelled("future was cancelled") from self._exception
 
-    def __check_not_done(self) -> None:
-        if self._state != self.Status.PENDING:
-            raise FutureAlreadyFinished("Future has already finished.")
+    async def wait(self) -> None:
+        """
+        Waits for the future to finish.
 
-    def __check_done(self) -> None:
-        if self._state == self.Status.CANCELLED:
-            exc = self._make_cancelled_error()
-            raise exc
-        if self._state != self.Status.FINISHED:
-            raise FutureNotFinished("Result is not ready.")
+        This method will attempt to wait for a result or exception
+        """
+        with self._cancel_scope:
+            try:
+                await self._finished_event.wait()
+            except BaseException as e:
+                self._exception = e
+                raise
+            finally:
+                self._finished_event.set()
 
-    def __schedule_callbacks(self) -> None:
-        # set event so that anything awaiting this object
-        # can be notified that it is now ready for use.
-        self._event.set()
-        for rv, cb in self._done_callbacks:
-            if rv:
-                with rv:
-                    cb(self)
-            else:
-                cb(self)
-
-    def cancel(self, msg=None) -> bool:
-        """Cancel the future and schedules callbacks"""
-        if self._state != self.Status.PENDING:
-            return False
-        self._state = self.Status.CANCELLED
-        self._cancel_msg = msg
-        self.__schedule_callbacks()
-        return True
-
-    def done(self) -> bool:
-        """Return True if future was completed."""
-        return self._state != self.Status.PENDING
-
-    def cancelled(self):
-        """Return True if future was cancelled."""
-        return self._state != self.Status.CANCELLED
-
-    def _make_cancelled_error(self) -> FutureCancelled:
-        """Creates a :class:`.FutureCancelled` exception."""
-        if self._cancelled_exc is not None:
-            exc = self._cancelled_exc
-            self._cancelled_exc = None
-            return exc
-
-        exc = (
-            FutureCancelled()
-            if self._cancel_msg is not None
-            else FutureCancelled(self._cancel_msg)
-        )
-        exc.__context__ = self._cancelled_exc
-        self._cancelled_exc = None
-        return exc
-
-    def result(self) -> T:
-        """Gets the result of a :class:`.Future` if completed."""
-        self.__check_done()
-        if self._exception is not None:
-            raise self._exception
-        return self._result
-
-    def exception(self) -> BaseException | None:
-        """Gets the exception of a :class:`.Future` if completed it will be done if there is instead a successful result."""
-        self.__check_done()
-        return self._exception
-
-    def add_done_callback(
-        self, fn: Callable[[Self], Any], *, context: RunVar[Self] | None = None
-    ) -> None:
-        """Creates a synchronous callback for when a future is considered as being completed or not."""
-        if self._state != self.Status.PENDING:
-            if context:
-                with context:
-                    fn(self)
-            else:
-                fn(self)
-        else:
-            self._done_callbacks.append((context, fn))
-
-    def remove_done_callback(self, fn: Callable[[Self], Any]):
-        filtered_callbacks = [(f, ctx) for (f, ctx) in self._done_callbacks if f != fn]
-        removed_count = len(self._done_callbacks) - len(filtered_callbacks)
-        if removed_count:
-            self._done_callbacks[:] = filtered_callbacks
-        return removed_count
-
-    def set_result(self, result: T) -> None:
-        """sets the results of a :class:`.Future` object."""
-        self.__check_not_done()
-        self._result = result
-        self._state = self.Status.FINISHED
-        self.__schedule_callbacks()
+    def set_result(self, value: T) -> None:
+        """Send pending result for a container object"""
+        self._check_status()
+        self._result_value = value
+        self._finished_event.set()
 
     def set_exception(self, exception: BaseException) -> None:
-        """sets the exception of a :class:`.Future` object."""
-        self.__check_not_done()
+        """Send exception result for a container object"""
+        self._check_status()
         self._exception = exception
-        self._state = self.Status.FINISHED
-        self.__schedule_callbacks()
+        self._finished_event.set()
 
-    # Mostly used as a proxy for awaiting on a pending object.
-    async def wait(self) -> T:
-        await self._event.wait()
-        return self.result()
+    @property
+    def exception(self) -> BaseException | None:
+        match self.status:
+            case Future.Status.PENDING:
+                raise TaskNotFinished("the future has not finished yet")
+            case Future.Status.FINISHED:
+                return None
+            case Future.Status.CANCELLING:
+                raise FutureCancelled("the future was cancelled")
+            case Future.Status.CANCELLED:
+                raise FutureCancelled("the future was cancelled") from self._exception
+            case Future.Status.FAILED:
+                return self._exception
 
-    def __await__(self) -> Generator[Any, None, T]:
-        return self.wait().__await__()
+    @property
+    def return_value(self) -> T:
+        """
+        The return value of the future.
 
+        :raises TaskNotFinished: if the future has not finished yet
+        :raises FutureCancelled: if the future was cancelled
+        :raises TaskFailed: if the future raised an exception
 
-def create_future() -> Future[T]:
-    """Shortcut method for creating a new :class:`.Future` object."""
-    return Future()
+        """
+        match self.status:
+            case Future.Status.PENDING:
+                raise TaskNotFinished("the future has not finished yet")
+            case Future.Status.FINISHED:
+                return self._result_value
+            case Future.Status.CANCELLING:
+                raise FutureCancelled("the future was cancelled")
+            case Future.Status.CANCELLED:
+                raise FutureCancelled("the future was cancelled") from self._exception
+            case Future.Status.FAILED:
+                raise TaskFailed("the future raised an exception") from self._exception
+
+    @property
+    def status(self) -> Future.Status:
+        if not self._finished_event.is_set():
+            if self._cancel_scope.cancel_called:
+                return Future.Status.CANCELLING
+            else:
+                return Future.Status.PENDING
+        elif self._exception is not None:
+            if isinstance(self._exception, get_cancelled_exc_class()):
+                return Future.Status.CANCELLED
+            else:
+                return Future.Status.FAILED
+        else:
+            return Future.Status.FINISHED
+
+    def __await__(self) -> Generator[Any, Any, T]:
+        yield from self.wait().__await__()
+        return self.return_value
+
+    def __repr__(self) -> str:
+        return (
+            f"<{self.__class__.__name__} {self.status.name.lower()} "
+            f"name={self._name!r}>"
+        )
