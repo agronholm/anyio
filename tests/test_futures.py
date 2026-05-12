@@ -63,7 +63,6 @@ class TestFuture:
             with pytest.raises(TaskFailed, match="the future raised an exception"):
                 await future
 
-
     async def test_already_cancelled(self) -> None:
         future: Future[int] = Future()
         future.cancel()
