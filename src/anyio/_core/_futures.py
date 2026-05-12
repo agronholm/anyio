@@ -17,8 +17,10 @@ else:
 
 T = TypeVar("T")
 
+
 class Future(Awaitable[T]):
     """A asynchronous container object for waiting on single objects to be completed."""
+
     class Status(Enum):
         PENDING = auto()
         CANCELLED = auto()
@@ -31,7 +33,9 @@ class Future(Awaitable[T]):
         self._exception: BaseException | None = None
         self._cancelled_exc: BaseException | None = None
 
-        self._done_callbacks: list[tuple[RunVar[Any] | None , Callable[[Self], Any]]] = []
+        self._done_callbacks: list[
+            tuple[RunVar[Any] | None, Callable[[Self], Any]]
+        ] = []
         self._cancel_msg = None
 
     def __check_not_done(self) -> None:
@@ -80,7 +84,11 @@ class Future(Awaitable[T]):
             self._cancelled_exc = None
             return exc
 
-        exc = FutureCancelled() if self._cancel_msg is not None else FutureCancelled(self._cancel_msg)
+        exc = (
+            FutureCancelled()
+            if self._cancel_msg is not None
+            else FutureCancelled(self._cancel_msg)
+        )
         exc.__context__ = self._cancelled_exc
         self._cancelled_exc = None
         return exc
@@ -97,7 +105,9 @@ class Future(Awaitable[T]):
         self.__check_done()
         return self._exception
 
-    def add_done_callback(self, fn: Callable[[Self], Any], *, context: RunVar[Self] | None = None) -> None:
+    def add_done_callback(
+        self, fn: Callable[[Self], Any], *, context: RunVar[Self] | None = None
+    ) -> None:
         """Creates a synchronous callback for when a future is considered as being completed or not."""
         if self._state != self.Status.PENDING:
             if context:
@@ -109,9 +119,7 @@ class Future(Awaitable[T]):
             self._done_callbacks.append((context, fn))
 
     def remove_done_callback(self, fn: Callable[[Self], Any]):
-        filtered_callbacks = [(f, ctx)
-                              for (f, ctx) in self._done_callbacks
-                              if f != fn]
+        filtered_callbacks = [(f, ctx) for (f, ctx) in self._done_callbacks if f != fn]
         removed_count = len(self._done_callbacks) - len(filtered_callbacks)
         if removed_count:
             self._done_callbacks[:] = filtered_callbacks
@@ -138,6 +146,7 @@ class Future(Awaitable[T]):
 
     def __await__(self) -> Generator[Any, None, T]:
         return self.wait().__await__()
+
 
 def create_future() -> Future[T]:
     """Shortcut method for creating a new :class:`.Future` object."""

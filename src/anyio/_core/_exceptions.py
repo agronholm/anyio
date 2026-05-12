@@ -183,11 +183,13 @@ class FutureCancelled(Exception):
     :class `.Future`: that is still pending completion.
     """
 
+
 class FutureNotFinished(Exception):
     """
     Raised when attempting to access the return value or exception of a
     :class:`.Future` that is still pending completion.
     """
+
 
 class FutureAlreadyFinished(Exception):
     """
