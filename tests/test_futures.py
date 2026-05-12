@@ -31,7 +31,6 @@ class TestFuture:
         with pytest.raises(FutureAlreadyFinished, match="future has already finished"):
             future.set_result(0)
 
-
     async def test_waiting_for_result(self) -> None:
         async def task(fut: Future[int], value: int):
             await checkpoint()
