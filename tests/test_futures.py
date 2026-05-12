@@ -32,7 +32,7 @@ class TestFuture:
             future.set_result(0)
 
     async def test_waiting_for_result(self) -> None:
-        async def task(fut: Future[int], value: int):
+        async def task(fut: Future[int], value: int) -> None:
             await checkpoint()
             fut.set_result(value)
 
@@ -42,7 +42,7 @@ class TestFuture:
             assert (await future) == 2
 
     async def test_waiting_with_wait(self) -> None:
-        async def task(fut: Future[int], value: int):
+        async def task(fut: Future[int], value: int) -> None:
             await checkpoint()
             fut.set_result(value)
 
@@ -53,7 +53,7 @@ class TestFuture:
             assert future.return_value == 2
 
     async def test_raising_exception(self) -> None:
-        async def task(fut: Future[int]):
+        async def task(fut: Future[int]) -> None:
             await checkpoint()
             fut.set_exception(RuntimeError("testing runtime error"))
 
@@ -69,7 +69,7 @@ class TestFuture:
         with pytest.raises(FutureCancelled, match=r"future was cancelled"):
             future.set_result(1)
 
-    async def test_cancelled_wait(self):
+    async def test_cancelled_wait(self) -> None:
         future: Future[int] = Future()
         future.cancel()
         with pytest.raises(FutureCancelled, match=r"future was cancelled"):
