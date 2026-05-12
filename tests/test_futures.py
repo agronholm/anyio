@@ -6,8 +6,7 @@ from anyio import (
     Future,
     FutureAlreadyFinished,
     FutureCancelled,
-    # FutureNotFinished,
-    # TaskCancelled,
+    TaskFailed,
     create_task_group,
 )
 from anyio.lowlevel import (
@@ -25,7 +24,7 @@ class TestFuture:
         result = await future
         assert result == 1
 
-    def test_disallowing_multiple_results(self) -> None:
+    async def test_disallowing_multiple_results(self) -> None:
         future: Future[int] = Future()
         future.set_result(1)
 
@@ -61,12 +60,12 @@ class TestFuture:
 
         future: Future[int] = Future()
         async with create_task_group() as tg:
-            tg.start_soon(task, future, 2)
-            with pytest.raises(RuntimeError, match=r"testing runtime error"):
+            tg.start_soon(task, future)
+            with pytest.raises(TaskFailed, match="the future raised an exception"):
                 await future
 
 
-    def test_already_cancelled(self) -> None:
+    async def test_already_cancelled(self) -> None:
         future: Future[int] = Future()
         future.cancel()
         with pytest.raises(FutureCancelled, match=r"future was cancelled"):
