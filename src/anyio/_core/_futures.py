@@ -95,7 +95,6 @@ class Future(Generic[T]):
             case Future.Status.CANCELLED:
                 return
 
-
     @property
     def exception(self) -> BaseException | None:
         match self.status:

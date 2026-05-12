@@ -32,7 +32,6 @@ class TestFuture:
         with pytest.raises(FutureAlreadyFinished, match="future has already finished"):
             future.set_result(0)
 
-
     async def test_waiting_for_result(self) -> None:
         async def task(fut: Future[int], value: int):
             await checkpoint()
@@ -64,7 +63,6 @@ class TestFuture:
             tg.start_soon(task, future, 2)
             with pytest.raises(RuntimeError, match=r"testing runtime error"):
                 await future
-
 
     def test_already_cancelled(self) -> None:
         future: Future[int] = Future()
