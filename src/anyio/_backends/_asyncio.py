@@ -1842,7 +1842,11 @@ class Lock(BaseLock):
         try:
             await fut
         except CancelledError:
-            self._waiters.remove(item)
+            try:
+                self._waiters.remove(item)
+            except ValueError:
+                pass
+
             if self._owner_task is task:
                 self.release()
 
@@ -1868,11 +1872,18 @@ class Lock(BaseLock):
         if self._owner_task != current_task():
             raise RuntimeError("The current task is not holding this lock")
 
-        for task, fut in self._waiters:
-            if not fut.cancelled():
-                self._owner_task = task
-                fut.set_result(None)
-                return
+        # A cancelled waiter that already received ownership removes itself from
+        # _waiters before calling release(); any cancelled waiter still queued here
+        # was cancelled before being woken, so drop it.
+        while self._waiters:
+            task, fut = self._waiters[0]
+            if fut.cancelled():
+                self._waiters.popleft()
+                continue
+
+            self._owner_task = task
+            fut.set_result(None)
+            return
 
         self._owner_task = None
 
@@ -1928,7 +1939,8 @@ class Semaphore(BaseSemaphore):
             try:
                 self._waiters.remove(fut)
             except ValueError:
-                self.release()
+                if not fut.cancelled():
+                    self.release()
 
             raise
 
@@ -1942,11 +1954,15 @@ class Semaphore(BaseSemaphore):
         if self._max_value is not None and self._value == self._max_value:
             raise ValueError("semaphore released too many times")
 
-        for fut in self._waiters:
-            if not fut.cancelled():
-                fut.set_result(None)
-                self._waiters.remove(fut)
-                return
+        while self._waiters:
+            fut = self._waiters[0]
+            if fut.cancelled():
+                self._waiters.popleft()
+                continue
+
+            fut.set_result(None)
+            self._waiters.popleft()
+            return
 
         self._value += 1
 

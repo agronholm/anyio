@@ -214,6 +214,45 @@ class TestLock:
         assert statistics.tasks_waiting == 0
         lock.acquire_nowait()
 
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_cancelled_head_waiter_does_not_orphan_later_waiter(self) -> None:
+        lock = Lock()
+        lock.acquire_nowait()
+        gate = Event()
+        acquired = Event()
+        scope1 = CancelScope()
+        scope2 = CancelScope()
+
+        async def waiting_acquire(scope: CancelScope) -> None:
+            with scope:
+                await lock.acquire()
+                lock.release()
+
+        async def acquire_after_gate() -> None:
+            await gate.wait()
+            await lock.acquire()
+            try:
+                acquired.set()
+            finally:
+                lock.release()
+
+        async with create_task_group() as tg:
+            tg.start_soon(waiting_acquire, scope1)
+            tg.start_soon(waiting_acquire, scope2)
+            tg.start_soon(acquire_after_gate)
+            await wait_all_tasks_blocked()
+            assert lock.statistics().tasks_waiting == 2
+
+            gate.set()
+            scope1.cancel()
+            scope2.cancel()
+            lock.release()
+            with fail_after(1):
+                await acquired.wait()
+
+        assert not lock.locked()
+        assert lock.statistics().tasks_waiting == 0
+
     def test_instantiate_outside_event_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
@@ -660,6 +699,64 @@ class TestSemaphore:
         assert semaphore.value == 1
         assert semaphore.statistics().tasks_waiting == 0
         semaphore.acquire_nowait()
+
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_cancelled_head_waiter_does_not_orphan_later_waiter(self) -> None:
+        semaphore = Semaphore(0, max_value=1)
+        gate = Event()
+        acquired = Event()
+        scope1 = CancelScope()
+        scope2 = CancelScope()
+
+        async def waiting_acquire(scope: CancelScope) -> None:
+            with scope:
+                await semaphore.acquire()
+                semaphore.release()
+
+        async def acquire_after_gate() -> None:
+            await gate.wait()
+            await semaphore.acquire()
+            try:
+                acquired.set()
+            finally:
+                semaphore.release()
+
+        async with create_task_group() as tg:
+            tg.start_soon(waiting_acquire, scope1)
+            tg.start_soon(waiting_acquire, scope2)
+            tg.start_soon(acquire_after_gate)
+            await wait_all_tasks_blocked()
+            assert semaphore.statistics().tasks_waiting == 2
+
+            gate.set()
+            scope1.cancel()
+            scope2.cancel()
+            semaphore.release()
+            with fail_after(1):
+                await acquired.wait()
+
+        assert semaphore.value == 1
+        assert semaphore.statistics().tasks_waiting == 0
+
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_cancelled_head_waiter_does_not_overrelease(self) -> None:
+        semaphore = Semaphore(0)
+        scope = CancelScope()
+
+        async def waiting_acquire() -> None:
+            with scope:
+                await semaphore.acquire()
+
+        async with create_task_group() as tg:
+            tg.start_soon(waiting_acquire)
+            await wait_all_tasks_blocked()
+            assert semaphore.statistics().tasks_waiting == 1
+
+            scope.cancel()
+            semaphore.release()
+
+        assert semaphore.value == 1
+        assert semaphore.statistics().tasks_waiting == 0
 
     def test_instantiate_outside_event_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
