@@ -16,11 +16,13 @@ from ._tasks import CancelScope
 
 T = TypeVar("T")
 
+
 class Future(Generic[T]):
     """
     An awaitable object that works similar to a :class:`asyncio.Future` but
     with similar characteristics to a :class:`.TaskHandle`.
     """
+
     class Status(Enum):
         """
         The status of a future handle.
