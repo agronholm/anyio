@@ -18,8 +18,8 @@ T = TypeVar("T")
 
 class Future(Generic[T]):
     """
-    An awaitable object that works simillar to a :class:`asyncio.Future` but
-    with simillar characteristics to a :class:`.TaskHandle`.
+    An awaitable object that works similar to a :class:`asyncio.Future` but
+    with similar characteristics to a :class:`.TaskHandle`.
     """
     class Status(Enum):
         """
