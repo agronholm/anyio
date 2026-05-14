@@ -16,16 +16,37 @@ from ._tasks import CancelScope
 
 T = TypeVar("T")
 
-
 class Future(Generic[T]):
+    """
+    An awaitable object that works simillar to a :class:`asyncio.Future` but
+    with simillar characteristics to a :class:`.TaskHandle`.
+    """
     class Status(Enum):
-        """The status of a future handle."""
+        """
+        The status of a future handle.
+
+        .. attribute:: PENDING
+
+            The future has not finished yet.
+        .. attribute:: FINISHED
+
+            The future has finished with a return value.
+        .. attribute:: CANCELLING
+
+            The future has been cancelled but has not finished yet.
+        .. attribute:: CANCELLED
+
+            The future was cancelled and has finished since.
+        .. attribute:: FAILED
+
+            The future raised an exception.
+        """
 
         PENDING = auto()
         FINISHED = auto()
-        FAILED = auto()
         CANCELLING = auto()
         CANCELLED = auto()
+        FAILED = auto()
 
     __slots__ = (
         "_result_value",
@@ -42,7 +63,12 @@ class Future(Generic[T]):
         self._exception: BaseException | None = None
         self._name = name
 
-    def _check_status(self) -> None:
+    def _check_pending(self) -> None:
+        """Shortcut for checking if a Future is pending
+
+        :raises FutureAlreadyFinished: if future was already given a result or exception.
+        :raises FutureCancelled: if future has been cancelled previously.
+        """
         match self.status:
             case Future.Status.PENDING:
                 return
@@ -71,18 +97,31 @@ class Future(Generic[T]):
                 self._finished_event.set()
 
     def set_result(self, value: T) -> None:
-        """Send pending result for a container object"""
-        self._check_status()
+        """
+        Send pending result for a `.Future` object
+
+        :raises FutureAlreadyFinished: if future was already given a result or exception.
+        :raises FutureCancelled: if future has been cancelled previously.
+        """
+        self._check_pending()
         self._result_value = value
         self._finished_event.set()
 
     def set_exception(self, exception: BaseException) -> None:
-        """Send exception result for a container object"""
-        self._check_status()
+        """Send exception for a `.Future` object
+
+        :raises FutureAlreadyFinished: if future was already given a result or exception.
+        :raises FutureCancelled: if future has been cancelled previously.
+        """
+        self._check_pending()
         self._exception = exception
         self._finished_event.set()
 
     def cancel(self) -> None:
+        """Cancels a pending `.Future` object
+
+        :raises FutureAlreadyFinished: if future was already given a result or exception.
+        """
         match self.status:
             case Future.Status.PENDING:
                 return self._cancel_scope.cancel()
@@ -97,6 +136,15 @@ class Future(Generic[T]):
 
     @property
     def exception(self) -> BaseException | None:
+        """
+        The exception value of a `.Future`
+
+        :raises TaskNotFinished: if future is still pending
+        :raises FutureCancelled: if future was cancelled
+        :returns: None if future succeeds with a result sent instead
+            otherwise this will be an exception
+        """
+
         match self.status:
             case Future.Status.PENDING:
                 raise TaskNotFinished("the future has not finished yet")
@@ -133,6 +181,17 @@ class Future(Generic[T]):
 
     @property
     def status(self) -> Future.Status:
+        """
+        The current status of a future.
+
+        Every future starts in the :attr:`~Future.Status.PENDING` state.
+        If a future is cancelled while in this state, it will transition to the
+        :attr:`Future.Status.CANCELLING` state. When the task finishes, it will
+        transition to one of the three final states (
+        :attr:`Future.Status.FINISHED`, :attr:`Future.Status.FAILED`, or
+        :attr:`Future.Status.CANCELLING`) depending on the exception the task
+        raised, if any. No other status transitions will happen.
+        """
         if not self._finished_event.is_set():
             if self._cancel_scope.cancel_called:
                 return Future.Status.CANCELLING
