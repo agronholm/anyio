@@ -25,9 +25,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed cancellation exception escaping a cancel scope when triggered via
   ``check_cancelled()`` in a worker thread
   (`#1113 <https://github.com/agronholm/anyio/issues/1113>`_)
-- Fixed asyncio ``Lock`` and ``Semaphore`` deadlocks caused by cancelled waiters
-  left queued during release
-  (`#1145 <https://github.com/agronholm/anyio/pull/1145>`_; PR by @rasmusfaber)
 - Fixed ``TaskGroup`` raising ``AttributeError`` instead of a clear error when entered
   more than once
   (`#1109 <https://github.com/agronholm/anyio/issues/1109>`_; PR by @bahtya)
@@ -42,6 +39,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``SocketListener.from_socket()`` returning a TCP listener for ``AF_UNIX``
   listening sockets, causing ``accept()`` to fail with ``ENOTSUP``
   (`#1132 <https://github.com/agronholm/anyio/issues/1132>`_; PR by @kudato)
+- Fixed asyncio ``Lock`` and ``Semaphore`` deadlocks caused by cancelled waiters
+  left queued during release
+  (`#1145 <https://github.com/agronholm/anyio/pull/1145>`_; PR by @rasmusfaber)
 
 **4.13.0**
 
