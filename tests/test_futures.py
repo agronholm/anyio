@@ -7,6 +7,7 @@ from anyio import (
     FutureAlreadyFinished,
     FutureCancelled,
     TaskFailed,
+    TaskNotFinished,
     create_task_group,
 )
 from anyio.lowlevel import (
@@ -74,3 +75,41 @@ class TestFuture:
         future.cancel()
         with pytest.raises(FutureCancelled, match=r"future was cancelled"):
             await future
+
+    async def test_future_not_finished(self):
+        future: Future[int] = Future()
+        with pytest.raises(TaskNotFinished, match=r"the future has not finished yet"):
+            _ = future.return_value
+
+        with pytest.raises(TaskNotFinished, match=r"the future has not finished yet"):
+            _ = future.exception
+
+    async def test_future_cancelling_already_set_result(self):
+        fut: Future[str] = Future()
+        fut.set_result("Item")
+        with pytest.raises(FutureAlreadyFinished, match=r"future has already finished"):
+            fut.cancel()
+
+    async def test_future_cancelling_already_set_exception(self):
+        fut = Future()
+        fut.set_exception(RuntimeError("Failed"))
+        with pytest.raises(FutureAlreadyFinished, match=r"future already failed"):
+            fut.cancel()
+
+    async def test_future_cancelling_with_result(self):
+        fut: Future[str] = Future()
+        fut.cancel()
+
+        with pytest.raises(FutureCancelled, match=r"future was cancelled"):
+            fut.set_result("Item")
+
+    async def test_future_cancelling_with_await(self):
+        fut: Future[str] = Future()
+        fut.cancel()
+
+        with pytest.raises(FutureCancelled, match=r"future was cancelled"):
+            await fut
+
+    async def test_future_with_repr(self):
+        repr_str = repr(Future(name="name"))
+        assert repr_str == "<Future pending name='name'>"
