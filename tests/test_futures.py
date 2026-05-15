@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from anyio import (
@@ -91,7 +93,7 @@ class TestFuture:
             fut.cancel()
 
     async def test_future_cancelling_already_set_exception(self) -> None:
-        fut = Future()
+        fut: Future[Any] = Future()
         fut.set_exception(RuntimeError("Failed"))
         with pytest.raises(FutureAlreadyFinished, match=r"future already failed"):
             fut.cancel()
