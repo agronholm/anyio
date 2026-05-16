@@ -1237,17 +1237,20 @@ class DatagramProtocol(asyncio.DatagramProtocol):
     read_queue: deque[tuple[bytes, IPSockAddrType]]
     read_event: asyncio.Event
     write_event: asyncio.Event
+    closed_event: asyncio.Event
     exception: Exception | None = None
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.read_queue = deque(maxlen=100)  # arbitrary value
         self.read_event = asyncio.Event()
         self.write_event = asyncio.Event()
+        self.closed_event = asyncio.Event()
         self.write_event.set()
 
     def connection_lost(self, exc: Exception | None) -> None:
         self.read_event.set()
         self.write_event.set()
+        self.closed_event.set()
 
     def datagram_received(self, data: bytes, addr: IPSockAddrType) -> None:
         addr = convert_ipv6_sockaddr(addr)
@@ -1626,6 +1629,7 @@ class UDPSocket(abc.UDPSocket):
         self._closed = True
         if not self._transport.is_closing():
             self._transport.close()
+        await self._protocol.closed_event.wait()
 
     async def receive(self) -> tuple[bytes, IPSockAddrType]:
         with self._receive_guard:

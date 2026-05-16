@@ -1695,6 +1695,55 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
 @pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestUDPSocket:
+    async def test_aclose_waits_for_fd_release(
+        self, family: AnyIPAddressFamily
+    ) -> None:
+        """Regression: ``UDPSocket.aclose`` must not return before the FD is released.
+
+        ``AsyncResource.aclose`` is documented as "close the resource".
+        Callers reasonably expect the local ``(host, port)`` to be
+        immediately rebindable once ``async with udp:`` returns.
+
+        The asyncio backend used to delegate ``aclose`` to
+        ``DatagramTransport.close``, which only *schedules* the FD-closing
+        ``connection_lost`` callback via ``loop.call_soon`` and returns
+        immediately. A caller who bound a fresh socket on the next line
+        (the typical ``from_socket`` pattern: ``socket()`` -> ``bind()``
+        -> ``UDPSocket.from_socket(sock)``) raced the scheduled close and
+        saw ``EADDRINUSE`` even though ``lsof`` reported the port free.
+
+        ``create_udp_socket`` happens to mask this because its own
+        ``await loop.create_datagram_endpoint(local_addr=...)`` yields
+        once, which drains the queued ``connection_lost``. The
+        ``from_socket`` path doesn't yield between aclose and rebind, so
+        it manifested the bug. This test exercises ``from_socket``
+        specifically.
+        """
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+
+        # Get a port the kernel just freed so we know nothing else has it.
+        probe = socket.socket(family, socket.SOCK_DGRAM)
+        probe.bind((host, 0))
+        port = probe.getsockname()[1]
+        probe.close()
+
+        def bound(host: str, port: int) -> socket.socket:
+            sock = socket.socket(family, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind((host, port))
+            sock.setblocking(False)
+            return sock
+
+        udp_a = await UDPSocket.from_socket(bound(host, port))
+        async with udp_a:
+            pass
+
+        # No yield between aclose returning and rebinding. If aclose
+        # returns before the previous FD is released, this bind fails.
+        udp_b = await UDPSocket.from_socket(bound(host, port))
+        async with udp_b:
+            pass
+
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_udp_socket(
             family=family, local_host="localhost"
