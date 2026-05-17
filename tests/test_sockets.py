@@ -1695,6 +1695,39 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
 @pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestUDPSocket:
+    async def test_aclose_waits_for_fd_release(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        """Regression: ``UDPSocket.aclose`` must not return before the FD is released.
+
+        ``AsyncResource.aclose`` is documented as "close the resource".
+        Callers reasonably expect the local ``(host, port)`` to be
+        immediately rebindable once ``async with udp:`` returns.
+
+        The asyncio backend used to delegate ``aclose`` to
+        ``DatagramTransport.close``, which only *schedules* the FD-closing
+        ``connection_lost`` callback via ``loop.call_soon`` and returns
+        immediately. A caller who bound a fresh socket on the next line
+        (the typical ``from_socket`` pattern: ``socket()`` -> ``bind()``
+        -> ``UDPSocket.from_socket(sock)``) raced the scheduled close and
+        saw ``EADDRINUSE`` even though ``lsof`` reported the port free.
+
+        ``create_udp_socket`` happens to mask this because its own
+        ``await loop.create_datagram_endpoint(local_addr=...)`` yields
+        once, which drains the queued ``connection_lost``. The
+        ``from_socket`` path doesn't yield between aclose and rebind, so
+        it manifested the bug. This test exercises ``from_socket``
+        specifically.
+        """
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        for _ in range(2):
+            sock = socket.socket(family, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind((host, free_udp_port))
+            sock.setblocking(False)
+            udp = await UDPSocket.from_socket(sock)
+            await udp.aclose()
+
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_udp_socket(
             family=family, local_host="localhost"
@@ -1843,6 +1876,29 @@ class TestUDPSocket:
 @pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestConnectedUDPSocket:
+    async def test_aclose_waits_for_fd_release(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        """Regression: ``ConnectedUDPSocket.aclose`` must not return before the FD is
+        released. Same race as ``UDPSocket.aclose``; see that test for the full
+        explanation.
+        """
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        peer = socket.socket(family, socket.SOCK_DGRAM)
+        peer.bind((host, 0))
+        try:
+            peer_addr = peer.getsockname()
+            for _ in range(2):
+                sock = socket.socket(family, socket.SOCK_DGRAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind((host, free_udp_port))
+                sock.connect(peer_addr)
+                sock.setblocking(False)
+                udp = await ConnectedUDPSocket.from_socket(sock)
+                await udp.aclose()
+        finally:
+            peer.close()
+
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_connected_udp_socket(
             "localhost", 5000, family=family
