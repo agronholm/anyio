@@ -5,13 +5,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
-- Fixed ``UDPSocket.aclose()`` (asyncio backend) returning before the underlying
-  socket FD was actually released. Callers binding a fresh socket to the same
-  ``(host, port)`` on the next line (the typical ``from_socket`` pattern) raced
-  the asyncio-scheduled ``connection_lost`` callback and saw ``EADDRINUSE``
-  despite ``lsof`` reporting the port free. ``aclose`` now awaits a
-  ``closed_event`` set from ``DatagramProtocol.connection_lost``, honouring
-  ``AsyncResource.aclose``'s "close the resource" contract.
 - Added an asynchronous implementation of the ``itertools`` module
   (`#998 <https://github.com/agronholm/anyio/issues/998>`_; PR by @11kkw)
 - Added the ``local_port`` parameter to :func:`connect_tcp` to allow binding to a
@@ -48,6 +41,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``SocketListener.from_socket()`` returning a TCP listener for ``AF_UNIX``
   listening sockets, causing ``accept()`` to fail with ``ENOTSUP``
   (`#1132 <https://github.com/agronholm/anyio/issues/1132>`_; PR by @kudato)
+- Fixed ``UDPSocket.aclose()`` on asyncio returning before the underlying
+  socket FD was actually released
+  (`#1147 <https://github.com/agronholm/anyio/pull/1147>`_; PR by @matias-arrelid)
 
 **4.13.0**
 
