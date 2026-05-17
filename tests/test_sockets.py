@@ -1696,7 +1696,7 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestUDPSocket:
     async def test_aclose_waits_for_fd_release(
-        self, family: AnyIPAddressFamily
+        self, family: AnyIPAddressFamily, free_udp_port: int
     ) -> None:
         """Regression: ``UDPSocket.aclose`` must not return before the FD is released.
 
@@ -1720,29 +1720,13 @@ class TestUDPSocket:
         specifically.
         """
         host = "127.0.0.1" if family == socket.AF_INET else "::1"
-
-        # Get a port the kernel just freed so we know nothing else has it.
-        probe = socket.socket(family, socket.SOCK_DGRAM)
-        probe.bind((host, 0))
-        port = probe.getsockname()[1]
-        probe.close()
-
-        def bound(host: str, port: int) -> socket.socket:
+        for _ in range(2):
             sock = socket.socket(family, socket.SOCK_DGRAM)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind((host, port))
+            sock.bind((host, free_udp_port))
             sock.setblocking(False)
-            return sock
-
-        udp_a = await UDPSocket.from_socket(bound(host, port))
-        async with udp_a:
-            pass
-
-        # No yield between aclose returning and rebinding. If aclose
-        # returns before the previous FD is released, this bind fails.
-        udp_b = await UDPSocket.from_socket(bound(host, port))
-        async with udp_b:
-            pass
+            udp = await UDPSocket.from_socket(sock)
+            await udp.aclose()
 
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_udp_socket(
