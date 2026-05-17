@@ -1680,6 +1680,8 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
         if not self._transport.is_closing():
             self._transport.close()
 
+        await self._protocol.closed_event.wait()
+
     async def receive(self) -> bytes:
         with self._receive_guard:
             await AsyncIOBackend.checkpoint()

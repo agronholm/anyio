@@ -1876,6 +1876,29 @@ class TestUDPSocket:
 @pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestConnectedUDPSocket:
+    async def test_aclose_waits_for_fd_release(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        """Regression: ``ConnectedUDPSocket.aclose`` must not return before the FD is
+        released. Same race as ``UDPSocket.aclose``; see that test for the full
+        explanation.
+        """
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        peer = socket.socket(family, socket.SOCK_DGRAM)
+        peer.bind((host, 0))
+        try:
+            peer_addr = peer.getsockname()
+            for _ in range(2):
+                sock = socket.socket(family, socket.SOCK_DGRAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind((host, free_udp_port))
+                sock.connect(peer_addr)
+                sock.setblocking(False)
+                udp = await ConnectedUDPSocket.from_socket(sock)
+                await udp.aclose()
+        finally:
+            peer.close()
+
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_connected_udp_socket(
             "localhost", 5000, family=family
