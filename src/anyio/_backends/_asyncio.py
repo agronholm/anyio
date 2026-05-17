@@ -1629,6 +1629,7 @@ class UDPSocket(abc.UDPSocket):
         self._closed = True
         if not self._transport.is_closing():
             self._transport.close()
+
         await self._protocol.closed_event.wait()
 
     async def receive(self) -> tuple[bytes, IPSockAddrType]:
