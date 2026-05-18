@@ -894,10 +894,7 @@ class TestRunner(abc.TestRunner):
         **kwargs: P.kwargs,
     ) -> T_Retval:
         if self._runner_task_running:
-            raise RuntimeError(
-                "Cannot schedule a coroutine in the test runner when another is already running; "
-                "likely caused by request.getfixturevalue() on an async fixture"
-            )
+            raise RuntimeError("This event loop is already running")
         if self._send_stream is None:
             trio.lowlevel.start_guest_run(
                 self._run_tests_and_fixtures,

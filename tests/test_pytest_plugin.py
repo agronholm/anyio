@@ -596,6 +596,7 @@ def test_dynamic_async_fixture_access_does_not_hang(testdir: Pytester) -> None:
     )
 
     result = testdir.runpytest_subprocess(*pytest_args, timeout=3)
+    result.stdout.fnmatch_lines(["*RuntimeError: This event loop is already running*"])
     result.assert_outcomes(failed=len(get_available_backends()))
 
 
