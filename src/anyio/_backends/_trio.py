@@ -872,6 +872,9 @@ class TestRunner(abc.TestRunner):
             while self._send_stream is not None:
                 self._call_queue.get()()
 
+    def is_running(self) -> bool:
+        return self._runner_task_running
+
     async def _run_tests_and_fixtures(self) -> None:
         self._send_stream, receive_stream = create_memory_object_stream(1)
         with receive_stream:
@@ -893,8 +896,6 @@ class TestRunner(abc.TestRunner):
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> T_Retval:
-        if self._runner_task_running:
-            raise RuntimeError("This event loop is already running")
         if self._send_stream is None:
             trio.lowlevel.start_guest_run(
                 self._run_tests_and_fixtures,
