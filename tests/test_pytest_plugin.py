@@ -579,7 +579,14 @@ def test_async_fixture_params(testdir: Pytester) -> None:
 
 
 def test_dynamic_async_fixture_access_does_not_hang(testdir: Pytester) -> None:
-    # Regression test for #1148
+    """
+    Test for a situation when an async test or fixture dynamically request an async fixture
+    via request.getfixturevalue() from causing a re-entrant call into the test runner.
+    on trio it will deadlock, on asyncio it raises RuntimeError. This test is to ensure
+    both backends fail with a clear error.
+
+    Regression test for https://github.com/agronholm/anyio/issues/1148
+    """
     testdir.makepyfile(
         """
         import pytest
@@ -596,7 +603,11 @@ def test_dynamic_async_fixture_access_does_not_hang(testdir: Pytester) -> None:
     )
 
     result = testdir.runpytest_subprocess(*pytest_args, timeout=3)
-    result.stdout.fnmatch_lines(["*RuntimeError: This event loop is already running*"])
+    result.stdout.fnmatch_lines(
+        [
+            "*RuntimeError: Cannot schedule a coroutine in the test runner while another is already running;*"
+        ]
+    )
     result.assert_outcomes(failed=len(get_available_backends()))
 
 
