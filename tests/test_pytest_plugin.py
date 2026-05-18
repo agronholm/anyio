@@ -585,10 +585,6 @@ def test_dynamic_async_fixture_access_does_not_hang(testdir: Pytester) -> None:
         import pytest
 
         @pytest.fixture
-        def anyio_backend():
-            return "trio"
-
-        @pytest.fixture
         async def f():
             return 1
 
@@ -599,8 +595,8 @@ def test_dynamic_async_fixture_access_does_not_hang(testdir: Pytester) -> None:
         """
     )
 
-    result = testdir.runpytest(*pytest_args)
-    result.assert_outcomes(failed=1)
+    result = testdir.runpytest_subprocess(*pytest_args, timeout=3)
+    result.assert_outcomes(failed=len(get_available_backends()))
 
 
 def test_auto_mode(testdir: Pytester) -> None:
