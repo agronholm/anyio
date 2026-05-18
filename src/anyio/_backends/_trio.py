@@ -859,6 +859,7 @@ class TestRunner(abc.TestRunner):
         self._call_queue: Queue[Callable[[], object]] = Queue()
         self._send_stream: MemoryObjectSendStream | None = None
         self._options = options
+        self._runner_task_running: bool = False
 
     def __exit__(
         self,
@@ -892,6 +893,11 @@ class TestRunner(abc.TestRunner):
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> T_Retval:
+        if self._runner_task_running:
+            raise RuntimeError(
+                "Cannot schedule a coroutine in the test runner when another is already running; "
+                "likely caused by request.getfixturevalue() on an async fixture"
+            )
         if self._send_stream is None:
             trio.lowlevel.start_guest_run(
                 self._run_tests_and_fixtures,
@@ -904,8 +910,12 @@ class TestRunner(abc.TestRunner):
 
         outcome_holder: list[Outcome] = []
         self._send_stream.send_nowait((func(*args, **kwargs), outcome_holder))
-        while not outcome_holder:
-            self._call_queue.get()()
+        self._runner_task_running = True
+        try:
+            while not outcome_holder:
+                self._call_queue.get()()
+        finally:
+            self._runner_task_running = False
 
         return outcome_holder[0].unwrap()
 

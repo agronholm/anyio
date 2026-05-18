@@ -578,6 +578,31 @@ def test_async_fixture_params(testdir: Pytester) -> None:
     result.assert_outcomes(passed=len(get_available_backends()) * 2)
 
 
+def test_dynamic_async_fixture_access_does_not_hang(testdir: Pytester) -> None:
+    # Regression test for #1148
+    testdir.makepyfile(
+        """
+        import pytest
+
+        @pytest.fixture
+        def anyio_backend():
+            return "trio"
+
+        @pytest.fixture
+        async def f():
+            return 1
+
+        @pytest.mark.anyio
+        async def test_something(request):
+            value = request.getfixturevalue('f')
+            assert value == 1
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(failed=1)
+
+
 def test_auto_mode(testdir: Pytester) -> None:
     testdir.makepyprojecttoml(
         """
