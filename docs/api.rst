@@ -218,6 +218,33 @@ Asynchronous functools
 .. autofunction:: anyio.functools.lru_cache
 .. autofunction:: anyio.functools.reduce
 
+.. _async-itertools:
+
+Asynchronous itertools
+----------------------
+
+.. autofunction:: anyio.itertools.accumulate
+.. autofunction:: anyio.itertools.batched
+.. autodata:: anyio.itertools.chain
+.. autoclass:: anyio.itertools.Chain
+.. autofunction:: anyio.itertools.combinations
+.. autofunction:: anyio.itertools.combinations_with_replacement
+.. autofunction:: anyio.itertools.compress
+.. autofunction:: anyio.itertools.count
+.. autofunction:: anyio.itertools.cycle
+.. autofunction:: anyio.itertools.dropwhile
+.. autofunction:: anyio.itertools.filterfalse
+.. autofunction:: anyio.itertools.groupby
+.. autofunction:: anyio.itertools.islice
+.. autofunction:: anyio.itertools.pairwise
+.. autofunction:: anyio.itertools.permutations
+.. autofunction:: anyio.itertools.product
+.. autofunction:: anyio.itertools.repeat
+.. autofunction:: anyio.itertools.starmap
+.. autofunction:: anyio.itertools.tee
+.. autofunction:: anyio.itertools.takewhile
+.. autofunction:: anyio.itertools.zip_longest
+
 Low level operations
 --------------------
 

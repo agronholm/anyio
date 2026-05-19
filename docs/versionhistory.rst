@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added an asynchronous implementation of the ``itertools`` module
+  (`#998 <https://github.com/agronholm/anyio/issues/998>`_; PR by @11kkw)
 - Added the ``local_port`` parameter to :func:`connect_tcp` to allow binding to a
   specific local port before connecting
   (`#1067 <https://github.com/agronholm/anyio/issues/1067>`_; PR by @nullwiz)
@@ -39,6 +41,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``SocketListener.from_socket()`` returning a TCP listener for ``AF_UNIX``
   listening sockets, causing ``accept()`` to fail with ``ENOTSUP``
   (`#1132 <https://github.com/agronholm/anyio/issues/1132>`_; PR by @kudato)
+- Fixed ``UDPSocket.aclose()`` and ``ConnectedUDPSocket.aclose()`` on asyncio returning
+  before the underlying socket FD was actually released
+  (`#1147 <https://github.com/agronholm/anyio/pull/1147>`_; PR by @matias-arrelid)
 - Fixed asyncio ``Lock`` and ``Semaphore`` deadlocks caused by cancelled waiters
   left queued during release
   (`#1145 <https://github.com/agronholm/anyio/pull/1145>`_; PR by @rasmusfaber)
