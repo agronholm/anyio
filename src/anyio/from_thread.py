@@ -31,6 +31,7 @@ from typing import (
 )
 
 from ._core._eventloop import (
+    _detect_backend,
     get_cancelled_exc_class,
     threadlocals,
 )
@@ -450,13 +451,16 @@ class BlockingPortalProvider:
 
     The parameters are the same as for :func:`~anyio.run`.
 
-    :param backend: name of the backend
+    :param backend: name of the backend, or ``None`` to autodetect it (see
+        :func:`start_blocking_portal` for details)
     :param backend_options: backend options
 
     .. versionadded:: 4.4
+    .. versionchanged:: 4.14.0
+        ``backend`` now defaults to ``None``, which triggers autodetection.
     """
 
-    backend: str = "asyncio"
+    backend: str | None = None
     backend_options: dict[str, Any] | None = None
     _lock: Lock = field(init=False, default_factory=Lock)
     _leases: int = field(init=False, default=0)
@@ -498,7 +502,7 @@ class BlockingPortalProvider:
 
 @contextmanager
 def start_blocking_portal(
-    backend: str = "asyncio",
+    backend: str | None = None,
     backend_options: dict[str, Any] | None = None,
     *,
     name: str | None = None,
@@ -508,15 +512,24 @@ def start_blocking_portal(
 
     The parameters are the same as for :func:`~anyio.run`.
 
-    :param backend: name of the backend
+    :param backend: name of the backend, or ``None`` to autodetect it (see below)
     :param backend_options: backend options
     :param name: name of the thread
     :return: a context manager that yields a blocking portal
 
     .. versionchanged:: 3.0
         Usage as a context manager is now required.
+    .. versionchanged:: 4.14.0
+        ``backend`` now defaults to ``None``. When ``None``, the backend is detected
+        in this order: from :mod:`sniffio` (or a running asyncio loop), from the
+        ``anyio_backend`` pytest fixture, and finally by checking which of
+        ``trio`` and ``asyncio`` are present in :data:`sys.modules`. If both are
+        imported (or no detection method succeeded) the choice falls back to
+        ``"asyncio"``.
 
     """
+    if backend is None:
+        backend = _detect_backend()
 
     async def run_portal() -> None:
         async with BlockingPortal() as portal_:

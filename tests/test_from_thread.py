@@ -457,6 +457,52 @@ class TestBlockingPortal:
 
         exc.match("No such backend: foo")
 
+    def test_start_backend_autodetect_from_pytest(
+        self, anyio_backend_name: str
+    ) -> None:
+        async def get_async_lib() -> str:
+            from anyio._core._eventloop import current_async_library
+
+            return current_async_library() or ""
+
+        # No backend passed - should be picked up from the anyio_backend fixture
+        # via the contextvar
+        with start_blocking_portal() as portal:
+            assert portal.call(get_async_lib) == anyio_backend_name
+
+    def test_detect_backend_both_imported(self) -> None:
+        import warnings
+
+        # Ensure trio is in sys.modules
+        pytest.importorskip("trio")
+
+        from anyio._core._eventloop import _detect_backend, _pytest_backend_cvar
+
+        # Clear the pytest cvar so we hit the sys.modules-based fallback
+        token = _pytest_backend_cvar.set(None)
+        try:
+            with warnings.catch_warnings(record=True) as recorded:
+                warnings.simplefilter("always")
+                backend = _detect_backend()
+        finally:
+            _pytest_backend_cvar.reset(token)
+
+        assert backend == "asyncio"
+        assert any(
+            "Both `trio` and `asyncio` are imported" in str(w.message) for w in recorded
+        ), [str(w.message) for w in recorded]
+
+    def test_blocking_portal_provider_autodetect(self, anyio_backend_name: str) -> None:
+        from anyio.from_thread import BlockingPortalProvider
+
+        async def get_async_lib() -> str:
+            from anyio._core._eventloop import current_async_library
+
+            return current_async_library() or ""
+
+        with BlockingPortalProvider() as portal:
+            assert portal.call(get_async_lib) == anyio_backend_name
+
     def test_call_stopped_portal(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:

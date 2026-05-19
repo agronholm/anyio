@@ -168,6 +168,14 @@ event loop in its own dedicated thread::
 
 .. note:: The event loop is shut down as soon as you exit the context manager.
 
+.. note::
+    If the ``backend`` argument is omitted, the backend is detected automatically:
+    first from :mod:`sniffio` (or a running asyncio loop), then from the
+    ``anyio_backend`` pytest fixture when running under pytest, and finally by
+    inspecting which of ``trio`` and ``asyncio`` are present in :data:`sys.modules`.
+    Pass an explicit ``backend`` argument to silence the warning that is emitted
+    when both backends are imported and no other detection method succeeds.
+
 Spawning tasks
 ++++++++++++++
 

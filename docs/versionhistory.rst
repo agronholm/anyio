@@ -14,6 +14,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   functions and classes
 - Added the ``create_task()`` task group method for easier asyncio migration
   and to allow retrieving task return values more easily
+- Added backend autodetection to :func:`~anyio.from_thread.start_blocking_portal`
+  and :class:`~anyio.from_thread.BlockingPortalProvider`. When the ``backend``
+  argument is ``None`` (the new default), the backend is detected from
+  :mod:`sniffio`, then from the ``anyio_backend`` pytest fixture, then by
+  inspecting which of ``trio`` and ``asyncio`` are present in :data:`sys.modules`
+  (`#1151 <https://github.com/agronholm/anyio/pull/1151>`_; PR by @Zac-HD)
 - Improved the error message when a known backend is not installed to suggest the
   install command
   (`#1115 <https://github.com/agronholm/anyio/pull/1115>`_; PR by @EmmanuelNiyonshuti)

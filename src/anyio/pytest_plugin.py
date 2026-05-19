@@ -16,6 +16,7 @@ from _pytest.scope import Scope
 
 from . import get_available_backends
 from ._core._eventloop import (
+    _pytest_backend_cvar,
     current_async_library,
     get_async_backend,
     reset_current_async_library,
@@ -264,6 +265,23 @@ def pytest_pyfunc_call(pyfuncitem: Any) -> bool | None:
 @pytest.fixture(scope="module", params=get_available_backends())
 def anyio_backend(request: Any) -> Any:
     return request.param
+
+
+@pytest.fixture(autouse=True)
+def _publish_anyio_backend(request: SubRequest) -> Generator[None]:
+    """Publish the active ``anyio_backend`` for backend autodetection."""
+    token = None
+    if "anyio_backend" in request.fixturenames:
+        backend_name, _ = extract_backend_and_options(
+            request.getfixturevalue("anyio_backend")
+        )
+        token = _pytest_backend_cvar.set(backend_name)
+
+    try:
+        yield
+    finally:
+        if token is not None:
+            _pytest_backend_cvar.reset(token)
 
 
 @pytest.fixture

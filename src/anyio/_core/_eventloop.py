@@ -3,9 +3,10 @@ from __future__ import annotations
 import math
 import sys
 import threading
+import warnings
 from collections.abc import Awaitable, Callable, Generator
 from contextlib import contextmanager
-from contextvars import Token
+from contextvars import ContextVar, Token
 from importlib import import_module
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -33,6 +34,52 @@ PosArgsT = TypeVarTuple("PosArgsT")
 
 threadlocals = threading.local()
 loaded_backends: dict[str, type[AsyncBackend]] = {}
+
+#: Context variable used by the pytest plugin to communicate the active
+#: ``anyio_backend`` name to functions performing backend autodetection.
+_pytest_backend_cvar: ContextVar[str | None] = ContextVar(
+    "_pytest_backend_cvar", default=None
+)
+
+
+def _detect_backend() -> str:
+    """
+    Detect the asynchronous backend to use, returning its name.
+
+    The detection follows this order:
+
+    1. :func:`sniffio.current_async_library` (or a fallback that checks for a
+       running asyncio loop if sniffio is not installed).
+    2. The ``anyio_backend`` set by the anyio pytest plugin.
+    3. The presence of ``trio`` and ``asyncio`` in :data:`sys.modules`:
+
+       - if only ``trio`` is imported, return ``"trio"``;
+       - if only ``asyncio`` is imported, return ``"asyncio"``;
+       - if both are imported, emit a warning and return ``"asyncio"``;
+       - if neither is imported, return ``"asyncio"``.
+
+    """
+    # 1. Check sniffio / a running asyncio loop
+    if asynclib_name := current_async_library():
+        return asynclib_name
+
+    # 2. Check the pytest plugin contextvar
+    if (pytest_backend := _pytest_backend_cvar.get()) is not None:
+        return pytest_backend
+
+    # 3. Fall back to inspecting which backends have been imported
+    trio_imported = "trio" in sys.modules
+    asyncio_imported = "asyncio" in sys.modules
+    if trio_imported and not asyncio_imported:
+        return "trio"
+    elif trio_imported and asyncio_imported:
+        warnings.warn(
+            "Both `trio` and `asyncio` are imported; defaulting to `asyncio`. "
+            "Pass an explicit `backend` argument to silence this warning.",
+            stacklevel=3,
+        )
+
+    return "asyncio"
 
 
 def run(
