@@ -44,6 +44,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``UDPSocket.aclose()`` and ``ConnectedUDPSocket.aclose()`` on asyncio returning
   before the underlying socket FD was actually released
   (`#1147 <https://github.com/agronholm/anyio/pull/1147>`_; PR by @matias-arrelid)
+- Fixed cancelling tasks started through a ``BlockingPortal`` after the portal has been
+  stopped
+  (`#1013 <https://github.com/agronholm/anyio/issues/1013>`_; PR by @puneetdixit200)
 
 **4.13.0**
 

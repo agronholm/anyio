@@ -518,6 +518,30 @@ class TestBlockingPortal:
 
         assert cancelled
 
+    def test_start_task_soon_cancel_after_stop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        cancelled = False
+        done_event = threading.Event()
+
+        async def event_waiter() -> None:
+            nonlocal cancelled
+            try:
+                await sleep(0.5)
+            except get_cancelled_exc_class():
+                cancelled = True
+            finally:
+                done_event.set()
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            future = portal.start_task_soon(event_waiter)
+            portal.call(wait_all_tasks_blocked)
+            portal.call(portal.stop)
+            future.cancel()
+            done_event.wait(1)
+
+        assert cancelled
+
     def test_start_task_soon_with_name(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
