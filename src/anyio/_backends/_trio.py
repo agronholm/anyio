@@ -18,7 +18,9 @@ from collections.abc import (
     Sequence,
 )
 from contextlib import AbstractContextManager
+from contextvars import Context
 from dataclasses import dataclass
+from functools import partial
 from io import IOBase
 from os import PathLike
 from signal import Signals
@@ -29,6 +31,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Generic,
+    Literal,
     NoReturn,
     ParamSpec,
     TypeVar,
@@ -78,8 +81,10 @@ from .._core._synchronization import (
 )
 from .._core._synchronization import Semaphore as BaseSemaphore
 from .._core._tasks import CancelScope as BaseCancelScope
+from .._core._tasks import TaskHandle
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend, StrOrBytesPath
+from ..abc._tasks import get_callable_name
 from ..streams.memory import MemoryObjectSendStream
 
 if TYPE_CHECKING:
@@ -93,6 +98,7 @@ else:
 
 T = TypeVar("T")
 T_Retval = TypeVar("T_Retval")
+T_co = TypeVar("T_co", covariant=True)
 T_SockAddr = TypeVar("T_SockAddr", str, IPSockAddrType)
 PosArgsT = TypeVarTuple("PosArgsT")
 P = ParamSpec("P")
@@ -199,28 +205,62 @@ class TaskGroup(abc.TaskGroup):
             del exc_val, exc_tb
             self._active = False
 
-    def start_soon(
-        self,
-        func: Callable[[Unpack[PosArgsT]], Awaitable[Any]],
-        *args: Unpack[PosArgsT],
-        name: object = None,
-    ) -> None:
+    def _check_active(self, coro: Coroutine | None = None) -> None:
         if not self._active:
+            if coro is not None:
+                coro.close()
+
             raise RuntimeError(
                 "This task group is not active; no new tasks can be started."
             )
 
-        self._nursery.start_soon(func, *args, name=name)
+    def create_task(
+        self,
+        coro: Coroutine[Any, Any, T_co],
+        *,
+        name: object = None,
+        context: Context | None = None,
+    ) -> TaskHandle[T_co]:
+        if not isinstance(coro, Coroutine):
+            raise TypeError(f"expected a coroutine, got {coro.__class__.__qualname__}")
+
+        self._check_active(coro)
+        handle = TaskHandle(coro, name)
+        if context is not None:
+            context.run(
+                partial(self._nursery.start_soon, handle._run_coro, name=handle.name)
+            )
+        else:
+            self._nursery.start_soon(handle._run_coro, name=handle.name)
+
+        return handle
 
     async def start(
-        self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
-    ) -> Any:
-        if not self._active:
-            raise RuntimeError(
-                "This task group is not active; no new tasks can be started."
-            )
+        self,
+        func: Callable[..., Coroutine[Any, Any, T_co]],
+        *args: object,
+        name: object = None,
+        return_handle: Literal[False] | Literal[True] = False,
+    ) -> TaskHandle[T_co]:
+        handle: TaskHandle[T_co]
 
-        return await self._nursery.start(func, *args, name=name)
+        async def run_coro_with_task_status(
+            *, task_status: trio.TaskStatus[Any]
+        ) -> None:
+            nonlocal handle
+            coro = func(*args, task_status=task_status)
+            handle = TaskHandle(coro, name)
+            await handle._run_coro()
+
+        self._check_active()
+        final_name = get_callable_name(func, name)
+        if return_handle:
+            handle._start_value = await self._nursery.start(  # noqa: F821
+                run_coro_with_task_status, name=final_name
+            )
+            return handle  # noqa: F821
+        else:
+            return await self._nursery.start(func, *args, name=final_name)
 
 
 #

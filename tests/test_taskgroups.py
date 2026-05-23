@@ -1223,36 +1223,6 @@ def test_cancel_generator_based_task() -> None:
     anyio.run(generator_part, backend="asyncio")
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 11),
-    reason="Generator based coroutines have been removed in Python 3.11",
-)
-@pytest.mark.filterwarnings(
-    'ignore:"@coroutine" decorator is deprecated:DeprecationWarning'
-)
-@pytest.mark.parametrize("anyio_backend", asyncio_params)
-async def test_schedule_old_style_coroutine_func() -> None:
-    """
-    Test that we give a sensible error when a user tries to spawn a task from a
-    generator-style coroutine function.
-    """
-
-    @asyncio.coroutine  # type: ignore[attr-defined, untyped-decorator]
-    def corofunc() -> Generator[Any, Any, None]:
-        yield from asyncio.sleep(1)  # type: ignore[misc]
-
-    async with create_task_group() as tg:
-        funcname = (
-            f"{__name__}.test_schedule_old_style_coroutine_func.<locals>.corofunc"
-        )
-        with pytest.raises(
-            TypeError,
-            match=f"Expected {funcname}\\(\\) to return a coroutine, but the return "
-            f"value \\(<generator .+>\\) is not a coroutine object",
-        ):
-            tg.start_soon(corofunc)
-
-
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_cancel_native_future_tasks() -> None:
     async def wait_native_future() -> None:
@@ -1375,24 +1345,18 @@ async def test_cancelscope_exit_before_enter() -> None:
     "anyio_backend", asyncio_params
 )  # trio does not check for this yet
 async def test_cancelscope_exit_in_wrong_task() -> None:
-    async def enter_scope(scope: CancelScope) -> None:
-        scope.__enter__()
-
     async def exit_scope(scope: CancelScope) -> None:
         scope.__exit__(None, None, None)
 
-    scope = CancelScope()
-    async with create_task_group() as tg:
-        tg.start_soon(enter_scope, scope)
-
-    with pytest.raises(ExceptionGroup) as exc:
-        async with create_task_group() as tg:
-            tg.start_soon(exit_scope, scope)
-
-    assert len(exc.value.exceptions) == 1
-    assert str(exc.value.exceptions[0]) == (
-        "Attempted to exit cancel scope in a different task than it was entered in"
-    )
+    with CancelScope() as scope:
+        with pytest.RaisesGroup(
+            pytest.RaisesExc(
+                RuntimeError,
+                match="Attempted to exit cancel scope in a different task than it was entered in",
+            )
+        ):
+            async with create_task_group() as tg:
+                tg.start_soon(exit_scope, scope)
 
 
 def test_unhandled_exception_group(caplog: pytest.LogCaptureFixture) -> None:
@@ -1698,6 +1662,31 @@ async def test_start_cancels_parent_scope() -> None:
     assert not tg.cancel_scope.cancel_called
 
 
+async def test_start_return_handle_success() -> None:
+    async def taskfunc(x: int, y: int, *, task_status: TaskStatus[int]) -> int:
+        task_status.started(3)
+        await checkpoint()
+        return x + y
+
+    async with create_task_group() as tg:
+        handle = await tg.start(taskfunc, 4, 5, return_handle=True)
+        assert handle.start_value == 3
+        assert await handle == 9
+
+
+async def test_start_return_handle_cancel() -> None:
+    async def taskfunc(*, task_status: TaskStatus[int]) -> int:
+        task_status.started(3)
+        await sleep(5)
+        pytest.fail("should not reach this point")
+
+    async with create_task_group() as tg:
+        handle = await tg.start(taskfunc, return_handle=True)
+        handle.cancel()
+        await handle.wait()
+        assert handle.start_value == 3
+
+
 @pytest.mark.skipif(
     sys.implementation.name == "pypy",
     reason=(
@@ -1748,7 +1737,6 @@ class TestRefcycles:
     async def test_exception_refcycles_parent_task(self) -> None:
         """Test that TaskGroup's cancel_scope deletes self._host_task"""
         tg = create_task_group()
-        exc = None
 
         class _Done(Exception):
             pass
@@ -1757,13 +1745,12 @@ class TestRefcycles:
             async with tg:
                 raise _Done
 
-        try:
+        with pytest.RaisesGroup(pytest.RaisesGroup(pytest.RaisesExc(_Done))) as excinfo:
             async with anyio.create_task_group() as tg2:
                 tg2.start_soon(coro_fn)
-        except ExceptionGroup as excs:
-            exc = excs.exceptions[0].exceptions[0]
 
-        assert isinstance(exc, _Done)
+        exc = excinfo.value.exceptions[0].exceptions[0]
+        del excinfo
         assert gc.get_referrers(exc) == no_other_refs()
 
     async def test_exception_refcycles_propagate_cancellation_error(self) -> None:

@@ -239,18 +239,26 @@ class TaskHandle(Generic[T_co]):
         "_cancel_scope",
         "_finished_event",
         "_return_value",
+        "_start_value",
         "_exception",
     )
 
     _return_value: T_co
+    _start_value: Any
 
-    def __init__(self, coro: Coroutine[Any, Any, T_co], name: str | None) -> None:
+    def __init__(self, coro: Coroutine[Any, Any, T_co], name: object) -> None:
         from ._synchronization import Event
+
+        if not isinstance(coro, Coroutine):
+            coro.close()
+            raise TypeError(
+                f"expected a coroutine object, got {coro.__class__.__qualname__}"
+            )
 
         self._coro = coro
         self._cancel_scope = CancelScope()
         self._finished_event = Event()
-        self._name = name or coro.__qualname__
+        self._name = str(name) if name is not None else coro.__qualname__
         self._exception: BaseException | None = None
 
     async def _run_coro(self) -> None:
@@ -266,6 +274,7 @@ class TaskHandle(Generic[T_co]):
                 self._return_value = retval
             finally:
                 self._finished_event.set()
+                del self  # Break the reference cycle
 
     def cancel(self) -> None:
         """
@@ -358,6 +367,15 @@ class TaskHandle(Generic[T_co]):
                 raise TaskCancelled("the task was cancelled") from self._exception
             case TaskHandle.Status.FAILED:
                 raise TaskFailed("the task raised an exception") from self._exception
+
+    @property
+    def start_value(self) -> Any:
+        try:
+            return self._start_value
+        except AttributeError:
+            raise RuntimeError(
+                "the task was not started with TaskGroup.start()"
+            ) from None
 
     async def wait(self) -> None:
         """
