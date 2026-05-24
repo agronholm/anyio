@@ -62,7 +62,7 @@ class TaskGroup(metaclass=ABCMeta):
         """
         Cancel this task group's cancel scope immediately.
 
-        This is a shortcut for calling ``self.cancel_scope.cancel()``.
+        This is a shortcut for calling ``.cancel_scope.cancel()`` on the task group.
 
         :param reason: a message describing the reason for the cancellation
 
