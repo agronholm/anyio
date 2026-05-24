@@ -12,11 +12,12 @@ from contextvars import ContextVar
 from typing import Any, Literal, NoReturn, TypeVar
 
 import pytest
-from _pytest.logging import LogCaptureFixture
+from pytest import LogCaptureFixture
 
 from anyio import (
     CancelScope,
     Event,
+    NoEventLoopError,
     RunFinishedError,
     create_task_group,
     fail_after,
@@ -29,7 +30,6 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
-from anyio._core._exceptions import NoEventLoopError
 from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
 from anyio.lowlevel import EventLoopToken, checkpoint, current_token
