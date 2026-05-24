@@ -386,6 +386,30 @@ async def test_level_cancellation() -> None:
     assert marker == 1
 
 
+async def test_cancel() -> None:
+    started = False
+
+    async def dummy() -> None:
+        nonlocal started
+        started = True
+        await checkpoint()
+        pytest.fail("Execution should not reach this point")
+
+    async with create_task_group() as tg:
+        tg.start_soon(dummy)
+        assert not started
+        tg.cancel()
+
+    assert started
+
+
+async def test_cancel_with_reason() -> None:
+    async with create_task_group() as tg:
+        tg.cancel("test reason")
+        with pytest.raises(get_cancelled_exc_class(), match="test reason"):
+            await checkpoint()
+
+
 async def test_failing_child_task_cancels_host() -> None:
     async def child() -> NoReturn:
         await wait_all_tasks_blocked()

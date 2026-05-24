@@ -58,6 +58,19 @@ class TaskGroup(metaclass=ABCMeta):
 
     cancel_scope: CancelScope
 
+    def cancel(self, reason: str | None = None) -> None:
+        """
+        Cancel this task group's cancel scope immediately.
+
+        This is a shortcut for calling ``self.cancel_scope.cancel()``.
+
+        :param reason: a message describing the reason for the cancellation
+
+        .. versionadded:: 4.14.0
+
+        """
+        self.cancel_scope.cancel(reason)
+
     def create_task(
         self,
         coro: Coroutine[Any, Any, T_Retval],
