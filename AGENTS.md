@@ -25,39 +25,53 @@ Every pull request **must** follow the PR template in `.github/pull_request_temp
 A properly filled-out PR contains:
 
 ### 1. Changes section
+
 - Reference the related issue number, if applicable (e.g., `Fixes #123.`).
 - Provide a short description of what the PR changes and why.
 
 ### 2. Checklist
+
 Complete the checklist where applicable:
 - **Tests** — Add or update tests in `tests/` that would fail without the patch.
 - **Documentation** — Update docs in `docs/` if behavior changes or new features are introduced.
 - **Changelog** — Add a new entry in `docs/versionhistory.rst`.
 
-### 3. Changelog entry format
-If there are no entries after the last release, use `**UNRELEASED**` as the version heading. An entry should look like:
+Trivial changes (typo fixes, code reformatting) may skip the checklist items.
 
-```
+### 3. Changelog entry format
+
+A changelog entry should look like:
+
+```md
 - Fix big bad boo-boo in task groups
   (`#123 <https://github.com/agronholm/anyio/issues/123>`_; PR by @yourgithubaccount)
 ```
 
 If there is no linked issue, link to the pull request itself instead (update the changelog after the PR is created to get the PR number).
 
-Trivial changes (typo fixes, code reformatting) may skip the checklist items.
+### 4. Changelog entry placement
 
-### 4. Good and bad examples
+If the PR warrants a changelog entry, it must be added under the `**UNRELEASED**` section.
+If there is no such section yet, add it to the top, right below the note about semantic versioning.
+Entries in the changelog should be ordered as follows:
+
+#. Backwards incompatible changes (prefixed with `**BACKWARDS INCOMPATIBLE**`)
+#. New features (should start with the word `Added`)
+#. Backwards compatible API changes (should start with the word `Changed`)
+#. Bug fixes (should start with the word `Fixed`)
+
+### 5. Good and bad examples
 
 Here is a good example of a PR that adds a new feature: https://github.com/agronholm/anyio/pull/1100
 Here is a bad example of a PR that overwrites the PR template and lacks tests and a changelog entry: https://github.com/agronholm/anyio/pull/1112
 
 ## Repository Layout
 
-| Path | Description |
-|---|---|
-| `src/anyio/` | Main library source |
-| `src/anyio/_backends/` | asyncio and Trio backend implementations |
-| `tests/` | Test suite (pytest + anyio plugin) |
-| `docs/` | Sphinx documentation |
-| `docs/versionhistory.rst` | Changelog |
-| `.github/pull_request_template.md` | PR template (must be respected) |
+| Path                               | Description                        |
+|------------------------------------|------------------------------------|
+| `src/anyio/`                       | Main library source                |
+| `src/anyio/_backends/`             | Backend implementations            |
+| `tests/`                           | Test suite (pytest + anyio plugin) |
+| `docs/`                            | Sphinx documentation               |
+| `docs/versionhistory.rst`          | Changelog                          |
+| `.github/pull_request_template.md` | PR template (must be respected)    |
