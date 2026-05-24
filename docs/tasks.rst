@@ -231,8 +231,6 @@ differences in its semantics, however:
   ``start()`` or ``start_soon()`` method
 * The :meth:`~asyncio.TaskGroup.create_task` method returns a task object which can be
   awaited on (or cancelled)
-* Tasks spawned via :meth:`~asyncio.TaskGroup.create_task` can only be cancelled
-  individually (there is no ``cancel()`` method or similar in the task group)
 * When a task spawned via :meth:`~asyncio.TaskGroup.create_task` is cancelled before its
   coroutine has started running, it will not get a chance to handle the cancellation
   exception
