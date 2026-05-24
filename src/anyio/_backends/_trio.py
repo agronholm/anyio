@@ -241,7 +241,7 @@ class TaskGroup(abc.TaskGroup):
         *args: object,
         name: object = None,
         return_handle: Literal[False] | Literal[True] = False,
-    ) -> TaskHandle[T_co]:
+    ) -> Any:
         handle: TaskHandle[T_co]
 
         async def run_coro_with_task_status(
