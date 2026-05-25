@@ -131,6 +131,7 @@ def pytest_fixture_setup(fixturedef: Any, request: Any) -> Generator[Any]:
                     "Cannot schedule a coroutine in the test runner while another is already running; "
                     "likely caused by request.getfixturevalue() on an async fixture."
                 )
+
             if isasyncgenfunction(local_func):
                 yield from runner.run_asyncgen_fixture(local_func, kwargs)
             else:
