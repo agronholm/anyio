@@ -859,7 +859,6 @@ class TestRunner(abc.TestRunner):
         self._call_queue: Queue[Callable[[], object]] = Queue()
         self._send_stream: MemoryObjectSendStream | None = None
         self._options = options
-        self._runner_task_running: bool = False
 
     def __exit__(
         self,
@@ -873,7 +872,7 @@ class TestRunner(abc.TestRunner):
                 self._call_queue.get()()
 
     def is_running(self) -> bool:
-        return self._runner_task_running
+        return trio.lowlevel.in_trio_task()
 
     async def _run_tests_and_fixtures(self) -> None:
         self._send_stream, receive_stream = create_memory_object_stream(1)
@@ -908,12 +907,8 @@ class TestRunner(abc.TestRunner):
 
         outcome_holder: list[Outcome] = []
         self._send_stream.send_nowait((func(*args, **kwargs), outcome_holder))
-        self._runner_task_running = True
-        try:
-            while not outcome_holder:
-                self._call_queue.get()()
-        finally:
-            self._runner_task_running = False
+        while not outcome_holder:
+            self._call_queue.get()()
 
         return outcome_holder[0].unwrap()
 
