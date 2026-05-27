@@ -14,6 +14,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   functions and classes
 - Added the ``create_task()`` task group method for easier asyncio migration
   and to allow retrieving task return values more easily
+- Added the ``cancel()`` convenience method to ``TaskGroup`` as a shortcut for
+  cancelling the task group's cancel scope
 - Improved the error message when a known backend is not installed to suggest the
   install command
   (`#1115 <https://github.com/agronholm/anyio/pull/1115>`_; PR by @EmmanuelNiyonshuti)
@@ -47,6 +49,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed cancelling tasks started through a ``BlockingPortal`` after the portal has been
   stopped
   (`#1013 <https://github.com/agronholm/anyio/issues/1013>`_; PR by @puneetdixit200)
+- Fixed trio backend test runner hanging indefinitely instead of raising an error
+  when dynamically accessing an async fixture via ``request.getfixturevalue``
+  (`#1148 <https://github.com/agronholm/anyio/issues/1148>`_; PR by @EmmanuelNiyonshuti)
 
 **4.13.0**
 

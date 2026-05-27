@@ -63,3 +63,11 @@ class TestRunner(metaclass=ABCMeta):
         :param test_func: the test function
         :param kwargs: keyword arguments to call the test function with
         """
+
+    @abstractmethod
+    def is_running(self) -> bool:
+        """
+        Check if the test runner is running.
+
+        :return: ``True`` if the coroutine is currently being run, ``False`` otherwise.
+        """

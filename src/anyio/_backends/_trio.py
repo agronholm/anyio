@@ -871,6 +871,9 @@ class TestRunner(abc.TestRunner):
             while self._send_stream is not None:
                 self._call_queue.get()()
 
+    def is_running(self) -> bool:
+        return trio.lowlevel.in_trio_task()
+
     async def _run_tests_and_fixtures(self) -> None:
         self._send_stream, receive_stream = create_memory_object_stream(1)
         with receive_stream:
