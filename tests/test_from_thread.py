@@ -527,7 +527,7 @@ class TestBlockingPortal:
         async def event_waiter() -> None:
             nonlocal cancelled
             try:
-                await sleep(0.5)
+                await sleep(10)
             except get_cancelled_exc_class():
                 cancelled = True
             finally:
@@ -538,7 +538,7 @@ class TestBlockingPortal:
             portal.call(wait_all_tasks_blocked)
             portal.call(portal.stop)
             future.cancel()
-            done_event.wait(1)
+            done_event.wait(5)
 
         assert cancelled
 
