@@ -49,6 +49,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed trio backend test runner hanging indefinitely instead of raising an error
   when dynamically accessing an async fixture via ``request.getfixturevalue``
   (`#1148 <https://github.com/agronholm/anyio/issues/1148>`_; PR by @EmmanuelNiyonshuti)
+- Fixed cancelling tasks started through a ``BlockingPortal`` after the portal has been
+  stopped
+  (`#1013 <https://github.com/agronholm/anyio/issues/1013>`_; PR by @puneetdixit200)
 
 **4.13.0**
 
