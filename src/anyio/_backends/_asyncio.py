@@ -352,11 +352,7 @@ def _task_started(task: asyncio.Task) -> bool:
     # task list
     coro = task.get_coro()
     assert coro is not None
-    try:
-        return getcoroutinestate(coro) in (CORO_RUNNING, CORO_SUSPENDED)
-    except AttributeError:
-        # task coro is async_genenerator_asend https://bugs.python.org/issue37771
-        raise Exception(f"Cannot determine if task {task} has started or not") from None
+    return getcoroutinestate(coro) in (CORO_RUNNING, CORO_SUSPENDED)
 
 
 #
