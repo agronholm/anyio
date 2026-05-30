@@ -197,10 +197,10 @@ def create_task_group() -> TaskGroup:
 @final
 class TaskHandle(Generic[T_co]):
     """
-    Returned from :meth:`TaskGroup.create_task() <.abc.TaskGroup.create_task>`.
-    Can be awaited on to get the return value of the task (or the raised exception).
-    If the task was terminated by a :exc:`BaseException`, :exc:`TaskFailed` will be
-    raised (or its subclass :exc:`TaskCancelled` if the task was cancelled).
+    Returned from the task-spawning methods of :class:`TaskGroup`. Can be awaited on to
+    get the return value of the task (or the raised exception). If the task was
+    terminated by a :exc:`BaseException`, :exc:`TaskFailed` will be raised (or its
+    subclass :exc:`TaskCancelled` if the task was cancelled).
 
     .. versionadded:: 4.14.0
     """
