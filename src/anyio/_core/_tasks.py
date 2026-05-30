@@ -291,7 +291,10 @@ class TaskHandle(Generic[T_co]):
 
     @property
     def coro(self) -> Coroutine[Any, Any, T_co]:
-        """The coroutine object that was passed to :meth:`TaskGroup.create_task`."""
+        """
+        The coroutine object that was passed to one of the task-spawning methods in
+        :class:`TaskGroup`.
+        """
         return self._coro
 
     @property
