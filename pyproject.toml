@@ -124,6 +124,8 @@ filterwarnings = [
     "error",
     # Ignore resource warnings due to a CPython/Windows bug (https://bugs.python.org/issue44428)
     "ignore:unclosed transport <_ProactorSocketTransport.*:ResourceWarning",
+    # Ignore deprecation warning occurring under coverage.py on Python 3.15
+    "ignore:Module globals; __loader__ != __spec__.loader:DeprecationWarning:",
 ]
 markers = [
     "network: marks tests as requiring Internet access",
