@@ -918,6 +918,11 @@ class TaskGroup(abc.TaskGroup):
         name: object = None,
         return_handle: Literal[False] | Literal[True] = False,
     ) -> Any:
+        if not self._entered or not self.cancel_scope._active:
+            raise RuntimeError(
+                "This task group is not active; no new tasks can be started."
+            )
+
         future: asyncio.Future = asyncio.Future()
         final_name = get_callable_name(func, name)
         task_status = _AsyncioTaskStatus(future, id(self.cancel_scope._host_task))

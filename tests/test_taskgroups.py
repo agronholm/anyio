@@ -112,6 +112,19 @@ async def test_start_soon_after_error() -> None:
     exc.match("This task group is not active; no new tasks can be started")
 
 
+async def test_start_already_closed() -> None:
+    async def taskfunc(*, task_status: TaskStatus) -> None:
+        task_status.started()
+
+    async with create_task_group() as tg:
+        pass
+
+    with pytest.raises(RuntimeError) as exc:
+        await tg.start(taskfunc)
+
+    exc.match("This task group is not active; no new tasks can be started")
+
+
 async def test_start_no_value() -> None:
     async def taskfunc(*, task_status: TaskStatus) -> None:
         task_status.started()
