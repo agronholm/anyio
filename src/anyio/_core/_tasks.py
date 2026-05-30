@@ -373,6 +373,12 @@ class TaskHandle(Generic[T_co]):
 
     @property
     def start_value(self) -> Any:
+        """
+        The value passed to :meth:`task_status.started() <.abc.TaskStatus.started>`,
+
+        :raises RuntimeError: if the task was not started with :meth:`TaskGroup.start()
+            <.abc.TaskGroup.start>`
+        """
         try:
             return self._start_value
         except AttributeError:
