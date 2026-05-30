@@ -1247,6 +1247,36 @@ def test_cancel_generator_based_task() -> None:
     anyio.run(generator_part, backend="asyncio")
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 11),
+    reason="Generator based coroutines have been removed in Python 3.11",
+)
+@pytest.mark.filterwarnings(
+    'ignore:"@coroutine" decorator is deprecated:DeprecationWarning'
+)
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_schedule_old_style_coroutine_func() -> None:
+    """
+    Test that we give a sensible error when a user tries to spawn a task from a
+    generator-style coroutine function.
+    """
+
+    @asyncio.coroutine  # type: ignore[attr-defined, untyped-decorator]
+    def corofunc() -> Generator[Any, Any, None]:
+        yield from asyncio.sleep(1)  # type: ignore[misc]
+
+    async with create_task_group() as tg:
+        funcname = (
+            f"{__name__}.test_schedule_old_style_coroutine_func.<locals>.corofunc"
+        )
+        with pytest.raises(
+            TypeError,
+            match=f"Expected {funcname}\\(\\) to return a coroutine, but the return "
+            f"value \\(<generator .+>\\) is not a coroutine object",
+        ):
+            tg.start_soon(corofunc)
+
+
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_cancel_native_future_tasks() -> None:
     async def wait_native_future() -> None:
