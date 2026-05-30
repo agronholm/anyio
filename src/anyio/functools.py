@@ -10,7 +10,6 @@ __all__ = (
 )
 
 import functools
-import sys
 from collections import OrderedDict
 from collections.abc import (
     AsyncIterable,
@@ -26,6 +25,7 @@ from typing import (
     Any,
     Generic,
     NamedTuple,
+    ParamSpec,
     TypedDict,
     TypeVar,
     cast,
@@ -37,11 +37,6 @@ from weakref import WeakKeyDictionary
 from ._core._eventloop import current_time
 from ._core._synchronization import Lock
 from .lowlevel import RunVar, checkpoint
-
-if sys.version_info >= (3, 11):
-    from typing import ParamSpec
-else:
-    from typing_extensions import ParamSpec
 
 T = TypeVar("T")
 S = TypeVar("S")
