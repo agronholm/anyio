@@ -117,6 +117,8 @@ RunVar = trio.lowlevel.RunVar
 
 
 class CancelScope(BaseCancelScope):
+    __slots__ = ("__original",)
+
     def __new__(
         cls, original: trio.CancelScope | None = None, **kwargs: object
     ) -> CancelScope:

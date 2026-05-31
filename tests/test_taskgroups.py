@@ -286,8 +286,13 @@ async def test_propagate_native_cancellation_from_taskgroup() -> None:
 async def test_cancel_with_nested_task_groups() -> None:
     """Regression test for #695."""
 
+    from anyio._backends import _asyncio
+
+    class EditableCancelScope(_asyncio.CancelScope):
+        pass
+
     async def shield_task() -> None:
-        with CancelScope(shield=True) as scope:
+        with EditableCancelScope(shield=True) as scope:
             with mock.patch.object(
                 scope,
                 "_deliver_cancellation",
@@ -311,15 +316,16 @@ async def test_cancel_with_nested_task_groups() -> None:
             assert len(middle_cancel_spy.call_args_list) < 10
             assert len(outer_cancel_spy.call_args_list) < 10
 
-    async with create_task_group() as tg:
-        with mock.patch.object(
-            tg.cancel_scope,
-            "_deliver_cancellation",
-            wraps=getattr(tg.cancel_scope, "_deliver_cancellation"),
-        ) as outer_cancel_spy:
-            tg.start_soon(middle_task, name="middle task")
-            await wait_all_tasks_blocked()
-            tg.cancel_scope.cancel()
+    with mock.patch.object(_asyncio, "CancelScope", EditableCancelScope):
+        async with create_task_group() as tg:
+            with mock.patch.object(
+                tg.cancel_scope,
+                "_deliver_cancellation",
+                wraps=getattr(tg.cancel_scope, "_deliver_cancellation"),
+            ) as outer_cancel_spy:
+                tg.start_soon(middle_task, name="middle task")
+                await wait_all_tasks_blocked()
+                tg.cancel_scope.cancel()
 
     assert len(outer_cancel_spy.call_args_list) < 10
 

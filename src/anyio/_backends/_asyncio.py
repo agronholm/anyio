@@ -380,6 +380,22 @@ def is_anyio_cancellation(exc: CancelledError) -> bool:
 
 
 class CancelScope(BaseCancelScope):
+    __slots__ = (
+        "_active",
+        "_cancel_called",
+        "_cancel_handle",
+        "_cancel_reason",
+        "_cancelled_caught",
+        "_child_scopes",
+        "_deadline",
+        "_host_task",
+        "_parent_scope",
+        "_pending_uncancellations",
+        "_shield",
+        "_tasks",
+        "_timeout_handle",
+    )
+
     def __new__(
         cls, *, deadline: float = math.inf, shield: bool = False
     ) -> CancelScope:
