@@ -159,7 +159,7 @@ class TaskGroup(metaclass=ABCMeta):
         *args: object,
         name: object = None,
         return_handle: Literal[True],
-    ) -> TaskHandle[T_co]: ...
+    ) -> TaskHandle[T_co, Any]: ...
 
     @abstractmethod
     async def start(

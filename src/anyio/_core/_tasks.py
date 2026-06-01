@@ -12,19 +12,25 @@ from contextlib import (
 from contextvars import ContextVar
 from enum import Enum, auto
 from types import TracebackType
-from typing import Any, Generic, TypeVar, final
+from typing import Any, Generic, final
 
 from ..abc import TaskGroup, TaskStatus
 from ._eventloop import get_async_backend, get_cancelled_exc_class
 from ._exceptions import TaskCancelled, TaskFailed, TaskNotFinished
 
-if sys.version_info >= (3, 11):
-    from typing import TypeVarTuple
+if sys.version_info >= (3, 13):
+    from typing import TypeVar
 else:
-    from typing_extensions import TypeVarTuple
+    from typing_extensions import TypeVar
+
+if sys.version_info >= (3, 11):
+    from typing import Never, TypeVarTuple
+else:
+    from typing_extensions import Never, TypeVarTuple
 
 T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
+T_startval = TypeVar("T_startval", covariant=True, default=Never)
 PosArgsT = TypeVarTuple("PosArgsT")
 
 _current_task_handle: ContextVar[TaskHandle] = ContextVar("_current_task_handle")
@@ -195,7 +201,7 @@ def create_task_group() -> TaskGroup:
 
 
 @final
-class TaskHandle(Generic[T_co]):
+class TaskHandle(Generic[T_co, T_startval]):
     """
     Returned from the task-spawning methods of :class:`TaskGroup`. Can be awaited on to
     get the return value of the task (or the raised exception). If the task was
@@ -244,7 +250,7 @@ class TaskHandle(Generic[T_co]):
     )
 
     _return_value: T_co
-    _start_value: Any
+    _start_value: T_startval
 
     def __init__(self, coro: Coroutine[Any, Any, T_co], name: object) -> None:
         from ._synchronization import Event
@@ -372,7 +378,7 @@ class TaskHandle(Generic[T_co]):
                 raise TaskFailed("the task raised an exception") from self._exception
 
     @property
-    def start_value(self) -> Any:
+    def start_value(self) -> T_startval:
         """
         The value passed to :meth:`task_status.started() <.abc.TaskStatus.started>`,
 
