@@ -8,6 +8,7 @@ import sys
 import time
 from asyncio import CancelledError
 from collections.abc import AsyncGenerator, Coroutine, Generator
+from contextlib import aclosing
 from contextvars import ContextVar, copy_context
 from typing import Any, NoReturn, cast
 from unittest import mock
@@ -2217,3 +2218,20 @@ class TestCreateTask:
         assert str(handle.exception) == "dummy error"
         assert handle.status is TaskHandle.Status.FAILED
         await handle.wait()
+
+
+@pytest.mark.parametrize("create_task", [False, True])
+async def test_task_from_asyncgen_asend(create_task: bool) -> None:
+    async def genfunc(x: int, y: int) -> AsyncGenerator[int, None]:
+        yield x + y
+
+    async with create_task_group() as tg:
+        async with aclosing(genfunc(3, 5)) as g:
+            if create_task:
+                handle = tg.create_task(g.asend(None))
+                assert handle.name.startswith("<async_generator_asend object at ")
+            else:
+                handle = tg.start_soon(g.asend, None)
+                assert handle.name == "async_generator.asend"
+
+            assert await handle == 8

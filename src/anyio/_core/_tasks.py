@@ -11,6 +11,7 @@ from contextlib import (
 )
 from contextvars import ContextVar
 from enum import Enum, auto
+from inspect import iscoroutine
 from types import TracebackType
 from typing import Any, Generic, final
 
@@ -264,8 +265,14 @@ class TaskHandle(Generic[T_co, T_startval]):
         self._coro = coro
         self._cancel_scope = CancelScope()
         self._finished_event = Event()
-        self._name = str(name) if name is not None else coro.__qualname__
         self._exception: BaseException | None = None
+
+        if name is not None:
+            self._name = str(name)
+        elif iscoroutine(coro):
+            self._name = coro.__qualname__
+        else:
+            self._name = str(coro)  # coroutine-like object (e.g. asend() objects)
 
     async def _run_coro(self) -> None:
         __tracebackhide__ = True
