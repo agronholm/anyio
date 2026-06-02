@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import time
 from asyncio import get_running_loop
 from collections.abc import Generator
 from unittest import mock
@@ -10,7 +11,7 @@ from unittest.mock import AsyncMock
 import pytest
 from pytest import MonkeyPatch
 
-from anyio import run, sleep_forever, sleep_until
+from anyio import current_time, run, sleep, sleep_forever, sleep_until
 
 fake_current_time = 1620581544.0
 
@@ -111,3 +112,27 @@ class TestAsyncioOptions:
         winloop = pytest.importorskip("winloop", reason="winloop not installed")
         loop_class = run(main, backend="asyncio", backend_options={"use_uvloop": True})
         assert issubclass(loop_class, winloop.Loop)
+
+
+class TestTrioOptions:
+    def test_clock(self) -> None:
+        """Test that ``backend_options`` are passed to ``trio.run()``."""
+        try:
+            from trio.testing import MockClock
+        except ImportError:
+            pytest.skip(reason="trio not installed")
+
+        async def main() -> float:
+            t1 = current_time()
+            await sleep(10)
+            return current_time() - t1
+
+        rt1 = time.monotonic()
+        trio_time = run(
+            main,
+            backend="trio",
+            backend_options={"clock": MockClock(autojump_threshold=0)},
+        )
+        real_time = time.monotonic() - rt1
+        assert real_time < 1
+        assert trio_time == 10
