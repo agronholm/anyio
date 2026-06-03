@@ -1010,7 +1010,8 @@ class TrioBackend(AsyncBackend):
         kwargs: dict[str, Any],
         options: dict[str, Any],
     ) -> T_Retval:
-        return trio.run(func, *args)
+        assert not kwargs, "unreachable, and not supported by Trio"
+        return trio.run(func, *args, **options)
 
     @classmethod
     def current_token(cls) -> object:
