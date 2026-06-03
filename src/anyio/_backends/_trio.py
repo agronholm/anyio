@@ -255,10 +255,10 @@ class TaskGroup(abc.TaskGroup):
         self._check_active()
         final_name = get_callable_name(func, name)
         if return_handle:
-            handle._start_value = await self._nursery.start(  # noqa: F821
+            handle._start_value = await self._nursery.start(
                 run_coro_with_task_status, name=final_name
             )
-            return handle  # noqa: F821
+            return handle
         else:
             return await self._nursery.start(func, *args, name=final_name)
 
