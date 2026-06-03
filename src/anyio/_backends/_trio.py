@@ -1103,10 +1103,10 @@ class TrioBackend(AsyncBackend):
     @classmethod
     def run_async_from_thread(
         cls,
-        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+        func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
         args: tuple[Unpack[PosArgsT]],
         token: object,
-    ) -> T_Retval:
+    ) -> T_co:
         trio_token = cast("trio.lowlevel.TrioToken | None", token)
         try:
             return trio.from_thread.run(func, *args, trio_token=trio_token)

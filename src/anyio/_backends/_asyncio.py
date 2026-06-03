@@ -2570,11 +2570,11 @@ class AsyncIOBackend(AsyncBackend):
     @classmethod
     def run_async_from_thread(
         cls,
-        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+        func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
         args: tuple[Unpack[PosArgsT]],
         token: object,
-    ) -> T_Retval:
-        async def task_wrapper() -> T_Retval:
+    ) -> T_co:
+        async def task_wrapper() -> T_co:
             __tracebackhide__ = True
             if scope is not None:
                 task = cast(asyncio.Task, current_task())
@@ -2597,7 +2597,7 @@ class AsyncIOBackend(AsyncBackend):
         context = copy_context()
         context.run(set_current_async_library, "asyncio")
         scope = getattr(threadlocals, "current_cancel_scope", None)
-        f: concurrent.futures.Future[T_Retval] = context.run(
+        f: concurrent.futures.Future[T_co] = context.run(
             asyncio.run_coroutine_threadsafe, task_wrapper(), loop=loop
         )
         return f.result()

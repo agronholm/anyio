@@ -31,9 +31,14 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   any ``ReadableBuffer``, thus allowing it to accept ``bytearray`` and ``memoryview`` to
   match ``pathlib.Path.write_bytes()``
   (`#1135 <https://github.com/agronholm/anyio/issues/1135>`_; PR by @SAY-5)
-- Changed the type annotations for ``TaskGroup.start_soon()`` and ``TaskGroup.start()``
-  to only accept callables returning coroutine-like objects instead of arbitrary
-  awaitables. This reverts an earlier change from v3.7.0 which was made in error.
+- Changed several type annotations to only accept callables returning coroutine-like
+  objects instead of arbitrary awaitables:
+
+  - ``TaskGroup.start_soon()``
+  - ``TaskGroup.start()``
+  - ``anyio.from_thread.run()``
+
+  This reverts an earlier change from v3.7.0 which was made in error.
   (`#1153 <https://github.com/agronholm/anyio/pull/1153>`_)
 - Fixed cancellation exception escaping a cancel scope when triggered via
   ``check_cancelled()`` in a worker thread

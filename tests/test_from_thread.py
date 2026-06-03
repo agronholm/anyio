@@ -4,7 +4,7 @@ import math
 import sys
 import threading
 import time
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Callable, Coroutine
 from concurrent import futures
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
 from contextlib import asynccontextmanager, suppress
@@ -39,7 +39,7 @@ from .conftest import asyncio_params
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
-T_Retval = TypeVar("T_Retval")
+T_co = TypeVar("T_co")
 
 
 async def async_add(a: int, b: int) -> int:
@@ -57,13 +57,13 @@ def sync_add(a: int, b: int) -> int:
 
 
 def thread_worker_async(
-    func: Callable[..., Awaitable[T_Retval]], *args: Any
-) -> T_Retval:
+    func: Callable[..., Coroutine[Any, Any, T_co]], *args: Any
+) -> T_co:
     assert threading.current_thread() is not threading.main_thread()
     return from_thread.run(func, *args)
 
 
-def thread_worker_sync(func: Callable[..., T_Retval], *args: Any) -> T_Retval:
+def thread_worker_sync(func: Callable[..., T_co], *args: Any) -> T_co:
     assert threading.current_thread() is not threading.main_thread()
     return from_thread.run_sync(func, *args)
 
