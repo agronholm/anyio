@@ -46,6 +46,8 @@ class CancelScope:
     :param shield: ``True`` to shield the cancel scope from external cancellation
     :raises NoEventLoopError: if no supported asynchronous event loop is running in the
         current thread
+    :raises RuntimeError: if the scope is entered while there is no current task in the
+        running event loop
     """
 
     def __new__(
