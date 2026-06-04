@@ -57,6 +57,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``anyio.run()``; the options are now passed as keyword arguments to ``trio.run()``
   again, as documented (a regression from AnyIO 3)
   (`#1161 <https://github.com/agronholm/anyio/pull/1161>`_; PR by @Zac-HD)
+- Fixed ``TypeError: cannot create weak reference to 'NoneType' object`` on the asyncio
+  backend when a cancel scope or ``cancel_shielded_checkpoint()`` was used while
+  ``current_task()`` returned ``None``
+  (`#1163 <https://github.com/agronholm/anyio/pull/1163>`_; PR by @inoue22)
 
 **4.13.0**
 
