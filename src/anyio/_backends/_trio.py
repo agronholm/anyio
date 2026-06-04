@@ -84,11 +84,16 @@ from .._core._tasks import CancelScope as BaseCancelScope
 from .._core._tasks import TaskHandle
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend, StrOrBytesPath
-from ..abc._tasks import get_callable_name
+from ..abc._tasks import call_for_coroutine, get_callable_name
 from ..streams.memory import MemoryObjectSendStream
 
 if TYPE_CHECKING:
     from _typeshed import FileDescriptorLike
+
+if sys.version_info >= (3, 13):
+    from typing import TypeVar
+else:
+    from typing_extensions import TypeVar
 
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
@@ -99,6 +104,7 @@ else:
 T = TypeVar("T")
 T_Retval = TypeVar("T_Retval")
 T_co = TypeVar("T_co", covariant=True)
+T_contra_None = TypeVar("T_contra_None", contravariant=True, default=None)
 T_SockAddr = TypeVar("T_SockAddr", str, IPSockAddrType)
 PosArgsT = TypeVarTuple("PosArgsT")
 P = ParamSpec("P")
@@ -170,6 +176,60 @@ class CancelScope(BaseCancelScope):
 #
 # Task groups
 #
+
+
+class _TaskHandleTaskStatus(
+    abc.TaskStatus[T_contra_None], Generic[T_co, T_contra_None]
+):
+    __slots__ = (
+        "_func",
+        "_wrapped",
+        "_handle",
+    )
+
+    def __init__(
+        self,
+        func: Callable[..., Coroutine[Any, Any, T_co]],
+        wrapped: trio.TaskStatus[TaskHandle[T_co, T_contra_None]],
+    ) -> None:
+        self._func = func
+        self._wrapped = wrapped
+        self._handle: TaskHandle[T_co, T_contra_None] | None = None
+
+    @overload
+    def started(self: _TaskHandleTaskStatus) -> None: ...
+
+    @overload
+    def started(self, value: T_contra_None) -> None: ...
+
+    def started(
+        self,
+        value: T_contra_None = None,  # type: ignore[assignment]
+    ) -> None:
+        try:
+            self._handle  # noqa: B018
+        except AttributeError:
+            raise RuntimeError(
+                "called 'started' twice on the same task status"
+            ) from None
+
+        if self._handle is None:
+            # `func` called `started` before returning a coroutine object.
+            prefix = (
+                f"{self._func.__module__}." if hasattr(self._func, "__module__") else ""
+            )
+            raise TypeError(
+                f"{prefix}{self._func.__qualname__}() called task_status.started() "
+                "before returning a coroutine object"
+            )
+
+        self._handle._start_value = value
+        self._wrapped.started(self._handle)
+        # Break the reference cycle.
+        try:
+            del self._handle
+        except AttributeError:
+            pass
 
 
 class TaskGroup(abc.TaskGroup):
@@ -244,25 +304,21 @@ class TaskGroup(abc.TaskGroup):
         name: object = None,
         return_handle: Literal[False] | Literal[True] = False,
     ) -> Any:
-        handle: TaskHandle[T_co]
-
         async def run_coro_with_task_status(
-            *, task_status: trio.TaskStatus[Any]
+            *, task_status: trio.TaskStatus[TaskHandle[T_co, Any]]
         ) -> None:
-            nonlocal handle
-            coro = func(*args, task_status=task_status)
-            handle = TaskHandle(coro, name)
+            user_task_status = _TaskHandleTaskStatus(func, task_status)
+            coro = call_for_coroutine(func, args, task_status=user_task_status)
+            handle = user_task_status._handle = TaskHandle(coro, name)
             await handle._run_coro()
 
         self._check_active()
         final_name = get_callable_name(func, name)
+        handle = await self._nursery.start(run_coro_with_task_status, name=final_name)
         if return_handle:
-            handle._start_value = await self._nursery.start(
-                run_coro_with_task_status, name=final_name
-            )
             return handle
         else:
-            return await self._nursery.start(func, *args, name=final_name)
+            return handle.start_value
 
 
 #

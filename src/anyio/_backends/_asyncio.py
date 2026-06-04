@@ -110,6 +110,11 @@ if TYPE_CHECKING:
 else:
     FileDescriptorLike = object
 
+if sys.version_info >= (3, 13):
+    from typing import TypeVar
+else:
+    from typing_extensions import TypeVar
+
 if sys.version_info >= (3, 11):
     from asyncio import Runner
     from typing import TypeVarTuple, Unpack
@@ -302,6 +307,7 @@ else:
 T_Retval = TypeVar("T_Retval")
 T_co = TypeVar("T_co", covariant=True)
 T_contra = TypeVar("T_contra", contravariant=True)
+T_contra_None = TypeVar("T_contra_None", contravariant=True, default=None)
 PosArgsT = TypeVarTuple("PosArgsT")
 P = ParamSpec("P")
 
@@ -720,12 +726,32 @@ _task_states: WeakKeyDictionary[asyncio.Task, TaskState] = WeakKeyDictionary()
 #
 
 
-class _AsyncioTaskStatus(abc.TaskStatus):
-    def __init__(self, future: asyncio.Future, parent_id: int):
+class _AsyncioTaskStatus(abc.TaskStatus[T_contra_None]):
+    def __init__(
+        self,
+        future: asyncio.Future[T_contra_None],
+        parent_id: int,
+        func: Callable[..., Coroutine[Any, Any, T_co]],
+    ):
         self._future = future
         self._parent_id = parent_id
+        self._func = func
+        self._func_returned_coro = False
 
-    def started(self, value: T_contra | None = None) -> None:
+    def started(
+        self,
+        value: T_contra_None = None,  # type: ignore[assignment]
+    ) -> None:
+        if not self._func_returned_coro:
+            # `func` called `started` before returning a coroutine object.
+            prefix = (
+                f"{self._func.__module__}." if hasattr(self._func, "__module__") else ""
+            )
+            raise TypeError(
+                f"{prefix}{self._func.__qualname__}() called task_status.started() "
+                "before returning a coroutine object"
+            )
+
         try:
             self._future.set_result(value)
         except asyncio.InvalidStateError:
@@ -941,8 +967,9 @@ class TaskGroup(abc.TaskGroup):
 
         future: asyncio.Future = asyncio.Future()
         final_name = get_callable_name(func, name)
-        task_status = _AsyncioTaskStatus(future, id(self.cancel_scope._host_task))
+        task_status = _AsyncioTaskStatus(future, id(self.cancel_scope._host_task), func)
         coro = call_for_coroutine(func, args, task_status=task_status)
+        task_status._func_returned_coro = True
         handle = self._spawn(coro, final_name, future)
 
         # If the task raises an exception after sending a start value without a switch
