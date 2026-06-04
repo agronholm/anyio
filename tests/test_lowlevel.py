@@ -104,7 +104,7 @@ def test_cancel_scope_without_running_task(
 
     async def main() -> None:
         with pytest.raises(
-            RuntimeError, match="can only be entered from within a task"
+            RuntimeError, match="A cancel scope can only be entered from within a task"
         ):
             with CancelScope():
                 pass
