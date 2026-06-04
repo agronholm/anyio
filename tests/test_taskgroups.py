@@ -330,18 +330,51 @@ async def test_cancel_with_nested_task_groups() -> None:
     assert len(outer_cancel_spy.call_args_list) < 10
 
 
-async def test_start_exception_delivery(anyio_backend_name: str) -> None:
-    def task_fn(*, task_status: TaskStatus[str] = TASK_STATUS_IGNORED) -> None:
-        task_status.started("hello")
+@pytest.mark.parametrize("return_handle", [False, True])
+async def test_start_soon_sync_fn_exception_delivery(return_handle: bool) -> None:
+    def taskfunc() -> None:
+        pass
 
-    if anyio_backend_name == "trio":
-        pattern = "appears to be synchronous"
-    else:
-        pattern = "is not a coroutine object"
+    async with create_task_group() as tg:
+        with pytest.raises(
+            TypeError,
+            match=rf"^{re.escape('Expected tests.test_taskgroups.test_start_soon_sync_fn_exception_delivery.<locals>.taskfunc() to return a coroutine, but the return value (None) is not a coroutine object')}$",
+        ):
+            tg.start_soon(taskfunc)  # type: ignore[arg-type]
 
-    async with anyio.create_task_group() as tg:
-        with pytest.raises(TypeError, match=pattern):
-            await tg.start(task_fn)  # type: ignore[arg-type]
+
+@pytest.mark.parametrize("return_handle", [False, True])
+async def test_start_sync_fn_exception_delivery(return_handle: bool) -> None:
+    def taskfunc(*, task_status: TaskStatus[None]) -> None:
+        pass
+
+    async with create_task_group() as tg:
+        with pytest.raises(
+            TypeError,
+            match=rf"^{re.escape('Expected tests.test_taskgroups.test_start_sync_fn_exception_delivery.<locals>.taskfunc() to return a coroutine, but the return value (None) is not a coroutine object')}$",
+        ):
+            await tg.start(taskfunc, return_handle=return_handle)  # type: ignore[call-overload]
+
+
+@pytest.mark.parametrize("return_handle", [False, True])
+async def test_started_in_sync_fn_exception_delivery(return_handle: bool) -> None:
+    error_msg = "tests.test_taskgroups.test_started_in_sync_fn_exception_delivery.<locals>.taskfunc() called task_status.started() before returning a coroutine object"
+
+    def taskfunc(*, task_status: TaskStatus[None]) -> None:
+        try:
+            task_status.started()
+        except TypeError as exc:
+            assert str(exc) == error_msg
+            raise
+        else:
+            pytest.fail("started() should have raised")
+
+    async with create_task_group() as tg:
+        with pytest.raises(
+            TypeError,
+            match=rf"^{re.escape(error_msg)}$",
+        ):
+            await tg.start(taskfunc, return_handle=return_handle)  # type: ignore[call-overload]
 
 
 async def test_start_cancel_after_error() -> None:
