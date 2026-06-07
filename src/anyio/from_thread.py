@@ -244,12 +244,16 @@ class BlockingPortal:
         kwargs: dict[str, Any],
         future: Future[T_Retval],
     ) -> None:
+        event_loop_thread_id = self._event_loop_thread_id
+
         def callback(f: Future[T_Retval]) -> None:
             if f.cancelled():
-                if self._event_loop_thread_id == get_ident():
+                if event_loop_thread_id == get_ident():
                     scope.cancel("the future was cancelled")
-                elif self._event_loop_thread_id is not None:
-                    self.call(scope.cancel, "the future was cancelled")
+                elif event_loop_thread_id is not None:
+                    run_sync(
+                        scope.cancel, "the future was cancelled", token=self._token
+                    )
 
         try:
             retval_or_awaitable = func(*args, **kwargs)

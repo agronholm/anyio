@@ -2235,6 +2235,13 @@ class TestRunner(abc.TestRunner):
     def get_loop(self) -> AbstractEventLoop:
         return self._runner.get_loop()
 
+    def is_running(self) -> bool:
+        try:
+            asyncio.get_running_loop()
+            return True
+        except RuntimeError:
+            return False
+
     def _exception_handler(
         self, loop: asyncio.AbstractEventLoop, context: dict[str, Any]
     ) -> None:

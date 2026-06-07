@@ -5,6 +5,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added support for Python 3.15
 - Added an asynchronous implementation of the ``itertools`` module
   (`#998 <https://github.com/agronholm/anyio/issues/998>`_; PR by @11kkw)
 - Added the ``local_port`` parameter to ``connect_tcp()`` to allow binding to a
@@ -46,6 +47,16 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``UDPSocket.aclose()`` and ``ConnectedUDPSocket.aclose()`` on asyncio returning
   before the underlying socket FD was actually released
   (`#1147 <https://github.com/agronholm/anyio/pull/1147>`_; PR by @matias-arrelid)
+- Fixed trio backend test runner hanging indefinitely instead of raising an error
+  when dynamically accessing an async fixture via ``request.getfixturevalue``
+  (`#1148 <https://github.com/agronholm/anyio/issues/1148>`_; PR by @EmmanuelNiyonshuti)
+- Fixed cancelling tasks started through a ``BlockingPortal`` after the portal has been
+  stopped
+  (`#1013 <https://github.com/agronholm/anyio/issues/1013>`_; PR by @puneetdixit200)
+- Fixed ``backend_options`` being ignored when running the Trio backend via
+  ``anyio.run()``; the options are now passed as keyword arguments to ``trio.run()``
+  again, as documented (a regression from AnyIO 3)
+  (`#1161 <https://github.com/agronholm/anyio/pull/1161>`_; PR by @Zac-HD)
 - Fixed asyncio ``Lock`` and ``Semaphore`` deadlocks caused by cancelled waiters
   left queued during release
   (`#1145 <https://github.com/agronholm/anyio/pull/1145>`_; PR by @rasmusfaber)
