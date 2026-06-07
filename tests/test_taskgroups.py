@@ -149,6 +149,36 @@ async def test_start_called_twice() -> None:
         assert value is None
 
 
+async def test_start_sync_wrapper() -> None:
+    async def taskfunc() -> int:
+        return 8
+
+    def wrapper(*, task_status: TaskStatus[int]) -> Coroutine[Any, Any, int]:
+        task_status.started(5)
+        return taskfunc()
+
+    async with create_task_group() as tg:
+        handle = await tg.start(wrapper, return_handle=True)
+        assert handle.start_value == 5
+        assert await handle == 8
+
+
+async def test_start_sync_wrapper_called_twice() -> None:
+    async def taskfunc() -> None:
+        pass
+
+    def wrapper(*, task_status: TaskStatus) -> Coroutine[Any, Any, None]:
+        task_status.started()
+        task_status.started()
+        return taskfunc()
+
+    async with create_task_group() as tg:
+        with pytest.raises(
+            RuntimeError, match="called 'started' twice on the same task status"
+        ):
+            await tg.start(wrapper)
+
+
 async def test_no_called_started_twice() -> None:
     async def taskfunc(*, task_status: TaskStatus) -> None:
         task_status.started()
@@ -330,17 +360,12 @@ async def test_cancel_with_nested_task_groups() -> None:
     assert len(outer_cancel_spy.call_args_list) < 10
 
 
-async def test_start_exception_delivery(anyio_backend_name: str) -> None:
+async def test_start_exception_delivery() -> None:
     def task_fn(*, task_status: TaskStatus[str] = TASK_STATUS_IGNORED) -> None:
         task_status.started("hello")
 
-    if anyio_backend_name == "trio":
-        pattern = "appears to be synchronous"
-    else:
-        pattern = "is not a coroutine object"
-
     async with anyio.create_task_group() as tg:
-        with pytest.raises(TypeError, match=pattern):
+        with pytest.raises(TypeError, match="is not a coroutine object"):
             await tg.start(task_fn)  # type: ignore[arg-type]
 
 

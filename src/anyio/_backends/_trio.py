@@ -84,7 +84,7 @@ from .._core._tasks import CancelScope as BaseCancelScope
 from .._core._tasks import TaskHandle
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend, StrOrBytesPath
-from ..abc._tasks import get_callable_name
+from ..abc._tasks import T_contra, get_callable_name
 from ..streams.memory import MemoryObjectSendStream
 
 if TYPE_CHECKING:
@@ -171,6 +171,22 @@ class CancelScope(BaseCancelScope):
 # Task groups
 #
 
+empty_start_value = object()
+
+
+class _TrioTaskStatus(Generic[T_contra], abc.TaskStatus[T_contra]):
+    early_start_value: Any = empty_start_value
+    real_task_status: trio.TaskStatus[T_contra | None] | None = None
+
+    def started(self, value: T_contra | None = None) -> None:
+        if self.real_task_status is None:
+            if self.early_start_value is not empty_start_value:
+                raise RuntimeError("called 'started' twice on the same task status")
+
+            self.early_start_value = value
+        else:
+            self.real_task_status.started(value)
+
 
 class TaskGroup(abc.TaskGroup):
     def __init__(self) -> None:
@@ -250,19 +266,29 @@ class TaskGroup(abc.TaskGroup):
             *, task_status: trio.TaskStatus[Any]
         ) -> None:
             nonlocal handle
-            coro = func(*args, task_status=task_status)
+            wrapper_task_status = _TrioTaskStatus()
+            coro = func(*args, task_status=wrapper_task_status)
+            if not isinstance(coro, Coroutine):
+                raise TypeError(f"{coro!r} is not a coroutine object")
+
+            if wrapper_task_status.early_start_value is not empty_start_value:
+                task_status.started(wrapper_task_status.early_start_value)
+            else:
+                wrapper_task_status.real_task_status = task_status
+
             handle = TaskHandle(coro, name)
             await handle._run_coro()
 
         self._check_active()
         final_name = get_callable_name(func, name)
+        start_value = await self._nursery.start(
+            run_coro_with_task_status, name=final_name
+        )
         if return_handle:
-            handle._start_value = await self._nursery.start(
-                run_coro_with_task_status, name=final_name
-            )
+            handle._start_value = start_value
             return handle
         else:
-            return await self._nursery.start(func, *args, name=final_name)
+            return start_value
 
 
 #
