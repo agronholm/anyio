@@ -175,7 +175,7 @@ empty_start_value = object()
 
 
 class _TrioTaskStatus(Generic[T_contra], abc.TaskStatus[T_contra]):
-    early_start_value: Any = empty_start_value
+    early_start_value: T_contra | object = empty_start_value
     real_task_status: trio.TaskStatus[T_contra | None] | None = None
 
     def started(self, value: T_contra | None = None) -> None:
