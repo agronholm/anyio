@@ -424,3 +424,28 @@ async def test_wait_returns_on_process_exit_with_open_stdout() -> None:
             pass
         async for _ in process.stderr:
             pass
+
+
+async def test_close_with_stdout_blocked_subprocess(anyio_backend_name: str) -> None:
+    """
+    Regression test for #1166.
+
+    Test that closing a process unblocks a subprocess blocked on writing to stdout
+    (because the pipe buffer is full and nobody is reading), instead of deadlocking
+    while waiting for it to exit.
+    """
+    code = dedent("""\
+    import sys
+
+    sys.stdout.write("x" * 1024 * 1024)
+    """)
+
+    process = await open_process([sys.executable, "-c", code])
+    try:
+        with fail_after(5):
+            await process.aclose()
+    except TimeoutError:
+        if anyio_backend_name == "asyncio":
+            process._process._transport.close()  # type: ignore[attr-defined]
+
+        pytest.fail("Process.aclose() deadlocked")

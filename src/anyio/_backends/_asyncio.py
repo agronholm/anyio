@@ -1117,6 +1117,7 @@ class Process(abc.Process):
     _stdout: StreamReaderWrapper | None
     _stderr: StreamReaderWrapper | None
     _exited: asyncio.Event
+    _transport: asyncio.SubprocessTransport
 
     async def aclose(self) -> None:
         with CancelScope(shield=True) as scope:
@@ -1126,6 +1127,15 @@ class Process(abc.Process):
                 await self._stdout.aclose()
             if self._stderr:
                 await self._stderr.aclose()
+
+            # Close all the pipe transports too (closing the wrapper streams above
+            # doesn't do that). Otherwise the subprocess never gets EPIPE if it's
+            # blocked on writing to a full pipe, and asyncio's Process.wait() won't
+            # return while any pipe is still connected, so wait() below would
+            # deadlock.
+            for fd in (0, 1, 2):
+                if pipe_transport := self._transport.get_pipe_transport(fd):
+                    pipe_transport.close()
 
             scope.shield = False
             try:
@@ -2728,7 +2738,7 @@ class AsyncIOBackend(AsyncBackend):
         stdout_stream = StreamReaderWrapper(process.stdout) if process.stdout else None
         stderr_stream = StreamReaderWrapper(process.stderr) if process.stderr else None
         return Process(
-            process, stdin_stream, stdout_stream, stderr_stream, protocol.exited
+            process, stdin_stream, stdout_stream, stderr_stream, protocol.exited, transport
         )
 
     @classmethod
