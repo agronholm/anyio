@@ -258,12 +258,6 @@ class TaskHandle(Generic[T_co, T_startval]):
     def __init__(self, coro: Coroutine[Any, Any, T_co], name: object) -> None:
         from ._synchronization import Event
 
-        if not isinstance(coro, Coroutine):
-            coro.close()
-            raise TypeError(
-                f"expected a coroutine object, got {coro.__class__.__qualname__}"
-            )
-
         self._coro = coro
         self._cancel_scope = CancelScope()
         self._finished_event = Event()
