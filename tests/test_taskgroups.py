@@ -360,7 +360,8 @@ async def test_cancel_with_nested_task_groups() -> None:
     assert len(outer_cancel_spy.call_args_list) < 10
 
 
-async def test_start_exception_delivery() -> None:
+@pytest.mark.parametrize("return_handle", [False, True])
+async def test_start_exception_delivery(return_handle: bool) -> None:
     def task_fn(*, task_status: TaskStatus[str] = TASK_STATUS_IGNORED) -> None:
         task_status.started("hello")
 
@@ -370,7 +371,7 @@ async def test_start_exception_delivery() -> None:
     )
     with pytest.RaisesGroup(pytest.RaisesExc(TypeError, match=pattern)):
         async with anyio.create_task_group() as tg:
-            await tg.start(task_fn)  # type: ignore[arg-type]
+            await tg.start(task_fn, return_handle=return_handle)  # type: ignore[call-overload]
 
 
 async def test_start_cancel_after_error() -> None:
