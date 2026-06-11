@@ -84,7 +84,7 @@ from .._core._tasks import CancelScope as BaseCancelScope
 from .._core._tasks import TaskHandle
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend, StrOrBytesPath
-from ..abc._tasks import T_contra, get_callable_name
+from ..abc._tasks import T_contra, call_for_coroutine, get_callable_name
 from ..streams.memory import MemoryObjectSendStream
 
 if TYPE_CHECKING:
@@ -255,8 +255,8 @@ class TaskGroup(abc.TaskGroup):
 
     async def start(
         self,
-        func: Callable[..., Coroutine[Any, Any, T_co]],
-        *args: object,
+        func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
+        *args: Unpack[PosArgsT],
         name: object = None,
         return_handle: Literal[False] | Literal[True] = False,
     ) -> Any:
@@ -267,10 +267,7 @@ class TaskGroup(abc.TaskGroup):
         ) -> None:
             nonlocal handle
             wrapper_task_status = _TrioTaskStatus()
-            coro = func(*args, task_status=wrapper_task_status)
-            if not isinstance(coro, Coroutine):
-                raise TypeError(f"{coro!r} is not a coroutine object")
-
+            coro = call_for_coroutine(func, args, task_status=wrapper_task_status)
             if wrapper_task_status.early_start_value is not empty_start_value:
                 task_status.started(wrapper_task_status.early_start_value)
             else:

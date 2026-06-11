@@ -364,8 +364,12 @@ async def test_start_exception_delivery() -> None:
     def task_fn(*, task_status: TaskStatus[str] = TASK_STATUS_IGNORED) -> None:
         task_status.started("hello")
 
-    async with anyio.create_task_group() as tg:
-        with pytest.raises(TypeError, match="is not a coroutine object"):
+    pattern = (
+        r"^Expected .*\(\) to return a coroutine, but the return value \(None\) is not "
+        r"a coroutine object$"
+    )
+    with pytest.RaisesGroup(pytest.RaisesExc(TypeError, match=pattern)):
+        async with anyio.create_task_group() as tg:
             await tg.start(task_fn)  # type: ignore[arg-type]
 
 
