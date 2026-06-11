@@ -48,6 +48,8 @@ class CancelScope:
         current thread
     """
 
+    __slots__ = ("__weakref__",)
+
     def __new__(
         cls, *, deadline: float = math.inf, shield: bool = False
     ) -> CancelScope:

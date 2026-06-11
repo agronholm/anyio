@@ -111,6 +111,8 @@ RunVar = trio.lowlevel.RunVar
 
 
 class CancelScope(BaseCancelScope):
+    __slots__ = ("__original",)
+
     def __new__(
         cls, original: trio.CancelScope | None = None, **kwargs: object
     ) -> CancelScope:
@@ -606,6 +608,8 @@ class ConnectedUNIXDatagramSocket(
 
 
 class Event(BaseEvent):
+    __slots__ = ("__original",)
+
     def __new__(cls) -> Event:
         return object.__new__(cls)
 
@@ -627,6 +631,8 @@ class Event(BaseEvent):
 
 
 class Lock(BaseLock):
+    __slots__ = "_fast_acquire", "__original"
+
     def __new__(cls, *, fast_acquire: bool = False) -> Lock:
         return object.__new__(cls)
 
@@ -683,6 +689,8 @@ class Lock(BaseLock):
 
 
 class Semaphore(BaseSemaphore):
+    __slots__ = ("__original",)
+
     def __new__(
         cls,
         initial_value: int,
@@ -737,6 +745,8 @@ class Semaphore(BaseSemaphore):
 
 
 class CapacityLimiter(BaseCapacityLimiter):
+    __slots__ = ("__original",)
+
     def __new__(
         cls,
         total_tokens: float | None = None,
