@@ -923,7 +923,7 @@ class TaskGroup(abc.TaskGroup):
             )
 
         if context is not None:
-            return context.run(partial(self._spawn, coro, name=name))
+            return context.run(self._spawn, coro, name=name)
         else:
             return self._spawn(coro, name=name)
 
