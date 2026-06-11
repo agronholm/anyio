@@ -40,6 +40,16 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
   This reverts an earlier change from v3.7.0 which was made in error.
   (`#1153 <https://github.com/agronholm/anyio/pull/1153>`_)
+- Changed several classes (and their subclasses) to have ``__slots__`` (with
+  ``__weakref__``):
+
+  * ``anyio.CancelScope``
+  * ``anyio.CapacityLimiter``
+  * ``anyio.Condition``
+  * ``anyio.Event``
+  * ``anyio.Lock``
+  * ``anyio.ResourceGuard``
+  * ``anyio.Semaphore``
 - Fixed cancellation exception escaping a cancel scope when triggered via
   ``check_cancelled()`` in a worker thread
   (`#1113 <https://github.com/agronholm/anyio/issues/1113>`_)

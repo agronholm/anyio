@@ -80,6 +80,8 @@ class SemaphoreStatistics:
 
 
 class Event:
+    __slots__ = ("__weakref__",)
+
     def __new__(cls) -> Event:
         try:
             return get_async_backend().create_event()
@@ -110,11 +112,14 @@ class Event:
 
 
 class EventAdapter(Event):
-    _internal_event: Event | None = None
-    _is_set: bool = False
+    __slots__ = "_internal_event", "_is_set"
 
     def __new__(cls) -> EventAdapter:
         return object.__new__(cls)
+
+    def __init__(self) -> None:
+        self._internal_event: Event | None = None
+        self._is_set = False
 
     @property
     def _event(self) -> Event:
@@ -148,6 +153,8 @@ class EventAdapter(Event):
 
 
 class Lock:
+    __slots__ = ("__weakref__",)
+
     def __new__(cls, *, fast_acquire: bool = False) -> Lock:
         try:
             return get_async_backend().create_lock(fast_acquire=fast_acquire)
@@ -196,12 +203,13 @@ class Lock:
 
 
 class LockAdapter(Lock):
-    _internal_lock: Lock | None = None
+    __slots__ = "_internal_lock", "_fast_acquire"
 
     def __new__(cls, *, fast_acquire: bool = False) -> LockAdapter:
         return object.__new__(cls)
 
     def __init__(self, *, fast_acquire: bool = False):
+        self._internal_lock: Lock | None = None
         self._fast_acquire = fast_acquire
 
     @property
@@ -260,9 +268,10 @@ class LockAdapter(Lock):
 
 
 class Condition:
-    _owner_task: TaskInfo | None = None
+    __slots__ = "__weakref__", "_owner_task", "_lock", "_waiters"
 
     def __init__(self, lock: Lock | None = None):
+        self._owner_task: TaskInfo | None = None
         self._lock = lock or Lock()
         self._waiters: deque[Event] = deque()
 
@@ -371,6 +380,8 @@ class Condition:
 
 
 class Semaphore:
+    __slots__ = "__weakref__", "_fast_acquire"
+
     def __new__(
         cls,
         initial_value: int,
@@ -455,7 +466,7 @@ class Semaphore:
 
 
 class SemaphoreAdapter(Semaphore):
-    _internal_semaphore: Semaphore | None = None
+    __slots__ = "_internal_semaphore", "_initial_value", "_max_value"
 
     def __new__(
         cls,
@@ -474,6 +485,7 @@ class SemaphoreAdapter(Semaphore):
         fast_acquire: bool = False,
     ) -> None:
         super().__init__(initial_value, max_value=max_value, fast_acquire=fast_acquire)
+        self._internal_semaphore: Semaphore | None = None
         self._initial_value = initial_value
         self._max_value = max_value
 
@@ -514,6 +526,8 @@ class SemaphoreAdapter(Semaphore):
 
 
 class CapacityLimiter:
+    __slots__ = ("__weakref__",)
+
     def __new__(cls, total_tokens: float) -> CapacityLimiter:
         try:
             return get_async_backend().create_capacity_limiter(total_tokens)
@@ -630,12 +644,13 @@ class CapacityLimiter:
 
 
 class CapacityLimiterAdapter(CapacityLimiter):
-    _internal_limiter: CapacityLimiter | None = None
+    __slots__ = "_internal_limiter", "_total_tokens"
 
     def __new__(cls, total_tokens: float) -> CapacityLimiterAdapter:
         return object.__new__(cls)
 
     def __init__(self, total_tokens: float) -> None:
+        self._internal_limiter: CapacityLimiter | None = None
         self.total_tokens = total_tokens
 
     @property
@@ -736,7 +751,7 @@ class ResourceGuard:
     .. versionadded:: 4.1
     """
 
-    __slots__ = "action", "_guarded"
+    __slots__ = "__weakref__", "action", "_guarded"
 
     def __init__(self, action: str = "using"):
         self.action: str = action

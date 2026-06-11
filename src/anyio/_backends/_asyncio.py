@@ -1819,6 +1819,8 @@ _write_events: RunVar[dict[int, asyncio.Future[bool]]] = RunVar("write_events")
 
 
 class Event(BaseEvent):
+    __slots__ = ("_event",)
+
     def __new__(cls) -> Event:
         return object.__new__(cls)
 
@@ -1842,6 +1844,8 @@ class Event(BaseEvent):
 
 
 class Lock(BaseLock):
+    __slots__ = "_fast_acquire", "_owner_task", "_waiters"
+
     def __new__(cls, *, fast_acquire: bool = False) -> Lock:
         return object.__new__(cls)
 
@@ -1916,6 +1920,8 @@ class Lock(BaseLock):
 
 
 class Semaphore(BaseSemaphore):
+    __slots__ = "_value", "_max_value", "_fast_acquire", "_waiters"
+
     def __new__(
         cls,
         initial_value: int,
@@ -1997,12 +2003,13 @@ class Semaphore(BaseSemaphore):
 
 
 class CapacityLimiter(BaseCapacityLimiter):
-    _total_tokens: float = 0
+    __slots__ = "_total_tokens", "_borrowers", "_wait_queue"
 
     def __new__(cls, total_tokens: float) -> CapacityLimiter:
         return object.__new__(cls)
 
     def __init__(self, total_tokens: float):
+        self._total_tokens: float = 0
         self._borrowers: set[Any] = set()
         self._wait_queue: OrderedDict[Any, asyncio.Event] = OrderedDict()
         self.total_tokens = total_tokens
