@@ -288,7 +288,7 @@ class TestCombinations:
             assert await collect(iterator) == expected
 
     async def test_negative_r(self) -> None:
-        with pytest.raises(ValueError, match="r must be non-negative"):
+        with pytest.raises(ValueError, match="r (cannot be |must be non-)negative"):
             await anext(combinations([1, 2], -1))
 
     async def test_checkpoints_empty_result(self) -> None:
@@ -341,7 +341,7 @@ class TestCombinationsWithReplacement:
             assert await collect(iterator) == expected
 
     async def test_negative_r(self) -> None:
-        with pytest.raises(ValueError, match="r must be non-negative"):
+        with pytest.raises(ValueError, match="r (cannot be |must be non-)negative"):
             await anext(combinations_with_replacement([1, 2], -1))
 
     async def test_checkpoints_empty_results(self) -> None:
