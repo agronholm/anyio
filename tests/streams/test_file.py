@@ -13,7 +13,8 @@ from anyio.streams.file import FileReadStream, FileStreamAttribute, FileWriteStr
 
 class TestFileReadStream:
     @pytest.fixture(scope="class")
-    def file_path(self, tmp_path_factory: TempPathFactory) -> Path:
+    @classmethod
+    def file_path(cls, tmp_path_factory: TempPathFactory) -> Path:
         path = tmp_path_factory.mktemp("filestream") / "data.txt"
         path.write_text("Hello")
         return path
