@@ -30,6 +30,7 @@ exclude_patterns = ["_build"]
 pygments_style = "sphinx"
 autodoc_default_options = {"members": True, "show-inheritance": True}
 autodoc_mock_imports = ["_typeshed", "pytest", "_pytest"]
+suppress_warnings = ("sphinx_autodoc_typehints.guarded_import",)
 todo_include_todos = False
 
 html_theme = "sphinx_rtd_theme"
