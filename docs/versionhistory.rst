@@ -40,6 +40,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
   This reverts an earlier change from v3.7.0 which was made in error.
   (`#1153 <https://github.com/agronholm/anyio/pull/1153>`_)
+- Changed ``anyio.run`` to support callables returning arbitrary awaitables at runtime
+  on all backends (`#1171 <https://github.com/agronholm/anyio/pull/1171>`_; PR by
+  @gschaffner)
 - Changed several classes (and their subclasses) to have ``__slots__`` (with
   ``__weakref__``):
 
