@@ -5,6 +5,7 @@ import math
 import time
 from asyncio import get_running_loop
 from collections.abc import Generator
+from typing import Any
 from unittest import mock
 from unittest.mock import AsyncMock
 
@@ -12,6 +13,8 @@ import pytest
 from pytest import MonkeyPatch
 
 from anyio import current_time, run, sleep, sleep_forever, sleep_until
+
+from .misc import return_non_coro_awaitable
 
 fake_current_time = 1620581544.0
 
@@ -49,6 +52,23 @@ def test_run_task() -> None:
         return x + y
 
     result = run(asyncio.create_task, async_add(1, 2), backend="asyncio")
+    assert result == 3
+
+
+def test_run_non_corofunc(
+    anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+) -> None:
+    @return_non_coro_awaitable
+    async def async_add(x: int, y: int) -> int:
+        return x + y
+
+    result = run(
+        async_add,
+        1,
+        2,
+        backend=anyio_backend_name,
+        backend_options=anyio_backend_options,
+    )
     assert result == 3
 
 

@@ -35,6 +35,7 @@ from anyio.from_thread import BlockingPortal, start_blocking_portal
 from anyio.lowlevel import EventLoopToken, checkpoint, current_token
 
 from .conftest import asyncio_params
+from .misc import return_non_coro_awaitable
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -351,6 +352,13 @@ class TestBlockingPortal:
             result = await to_thread.run_sync(portal.call, async_add, 1, 2)
             assert result == 3
 
+    async def test_call_non_corofunc(self) -> None:
+        async with BlockingPortal() as portal:
+            result = await to_thread.run_sync(
+                portal.call, return_non_coro_awaitable(async_add), 1, 2
+            )
+            assert result == 3
+
     async def test_call_anext(self) -> None:
         gen = asyncgen_add(1, 2)
         try:
@@ -482,6 +490,17 @@ class TestBlockingPortal:
             portal.call(event1.set)
             portal.call(event2.wait)
             assert future.result() == "test"
+
+    def test_start_task_soon_non_corofunc(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        @return_non_coro_awaitable
+        async def taskfunc() -> Literal["test"]:
+            return "test"
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            future = portal.start_task_soon(taskfunc)
+        assert future.result() == "test"
 
     def test_start_task_soon_cancel_later(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
@@ -624,6 +643,18 @@ class TestBlockingPortal:
     def test_start_with_value(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
+        async def taskfunc(*, task_status: TaskStatus[str]) -> None:
+            task_status.started("foo")
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            future, value = portal.start_task(taskfunc)
+            assert value == "foo"
+            assert future.result() is None
+
+    def test_start_non_corofunc(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        @return_non_coro_awaitable
         async def taskfunc(*, task_status: TaskStatus[str]) -> None:
             task_status.started("foo")
 
