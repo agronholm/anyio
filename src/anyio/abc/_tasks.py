@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import sys
 from abc import ABCMeta, abstractmethod
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Callable, Coroutine
 from contextvars import Context
-from functools import partial
-from inspect import iscoroutine
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Protocol, overload
+from typing import TYPE_CHECKING, Any, Literal, Protocol, final, overload
 
 if sys.version_info >= (3, 13):
     from typing import TypeVar
@@ -22,9 +20,41 @@ else:
 if TYPE_CHECKING:
     from .._core._tasks import CancelScope, TaskHandle
 
-T_Retval = TypeVar("T_Retval")
+T_co = TypeVar("T_co", covariant=True)
 T_contra = TypeVar("T_contra", contravariant=True, default=None)
 PosArgsT = TypeVarTuple("PosArgsT")
+
+
+def get_callable_name(func: Callable, override: object = None) -> str:
+    if override is not None:
+        return str(override)
+
+    module = getattr(func, "__module__", None)
+    qualname = getattr(func, "__qualname__", None)
+    return ".".join([x for x in (module, qualname) if x])
+
+
+def call_for_coroutine(
+    func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
+    args: tuple[Unpack[PosArgsT]],
+    **kwargs: Any,
+) -> Coroutine[Any, Any, T_co]:
+    """
+    Call the given function with the given positional and keyword arguments.
+
+    :return: the resulting coroutine
+    :raises TypeError: if the return value was not a coroutine object
+
+    """
+    coro = func(*args, **kwargs)
+    if not isinstance(coro, Coroutine):
+        prefix = f"{func.__module__}." if hasattr(func, "__module__") else ""
+        raise TypeError(
+            f"Expected {prefix}{func.__qualname__}() to return a coroutine, but "
+            f"the return value ({coro!r}) is not a coroutine object"
+        )
+
+    return coro
 
 
 class TaskStatus(Protocol[T_contra]):
@@ -71,13 +101,14 @@ class TaskGroup(metaclass=ABCMeta):
         """
         self.cancel_scope.cancel(reason)
 
+    @abstractmethod
     def create_task(
         self,
-        coro: Coroutine[Any, Any, T_Retval],
+        coro: Coroutine[Any, Any, T_co],
         *,
-        name: str | None = None,
+        name: object = None,
         context: Context | None = None,
-    ) -> TaskHandle[T_Retval]:
+    ) -> TaskHandle[T_co]:
         """
         Create a new task from a coroutine object and schedule it to run.
 
@@ -87,44 +118,56 @@ class TaskGroup(metaclass=ABCMeta):
         :return: a task handle
 
         .. versionadded:: 4.14.0
-
         """
-        from .._core._tasks import TaskHandle
 
-        if not iscoroutine(coro):
-            raise TypeError(f"expected a coroutine, got {coro.__class__.__qualname__}")
-
-        handle = TaskHandle[T_Retval](coro, name)
-        if context is not None:
-            context.run(partial(self.start_soon, handle._run_coro, name=handle.name))
-        else:
-            self.start_soon(handle._run_coro, name=handle.name)
-
-        return handle
-
-    @abstractmethod
+    @final
     def start_soon(
         self,
-        func: Callable[[Unpack[PosArgsT]], Awaitable[Any]],
+        func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
         *args: Unpack[PosArgsT],
         name: object = None,
-    ) -> None:
+    ) -> TaskHandle[T_co]:
         """
         Start a new task in this task group.
 
         :param func: a coroutine function
         :param args: positional arguments to call the function with
         :param name: name of the task, for the purposes of introspection and debugging
+        :return: a task handle
 
         .. versionadded:: 3.0
+        .. versionchanged:: 4.14.0
+            This method now returns a task handle.
+
         """
+        final_name = get_callable_name(func, name)
+        return self.create_task(call_for_coroutine(func, args), name=final_name)
+
+    @overload
+    async def start(
+        self,
+        func: Callable[..., Coroutine[Any, Any, T_co]],
+        *args: object,
+        name: object = None,
+        return_handle: Literal[False] = ...,
+    ) -> Any: ...
+
+    @overload
+    async def start(
+        self,
+        func: Callable[..., Coroutine[Any, Any, T_co]],
+        *args: object,
+        name: object = None,
+        return_handle: Literal[True],
+    ) -> TaskHandle[T_co, Any]: ...
 
     @abstractmethod
     async def start(
         self,
-        func: Callable[..., Awaitable[Any]],
+        func: Callable[..., Coroutine[Any, Any, T_co]],
         *args: object,
         name: object = None,
+        return_handle: Literal[False] | Literal[True] = False,
     ) -> Any:
         """
         Start a new task and wait until it signals for readiness.
@@ -141,6 +184,8 @@ class TaskGroup(metaclass=ABCMeta):
             argument
         :param args: positional arguments to call the function with
         :param name: an optional name for the task, for introspection and debugging
+        :param return_handle: if ``True``, return a :class:`TaskHandle` which also
+            contains the start value in ``start_value``
         :return: the value passed to ``task_status.started()``
         :raises RuntimeError: if the task finishes without calling
             ``task_status.started()``
