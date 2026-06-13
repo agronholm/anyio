@@ -23,6 +23,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Improved ``anyio.Path`` to preserve subclass types by returning ``Self`` in methods
   that return path objects
   (`#1130 <https://github.com/agronholm/anyio/issues/1130>`_; PR by @EmmanuelNiyonshuti)
+- Changed the top-level imports to work lazily to reduce import overhead
 - Changed the parameter type annotation in ``anyio.Path.write_bytes()`` to accept
   any ``ReadableBuffer``, thus allowing it to accept ``bytearray`` and ``memoryview`` to
   match ``pathlib.Path.write_bytes()``
