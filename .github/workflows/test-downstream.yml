@@ -82,7 +82,7 @@ jobs:
           uv sync --no-dev --group tests --extra all
           uv pip install anyio[trio]@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
       - name: Run tests
-        run: pytest -W ignore::ResourceWarning
+        run: uv run --no-sync pytest -W ignore::UserWarning
         env:
           PYTHONPATH: ./docs_src
 
