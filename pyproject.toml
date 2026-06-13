@@ -23,6 +23,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
 ]
 requires-python = ">= 3.10"
 dependencies = [
@@ -46,18 +47,18 @@ pytest11 = {anyio = "anyio.pytest_plugin"}
 
 [dependency-groups]
 test = [
-    "blockbuster >= 1.5.23",
+    "blockbuster >= 1.5.23; python_version < '3.15'",
     "coverage[toml] >= 7",
-    "exceptiongroup >= 1.2.0",
     "hypothesis >= 4.18.2",
     "psutil >= 5.9",
-    "pytest >= 7.0",
+    "pytest >= 9.0",
     "pytest-mock >= 3.14",
+    "pytest-timeout >= 2.4.0",
     "trustme >= 1.0.0",
     "truststore >= 0.9.1",
     """\
     uvloop >= 0.22.1; platform_python_implementation == 'CPython' \
-    and platform_system != 'Windows' \
+    and platform_system != 'Windows' and python_version < '3.15' \
     """,
     """
     winloop >= 0.2.3; platform_python_implementation == 'CPython' \
@@ -66,7 +67,7 @@ test = [
 ]
 doc = [
     "packaging >= 14.1",
-    "Sphinx ~= 8.2",
+    "Sphinx ~= 8.2; python_version >= '3.11'",
     "sphinx_rtd_theme >= 2.0.0",
     "sphinx-autodoc-typehints >= 1.2.0",
     "sphinx-tabs >= 3.3.1",
@@ -108,17 +109,30 @@ python_version = "3.14"
 strict = true
 disallow_any_generics = false
 warn_return_any = false
-disallow_untyped_decorators = false
+files = ["src", "tests"]
 
-[tool.pytest.ini_options]
-addopts = "-rsfE --tb=short --strict-config --strict-markers -p anyio -p pytest_mock -p no:asyncio -p no:trio"
+[tool.pytest]
+addopts = [
+  "-rsfE",
+  "--tb=short",
+  "--strict-config",
+  "--strict-markers",
+  "-p", "anyio",
+  "-p", "pytest_mock",
+  "-p", "timeout",
+  "-p", "no:asyncio",
+  "-p", "no:trio",
+]
 testpaths = ["tests"]
 anyio_mode = "auto"
+timeout = "20"
 xfail_strict = true
 filterwarnings = [
     "error",
     # Ignore resource warnings due to a CPython/Windows bug (https://bugs.python.org/issue44428)
     "ignore:unclosed transport <_ProactorSocketTransport.*:ResourceWarning",
+    # Ignore deprecation warning occurring under coverage.py on Python 3.15
+    "ignore:Module globals; __loader__ != __spec__.loader:DeprecationWarning:",
 ]
 markers = [
     "network: marks tests as requiring Internet access",
@@ -139,7 +153,7 @@ exclude_also = [
 ]
 
 [tool.tox]
-env_list = ["pre-commit", "py310", "py311", "py312", "py313", "py314", "pypy3", "only_asyncio"]
+env_list = ["pre-commit", "py310", "py311", "py312", "py313", "py314", "py315", "pypy3", "only_asyncio"]
 skip_missing_interpreters = true
 requires = ["tox >= 4.22"]
 

@@ -111,6 +111,8 @@ RunVar = trio.lowlevel.RunVar
 
 
 class CancelScope(BaseCancelScope):
+    __slots__ = ("__original",)
+
     def __new__(
         cls, original: trio.CancelScope | None = None, **kwargs: object
     ) -> CancelScope:
@@ -166,11 +168,16 @@ class CancelScope(BaseCancelScope):
 
 class TaskGroup(abc.TaskGroup):
     def __init__(self) -> None:
+        self._entered = False
         self._active = False
         self._nursery_manager = trio.open_nursery(strict_exception_groups=True)
         self.cancel_scope = None  # type: ignore[assignment]
 
     async def __aenter__(self) -> TaskGroup:
+        if self._entered:
+            raise RuntimeError("TaskGroup cannot be entered more than once")
+
+        self._entered = True
         self._active = True
         self._nursery = await self._nursery_manager.__aenter__()
         self.cancel_scope = CancelScope(self._nursery.cancel_scope)
@@ -601,6 +608,8 @@ class ConnectedUNIXDatagramSocket(
 
 
 class Event(BaseEvent):
+    __slots__ = ("__original",)
+
     def __new__(cls) -> Event:
         return object.__new__(cls)
 
@@ -622,6 +631,8 @@ class Event(BaseEvent):
 
 
 class Lock(BaseLock):
+    __slots__ = "_fast_acquire", "__original"
+
     def __new__(cls, *, fast_acquire: bool = False) -> Lock:
         return object.__new__(cls)
 
@@ -678,6 +689,8 @@ class Lock(BaseLock):
 
 
 class Semaphore(BaseSemaphore):
+    __slots__ = ("__original",)
+
     def __new__(
         cls,
         initial_value: int,
@@ -732,6 +745,8 @@ class Semaphore(BaseSemaphore):
 
 
 class CapacityLimiter(BaseCapacityLimiter):
+    __slots__ = ("__original",)
+
     def __new__(
         cls,
         total_tokens: float | None = None,
@@ -866,6 +881,9 @@ class TestRunner(abc.TestRunner):
             while self._send_stream is not None:
                 self._call_queue.get()()
 
+    def is_running(self) -> bool:
+        return trio.lowlevel.in_trio_task()
+
     async def _run_tests_and_fixtures(self) -> None:
         self._send_stream, receive_stream = create_memory_object_stream(1)
         with receive_stream:
@@ -962,7 +980,8 @@ class TrioBackend(AsyncBackend):
         kwargs: dict[str, Any],
         options: dict[str, Any],
     ) -> T_Retval:
-        return trio.run(func, *args)
+        assert not kwargs, "unreachable, and not supported by Trio"
+        return trio.run(func, *args, **options)
 
     @classmethod
     def current_token(cls) -> object:
@@ -1256,6 +1275,9 @@ class TrioBackend(AsyncBackend):
 
     @classmethod
     async def wrap_listener_socket(cls, sock: socket.socket) -> abc.SocketListener:
+        if hasattr(socket, "AF_UNIX") and sock.family == socket.AF_UNIX:
+            return UNIXSocketListener(sock)
+
         return TCPSocketListener(sock)
 
     @classmethod

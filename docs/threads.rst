@@ -25,7 +25,7 @@ To run a (synchronous) callable in a worker thread::
     run(main)
 
 By default, tasks are shielded from cancellation while they are waiting for a worker
-thread to finish. You can pass the ``cancellable=True`` parameter to allow such tasks to
+thread to finish. You can pass the ``abandon_on_cancel=True`` parameter to allow such tasks to
 be cancelled. Note, however, that the thread will still continue running – only its
 outcome will be ignored.
 

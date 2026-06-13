@@ -118,7 +118,7 @@ def test_wait_generator_based_task_blocked(
 
         event.set()
 
-    @asyncio.coroutine  # type: ignore[attr-defined]
+    @asyncio.coroutine  # type: ignore[attr-defined, untyped-decorator]
     def generator_part() -> Generator[object, BaseException, None]:
         yield from event.wait()  # type: ignore[misc]
 

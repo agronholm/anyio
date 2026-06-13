@@ -88,3 +88,21 @@ Asynchronously iterating a directory contents can be done as follows::
                 print('---------------------')
 
     run(main)
+
+Limiting concurrency
+--------------------
+
+By default, all file I/O operations use the default capacity limiter. If you wish to
+more explicitly control the concurrency, you can pass a custom :class:`CapacityLimiter`
+to :func:`open_file`, :func:`wrap_file` or :class:`Path` (or its various class
+methods)::
+
+    from anyio import CapacityLimiter, open_file, run
+
+
+    async def main():
+        limiter = CapacityLimiter(5)
+        async with open_file('/foo/bar', limiter=limiter) as fp:
+            contents = await fp.read()
+
+    run(main)
