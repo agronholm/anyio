@@ -13,6 +13,7 @@ from typing import Any, cast
 def install_lazy_importer() -> None:
     module_globals = sys._getframe(1).f_globals
     module_name = module_globals["__name__"]
+    module_prefix = module_name + "."
     module = sys.modules[module_name]
     lazy_map, deprecated_aliases = _build_lazy_map(cast(str, module.__file__))
 
@@ -34,7 +35,11 @@ def install_lazy_importer() -> None:
 
         imported = import_module(target_mod, module_name)
         value = getattr(imported, target_attr)
-        value.__module__ = module_name  # patch the module name to match
+
+        # patch the module name to match
+        if getattr(value, "__module__", "").startswith(module_prefix):
+            value.__module__ = module_name
+
         module.__dict__[name] = value
         return value
 
