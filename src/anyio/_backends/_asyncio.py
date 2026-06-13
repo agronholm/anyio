@@ -432,7 +432,11 @@ class CancelScope(BaseCancelScope):
                 "Each CancelScope may only be used for a single 'with' block"
             )
 
-        self._host_task = host_task = cast(asyncio.Task, current_task())
+        host_task = current_task()
+        if host_task is None:
+            raise RuntimeError("A cancel scope can only be entered from within a task")
+
+        self._host_task = host_task
         self._tasks.add(host_task)
         try:
             task_state = _task_states[host_task]
@@ -2447,6 +2451,10 @@ class AsyncIOBackend(AsyncBackend):
 
     @classmethod
     async def cancel_shielded_checkpoint(cls) -> None:
+        if current_task() is None:
+            await sleep(0)
+            return
+
         with CancelScope(shield=True):
             await sleep(0)
 

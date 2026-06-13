@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
 
 from anyio import create_task_group, run
+from anyio._backends import _asyncio
+from anyio._backends._asyncio import AsyncIOBackend, CancelScope
 from anyio.lowlevel import (
     RunVar,
     cancel_shielded_checkpoint,
@@ -84,6 +87,43 @@ async def test_checkpoint(cancel: bool) -> None:
 
     assert finished != cancel
     assert second_finished
+
+
+def test_cancel_scope_without_running_task(
+    asyncio_event_loop: asyncio.AbstractEventLoop,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Entering a cancel scope without a current task raises a clear error (asyncio).
+
+    Regression test: previously this raised an obscure
+    ``TypeError: cannot create weak reference to 'NoneType' object`` because
+    ``current_task()`` returned ``None`` and that ``None`` was then used as a key in
+    a ``WeakKeyDictionary``.
+    """
+    monkeypatch.setattr(_asyncio, "current_task", lambda: None)
+
+    async def main() -> None:
+        with pytest.raises(
+            RuntimeError, match="A cancel scope can only be entered from within a task"
+        ):
+            with CancelScope():
+                pass
+
+    asyncio_event_loop.run_until_complete(main())
+
+
+def test_cancel_shielded_checkpoint_without_task(
+    asyncio_event_loop: asyncio.AbstractEventLoop,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """cancel_shielded_checkpoint() must not crash without a current task (asyncio).
+
+    Library primitives such as ``CapacityLimiter`` reach this code path while
+    ``current_task()`` may return ``None``; it must degrade to a plain checkpoint
+    instead of raising ``TypeError``.
+    """
+    monkeypatch.setattr(_asyncio, "current_task", lambda: None)
+    asyncio_event_loop.run_until_complete(AsyncIOBackend.cancel_shielded_checkpoint())
 
 
 class TestRunVar:
