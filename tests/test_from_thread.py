@@ -34,8 +34,7 @@ from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
 from anyio.lowlevel import EventLoopToken, checkpoint, current_token
 
-from .conftest import asyncio_params
-from .misc import return_non_coro_awaitable
+from .conftest import asyncio_params, return_non_coro_awaitable
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup

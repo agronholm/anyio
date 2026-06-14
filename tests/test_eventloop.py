@@ -14,7 +14,7 @@ from pytest import MonkeyPatch
 
 from anyio import current_time, run, sleep, sleep_forever, sleep_until
 
-from .misc import return_non_coro_awaitable
+from .conftest import return_non_coro_awaitable
 
 fake_current_time = 1620581544.0
 
