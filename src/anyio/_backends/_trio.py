@@ -18,7 +18,9 @@ from collections.abc import (
     Sequence,
 )
 from contextlib import AbstractContextManager
+from contextvars import Context
 from dataclasses import dataclass
+from functools import partial
 from io import IOBase
 from os import PathLike
 from signal import Signals
@@ -29,6 +31,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Generic,
+    Literal,
     NoReturn,
     ParamSpec,
     TypeVar,
@@ -78,8 +81,10 @@ from .._core._synchronization import (
 )
 from .._core._synchronization import Semaphore as BaseSemaphore
 from .._core._tasks import CancelScope as BaseCancelScope
+from .._core._tasks import TaskHandle
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend, StrOrBytesPath
+from ..abc._tasks import T_contra, call_for_coroutine, get_callable_name
 from ..streams.memory import MemoryObjectSendStream
 
 if TYPE_CHECKING:
@@ -93,6 +98,7 @@ else:
 
 T = TypeVar("T")
 T_Retval = TypeVar("T_Retval")
+T_co = TypeVar("T_co", covariant=True)
 T_SockAddr = TypeVar("T_SockAddr", str, IPSockAddrType)
 PosArgsT = TypeVarTuple("PosArgsT")
 P = ParamSpec("P")
@@ -111,6 +117,8 @@ RunVar = trio.lowlevel.RunVar
 
 
 class CancelScope(BaseCancelScope):
+    __slots__ = ("__original",)
+
     def __new__(
         cls, original: trio.CancelScope | None = None, **kwargs: object
     ) -> CancelScope:
@@ -163,6 +171,22 @@ class CancelScope(BaseCancelScope):
 # Task groups
 #
 
+empty_start_value = object()
+
+
+class _TrioTaskStatus(Generic[T_contra], abc.TaskStatus[T_contra]):
+    early_start_value: T_contra | object = empty_start_value
+    real_task_status: trio.TaskStatus[T_contra | None] | None = None
+
+    def started(self, value: T_contra | None = None) -> None:
+        if self.real_task_status is None:
+            if self.early_start_value is not empty_start_value:
+                raise RuntimeError("called 'started' twice on the same task status")
+
+            self.early_start_value = value
+        else:
+            self.real_task_status.started(value)
+
 
 class TaskGroup(abc.TaskGroup):
     def __init__(self) -> None:
@@ -199,28 +223,69 @@ class TaskGroup(abc.TaskGroup):
             del exc_val, exc_tb
             self._active = False
 
-    def start_soon(
-        self,
-        func: Callable[[Unpack[PosArgsT]], Awaitable[Any]],
-        *args: Unpack[PosArgsT],
-        name: object = None,
-    ) -> None:
+    def _check_active(self, coro: Coroutine | None = None) -> None:
         if not self._active:
+            if coro is not None:
+                coro.close()
+
             raise RuntimeError(
                 "This task group is not active; no new tasks can be started."
             )
 
-        self._nursery.start_soon(func, *args, name=name)
+    def create_task(
+        self,
+        coro: Coroutine[Any, Any, T_co],
+        *,
+        name: object = None,
+        context: Context | None = None,
+    ) -> TaskHandle[T_co]:
+        if not isinstance(coro, Coroutine):
+            raise TypeError(f"expected a coroutine, got {coro.__class__.__qualname__}")
+
+        self._check_active(coro)
+        handle = TaskHandle(coro, name)
+        if context is not None:
+            context.run(
+                partial(self._nursery.start_soon, handle._run_coro, name=handle.name)
+            )
+        else:
+            self._nursery.start_soon(handle._run_coro, name=handle.name)
+
+        return handle
 
     async def start(
-        self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
+        self,
+        func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
+        *args: Unpack[PosArgsT],
+        name: object = None,
+        return_handle: Literal[False] | Literal[True] = False,
     ) -> Any:
-        if not self._active:
-            raise RuntimeError(
-                "This task group is not active; no new tasks can be started."
-            )
+        handle: TaskHandle[T_co]
 
-        return await self._nursery.start(func, *args, name=name)
+        async def run_coro_with_task_status(
+            *, task_status: trio.TaskStatus[Any]
+        ) -> None:
+            nonlocal handle
+            wrapper_task_status = _TrioTaskStatus()
+            coro = call_for_coroutine(func, args, task_status=wrapper_task_status)
+            if wrapper_task_status.early_start_value is not empty_start_value:
+                task_status.started(wrapper_task_status.early_start_value)
+            else:
+                wrapper_task_status.real_task_status = task_status
+
+            handle = TaskHandle(coro, name)
+            await handle._run_coro()
+
+        self._check_active()
+        final_name = get_callable_name(func, name)
+        start_value = await self._nursery.start(
+            run_coro_with_task_status, name=final_name
+        )
+        if return_handle:
+            handle._start_value = start_value
+            return handle
+        else:
+            return start_value
 
 
 #
@@ -606,6 +671,8 @@ class ConnectedUNIXDatagramSocket(
 
 
 class Event(BaseEvent):
+    __slots__ = ("__original",)
+
     def __new__(cls) -> Event:
         return object.__new__(cls)
 
@@ -627,6 +694,8 @@ class Event(BaseEvent):
 
 
 class Lock(BaseLock):
+    __slots__ = "_fast_acquire", "__original"
+
     def __new__(cls, *, fast_acquire: bool = False) -> Lock:
         return object.__new__(cls)
 
@@ -683,6 +752,8 @@ class Lock(BaseLock):
 
 
 class Semaphore(BaseSemaphore):
+    __slots__ = ("__original",)
+
     def __new__(
         cls,
         initial_value: int,
@@ -737,6 +808,8 @@ class Semaphore(BaseSemaphore):
 
 
 class CapacityLimiter(BaseCapacityLimiter):
+    __slots__ = ("__original",)
+
     def __new__(
         cls,
         total_tokens: float | None = None,
@@ -1063,10 +1136,10 @@ class TrioBackend(AsyncBackend):
     @classmethod
     def run_async_from_thread(
         cls,
-        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+        func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
         args: tuple[Unpack[PosArgsT]],
         token: object,
-    ) -> T_Retval:
+    ) -> T_co:
         trio_token = cast("trio.lowlevel.TrioToken | None", token)
         try:
             return trio.from_thread.run(func, *args, trio_token=trio_token)
