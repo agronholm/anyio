@@ -1890,8 +1890,6 @@ class Lock(BaseLock):
 
             raise
 
-        self._waiters.remove(item)
-
     def acquire_nowait(self) -> None:
         task = cast(asyncio.Task, current_task())
         if self._owner_task is None and not self._waiters:
@@ -1914,9 +1912,8 @@ class Lock(BaseLock):
         # _waiters before calling release(); any cancelled waiter still queued here
         # was cancelled before being woken, so drop it.
         while self._waiters:
-            task, fut = self._waiters[0]
+            task, fut = self._waiters.popleft()
             if fut.cancelled():
-                self._waiters.popleft()
                 continue
 
             self._owner_task = task
@@ -1995,13 +1992,11 @@ class Semaphore(BaseSemaphore):
             raise ValueError("semaphore released too many times")
 
         while self._waiters:
-            fut = self._waiters[0]
+            fut = self._waiters.popleft()
             if fut.cancelled():
-                self._waiters.popleft()
                 continue
 
             fut.set_result(None)
-            self._waiters.popleft()
             return
 
         self._value += 1
