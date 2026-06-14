@@ -15,8 +15,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#1067 <https://github.com/agronholm/anyio/issues/1067>`_; PR by @nullwiz)
 - Added support for custom capacity limiters in async path and file I/O
   functions and classes
-- Added the ``create_task()`` task group method for easier asyncio migration
-  and to allow retrieving task return values more easily
+- Added the ``create_task()`` task group method for easier asyncio migration (returns a
+  ``TaskHandle``)
+  (`#1098 <https://github.com/agronholm/anyio/pull/1098>`_)
+- Changed ``TaskGroup.start_soon()`` to return a ``TaskHandle``
+- Added an option for ``TaskGroup.start()`` to return a ``TaskHandle`` (which then
+  contains the start value in the ``start_value`` property)
 - Added the ``cancel()`` convenience method to ``TaskGroup`` as a shortcut for
   cancelling the task group's cancel scope
 - Improved the error message when a known backend is not installed to suggest the
@@ -29,6 +33,15 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   any ``ReadableBuffer``, thus allowing it to accept ``bytearray`` and ``memoryview`` to
   match ``pathlib.Path.write_bytes()``
   (`#1135 <https://github.com/agronholm/anyio/issues/1135>`_; PR by @SAY-5)
+- Changed several type annotations to only accept callables returning coroutine-like
+  objects instead of arbitrary awaitables:
+
+  - ``TaskGroup.start_soon()``
+  - ``TaskGroup.start()``
+  - ``anyio.from_thread.run()``
+
+  This reverts an earlier change from v3.7.0 which was made in error.
+  (`#1153 <https://github.com/agronholm/anyio/pull/1153>`_)
 - Changed several classes (and their subclasses) to have ``__slots__`` (with
   ``__weakref__``):
 

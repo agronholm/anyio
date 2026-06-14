@@ -7,7 +7,7 @@ import pytest
 from _pytest.logging import LogCaptureFixture
 from _pytest.pytester import Pytester
 
-from anyio import get_all_backends, get_available_backends
+from anyio import get_available_backends
 from anyio.pytest_plugin import FreePortFactory
 
 pytestmark = [
@@ -146,7 +146,8 @@ def test_asyncio(testdir: Pytester, caplog: LogCaptureFixture) -> None:
 
         class TestClassFixtures:
             @pytest.fixture(scope='class')
-            async def async_class_fixture(self, anyio_backend):
+            @classmethod
+            async def async_class_fixture(cls, anyio_backend):
                 await asyncio.sleep(0)
                 return anyio_backend
 
@@ -426,7 +427,7 @@ def test_hypothesis_function_mark(testdir: Pytester) -> None:
     )
 
 
-@pytest.mark.parametrize("anyio_backend", get_available_backends(), indirect=True)
+@pytest.mark.parametrize("anyio_backend_name", get_available_backends())
 def test_debugger_exit_in_taskgroup(testdir: Pytester, anyio_backend_name: str) -> None:
     testdir.makepyfile(
         f"""
@@ -449,7 +450,7 @@ def test_debugger_exit_in_taskgroup(testdir: Pytester, anyio_backend_name: str) 
     result.assert_outcomes()
 
 
-@pytest.mark.parametrize("anyio_backend", get_all_backends(), indirect=True)
+@pytest.mark.parametrize("anyio_backend_name", get_available_backends())
 def test_keyboardinterrupt_during_test(
     testdir: Pytester, anyio_backend_name: str
 ) -> None:
@@ -687,7 +688,8 @@ def test_auto_mode_conflict_warning(testdir: Pytester) -> None:
 
 class TestFreePortFactory:
     @pytest.fixture(scope="class")
-    def families(self) -> Sequence[tuple[socket.AddressFamily, str]]:
+    @classmethod
+    def families(cls) -> Sequence[tuple[socket.AddressFamily, str]]:
         from .test_sockets import has_ipv6
 
         families: list[tuple[socket.AddressFamily, str]] = [

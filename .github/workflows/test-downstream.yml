@@ -70,19 +70,19 @@ jobs:
         with:
           python-version: "${{ matrix.python-version }}"
       - name: Setup uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
-          version: "0.4.15"
+          version: "0.11.4"
           enable-cache: true
           cache-dependency-glob: |
-            requirements**.txt
             pyproject.toml
+            uv.lock
       - name: Install dependencies
         run: |
-          uv pip install -r requirements-tests.txt
+          uv sync --no-dev --group tests --extra all
           uv pip install anyio[trio]@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
       - name: Run tests
-        run: pytest -W ignore::ResourceWarning
+        run: uv run --no-sync pytest -W ignore::UserWarning
         env:
           PYTHONPATH: ./docs_src
 
@@ -129,7 +129,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-          version: "0.7.2"
+          version: "0.9.5"
       - name: Install the project
         run: |
           uv sync --frozen --all-extras --python ${{ matrix.python-version }} --resolution ${{ matrix.dep-resolution }}
