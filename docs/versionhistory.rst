@@ -50,6 +50,13 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``anyio.Lock``
   * ``anyio.ResourceGuard``
   * ``anyio.Semaphore``
+- Fixed ``CapacityLimiter`` on the asyncio backend over-granting tokens
+  (``borrowed_tokens`` exceeding ``total_tokens`` and ``available_tokens`` going
+  negative) when a non-blocking acquire was made in the window between a token
+  being released and the notified waiter resuming. The freed token is now
+  reserved for the woken waiter right away, so the non-blocking acquire correctly
+  raises ``WouldBlock``
+  (`#1170 <https://github.com/agronholm/anyio/issues/1170>`_; PR by @gaoflow)
 - Fixed cancellation exception escaping a cancel scope when triggered via
   ``check_cancelled()`` in a worker thread
   (`#1113 <https://github.com/agronholm/anyio/issues/1113>`_)

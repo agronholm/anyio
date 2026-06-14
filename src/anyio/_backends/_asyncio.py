@@ -2042,7 +2042,8 @@ class CapacityLimiter(BaseCapacityLimiter):
 
         # Notify waiting tasks that they have acquired the limiter
         while self._wait_queue and waiters_to_notify:
-            event = self._wait_queue.popitem(last=False)[1]
+            borrower, event = self._wait_queue.popitem(last=False)
+            self._borrowers.add(borrower)
             event.set()
             waiters_to_notify -= 1
 
@@ -2055,9 +2056,16 @@ class CapacityLimiter(BaseCapacityLimiter):
         return self._total_tokens - len(self._borrowers)
 
     def _notify_next_waiter(self) -> None:
-        """Notify the next task in line if this limiter has free capacity now."""
+        """Hand a free token to the next task in line, if any.
+
+        The token is reserved for the woken task right away (the borrower is
+        added to ``_borrowers`` before its event is set) so that the freed token
+        is never momentarily visible as available to a non-blocking acquire made
+        before the woken task has resumed.
+        """
         if self._wait_queue and len(self._borrowers) < self._total_tokens:
-            event = self._wait_queue.popitem(last=False)[1]
+            borrower, event = self._wait_queue.popitem(last=False)
+            self._borrowers.add(borrower)
             event.set()
 
     def acquire_nowait(self) -> None:
@@ -2089,11 +2097,16 @@ class CapacityLimiter(BaseCapacityLimiter):
             except BaseException:
                 self._wait_queue.pop(borrower, None)
                 if event.is_set():
+                    # The token was already reserved for us when we were
+                    # notified; since we're bailing out, release it and pass it
+                    # on to the next waiter.
+                    self._borrowers.discard(borrower)
                     self._notify_next_waiter()
 
                 raise
 
-            self._borrowers.add(borrower)
+            # The token was reserved for us by the notifying side, so there's no
+            # need to add ourselves to the borrowers here.
         else:
             try:
                 await AsyncIOBackend.cancel_shielded_checkpoint()

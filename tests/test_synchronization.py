@@ -929,3 +929,32 @@ class TestCapacityLimiter:
             tg.cancel_scope.cancel()
 
         pytest.fail("The second borrower failed to acquire the limiter")
+
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_nowait_acquire_after_release_does_not_oversubscribe(self) -> None:
+        # Regression test for #1170: a non-blocking acquire issued in the window
+        # between releasing a token (which notifies the next waiter) and that
+        # waiter actually resuming must not slip through, as the freed token is
+        # already reserved for the woken waiter. This window is specific to the
+        # asyncio backend (the trio backend wraps trio's own CapacityLimiter).
+        limiter = CapacityLimiter(1)
+        limiter.acquire_on_behalf_of_nowait("A")
+
+        async def waiter() -> None:
+            await limiter.acquire_on_behalf_of("B")
+
+        async with create_task_group() as tg:
+            tg.start_soon(waiter)
+            await wait_all_tasks_blocked()
+            assert limiter.statistics().tasks_waiting == 1
+
+            # Frees the only token and reserves it for the still-parked "B"; no
+            # token is available, so the nowait acquire must raise WouldBlock.
+            limiter.release_on_behalf_of("A")
+            with pytest.raises(WouldBlock):
+                limiter.acquire_on_behalf_of_nowait("X")
+
+        assert limiter.borrowed_tokens <= limiter.total_tokens
+        assert limiter.available_tokens >= 0
+        assert limiter.statistics().borrowers == ("B",)
+        limiter.release_on_behalf_of("B")
