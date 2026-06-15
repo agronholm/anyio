@@ -1076,8 +1076,8 @@ class StreamReaderWrapper(abc.ByteReceiveStream):
 
     async def aclose(self) -> None:
         self._stream.set_exception(ClosedResourceError())
-        if self._stream._transport is not None:
-            self._stream._transport.close()
+        if self._stream._transport is not None:  # type: ignore[attr-defined]
+            self._stream._transport.close()  # type: ignore[attr-defined]
         await AsyncIOBackend.checkpoint()
 
 
