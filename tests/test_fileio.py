@@ -22,6 +22,7 @@ async def limiter(request: FixtureRequest) -> CapacityLimiter | None:
 
 class TestAsyncFile:
     @pytest.fixture(scope="class")
+    @classmethod
     def testdata(cls) -> bytes:
         return b"".join(bytes([i] * 1000) for i in range(10))
 

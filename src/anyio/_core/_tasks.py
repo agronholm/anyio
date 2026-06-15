@@ -11,20 +11,27 @@ from contextlib import (
 )
 from contextvars import ContextVar
 from enum import Enum, auto
+from inspect import iscoroutine
 from types import TracebackType
-from typing import Any, Generic, TypeVar, final
+from typing import Any, Generic, final
 
 from ..abc import TaskGroup, TaskStatus
 from ._eventloop import get_async_backend, get_cancelled_exc_class
 from ._exceptions import TaskCancelled, TaskFailed, TaskNotFinished
 
-if sys.version_info >= (3, 11):
-    from typing import TypeVarTuple
+if sys.version_info >= (3, 13):
+    from typing import TypeVar
 else:
-    from typing_extensions import TypeVarTuple
+    from typing_extensions import TypeVar
+
+if sys.version_info >= (3, 11):
+    from typing import Never, TypeVarTuple
+else:
+    from typing_extensions import Never, TypeVarTuple
 
 T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
+T_startval = TypeVar("T_startval", covariant=True, default=Never)
 PosArgsT = TypeVarTuple("PosArgsT")
 
 _current_task_handle: ContextVar[TaskHandle] = ContextVar("_current_task_handle")
@@ -47,6 +54,8 @@ class CancelScope:
     :raises NoEventLoopError: if no supported asynchronous event loop is running in the
         current thread
     """
+
+    __slots__ = ("__weakref__",)
 
     def __new__(
         cls, *, deadline: float = math.inf, shield: bool = False
@@ -195,12 +204,12 @@ def create_task_group() -> TaskGroup:
 
 
 @final
-class TaskHandle(Generic[T_co]):
+class TaskHandle(Generic[T_co, T_startval]):
     """
-    Returned from :meth:`TaskGroup.create_task() <.abc.TaskGroup.create_task>`.
-    Can be awaited on to get the return value of the task (or the raised exception).
-    If the task was terminated by a :exc:`BaseException`, :exc:`TaskFailed` will be
-    raised (or its subclass :exc:`TaskCancelled` if the task was cancelled).
+    Returned from the task-spawning methods of :class:`TaskGroup`. Can be awaited on to
+    get the return value of the task (or the raised exception). If the task was
+    terminated by a :exc:`BaseException`, :exc:`TaskFailed` will be raised (or its
+    subclass :exc:`TaskCancelled` if the task was cancelled).
 
     .. versionadded:: 4.14.0
     """
@@ -239,19 +248,27 @@ class TaskHandle(Generic[T_co]):
         "_cancel_scope",
         "_finished_event",
         "_return_value",
+        "_start_value",
         "_exception",
     )
 
     _return_value: T_co
+    _start_value: T_startval
 
-    def __init__(self, coro: Coroutine[Any, Any, T_co], name: str | None) -> None:
+    def __init__(self, coro: Coroutine[Any, Any, T_co], name: object) -> None:
         from ._synchronization import Event
 
         self._coro = coro
         self._cancel_scope = CancelScope()
         self._finished_event = Event()
-        self._name = name or coro.__qualname__
         self._exception: BaseException | None = None
+
+        if name is not None:
+            self._name = str(name)
+        elif iscoroutine(coro):
+            self._name = coro.__qualname__
+        else:
+            self._name = str(coro)  # coroutine-like object (e.g. asend() objects)
 
     async def _run_coro(self) -> None:
         __tracebackhide__ = True
@@ -266,6 +283,7 @@ class TaskHandle(Generic[T_co]):
                 self._return_value = retval
             finally:
                 self._finished_event.set()
+                del self  # Break the reference cycle
 
     def cancel(self) -> None:
         """
@@ -282,7 +300,10 @@ class TaskHandle(Generic[T_co]):
 
     @property
     def coro(self) -> Coroutine[Any, Any, T_co]:
-        """The coroutine object that was passed to :meth:`TaskGroup.create_task`."""
+        """
+        The coroutine object that was passed to one of the task-spawning methods in
+        :class:`TaskGroup`.
+        """
         return self._coro
 
     @property
@@ -358,6 +379,21 @@ class TaskHandle(Generic[T_co]):
                 raise TaskCancelled("the task was cancelled") from self._exception
             case TaskHandle.Status.FAILED:
                 raise TaskFailed("the task raised an exception") from self._exception
+
+    @property
+    def start_value(self) -> T_startval:
+        """
+        The value passed to :meth:`task_status.started() <.abc.TaskStatus.started>`,
+
+        :raises RuntimeError: if the task was not started with :meth:`TaskGroup.start()
+            <.abc.TaskGroup.start>`
+        """
+        try:
+            return self._start_value
+        except AttributeError:
+            raise RuntimeError(
+                "the task was not started with TaskGroup.start()"
+            ) from None
 
     async def wait(self) -> None:
         """

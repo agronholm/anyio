@@ -32,7 +32,7 @@ from collections.abc import (
     Sequence,
 )
 from concurrent.futures import Future
-from contextlib import AbstractContextManager, suppress
+from contextlib import AbstractContextManager
 from contextvars import Context, copy_context
 from dataclasses import dataclass, field
 from functools import partial, wraps
@@ -40,7 +40,6 @@ from inspect import (
     CORO_RUNNING,
     CORO_SUSPENDED,
     getcoroutinestate,
-    iscoroutine,
 )
 from io import IOBase
 from os import PathLike
@@ -53,6 +52,7 @@ from typing import (
     IO,
     TYPE_CHECKING,
     Any,
+    Literal,
     ParamSpec,
     TypeVar,
     cast,
@@ -92,6 +92,7 @@ from .._core._synchronization import (
 )
 from .._core._synchronization import Semaphore as BaseSemaphore
 from .._core._tasks import CancelScope as BaseCancelScope
+from .._core._tasks import TaskHandle
 from ..abc import (
     AsyncBackend,
     IPSockAddrType,
@@ -100,6 +101,7 @@ from ..abc import (
     UNIXDatagramPacketType,
 )
 from ..abc._eventloop import StrOrBytesPath
+from ..abc._tasks import call_for_coroutine, get_callable_name
 from ..lowlevel import RunVar
 from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
@@ -298,6 +300,7 @@ else:
 
 
 T_Retval = TypeVar("T_Retval")
+T_co = TypeVar("T_co", covariant=True)
 T_contra = TypeVar("T_contra", contravariant=True)
 PosArgsT = TypeVarTuple("PosArgsT")
 P = ParamSpec("P")
@@ -336,12 +339,6 @@ def find_root_task() -> asyncio.Task:
     return task
 
 
-def get_callable_name(func: Callable) -> str:
-    module = getattr(func, "__module__", None)
-    qualname = getattr(func, "__qualname__", None)
-    return ".".join([x for x in (module, qualname) if x])
-
-
 #
 # Event loop
 #
@@ -355,11 +352,7 @@ def _task_started(task: asyncio.Task) -> bool:
     # task list
     coro = task.get_coro()
     assert coro is not None
-    try:
-        return getcoroutinestate(coro) in (CORO_RUNNING, CORO_SUSPENDED)
-    except AttributeError:
-        # task coro is async_genenerator_asend https://bugs.python.org/issue37771
-        raise Exception(f"Cannot determine if task {task} has started or not") from None
+    return getcoroutinestate(coro) in (CORO_RUNNING, CORO_SUSPENDED)
 
 
 #
@@ -387,6 +380,22 @@ def is_anyio_cancellation(exc: CancelledError) -> bool:
 
 
 class CancelScope(BaseCancelScope):
+    __slots__ = (
+        "_active",
+        "_cancel_called",
+        "_cancel_handle",
+        "_cancel_reason",
+        "_cancelled_caught",
+        "_child_scopes",
+        "_deadline",
+        "_host_task",
+        "_parent_scope",
+        "_pending_uncancellations",
+        "_shield",
+        "_tasks",
+        "_timeout_handle",
+    )
+
     def __new__(
         cls, *, deadline: float = math.inf, shield: bool = False
     ) -> CancelScope:
@@ -816,11 +825,10 @@ class TaskGroup(abc.TaskGroup):
 
     def _spawn(
         self,
-        func: Callable[[Unpack[PosArgsT]], Awaitable[Any]],
-        args: tuple[Unpack[PosArgsT]],
+        coro: Coroutine[Any, Any, T_co],
         name: object,
         task_status_future: asyncio.Future | None = None,
-    ) -> asyncio.Task:
+    ) -> TaskHandle[T_co]:
         def task_done(_task: asyncio.Task) -> None:
             if sys.version_info >= (3, 14) and self.cancel_scope._host_task is not None:
                 asyncio.future_discard_from_awaited_by(
@@ -868,39 +876,23 @@ class TaskGroup(abc.TaskGroup):
                     RuntimeError("Child exited without calling task_status.started()")
                 )
 
-        if not self._entered or not self.cancel_scope._active:
-            raise RuntimeError(
-                "This task group is not active; no new tasks can be started."
-            )
-
-        kwargs = {}
         if task_status_future:
             parent_id = id(current_task())
-            kwargs["task_status"] = _AsyncioTaskStatus(
-                task_status_future, id(self.cancel_scope._host_task)
-            )
         else:
             parent_id = id(self.cancel_scope._host_task)
 
-        coro = func(*args, **kwargs)
-        if not iscoroutine(coro):
-            prefix = f"{func.__module__}." if hasattr(func, "__module__") else ""
-            raise TypeError(
-                f"Expected {prefix}{func.__qualname__}() to return a coroutine, but "
-                f"the return value ({coro!r}) is not a coroutine object"
-            )
-
-        name = get_callable_name(func) if name is None else str(name)
+        handle = TaskHandle(coro, name)
         loop = asyncio.get_running_loop()
+        wrapper_coro = handle._run_coro()
         if (
             (factory := loop.get_task_factory())
             and getattr(factory, "__code__", None) is _eager_task_factory_code
             and (closure := getattr(factory, "__closure__", None))
         ):
             custom_task_constructor = closure[0].cell_contents
-            task = custom_task_constructor(coro, loop=loop, name=name)
+            task = custom_task_constructor(wrapper_coro, loop=loop, name=handle.name)
         else:
-            task = create_task(coro, name=name)
+            task = loop.create_task(wrapper_coro, name=handle.name)
 
         # Make the spawned task inherit the task group's cancel scope
         _task_states[task] = TaskState(
@@ -912,35 +904,67 @@ class TaskGroup(abc.TaskGroup):
             asyncio.future_add_to_awaited_by(task, self.cancel_scope._host_task)
 
         task.add_done_callback(task_done)
-        return task
+        return handle
 
-    def start_soon(
+    def create_task(
         self,
-        func: Callable[[Unpack[PosArgsT]], Awaitable[Any]],
-        *args: Unpack[PosArgsT],
+        coro: Coroutine[Any, Any, T_co],
+        *,
         name: object = None,
-    ) -> None:
-        self._spawn(func, args, name)
+        context: Context | None = None,
+    ) -> TaskHandle[T_co]:
+        if not isinstance(coro, Coroutine):
+            raise TypeError(f"expected a coroutine, got {coro.__class__.__qualname__}")
+
+        if not self._entered or not self.cancel_scope._active:
+            coro.close()
+            raise RuntimeError(
+                "This task group is not active; no new tasks can be started."
+            )
+
+        if context is not None:
+            return context.run(self._spawn, coro, name=name)
+        else:
+            return self._spawn(coro, name=name)
 
     async def start(
-        self, func: Callable[..., Awaitable[Any]], *args: object, name: object = None
+        self,
+        func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
+        *args: Unpack[PosArgsT],
+        name: object = None,
+        return_handle: Literal[False] | Literal[True] = False,
     ) -> Any:
+        if not self._entered or not self.cancel_scope._active:
+            raise RuntimeError(
+                "This task group is not active; no new tasks can be started."
+            )
+
         future: asyncio.Future = asyncio.Future()
-        task = self._spawn(func, args, name, future)
+        final_name = get_callable_name(func, name)
+        task_status = _AsyncioTaskStatus(future, id(self.cancel_scope._host_task))
+        coro = call_for_coroutine(func, args, task_status=task_status)
+        handle = self._spawn(coro, final_name, future)
 
         # If the task raises an exception after sending a start value without a switch
         # point between, the task group is cancelled and this method never proceeds to
         # process the completed future. That's why we have to have a shielded cancel
         # scope here.
         try:
-            return await future
-        except CancelledError:
-            # Cancel the task and wait for it to exit before returning
-            task.cancel()
-            with CancelScope(shield=True), suppress(CancelledError):
-                await task
+            await future
+        except BaseException:
+            if handle.status is TaskHandle.Status.PENDING:
+                # Cancel the task and wait for it to exit before returning
+                handle.cancel()
+                with CancelScope(shield=True):
+                    await handle.wait()
 
             raise
+
+        if return_handle:
+            handle._start_value = future.result()
+            return handle
+        else:
+            return future.result()
 
 
 #
@@ -1798,6 +1822,8 @@ _write_events: RunVar[dict[int, asyncio.Future[bool]]] = RunVar("write_events")
 
 
 class Event(BaseEvent):
+    __slots__ = ("_event",)
+
     def __new__(cls) -> Event:
         return object.__new__(cls)
 
@@ -1821,6 +1847,8 @@ class Event(BaseEvent):
 
 
 class Lock(BaseLock):
+    __slots__ = "_fast_acquire", "_owner_task", "_waiters"
+
     def __new__(cls, *, fast_acquire: bool = False) -> Lock:
         return object.__new__(cls)
 
@@ -1895,6 +1923,8 @@ class Lock(BaseLock):
 
 
 class Semaphore(BaseSemaphore):
+    __slots__ = "_value", "_max_value", "_fast_acquire", "_waiters"
+
     def __new__(
         cls,
         initial_value: int,
@@ -1976,12 +2006,13 @@ class Semaphore(BaseSemaphore):
 
 
 class CapacityLimiter(BaseCapacityLimiter):
-    _total_tokens: float = 0
+    __slots__ = "_total_tokens", "_borrowers", "_wait_queue"
 
     def __new__(cls, total_tokens: float) -> CapacityLimiter:
         return object.__new__(cls)
 
     def __init__(self, total_tokens: float):
+        self._total_tokens: float = 0
         self._borrowers: set[Any] = set()
         self._wait_queue: OrderedDict[Any, asyncio.Event] = OrderedDict()
         self.total_tokens = total_tokens
@@ -2583,11 +2614,11 @@ class AsyncIOBackend(AsyncBackend):
     @classmethod
     def run_async_from_thread(
         cls,
-        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+        func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
         args: tuple[Unpack[PosArgsT]],
         token: object,
-    ) -> T_Retval:
-        async def task_wrapper() -> T_Retval:
+    ) -> T_co:
+        async def task_wrapper() -> T_co:
             __tracebackhide__ = True
             if scope is not None:
                 task = cast(asyncio.Task, current_task())
@@ -2610,7 +2641,7 @@ class AsyncIOBackend(AsyncBackend):
         context = copy_context()
         context.run(set_current_async_library, "asyncio")
         scope = getattr(threadlocals, "current_cancel_scope", None)
-        f: concurrent.futures.Future[T_Retval] = context.run(
+        f: concurrent.futures.Future[T_co] = context.run(
             asyncio.run_coroutine_threadsafe, task_wrapper(), loop=loop
         )
         return f.result()

@@ -10,7 +10,7 @@ __all__ = (
 )
 
 import sys
-from collections.abc import Awaitable, Callable, Generator
+from collections.abc import Awaitable, Callable, Coroutine, Generator
 from concurrent.futures import Future
 from contextlib import (
     AbstractAsyncContextManager,
@@ -65,10 +65,10 @@ def _token_or_error(token: EventLoopToken | None) -> EventLoopToken:
 
 
 def run(
-    func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
+    func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
     *args: Unpack[PosArgsT],
     token: EventLoopToken | None = None,
-) -> T_Retval:
+) -> T_co:
     """
     Call a coroutine function from a worker thread.
 
