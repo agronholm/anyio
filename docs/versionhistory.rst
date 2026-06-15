@@ -5,6 +5,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **4.14.0**
 
+- Fixed deadlock in ``Process.wait()`` on the ``asyncio`` backend when a subprocess is
+  blocked writing to a full stdout/stderr pipe
+  (`#1174 <https://github.com/agronholm/anyio/issues/1174>`_,
+  `#1166 <https://github.com/agronholm/anyio/issues/1166>`_; PR by @goingforstudying-ctrl)
 - Added support for Python 3.15
 - Added an asynchronous implementation of the ``itertools`` module
   (`#998 <https://github.com/agronholm/anyio/issues/998>`_; PR by @11kkw)
