@@ -83,7 +83,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed asyncio ``Lock`` and ``Semaphore`` deadlocks caused by cancelled waiters
   left queued during release
   (`#1145 <https://github.com/agronholm/anyio/pull/1145>`_; PR by @rasmusfaber,
-   @x42005e1f and @agronholm)
+  @x42005e1f and @agronholm)
 
 **4.13.0**
 
