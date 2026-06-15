@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**4.14.0**
 
 - Added support for Python 3.15
 - Added an asynchronous implementation of the ``itertools`` module
