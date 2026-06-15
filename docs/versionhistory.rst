@@ -10,6 +10,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   when an async test raise an outcome exception (e.g., ``pytest.skip()``, ``pytest.xfail()``,
   or ``pytest.fail()``)
   (`#1179 <https://github.com/agronholm/anyio/issues/1179>`_; PR by @EmmanuelNiyonshuti)
+- Fixed ``Process.wait()`` on asyncio waiting for stdout/stderr kept open (e.g.
+  if a grandchild inherited it), instead of returning once the process exits
+  like the other backends do
+  (`#1174 <https://github.com/agronholm/anyio/issues/1174>`_; PR by @tapetersen)
+
 
 **4.14.0**
 
