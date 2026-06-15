@@ -57,6 +57,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``anyio.run()``; the options are now passed as keyword arguments to ``trio.run()``
   again, as documented (a regression from AnyIO 3)
   (`#1161 <https://github.com/agronholm/anyio/pull/1161>`_; PR by @Zac-HD)
+  Fixed ``Process.wait()`` on asyncio waiting for stdout/stderr kept open (e.g.
+  if a grandchild inherited it), instead of returning once the process exits
+  like the other backends do
+  (`#1174 <https://github.com/agronholm/anyio/issues/1174>`_; PR by @tapetersen)
+
 
 **4.13.0**
 

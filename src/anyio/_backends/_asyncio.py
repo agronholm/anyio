@@ -1092,6 +1092,7 @@ class Process(abc.Process):
     _stdin: StreamWriterWrapper | None
     _stdout: StreamReaderWrapper | None
     _stderr: StreamReaderWrapper | None
+    _exited: asyncio.Event
 
     async def aclose(self) -> None:
         with CancelScope(shield=True) as scope:
@@ -1112,7 +1113,9 @@ class Process(abc.Process):
                 raise
 
     async def wait(self) -> int:
-        return await self._process.wait()
+        await self._exited.wait()
+        assert self._process.returncode is not None
+        return self._process.returncode
 
     def terminate(self) -> None:
         self._process.terminate()
@@ -2352,6 +2355,24 @@ class TestRunner(abc.TestRunner):
         self._raise_async_exceptions()
 
 
+class _ProcessStreamProtocol(asyncio.subprocess.SubprocessStreamProtocol):
+    """
+    A subprocess protocol that allows us to be notified of ``process_exited``
+
+    asyncio's own ``Process.wait()`` only resolves once every pipe transport has
+    disconnected so to get same semantics as on trio and uvloop we need this.
+    """
+
+    def __init__(self) -> None:
+        """Match standard factory for asyncio.create_process"""
+        super().__init__(limit=2**16, loop=asyncio.get_running_loop())
+        self.exited = asyncio.Event()
+
+    def process_exited(self) -> None:
+        super().process_exited()
+        self.exited.set()
+
+
 class AsyncIOBackend(AsyncBackend):
     @classmethod
     def run(
@@ -2635,8 +2656,13 @@ class AsyncIOBackend(AsyncBackend):
         if isinstance(command, PathLike):
             command = os.fspath(command)
 
+        # Use loop.subprocess_shell()/subprocess_exec() rather than their
+        # asyncio.create_subprocess_*() counterparts to get access to
+        # transport/protocol.
+        loop = asyncio.get_running_loop()
         if isinstance(command, (str, bytes)):
-            process = await asyncio.create_subprocess_shell(
+            transport, protocol = await loop.subprocess_shell(
+                _ProcessStreamProtocol,
                 command,
                 stdin=stdin,
                 stdout=stdout,
@@ -2644,7 +2670,8 @@ class AsyncIOBackend(AsyncBackend):
                 **kwargs,
             )
         else:
-            process = await asyncio.create_subprocess_exec(
+            transport, protocol = await loop.subprocess_exec(
+                _ProcessStreamProtocol,
                 *command,
                 stdin=stdin,
                 stdout=stdout,
@@ -2652,10 +2679,13 @@ class AsyncIOBackend(AsyncBackend):
                 **kwargs,
             )
 
+        process = asyncio.subprocess.Process(transport, protocol, loop)
         stdin_stream = StreamWriterWrapper(process.stdin) if process.stdin else None
         stdout_stream = StreamReaderWrapper(process.stdout) if process.stdout else None
         stderr_stream = StreamReaderWrapper(process.stderr) if process.stderr else None
-        return Process(process, stdin_stream, stdout_stream, stderr_stream)
+        return Process(
+            process, stdin_stream, stdout_stream, stderr_stream, protocol.exited
+        )
 
     @classmethod
     def setup_process_pool_exit_at_shutdown(cls, workers: set[abc.Process]) -> None:
