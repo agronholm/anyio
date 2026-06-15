@@ -83,6 +83,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``anyio.run()``; the options are now passed as keyword arguments to ``trio.run()``
   again, as documented (a regression from AnyIO 3)
   (`#1161 <https://github.com/agronholm/anyio/pull/1161>`_; PR by @Zac-HD)
+- Fixed asyncio ``Lock`` and ``Semaphore`` deadlocks caused by cancelled waiters
+  left queued during release
+  (`#1145 <https://github.com/agronholm/anyio/pull/1145>`_; PR by @rasmusfaber,
+  @x42005e1f and @agronholm)
 
 **4.13.0**
 
