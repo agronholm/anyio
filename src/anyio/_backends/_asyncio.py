@@ -1880,13 +1880,15 @@ class Lock(BaseLock):
         try:
             await fut
         except CancelledError:
-            self._waiters.remove(item)
-            if self._owner_task is task:
+            if fut.cancelled():
+                try:
+                    self._waiters.remove(item)
+                except ValueError:
+                    pass
+            else:
                 self.release()
 
             raise
-
-        self._waiters.remove(item)
 
     def acquire_nowait(self) -> None:
         task = cast(asyncio.Task, current_task())
@@ -1906,11 +1908,17 @@ class Lock(BaseLock):
         if self._owner_task != current_task():
             raise RuntimeError("The current task is not holding this lock")
 
-        for task, fut in self._waiters:
-            if not fut.cancelled():
-                self._owner_task = task
-                fut.set_result(None)
-                return
+        # A cancelled waiter that already received ownership removes itself from
+        # _waiters before calling release(); any cancelled waiter still queued here
+        # was cancelled before being woken, so drop it.
+        while self._waiters:
+            task, fut = self._waiters.popleft()
+            if fut.cancelled():
+                continue
+
+            self._owner_task = task
+            fut.set_result(None)
+            return
 
         self._owner_task = None
 
@@ -1965,9 +1973,12 @@ class Semaphore(BaseSemaphore):
         try:
             await fut
         except CancelledError:
-            try:
-                self._waiters.remove(fut)
-            except ValueError:
+            if fut.cancelled():
+                try:
+                    self._waiters.remove(fut)
+                except ValueError:
+                    pass
+            else:
                 self.release()
 
             raise
@@ -1982,11 +1993,13 @@ class Semaphore(BaseSemaphore):
         if self._max_value is not None and self._value == self._max_value:
             raise ValueError("semaphore released too many times")
 
-        for fut in self._waiters:
-            if not fut.cancelled():
-                fut.set_result(None)
-                self._waiters.remove(fut)
-                return
+        while self._waiters:
+            fut = self._waiters.popleft()
+            if fut.cancelled():
+                continue
+
+            fut.set_result(None)
+            return
 
         self._value += 1
 

@@ -214,6 +214,18 @@ class TestLock:
         assert statistics.tasks_waiting == 0
         lock.acquire_nowait()
 
+    async def test_cancelled_after_acquire(self) -> None:
+        lock = Lock()
+        lock.acquire_nowait()
+        async with create_task_group() as tg:
+            task1 = tg.create_task(lock.acquire())
+            await wait_all_tasks_blocked()
+            task1.cancel()
+            lock.release()
+            assert lock.statistics().tasks_waiting == 0
+            with fail_after(3):
+                await lock.acquire()
+
     def test_instantiate_outside_event_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
@@ -660,6 +672,18 @@ class TestSemaphore:
         assert semaphore.value == 1
         assert semaphore.statistics().tasks_waiting == 0
         semaphore.acquire_nowait()
+
+    async def test_cancelled_after_acquire(self) -> None:
+        semaphore = Semaphore(1, max_value=1)
+        semaphore.acquire_nowait()
+        async with create_task_group() as tg:
+            task1 = tg.create_task(semaphore.acquire())
+            await wait_all_tasks_blocked()
+            task1.cancel()
+            semaphore.release()
+            assert semaphore.statistics().tasks_waiting == 0
+            with fail_after(3):
+                await semaphore.acquire()
 
     def test_instantiate_outside_event_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
