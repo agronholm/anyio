@@ -391,3 +391,67 @@ async def test_close_while_reading() -> None:
             await process.stdout.receive()
 
         process.terminate()
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="Unix-specific: grandchild process and signal handling",
+)
+async def test_wait_returns_on_process_exit_with_open_stdout() -> None:
+    """wait() should return once the process exits, even when a grandchild
+    keeps a pipe file descriptor open."""
+
+    code = dedent("""\
+    import subprocess, sys
+
+    subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(10)"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    sys.stdout.write("ok")
+    """)
+
+    async with await open_process([sys.executable, "-c", code]) as process:
+        returncode = await process.wait()
+
+    assert returncode == 0
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="Unix-specific: pipe buffer sizes and EPIPE behaviour",
+)
+async def test_aclose_unblocks_subprocess_blocked_on_write() -> None:
+    """aclose() must unblock a subprocess that is stuck writing to a full
+    pipe (because nobody is reading), rather than deadlocking while waiting
+    for it to exit."""
+
+    # Write enough data to fill the pipe buffer (~64 KiB on Linux) so the
+    # subprocess blocks and never reaches its own exit.
+    code = dedent("""\
+    import sys
+
+    sys.stdout.write("x" * 1024 * 1024)
+    sys.stdout.flush()
+    """)
+
+    from anyio import Event, sleep
+
+    deadline_hit = Event()
+
+    async with create_task_group() as tg:
+        process = await open_process([sys.executable, "-c", code])
+
+        async def deadline() -> None:
+            await sleep(5)
+            deadline_hit.set()
+
+        tg.start_soon(deadline)
+
+        # This must not deadlock even though the subprocess is still
+        # blocked on the full stdout pipe.
+        await process.aclose()
+        tg.cancel_scope.cancel()
+
+    assert not deadline_hit.is_set(), "Process.aclose() deadlocked"

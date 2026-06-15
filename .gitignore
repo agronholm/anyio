@@ -17,3 +17,4 @@ __pycache__
 .cache
 .local
 CLAUDE.local.md
+.venv/

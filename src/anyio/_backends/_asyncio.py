@@ -1076,6 +1076,8 @@ class StreamReaderWrapper(abc.ByteReceiveStream):
 
     async def aclose(self) -> None:
         self._stream.set_exception(ClosedResourceError())
+        if self._stream._transport is not None:
+            self._stream._transport.close()
         await AsyncIOBackend.checkpoint()
 
 
@@ -1136,7 +1138,14 @@ class Process(abc.Process):
                 raise
 
     async def wait(self) -> int:
-        return await self._process.wait()
+        # Use a polling loop instead of asyncio.subprocess.Process.wait(),
+        # which waits for stdout/stderr pipes to close in addition to the
+        # process exiting.  That extra wait can deadlock when a subprocess is
+        # blocked writing to a full pipe and nobody is reading.
+        while self._process.returncode is None:
+            await AsyncIOBackend.checkpoint()
+
+        return self._process.returncode
 
     def terminate(self) -> None:
         self._process.terminate()
