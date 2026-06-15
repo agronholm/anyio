@@ -1880,12 +1880,12 @@ class Lock(BaseLock):
         try:
             await fut
         except CancelledError:
-            try:
-                self._waiters.remove(item)
-            except ValueError:
-                pass
-
-            if self._owner_task is task:
+            if fut.cancelled():
+                try:
+                    self._waiters.remove(item)
+                except ValueError:
+                    pass
+            else:
                 self.release()
 
             raise
@@ -1973,11 +1973,13 @@ class Semaphore(BaseSemaphore):
         try:
             await fut
         except CancelledError:
-            try:
-                self._waiters.remove(fut)
-            except ValueError:
-                if not fut.cancelled():
-                    self.release()
+            if fut.cancelled():
+                try:
+                    self._waiters.remove(fut)
+                except ValueError:
+                    pass
+            else:
+                self.release()
 
             raise
 
