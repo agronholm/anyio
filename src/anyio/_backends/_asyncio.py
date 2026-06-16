@@ -1200,12 +1200,12 @@ def _forcibly_shutdown_process_pool_on_exit(
         if process.returncode is not None:
             continue
 
-        if process._stdin and process._stdin._stream._transport is not None:  # type: ignore[union-attr]
-            process._stdin._stream._transport.close()  # type: ignore[union-attr]
-        if process._stdout and process._stdout._stream._transport is not None:  # type: ignore[union-attr]
-            process._stdout._stream._transport.close()  # type: ignore[union-attr]
-        if process._stderr and process._stderr._stream._transport is not None:  # type: ignore[union-attr]
-            process._stderr._stream._transport.close()  # type: ignore[union-attr]
+        if process._stdin and process._stdin._stream._transport is not None:  # type: ignore[attr-defined]
+            process._stdin._stream._transport.close()  # type: ignore[attr-defined]
+        if process._stdout and process._stdout._stream._transport is not None:  # type: ignore[attr-defined]
+            process._stdout._stream._transport.close()  # type: ignore[attr-defined]
+        if process._stderr and process._stderr._stream._transport is not None:  # type: ignore[attr-defined]
+            process._stderr._stream._transport.close()  # type: ignore[attr-defined]
         process.kill()
         if child_watcher:
             child_watcher.remove_child_handler(process.pid)
