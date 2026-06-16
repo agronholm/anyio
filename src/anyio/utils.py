@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+__all__ = ("as_completed", "gather")
+
 from collections.abc import AsyncGenerator, Coroutine
 from contextlib import asynccontextmanager
 from typing import Any, TypeVar, overload
