@@ -1138,10 +1138,16 @@ class Process(abc.Process):
                 raise
 
     async def wait(self) -> int:
-        # Use a polling loop instead of asyncio.subprocess.Process.wait(),
-        # which waits for stdout/stderr pipes to close in addition to the
-        # process exiting.  That extra wait can deadlock when a subprocess is
-        # blocked writing to a full pipe and nobody is reading.
+        # Use a polling loop instead of asyncio.subprocess.Process.wait(), which
+        # waits for stdout/stderr pipes to close in addition to the process
+        # exiting.  The extra pipe-close wait is problematic because it can
+        # deadlock when a subprocess is blocked writing to a full pipe and
+        # nobody is reading from the other end.  The polling loop checks only
+        # the process returncode, so it returns as soon as the process exits
+        # regardless of pipe state.  This is safe because the caller is
+        # responsible for draining/closing pipes separately, and the polling
+        # interval is bounded by a single checkpoint (essentially zero wait
+        # when the event loop has no other work).
         while self._process.returncode is None:
             await AsyncIOBackend.checkpoint()
 
@@ -1194,9 +1200,12 @@ def _forcibly_shutdown_process_pool_on_exit(
         if process.returncode is not None:
             continue
 
-        process._stdin._stream._transport.close()  # type: ignore[union-attr]
-        process._stdout._stream._transport.close()  # type: ignore[union-attr]
-        process._stderr._stream._transport.close()  # type: ignore[union-attr]
+        if process._stdin and process._stdin._stream._transport is not None:  # type: ignore[union-attr]
+            process._stdin._stream._transport.close()  # type: ignore[union-attr]
+        if process._stdout and process._stdout._stream._transport is not None:  # type: ignore[union-attr]
+            process._stdout._stream._transport.close()  # type: ignore[union-attr]
+        if process._stderr and process._stderr._stream._transport is not None:  # type: ignore[union-attr]
+            process._stderr._stream._transport.close()  # type: ignore[union-attr]
         process.kill()
         if child_watcher:
             child_watcher.remove_child_handler(process.pid)

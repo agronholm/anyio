@@ -455,3 +455,95 @@ async def test_aclose_unblocks_subprocess_blocked_on_write() -> None:
         tg.cancel_scope.cancel()
 
     assert not deadline_hit.is_set(), "Process.aclose() deadlocked"
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="Unix-specific: pipe buffer sizes and EPIPE behaviour",
+)
+async def test_wait_returns_when_subprocess_blocked_on_write() -> None:
+    """wait() must not deadlock when a subprocess is stuck writing to a
+    full pipe.  It should return the exit code once aclose() closes the
+    pipes and terminates the process."""
+
+    code = dedent("""\
+    import sys
+
+    sys.stdout.write("x" * 1024 * 1024)
+    sys.stdout.flush()
+    """)
+
+    from anyio import Event, sleep
+
+    deadline_hit = Event()
+
+    async with create_task_group() as tg:
+        process = await open_process([sys.executable, "-c", code])
+
+        async def deadline() -> None:
+            await sleep(5)
+            deadline_hit.set()
+
+        tg.start_soon(deadline)
+
+        # Close pipes and kill the process so it exits, then wait() must
+        # return promptly rather than hanging on the still-full pipe.
+        await process.aclose()
+        tg.cancel_scope.cancel()
+
+    returncode = await process.wait()
+    assert not deadline_hit.is_set(), "Process.wait() deadlocked"
+    assert returncode is not None  # process exited
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="Unix-specific: pipe buffer sizes and EPIPE behaviour",
+)
+async def test_wait_returns_promptly_for_fast_exit() -> None:
+    """wait() must return quickly when the process exits immediately
+    without writing to stdout or stderr."""
+
+    from anyio import Event, sleep
+
+    deadline_hit = Event()
+
+    async with create_task_group() as tg:
+        process = await open_process([sys.executable, "-c", ""])
+
+        async def deadline() -> None:
+            await sleep(5)
+            deadline_hit.set()
+
+        tg.start_soon(deadline)
+
+        returncode = await process.wait()
+        tg.cancel_scope.cancel()
+
+    assert not deadline_hit.is_set(), "Process.wait() deadlocked for fast exit"
+    assert returncode == 0
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="Unix-specific: grandchild process and signal handling",
+)
+async def test_wait_returns_on_process_exit_with_open_stderr() -> None:
+    """wait() should return once the process exits, even when a grandchild
+    keeps the stderr pipe file descriptor open."""
+
+    code = dedent("""\
+    import subprocess, sys
+
+    subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(10)"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    sys.stderr.write("ok")
+    """)
+
+    async with await open_process([sys.executable, "-c", code]) as process:
+        returncode = await process.wait()
+
+    assert returncode == 0

@@ -18,3 +18,4 @@ __pycache__
 .local
 CLAUDE.local.md
 .venv/
+.rocky
