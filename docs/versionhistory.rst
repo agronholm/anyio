@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**4.14.0**
 
 - Added an implementation of the ``asyncio.Future`` object for single pending objects.
   (`#1146 <https://github.com/agronholm/anyio/pull/1146>`_; PR by @Vizonex)
@@ -42,6 +42,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
   This reverts an earlier change from v3.7.0 which was made in error.
   (`#1153 <https://github.com/agronholm/anyio/pull/1153>`_)
+- Changed ``anyio.run`` to support callables returning arbitrary awaitables at runtime
+  on all backends. Previously, this only worked on asyncio (`#1171
+  <https://github.com/agronholm/anyio/pull/1171>`_; PR by @gschaffner)
 - Changed several classes (and their subclasses) to have ``__slots__`` (with
   ``__weakref__``):
 
@@ -82,6 +85,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``anyio.run()``; the options are now passed as keyword arguments to ``trio.run()``
   again, as documented (a regression from AnyIO 3)
   (`#1161 <https://github.com/agronholm/anyio/pull/1161>`_; PR by @Zac-HD)
+- Fixed asyncio ``Lock`` and ``Semaphore`` deadlocks caused by cancelled waiters
+  left queued during release
+  (`#1145 <https://github.com/agronholm/anyio/pull/1145>`_; PR by @rasmusfaber,
+  @x42005e1f and @agronholm)
 
 **4.13.0**
 

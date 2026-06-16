@@ -4,9 +4,9 @@ import asyncio
 import platform
 import ssl
 import sys
-from collections.abc import Generator, Iterator
+from collections.abc import Awaitable, Callable, Coroutine, Generator, Iterator
 from ssl import SSLContext
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar
 from unittest.mock import Mock
 
 import pytest
@@ -19,6 +19,9 @@ from anyio._core._eventloop import current_async_library
 
 if TYPE_CHECKING:
     from blockbuster import BlockBuster
+
+T = TypeVar("T")
+P = ParamSpec("P")
 
 uvloop_marks = []
 uvloop_name = "uvloop"
@@ -178,3 +181,17 @@ async def event_loop_implementation_name() -> str | None:
         return asyncio.get_running_loop().__module__
 
     return name
+
+
+def return_non_coro_awaitable(
+    func: Callable[P, Coroutine[Any, Any, T]],
+) -> Callable[P, Awaitable[T]]:
+    class Wrapper:
+        def __init__(self, *args: P.args, **kwargs: P.kwargs) -> None:
+            self.args = args
+            self.kwargs = kwargs
+
+        def __await__(self) -> Generator[Any, Any, T]:
+            return func(*self.args, **self.kwargs).__await__()
+
+    return Wrapper
