@@ -93,10 +93,8 @@ class Future(Generic[T]):
             try:
                 await self._finished_event.wait()
             except BaseException as e:
-                self._exception = e
+                self.set_exception(e)
                 raise
-            finally:
-                self._finished_event.set()
 
     def set_result(self, value: T) -> None:
         """
