@@ -1117,22 +1117,32 @@ class Process(abc.Process):
     _stdout: StreamReaderWrapper | None
     _stderr: StreamReaderWrapper | None
     _exited: asyncio.Event
+    _transport: asyncio.SubprocessTransport
 
     async def aclose(self) -> None:
         with CancelScope(shield=True) as scope:
+            # We need to close the underlying pipe_transports as well to allow a
+            # process blocking on full buffers to receive SIGPIPE and exit.
             if self._stdin:
                 await self._stdin.aclose()
+                if pipe := self._transport.get_pipe_transport(0):
+                    pipe.close()
             if self._stdout:
                 await self._stdout.aclose()
+                if pipe := self._transport.get_pipe_transport(1):
+                    pipe.close()
             if self._stderr:
                 await self._stderr.aclose()
+                if pipe := self._transport.get_pipe_transport(2):
+                    pipe.close()
 
             scope.shield = False
             try:
                 await self.wait()
             except BaseException:
                 scope.shield = True
-                self.kill()
+                # Closing the transport on asyncio also handles sending kill
+                self._transport.close()
                 await self.wait()
                 raise
 
@@ -2732,7 +2742,12 @@ class AsyncIOBackend(AsyncBackend):
         stdout_stream = StreamReaderWrapper(process.stdout) if process.stdout else None
         stderr_stream = StreamReaderWrapper(process.stderr) if process.stderr else None
         return Process(
-            process, stdin_stream, stdout_stream, stderr_stream, protocol.exited
+            process,
+            stdin_stream,
+            stdout_stream,
+            stderr_stream,
+            protocol.exited,
+            transport,
         )
 
     @classmethod

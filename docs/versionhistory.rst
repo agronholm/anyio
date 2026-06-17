@@ -14,6 +14,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   if a grandchild inherited it), instead of returning once the process exits
   like the other backends do
   (`#1174 <https://github.com/agronholm/anyio/issues/1174>`_; PR by @tapetersen)
+- Fixed ``Process.aclose()`` deadlocking on the asyncio backend when the subprocess is
+  blocked on writing to a stdout or stderr pipe whose buffer is full; closing the
+  process's standard streams now also closes the underlying pipe transports
+  (`#1166 <https://github.com/agronholm/anyio/issues/1166>`_; PR by @tapetersen)
 
 
 **4.14.0**
