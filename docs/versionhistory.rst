@@ -5,6 +5,13 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+  Fixed ``Process.wait()`` on asyncio waiting for stdout/stderr kept open (e.g.
+  if a grandchild inherited it), instead of returning once the process exits
+  like the other backends do
+  (`#1174 <https://github.com/agronholm/anyio/issues/1174>`_; PR by @tapetersen)
+
+**4.14.0**
+
 - Added support for Python 3.15
 - Added an asynchronous implementation of the ``itertools`` module
   (`#998 <https://github.com/agronholm/anyio/issues/998>`_; PR by @11kkw)
@@ -83,11 +90,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``anyio.run()``; the options are now passed as keyword arguments to ``trio.run()``
   again, as documented (a regression from AnyIO 3)
   (`#1161 <https://github.com/agronholm/anyio/pull/1161>`_; PR by @Zac-HD)
-  Fixed ``Process.wait()`` on asyncio waiting for stdout/stderr kept open (e.g.
-  if a grandchild inherited it), instead of returning once the process exits
-  like the other backends do
-  (`#1174 <https://github.com/agronholm/anyio/issues/1174>`_; PR by @tapetersen)
-
+- Fixed asyncio ``Lock`` and ``Semaphore`` deadlocks caused by cancelled waiters
+  left queued during release
+  (`#1145 <https://github.com/agronholm/anyio/pull/1145>`_; PR by @rasmusfaber,
+  @x42005e1f and @agronholm)
 
 **4.13.0**
 
