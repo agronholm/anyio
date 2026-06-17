@@ -3,6 +3,14 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed teardown of higher-scoped async fixtures failing with
+  ``RuntimeError: Attempted to exit cancel scope in a different task than it was entered in``
+  when an async test raise an outcome exception (e.g., ``pytest.skip()``, ``pytest.xfail()``,
+  or ``pytest.fail()``)
+  (`#1179 <https://github.com/agronholm/anyio/issues/1179>`_; PR by @EmmanuelNiyonshuti)
+
 **4.14.0**
 
 - Added support for Python 3.15
