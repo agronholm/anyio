@@ -2738,7 +2738,12 @@ class AsyncIOBackend(AsyncBackend):
         stdout_stream = StreamReaderWrapper(process.stdout) if process.stdout else None
         stderr_stream = StreamReaderWrapper(process.stderr) if process.stderr else None
         return Process(
-            process, stdin_stream, stdout_stream, stderr_stream, protocol.exited, transport
+            process,
+            stdin_stream,
+            stdout_stream,
+            stderr_stream,
+            protocol.exited,
+            transport,
         )
 
     @classmethod
