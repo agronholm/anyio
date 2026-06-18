@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from .._lazyimport import install_lazy_importer
 
-if TYPE_CHECKING:
+if TYPE_CHECKING or not install_lazy_importer():
     from ._eventloop import AsyncBackend as AsyncBackend
     from ._resources import AsyncResource as AsyncResource
     from ._sockets import ConnectedUDPSocket as ConnectedUDPSocket
@@ -56,5 +56,3 @@ if TYPE_CHECKING:
     )
     from .._core._tasks import CancelScope as CancelScope
     from ..from_thread import BlockingPortal as BlockingPortal
-
-install_lazy_importer()

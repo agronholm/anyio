@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from ._lazyimport import install_lazy_importer
 
-if TYPE_CHECKING:
+if TYPE_CHECKING or not install_lazy_importer():
     from ._core._contextmanagers import (
         AsyncContextManagerMixin as AsyncContextManagerMixin,
     )
@@ -108,5 +108,3 @@ if TYPE_CHECKING:
 
     # Deprecated aliases
     BrokenWorkerIntepreter = BrokenWorkerInterpreter
-
-install_lazy_importer()

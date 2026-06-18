@@ -3,19 +3,22 @@ from __future__ import annotations
 __all__ = ("install_lazy_importer",)
 
 import ast
+import inspect
 import sys
 import warnings
 from importlib import import_module
-from pathlib import Path
-from typing import Any, cast
+from types import ModuleType
+from typing import Any
 
 
-def install_lazy_importer() -> None:
+def install_lazy_importer() -> bool:
     module_globals = sys._getframe(1).f_globals
     module_name = module_globals["__name__"]
     module_prefix = module_name + "."
     module = sys.modules[module_name]
-    lazy_map, deprecated_aliases = _build_lazy_map(cast(str, module.__file__))
+    lazy_map, deprecated_aliases = _build_lazy_map(module)
+    if not lazy_map:
+        return False
 
     def __getattr__(name: str) -> Any:
         if new_name := deprecated_aliases.get(name):
@@ -45,12 +48,19 @@ def install_lazy_importer() -> None:
 
     module.__dict__["__getattr__"] = __getattr__
     module.__dict__["__all__"] = list(lazy_map)
+    return True
 
 
 def _build_lazy_map(
-    module_file: str,
+    module: ModuleType,
 ) -> tuple[dict[str, tuple[str, str]], dict[str, str]]:
-    tree = ast.parse(Path(module_file).read_text(), filename=module_file)
+    try:
+        source = inspect.getsource(module)
+    except OSError:
+        return {}, {}
+
+    tree = compile(source, module.__file__ or "", "exec", ast.PyCF_ONLY_AST)
+    assert isinstance(tree, ast.Module)
     out: dict[str, tuple[str, str]] = {}
     deprecated_aliases: dict[str, str] = {}
 
