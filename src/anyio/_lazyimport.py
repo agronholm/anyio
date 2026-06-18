@@ -89,14 +89,18 @@ def _build_lazy_map(
 
 
 def _is_type_checking_block(test: ast.AST) -> bool:
-    match test:
+    if not isinstance(test, ast.BoolOp):
+        return False
+
+    subtest = test.values[0]
+    match subtest:
         case ast.Name():
-            return test.id == "TYPE_CHECKING"
+            return subtest.id == "TYPE_CHECKING"
         case ast.Attribute():
             return (
-                isinstance(test.value, ast.Name)
-                and test.value.id == "typing"
-                and test.attr == "TYPE_CHECKING"
+                isinstance(subtest.value, ast.Name)
+                and subtest.value.id == "typing"
+                and subtest.attr == "TYPE_CHECKING"
             )
         case _:
             return False
