@@ -510,6 +510,38 @@ def test_keyboard_interrupt_does_not_resume_test(testdir: Pytester) -> None:
     result.stdout.fnmatch_lines(["*KeyboardInterrupt*"])
 
 
+def test_outcome_exception_does_not_discard_runner_task(testdir: Pytester) -> None:
+    # Regression test for #1179
+    testdir.makepyfile(
+        """
+        import anyio
+        import pytest
+
+        @pytest.fixture(scope="session")
+        def anyio_backend():
+            return "asyncio"
+
+        @pytest.fixture(scope="session")
+        async def background_resource():
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(anyio.sleep_forever)
+                yield "resource"
+                tg.cancel_scope.cancel()
+
+        @pytest.mark.anyio
+        async def test_uses_the_resource(background_resource: str) -> None:
+            assert background_resource == "resource"
+
+        @pytest.mark.anyio
+        async def test_that_skips() -> None:
+            pytest.skip("anything that raises pytest's OutcomeException.")
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=1, skipped=1)
+
+
 def test_async_fixture_in_test_class(testdir: Pytester) -> None:
     # Regression test for #633
     testdir.makepyfile(
