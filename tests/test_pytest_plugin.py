@@ -518,7 +518,7 @@ def test_outcome_exception_does_not_discard_runner_task(testdir: Pytester) -> No
         import pytest
 
         @pytest.fixture(scope="session")
-        def anyio_backend() -> str:
+        def anyio_backend():
             return "asyncio"
 
         @pytest.fixture(scope="session")
