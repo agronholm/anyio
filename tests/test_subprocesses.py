@@ -422,6 +422,7 @@ async def test_wait_returns_on_process_exit_with_open_stdout() -> None:
     with fail_after(3, shield=True):
         async for _ in process.stdout:
             pass
+
         async for _ in process.stderr:
             pass
 
