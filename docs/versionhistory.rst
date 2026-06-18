@@ -3,6 +3,15 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed ``TestRunner.run_test()`` incorrectly treating pytest ``OutcomeException``
+  (raised by ``pytest.skip()``, ``pytest.xfail()``, etc.) as a forced event-loop
+  interruption, which canceled the runner task and caused higher-scoped async fixtures
+  holding a cancel scope to fail at teardown with ``RuntimeError: Attempted to exit
+  cancel scope in a different task``
+  (`#1179 <https://github.com/agronholm/anyio/issues/1179>`_; PR by @gaoflow)
+
 **4.14.0**
 
 - Added support for Python 3.15
