@@ -2373,12 +2373,16 @@ class TestRunner(abc.TestRunner):
     def run_test(
         self, test_func: Callable[..., Coroutine[Any, Any, Any]], kwargs: dict[str, Any]
     ) -> None:
+        from _pytest.outcomes import OutcomeException
+
         try:
             self.get_loop().run_until_complete(
                 self._call_in_runner_task(test_func, **kwargs)
             )
         except Exception as exc:
             self._exceptions.append(exc)
+        except OutcomeException:
+            raise
         except BaseException:
             # A BaseException (e.g. KeyboardInterrupt, SystemExit) interrupted the event loop before
             # the test completed. Cancel _runner_task so it does not resume when the event

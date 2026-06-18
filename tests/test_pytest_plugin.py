@@ -793,3 +793,43 @@ def test_func_as_parametrize_param_name(testdir: Pytester) -> None:
 
     result = testdir.runpytest(*pytest_args)
     result.assert_outcomes(passed=len(get_available_backends()))
+
+
+def test_outcome_exception_does_not_break_async_fixture_teardown(
+    testdir: Pytester,
+) -> None:
+    """Regression test for #1179: pytest OutcomeException (skip/xfail) must not
+    cancel the runner task, which would break teardown of higher-scoped async
+    fixtures holding a cancel scope open across their yield."""
+    testdir.makepyfile(
+        """
+        import anyio
+        import pytest
+
+
+        @pytest.fixture(scope="module")
+        def anyio_backend() -> str:
+            return "asyncio"
+
+
+        @pytest.fixture(scope="module")
+        async def background_resource():
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(anyio.sleep_forever)
+                yield "resource"
+                tg.cancel_scope.cancel()
+
+
+        @pytest.mark.anyio
+        async def test_uses_the_resource(background_resource: str) -> None:
+            assert background_resource == "resource"
+
+
+        @pytest.mark.anyio
+        async def test_that_skips() -> None:
+            pytest.skip("deliberate skip")
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=1, skipped=1)
