@@ -2422,7 +2422,7 @@ class _ProcessStreamProtocol(asyncio.subprocess.SubprocessStreamProtocol):
     """
 
     def __init__(self) -> None:
-        """Match standard factory for asyncio.create_process"""
+        # Match the standard factory for asyncio.create_process
         super().__init__(limit=2**16, loop=asyncio.get_running_loop())
         self.exited = asyncio.Event()
 
