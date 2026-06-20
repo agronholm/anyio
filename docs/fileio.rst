@@ -102,7 +102,7 @@ methods)::
 
     async def main():
         limiter = CapacityLimiter(5)
-        async with open_file('/foo/bar', limiter=limiter) as fp:
+        async with await open_file('/foo/bar', limiter=limiter) as fp:
             contents = await fp.read()
 
     run(main)
