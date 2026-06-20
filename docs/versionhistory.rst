@@ -10,9 +10,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   when an async test raise an outcome exception (e.g., ``pytest.skip()``, ``pytest.xfail()``,
   or ``pytest.fail()``)
   (`#1179 <https://github.com/agronholm/anyio/issues/1179>`_; PR by @EmmanuelNiyonshuti)
-- Fixed the "Limiting concurrency" example in the file I/O documentation missing the
-  ``await`` on the asynchronous ``open_file()`` call, so it failed when run as written
-  (PR by @patrickwehbe)
 
 **4.14.0**
 
