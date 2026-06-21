@@ -20,6 +20,7 @@ def test_sourceless_install(tmp_path: Path) -> None:
     sys_exec_path = Path(sys.executable)
     bin_dir_name = sys_exec_path.parent.name
     interpreter_path = tmp_path / bin_dir_name / sys_exec_path.name
+    assert interpreter_path.is_file()
 
     # Install this project into the virtualenv
     project_root = Path(__file__).parent.parent
