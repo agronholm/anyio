@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._lazyimport import install_lazy_importer
+from ._lazyimport import fix_package_names, install_lazy_importer
 
 if TYPE_CHECKING or not install_lazy_importer():
     from ._core._contextmanagers import (
@@ -108,3 +108,5 @@ if TYPE_CHECKING or not install_lazy_importer():
 
     # Deprecated aliases
     BrokenWorkerIntepreter = BrokenWorkerInterpreter
+
+    fix_package_names()

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-__all__ = ("install_lazy_importer",)
+__all__ = (
+    "fix_package_names",
+    "install_lazy_importer",
+)
 
 import ast
 import inspect
@@ -47,8 +50,20 @@ def install_lazy_importer() -> bool:
         return value
 
     module.__dict__["__getattr__"] = __getattr__
-    module.__dict__["__all__"] = list(lazy_map)
+    del module.__dict__["TYPE_CHECKING"]
+    del module.__dict__["install_lazy_importer"]
+    del module.__dict__["fix_package_names"]
     return True
+
+
+def fix_package_names() -> None:
+    module_globals = sys._getframe(1).f_globals
+    for value in module_globals.values():
+        if modname := getattr(value, "__module__", ""):
+            if modname.startswith("anyio.abc."):
+                value.__module__ = "anyio.abc"
+            elif modname.startswith("anyio."):
+                value.__module__ = "anyio"
 
 
 def _build_lazy_map(
