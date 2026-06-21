@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import subprocess
 import sys
 from pathlib import Path
@@ -17,9 +18,11 @@ def test_sourceless_install(tmp_path: Path) -> None:
 
     # Create a new virtualenv
     subprocess.run([sys.executable, "-m", "venv", tmp_path], check=True)
-    sys_exec_path = Path(sys.executable)
-    bin_dir_name = sys_exec_path.parent.name
-    interpreter_path = tmp_path / bin_dir_name / sys_exec_path.name
+    if platform.platform() == "Windows":
+        interpreter_path = tmp_path / "scripts" / "python.exe"
+    else:
+        interpreter_path = tmp_path / "bin" / "python"
+
     assert interpreter_path.is_file()
 
     # Install this project into the virtualenv
