@@ -18,7 +18,7 @@ def test_sourceless_install(tmp_path: Path) -> None:
 
     # Create a new virtualenv
     subprocess.run([sys.executable, "-m", "venv", tmp_path], check=True)
-    if platform.platform() == "Windows":
+    if platform.system() == "Windows":
         interpreter_path = tmp_path / "scripts" / "python.exe"
     else:
         interpreter_path = tmp_path / "bin" / "python"
