@@ -100,13 +100,14 @@ from ..abc import (
     UDPPacketType,
     UNIXDatagramPacketType,
 )
-from ..abc._eventloop import StrOrBytesPath
 from ..abc._tasks import call_for_coroutine, get_callable_name
 from ..lowlevel import RunVar
-from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 if TYPE_CHECKING:
     from _typeshed import FileDescriptorLike
+
+    from ..abc._eventloop import StrOrBytesPath
+    from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 else:
     FileDescriptorLike = object
 

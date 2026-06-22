@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .._lazyimport import fix_package_names, install_lazy_importer
+from .._lazyimport import (
+    fix_package_names,
+    install_lazy_importer,
+    set_deprecated_aliases,
+)
 
 if TYPE_CHECKING or not install_lazy_importer():
     from ._eventloop import AsyncBackend as AsyncBackend
@@ -58,3 +62,15 @@ if TYPE_CHECKING or not install_lazy_importer():
     from ..from_thread import BlockingPortal as BlockingPortal
 
     fix_package_names()
+
+    set_deprecated_aliases(
+        {
+            "CapacityLimiter": "anyio.CapacityLimiter",
+            "Condition": "anyio.Condition",
+            "Event": "anyio.Event",
+            "Lock": "anyio.Lock",
+            "Semaphore": "anyio.Semaphore",
+            "CancelScope": "anyio.CancelScope",
+            "BlockingPortal": "anyio.from_thread.BlockingPortal",
+        }
+    )

@@ -13,11 +13,13 @@ __all__ = (
 import enum
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any, Generic, Literal, TypeVar, final, overload
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, final, overload
 from weakref import WeakKeyDictionary
 
 from ._core._eventloop import get_async_backend
-from .abc import AsyncBackend
+
+if TYPE_CHECKING:
+    from .abc import AsyncBackend
 
 T = TypeVar("T")
 D = TypeVar("D")

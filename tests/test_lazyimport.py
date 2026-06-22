@@ -6,8 +6,13 @@ import platform
 import subprocess
 import sys
 from pathlib import Path
+from textwrap import dedent
+
+import pytest
 
 import anyio.abc
+
+DEPRECATIONS = {"anyio.BrokenWorkerIntepreter": "anyio.BrokenWorkerInterpreter"}
 
 
 def test_sourceless_install(tmp_path: Path) -> None:
@@ -53,22 +58,69 @@ def test_sourceless_install(tmp_path: Path) -> None:
             if path.suffix == ".py":
                 path.unlink(missing_ok=True)
 
+    script = dedent(f"""\
+    import json
+    import sys
+    import warnings
+
+    import anyio.abc
+
+    deprecated_items = {DEPRECATIONS!r}
+    deprecations = dict.fromkeys(deprecated_items, False)
+    result = {{
+        "deprecations": deprecations,
+        "modulenames": {{
+            "anyio.sleep": anyio.sleep.__module__,
+            "anyio.CancelScope": anyio.CancelScope.__module__,
+            "anyio.abc.CancelScope": anyio.abc.CancelScope.__module__,
+            "anyio.abc.UDPSocket": anyio.abc.UDPSocket.__module__,
+        }},
+    }}
+
+    for item in deprecated_items:
+        module, name = item.rsplit(".", 1)
+        with warnings.catch_warnings(record=True) as record:
+            getattr(sys.modules[module], name)
+
+        deprecations[item] = bool(record)
+
+    json.dump(result, sys.stdout)
+    """)
+
     # Collect the module names of sample functions and classes and make sure they have
     # been changed to the containing module (anyio or anyio.abc)
-    script_path = Path(__file__).parent / "samplescript.py"
-    assert script_path.is_file()
+    # script_path = Path(__file__).parent / "samplescript.py"
+    # assert script_path.is_file()
     process = subprocess.run(
-        [interpreter_path, script_path], capture_output=True, check=True
+        [interpreter_path, "-c", script],
+        input=json.dumps(DEPRECATIONS).encode(),
+        capture_output=True,
+        check=True,
     )
     result = json.loads(process.stdout.decode("utf-8"))
-    assert result["anyio.sleep"] == "anyio"
-    assert result["anyio.CancelScope"] == "anyio"
-    assert result["anyio.abc.CancelScope"] == "anyio"
-    assert result["anyio.abc.UDPSocket"] == "anyio.abc"
+    assert result["modulenames"] == {
+        "anyio.sleep": "anyio",
+        "anyio.CancelScope": "anyio",
+        "anyio.abc.CancelScope": "anyio",
+        "anyio.abc.UDPSocket": "anyio.abc",
+    }
+    assert len(result["deprecations"]) == len(DEPRECATIONS)
 
 
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
 def test_package_names() -> None:
     assert anyio.sleep.__module__ == "anyio"
     assert anyio.CancelScope.__module__ == "anyio"
     assert anyio.abc.CancelScope.__module__ == "anyio"
     assert anyio.abc.UDPSocket.__module__ == "anyio.abc"
+
+
+def test_deprecations() -> None:
+    for old_name, new_name in DEPRECATIONS.items():
+        module_name, attrname = old_name.rsplit(".", 1)
+        with pytest.warns(DeprecationWarning):
+            old_obj = getattr(sys.modules[module_name], attrname)
+
+        module_name, attrname = new_name.rsplit(".", 1)
+        new_obj = getattr(sys.modules[module_name], attrname)
+        assert new_obj is old_obj

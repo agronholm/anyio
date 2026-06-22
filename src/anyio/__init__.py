@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._lazyimport import fix_package_names, install_lazy_importer
+from ._lazyimport import (
+    fix_package_names,
+    install_lazy_importer,
+    set_deprecated_aliases,
+)
 
 if TYPE_CHECKING or not install_lazy_importer():
     from ._core._contextmanagers import (
@@ -106,7 +110,9 @@ if TYPE_CHECKING or not install_lazy_importer():
     from ._core._typedattr import TypedAttributeSet as TypedAttributeSet
     from ._core._typedattr import typed_attribute as typed_attribute
 
-    # Deprecated aliases
-    BrokenWorkerIntepreter = BrokenWorkerInterpreter
-
     fix_package_names()
+    set_deprecated_aliases(
+        {
+            "BrokenWorkerIntepreter": "anyio.BrokenWorkerInterpreter",
+        }
+    )

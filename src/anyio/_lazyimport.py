@@ -3,6 +3,7 @@ from __future__ import annotations
 __all__ = (
     "fix_package_names",
     "install_lazy_importer",
+    "set_deprecated_aliases",
 )
 
 import ast
@@ -26,18 +27,18 @@ def install_lazy_importer() -> bool:
     def __getattr__(name: str) -> Any:
         if new_name := deprecated_aliases.get(name):
             warnings.warn(
-                f"The {name!r} alias is deprecated, use {new_name!r} instead.",
+                f"{module_name}.{name} is deprecated, use {new_name} instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
-            name = new_name
-
-        try:
-            target_mod, target_attr = lazy_map[name]
-        except KeyError:
-            raise AttributeError(
-                f"module {module_name!r} has no attribute {name!r}"
-            ) from None
+            target_mod, target_attr = new_name.rsplit(".", 1)
+        else:
+            try:
+                target_mod, target_attr = lazy_map[name]
+            except KeyError:
+                raise AttributeError(
+                    f"module {module_name!r} has no attribute {name!r}"
+                ) from None
 
         imported = import_module(target_mod, module_name)
         value = getattr(imported, target_attr)
@@ -58,12 +59,39 @@ def install_lazy_importer() -> bool:
 
 def fix_package_names() -> None:
     module_globals = sys._getframe(1).f_globals
+    module_prefix = module_globals["__name__"] + "."
     for value in module_globals.values():
         if modname := getattr(value, "__module__", ""):
-            if modname.startswith("anyio.abc."):
-                value.__module__ = "anyio.abc"
-            elif modname.startswith("anyio."):
-                value.__module__ = "anyio"
+            if modname.startswith(module_prefix):
+                parts = modname.split(".")
+                value.__module__ = ".".join(
+                    part for part in parts if not part.startswith("_")
+                )
+
+
+def set_deprecated_aliases(aliases: dict[str, str]) -> None:
+    module_globals = sys._getframe(1).f_globals
+    module_name = module_globals["__name__"]
+
+    def __getattr__(name: str) -> Any:
+        try:
+            target = aliases[name]
+        except KeyError:
+            raise AttributeError(
+                f"module {module_name!r} has no attribute {name!r}"
+            ) from None
+
+        warnings.warn(
+            f"{module_name}.{name} is deprecated, use {target!r} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        target_modname, attrname = target.rsplit(".", 1)
+        module = import_module(target_modname)
+        return getattr(module, attrname)
+
+    sys.modules[module_name].__dict__["__getattr__"] = __getattr__
 
 
 def _build_lazy_map(
@@ -93,12 +121,20 @@ def _build_lazy_map(
 
                         exported = alias.asname or alias.name
                         out[exported] = (base, alias.name)
-                case ast.Assign():
-                    if isinstance(stmt.value, ast.Name):
-                        new_name = stmt.value.id
-                        for target in stmt.targets:
-                            if isinstance(target, ast.Name):
-                                deprecated_aliases[target.id] = new_name
+                case ast.Expr() if isinstance(stmt.value, ast.Call):
+                    call = stmt.value
+                    if (
+                        isinstance(call.func, ast.Name)
+                        and call.func.id == "set_deprecated_aliases"
+                    ):
+                        arg0 = call.args[0]
+                        assert isinstance(arg0, ast.Dict)
+                        for key, value in zip(arg0.keys, arg0.values, strict=True):
+                            assert isinstance(key, ast.Constant)
+                            assert isinstance(key.value, str)
+                            assert isinstance(value, ast.Constant)
+                            assert isinstance(value.value, str)
+                            deprecated_aliases[key.value] = value.value
 
     return out, deprecated_aliases
 

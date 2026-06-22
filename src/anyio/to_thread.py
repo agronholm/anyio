@@ -7,11 +7,13 @@ __all__ = (
 
 import sys
 from collections.abc import Callable
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 from warnings import warn
 
 from ._core._eventloop import get_async_backend
-from .abc import CapacityLimiter
+
+if TYPE_CHECKING:
+    from ._core._synchronization import CapacityLimiter
 
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
