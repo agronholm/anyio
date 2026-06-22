@@ -10,6 +10,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   when an async test raise an outcome exception (e.g., ``pytest.skip()``, ``pytest.xfail()``,
   or ``pytest.fail()``)
   (`#1179 <https://github.com/agronholm/anyio/issues/1179>`_; PR by @EmmanuelNiyonshuti)
+- Fixed ``CapacityLimiter.total_tokens`` rejecting a value of ``0`` when the limiter was
+  instantiated outside of an event loop, contradicting the documented behavior of
+  allowing 0 total tokens
+  (`#1183 <https://github.com/agronholm/anyio/pull/1183>`_; PR by @nyxst4ck)
 
 **4.14.0**
 
