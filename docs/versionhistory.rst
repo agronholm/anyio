@@ -3,16 +3,6 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
-
-- Fixed cancellation edge case on asyncio where a task spawning another with
-  ``TaskGroup.start()`` is not protected from external cancellation even when
-  the subtask has not yet called ``task_status.started()`` and is in a shielded
-  cancel scope.
-  This was actually solved already in 4.14.0 by ``TaskHandle`` refactoring.
-  This patch just adds a regression test.
-  (`#837 <https://github.com/agronholm/anyio/issues/837>`_)
-
 **4.14.0**
 
 - Added support for Python 3.15
