@@ -10,6 +10,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   when an async test raise an outcome exception (e.g., ``pytest.skip()``, ``pytest.xfail()``,
   or ``pytest.fail()``)
   (`#1179 <https://github.com/agronholm/anyio/issues/1179>`_; PR by @EmmanuelNiyonshuti)
+- Fixed ``CapacityLimiter.total_tokens`` rejecting a value of ``0`` when the limiter was
+  instantiated outside of an event loop, contradicting the documented behavior of
+  allowing 0 total tokens
+  (`#1183 <https://github.com/agronholm/anyio/pull/1183>`_; PR by @nyxst4ck)
 - Fixed ``Process.wait()`` on asyncio waiting for stdout/stderr kept open (e.g.
   if a grandchild inherited it), instead of returning once the process exits
   like the other backends do
@@ -18,7 +22,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   blocked on writing to a stdout or stderr pipe whose buffer is full; closing the
   process's standard streams now also closes the underlying pipe transports
   (`#1166 <https://github.com/agronholm/anyio/issues/1166>`_; PR by @tapetersen)
-
 
 **4.14.0**
 
