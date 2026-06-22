@@ -920,6 +920,14 @@ class TestCapacityLimiter:
             backend_options=anyio_backend_options,
         )
 
+    def test_zero_tokens_outside_event_loop(self) -> None:
+        # Regression test for the CapacityLimiterAdapter setter rejecting 0,
+        # which contradicted the 4.12 behavior of allowing 0 total tokens
+        limiter = CapacityLimiter(1)
+        limiter.total_tokens = 0
+        assert limiter.total_tokens == 0
+        assert CapacityLimiter(0).total_tokens == 0
+
     async def test_total_tokens_as_kwarg(self) -> None:
         # Regression test for #515
         limiter = CapacityLimiter(total_tokens=1)
