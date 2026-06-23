@@ -107,11 +107,11 @@ class Future(Generic[T]):
     def cancel(self) -> None:
         """Cancels a pending `.Future` object
 
-        :raises FutureAlreadyFinished: if future was already given a result or exception.
+        Does nothing if the Future was already finished.
         """
-        self._check_pending()
-        self._cancelled = True
-        self._finished_event.set()
+        if self.status is Future.Status.PENDING:
+            self._cancelled = True
+            self._finished_event.set()
 
     @property
     def exception(self) -> BaseException | None:

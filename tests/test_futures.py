@@ -90,14 +90,15 @@ class TestFuture:
     async def test_future_cancelling_already_set_result(self) -> None:
         fut: Future[str] = Future()
         fut.set_result("Item")
-        with pytest.raises(FutureAlreadyFinished, match=r"future has already finished"):
-            fut.cancel()
+        fut.cancel()
+        assert await fut == "Item"
 
     async def test_future_cancelling_already_set_exception(self) -> None:
         fut: Future[Any] = Future()
         fut.set_exception(RuntimeError("Failed"))
-        with pytest.raises(FutureAlreadyFinished, match=r"future already failed"):
-            fut.cancel()
+        fut.cancel()
+        with pytest.raises(TaskFailed, match=r"future raised an exception"):
+            await fut
 
     async def test_future_cancelling_with_result(self) -> None:
         fut: Future[str] = Future()
