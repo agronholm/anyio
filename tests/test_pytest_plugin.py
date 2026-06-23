@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import socket
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import pytest
 from _pytest.logging import LogCaptureFixture
 from _pytest.pytester import Pytester
 
 from anyio import get_available_backends
-from anyio.pytest_plugin import FreePortFactory
+
+if TYPE_CHECKING:
+    from anyio.pytest_plugin import FreePortFactory
 
 pytestmark = [
     pytest.mark.filterwarnings(

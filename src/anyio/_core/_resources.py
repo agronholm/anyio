@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-from ..abc import AsyncResource
+from typing import TYPE_CHECKING
+
 from ._tasks import CancelScope
+
+if TYPE_CHECKING:
+    from ..abc import AsyncResource
 
 
 async def aclose_forcefully(resource: AsyncResource) -> None:
