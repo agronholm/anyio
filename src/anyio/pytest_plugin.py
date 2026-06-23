@@ -120,6 +120,18 @@ def pytest_fixture_setup(fixturedef: Any, request: Any) -> Generator[Any]:
             kwargs["request"] = request
 
         with get_runner(backend_name, backend_options) as runner:
+            # re-entrant call into the test runner detected. this happens when an async fixture
+            # is dynamically requested via request.getfixturevalue() from inside a running async
+            # test or fixture. on asyncio this raises RuntimeError: This event loop is already
+            # running, on trio the runner deadlocks - the host loop blocks waiting for the
+            # coroutine to return, but the coroutine is waiting for the host loop. raising here
+            # prevents the hang and gives a consistent error across backends.
+            if runner.is_running():
+                raise RuntimeError(
+                    "Cannot schedule a coroutine in the test runner while another is already running; "
+                    "likely caused by request.getfixturevalue() on an async fixture."
+                )
+
             if isasyncgenfunction(local_func):
                 yield from runner.run_asyncgen_fixture(local_func, kwargs)
             else:

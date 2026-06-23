@@ -214,6 +214,18 @@ class TestLock:
         assert statistics.tasks_waiting == 0
         lock.acquire_nowait()
 
+    async def test_cancelled_after_acquire(self) -> None:
+        lock = Lock()
+        lock.acquire_nowait()
+        async with create_task_group() as tg:
+            task1 = tg.create_task(lock.acquire())
+            await wait_all_tasks_blocked()
+            task1.cancel()
+            lock.release()
+            assert lock.statistics().tasks_waiting == 0
+            with fail_after(3):
+                await lock.acquire()
+
     def test_instantiate_outside_event_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
@@ -661,6 +673,18 @@ class TestSemaphore:
         assert semaphore.statistics().tasks_waiting == 0
         semaphore.acquire_nowait()
 
+    async def test_cancelled_after_acquire(self) -> None:
+        semaphore = Semaphore(1, max_value=1)
+        semaphore.acquire_nowait()
+        async with create_task_group() as tg:
+            task1 = tg.create_task(semaphore.acquire())
+            await wait_all_tasks_blocked()
+            task1.cancel()
+            semaphore.release()
+            assert semaphore.statistics().tasks_waiting == 0
+            with fail_after(3):
+                await semaphore.acquire()
+
     def test_instantiate_outside_event_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
@@ -895,6 +919,14 @@ class TestCapacityLimiter:
             backend=anyio_backend_name,
             backend_options=anyio_backend_options,
         )
+
+    def test_zero_tokens_outside_event_loop(self) -> None:
+        # Regression test for the CapacityLimiterAdapter setter rejecting 0,
+        # which contradicted the 4.12 behavior of allowing 0 total tokens
+        limiter = CapacityLimiter(1)
+        limiter.total_tokens = 0
+        assert limiter.total_tokens == 0
+        assert CapacityLimiter(0).total_tokens == 0
 
     async def test_total_tokens_as_kwarg(self) -> None:
         # Regression test for #515

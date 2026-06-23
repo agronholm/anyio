@@ -4,7 +4,7 @@ import math
 import sys
 import threading
 import time
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Callable, Coroutine
 from concurrent import futures
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
 from contextlib import asynccontextmanager, suppress
@@ -12,11 +12,12 @@ from contextvars import ContextVar
 from typing import Any, Literal, NoReturn, TypeVar
 
 import pytest
-from _pytest.logging import LogCaptureFixture
+from pytest import LogCaptureFixture
 
 from anyio import (
     CancelScope,
     Event,
+    NoEventLoopError,
     RunFinishedError,
     create_task_group,
     fail_after,
@@ -29,17 +30,16 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
-from anyio._core._exceptions import NoEventLoopError
 from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
 from anyio.lowlevel import EventLoopToken, checkpoint, current_token
 
-from .conftest import asyncio_params
+from .conftest import asyncio_params, return_non_coro_awaitable
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
-T_Retval = TypeVar("T_Retval")
+T_co = TypeVar("T_co")
 
 
 async def async_add(a: int, b: int) -> int:
@@ -57,13 +57,13 @@ def sync_add(a: int, b: int) -> int:
 
 
 def thread_worker_async(
-    func: Callable[..., Awaitable[T_Retval]], *args: Any
-) -> T_Retval:
+    func: Callable[..., Coroutine[Any, Any, T_co]], *args: Any
+) -> T_co:
     assert threading.current_thread() is not threading.main_thread()
     return from_thread.run(func, *args)
 
 
-def thread_worker_sync(func: Callable[..., T_Retval], *args: Any) -> T_Retval:
+def thread_worker_sync(func: Callable[..., T_co], *args: Any) -> T_co:
     assert threading.current_thread() is not threading.main_thread()
     return from_thread.run_sync(func, *args)
 
@@ -351,6 +351,13 @@ class TestBlockingPortal:
             result = await to_thread.run_sync(portal.call, async_add, 1, 2)
             assert result == 3
 
+    async def test_call_non_corofunc(self) -> None:
+        async with BlockingPortal() as portal:
+            result = await to_thread.run_sync(
+                portal.call, return_non_coro_awaitable(async_add), 1, 2
+            )
+            assert result == 3
+
     async def test_call_anext(self) -> None:
         gen = asyncgen_add(1, 2)
         try:
@@ -483,6 +490,17 @@ class TestBlockingPortal:
             portal.call(event2.wait)
             assert future.result() == "test"
 
+    def test_start_task_soon_non_corofunc(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        @return_non_coro_awaitable
+        async def taskfunc() -> Literal["test"]:
+            return "test"
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            future = portal.start_task_soon(taskfunc)
+        assert future.result() == "test"
+
     def test_start_task_soon_cancel_later(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
@@ -515,6 +533,30 @@ class TestBlockingPortal:
             future = portal.start_task_soon(event_waiter)
             future.cancel()
             done_event.wait(10)
+
+        assert cancelled
+
+    def test_start_task_soon_cancel_after_stop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        cancelled = False
+        done_event = threading.Event()
+
+        async def event_waiter() -> None:
+            nonlocal cancelled
+            try:
+                await sleep(10)
+            except get_cancelled_exc_class():
+                cancelled = True
+            finally:
+                done_event.set()
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            future = portal.start_task_soon(event_waiter)
+            portal.call(wait_all_tasks_blocked)
+            portal.call(portal.stop)
+            future.cancel()
+            done_event.wait(5)
 
         assert cancelled
 
@@ -600,6 +642,18 @@ class TestBlockingPortal:
     def test_start_with_value(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
+        async def taskfunc(*, task_status: TaskStatus[str]) -> None:
+            task_status.started("foo")
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            future, value = portal.start_task(taskfunc)
+            assert value == "foo"
+            assert future.result() is None
+
+    def test_start_non_corofunc(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        @return_non_coro_awaitable
         async def taskfunc(*, task_status: TaskStatus[str]) -> None:
             task_status.started("foo")
 
