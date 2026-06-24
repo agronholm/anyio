@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**4.14.1**
 
 - Changed the ``anyio`` and ``anyio.abc`` packages to lazily import the necessary
   submodules. This is done by parsing the AST of the module and building a lookup table
