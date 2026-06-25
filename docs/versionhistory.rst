@@ -3,13 +3,16 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**4.14.1**
+**UNRELEASED**
 
 - Changed the ``anyio`` and ``anyio.abc`` packages to lazily import the necessary
   submodules. This is done by parsing the AST of the module and building a lookup table
   from the ``if TYPE_CHECKING:`` block. A fallback mode has been provided for
   installations where the source code is unavailable (e.g. PyInstaller).
   (`#1169 <https://github.com/agronholm/anyio/pull/1169>`_)
+
+**4.14.1**
+
 - Fixed teardown of higher-scoped async fixtures failing on asyncio with
   ``RuntimeError: Attempted to exit cancel scope in a different task than it was entered in``
   when an async test raise an outcome exception (e.g., ``pytest.skip()``, ``pytest.xfail()``,
