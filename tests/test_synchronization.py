@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import sys
 from contextlib import AbstractContextManager
 from typing import Any
@@ -927,6 +928,19 @@ class TestCapacityLimiter:
         limiter.total_tokens = 0
         assert limiter.total_tokens == 0
         assert CapacityLimiter(0).total_tokens == 0
+
+    def test_float_infinity_outside_event_loop(self) -> None:
+        # Regression test: the CapacityLimiterAdapter setter checked for
+        # infinity with the identity operator (``value is not math.inf``), so
+        # ``float("inf")`` -- a distinct object that merely equals ``math.inf``
+        # -- was rejected outside an event loop, while every backend setter
+        # (which uses ``math.isinf``) accepts it.
+        assert CapacityLimiter(float("inf")).total_tokens == math.inf
+        assert CapacityLimiter(math.inf).total_tokens == math.inf
+
+        limiter = CapacityLimiter(1)
+        limiter.total_tokens = float("inf")
+        assert limiter.total_tokens == math.inf
 
     async def test_total_tokens_as_kwarg(self) -> None:
         # Regression test for #515
