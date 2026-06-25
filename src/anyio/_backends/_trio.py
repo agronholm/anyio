@@ -85,10 +85,11 @@ from .._core._tasks import TaskHandle
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend, StrOrBytesPath
 from ..abc._tasks import T_contra, call_for_coroutine, get_callable_name
-from ..streams.memory import MemoryObjectSendStream
 
 if TYPE_CHECKING:
     from _typeshed import FileDescriptorLike
+
+    from ..streams.memory import MemoryObjectSendStream
 
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
