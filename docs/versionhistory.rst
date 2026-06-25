@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**4.14.1**
 
 - Fixed teardown of higher-scoped async fixtures failing on asyncio with
   ``RuntimeError: Attempted to exit cancel scope in a different task than it was entered in``
