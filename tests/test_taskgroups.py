@@ -2018,7 +2018,6 @@ async def test_cancel_shielding_start() -> None:
 
     async def taskfunc(*, task_status: TaskStatus[None]) -> None:
         with CancelScope(shield=True):
-            entered_inner_scope.set()
             try:
                 await resume_event.wait()
             except get_cancelled_exc_class():
