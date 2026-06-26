@@ -10,6 +10,7 @@ import pytest
 
 from anyio import (
     CancelScope,
+    CapacityLimiter,
     Condition,
     Event,
     Lock,
@@ -22,7 +23,7 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
-from anyio.abc import CapacityLimiter, TaskStatus
+from anyio.abc import TaskStatus
 from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params

@@ -78,6 +78,7 @@ from anyio.abc import (
     UNIXSocketStream,
 )
 from anyio.lowlevel import checkpoint
+from anyio.pytest_plugin import FreePortFactory
 from anyio.streams.stapled import MultiListener
 from anyio.streams.tls import TLSConnectable
 
@@ -1016,8 +1017,8 @@ class TestTCPListener:
                 1 if socket.has_dualstack_ipv6() else 2,
                 54321,
             ),
-            ("localhost", AddressFamily.AF_UNSPEC, 2, 54321),
-            ("localhost", AddressFamily.AF_INET, 1, 54321),
+            ("localhost", AddressFamily.AF_UNSPEC, 2, None),
+            ("localhost", AddressFamily.AF_INET, 1, None),
         ],
     )
     async def test_tcp_listener_same_port(
@@ -1025,8 +1026,12 @@ class TestTCPListener:
         local_host: str | None,
         family: AnyIPAddressFamily,
         expected_listeners: int,
-        local_port: int,
+        local_port: int | None,
+        free_tcp_port_factory: FreePortFactory,
     ) -> None:
+        if local_port is None:
+            local_port = free_tcp_port_factory()
+
         async with await create_tcp_listener(
             local_host=local_host, family=family, local_port=local_port
         ) as multi:
