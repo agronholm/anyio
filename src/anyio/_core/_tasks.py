@@ -9,7 +9,6 @@ from collections.abc import (
 from contextlib import (
     contextmanager,
 )
-from contextvars import ContextVar
 from enum import Enum, auto
 from inspect import iscoroutine
 from types import TracebackType
@@ -33,8 +32,6 @@ T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
 T_startval = TypeVar("T_startval", covariant=True, default=Never)
 PosArgsT = TypeVarTuple("PosArgsT")
-
-_current_task_handle: ContextVar[TaskHandle] = ContextVar("_current_task_handle")
 
 
 class _IgnoredTaskStatus(TaskStatus[object]):
