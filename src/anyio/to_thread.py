@@ -11,7 +11,7 @@ from typing import TypeVar
 from warnings import warn
 
 from ._core._eventloop import get_async_backend
-from .abc import CapacityLimiter
+from ._core._synchronization import CapacityLimiter
 
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
