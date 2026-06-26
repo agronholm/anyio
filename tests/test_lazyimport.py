@@ -12,7 +12,14 @@ import pytest
 
 import anyio.abc
 
-DEPRECATIONS = {"anyio.BrokenWorkerIntepreter": "anyio.BrokenWorkerInterpreter"}
+DEPRECATIONS = {
+    "anyio.BrokenWorkerIntepreter": "anyio.BrokenWorkerInterpreter",
+    "anyio.abc.CapacityLimiter": "anyio.CapacityLimiter",
+    "anyio.abc.Condition": "anyio.Condition",
+    "anyio.abc.Event": "anyio.Event",
+    "anyio.abc.Lock": "anyio.Lock",
+    "anyio.abc.Semaphore": "anyio.Semaphore",
+}
 
 
 def test_sourceless_install(tmp_path: Path) -> None:
@@ -104,7 +111,7 @@ def test_sourceless_install(tmp_path: Path) -> None:
         "anyio.abc.CancelScope": "anyio",
         "anyio.abc.UDPSocket": "anyio.abc",
     }
-    assert len(result["deprecations"]) == len(DEPRECATIONS)
+    assert result["deprecations"] == DEPRECATIONS
 
 
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")

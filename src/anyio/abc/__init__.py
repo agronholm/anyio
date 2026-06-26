@@ -62,7 +62,6 @@ if TYPE_CHECKING or not install_lazy_importer():
     from ..from_thread import BlockingPortal as BlockingPortal
 
     fix_package_names()
-
     set_deprecated_aliases(
         {
             "CapacityLimiter": "anyio.CapacityLimiter",
