@@ -45,6 +45,16 @@ class TestFileReadStream:
         with pytest.raises(ClosedResourceError):
             await stream.receive()
 
+    @pytest.mark.parametrize("max_bytes", [0, -1])
+    async def test_receive_invalid_max_bytes(
+        self, file_path: Path, max_bytes: int
+    ) -> None:
+        async with await FileReadStream.from_path(file_path) as stream:
+            with pytest.raises(
+                ValueError, match="max_bytes must be a positive integer"
+            ):
+                await stream.receive(max_bytes)
+
     async def test_seek(self, file_path: Path) -> None:
         with file_path.open("rb") as file:
             async with FileReadStream(file) as stream:
