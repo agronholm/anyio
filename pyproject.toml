@@ -29,7 +29,7 @@ requires-python = ">= 3.10"
 dependencies = [
     "exceptiongroup >= 1.0.2; python_version < '3.11'",
     "idna >= 2.8",
-    "typing_extensions >= 4.5; python_version < '3.13'",
+    "typing_extensions >= 4.16.0rc2; python_version < '3.15'",
 ]
 dynamic = ["version"]
 
