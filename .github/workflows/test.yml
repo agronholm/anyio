@@ -129,6 +129,9 @@ jobs:
         PYTEST_DISABLE_PLUGIN_AUTOLOAD: 1
     - name: Generate coverage report
       run: coverage xml
+    - name: Trust Coveralls Homebrew tap (Homebrew 6 requirement)
+      if: runner.os == 'macOS'
+      run: brew trust coverallsapp/coveralls
     - name: Upload Coverage
       uses: coverallsapp/github-action@v2
       with:

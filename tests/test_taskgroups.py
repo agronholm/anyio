@@ -2008,6 +2008,33 @@ async def test_cancel_reason() -> None:
     exc_info.match(task.name)
 
 
+async def test_cancel_shielding_start() -> None:
+    """
+    Test that if the host task that has spawned a subtask via ``start()`` is cancelled,
+    a shielded cancel scope in the child task will shield it from cancellation.
+
+    Regression test for #837.
+    """
+
+    async def taskfunc(*, task_status: TaskStatus[None]) -> None:
+        with CancelScope(shield=True):
+            try:
+                await resume_event.wait()
+            except get_cancelled_exc_class():
+                pytest.fail("Shouldn't be cancelled in a shielded scope")
+
+        # The cancellation should be triggered here, and not any earlier
+        await checkpoint()
+
+    resume_event = Event()
+    with CancelScope() as outer_scope:
+        async with create_task_group() as tg:
+            tg.start_soon(tg.start, taskfunc)
+            await wait_all_tasks_blocked()
+            outer_scope.cancel()
+            resume_event.set()
+
+
 @pytest.mark.parametrize(
     "native",
     [

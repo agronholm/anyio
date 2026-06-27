@@ -5,6 +5,14 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed ``CapacityLimiter.total_tokens`` rejecting ``float("inf")`` when the limiter was
+  instantiated outside of an event loop. The adapter setter checked for infinity by
+  identity (``value is math.inf``), so only the exact ``math.inf`` singleton was accepted,
+  while every backend setter (using ``math.isinf()``) accepts any positive infinity
+  (`#1189 <https://github.com/agronholm/anyio/pull/1189>`_; PR by @greymoth-jp).
+
+**4.14.1**
+
 - Fixed teardown of higher-scoped async fixtures failing on asyncio with
   ``RuntimeError: Attempted to exit cancel scope in a different task than it was entered in``
   when an async test raise an outcome exception (e.g., ``pytest.skip()``, ``pytest.xfail()``,
@@ -14,6 +22,14 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   instantiated outside of an event loop, contradicting the documented behavior of
   allowing 0 total tokens
   (`#1183 <https://github.com/agronholm/anyio/pull/1183>`_; PR by @nyxst4ck)
+- Fixed ``Process.wait()`` on asyncio waiting for stdout/stderr kept open (e.g.
+  if a grandchild inherited it), instead of returning once the process exits
+  like the other backends do
+  (`#1174 <https://github.com/agronholm/anyio/issues/1174>`_; PR by @tapetersen)
+- Fixed ``Process.aclose()`` deadlocking on the asyncio backend when the subprocess is
+  blocked on writing to a stdout or stderr pipe whose buffer is full; closing the
+  process's standard streams now also closes the underlying pipe transports
+  (`#1166 <https://github.com/agronholm/anyio/issues/1166>`_; PR by @tapetersen)
 
 **4.14.0**
 
