@@ -592,6 +592,14 @@ class CancelScope(BaseCancelScope):
         should_retry = False
         current = current_task()
         for task in self._tasks:
+            # Skip tasks that have already completed: task.cancel() is a no-op
+            # on them, so leaving should_retry=True here would reschedule
+            # _deliver_cancellation forever (#1111). A done task can briefly
+            # remain in ``_tasks`` while a cancel scope is being torn down,
+            # which is enough to lock the event loop at 100% CPU.
+            if task.done():
+                continue
+
             should_retry = True
             if task._must_cancel:  # type: ignore[attr-defined]
                 continue

@@ -22,6 +22,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   instantiated outside of an event loop, contradicting the documented behavior of
   allowing 0 total tokens
   (`#1183 <https://github.com/agronholm/anyio/pull/1183>`_; PR by @nyxst4ck)
+- Fixed 100% CPU spin in the asyncio backend's ``CancelScope._deliver_cancellation``.
+  This would only occur in cases when cancel scopes are misused (e.g. a parent is exited
+  before its child scope is exited).
+  (`#1111 <https://github.com/agronholm/anyio/issues/1111>`_; PR by @jbbqqf)
 
 **4.14.0**
 
