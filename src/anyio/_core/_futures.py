@@ -4,7 +4,6 @@ from collections.abc import Generator
 from enum import Enum, auto
 from typing import Any, Generic, TypeVar
 
-from ._eventloop import get_cancelled_exc_class
 from ._exceptions import (
     FutureAlreadyFinished,
     FutureCancelled,
@@ -12,10 +11,8 @@ from ._exceptions import (
     TaskNotFinished,
 )
 from ._synchronization import Event
-from ._tasks import CancelScope
 
 T = TypeVar("T")
-
 
 class Future(Generic[T]):
     """
@@ -33,9 +30,6 @@ class Future(Generic[T]):
         .. attribute:: FINISHED
 
             The future has finished with a return value.
-        .. attribute:: CANCELLING
-
-            The future has been cancelled but has not finished yet.
         .. attribute:: CANCELLED
 
             The future was cancelled and has finished since.
@@ -46,14 +40,13 @@ class Future(Generic[T]):
 
         PENDING = auto()
         FINISHED = auto()
-        CANCELLING = auto()
         CANCELLED = auto()
         FAILED = auto()
 
     __slots__ = (
+        "_cancelled",
         "_result_value",
         "_finished_event",
-        "_cancel_scope",
         "_exception",
         "_name",
     )
@@ -61,8 +54,8 @@ class Future(Generic[T]):
 
     def __init__(self, *, name: str | None = None) -> None:
         self._finished_event = Event()
-        self._cancel_scope = CancelScope()
         self._exception: BaseException | None = None
+        self._cancelled: bool = False
         self._name = name
 
     def _check_pending(self) -> None:
@@ -78,10 +71,8 @@ class Future(Generic[T]):
                 raise FutureAlreadyFinished("future has already finished")
             case Future.Status.FAILED:
                 raise FutureAlreadyFinished("future already failed")
-            case Future.Status.CANCELLING:
-                raise FutureCancelled("future was cancelled")
             case Future.Status.CANCELLED:
-                raise FutureCancelled("future was cancelled") from self._exception
+                raise FutureCancelled("future was cancelled")
 
     async def wait(self) -> None:
         """
@@ -89,12 +80,7 @@ class Future(Generic[T]):
 
         This method will attempt to wait for a result or exception
         """
-        with self._cancel_scope:
-            try:
-                await self._finished_event.wait()
-            except BaseException as e:
-                self.set_exception(e)
-                raise
+        await self._finished_event.wait()
 
     def set_result(self, value: T) -> None:
         """
@@ -120,19 +106,11 @@ class Future(Generic[T]):
     def cancel(self) -> None:
         """Cancels a pending `.Future` object
 
-        :raises FutureAlreadyFinished: if future was already given a result or exception.
+        Does nothing if the Future was already finished.
         """
-        match self.status:
-            case Future.Status.PENDING:
-                return self._cancel_scope.cancel()
-            case Future.Status.FINISHED:
-                raise FutureAlreadyFinished("future has already finished")
-            case Future.Status.FAILED:
-                raise FutureAlreadyFinished("future already failed")
-            case Future.Status.CANCELLING:
-                return
-            case Future.Status.CANCELLED:
-                return
+        if self.status is Future.Status.PENDING:
+            self._cancelled = True
+            self._finished_event.set()
 
     @property
     def exception(self) -> BaseException | None:
@@ -150,10 +128,8 @@ class Future(Generic[T]):
                 raise TaskNotFinished("the future has not finished yet")
             case Future.Status.FINISHED:
                 return None
-            case Future.Status.CANCELLING:
-                raise FutureCancelled("the future was cancelled")
             case Future.Status.CANCELLED:
-                raise FutureCancelled("the future was cancelled") from self._exception
+                raise FutureCancelled("the future was cancelled")
             case Future.Status.FAILED:
                 return self._exception
 
@@ -172,10 +148,8 @@ class Future(Generic[T]):
                 raise TaskNotFinished("the future has not finished yet")
             case Future.Status.FINISHED:
                 return self._result_value
-            case Future.Status.CANCELLING:
-                raise FutureCancelled("the future was cancelled")
             case Future.Status.CANCELLED:
-                raise FutureCancelled("the future was cancelled") from self._exception
+                raise FutureCancelled("the future was cancelled")
             case Future.Status.FAILED:
                 raise TaskFailed("the future raised an exception") from self._exception
 
@@ -193,15 +167,11 @@ class Future(Generic[T]):
         raised, if any. No other status transitions will happen.
         """
         if not self._finished_event.is_set():
-            if self._cancel_scope.cancel_called:
-                return Future.Status.CANCELLING
-            else:
-                return Future.Status.PENDING
+            return Future.Status.PENDING
+        elif self._cancelled:
+            return Future.Status.CANCELLED
         elif self._exception is not None:
-            if isinstance(self._exception, get_cancelled_exc_class()):
-                return Future.Status.CANCELLED
-            else:
-                return Future.Status.FAILED
+            return Future.Status.FAILED
         else:
             return Future.Status.FINISHED
 
