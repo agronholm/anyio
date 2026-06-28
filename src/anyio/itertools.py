@@ -42,9 +42,12 @@ from ._core._synchronization import Lock
 from ._core._tasks import CancelScope
 from .lowlevel import cancel_shielded_checkpoint, checkpoint, checkpoint_if_cancelled
 
+if sys.version_info < (3, 15):
+    from typing_extensions import sentinel
+
 T = TypeVar("T")
 R = TypeVar("R")
-_tee_end = object()
+_tee_end = sentinel("_tee_end")
 
 
 @dataclass(eq=False)
