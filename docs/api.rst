@@ -46,6 +46,10 @@ Task groups
 .. autoclass:: anyio.abc.TaskGroup
 .. autoclass:: anyio.abc.TaskStatus
 
+Future objects
+--------------
+.. autoclass:: anyio.Future
+
 Running code in worker threads
 ------------------------------
 
