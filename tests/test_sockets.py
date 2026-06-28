@@ -281,6 +281,16 @@ class TestTCPStream:
 
         assert response == b"halb"
 
+    @pytest.mark.parametrize("max_bytes", [0, -1])
+    async def test_receive_invalid_max_bytes(
+        self, server_addr: tuple[str, int], max_bytes: int
+    ) -> None:
+        async with await connect_tcp(*server_addr) as stream:
+            with pytest.raises(
+                ValueError, match="max_bytes must be a positive integer"
+            ):
+                await stream.receive(max_bytes)
+
     async def test_send_large_buffer(
         self, server_sock: socket.socket, server_addr: tuple[str, int]
     ) -> None:
@@ -1194,6 +1204,16 @@ class TestUNIXStream:
             client.close()
 
         assert response == b"halb"
+
+    @pytest.mark.parametrize("max_bytes", [0, -1])
+    async def test_receive_invalid_max_bytes(
+        self, server_sock: socket.socket, socket_path: Path, max_bytes: int
+    ) -> None:
+        async with await connect_unix(socket_path) as stream:
+            with pytest.raises(
+                ValueError, match="max_bytes must be a positive integer"
+            ):
+                await stream.receive(max_bytes)
 
     async def test_receive_large_buffer(
         self, server_sock: socket.socket, socket_path: Path

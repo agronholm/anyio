@@ -79,6 +79,9 @@ class FileReadStream(_BaseFileStream, ByteReceiveStream):
         return cls(file)
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be a positive integer")
+
         try:
             data = await to_thread.run_sync(self._file.read, max_bytes)
         except ValueError:
