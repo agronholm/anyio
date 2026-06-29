@@ -5,11 +5,12 @@ import platform
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from subprocess import CalledProcessError
+from subprocess import DEVNULL, CalledProcessError
 from textwrap import dedent
 from typing import Any
 
 import pytest
+from pytest_mock.plugin import MockerFixture
 
 from anyio import (
     BrokenResourceError,
@@ -21,6 +22,7 @@ from anyio import (
     open_process,
     run_process,
 )
+from anyio._core._eventloop import get_async_backend
 from anyio.streams.buffered import BufferedByteReceiveStream
 
 
@@ -348,11 +350,10 @@ async def test_exceptions_after_subprocess_closes_standard_streams() -> None:
                 )
             ],
         ),
-        pytest.param("extra_groups", list, id="extra_groups"),
         pytest.param("umask", lambda: 0, id="umask"),
     ],
 )
-async def test_py39_arguments(
+async def test_user_group_arguments(
     argname: str,
     argvalue_factory: Callable[[], Any],
     event_loop_implementation_name: str | None,
@@ -373,6 +374,33 @@ async def test_py39_arguments(
             )
 
         raise
+
+
+async def test_arguments_passed_through(mocker: MockerFixture) -> None:
+    """
+    Regression test that ensures that all the arguments accepted by ``open_process()``
+    are passed through to the backend's ``open_process()``.
+    """
+
+    command = [sys.executable, "-c", "pass"]
+    kwargs: dict[str, Any] = {
+        "stdin": DEVNULL,
+        "stdout": DEVNULL,
+        "stderr": DEVNULL,
+        "cwd": "/tmp",
+        "env": {"FOO": "bar"},
+        "startupinfo": object(),
+        "creationflags": 4,
+        "start_new_session": True,
+        "pass_fds": (5, 6),
+        "user": "myuser",
+        "group": "mygroup",
+        "extra_groups": [1, 2, "foo"],
+        "umask": 123,
+    }
+    mock_open_process = mocker.patch.object(get_async_backend(), "open_process")
+    await open_process(command, **kwargs)
+    mock_open_process.assert_called_once_with(command, **kwargs)
 
 
 async def test_close_early() -> None:
