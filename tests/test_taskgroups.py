@@ -1748,6 +1748,57 @@ async def test_cancel_child_task_when_host_is_shielded() -> None:
                 await cancelled.wait()
 
 
+async def test_start_not_cancelled_before_started_by_tg() -> None:
+    # A task started with start() shouldn't get cancelled by the TaskGroup until
+    # it has called started
+    #
+    # * The started task shouldn't get a CancelledError until the first
+    #   checkpoint after the started() call.
+    #
+    # * Any value passed to started should be available and correctly passed
+    #   back to the caller of start.
+    #
+    #  * The CancelledError shouldn't leak out of the start() call to the calling
+    #   task.
+
+    # To manage the sibling tasks needed for the test
+    th: TaskHandle[str] | None = None
+    async with anyio.create_task_group() as tg:
+        # Task holding the task_group we're trying to start a task in and will cancel.
+        async def group_task(
+            *, task_status: TaskStatus[TaskGroup] = anyio.TASK_STATUS_IGNORED
+        ) -> None:
+            async with create_task_group() as tg:
+                task_status.started(tg)
+                await anyio.sleep_forever()
+
+        inner_tg: TaskGroup = await tg.start(group_task)
+        ev = anyio.Event()
+
+        # Task outside the inner_tg that tries to start a task with status_reporting
+        async def outside_task() -> str:
+
+            async def just_wait(
+                *, task_status: TaskStatus[str] = anyio.TASK_STATUS_IGNORED
+            ) -> None:
+                await ev.wait()
+                await checkpoint()  # Should not get cancelled here
+                task_status.started("started")
+                await checkpoint()  # Should be cancelled here
+                pytest.fail("Should've been cancelled before this")
+
+            return await inner_tg.start(just_wait)
+
+        th = tg.start_soon(outside_task)
+        await anyio.wait_all_tasks_blocked()
+        inner_tg.cancel()
+        ev.set()
+
+    assert th is not None
+    await th.wait()
+    assert th.return_value == "started"
+
+
 async def test_start_cancels_parent_scope() -> None:
     """Regression test for #685 / #710."""
     started: bool = False
