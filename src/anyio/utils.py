@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-__all__ = ("amap", "as_completed", "gather", "race")
+__all__ = ("amap", "as_completed", "gather")
 
+import sys
 from collections.abc import AsyncGenerator, Callable, Coroutine, Iterable
 from contextlib import asynccontextmanager
 from typing import Any, TypeVar, overload
 
-from anyio import (
-    CancelScope,
-    TaskHandle,
-    create_memory_object_stream,
-    create_task_group,
-)
+from anyio import TaskHandle, create_memory_object_stream, create_task_group
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 R = TypeVar("R")
 S = TypeVar("S")
@@ -121,39 +120,6 @@ async def as_completed(
             yield recv
         finally:
             tg.cancel_scope.cancel()
-
-
-_sentinel = object()
-
-
-async def race(*coros: Coroutine[Any, Any, T]) -> T:
-    """
-    Run the given coroutines concurrently and return the first one to complete.
-
-    When the first task completes, the remaining tasks are cancelled and their results
-    are discarded. If any task raises an exception, it is propagated to the caller in an
-    exception group.
-
-    :param coros: coroutine objects to run as tasks
-    :return: the return value of the first completed task
-
-    """
-    if not coros:
-        raise ValueError("race() takes at least one coroutine")
-    retval: Any = _sentinel
-
-    async def runner(coro: Coroutine[Any, Any, T], scope: CancelScope) -> None:
-        nonlocal retval
-        local_retval = await coro
-        if retval is _sentinel:
-            retval = local_retval
-            scope.cancel()
-
-    async with create_task_group() as tg:
-        for coro in coros:
-            tg.start_soon(runner, coro, tg.cancel_scope)
-
-    return retval
 
 
 async def amap(
