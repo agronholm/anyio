@@ -13,6 +13,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   identity (``value is math.inf``), so only the exact ``math.inf`` singleton was accepted,
   while every backend setter (using ``math.isinf()``) accepts any positive infinity
   (`#1189 <https://github.com/agronholm/anyio/pull/1189>`_; PR by @greymoth-jp).
+- Added ``amap``, ``gather``, and ``as_completed`` utility functions to simplify common
+  patterns (`#1173 <https://github.com/agronholm/anyio/pull/1173>`_; PR by @Graeme22).
 
 **4.14.1**
 
