@@ -11,7 +11,7 @@ from anyio import TaskHandle, create_memory_object_stream, create_task_group
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
+    pass
 
 R = TypeVar("R")
 S = TypeVar("S")
