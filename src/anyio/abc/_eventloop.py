@@ -3,7 +3,14 @@ from __future__ import annotations
 import math
 import sys
 from abc import ABCMeta, abstractmethod
-from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Sequence
+from collections.abc import (
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Mapping,
+    Sequence,
+)
 from contextlib import AbstractContextManager
 from os import PathLike
 from signal import Signals
@@ -235,6 +242,14 @@ class AsyncBackend(metaclass=ABCMeta):
         stdin: int | IO[Any] | None,
         stdout: int | IO[Any] | None,
         stderr: int | IO[Any] | None,
+        # These below may be sent with explicit default arguments and so must accept
+        # these literally
+        cwd: StrOrBytesPath | None = None,
+        env: Mapping[str, str] | None = None,
+        startupinfo: Any = None,
+        creationflags: int = 0,
+        start_new_session: bool = False,
+        pass_fds: Sequence[int] = (),
         **kwargs: Any,
     ) -> Process:
         pass

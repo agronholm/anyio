@@ -428,7 +428,10 @@ class TestTCPStream:
         ),
     )
     async def test_happy_eyeballs_refcycles(
-        self, free_tcp_port: int, anyio_backend_name: str
+        self,
+        free_tcp_port: int,
+        anyio_backend_name: str,
+        event_loop_implementation_name: str,
     ) -> None:
         """
         Test derived from https://github.com/python/cpython/pull/124859
@@ -437,6 +440,11 @@ class TestTCPStream:
             pytest.skip(
                 "asyncio.BaseEventLoop.create_connection creates refcycles on py 3.9"
             )
+        if (
+            anyio_backend_name == "asyncio"
+            and event_loop_implementation_name.startswith("rsloop")
+        ):
+            pytest.skip("Not fixed yet on rsloop")
 
         exc = None
         try:
