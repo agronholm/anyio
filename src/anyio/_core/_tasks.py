@@ -252,11 +252,16 @@ class TaskHandle(Generic[T_co, T_startval]):
     _return_value: T_co
     _start_value: T_startval
 
-    def __init__(self, coro: Coroutine[Any, Any, T_co], name: object) -> None:
+    def __init__(
+        self,
+        coro: Coroutine[Any, Any, T_co],
+        name: object,
+        cancel_scope: CancelScope | None = None,
+    ) -> None:
         from ._synchronization import Event
 
         self._coro = coro
-        self._cancel_scope = CancelScope()
+        self._cancel_scope = cancel_scope if cancel_scope is not None else CancelScope()
         self._finished_event = Event()
         self._exception: BaseException | None = None
 

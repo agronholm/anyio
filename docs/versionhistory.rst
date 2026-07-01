@@ -13,6 +13,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   identity (``value is math.inf``), so only the exact ``math.inf`` singleton was accepted,
   while every backend setter (using ``math.isinf()``) accepts any positive infinity
   (`#1189 <https://github.com/agronholm/anyio/pull/1189>`_; PR by @greymoth-jp).
+- Fixed Inconsistencies between Trio and asyncio when target ``TaskGroup`` is
+  cancelled before a task created with ``.start()`` calls ``TaskStatus.started()``
+  (`#1197 <https://github.com/agronholm/anyio/issues/1197>`_; PR by @tapetersen)
 
 **4.14.1**
 
