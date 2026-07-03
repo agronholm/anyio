@@ -98,6 +98,18 @@ async def test_terminate(tmp_path: Path) -> None:
         assert await process.wait() == 2
 
 
+@pytest.mark.parametrize("max_bytes", [0, -1])
+async def test_process_receive_invalid_max_bytes(max_bytes: int) -> None:
+    async with await open_process(
+        [sys.executable, "-c", "import sys; sys.stdout.write('x')"]
+    ) as process:
+        assert process.stdout is not None
+        with pytest.raises(ValueError, match="max_bytes must be a positive integer"):
+            await process.stdout.receive(max_bytes)
+
+        await process.wait()
+
+
 async def test_process_cwd(tmp_path: Path) -> None:
     """Test that `cwd` is successfully passed to the subprocess implementation"""
     cmd = [sys.executable, "-c", "import os; print(os.getcwd())"]

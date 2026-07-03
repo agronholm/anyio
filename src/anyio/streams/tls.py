@@ -236,6 +236,9 @@ class TLSStream(ByteStream):
         await self.transport_stream.aclose()
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be a positive integer")
+
         data = await self._call_sslobject_method(self._ssl_object.read, max_bytes)
         if not data:
             raise EndOfStream

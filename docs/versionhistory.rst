@@ -5,6 +5,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Changed ``ByteReceiveStream.receive()`` implementations to raise a ``ValueError`` when
+  ``max_bytes`` is not a positive integer
+  (`#1191 <https://github.com/agronholm/anyio/pull/1191>`_)
 - Fixed ``CapacityLimiter.total_tokens`` rejecting ``float("inf")`` when the limiter was
   instantiated outside of an event loop. The adapter setter checked for infinity by
   identity (``value is math.inf``), so only the exact ``math.inf`` singleton was accepted,
