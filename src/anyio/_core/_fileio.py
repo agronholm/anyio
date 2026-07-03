@@ -925,9 +925,7 @@ class Path:
         return type(self)(self._path.with_name(name), limiter=self._limiter)
 
     def with_stem(self, stem: str) -> Self:
-        return type(self)(
-            self._path.with_name(stem + self._path.suffix), limiter=self._limiter
-        )
+        return type(self)(self._path.with_stem(stem), limiter=self._limiter)
 
     def with_suffix(self, suffix: str) -> Self:
         return type(self)(self._path.with_suffix(suffix), limiter=self._limiter)
