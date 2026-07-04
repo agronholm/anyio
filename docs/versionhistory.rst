@@ -13,6 +13,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   identity (``value is math.inf``), so only the exact ``math.inf`` singleton was accepted,
   while every backend setter (using ``math.isinf()``) accepts any positive infinity
   (`#1189 <https://github.com/agronholm/anyio/pull/1189>`_; PR by @greymoth-jp).
+- Fixed ``to_process.run_sync()`` deadlocking when the worker function writes enough data
+  to ``sys.stderr`` to fill the (undrained) pipe buffer. The worker process now redirects
+  ``sys.stderr`` to ``os.devnull`` as well, matching the documented behavior
 
 **4.14.1**
 
