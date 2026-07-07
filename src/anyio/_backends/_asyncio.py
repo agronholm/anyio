@@ -308,6 +308,19 @@ P = ParamSpec("P")
 _root_task: RunVar[asyncio.Task | None] = RunVar("_root_task")
 
 
+def _clear_root_task(_task: object) -> None:
+    # Drop the cached root task once it is done so the event loop it strong-refs
+    # can be garbage-collected. Without this, the cached Task keeps its loop alive
+    # as a strong value in the per-loop run-vars mapping, which is the weak *key*
+    # of ``lowlevel._run_vars``, so the loop (and everything it references, incl.
+    # the run's result) can never be evicted. See
+    # https://github.com/agronholm/anyio/issues/1203.
+    from ..lowlevel import _run_vars as _lowlevel_run_vars
+
+    for run_vars in _lowlevel_run_vars.values():
+        run_vars.pop(_root_task, None)
+
+
 def find_root_task() -> asyncio.Task:
     root_task = _root_task.get(None)
     if root_task is not None and not root_task.done():
@@ -323,6 +336,10 @@ def find_root_task() -> asyncio.Task:
                     or getattr(cb, "__module__", None) == "uvloop.loop"
                 ):
                     _root_task.set(task)
+                    # Register with a fresh context so the callback does not
+                    # capture (and thus retain) the current contextvars snapshot;
+                    # see test_run_sync_worker_cyclic_references.
+                    task.add_done_callback(_clear_root_task, context=Context())
                     return task
 
     # Look up the topmost task in the AnyIO task tree, if possible

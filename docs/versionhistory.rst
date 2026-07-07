@@ -5,6 +5,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed the asyncio backend leaking the event loop (and the run's result) on every
+  ``anyio.run()`` that used ``to_thread.run_sync()``. ``find_root_task()`` cached the
+  root task in a per-loop run-var, and the cached task strong-referenced its loop (the
+  weak *key* of the run-vars mapping), so the entry could never be evicted. The cache
+  entry is now cleared via a task done-callback
+  (`#1203 <https://github.com/agronholm/anyio/issues/1203>`_)
 - Changed ``ByteReceiveStream.receive()`` implementations to raise a ``ValueError`` when
   ``max_bytes`` is not a positive integer
   (`#1191 <https://github.com/agronholm/anyio/pull/1191>`_)

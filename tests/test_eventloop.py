@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import math
+import sys
 import time
+import weakref
 from asyncio import get_running_loop
 from collections.abc import Generator
 from typing import Any
@@ -12,7 +15,7 @@ from unittest.mock import AsyncMock
 import pytest
 from pytest import MonkeyPatch
 
-from anyio import current_time, run, sleep, sleep_forever, sleep_until
+from anyio import current_time, run, sleep, sleep_forever, sleep_until, to_thread
 
 from .conftest import return_non_coro_awaitable
 
@@ -78,6 +81,39 @@ def test_run_unknown_backend() -> None:
 
     with pytest.raises(LookupError, match="No such backend: somebackend"):
         run(main, backend="somebackend")
+
+
+@pytest.mark.skipif(
+    sys.implementation.name != "cpython",
+    reason="garbage collection semantics differ on non-CPython implementations",
+)
+def test_asyncio_run_does_not_leak_event_loop() -> None:
+    """
+    Regression test for #1203.
+
+    ``find_root_task()`` caches the root task in a per-loop run-var. Because the
+    cached task strong-references its event loop (the weak *key* of the run-vars
+    mapping), the loop -- and the run's result -- could never be garbage-collected,
+    leaking on every ``anyio.run()`` that used ``to_thread.run_sync()``.
+    """
+
+    def thread_worker() -> None:
+        pass
+
+    loop_refs: list[weakref.ref[asyncio.AbstractEventLoop]] = []
+
+    async def main() -> None:
+        # Exercising to_thread.run_sync() triggers find_root_task(), which caches
+        # the root task (and thus the loop) in the run-vars mapping.
+        await to_thread.run_sync(thread_worker)
+        loop_refs.append(weakref.ref(get_running_loop()))
+
+    for _ in range(3):
+        run(main, backend="asyncio")
+
+    gc.collect()
+    alive = [ref for ref in loop_refs if ref() is not None]
+    assert not alive, f"{len(alive)} event loop(s) leaked"
 
 
 def test_run_known_but_uninstalled_backend(monkeypatch: MonkeyPatch) -> None:
