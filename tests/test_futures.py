@@ -8,6 +8,7 @@ from anyio import (
     Future,
     FutureAlreadyFinished,
     FutureCancelled,
+    TaskCancelled,
     TaskFailed,
     TaskNotFinished,
     create_task_group,
@@ -89,14 +90,15 @@ class TestFuture:
     async def test_future_cancelling_already_set_result(self) -> None:
         fut: Future[str] = Future()
         fut.set_result("Item")
-        with pytest.raises(FutureAlreadyFinished, match=r"future has already finished"):
-            fut.cancel()
+        fut.cancel()
+        assert await fut == "Item"
 
     async def test_future_cancelling_already_set_exception(self) -> None:
         fut: Future[Any] = Future()
         fut.set_exception(RuntimeError("Failed"))
-        with pytest.raises(FutureAlreadyFinished, match=r"future already failed"):
-            fut.cancel()
+        fut.cancel()
+        with pytest.raises(TaskFailed, match=r"future raised an exception"):
+            await fut
 
     async def test_future_cancelling_with_result(self) -> None:
         fut: Future[str] = Future()
@@ -115,3 +117,35 @@ class TestFuture:
     async def test_future_with_repr(self) -> None:
         repr_str = repr(Future(name="name"))
         assert repr_str == "<Future pending name='name'>"
+
+    async def test_future_with_multiple_waiters(self) -> None:
+        async with create_task_group() as tg:
+            f = Future[str]()
+
+            async def task() -> str:
+                return await f
+
+            tasks = (tg.start_soon(task), tg.start_soon(task))
+            tg.cancel_scope.deadline += 2.0
+            f.set_result("Finished")
+            assert [await t for t in tasks] == ["Finished" for _ in tasks]
+
+    async def test_cancelled_waiter_allows_other(self) -> None:
+        async with create_task_group() as tg:
+            f = Future[str]()
+
+            async def task() -> str:
+                return await f
+
+            th1 = tg.start_soon(task)
+            th2 = tg.start_soon(task)
+            await checkpoint()
+
+            th1.cancel()
+            with pytest.raises(TaskCancelled):
+                await th1
+
+            f.set_result("Finished")
+
+            tg.cancel_scope.deadline += 1.0
+            assert await th2 == "Finished"
