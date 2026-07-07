@@ -1015,7 +1015,7 @@ class TestTCPListener:
                 None,
                 AddressFamily.AF_UNSPEC,
                 1 if socket.has_dualstack_ipv6() else 2,
-                54321,
+                None,
             ),
             ("localhost", AddressFamily.AF_UNSPEC, 2, None),
             ("localhost", AddressFamily.AF_INET, 1, None),
