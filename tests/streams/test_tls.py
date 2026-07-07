@@ -37,7 +37,6 @@ class TestTLSStream:
     ) -> None:
         def serve_sync() -> None:
             conn, addr = server_sock.accept()
-            conn.settimeout(1)
             data = conn.recv(10)
             conn.send(data[::-1])
             conn.close()
@@ -45,7 +44,6 @@ class TestTLSStream:
         server_sock = server_context.wrap_socket(
             socket.socket(), server_side=True, suppress_ragged_eofs=False
         )
-        server_sock.settimeout(1)
         server_sock.bind(("127.0.0.1", 0))
         server_sock.listen()
         server_thread = Thread(target=serve_sync)
@@ -61,6 +59,51 @@ class TestTLSStream:
         server_thread.join()
         server_sock.close()
         assert response == b"olleh"
+
+    @pytest.mark.parametrize("max_bytes", [0, -1])
+    async def test_receive_invalid_max_bytes(
+        self,
+        server_context: ssl.SSLContext,
+        client_context: ssl.SSLContext,
+        max_bytes: int,
+    ) -> None:
+        server_exc = None
+
+        def serve_sync() -> None:
+            nonlocal server_exc
+            conn, addr = server_sock.accept()
+            try:
+                conn.settimeout(1)
+            except BaseException as exc:
+                server_exc = exc
+            finally:
+                conn.close()
+
+        server_sock = server_context.wrap_socket(
+            socket.socket(), server_side=True, suppress_ragged_eofs=True
+        )
+        server_sock.settimeout(1)
+        server_sock.bind(("127.0.0.1", 0))
+        server_sock.listen()
+        server_thread = Thread(target=serve_sync, daemon=True)
+        server_thread.start()
+        try:
+            async with await connect_tcp(*server_sock.getsockname()) as stream:
+                wrapper = await TLSStream.wrap(
+                    stream,
+                    hostname="localhost",
+                    ssl_context=client_context,
+                    standard_compatible=False,
+                )
+                with pytest.raises(
+                    ValueError, match="max_bytes must be a positive integer"
+                ):
+                    await wrapper.receive(max_bytes)
+        finally:
+            server_thread.join()
+            server_sock.close()
+
+        assert server_exc is None
 
     async def test_extra_attributes(
         self,
@@ -117,7 +160,6 @@ class TestTLSStream:
     ) -> None:
         def serve_sync() -> None:
             conn, addr = server_sock.accept()
-            conn.settimeout(1)
             conn.send(b"encrypted")
             unencrypted = conn.unwrap()
             unencrypted.send(b"unencrypted")
@@ -126,7 +168,6 @@ class TestTLSStream:
         server_sock = server_context.wrap_socket(
             socket.socket(), server_side=True, suppress_ragged_eofs=False
         )
-        server_sock.settimeout(1)
         server_sock.bind(("127.0.0.1", 0))
         server_sock.listen()
         server_thread = Thread(target=serve_sync)
@@ -152,7 +193,6 @@ class TestTLSStream:
     ) -> None:
         def serve_sync() -> None:
             conn, addr = server_sock.accept()
-            conn.settimeout(1)
             selected_alpn_protocol = conn.selected_alpn_protocol()
             assert selected_alpn_protocol is not None
             conn.send(selected_alpn_protocol.encode())
@@ -164,7 +204,6 @@ class TestTLSStream:
         server_sock = server_context.wrap_socket(
             socket.socket(), server_side=True, suppress_ragged_eofs=False
         )
-        server_sock.settimeout(1)
         server_sock.bind(("127.0.0.1", 0))
         server_sock.listen()
         server_thread = Thread(target=serve_sync)
@@ -203,7 +242,6 @@ class TestTLSStream:
             nonlocal server_exc
             conn, addr = server_sock.accept()
             try:
-                conn.settimeout(1)
                 conn.sendall(b"hello")
                 if server_compatible:
                     conn.unwrap()
@@ -221,7 +259,6 @@ class TestTLSStream:
             server_side=True,
             suppress_ragged_eofs=not server_compatible,
         )
-        server_sock.settimeout(1)
         server_sock.bind(("127.0.0.1", 0))
         server_sock.listen()
         server_thread = Thread(target=serve_sync, daemon=True)
@@ -255,7 +292,6 @@ class TestTLSStream:
             nonlocal server_exc
             conn, addr = server_sock.accept()
             try:
-                conn.settimeout(1)
                 conn.sendall(b"hello")
             except BaseException as exc:
                 server_exc = exc
@@ -265,7 +301,6 @@ class TestTLSStream:
         server_sock = server_context.wrap_socket(
             socket.socket(), server_side=True, suppress_ragged_eofs=True
         )
-        server_sock.settimeout(1)
         server_sock.bind(("127.0.0.1", 0))
         server_sock.listen()
         server_thread = Thread(target=serve_sync, daemon=True)
@@ -299,7 +334,6 @@ class TestTLSStream:
         server_sock = server_context.wrap_socket(
             socket.socket(), server_side=True, suppress_ragged_eofs=False
         )
-        server_sock.settimeout(1)
         server_sock.bind(("127.0.0.1", 0))
         server_sock.listen()
         server_thread = Thread(target=serve_sync, daemon=True)
@@ -354,7 +388,6 @@ class TestTLSStream:
         server_sock = server_context.wrap_socket(
             socket.socket(), server_side=True, suppress_ragged_eofs=False
         )
-        server_sock.settimeout(1)
         server_sock.bind(("127.0.0.1", 0))
         server_sock.listen()
         server_thread = Thread(target=serve_sync, daemon=True)
@@ -403,7 +436,6 @@ class TestTLSStream:
         server_sock = server_context.wrap_socket(
             socket.socket(), server_side=True, suppress_ragged_eofs=True
         )
-        server_sock.settimeout(1)
         server_sock.bind(("127.0.0.1", 0))
         server_sock.listen()
         server_thread = Thread(target=serve_sync, daemon=True)
@@ -467,7 +499,6 @@ class TestTLSListener:
     ) -> None:
         def connect_sync(addr: tuple[str, int]) -> None:
             with socket.create_connection(addr) as plain_sock:
-                plain_sock.settimeout(2)
                 with client_context.wrap_socket(
                     plain_sock,
                     server_side=False,

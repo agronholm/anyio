@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import sys
 from contextlib import AbstractContextManager
 from typing import Any
@@ -9,6 +10,7 @@ import pytest
 
 from anyio import (
     CancelScope,
+    CapacityLimiter,
     Condition,
     Event,
     Lock,
@@ -21,7 +23,7 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
-from anyio.abc import CapacityLimiter, TaskStatus
+from anyio.abc import TaskStatus
 from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params
@@ -919,6 +921,27 @@ class TestCapacityLimiter:
             backend=anyio_backend_name,
             backend_options=anyio_backend_options,
         )
+
+    def test_zero_tokens_outside_event_loop(self) -> None:
+        # Regression test for the CapacityLimiterAdapter setter rejecting 0,
+        # which contradicted the 4.12 behavior of allowing 0 total tokens
+        limiter = CapacityLimiter(1)
+        limiter.total_tokens = 0
+        assert limiter.total_tokens == 0
+        assert CapacityLimiter(0).total_tokens == 0
+
+    def test_float_infinity_outside_event_loop(self) -> None:
+        # Regression test: the CapacityLimiterAdapter setter checked for
+        # infinity with the identity operator (``value is not math.inf``), so
+        # ``float("inf")`` -- a distinct object that merely equals ``math.inf``
+        # -- was rejected outside an event loop, while every backend setter
+        # (which uses ``math.isinf``) accepts it.
+        assert CapacityLimiter(float("inf")).total_tokens == math.inf
+        assert CapacityLimiter(math.inf).total_tokens == math.inf
+
+        limiter = CapacityLimiter(1)
+        limiter.total_tokens = float("inf")
+        assert limiter.total_tokens == math.inf
 
     async def test_total_tokens_as_kwarg(self) -> None:
         # Regression test for #515
