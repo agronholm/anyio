@@ -16,6 +16,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``anyio.open_process()`` (and ``run_process()``) ignoring the ``extra_groups``
   argument, as it mistakenly passed the value of the ``group`` argument instead
   (`#1209 <https://github.com/agronholm/anyio/pull/1209>`_)
+- Fixed ``TLSStream.wrap()`` matching an internationalized (unicode) host name against
+  the peer certificate using IDNA 2003 (via the standard library) instead of IDNA 2008,
+  which could cause the host name to be matched against the wrong certificate
+  (`#1208 <https://github.com/agronholm/anyio/pull/1208>`_)
 
 **4.14.1**
 
