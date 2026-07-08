@@ -378,7 +378,7 @@ async def test_user_group_arguments(
 
 async def test_arguments_passed_through(mocker: MockerFixture) -> None:
     """
-    Regression test that ensures that all the arguments accepted by ``open_process()``
+    Regression test ensuring all arguments accepted by ``open_process()``
     are passed through to the backend's ``open_process()``.
     """
 
