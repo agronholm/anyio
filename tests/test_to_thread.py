@@ -403,20 +403,13 @@ def test_asyncio_run_does_not_leak_event_loop() -> None:
     def thread_worker() -> None:
         pass
 
-    async def main() -> None:
+    async def main() -> weakref.ref[object]:
         # Exercising to_thread.run_sync() triggers find_root_task(), which caches
         # the root task (and thus the loop) in the run-vars mapping.
         await to_thread.run_sync(thread_worker)
-        f.set_running_or_notify_cancel()
-        f.set_result(weakref.ref(asyncio.get_running_loop()))
+        return weakref.ref(asyncio.get_running_loop())
 
-    f = Future[weakref.ref[object]]()
-    t = threading.Thread(
-        group=None, target=anyio.run, args=(main,), kwargs={"backend": "asyncio"}
-    )
-    t.start()
-    loop_ref = f.result(timeout=2.0)
-    t.join()
+    loop_ref = anyio.run(main)
 
     gc.collect()
     assert loop_ref() is None
