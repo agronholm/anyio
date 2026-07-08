@@ -857,8 +857,15 @@ class TestPath:
         # pathlib (the resulting name would be just the suffix). anyio.Path
         # must match that behavior rather than silently producing e.g.
         # Path(".txt").
-        with pytest.raises(ValueError, match="non-empty suffix"):
-            Path("/xyz/foo.txt").with_stem("")
+        try:
+            # This only fails on python >=3.12 so if stdlib doesn't throw just
+            # check we return the same value
+            val = pathlib.Path("/xyz/foo.txt").with_stem("")
+            assert val == Path("/xyz/foo.txt").with_stem("")
+            return
+        except ValueError:
+            with pytest.raises(ValueError, match="non-empty suffix"):
+                Path("/xyz/foo.txt").with_stem("")
 
     def test_with_suffix(self) -> None:
         assert Path("/xyz/foo.txt.gz").with_suffix(".zip").name == "foo.txt.zip"
