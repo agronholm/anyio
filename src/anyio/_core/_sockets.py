@@ -59,6 +59,15 @@ AnyIPAddressFamily = Literal[
 IPAddressFamily = Literal[AddressFamily.AF_INET, AddressFamily.AF_INET6]
 
 
+def idna2008_resolve(host: str) -> bytes:
+    try:
+        return host.encode("ascii")
+    except UnicodeEncodeError:
+        import idna
+
+        return idna.encode(host, uts46=True)
+
+
 # tls_hostname given
 @overload
 async def connect_tcp(
@@ -644,16 +653,7 @@ async def getaddrinfo(
 
     """
     # Handle unicode hostnames
-    if isinstance(host, str):
-        try:
-            encoded_host: bytes | None = host.encode("ascii")
-        except UnicodeEncodeError:
-            import idna
-
-            encoded_host = idna.encode(host, uts46=True)
-    else:
-        encoded_host = host
-
+    encoded_host = idna2008_resolve(host) if isinstance(host, str) else host
     gai_res = await get_async_backend().getaddrinfo(
         encoded_host, port, family=family, type=type, proto=proto, flags=flags
     )
