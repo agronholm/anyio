@@ -63,8 +63,11 @@ def _flood_stderr() -> str:
 
     # A typical pipe buffer is 64 KiB; write well beyond that to ensure it would block
     # if stderr were still connected to the (undrained) parent pipe.
-    sys.stderr.write("x" * (1024 * 1024))
-    sys.stderr.flush()
+    payload = "x" * (1024 * 1024)
+    for stream in sys.stdout, sys.stderr:
+        stream.write(payload)
+        stream.flush()
+
     return "completed"
 
 
