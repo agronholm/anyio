@@ -168,6 +168,9 @@ else:
                 else:
                     loop.run_until_complete(_shutdown_default_executor(loop))
             finally:
+                from ..lowlevel import _run_vars
+
+                _run_vars.pop(loop, None)
                 if self._set_event_loop:
                     events.set_event_loop(None)
                 loop.close()
@@ -2472,8 +2475,12 @@ class AsyncIOBackend(AsyncBackend):
 
                 loop_factory = winloop.new_event_loop
 
+        from ..lowlevel import _run_vars
+
         with Runner(debug=debug, loop_factory=loop_factory) as runner:
-            return runner.run(wrapper())
+            ret = runner.run(wrapper())
+            _run_vars.pop(get_running_loop(), None)
+            return ret
 
     @classmethod
     def current_token(cls) -> object:

@@ -8,6 +8,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Changed ``ByteReceiveStream.receive()`` implementations to raise a ``ValueError`` when
   ``max_bytes`` is not a positive integer
   (`#1191 <https://github.com/agronholm/anyio/pull/1191>`_)
+- Fixed ``AsyncBackend.run()`` leaking event loop state (``_run_vars``) on the asyncio
+  backend, which caused unbounded memory growth when ``anyio.run()`` was called
+  repeatedly with ``to_thread.run_sync()``
+  (`#1203 <https://github.com/agronholm/anyio/issues/1203>`_)
 - Fixed ``CapacityLimiter.total_tokens`` rejecting ``float("inf")`` when the limiter was
   instantiated outside of an event loop. The adapter setter checked for infinity by
   identity (``value is math.inf``), so only the exact ``math.inf`` singleton was accepted,
