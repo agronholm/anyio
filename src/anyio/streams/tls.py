@@ -141,11 +141,23 @@ class TLSStream(ByteStream):
         bio_in = ssl.MemoryBIO()
         bio_out = ssl.MemoryBIO()
 
+        # Resolve international host names using IDNA 2008.
+        # Otherwise wrap_bio() would resolve them with IDNA 2003.
+        if hostname is not None:
+            from .._core._sockets import idna2008_resolve
+
+            server_hostname: bytes | None = idna2008_resolve(hostname)
+        else:
+            server_hostname = None
+
         # External SSLContext implementations may do blocking I/O in wrap_bio(),
         # but the standard library implementation won't
         if type(ssl_context) is ssl.SSLContext:
             ssl_object = ssl_context.wrap_bio(
-                bio_in, bio_out, server_side=server_side, server_hostname=hostname
+                bio_in,
+                bio_out,
+                server_side=server_side,
+                server_hostname=server_hostname,
             )
         else:
             ssl_object = await to_thread.run_sync(
@@ -153,7 +165,7 @@ class TLSStream(ByteStream):
                 bio_in,
                 bio_out,
                 server_side,
-                hostname,
+                server_hostname,
                 None,
             )
 
@@ -236,6 +248,9 @@ class TLSStream(ByteStream):
         await self.transport_stream.aclose()
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be a positive integer")
+
         data = await self._call_sslobject_method(self._ssl_object.read, max_bytes)
         if not data:
             raise EndOfStream

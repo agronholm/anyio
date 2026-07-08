@@ -5,11 +5,12 @@ import platform
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from subprocess import CalledProcessError
+from subprocess import DEVNULL, CalledProcessError
 from textwrap import dedent
 from typing import Any
 
 import pytest
+from pytest_mock.plugin import MockerFixture
 
 from anyio import (
     BrokenResourceError,
@@ -17,9 +18,11 @@ from anyio import (
     ClosedResourceError,
     EndOfStream,
     create_task_group,
+    fail_after,
     open_process,
     run_process,
 )
+from anyio._core._eventloop import get_async_backend
 from anyio.streams.buffered import BufferedByteReceiveStream
 
 
@@ -95,6 +98,18 @@ async def test_terminate(tmp_path: Path) -> None:
 
         process.terminate()
         assert await process.wait() == 2
+
+
+@pytest.mark.parametrize("max_bytes", [0, -1])
+async def test_process_receive_invalid_max_bytes(max_bytes: int) -> None:
+    async with await open_process(
+        [sys.executable, "-c", "import sys; sys.stdout.write('x')"]
+    ) as process:
+        assert process.stdout is not None
+        with pytest.raises(ValueError, match="max_bytes must be a positive integer"):
+            await process.stdout.receive(max_bytes)
+
+        await process.wait()
 
 
 async def test_process_cwd(tmp_path: Path) -> None:
@@ -335,11 +350,10 @@ async def test_exceptions_after_subprocess_closes_standard_streams() -> None:
                 )
             ],
         ),
-        pytest.param("extra_groups", list, id="extra_groups"),
         pytest.param("umask", lambda: 0, id="umask"),
     ],
 )
-async def test_py39_arguments(
+async def test_user_group_arguments(
     argname: str,
     argvalue_factory: Callable[[], Any],
     event_loop_implementation_name: str | None,
@@ -360,6 +374,33 @@ async def test_py39_arguments(
             )
 
         raise
+
+
+async def test_arguments_passed_through(mocker: MockerFixture) -> None:
+    """
+    Regression test ensuring all arguments accepted by ``open_process()``
+    are passed through to the backend's ``open_process()``.
+    """
+
+    command = [sys.executable, "-c", "pass"]
+    kwargs: dict[str, Any] = {
+        "stdin": DEVNULL,
+        "stdout": DEVNULL,
+        "stderr": DEVNULL,
+        "cwd": "/tmp",
+        "env": {"FOO": "bar"},
+        "startupinfo": object(),
+        "creationflags": 4,
+        "start_new_session": True,
+        "pass_fds": (5, 6),
+        "user": "myuser",
+        "group": "mygroup",
+        "extra_groups": [1, 2, "foo"],
+        "umask": 123,
+    }
+    mock_open_process = mocker.patch.object(get_async_backend(), "open_process")
+    await open_process(command, **kwargs)
+    mock_open_process.assert_called_once_with(command, **kwargs)
 
 
 async def test_close_early() -> None:
@@ -391,3 +432,58 @@ async def test_close_while_reading() -> None:
             await process.stdout.receive()
 
         process.terminate()
+
+
+async def test_wait_returns_on_process_exit_with_open_stdout() -> None:
+    """
+    wait() should return once the process exits, rather than waiting for the piped
+    stdout/stderr to close. Easiest triggered by a grandchild that inherits the
+    stdout pipe and keeps it open after the immediate child has exited.
+    """
+    code = dedent("""\
+    import subprocess, sys
+
+    subprocess.Popen(
+        [sys.executable, "-c", "import select, sys; select.select([sys.stdin], [], [], 10)"]
+    )
+    """)
+
+    process = await open_process([sys.executable, "-c", code])
+    assert process.stdin is not None
+    assert process.stdout is not None
+    assert process.stderr is not None
+
+    # Closing stdin unblocks the grandchild
+    async with process.stdin:
+        with fail_after(5):
+            assert await process.wait() == 0
+
+    # Wait for grandchild to exit to avoid ResourceWarnings
+    with fail_after(3, shield=True):
+        async for _ in process.stdout:
+            pass
+
+        async for _ in process.stderr:
+            pass
+
+
+async def test_close_with_stdout_blocked_subprocess(anyio_backend_name: str) -> None:
+    """
+    Regression test for #1166.
+
+    Test that closing a process unblocks a subprocess blocked on writing to stdout
+    (because the pipe buffer is full and nobody is reading), instead of deadlocking
+    while waiting for it to exit.
+    """
+
+    process = await open_process(
+        [sys.executable, "-c", "import sys;sys.stdout.write('x' * 1024 * 1024)"]
+    )
+    try:
+        with fail_after(5):
+            await process.aclose()
+    except TimeoutError:
+        if anyio_backend_name == "asyncio":
+            process._process._transport.close()  # type: ignore[attr-defined]
+
+        pytest.fail("Process.aclose() deadlocked")

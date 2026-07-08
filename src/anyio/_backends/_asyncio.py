@@ -1068,6 +1068,9 @@ class StreamReaderWrapper(abc.ByteReceiveStream):
     _stream: asyncio.StreamReader
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be a positive integer")
+
         data = await self._stream.read(max_bytes)
         if data:
             return data
@@ -1116,27 +1119,40 @@ class Process(abc.Process):
     _stdin: StreamWriterWrapper | None
     _stdout: StreamReaderWrapper | None
     _stderr: StreamReaderWrapper | None
+    _exited: asyncio.Event
+    _transport: asyncio.SubprocessTransport
 
     async def aclose(self) -> None:
         with CancelScope(shield=True) as scope:
+            # We need to close the underlying pipe_transports as well to allow a
+            # process blocking on full buffers to receive SIGPIPE and exit.
             if self._stdin:
                 await self._stdin.aclose()
+                if pipe := self._transport.get_pipe_transport(0):
+                    pipe.close()
             if self._stdout:
                 await self._stdout.aclose()
+                if pipe := self._transport.get_pipe_transport(1):
+                    pipe.close()
             if self._stderr:
                 await self._stderr.aclose()
+                if pipe := self._transport.get_pipe_transport(2):
+                    pipe.close()
 
             scope.shield = False
             try:
                 await self.wait()
             except BaseException:
                 scope.shield = True
-                self.kill()
+                # Closing the transport on asyncio also handles sending kill
+                self._transport.close()
                 await self.wait()
                 raise
 
     async def wait(self) -> int:
-        return await self._process.wait()
+        await self._exited.wait()
+        assert self._process.returncode is not None
+        return self._process.returncode
 
     def terminate(self) -> None:
         self._process.terminate()
@@ -1304,6 +1320,9 @@ class SocketStream(abc.SocketStream):
         return self._transport.get_extra_info("socket")
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be a positive integer")
+
         with self._receive_guard:
             if (
                 not self._protocol.read_event.is_set()
@@ -1428,6 +1447,9 @@ class UNIXSocketStream(_RawSocketMixin, abc.UNIXSocketStream):
             self._raw_socket.shutdown(socket.SHUT_WR)
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be a positive integer")
+
         loop = get_running_loop()
         await AsyncIOBackend.checkpoint()
         with self._receive_guard:
@@ -1880,13 +1902,15 @@ class Lock(BaseLock):
         try:
             await fut
         except CancelledError:
-            self._waiters.remove(item)
-            if self._owner_task is task:
+            if fut.cancelled():
+                try:
+                    self._waiters.remove(item)
+                except ValueError:
+                    pass
+            else:
                 self.release()
 
             raise
-
-        self._waiters.remove(item)
 
     def acquire_nowait(self) -> None:
         task = cast(asyncio.Task, current_task())
@@ -1906,11 +1930,17 @@ class Lock(BaseLock):
         if self._owner_task != current_task():
             raise RuntimeError("The current task is not holding this lock")
 
-        for task, fut in self._waiters:
-            if not fut.cancelled():
-                self._owner_task = task
-                fut.set_result(None)
-                return
+        # A cancelled waiter that already received ownership removes itself from
+        # _waiters before calling release(); any cancelled waiter still queued here
+        # was cancelled before being woken, so drop it.
+        while self._waiters:
+            task, fut = self._waiters.popleft()
+            if fut.cancelled():
+                continue
+
+            self._owner_task = task
+            fut.set_result(None)
+            return
 
         self._owner_task = None
 
@@ -1965,9 +1995,12 @@ class Semaphore(BaseSemaphore):
         try:
             await fut
         except CancelledError:
-            try:
-                self._waiters.remove(fut)
-            except ValueError:
+            if fut.cancelled():
+                try:
+                    self._waiters.remove(fut)
+                except ValueError:
+                    pass
+            else:
                 self.release()
 
             raise
@@ -1982,11 +2015,13 @@ class Semaphore(BaseSemaphore):
         if self._max_value is not None and self._value == self._max_value:
             raise ValueError("semaphore released too many times")
 
-        for fut in self._waiters:
-            if not fut.cancelled():
-                fut.set_result(None)
-                self._waiters.remove(fut)
-                return
+        while self._waiters:
+            fut = self._waiters.popleft()
+            if fut.cancelled():
+                continue
+
+            fut.set_result(None)
+            return
 
         self._value += 1
 
@@ -2373,12 +2408,16 @@ class TestRunner(abc.TestRunner):
     def run_test(
         self, test_func: Callable[..., Coroutine[Any, Any, Any]], kwargs: dict[str, Any]
     ) -> None:
+        from _pytest.outcomes import OutcomeException
+
         try:
             self.get_loop().run_until_complete(
                 self._call_in_runner_task(test_func, **kwargs)
             )
         except Exception as exc:
             self._exceptions.append(exc)
+        except OutcomeException:
+            raise
         except BaseException:
             # A BaseException (e.g. KeyboardInterrupt, SystemExit) interrupted the event loop before
             # the test completed. Cancel _runner_task so it does not resume when the event
@@ -2394,6 +2433,24 @@ class TestRunner(abc.TestRunner):
                     self._runner_task = None
             raise
         self._raise_async_exceptions()
+
+
+class _ProcessStreamProtocol(asyncio.subprocess.SubprocessStreamProtocol):
+    """
+    A subprocess protocol that allows us to be notified of ``process_exited``
+
+    asyncio's own ``Process.wait()`` only resolves once every pipe transport has
+    disconnected so to get same semantics as on trio and uvloop we need this.
+    """
+
+    def __init__(self) -> None:
+        # Match the standard factory for asyncio.create_process
+        super().__init__(limit=2**16, loop=asyncio.get_running_loop())
+        self.exited = asyncio.Event()
+
+    def process_exited(self) -> None:
+        super().process_exited()
+        self.exited.set()
 
 
 class AsyncIOBackend(AsyncBackend):
@@ -2679,8 +2736,13 @@ class AsyncIOBackend(AsyncBackend):
         if isinstance(command, PathLike):
             command = os.fspath(command)
 
+        # Use loop.subprocess_shell()/subprocess_exec() rather than their
+        # asyncio.create_subprocess_*() counterparts to get access to
+        # transport/protocol.
+        loop = asyncio.get_running_loop()
         if isinstance(command, (str, bytes)):
-            process = await asyncio.create_subprocess_shell(
+            transport, protocol = await loop.subprocess_shell(
+                _ProcessStreamProtocol,
                 command,
                 stdin=stdin,
                 stdout=stdout,
@@ -2688,7 +2750,8 @@ class AsyncIOBackend(AsyncBackend):
                 **kwargs,
             )
         else:
-            process = await asyncio.create_subprocess_exec(
+            transport, protocol = await loop.subprocess_exec(
+                _ProcessStreamProtocol,
                 *command,
                 stdin=stdin,
                 stdout=stdout,
@@ -2696,10 +2759,18 @@ class AsyncIOBackend(AsyncBackend):
                 **kwargs,
             )
 
+        process = asyncio.subprocess.Process(transport, protocol, loop)
         stdin_stream = StreamWriterWrapper(process.stdin) if process.stdin else None
         stdout_stream = StreamReaderWrapper(process.stdout) if process.stdout else None
         stderr_stream = StreamReaderWrapper(process.stderr) if process.stderr else None
-        return Process(process, stdin_stream, stdout_stream, stderr_stream)
+        return Process(
+            process,
+            stdin_stream,
+            stdout_stream,
+            stderr_stream,
+            protocol.exited,
+            transport,
+        )
 
     @classmethod
     def setup_process_pool_exit_at_shutdown(cls, workers: set[abc.Process]) -> None:

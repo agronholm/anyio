@@ -66,6 +66,7 @@ from anyio import (
 )
 from anyio._core._eventloop import get_async_backend
 from anyio.abc import (
+    AnyByteStream,
     ConnectedUDPSocket,
     ConnectedUNIXDatagramSocket,
     IPSockAddrType,
@@ -78,8 +79,9 @@ from anyio.abc import (
     UNIXSocketStream,
 )
 from anyio.lowlevel import checkpoint
+from anyio.pytest_plugin import FreePortFactory
 from anyio.streams.stapled import MultiListener
-from anyio.streams.tls import TLSConnectable
+from anyio.streams.tls import TLSConnectable, TLSStream
 
 from .conftest import asyncio_params, no_other_refs
 
@@ -239,7 +241,6 @@ class TestTCPStream:
     @pytest.fixture
     def server_sock(self, family: AnyIPAddressFamily) -> Iterator[socket.socket]:
         sock = socket.socket(family, socket.SOCK_STREAM)
-        sock.settimeout(1)
         sock.bind(("localhost", 0))
         sock.listen()
         yield sock
@@ -280,6 +281,16 @@ class TestTCPStream:
             client.close()
 
         assert response == b"halb"
+
+    @pytest.mark.parametrize("max_bytes", [0, -1])
+    async def test_receive_invalid_max_bytes(
+        self, server_addr: tuple[str, int], max_bytes: int
+    ) -> None:
+        async with await connect_tcp(*server_addr) as stream:
+            with pytest.raises(
+                ValueError, match="max_bytes must be a positive integer"
+            ):
+                await stream.receive(max_bytes)
 
     async def test_send_large_buffer(
         self, server_sock: socket.socket, server_addr: tuple[str, int]
@@ -537,7 +548,6 @@ class TestTCPStream:
     ) -> None:
         server_sock = socket.create_server(("localhost", 0), family=family)
         request.addfinalizer(server_sock.close)
-        server_sock.settimeout(1)
         server_addr = server_sock.getsockname()[:2]
 
         async with await connect_tcp(*server_addr) as stream:
@@ -554,7 +564,6 @@ class TestTCPStream:
     ) -> None:
         server_sock = socket.create_server(("localhost", 0), family=family)
         request.addfinalizer(server_sock.close)
-        server_sock.settimeout(1)
         server_addr = server_sock.getsockname()[:2]
 
         async with await connect_tcp(*server_addr) as stream:
@@ -578,7 +587,6 @@ class TestTCPStream:
         """
         server_sock = socket.create_server(("localhost", 0), family=family)
         request.addfinalizer(server_sock.close)
-        server_sock.settimeout(1)
         server_addr = server_sock.getsockname()[:2]
 
         async with await connect_tcp(*server_addr) as stream:
@@ -603,7 +611,6 @@ class TestTCPStream:
         """
         server_sock = socket.create_server(("localhost", 0), family=family)
         request.addfinalizer(server_sock.close)
-        server_sock.settimeout(1)
         server_addr = server_sock.getsockname()[:2]
 
         async with await connect_tcp(*server_addr) as stream:
@@ -628,7 +635,6 @@ class TestTCPStream:
         def serve() -> None:
             with suppress(socket.timeout):
                 client, addr = server_sock.accept()
-                client.settimeout(1)
                 client = server_context.wrap_socket(client, server_side=True)
                 data = client.recv(100)
                 client.sendall(data[::-1])
@@ -659,7 +665,6 @@ class TestTCPStream:
             nonlocal thread_exception
             client, addr = server_sock.accept()
             with client:
-                client.settimeout(1)
                 try:
                     server_context.wrap_socket(client, server_side=True)
                 except OSError:
@@ -674,6 +679,34 @@ class TestTCPStream:
 
         thread.join()
         assert thread_exception is None
+
+    async def test_connect_tcp_with_tls_unicode_hostname(
+        self,
+        server_sock: socket.socket,
+        server_addr: tuple[str, int],
+        family: AnyIPAddressFamily,
+        mocker: MockerFixture,
+    ) -> None:
+        """
+        Test that connect_tcp() forwards the target host name to ``TLSStream.wrap()``
+        as-is, deferring the matching against the peer certificate (and any IDNA
+        encoding required for that) to it.
+
+        """
+        gai_result = socket.getaddrinfo(
+            server_addr[0], server_addr[1], family, socket.SOCK_STREAM
+        )
+        mocker.patch.object(get_async_backend(), "getaddrinfo", return_value=gai_result)
+
+        async def fake_wrap(
+            transport_stream: AnyByteStream, **kwargs: Any
+        ) -> AnyByteStream:
+            await transport_stream.aclose()
+            return transport_stream
+
+        wrap = mocker.patch.object(TLSStream, "wrap", side_effect=fake_wrap)
+        await connect_tcp("faß.de", server_addr[1], tls=True)
+        assert wrap.call_args.kwargs["hostname"] == "faß.de"
 
     @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_unretrieved_future_exception_server_crash(
@@ -694,7 +727,6 @@ class TestTCPStream:
             gc.collect()
 
         with socket.socket(family, socket.SOCK_STREAM) as server_sock:
-            server_sock.settimeout(1)
             server_sock.bind(("localhost", 0))
             server_sock.listen()
             server_addr = server_sock.getsockname()[:2]
@@ -802,7 +834,6 @@ class TestTCPListener:
         ) as multi:
             for listener in multi.listeners:
                 client = socket.socket(listener.extra(SocketAttribute.family))
-                client.settimeout(1)
                 addr = listener.extra(SocketAttribute.local_address)
                 host, port = addr[0], addr[1]
 
@@ -862,7 +893,6 @@ class TestTCPListener:
                 )
 
                 client = socket.socket(raw_socket.family)
-                client.settimeout(1)
                 client.connect(raw_socket.getsockname())
 
                 assert isinstance(listener, SocketListener)
@@ -1014,10 +1044,10 @@ class TestTCPListener:
                 None,
                 AddressFamily.AF_UNSPEC,
                 1 if socket.has_dualstack_ipv6() else 2,
-                54321,
+                None,
             ),
-            ("localhost", AddressFamily.AF_UNSPEC, 2, 54321),
-            ("localhost", AddressFamily.AF_INET, 1, 54321),
+            ("localhost", AddressFamily.AF_UNSPEC, 2, None),
+            ("localhost", AddressFamily.AF_INET, 1, None),
         ],
     )
     async def test_tcp_listener_same_port(
@@ -1025,8 +1055,12 @@ class TestTCPListener:
         local_host: str | None,
         family: AnyIPAddressFamily,
         expected_listeners: int,
-        local_port: int,
+        local_port: int | None,
+        free_tcp_port_factory: FreePortFactory,
     ) -> None:
+        if local_port is None:
+            local_port = free_tcp_port_factory()
+
         async with await create_tcp_listener(
             local_host=local_host, family=family, local_port=local_port
         ) as multi:
@@ -1157,7 +1191,6 @@ class TestUNIXStream:
     @pytest.fixture
     def server_sock(self, socket_path: Path) -> Iterable[socket.socket]:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.settimeout(1)
         sock.bind(str(socket_path))
         sock.listen()
         yield sock
@@ -1200,6 +1233,16 @@ class TestUNIXStream:
             client.close()
 
         assert response == b"halb"
+
+    @pytest.mark.parametrize("max_bytes", [0, -1])
+    async def test_receive_invalid_max_bytes(
+        self, server_sock: socket.socket, socket_path: Path, max_bytes: int
+    ) -> None:
+        async with await connect_unix(socket_path) as stream:
+            with pytest.raises(
+                ValueError, match="max_bytes must be a positive integer"
+            ):
+                await stream.receive(max_bytes)
 
     async def test_receive_large_buffer(
         self, server_sock: socket.socket, socket_path: Path
@@ -1556,7 +1599,6 @@ class TestUNIXListener:
     async def test_accept(self, socket_path_or_str: Path | str) -> None:
         async with await create_unix_listener(socket_path_or_str) as listener:
             client = socket.socket(socket.AF_UNIX)
-            client.settimeout(1)
             client.connect(str(socket_path_or_str))
             stream = await listener.accept()
             client.sendall(b"blah")
@@ -1577,7 +1619,6 @@ class TestUNIXListener:
             )
 
             client = socket.socket(listener_socket.family)
-            client.settimeout(1)
             client.connect(listener_socket.getsockname())
 
             async with await listener.accept() as stream:
@@ -1640,7 +1681,6 @@ class TestUNIXListener:
             local_address = listener.extra(SocketAttribute.local_address)
             assert isinstance(local_address, str)
             with socket.socket(socket.AF_UNIX) as client:
-                client.settimeout(1)
                 client.connect(local_address)
                 async with await listener.accept() as stream:
                     assert stream.extra(SocketAttribute.family) == socket.AF_UNIX
@@ -2254,7 +2294,6 @@ class TestConnectedUNIXDatagramSocket:
     @pytest.fixture
     def peer_sock(self, peer_socket_path: Path) -> Iterable[socket.socket]:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-        sock.settimeout(1)
         sock.bind(str(peer_socket_path))
         yield sock
         sock.close()

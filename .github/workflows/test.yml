@@ -15,7 +15,7 @@ jobs:
       tests-changed: ${{ steps.changed-files.outputs.tests_any_changed }}
       docs-changed: ${{ steps.changed-files.outputs.doc_any_changed }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Get changed files by category
       id: changed-files
       uses: tj-actions/changed-files@v47
@@ -42,12 +42,12 @@ jobs:
         || (needs.changed-files.outputs.src-changed == 'true')
       }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Set up Python
       uses: actions/setup-python@v6
       with:
         python-version: 3.x
-    - uses: actions/cache@v5
+    - uses: actions/cache@v6
       with:
         path: ~/.cache/pip
         key: pip-pyright
@@ -96,7 +96,7 @@ jobs:
         || (needs.changed-files.outputs.tests-changed == 'true')
       }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -129,6 +129,9 @@ jobs:
         PYTEST_DISABLE_PLUGIN_AUTOLOAD: 1
     - name: Generate coverage report
       run: coverage xml
+    - name: Trust Coveralls Homebrew tap (Homebrew 6 requirement)
+      if: runner.os == 'macOS'
+      run: brew trust coverallsapp/coveralls
     - name: Upload Coverage
       uses: coverallsapp/github-action@v2
       with:
@@ -146,7 +149,7 @@ jobs:
         || (needs.changed-files.outputs.docs-changed == 'true')
       }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:

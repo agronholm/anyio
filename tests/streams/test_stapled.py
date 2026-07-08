@@ -95,6 +95,13 @@ class TestStapledByteStream:
         with pytest.raises(ClosedResourceError):
             await stapled.send(b"")
 
+    @pytest.mark.parametrize("max_bytes", [0, -1])
+    async def test_receive_invalid_max_bytes(
+        self, stapled: StapledByteStream, max_bytes: int
+    ) -> None:
+        with pytest.raises(ValueError, match="max_bytes must be a positive integer"):
+            await stapled.receive(max_bytes)
+
 
 T_Item = TypeVar("T_Item")
 

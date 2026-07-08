@@ -682,10 +682,10 @@ class CapacityLimiterAdapter(CapacityLimiter):
 
     @total_tokens.setter
     def total_tokens(self, value: float) -> None:
-        if not isinstance(value, int) and value is not math.inf:
+        if not isinstance(value, int) and not math.isinf(value):
             raise TypeError("total_tokens must be an int or math.inf")
-        elif value < 1:
-            raise ValueError("total_tokens must be >= 1")
+        elif value < 0:
+            raise ValueError("total_tokens must be >= 0")
 
         if self._internal_limiter is None:
             self._total_tokens = value
