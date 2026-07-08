@@ -13,6 +13,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   identity (``value is math.inf``), so only the exact ``math.inf`` singleton was accepted,
   while every backend setter (using ``math.isinf()``) accepts any positive infinity
   (`#1189 <https://github.com/agronholm/anyio/pull/1189>`_; PR by @greymoth-jp).
+- Fixed ``anyio.run`` leaking, or at least, delaying collection of loop and root_task
+  due to the root task being cached in a ``RunVar``.
+  (`#1203 <https://github.com/agronholm/anyio/issues/1203>`_; PR by @tapetersen)
 
 **4.14.1**
 

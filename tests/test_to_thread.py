@@ -5,6 +5,7 @@ import gc
 import sys
 import threading
 import time
+import weakref
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextvars import ContextVar
 from functools import partial
@@ -361,13 +362,16 @@ class TestBlockingPortalProvider:
         assert len(threads) == 1
 
 
-@pytest.mark.skipif(
+skipif_pypy_mark = pytest.mark.skipif(
     sys.implementation.name == "pypy",
     reason=(
         "gc.get_referrers is broken on PyPy (see "
         "https://github.com/pypy/pypy/issues/5075)"
     ),
 )
+
+
+@skipif_pypy_mark
 async def test_run_sync_worker_cyclic_references() -> None:
     class Foo:
         pass
@@ -386,3 +390,33 @@ async def test_run_sync_worker_cyclic_references() -> None:
     assert gc.get_referrers(contextval) == no_other_refs()
     assert gc.get_referrers(foo) == no_other_refs()
     assert gc.get_referrers(arg) == no_other_refs()
+
+
+@skipif_pypy_mark
+def test_asyncio_run_does_not_leak_event_loop() -> None:
+    """
+    Regression test for #1203.
+
+    Ensure we don't leak the root task and event loop in when caching it in a RunVar.
+    """
+
+    def thread_worker() -> None:
+        pass
+
+    async def main() -> None:
+        # Exercising to_thread.run_sync() triggers find_root_task(), which caches
+        # the root task (and thus the loop) in the run-vars mapping.
+        await to_thread.run_sync(thread_worker)
+        f.set_running_or_notify_cancel()
+        f.set_result(weakref.ref(asyncio.get_running_loop()))
+
+    f = Future[weakref.ref[object]]()
+    t = threading.Thread(
+        group=None, target=anyio.run, args=(main,), kwargs={"backend": "asyncio"}
+    )
+    t.start()
+    loop_ref = f.result(timeout=2.0)
+    t.join()
+
+    gc.collect()
+    assert loop_ref() is None
