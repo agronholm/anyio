@@ -65,6 +65,7 @@ from .. import (
     LockStatistics,
     TaskInfo,
     abc,
+    lowlevel,
 )
 from .._core._eventloop import (
     claim_worker_thread,
@@ -342,8 +343,6 @@ def find_root_task() -> asyncio.Task:
 #
 # Event loop
 #
-
-_run_vars: WeakKeyDictionary[asyncio.AbstractEventLoop, Any] = WeakKeyDictionary()
 
 
 def _task_started(task: asyncio.Task) -> bool:
@@ -2473,7 +2472,16 @@ class AsyncIOBackend(AsyncBackend):
                 loop_factory = winloop.new_event_loop
 
         with Runner(debug=debug, loop_factory=loop_factory) as runner:
-            return runner.run(wrapper())
+            try:
+                return runner.run(wrapper())
+            finally:
+                # Drop this loop's run variables. Some of them (notably the
+                # cached root task; see find_root_task()) hold a strong reference
+                # to the loop, which is the weak key of the _run_vars entry. That
+                # self-reference would otherwise keep the loop, the root task and
+                # its result alive forever, leaking memory across successive
+                # anyio.run() calls (#1203).
+                lowlevel._run_vars.pop(runner.get_loop(), None)
 
     @classmethod
     def current_token(cls) -> object:

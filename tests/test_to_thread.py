@@ -277,6 +277,29 @@ def test_asyncio_no_recycle_stopping_worker(
     asyncio_event_loop.run_until_complete(asyncio.gather(task1, task2))
 
 
+def test_asyncio_run_sync_no_run_var_leak() -> None:
+    """
+    Regression test for #1203.
+
+    Ensures that repeated ``anyio.run()`` calls that use ``to_thread.run_sync()``
+    do not leak an entry in ``_run_vars`` per run. ``find_root_task()`` caches the
+    root task in a ``RunVar``, and that task holds a strong reference to its event
+    loop, which is the weak key of the ``_run_vars`` entry. Without cleanup, that
+    self-reference keeps every loop (and its cached result) alive forever.
+    """
+    from anyio.lowlevel import _run_vars
+
+    async def main() -> None:
+        await anyio.to_thread.run_sync(time.sleep, 0)
+
+    _run_vars.clear()
+    for _ in range(3):
+        anyio.run(main)
+        gc.collect()
+
+    assert len(_run_vars) == 0
+
+
 async def test_stopiteration() -> None:
     """
     Test that raising StopIteration in a worker thread raises a RuntimeError on the

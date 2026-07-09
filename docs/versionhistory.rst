@@ -23,6 +23,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``anyio.open_process()`` (and ``run_process()``) ignoring the ``extra_groups``
   argument, as it mistakenly passed the value of the ``group`` argument instead
   (`#1209 <https://github.com/agronholm/anyio/pull/1209>`_)
+- Fixed a memory leak on asyncio where each ``anyio.run()`` call permanently retained
+  its event loop, root task and result. ``find_root_task()`` caches the root task in a
+  run variable, and since that task strongly references its loop (the weak key of the
+  ``_run_vars`` entry), the entry could never be evicted. ``anyio.run()`` now clears the
+  loop's run variables on teardown
+  (`#1203 <https://github.com/agronholm/anyio/issues/1203>`_; PR by @vidigoat)
 
 **4.14.1**
 
