@@ -102,7 +102,7 @@ from ..abc import (
 )
 from ..abc._eventloop import StrOrBytesPath
 from ..abc._tasks import call_for_coroutine, get_callable_name
-from ..lowlevel import RunVar, _run_vars, current_token
+from ..lowlevel import RunVar, _run_vars
 from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 if TYPE_CHECKING:
@@ -321,13 +321,10 @@ def find_root_task() -> asyncio.Task:
                     cb is _run_until_complete_cb
                     or getattr(cb, "__module__", None) == "uvloop.loop"
                 ):
-                    tok = current_token()
                     _root_task.set(task)
 
-                    def _unset(
-                        t: asyncio.Task[Any], native_tok: object = tok.native_token
-                    ) -> None:
-                        if vars := _run_vars.get(native_tok):
+                    def _unset(t: asyncio.Task[Any]) -> None:
+                        if vars := _run_vars.get(t.get_loop()):
                             vars.pop(_root_task, None)
 
                     # Register a callback to break the task -> loop -> _run_var[loop][_root_task] -> task cycle
