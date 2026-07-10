@@ -8,6 +8,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Changed ``ByteReceiveStream.receive()`` implementations to raise a ``ValueError`` when
   ``max_bytes`` is not a positive integer
   (`#1191 <https://github.com/agronholm/anyio/pull/1191>`_)
+- Fixed ``CapacityLimiter.total_tokens`` rejecting ``float("inf")`` when the limiter was
+  instantiated outside of an event loop. The adapter setter checked for infinity by
+  identity (``value is math.inf``), so only the exact ``math.inf`` singleton was accepted,
+  while every backend setter (using ``math.isinf()``) accepts any positive infinity
+  (`#1189 <https://github.com/agronholm/anyio/pull/1189>`_; PR by @greymoth-jp).
 - Fixed ``to_process.run_sync()`` deadlocking when the worker function writes enough data
   to ``sys.stderr`` to fill the (undrained) pipe buffer. The worker process now redirects
   ``sys.stderr`` to ``os.devnull`` as well, matching the documented behavior
@@ -18,11 +23,13 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``anyio.open_process()`` (and ``run_process()``) ignoring the ``extra_groups``
   argument, as it mistakenly passed the value of the ``group`` argument instead
   (`#1209 <https://github.com/agronholm/anyio/pull/1209>`_)
-- Fixed ``CapacityLimiter.total_tokens`` rejecting ``float("inf")`` when the limiter was
-  instantiated outside of an event loop. The adapter setter checked for infinity by
-  identity (``value is math.inf``), so only the exact ``math.inf`` singleton was accepted,
-  while every backend setter (using ``math.isinf()``) accepts any positive infinity
-  (`#1189 <https://github.com/agronholm/anyio/pull/1189>`_; PR by @greymoth-jp).
+- Fixed ``CapacityLimiter`` on the asyncio backend over-granting tokens
+  (``borrowed_tokens`` exceeding ``total_tokens`` and ``available_tokens`` going
+  negative) when a non-blocking acquire was made in the window between a token
+  being released and the notified waiter resuming. The freed token is now
+  reserved for the woken waiter right away, so the non-blocking acquire correctly
+  raises ``WouldBlock``
+  (`#1170 <https://github.com/agronholm/anyio/issues/1170>`_; PR by @gaoflow)
 
 **4.14.1**
 
@@ -94,13 +101,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``anyio.Lock``
   * ``anyio.ResourceGuard``
   * ``anyio.Semaphore``
-- Fixed ``CapacityLimiter`` on the asyncio backend over-granting tokens
-  (``borrowed_tokens`` exceeding ``total_tokens`` and ``available_tokens`` going
-  negative) when a non-blocking acquire was made in the window between a token
-  being released and the notified waiter resuming. The freed token is now
-  reserved for the woken waiter right away, so the non-blocking acquire correctly
-  raises ``WouldBlock``
-  (`#1170 <https://github.com/agronholm/anyio/issues/1170>`_; PR by @gaoflow)
 - Fixed cancellation exception escaping a cancel scope when triggered via
   ``check_cancelled()`` in a worker thread
   (`#1113 <https://github.com/agronholm/anyio/issues/1113>`_)
