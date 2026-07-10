@@ -327,7 +327,7 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
         self._fp = await to_thread.run_sync(
             lambda: tempfile.TemporaryFile(**self._tempfile_params)
         )
-        await self.write(buffer.read())
+        await self.write(buffer.read())  # type: ignore[arg-type]
         buffer.close()
 
     @property
@@ -346,7 +346,7 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
             await checkpoint_if_cancelled()
             return self._fp.read1(size)
 
-        return await super().read1(size)
+        return await super().read1(size)  # type: ignore[misc]
 
     async def readline(self) -> AnyStr:
         if not self._rolled:
@@ -367,14 +367,14 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
             await checkpoint_if_cancelled()
             self._fp.readinto(b)
 
-        return await super().readinto(b)
+        return await super().readinto(b)  # type: ignore[misc]
 
     async def readinto1(self: SpooledTemporaryFile[bytes], b: WriteableBuffer) -> int:
         if not self._rolled:
             await checkpoint_if_cancelled()
             self._fp.readinto(b)
 
-        return await super().readinto1(b)
+        return await super().readinto1(b)  # type: ignore[misc]
 
     async def seek(self, offset: int, whence: int | None = os.SEEK_SET) -> int:
         if not self._rolled:
@@ -551,7 +551,13 @@ async def mkstemp(
     :return: A tuple containing the file descriptor and the file name.
 
     """
-    return await to_thread.run_sync(tempfile.mkstemp, suffix, prefix, dir, text)
+    return await to_thread.run_sync(  # type: ignore[return-value]
+        tempfile.mkstemp,  # type: ignore[arg-type]
+        suffix,
+        prefix,
+        dir,
+        text,
+    )
 
 
 @overload
@@ -586,7 +592,12 @@ async def mkdtemp(
     :return: The path of the created temporary directory.
 
     """
-    return await to_thread.run_sync(tempfile.mkdtemp, suffix, prefix, dir)
+    return await to_thread.run_sync(  # type: ignore[return-value]
+        tempfile.mkdtemp,  # type: ignore[arg-type]
+        suffix,
+        prefix,
+        dir,
+    )
 
 
 async def gettempdir() -> str:

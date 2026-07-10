@@ -92,10 +92,10 @@ from ._core._typedattr import TypedAttributeSet as TypedAttributeSet
 from ._core._typedattr import typed_attribute as typed_attribute
 
 # Re-export imports so they look like they live directly in this package
+__value = None
 for __value in list(locals().values()):
     if getattr(__value, "__module__", "").startswith("anyio."):
         __value.__module__ = __name__
-
 
 del __value
 

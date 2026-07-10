@@ -61,14 +61,14 @@ class TLSAttribute(TypedAttributeSet):
     cipher: tuple[str, str, int] = typed_attribute()
     #: the peer certificate in dictionary form (see :meth:`ssl.SSLSocket.getpeercert`
     # for more information)
-    peer_certificate: None | (dict[str, str | _PCTRTTT | _PCTRTT]) = typed_attribute()
+    peer_certificate: object = typed_attribute()
     #: the peer certificate in binary form
     peer_certificate_binary: bytes | None = typed_attribute()
     #: ``True`` if this is the server side of the connection
     server_side: bool = typed_attribute()
     #: ciphers shared by the client during the TLS handshake (``None`` if this is the
     #: client side)
-    shared_ciphers: list[tuple[str, str, int]] | None = typed_attribute()
+    shared_ciphers: object = typed_attribute()
     #: the :class:`~ssl.SSLObject` used for encryption
     ssl_object: ssl.SSLObject = typed_attribute()
     #: ``True`` if this stream does (and expects) a closing TLS handshake when the
