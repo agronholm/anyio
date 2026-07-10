@@ -108,6 +108,32 @@ class TestSpooledTemporaryFile:
             await stf.write(b"x")
             assert stf._rolled
 
+    @pytest.mark.parametrize("rolled", [False, True])
+    async def test_readinto(self, rolled: bool) -> None:
+        async with SpooledTemporaryFile(max_size=1024, mode="w+b") as stf:
+            await stf.write(b"hello world")
+            if rolled:
+                await stf.rollover()
+            assert stf._rolled is rolled
+            await stf.seek(0)
+            buf = bytearray(5)
+            assert await stf.readinto(buf) == 5
+            assert bytes(buf) == b"hello"
+            assert await stf.tell() == 5
+
+    @pytest.mark.parametrize("rolled", [False, True])
+    async def test_readinto1(self, rolled: bool) -> None:
+        async with SpooledTemporaryFile(max_size=1024, mode="w+b") as stf:
+            await stf.write(b"hello world")
+            if rolled:
+                await stf.rollover()
+            assert stf._rolled is rolled
+            await stf.seek(0)
+            buf = bytearray(5)
+            assert await stf.readinto1(buf) == 5
+            assert bytes(buf) == b"hello"
+            assert await stf.tell() == 5
+
 
 class TestTemporaryDirectory:
     async def test_context_manager(self) -> None:
