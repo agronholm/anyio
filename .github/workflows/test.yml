@@ -54,7 +54,7 @@ jobs:
     - name: Install dependencies
       run: pip install -e . pyright
     - name: Run pyright
-      run: pyright
+      run: pyright src
     - name: Run pyright --verifytypes
       run: pyright --ignoreexternal --verifytypes anyio
 
