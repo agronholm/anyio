@@ -388,10 +388,11 @@ async def test_no_spin_on_done_task_in_cancel_scope(mocker: MockerFixture) -> No
     # cancel scope now holds the finished host task and nothing else.
     with mock.patch.object(_asyncio, "CancelScope", EditableCancelScope):
         await asyncio.create_task(owner())
-        scope = cast(_asyncio.CancelScope, holder[0].cancel_scope)
-        spy = mocker.spy(scope, "_deliver_cancellation")
-        assert scope._host_task is not None and scope._host_task.done()
-        assert scope._host_task in scope._tasks
+
+    scope = cast(_asyncio.CancelScope, holder[0].cancel_scope)
+    spy = mocker.spy(scope, "_deliver_cancellation")
+    assert scope._host_task is not None and scope._host_task.done()
+    assert scope._host_task in scope._tasks
 
     scope.cancel()
 
