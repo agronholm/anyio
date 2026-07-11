@@ -11,7 +11,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``SpooledTemporaryFile.readinto()`` and ``readinto1()`` reading twice before
   rollover, so the destination buffer was overwritten by the second read and the file
   position advanced twice, silently losing data
-  (`#1215 <https://github.com/agronholm/anyio/pull/1215>`_); PR by @c-tonneslan 
+  (`#1215 <https://github.com/agronholm/anyio/pull/1215>`_); PR by @c-tonneslan
 - Fixed ``CapacityLimiter.total_tokens`` rejecting ``float("inf")`` when the limiter was
   instantiated outside of an event loop. The adapter setter checked for infinity by
   identity (``value is math.inf``), so only the exact ``math.inf`` singleton was accepted,
