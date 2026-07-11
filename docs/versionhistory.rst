@@ -23,6 +23,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``anyio.open_process()`` (and ``run_process()``) ignoring the ``extra_groups``
   argument, as it mistakenly passed the value of the ``group`` argument instead
   (`#1209 <https://github.com/agronholm/anyio/pull/1209>`_)
+- Fixed unnecessary CPU spin when delivering cancellation from ``CancelScope`` on
+  asyncio under certain conditions, including improper cancel scope nesting
+  (`#1111 <https://github.com/agronholm/anyio/issues/1111>`_)
 
 **4.14.1**
 

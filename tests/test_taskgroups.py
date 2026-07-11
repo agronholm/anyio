@@ -15,6 +15,7 @@ from unittest import mock
 
 import pytest
 from pytest import FixtureRequest, MonkeyPatch
+from pytest_mock import MockerFixture
 
 import anyio
 from anyio import (
@@ -358,6 +359,51 @@ async def test_cancel_with_nested_task_groups() -> None:
                 tg.cancel_scope.cancel()
 
     assert len(outer_cancel_spy.call_args_list) < 10
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_no_spin_on_done_task_in_cancel_scope(mocker: MockerFixture) -> None:
+    """Regression test for #1111.
+
+    When a task group is entered but never exited (e.g. it is abandoned because
+    the task owning it finishes without unwinding it), its cancel scope is left
+    with the now-finished host task still in its set of contained tasks.
+    Cancelling such a scope used to make ``_deliver_cancellation`` treat that
+    finished task as still cancellable and reschedule itself via ``call_soon``
+    forever, pinning the event loop at 100% CPU.
+    """
+    from anyio._backends import _asyncio
+
+    class EditableCancelScope(_asyncio.CancelScope):
+        pass
+
+    holder: list[TaskGroup] = []
+
+    async def owner() -> None:
+        tg = create_task_group()
+        await tg.__aenter__()  # entered but deliberately never exited
+        holder.append(tg)
+
+    # Let the owner task run to completion, abandoning the task group. Its
+    # cancel scope now holds the finished host task and nothing else.
+    with mock.patch.object(_asyncio, "CancelScope", EditableCancelScope):
+        await asyncio.create_task(owner())
+        scope = cast(_asyncio.CancelScope, holder[0].cancel_scope)
+        spy = mocker.spy(scope, "_deliver_cancellation")
+        assert scope._host_task is not None and scope._host_task.done()
+        assert scope._host_task in scope._tasks
+
+    scope.cancel()
+
+    # Give any rescheduled _deliver_cancellation callbacks the chance to fire.
+    # With the bug present this reschedules forever (the test timeout would
+    # trip); the fix leaves no pending cancellation callback since the only
+    # remaining task is done.
+    for _ in range(5):
+        await checkpoint()
+
+    assert scope._cancel_handle is None
+    spy.assert_called_once()
 
 
 @pytest.mark.parametrize("return_handle", [False, True])
