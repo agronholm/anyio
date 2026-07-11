@@ -977,6 +977,23 @@ class TestCapacityLimiter:
 
         pytest.fail("The second borrower failed to acquire the limiter")
 
+    async def test_acquire_nowait(self) -> None:
+        async def borrower() -> None:
+            limiter.acquire_nowait()
+
+        limiter = CapacityLimiter(1)
+        limiter.acquire_nowait()
+        with pytest.RaisesGroup(pytest.RaisesExc(WouldBlock)):
+            async with create_task_group() as tg:
+                tg.start_soon(borrower)
+
+    async def test_acquire_on_behalf_of_nowait(self) -> None:
+        borrower1, borrower2 = object(), object()
+        limiter = CapacityLimiter(1)
+        limiter.acquire_on_behalf_of_nowait(borrower1)
+        with pytest.raises(WouldBlock):
+            limiter.acquire_on_behalf_of_nowait(borrower2)
+
     @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_nowait_acquire_after_release_does_not_oversubscribe(self) -> None:
         # Regression test for #1170: a non-blocking acquire issued in the window

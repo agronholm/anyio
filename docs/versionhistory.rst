@@ -23,6 +23,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``anyio.open_process()`` (and ``run_process()``) ignoring the ``extra_groups``
   argument, as it mistakenly passed the value of the ``group`` argument instead
   (`#1209 <https://github.com/agronholm/anyio/pull/1209>`_)
+- Fixed ``CapacityLimiter.acquire_nowait()`` and
+  ``CapacityLimiter.acquire_nowait_on_behalf_of()`` raising ``trio.WouldBlock`` instead
+  of ``anyio.WouldBlock`` on the ``trio`` backend when there are no tokens available
+  (`#1218 <https://github.com/agronholm/anyio/pull/1218>`_)
 - Fixed ``CapacityLimiter`` on the asyncio backend over-granting tokens
   (``borrowed_tokens`` exceeding ``total_tokens`` and ``available_tokens`` going
   negative) when a non-blocking acquire was made in the window between a token
