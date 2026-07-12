@@ -112,13 +112,11 @@ class TestTLSStream:
 
         def serve_sync() -> None:
             nonlocal server_exc
-            conn, addr = server_sock.accept()
             try:
-                conn.settimeout(5)
+                conn, addr = server_sock.accept()
+                conn.close()
             except BaseException as exc:
                 server_exc = exc
-            finally:
-                conn.close()
 
         server_sock = server_context.wrap_socket(
             socket.socket(), server_side=True, suppress_ragged_eofs=True
@@ -134,7 +132,6 @@ class TestTLSStream:
                     stream,
                     hostname="localhost",
                     ssl_context=client_context,
-                    standard_compatible=False,
                 )
                 with pytest.raises(
                     ValueError, match="max_bytes must be a positive integer"
