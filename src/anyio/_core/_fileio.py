@@ -924,9 +924,9 @@ class Path:
     def with_name(self, name: str) -> Self:
         return type(self)(self._path.with_name(name), limiter=self._limiter)
 
-    def with_stem(self, stem: str) -> Self:
+    if sys.version_info < (3, 13):
         # Backport validation logic from 3.13
-        if sys.version_info < (3, 13):
+        def with_stem(self, stem: str) -> Self:
             suffix = self._path.suffix
             if not suffix:
                 return self.with_name(stem)
@@ -935,8 +935,10 @@ class Path:
                 raise ValueError(f"{self!r} has a non-empty suffix")
             else:
                 return self.with_name(stem + suffix)
+    else:
 
-        return type(self)(self._path.with_stem(stem), limiter=self._limiter)
+        def with_stem(self, stem: str) -> Self:
+            return type(self)(self._path.with_stem(stem), limiter=self._limiter)
 
     def with_suffix(self, suffix: str) -> Self:
         return type(self)(self._path.with_suffix(suffix), limiter=self._limiter)
