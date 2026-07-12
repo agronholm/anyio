@@ -34,6 +34,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   reserved for the woken waiter right away, so the non-blocking acquire correctly
   raises ``WouldBlock``
   (`#1170 <https://github.com/agronholm/anyio/issues/1170>`_; PR by @gaoflow)
+- Fixed unnecessary CPU spin when delivering cancellation from ``CancelScope`` on
+  asyncio under certain conditions, including improper cancel scope nesting
+  (`#1111 <https://github.com/agronholm/anyio/issues/1111>`_)
 
 **4.14.1**
 

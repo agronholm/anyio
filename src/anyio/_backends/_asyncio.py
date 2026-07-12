@@ -592,6 +592,10 @@ class CancelScope(BaseCancelScope):
         should_retry = False
         current = current_task()
         for task in self._tasks:
+            # Always skip tasks that are already done (see issue #1111)
+            if task.done():
+                continue
+
             should_retry = True
             if task._must_cancel:  # type: ignore[attr-defined]
                 continue
