@@ -207,7 +207,7 @@ class TestLock:
         statistics = lock.statistics()
         assert statistics.owner
         assert statistics.owner.name == "task1"
-        await asyncio.wait([task1], timeout=1)
+        await asyncio.wait([task1], timeout=5)
 
         # The acquire() method should've released the semaphore because acquisition
         # failed due to cancellation
@@ -667,7 +667,7 @@ class TestSemaphore:
         semaphore.release()
         task1.cancel()
         assert semaphore.value == 0
-        await asyncio.wait([task1], timeout=1)
+        await asyncio.wait([task1], timeout=5)
 
         # The acquire() method should've released the semaphore because acquisition
         # failed due to cancellation

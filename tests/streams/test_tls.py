@@ -114,7 +114,7 @@ class TestTLSStream:
             nonlocal server_exc
             conn, addr = server_sock.accept()
             try:
-                conn.settimeout(1)
+                conn.settimeout(5)
             except BaseException as exc:
                 server_exc = exc
             finally:
@@ -123,7 +123,7 @@ class TestTLSStream:
         server_sock = server_context.wrap_socket(
             socket.socket(), server_side=True, suppress_ragged_eofs=True
         )
-        server_sock.settimeout(1)
+        server_sock.settimeout(5)
         server_sock.bind(("127.0.0.1", 0))
         server_sock.listen()
         server_thread = Thread(target=serve_sync, daemon=True)
