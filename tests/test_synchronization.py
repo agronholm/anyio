@@ -994,13 +994,12 @@ class TestCapacityLimiter:
         with pytest.raises(WouldBlock):
             limiter.acquire_on_behalf_of_nowait(borrower2)
 
-    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_nowait_acquire_after_release_does_not_oversubscribe(self) -> None:
         # Regression test for #1170: a non-blocking acquire issued in the window
         # between releasing a token (which notifies the next waiter) and that
         # waiter actually resuming must not slip through, as the freed token is
-        # already reserved for the woken waiter. This window is specific to the
-        # asyncio backend (the trio backend wraps trio's own CapacityLimiter).
+        # already reserved for the woken waiter. The over-granting bug was
+        # specific to the asyncio backend, but the invariant holds on both.
         limiter = CapacityLimiter(1)
         limiter.acquire_on_behalf_of_nowait("A")
 
