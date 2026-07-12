@@ -27,6 +27,13 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``CapacityLimiter.acquire_nowait_on_behalf_of()`` raising ``trio.WouldBlock`` instead
   of ``anyio.WouldBlock`` on the ``trio`` backend when there are no tokens available
   (`#1218 <https://github.com/agronholm/anyio/pull/1218>`_)
+- Fixed ``CapacityLimiter`` on the asyncio backend over-granting tokens
+  (``borrowed_tokens`` exceeding ``total_tokens`` and ``available_tokens`` going
+  negative) when a non-blocking acquire was made in the window between a token
+  being released and the notified waiter resuming. The freed token is now
+  reserved for the woken waiter right away, so the non-blocking acquire correctly
+  raises ``WouldBlock``
+  (`#1170 <https://github.com/agronholm/anyio/issues/1170>`_; PR by @gaoflow)
 
 **4.14.1**
 

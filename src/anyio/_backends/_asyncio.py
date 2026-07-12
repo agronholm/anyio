@@ -2077,7 +2077,8 @@ class CapacityLimiter(BaseCapacityLimiter):
 
         # Notify waiting tasks that they have acquired the limiter
         while self._wait_queue and waiters_to_notify:
-            event = self._wait_queue.popitem(last=False)[1]
+            borrower, event = self._wait_queue.popitem(last=False)
+            self._borrowers.add(borrower)
             event.set()
             waiters_to_notify -= 1
 
@@ -2090,9 +2091,10 @@ class CapacityLimiter(BaseCapacityLimiter):
         return self._total_tokens - len(self._borrowers)
 
     def _notify_next_waiter(self) -> None:
-        """Notify the next task in line if this limiter has free capacity now."""
+        """Hand a free token to the next task in line, if any."""
         if self._wait_queue and len(self._borrowers) < self._total_tokens:
-            event = self._wait_queue.popitem(last=False)[1]
+            borrower, event = self._wait_queue.popitem(last=False)
+            self._borrowers.add(borrower)
             event.set()
 
     def acquire_nowait(self) -> None:
@@ -2124,11 +2126,10 @@ class CapacityLimiter(BaseCapacityLimiter):
             except BaseException:
                 self._wait_queue.pop(borrower, None)
                 if event.is_set():
+                    self._borrowers.discard(borrower)
                     self._notify_next_waiter()
 
                 raise
-
-            self._borrowers.add(borrower)
         else:
             try:
                 await AsyncIOBackend.cancel_shielded_checkpoint()
