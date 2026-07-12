@@ -374,24 +374,15 @@ async def test_no_spin_on_done_task_in_cancel_scope(mocker: MockerFixture) -> No
     """
     from anyio._backends import _asyncio
 
+    # To allow the mocker to override a @final class
     class EditableCancelScope(_asyncio.CancelScope):
         pass
 
-    holder: list[TaskGroup] = []
+    async def owner() -> EditableCancelScope:
+        return cast(EditableCancelScope, EditableCancelScope().__enter__())
 
-    async def owner() -> None:
-        tg = create_task_group()
-        await tg.__aenter__()  # entered but deliberately never exited
-        holder.append(tg)
-
-    # Let the owner task run to completion, abandoning the task group. Its
-    # cancel scope now holds the finished host task and nothing else.
-    with mock.patch.object(_asyncio, "CancelScope", EditableCancelScope):
-        await asyncio.create_task(owner())
-
-    scope = cast(_asyncio.CancelScope, holder[0].cancel_scope)
+    scope = await asyncio.create_task(owner())
     spy = mocker.spy(scope, "_deliver_cancellation")
-
     scope.cancel()
 
     # Give any rescheduled _deliver_cancellation callbacks the chance to fire.
