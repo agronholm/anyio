@@ -22,6 +22,20 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * The CancelledError shouldn't leak out of the ``TaskGroup.start()`` call to the calling
     task.
   (`#1197 <https://github.com/agronholm/anyio/issues/1197>`_; PR by @tapetersen)
+- Fixed ``to_process.run_sync()`` deadlocking when the worker function writes enough data
+  to ``sys.stderr`` to fill the (undrained) pipe buffer. The worker process now redirects
+  ``sys.stderr`` to ``os.devnull`` as well, matching the documented behavior
+- Fixed ``TLSStream.wrap()`` matching an internationalized (unicode) host name against
+  the peer certificate using IDNA 2003 (via the standard library) instead of IDNA 2008,
+  which could cause the host name to be matched against the wrong certificate
+  (`#1208 <https://github.com/agronholm/anyio/pull/1208>`_)
+- Fixed ``anyio.open_process()`` (and ``run_process()``) ignoring the ``extra_groups``
+  argument, as it mistakenly passed the value of the ``group`` argument instead
+  (`#1209 <https://github.com/agronholm/anyio/pull/1209>`_)
+- Fixed ``CapacityLimiter.acquire_nowait()`` and
+  ``CapacityLimiter.acquire_nowait_on_behalf_of()`` raising ``trio.WouldBlock`` instead
+  of ``anyio.WouldBlock`` on the ``trio`` backend when there are no tokens available
+  (`#1218 <https://github.com/agronholm/anyio/pull/1218>`_)
 
 **4.14.1**
 

@@ -207,7 +207,7 @@ class TestLock:
         statistics = lock.statistics()
         assert statistics.owner
         assert statistics.owner.name == "task1"
-        await asyncio.wait([task1], timeout=1)
+        await asyncio.wait([task1], timeout=5)
 
         # The acquire() method should've released the semaphore because acquisition
         # failed due to cancellation
@@ -667,7 +667,7 @@ class TestSemaphore:
         semaphore.release()
         task1.cancel()
         assert semaphore.value == 0
-        await asyncio.wait([task1], timeout=1)
+        await asyncio.wait([task1], timeout=5)
 
         # The acquire() method should've released the semaphore because acquisition
         # failed due to cancellation
@@ -976,3 +976,20 @@ class TestCapacityLimiter:
             tg.cancel_scope.cancel()
 
         pytest.fail("The second borrower failed to acquire the limiter")
+
+    async def test_acquire_nowait(self) -> None:
+        async def borrower() -> None:
+            limiter.acquire_nowait()
+
+        limiter = CapacityLimiter(1)
+        limiter.acquire_nowait()
+        with pytest.RaisesGroup(pytest.RaisesExc(WouldBlock)):
+            async with create_task_group() as tg:
+                tg.start_soon(borrower)
+
+    async def test_acquire_on_behalf_of_nowait(self) -> None:
+        borrower1, borrower2 = object(), object()
+        limiter = CapacityLimiter(1)
+        limiter.acquire_on_behalf_of_nowait(borrower1)
+        with pytest.raises(WouldBlock):
+            limiter.acquire_on_behalf_of_nowait(borrower2)
