@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**4.14.2**
 
 - Changed ``ByteReceiveStream.receive()`` implementations to raise a ``ValueError`` when
   ``max_bytes`` is not a positive integer
