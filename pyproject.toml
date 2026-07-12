@@ -46,6 +46,13 @@ trio = ["trio >= 0.32.0"]
 pytest11 = {anyio = "anyio.pytest_plugin"}
 
 [dependency-groups]
+dev = [
+    "trio>=0.32.0",
+    "tox >= 4.22",
+    "pre-commit>=4.6.0",
+    {include-group = "test"},
+    {include-group = "doc"},
+]
 test = [
     "blockbuster >= 1.5.23; python_version < '3.15'",
     "coverage[toml] >= 7",
