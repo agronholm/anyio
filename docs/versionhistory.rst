@@ -15,12 +15,14 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#1189 <https://github.com/agronholm/anyio/pull/1189>`_; PR by @greymoth-jp).
 - Fixed Inconsistencies between Trio and asyncio when target ``TaskGroup`` is
   cancelled before a task created with ``.start()`` calls ``TaskStatus.started()``
+
   * The started task shouldn't get a ``CancelledError`` until the first
     checkpoint after the ``started()`` call.
   * A value passed to ``started()`` should be available on the ``TaskHandle``
     and correctly passed back to the caller of start even if cancelled.
   * The CancelledError shouldn't leak out of the ``TaskGroup.start()`` call to the calling
     task.
+
   (`#1197 <https://github.com/agronholm/anyio/issues/1197>`_; PR by @tapetersen)
 - Fixed ``to_process.run_sync()`` deadlocking when the worker function writes enough data
   to ``sys.stderr`` to fill the (undrained) pipe buffer. The worker process now redirects
