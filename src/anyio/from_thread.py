@@ -9,6 +9,7 @@ __all__ = (
     "start_blocking_portal",
 )
 
+import contextvars
 import sys
 from collections.abc import Awaitable, Callable, Coroutine, Generator
 from concurrent.futures import Future
@@ -541,7 +542,15 @@ def start_blocking_portal(
                     future.set_exception(exc)
 
     future: Future[BlockingPortal] = Future()
-    thread = Thread(target=run_blocking_portal, daemon=True, name=name)
+    if sys.version_info >= (3, 14):
+        thread = Thread(
+            target=run_blocking_portal,
+            daemon=True,
+            name=name,
+            context=contextvars.Context(),
+        )
+    else:
+        thread = Thread(target=run_blocking_portal, daemon=True, name=name)
     thread.start()
     try:
         cancel_remaining_tasks = False
