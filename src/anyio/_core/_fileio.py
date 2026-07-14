@@ -925,7 +925,8 @@ class Path:
         return type(self)(self._path.with_name(name), limiter=self._limiter)
 
     if sys.version_info < (3, 13):
-        # Backport validation logic from 3.13
+        # Backport pathlib's Python>=3.13 behavior for empty stems on paths with non-empty suffixes.
+        # See: https://github.com/python/cpython/pull/114612
         def with_stem(self, stem: str) -> Self:
             suffix = self._path.suffix
             if not suffix:
