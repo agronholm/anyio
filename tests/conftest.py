@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import platform
 import ssl
 import sys
@@ -105,6 +106,17 @@ for backend_name in get_all_backends():
             ],
         )
     )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def suppress_slow_callbacks() -> None:
+    class SuppressSlowCallbacks(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            return record.msg != "Executing %s took %.3f seconds"
+
+    # Suppress the slow callback duration warning messages interfering with log capture
+    # assertions on asyncio
+    logging.getLogger("asyncio").addFilter(SuppressSlowCallbacks())
 
 
 @pytest.fixture(autouse=True)

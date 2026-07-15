@@ -66,6 +66,7 @@ from anyio import (
 )
 from anyio._core._eventloop import get_async_backend
 from anyio.abc import (
+    AnyByteStream,
     ConnectedUDPSocket,
     ConnectedUNIXDatagramSocket,
     IPSockAddrType,
@@ -80,7 +81,7 @@ from anyio.abc import (
 from anyio.lowlevel import checkpoint
 from anyio.pytest_plugin import FreePortFactory
 from anyio.streams.stapled import MultiListener
-from anyio.streams.tls import TLSConnectable
+from anyio.streams.tls import TLSConnectable, TLSStream
 
 from .conftest import asyncio_params, no_other_refs
 
@@ -687,6 +688,34 @@ class TestTCPStream:
         thread.join()
         assert thread_exception is None
 
+    async def test_connect_tcp_with_tls_unicode_hostname(
+        self,
+        server_sock: socket.socket,
+        server_addr: tuple[str, int],
+        family: AnyIPAddressFamily,
+        mocker: MockerFixture,
+    ) -> None:
+        """
+        Test that connect_tcp() forwards the target host name to ``TLSStream.wrap()``
+        as-is, deferring the matching against the peer certificate (and any IDNA
+        encoding required for that) to it.
+
+        """
+        gai_result = socket.getaddrinfo(
+            server_addr[0], server_addr[1], family, socket.SOCK_STREAM
+        )
+        mocker.patch.object(get_async_backend(), "getaddrinfo", return_value=gai_result)
+
+        async def fake_wrap(
+            transport_stream: AnyByteStream, **kwargs: Any
+        ) -> AnyByteStream:
+            await transport_stream.aclose()
+            return transport_stream
+
+        wrap = mocker.patch.object(TLSStream, "wrap", side_effect=fake_wrap)
+        await connect_tcp("faß.de", server_addr[1], tls=True)
+        assert wrap.call_args.kwargs["hostname"] == "faß.de"
+
     @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_unretrieved_future_exception_server_crash(
         self, family: AnyIPAddressFamily, caplog: LogCaptureFixture
@@ -1023,7 +1052,7 @@ class TestTCPListener:
                 None,
                 AddressFamily.AF_UNSPEC,
                 1 if socket.has_dualstack_ipv6() else 2,
-                54321,
+                None,
             ),
             ("localhost", AddressFamily.AF_UNSPEC, 2, None),
             ("localhost", AddressFamily.AF_INET, 1, None),
