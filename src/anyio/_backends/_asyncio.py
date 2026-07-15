@@ -957,7 +957,9 @@ class TaskGroup(abc.TaskGroup):
 
         future: asyncio.Future = asyncio.Future()
         final_name = get_callable_name(func, name)
-        task_status = _AsyncioTaskStatus(future, _get_task_id(self.cancel_scope._host_task))
+        task_status = _AsyncioTaskStatus(
+            future, _get_task_id(self.cancel_scope._host_task)
+        )
         coro = call_for_coroutine(func, args, task_status=task_status)
         handle = self._spawn(coro, final_name, future)
 
