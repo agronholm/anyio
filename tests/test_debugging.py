@@ -99,6 +99,16 @@ async def test_get_running_tasks() -> None:
         assert repr(task).endswith(f"TaskInfo(id={task.id}, name={expected_name!r})")
 
 
+def test_task_info_ids_unique_across_runs() -> None:
+    async def current_task() -> TaskInfo:
+        return get_current_task()
+
+    t = anyio.run(current_task)
+    u = anyio.run(current_task)
+    assert t != u
+    assert t.id != u.id
+
+
 @pytest.mark.skipif(
     sys.version_info >= (3, 11),
     reason="Generator based coroutines have been removed in Python 3.11",

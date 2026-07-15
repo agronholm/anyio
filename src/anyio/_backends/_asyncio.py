@@ -4,6 +4,7 @@ import array
 import asyncio
 import concurrent.futures
 import contextvars
+import itertools
 import math
 import os
 import socket
@@ -717,6 +718,17 @@ class TaskState:
 
 
 _task_states: WeakKeyDictionary[asyncio.Task, TaskState] = WeakKeyDictionary()
+_task_id_counter = itertools.count(1)
+_task_ids: WeakKeyDictionary[asyncio.Task, int] = WeakKeyDictionary()
+
+
+def _get_task_id(task: asyncio.Task) -> int:
+    try:
+        return _task_ids[task]
+    except KeyError:
+        task_id = next(_task_id_counter)
+        _task_ids[task] = task_id
+        return task_id
 
 
 #
@@ -881,9 +893,9 @@ class TaskGroup(abc.TaskGroup):
                 )
 
         if task_status_future:
-            parent_id = id(current_task())
+            parent_id = _get_task_id(current_task())
         else:
-            parent_id = id(self.cancel_scope._host_task)
+            parent_id = _get_task_id(self.cancel_scope._host_task)
 
         handle = TaskHandle(coro, name)
         loop = asyncio.get_running_loop()
@@ -945,7 +957,7 @@ class TaskGroup(abc.TaskGroup):
 
         future: asyncio.Future = asyncio.Future()
         final_name = get_callable_name(func, name)
-        task_status = _AsyncioTaskStatus(future, id(self.cancel_scope._host_task))
+        task_status = _AsyncioTaskStatus(future, _get_task_id(self.cancel_scope._host_task))
         coro = call_for_coroutine(func, args, task_status=task_status)
         handle = self._spawn(coro, final_name, future)
 
@@ -2227,7 +2239,7 @@ class AsyncIOTaskInfo(TaskInfo):
 
         coro = task.get_coro()
         assert coro is not None, "created TaskInfo from a completed Task"
-        super().__init__(id(task), parent_id, task.get_name(), coro)
+        super().__init__(_get_task_id(task), parent_id, task.get_name(), coro)
         self._task = weakref.ref(task)
 
     def has_pending_cancellation(self) -> bool:
