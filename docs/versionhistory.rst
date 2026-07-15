@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- **BACKWARDS INCOMPATIBLE** Removed subinterpreter support for Python 3.13
+  (`#1158 <https://github.com/agronholm/anyio/issues/1158>`_; PR by @wanxiankai)
+
 **4.14.2**
 
 - Changed ``ByteReceiveStream.receive()`` implementations to raise a ``ValueError`` when
