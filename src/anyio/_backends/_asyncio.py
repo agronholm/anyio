@@ -893,9 +893,13 @@ class TaskGroup(abc.TaskGroup):
                 )
 
         if task_status_future:
-            parent_id = _get_task_id(current_task())
+            parent = current_task()
+            assert parent is not None
+            parent_id = _get_task_id(parent)
         else:
-            parent_id = _get_task_id(self.cancel_scope._host_task)
+            host_task = self.cancel_scope._host_task
+            assert host_task is not None
+            parent_id = _get_task_id(host_task)
 
         handle = TaskHandle(coro, name)
         loop = asyncio.get_running_loop()
@@ -957,9 +961,9 @@ class TaskGroup(abc.TaskGroup):
 
         future: asyncio.Future = asyncio.Future()
         final_name = get_callable_name(func, name)
-        task_status = _AsyncioTaskStatus(
-            future, _get_task_id(self.cancel_scope._host_task)
-        )
+        host_task = self.cancel_scope._host_task
+        assert host_task is not None
+        task_status = _AsyncioTaskStatus(future, _get_task_id(host_task))
         coro = call_for_coroutine(func, args, task_status=task_status)
         handle = self._spawn(coro, final_name, future)
 

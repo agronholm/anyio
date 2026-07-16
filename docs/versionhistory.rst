@@ -3,6 +3,13 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed ``TaskInfo`` objects from separate event loop runs comparing equal due to
+  reused object IDs. Each task is now assigned a process-monotonic ID cached in a
+  ``WeakKeyDictionary``, so ``TaskInfo`` identity is stable and unique per task
+  (`#324 <https://github.com/agronholm/anyio/issues/324>`_; PR by @pctablet505)
+
 **4.14.2**
 
 - Changed ``ByteReceiveStream.receive()`` implementations to raise a ``ValueError`` when
