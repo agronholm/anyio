@@ -10,14 +10,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   As a result:
 
   - Fixed ``start_blocking_portal()`` portal thread inheriting the calling thread's
-    ``contextvars.Context`` on Python 3.14+ free-threaded builds, previously was
-    leading to a ``RuntimeError: Already running <backend> in this thread``
-    raised in ``TestBlockingPortal::test_from_async``.
+    ``contextvars.Context`` on Python 3.14+ free-threaded build.
     (`#1220 <https://github.com/agronholm/anyio/issues/1220>`_; PR by @EmmanuelNiyonshuti)
   - Fixed ``to_thread.run_sync()``'s worker thread pool on asyncio backend retaining a
     reference to the calling task's ``contextvars.Context`` for the lifetime of the
-    pooled worker thread on Python 3.14+ free-threaded builds. Same reason as above.
-    previously was breaking this test ``test_run_sync_worker_cyclic_references``.
+    pooled worker thread on Python 3.14+ free-threaded build.
 
 **4.14.2**
 
