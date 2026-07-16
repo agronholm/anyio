@@ -128,7 +128,7 @@ class CancelScope:
 
 @contextmanager
 def fail_after(
-    delay: float | None, shield: bool = False
+    delay: float | None, shield: bool = False, reason: str | None = None
 ) -> Generator[CancelScope, None, None]:
     """
     Create a context manager which raises a :class:`TimeoutError` if does not finish in
@@ -137,6 +137,7 @@ def fail_after(
     :param delay: maximum allowed time (in seconds) before raising the exception, or
         ``None`` to disable the timeout
     :param shield: ``True`` to shield the cancel scope from external cancellation
+    :param reason: explanation for timeout to add to the message of a raised `TimeoutError`
     :return: a context manager that yields a cancel scope
     :rtype: :class:`~typing.ContextManager`\\[:class:`~anyio.CancelScope`\\]
     :raises NoEventLoopError: if no supported asynchronous event loop is running in the
@@ -151,7 +152,7 @@ def fail_after(
         yield cancel_scope
 
     if cancel_scope.cancelled_caught and current_time() >= cancel_scope.deadline:
-        raise TimeoutError
+        raise TimeoutError(reason or "")
 
 
 def move_on_after(delay: float | None, shield: bool = False) -> CancelScope:

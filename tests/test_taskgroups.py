@@ -714,6 +714,15 @@ async def test_fail_after_scope_cancelled_before_timeout() -> None:
         await checkpoint()
 
 
+async def test_fail_after_reason() -> None:
+    with pytest.raises(TimeoutError, match="oopsies"):
+        with fail_after(0, reason="oopsies") as scope:
+            await sleep(1)
+
+    assert scope.cancel_called
+    assert scope.cancelled_caught
+
+
 @pytest.mark.parametrize("delay", [0, 0.1], ids=["instant", "delayed"])
 async def test_move_on_after(delay: float) -> None:
     result = False
