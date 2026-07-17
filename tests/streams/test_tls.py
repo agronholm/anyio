@@ -60,6 +60,47 @@ class TestTLSStream:
         server_sock.close()
         assert response == b"olleh"
 
+    async def test_unicode_hostname_idna2008(
+        self, ca: CA, client_context: ssl.SSLContext
+    ) -> None:
+        """
+        Test that a unicode host name is encoded to ASCII using IDNA 2008 rather
+        than the standard library's IDNA 2003 before being matched against the
+        peer certificate.
+
+        """
+        # "faß.de" encodes to "xn--fa-hia.de" under IDNA 2008, but to the
+        # entirely different (and wrong) "fass.de" under IDNA 2003
+        server_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        if hasattr(ssl, "OP_IGNORE_UNEXPECTED_EOF"):
+            server_context.options &= ~ssl.OP_IGNORE_UNEXPECTED_EOF
+
+        ca.issue_cert("xn--fa-hia.de").configure_cert(server_context)
+
+        server_send, server_receive = create_memory_object_stream[bytes](1)
+        client_send, client_receive = create_memory_object_stream[bytes](1)
+        client_stream = StapledObjectStream(client_send, server_receive)
+        server_stream = StapledObjectStream(server_send, client_receive)
+
+        async def serve() -> None:
+            async with await TLSStream.wrap(
+                server_stream, server_side=True, ssl_context=server_context
+            ) as tls_stream:
+                data = await tls_stream.receive()
+                await tls_stream.send(data[::-1])
+
+        async with create_task_group() as tg:
+            tg.start_soon(serve)
+            # This would raise an SSLCertVerificationError if the host name were
+            # encoded using IDNA 2003 (yielding "fass.de")
+            async with await TLSStream.wrap(
+                client_stream, hostname="faß.de", ssl_context=client_context
+            ) as wrapper:
+                await wrapper.send(b"hello")
+                response = await wrapper.receive()
+
+        assert response == b"olleh"
+
     @pytest.mark.parametrize("max_bytes", [0, -1])
     async def test_receive_invalid_max_bytes(
         self,
@@ -71,18 +112,16 @@ class TestTLSStream:
 
         def serve_sync() -> None:
             nonlocal server_exc
-            conn, addr = server_sock.accept()
             try:
-                conn.settimeout(1)
+                conn, addr = server_sock.accept()
+                conn.close()
             except BaseException as exc:
                 server_exc = exc
-            finally:
-                conn.close()
 
         server_sock = server_context.wrap_socket(
             socket.socket(), server_side=True, suppress_ragged_eofs=True
         )
-        server_sock.settimeout(1)
+        server_sock.settimeout(5)
         server_sock.bind(("127.0.0.1", 0))
         server_sock.listen()
         server_thread = Thread(target=serve_sync, daemon=True)
@@ -93,7 +132,6 @@ class TestTLSStream:
                     stream,
                     hostname="localhost",
                     ssl_context=client_context,
-                    standard_compatible=False,
                 )
                 with pytest.raises(
                     ValueError, match="max_bytes must be a positive integer"
