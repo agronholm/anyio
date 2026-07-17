@@ -3,6 +3,12 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed the default ``TaskHandle.name`` missing part of the task name for tasks started
+  with ``TaskGroup.start`` on Trio (`#1231
+  <https://github.com/agronholm/anyio/issues/1231>`_; PR by @gschaffner)
+
 **4.14.2**
 
 - Changed ``ByteReceiveStream.receive()`` implementations to raise a ``ValueError`` when

@@ -297,7 +297,7 @@ class TaskGroup(abc.TaskGroup):
             else:
                 wrapper_task_status.real_task_status = task_status
 
-            handle = TaskHandle(coro, name)
+            handle = TaskHandle(coro, final_name)
             await handle._run_coro()
 
         self._check_active()
