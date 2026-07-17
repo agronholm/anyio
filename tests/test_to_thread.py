@@ -386,3 +386,29 @@ async def test_run_sync_worker_cyclic_references() -> None:
     assert gc.get_referrers(contextval) == no_other_refs()
     assert gc.get_referrers(foo) == no_other_refs()
     assert gc.get_referrers(arg) == no_other_refs()
+
+
+def test_anyio_run_does_not_leak_event_loop() -> None:
+    # Each anyio.run() that uses to_thread.run_sync() (which calls
+    # find_root_task) must not leak its event loop: the root task was cached
+    # strongly in the loop-keyed _run_vars dict, keeping the loop (and its
+    # result) alive forever (issue #1203).
+    import anyio
+
+    async def main() -> int:
+        await to_thread.run_sync(lambda: None)
+        return 42
+
+    def live_loops() -> int:
+        gc.collect()
+        return sum(
+            1
+            for obj in gc.get_objects()
+            if isinstance(obj, asyncio.AbstractEventLoop)
+        )
+
+    before = live_loops()
+    for _ in range(3):
+        assert anyio.run(main) == 42
+
+    assert live_loops() == before

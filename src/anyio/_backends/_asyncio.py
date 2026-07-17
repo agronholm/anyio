@@ -305,13 +305,19 @@ T_contra = TypeVar("T_contra", contravariant=True)
 PosArgsT = TypeVarTuple("PosArgsT")
 P = ParamSpec("P")
 
-_root_task: RunVar[asyncio.Task | None] = RunVar("_root_task")
+# A weak reference is used so that the cached root task does not keep the event
+# loop (which is the weak key of the ``_run_vars`` dict holding this RunVar)
+# alive, which would leak the loop, the root task and its result on every
+# ``anyio.run()`` call (issue #1203).
+_root_task: RunVar[weakref.ref[asyncio.Task] | None] = RunVar("_root_task")
 
 
 def find_root_task() -> asyncio.Task:
-    root_task = _root_task.get(None)
-    if root_task is not None and not root_task.done():
-        return root_task
+    root_task_ref = _root_task.get(None)
+    if root_task_ref is not None:
+        root_task = root_task_ref()
+        if root_task is not None and not root_task.done():
+            return root_task
 
     # Look for a task that has been started via run_until_complete()
     for task in all_tasks():
@@ -322,7 +328,7 @@ def find_root_task() -> asyncio.Task:
                     cb is _run_until_complete_cb
                     or getattr(cb, "__module__", None) == "uvloop.loop"
                 ):
-                    _root_task.set(task)
+                    _root_task.set(weakref.ref(task))
                     return task
 
     # Look up the topmost task in the AnyIO task tree, if possible
