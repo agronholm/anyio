@@ -14,6 +14,7 @@ from ._synchronization import Event
 
 T = TypeVar("T")
 
+
 class Future(Generic[T]):
     """
     An awaitable object that works similar to a :class:`asyncio.Future` but
