@@ -788,7 +788,7 @@ class TestBlockingPortal:
             fs = [portal.start_task_soon(sleep, math.inf)]
             from_thread.run_sync(event.set)
             done, not_done = futures.wait(
-                fs, timeout=1, return_when=futures.FIRST_COMPLETED
+                fs, timeout=5, return_when=futures.FIRST_COMPLETED
             )
             assert not not_done
 

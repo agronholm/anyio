@@ -888,10 +888,16 @@ class CapacityLimiter(BaseCapacityLimiter):
         return self.__original.available_tokens
 
     def acquire_nowait(self) -> None:
-        self.__original.acquire_nowait()
+        try:
+            self.__original.acquire_nowait()
+        except trio.WouldBlock:
+            raise WouldBlock from None
 
     def acquire_on_behalf_of_nowait(self, borrower: object) -> None:
-        self.__original.acquire_on_behalf_of_nowait(borrower)
+        try:
+            self.__original.acquire_on_behalf_of_nowait(borrower)
+        except trio.WouldBlock:
+            raise WouldBlock from None
 
     async def acquire(self) -> None:
         await self.__original.acquire()
