@@ -402,9 +402,7 @@ def test_anyio_run_does_not_leak_event_loop() -> None:
     def live_loops() -> int:
         gc.collect()
         return sum(
-            1
-            for obj in gc.get_objects()
-            if isinstance(obj, asyncio.AbstractEventLoop)
+            1 for obj in gc.get_objects() if isinstance(obj, asyncio.AbstractEventLoop)
         )
 
     before = live_loops()
