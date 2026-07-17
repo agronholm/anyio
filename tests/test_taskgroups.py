@@ -2319,6 +2319,30 @@ class TestCreateTask:
         await handle.wait()
 
 
+async def test_start_name_default() -> None:
+    """
+    This is similar to ``TestCreateTask.test_task_name_default``, but for ``start``
+    instead of ``create_task``.
+    """
+
+    async def taskfunc(*, task_status: TaskStatus[None]) -> str | None:
+        task_status.started()
+        return get_current_task().name
+
+    async with create_task_group() as tg:
+        handle = await tg.start(taskfunc, return_handle=True)
+        assert re.match(
+            r"<TaskHandle finished name='tests.test_taskgroups.test_start_name_default.<locals>.taskfunc' "
+            r"coro=<coroutine object test_start_name_default.<locals>.taskfunc at 0x[0-9a-fA-F]+>>",
+            repr(handle),
+        )
+        assert await handle == handle.name
+
+    assert (
+        handle.name == "tests.test_taskgroups.test_start_name_default.<locals>.taskfunc"
+    )
+
+
 @pytest.mark.parametrize("create_task", [False, True])
 async def test_task_from_asyncgen_asend(create_task: bool) -> None:
     async def genfunc(x: int, y: int) -> AsyncGenerator[int, None]:
