@@ -20,7 +20,6 @@ from ._core._exceptions import DelimiterNotFound as DelimiterNotFound
 from ._core._exceptions import EndOfStream as EndOfStream
 from ._core._exceptions import FutureAlreadyFinished as FutureAlreadyFinished
 from ._core._exceptions import FutureCancelled as FutureCancelled
-from ._core._exceptions import FutureNotFinished as FutureNotFinished
 from ._core._exceptions import IncompleteRead as IncompleteRead
 from ._core._exceptions import NoEventLoopError as NoEventLoopError
 from ._core._exceptions import RunFinishedError as RunFinishedError
