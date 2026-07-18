@@ -24,6 +24,7 @@ from anyio import (
 )
 from anyio._core._eventloop import current_async_library
 from anyio.from_thread import BlockingPortalProvider
+from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params, no_other_refs
 
@@ -382,6 +383,11 @@ async def test_run_sync_worker_cyclic_references() -> None:
     await to_thread.run_sync(foo, arg)
     cvar.set(Foo())
     gc.collect()
+    # This checkpoint only exist to give the worker thread a moment to finish releasing its own
+    # references before we check. on free threaded python builds, this can
+    # otherwise race and intermittently show a leftover reference.
+    # See: https://github.com/agronholm/anyio/pull/1224
+    await checkpoint()
 
     assert gc.get_referrers(contextval) == no_other_refs()
     assert gc.get_referrers(foo) == no_other_refs()
