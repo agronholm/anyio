@@ -1827,6 +1827,42 @@ async def test_start_return_handle_cancel() -> None:
         assert handle.start_value == 3
 
 
+async def test_start_name_default() -> None:
+    """Like ``TestCreateTask.test_task_name_default``, but for ``start()``.
+
+    The handle used to be named after the wrapper coroutine on Trio, which
+    dropped the module qualifier and disagreed with the task's own name.
+    """
+
+    async def taskfunc(*, task_status: TaskStatus[None]) -> str | None:
+        task_status.started()
+        return get_current_task().name
+
+    expected = f"{__name__}.test_start_name_default.<locals>.taskfunc"
+    async with create_task_group() as tg:
+        handle = await tg.start(taskfunc, return_handle=True)
+        assert re.match(
+            rf"<TaskHandle (pending|finished) name='{re.escape(expected)}' "
+            r"coro=<coroutine object(.+)>>",
+            repr(handle),
+        )
+        assert await handle == handle.name
+
+    assert handle.name == expected
+
+
+async def test_start_name_custom_name() -> None:
+    async def taskfunc(*, task_status: TaskStatus[None]) -> str | None:
+        task_status.started()
+        return get_current_task().name
+
+    async with create_task_group() as tg:
+        handle = await tg.start(taskfunc, name="custom name", return_handle=True)
+        assert await handle == "custom name"
+
+    assert handle.name == "custom name"
+
+
 @pytest.mark.skipif(
     sys.implementation.name == "pypy",
     reason=(

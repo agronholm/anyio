@@ -286,6 +286,11 @@ class TaskGroup(abc.TaskGroup):
     ) -> Any:
         handle: TaskHandle[T_co]
 
+        # Derived from func, not from the wrapper coroutine the handle is built
+        # around, so that TaskHandle.name matches the task's own name (and the
+        # asyncio backend, which spawns with this same name).
+        final_name = get_callable_name(func, name)
+
         async def run_coro_with_task_status(
             *, task_status: trio.TaskStatus[Any]
         ) -> None:
@@ -297,11 +302,10 @@ class TaskGroup(abc.TaskGroup):
             else:
                 wrapper_task_status.real_task_status = task_status
 
-            handle = TaskHandle(coro, name)
+            handle = TaskHandle(coro, final_name)
             await handle._run_coro()
 
         self._check_active()
-        final_name = get_callable_name(func, name)
         start_value = await self._nursery.start(
             run_coro_with_task_status, name=final_name
         )
