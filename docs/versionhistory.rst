@@ -8,10 +8,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Changed ``ByteReceiveStream.receive()`` implementations to raise a ``ValueError`` when
   ``max_bytes`` is not a positive integer
   (`#1191 <https://github.com/agronholm/anyio/pull/1191>`_)
-- Fixed ``anyio.Path.with_stem()`` silently producing a wrong path (e.g.
-  ``Path(".txt")``) instead of raising ``ValueError`` when given an empty stem on a
-  path with a non-empty suffix, unlike :meth:`pathlib.PurePath.with_stem`
-  (`#1200 <https://github.com/agronholm/anyio/pull/1200>`_; PR by @Sanjays2402)
 - Fixed ``CapacityLimiter.total_tokens`` rejecting ``float("inf")`` when the limiter was
   instantiated outside of an event loop. The adapter setter checked for infinity by
   identity (``value is math.inf``), so only the exact ``math.inf`` singleton was accepted,
@@ -27,6 +23,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``anyio.open_process()`` (and ``run_process()``) ignoring the ``extra_groups``
   argument, as it mistakenly passed the value of the ``group`` argument instead
   (`#1209 <https://github.com/agronholm/anyio/pull/1209>`_)
+- Fixed ``anyio.Path.with_stem()`` silently producing a wrong path (e.g.
+  ``Path(".txt")``) instead of raising ``ValueError`` when given an empty stem on a
+  path with a non-empty suffix, unlike :meth:`pathlib.PurePath.with_stem`
+  (`#1200 <https://github.com/agronholm/anyio/pull/1200>`_; PR by @Sanjays2402)
 
 **4.14.1**
 
