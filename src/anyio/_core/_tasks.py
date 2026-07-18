@@ -146,7 +146,7 @@ def fail_at(
     current_time = get_async_backend().current_time
     effective_deadline = math.inf if deadline is None else deadline
     with get_async_backend().create_cancel_scope(
-        deadline=effective_deadline or math.inf, shield=shield
+        deadline=effective_deadline, shield=shield
     ) as cancel_scope:
         yield cancel_scope
 
