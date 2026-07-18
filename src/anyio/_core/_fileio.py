@@ -924,10 +924,22 @@ class Path:
     def with_name(self, name: str) -> Self:
         return type(self)(self._path.with_name(name), limiter=self._limiter)
 
-    def with_stem(self, stem: str) -> Self:
-        return type(self)(
-            self._path.with_name(stem + self._path.suffix), limiter=self._limiter
-        )
+    if sys.version_info < (3, 13):
+        # Backport pathlib's Python>=3.13 behavior for empty stems on paths with non-empty suffixes.
+        # See: https://github.com/python/cpython/pull/114612
+        def with_stem(self, stem: str) -> Self:
+            suffix = self._path.suffix
+            if not suffix:
+                return self.with_name(stem)
+            elif not stem:
+                # If the suffix is non-empty, we can't make the stem empty.
+                raise ValueError(f"{self!r} has a non-empty suffix")
+            else:
+                return self.with_name(stem + suffix)
+    else:
+
+        def with_stem(self, stem: str) -> Self:
+            return type(self)(self._path.with_stem(stem), limiter=self._limiter)
 
     def with_suffix(self, suffix: str) -> Self:
         return type(self)(self._path.with_suffix(suffix), limiter=self._limiter)

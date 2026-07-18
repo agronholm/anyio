@@ -852,6 +852,14 @@ class TestPath:
     def test_with_stem(self) -> None:
         assert Path("/xyz/foo.txt").with_stem("bar").name == "bar.txt"
 
+    def test_with_stem_empty_stem_with_suffix(self) -> None:
+        # An empty stem on a path with a non-empty suffix is rejected by
+        # pathlib (the resulting name would be just the suffix). anyio.Path
+        # must match that behavior rather than silently producing e.g.
+        # Path(".txt").
+        with pytest.raises(ValueError, match="non-empty suffix"):
+            Path("/xyz/foo.txt").with_stem("")
+
     def test_with_suffix(self) -> None:
         assert Path("/xyz/foo.txt.gz").with_suffix(".zip").name == "foo.txt.zip"
 
