@@ -6,7 +6,7 @@ from collections.abc import (
     Coroutine,
     Generator,
 )
-from contextlib import AbstractContextManager, contextmanager
+from contextlib import contextmanager
 from enum import Enum, auto
 from inspect import iscoroutine
 from types import TracebackType
@@ -154,9 +154,10 @@ def fail_at(
         raise TimeoutError
 
 
+@contextmanager
 def fail_after(
     delay: float | None, shield: bool = False
-) -> AbstractContextManager[CancelScope]:
+) -> Generator[CancelScope, None, None]:
     """
     Create a context manager which raises a :class:`TimeoutError` if the code in the
     enclosing context block does not finish in time.
@@ -172,7 +173,8 @@ def fail_after(
     """
     current_time = get_async_backend().current_time
     deadline = (current_time() + delay) if delay is not None else math.inf
-    return fail_at(deadline, shield=shield)
+    with fail_at(deadline, shield=shield) as scope:
+        yield scope
 
 
 def move_on_at(deadline: float | None, shield: bool = False) -> CancelScope:
@@ -194,7 +196,10 @@ def move_on_at(deadline: float | None, shield: bool = False) -> CancelScope:
     )
 
 
-def move_on_after(delay: float | None, shield: bool = False) -> CancelScope:
+@contextmanager
+def move_on_after(
+    delay: float | None, shield: bool = False
+) -> Generator[CancelScope, None, None]:
     """
     Create a cancel scope with a deadline that expires after the given delay.
 
@@ -209,7 +214,10 @@ def move_on_after(delay: float | None, shield: bool = False) -> CancelScope:
     deadline = (
         (get_async_backend().current_time() + delay) if delay is not None else math.inf
     )
-    return get_async_backend().create_cancel_scope(deadline=deadline, shield=shield)
+    with get_async_backend().create_cancel_scope(
+        deadline=deadline, shield=shield
+    ) as scope:
+        yield scope
 
 
 def current_effective_deadline() -> float:
