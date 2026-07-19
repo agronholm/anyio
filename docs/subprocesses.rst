@@ -70,7 +70,7 @@ Exceptions to this rule are:
 #. Blocking I/O operations
 #. C extension code that explicitly releases the Global Interpreter Lock
 #. :doc:`Subinterpreter workers <subinterpreters>`
-   (experimental; available on Python 3.13 and later)
+   (experimental; available on Python 3.14 and later)
 
 If the code you wish to run does not belong in this category, it's best to use worker
 processes instead in order to take advantage of multiple CPU cores.

@@ -43,7 +43,7 @@ This is done by using :func:`.to_interpreter.run_sync`::
 Limitations
 -----------
 
-* Subinterpreters are only supported on Python 3.13 or later
+* Subinterpreters are only supported on Python 3.14 or later
 * Code in the ``__main__`` module cannot be run with this (as a consequence, this
   applies to any functions defined in the REPL)
 * The target functions cannot react to cancellation
