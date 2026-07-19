@@ -67,7 +67,7 @@ async def wait_for_child_exit(process: subprocess.Popen[bytes]) -> None:
     systems it waits in a worker thread (see :func:`_sync_wait_for_exit`).
     """
     backend = get_async_backend()
-    if sys.platform == "linux":
+    if sys.platform == "linux" and hasattr(os, "pidfd_open"):
         try:
             pidfd = os.pidfd_open(process.pid)
         except OSError:
