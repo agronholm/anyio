@@ -2741,13 +2741,20 @@ class AsyncIOBackend(AsyncBackend):
             from asyncio.windows_utils import PipeHandle
             from asyncio.windows_utils import pipe as windows_pipe
 
-            # A duplex pipe is required: asyncio's write-pipe transport issues a read on
-            # our end to detect when the child closes its side, so our (write) end needs
-            # read access too. The write end also uses overlapped (IOCP) I/O.
-            read_handle, write_handle = windows_pipe(
-                duplex=True, overlapped=(False, True)
-            )
-            pipe_obj: Any = PipeHandle(write_handle)
+            if hasattr(loop, "_proactor"):
+                # stdlib ProactorEventLoop: its write-pipe transport issues a read on
+                # our end to detect when the child closes its side, so a duplex pipe is
+                # required. Our (write) end uses overlapped (IOCP) I/O.
+                read_handle, write_handle = windows_pipe(
+                    duplex=True, overlapped=(False, True)
+                )
+                pipe_obj: Any = PipeHandle(write_handle)
+            else:
+                # winloop (libuv) works like uvloop on POSIX: it wants a file object
+                # backed by a real (overlapped) file descriptor
+                read_handle, write_handle = windows_pipe(overlapped=(False, True))
+                pipe_obj = os.fdopen(msvcrt.open_osfhandle(write_handle, 0), "wb", 0)
+
             child_fd = msvcrt.open_osfhandle(read_handle, os.O_RDONLY)
         else:
             read_fd, write_fd = os.pipe()
@@ -2774,7 +2781,15 @@ class AsyncIOBackend(AsyncBackend):
 
             # The read end (our end) uses overlapped (IOCP) I/O
             read_handle, write_handle = windows_pipe(overlapped=(True, False))
-            pipe_obj: Any = PipeHandle(read_handle)
+            if hasattr(loop, "_proactor"):
+                # stdlib ProactorEventLoop wants the raw pipe handle
+                pipe_obj: Any = PipeHandle(read_handle)
+            else:
+                # winloop (libuv) wants a file object backed by a real fd
+                pipe_obj = os.fdopen(
+                    msvcrt.open_osfhandle(read_handle, os.O_RDONLY), "rb", 0
+                )
+
             child_fd = msvcrt.open_osfhandle(write_handle, 0)
         else:
             read_fd, write_fd = os.pipe()
@@ -2792,11 +2807,13 @@ class AsyncIOBackend(AsyncBackend):
         return _ProcessReceivePipeStream(transport, protocol), child_fd
 
     @classmethod
-    async def wait_for_child_exit(cls, process: subprocess.Popen) -> None:
+    async def wait_for_child_exit(cls, process: subprocess.Popen[bytes]) -> None:
         if sys.platform == "win32":
-            loop = asyncio.get_running_loop()
-            # Wait on the process handle via IOCP; no worker thread involved
-            await loop._proactor.wait_for_handle(int(process._handle))  # type: ignore[attr-defined]
+            # Works regardless of the event loop implementation (ProactorEventLoop,
+            # winloop, SelectorEventLoop) and doesn't tie up a Python thread
+            from .._core._asyncio_windows_process import wait_for_pid
+
+            await wait_for_pid(process.pid)
         else:
             from .._core._subprocesses import wait_for_child_exit
 
