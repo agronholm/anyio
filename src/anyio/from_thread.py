@@ -545,6 +545,7 @@ def start_blocking_portal(
     kwargs: dict[str, Any] = {}
     if sys.version_info >= (3, 14):
         kwargs["context"] = Context()
+
     thread = Thread(target=run_blocking_portal, daemon=True, name=name, **kwargs)
     thread.start()
     try:
