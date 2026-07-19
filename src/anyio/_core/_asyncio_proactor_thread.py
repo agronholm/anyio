@@ -18,6 +18,7 @@ from collections.abc import Coroutine
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from ..abc import ByteReceiveStream, ByteSendStream
+from ._asyncio_runner import Runner
 
 assert sys.platform == "win32" or not TYPE_CHECKING
 
@@ -38,19 +39,25 @@ def _new_proactor_loop() -> asyncio.AbstractEventLoop:
 
 class ProactorThread:
     def __init__(self) -> None:
-        self._loop = _new_proactor_loop()
+        self._loop: asyncio.AbstractEventLoop
+        self._stop_event: asyncio.Event
         self._thread = threading.Thread(
             target=self._run, name="AnyIO proactor", daemon=True
         )
         self._started = threading.Event()
 
+    async def _serve(self) -> None:
+        # Runs on the proactor loop; keeps it alive until stop is requested
+        self._stop_event = asyncio.Event()
+        self._started.set()
+        await self._stop_event.wait()
+
     def _run(self) -> None:
-        asyncio.set_event_loop(self._loop)
-        self._loop.call_soon(self._started.set)
-        try:
-            self._loop.run_forever()
-        finally:
-            self._loop.close()
+        # asyncio.Runner takes care of cancelling leftover tasks, shutting down async
+        # generators and the default executor, and closing the loop
+        with Runner(loop_factory=_new_proactor_loop) as runner:
+            self._loop = runner.get_loop()
+            runner.run(self._serve())
 
     def start(self) -> None:
         self._thread.start()
@@ -59,7 +66,7 @@ class ProactorThread:
 
     def _stop(self) -> None:
         global _proactor_thread
-        self._loop.call_soon_threadsafe(self._loop.stop)
+        self._loop.call_soon_threadsafe(self._stop_event.set)
         self._thread.join()
         _proactor_thread = None
 
@@ -82,6 +89,10 @@ class ProxyReceiveStream(ByteReceiveStream):
     async def aclose(self) -> None:
         await self._thread.run(self._inner.aclose())
 
+    def _abort(self) -> None:
+        # Synchronously (best-effort) close the underlying transport on the proactor loop
+        self._thread._loop.call_soon_threadsafe(self._inner._abort)  # type: ignore[attr-defined]
+
 
 class ProxySendStream(ByteSendStream):
     """Forwards send/aclose to a stream living on the proactor thread's loop."""
@@ -95,6 +106,10 @@ class ProxySendStream(ByteSendStream):
 
     async def aclose(self) -> None:
         await self._thread.run(self._inner.aclose())
+
+    def _abort(self) -> None:
+        # Synchronously (best-effort) close the underlying transport on the proactor loop
+        self._thread._loop.call_soon_threadsafe(self._inner._abort)  # type: ignore[attr-defined]
 
 
 def get_proactor_thread() -> ProactorThread:
