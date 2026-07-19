@@ -2195,14 +2195,14 @@ class TestCreateTask:
 
             assert re.match(
                 r"<TaskHandle pending "
-                r"name='TestCreateTask.test_return_value.<locals>.taskfunc' "
+                r"name='tests.test_taskgroups.TestCreateTask.test_return_value.<locals>.taskfunc' "
                 r"coro=<coroutine object(.+)>>",
                 repr(handle),
             )
             assert await handle == 6
             assert re.match(
                 r"<TaskHandle finished "
-                r"name='TestCreateTask.test_return_value.<locals>.taskfunc' "
+                r"name='tests.test_taskgroups.TestCreateTask.test_return_value.<locals>.taskfunc' "
                 r"coro=<coroutine object(.+)>>",
                 repr(handle),
             )
@@ -2229,7 +2229,7 @@ class TestCreateTask:
 
         assert re.match(
             r"<TaskHandle failed "
-            r"name='TestCreateTask.test_exception.<locals>.taskfunc' "
+            r"name='tests.test_taskgroups.TestCreateTask.test_exception.<locals>.taskfunc' "
             r"coro=<coroutine object(.+)>",
             repr(handle),
         )
@@ -2252,7 +2252,7 @@ class TestCreateTask:
                 assert handle.status is TaskHandle.Status.FAILED
                 assert re.match(
                     r"<TaskHandle failed "
-                    r"name='TestCreateTask.test_base_exception.<locals>.taskfunc' "
+                    r"name='tests.test_taskgroups.TestCreateTask.test_base_exception.<locals>.taskfunc' "
                     r"coro=<coroutine object(.+)>",
                     repr(handle),
                 )
@@ -2287,7 +2287,7 @@ class TestCreateTask:
             assert handle.status is TaskHandle.Status.CANCELLING
             assert re.match(
                 r"<TaskHandle cancelling "
-                r"name='TestCreateTask.test_cancel.<locals>.taskfunc' "
+                r"name='tests.test_taskgroups.TestCreateTask.test_cancel.<locals>.taskfunc' "
                 r"coro=<coroutine object(.+)>>",
                 repr(handle),
             )
@@ -2309,7 +2309,7 @@ class TestCreateTask:
         assert task_started
         assert re.match(
             r"<TaskHandle cancelled "
-            r"name='TestCreateTask.test_cancel.<locals>.taskfunc' "
+            r"name='tests.test_taskgroups.TestCreateTask.test_cancel.<locals>.taskfunc' "
             r"coro=<coroutine object(.+)>>",
             repr(handle),
         )
@@ -2334,13 +2334,16 @@ class TestCreateTask:
             handle = tg.create_task(taskfunc())
             assert re.match(
                 r"<TaskHandle pending "
-                r"name='TestCreateTask.test_task_name_default.<locals>.taskfunc' "
+                r"name='tests.test_taskgroups.TestCreateTask.test_task_name_default.<locals>.taskfunc' "
                 r"coro=<coroutine object(.+)>>",
                 repr(handle),
             )
             assert await handle == handle.name
 
-        assert handle.name == "TestCreateTask.test_task_name_default.<locals>.taskfunc"
+        assert (
+            handle.name
+            == "tests.test_taskgroups.TestCreateTask.test_task_name_default.<locals>.taskfunc"
+        )
 
     async def test_task_name_custom_name(self) -> None:
         async def taskfunc() -> None:
@@ -2376,11 +2379,7 @@ async def test_task_from_asyncgen_asend(create_task: bool) -> None:
 
     async with create_task_group() as tg:
         async with aclosing(genfunc(3, 5)) as g:
-            if create_task:
-                handle = tg.create_task(g.asend(None))
-                assert handle.name.startswith("<async_generator_asend object at ")
-            else:
-                handle = tg.start_soon(g.asend, None)
-                assert handle.name == "async_generator.asend"
+            handle = tg.start_soon(g.asend, None)
+            assert handle.name == "async_generator.asend"
 
             assert await handle == 8

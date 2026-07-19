@@ -101,7 +101,7 @@ from ..abc import (
     UNIXDatagramPacketType,
 )
 from ..abc._eventloop import StrOrBytesPath
-from ..abc._tasks import call_for_coroutine, get_callable_name
+from ..abc._tasks import call_for_coroutine, get_callable_name, get_coro_name
 from ..lowlevel import RunVar
 from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
@@ -926,10 +926,12 @@ class TaskGroup(abc.TaskGroup):
                 "This task group is not active; no new tasks can be started."
             )
 
+        final_name = get_coro_name(coro, name)
+
         if context is not None:
-            return context.run(self._spawn, coro, name=name)
+            return context.run(self._spawn, coro, name=final_name)
         else:
-            return self._spawn(coro, name=name)
+            return self._spawn(coro, name=final_name)
 
     async def start(
         self,
