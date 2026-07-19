@@ -72,6 +72,16 @@ if sys.version_info >= (3, 12):
         ),
     )
 
+if platform.system() == "Windows":
+    # The SelectorEventLoop can't do overlapped pipe I/O itself; exercise the fallback
+    # that runs subprocess pipes on a background proactor loop
+    asyncio_params.append(
+        pytest.param(
+            ("asyncio", {"debug": True, "loop_factory": asyncio.SelectorEventLoop}),
+            id="asyncio+selector",
+        ),
+    )
+
 backend_params = asyncio_params.copy()
 available_backends = set(get_available_backends())
 for backend_name in get_all_backends():

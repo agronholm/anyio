@@ -2736,6 +2736,18 @@ class AsyncIOBackend(AsyncBackend):
     @classmethod
     async def create_subprocess_stdin_pipe(cls) -> tuple[abc.ByteSendStream, int]:
         loop = asyncio.get_running_loop()
+        if sys.platform == "win32" and isinstance(loop, asyncio.SelectorEventLoop):
+            # The SelectorEventLoop can't do overlapped pipe I/O, so run it on a
+            # background proactor loop and proxy the operations to it
+            from .._core._asyncio_proactor_thread import (
+                ProxySendStream,
+                get_proactor_thread,
+            )
+
+            thread = get_proactor_thread()
+            inner, child_fd = await thread.run(cls.create_subprocess_stdin_pipe())
+            return ProxySendStream(thread, inner), child_fd
+
         if sys.platform == "win32":
             import msvcrt
             from asyncio.windows_utils import PipeHandle
@@ -2774,6 +2786,18 @@ class AsyncIOBackend(AsyncBackend):
     @classmethod
     async def create_subprocess_output_pipe(cls) -> tuple[abc.ByteReceiveStream, int]:
         loop = asyncio.get_running_loop()
+        if sys.platform == "win32" and isinstance(loop, asyncio.SelectorEventLoop):
+            # The SelectorEventLoop can't do overlapped pipe I/O, so run it on a
+            # background proactor loop and proxy the operations to it
+            from .._core._asyncio_proactor_thread import (
+                ProxyReceiveStream,
+                get_proactor_thread,
+            )
+
+            thread = get_proactor_thread()
+            inner, child_fd = await thread.run(cls.create_subprocess_output_pipe())
+            return ProxyReceiveStream(thread, inner), child_fd
+
         if sys.platform == "win32":
             import msvcrt
             from asyncio.windows_utils import PipeHandle
