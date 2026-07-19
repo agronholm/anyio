@@ -3,6 +3,16 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed ``CapacityLimiter`` on the asyncio backend over-granting tokens
+  (``borrowed_tokens`` exceeding ``total_tokens`` and ``available_tokens`` going
+  negative) when ``total_tokens`` was raised while the limiter was
+  over-subscribed, i.e. after ``total_tokens`` had previously been lowered below
+  the number of current borrowers. The setter woke waiters based on the increase
+  in ``total_tokens`` rather than the actual spare capacity
+  (`#1223 <https://github.com/agronholm/anyio/pull/1223>`_; PR by @zelinewang)
+
 **4.14.2**
 
 - Changed ``ByteReceiveStream.receive()`` implementations to raise a ``ValueError`` when

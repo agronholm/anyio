@@ -2076,15 +2076,14 @@ class CapacityLimiter(BaseCapacityLimiter):
         if value < 0:
             raise ValueError("total_tokens must be >= 0")
 
-        waiters_to_notify = max(value - self._total_tokens, 0)
         self._total_tokens = value
 
-        # Notify waiting tasks that they have acquired the limiter
-        while self._wait_queue and waiters_to_notify:
+        # Notify waiting tasks that they have acquired the limiter while
+        # there is spare capacity.
+        while self._wait_queue and len(self._borrowers) < self._total_tokens:
             borrower, event = self._wait_queue.popitem(last=False)
             self._borrowers.add(borrower)
             event.set()
-            waiters_to_notify -= 1
 
     @property
     def borrowed_tokens(self) -> int:

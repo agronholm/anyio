@@ -892,6 +892,57 @@ class TestCapacityLimiter:
             # Allow all tasks to exit
             continue_event.set()
 
+    async def test_increase_tokens_does_not_oversubscribe(self) -> None:
+        """
+        Raising ``total_tokens`` must not grant more waiters than the spare
+        capacity, even when the limiter is over-subscribed because
+        ``total_tokens`` was previously lowered below the number of current
+        borrowers.
+        """
+        limiter = CapacityLimiter(2)
+        entered_events = [Event() for _ in range(2)]
+        continue_event = Event()
+
+        async def worker(entered_event: Event) -> None:
+            async with limiter:
+                entered_event.set()
+                await continue_event.wait()
+
+        # Fill the limiter: two borrowers against a limit of two tokens.
+        limiter.acquire_on_behalf_of_nowait("A")
+        limiter.acquire_on_behalf_of_nowait("B")
+
+        async with create_task_group() as tg:
+            for event in entered_events:
+                tg.start_soon(worker, event)
+
+            # Both workers block: the limiter is full.
+            await wait_all_tasks_blocked()
+            assert not any(ev.is_set() for ev in entered_events)
+            assert limiter.borrowed_tokens == 2
+            assert limiter.statistics().tasks_waiting == 2
+
+            # Lower the limit below the borrower count, then raise it back to the
+            # borrower count. There is still no spare capacity, so no waiter may
+            # be granted a token.
+            limiter.total_tokens = 1
+            limiter.total_tokens = 2
+            await wait_all_tasks_blocked()
+            assert not any(ev.is_set() for ev in entered_events)
+            assert limiter.borrowed_tokens == 2
+            assert limiter.available_tokens == 0
+            assert limiter.statistics().tasks_waiting == 2
+
+            # Release the initial borrowers so the workers can proceed and the
+            # task group can exit cleanly.
+            limiter.release_on_behalf_of("A")
+            limiter.release_on_behalf_of("B")
+            with fail_after(1):
+                for ev in entered_events:
+                    await ev.wait()
+
+            continue_event.set()
+
     def test_instantiate_outside_event_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
