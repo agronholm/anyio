@@ -16,6 +16,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   causing AnyIO to behave erroneously in relation to ``start_blocking_portal()`` and
   ``anyio.to_thread.run_sync()``
   (`#1224 <https://github.com/agronholm/anyio/pull/1224>`_; PR by @EmmanuelNiyonshuti)
+- Fixed ``SpooledTemporaryFile.readinto()`` and ``readinto1()`` reading twice before
+  rollover, so the destination buffer was overwritten by the second read and the file
+  position advanced twice, silently losing data
+  (`#1215 <https://github.com/agronholm/anyio/pull/1215>`_; PR by @c-tonneslan)
 
 **4.14.2**
 
