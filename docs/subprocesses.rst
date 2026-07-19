@@ -6,6 +6,11 @@ Using subprocesses
 AnyIO allows you to run arbitrary executables in subprocesses, either as a one-shot call
 or by opening a process handle for you that gives you more control over the subprocess.
 
+On the asyncio backend, subprocess support now also works on Windows when the event loop
+is a ``SelectorEventLoop``. Since that event loop cannot perform pipe I/O for
+subprocesses directly, AnyIO handles the subprocess pipes on a background
+``ProactorEventLoop`` (or winloop) thread instead.
+
 You can either give the command as a string, in which case it is passed to your default
 shell (equivalent to ``shell=True`` in :func:`subprocess.run`), or as a sequence of
 strings (``shell=False``) in which case the executable is the first item in the sequence
@@ -54,6 +59,15 @@ launch one with :func:`~open_process`::
     run(main)
 
 See the API documentation of :class:`~.abc.Process` for more information.
+
+There are a few important process semantics to be aware of:
+
+* :meth:`~.abc.Process.wait` returns as soon as the subprocess exits; it does not wait
+  for ``stdout`` or ``stderr`` to close
+* :attr:`~.abc.Process.returncode` reflects the real exit status once the subprocess has
+  exited, even if :meth:`~.abc.Process.wait` was never called
+* calling :meth:`~.abc.Process.terminate`, :meth:`~.abc.Process.kill` or
+  :meth:`~.abc.Process.send_signal` on an already-exited process is a no-op
 
 .. _RunInProcess:
 
