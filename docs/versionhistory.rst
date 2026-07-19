@@ -3,6 +3,11 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Added ``amap``, ``gather``, and ``as_completed`` utility functions to simplify common
+  patterns (`#1173 <https://github.com/agronholm/anyio/pull/1173>`_; PR by @Graeme22)
+
 **4.14.2**
 
 - Changed ``ByteReceiveStream.receive()`` implementations to raise a ``ValueError`` when
