@@ -154,7 +154,7 @@ exclude_also = [
 ]
 
 [tool.tox]
-env_list = ["pre-commit", "py310", "py311", "py312", "py313", "py314", "py315", "pypy3", "only_asyncio"]
+env_list = ["pre-commit", "py310", "py311", "py312", "py313", "py314", "py314t", "py315", "pypy3", "only_asyncio"]
 skip_missing_interpreters = true
 requires = ["tox >= 4.22"]
 
