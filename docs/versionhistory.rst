@@ -5,16 +5,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
-- Added the free-threaded build of Python 3.14t to the test matrix
+- Fixed free-threading compatibility issues arising from the fact that on Python 3.14
+  free-threading builds, newly created threads inherit the current context by default,
+  causing AnyIO to behave erroneously in relation to ``start_blocking_portal()`` and
+  ``anyio.to_thread.run_sync()``
   (`#1224 <https://github.com/agronholm/anyio/pull/1224>`_; PR by @EmmanuelNiyonshuti)
-  As a result:
-
-  - Fixed ``start_blocking_portal()`` portal thread inheriting the calling thread's
-    ``contextvars.Context`` on Python 3.14+ free-threaded build.
-    (`#1220 <https://github.com/agronholm/anyio/issues/1220>`_; PR by @EmmanuelNiyonshuti)
-  - Fixed ``to_thread.run_sync()``'s worker thread pool on asyncio backend retaining a
-    reference to the calling task's ``contextvars.Context`` for the lifetime of the
-    pooled worker thread on Python 3.14+ free-threaded build.
 
 **4.14.2**
 
