@@ -141,13 +141,28 @@ class _Process(Process):
         return cast(int, self._popen.returncode)
 
     def terminate(self) -> None:
-        self._popen.terminate()
+        if self._popen.poll() is not None:
+            return
+        try:
+            self._popen.terminate()
+        except ProcessLookupError:
+            pass
 
     def kill(self) -> None:
-        self._popen.kill()
+        if self._popen.poll() is not None:
+            return
+        try:
+            self._popen.kill()
+        except ProcessLookupError:
+            pass
 
     def send_signal(self, signal: Signals) -> None:
-        self._popen.send_signal(signal)
+        if self._popen.poll() is not None:
+            return
+        try:
+            self._popen.send_signal(signal)
+        except ProcessLookupError:
+            pass
 
     @property
     def pid(self) -> int:
