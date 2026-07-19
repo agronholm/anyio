@@ -519,3 +519,48 @@ async def test_signal_already_exited_process() -> None:
         process.terminate()
         process.kill()
         process.send_signal(signal.SIGTERM)
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="POSIX-only reaping fallback"
+)
+@pytest.mark.parametrize("have_waitid", [True, False], ids=["waitid", "popen-wait"])
+async def test_wait_without_pidfd(
+    monkeypatch: pytest.MonkeyPatch, have_waitid: bool
+) -> None:
+    """
+    Exercise the worker-thread reaping fallback used when ``os.pidfd_open`` is unavailable
+    (e.g. PyPy or kernels older than 5.3) and, in turn, when ``os.waitid`` is unavailable
+    too (e.g. macOS before Python 3.13).
+    """
+    monkeypatch.delattr(os, "pidfd_open", raising=False)
+    if not have_waitid:
+        monkeypatch.delattr(os, "waitid", raising=False)
+
+    async with await open_process([sys.executable, "-c", "print('hi')"]) as process:
+        assert process.pid > 0
+        assert process.stdout is not None
+        output = await BufferedByteReceiveStream(process.stdout).receive_exactly(3)
+        assert output == b"hi\n"
+        with fail_after(5):
+            assert await process.wait() == 0
+
+
+async def test_open_process_nonexistent_executable() -> None:
+    """
+    A failure to spawn the process should propagate and clean up the pipes that were
+    already created.
+    """
+    with pytest.raises(FileNotFoundError):
+        await open_process(
+            [os.path.join(os.getcwd(), "nonexistent-anyio-test-executable")]
+        )
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="uses a POSIX executable path"
+)
+async def test_run_process_pathlike_command() -> None:
+    """A single ``PathLike`` command is accepted (and run via the shell)."""
+    result = await run_process(Path("/bin/echo"))
+    assert result.returncode == 0
