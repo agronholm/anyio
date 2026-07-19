@@ -564,3 +564,46 @@ async def test_run_process_pathlike_command() -> None:
     """A single ``PathLike`` command is accepted (and run via the shell)."""
     result = await run_process(Path("/bin/echo"))
     assert result.returncode == 0
+
+
+async def test_receive_smaller_than_chunk() -> None:
+    """
+    Receiving with a ``max_bytes`` smaller than a buffered chunk returns just that many
+    bytes and keeps the rest for the next call.
+    """
+    code = dedent("""\
+        import sys
+        sys.stdout.buffer.write(b"hello")
+        sys.stdout.flush()
+        sys.stdin.read()
+        """)
+    async with await open_process([sys.executable, "-c", code]) as process:
+        assert process.stdin is not None
+        assert process.stdout is not None
+        data = b""
+        with fail_after(5):
+            while len(data) < 5:
+                chunk = await process.stdout.receive(1)
+                assert len(chunk) == 1
+                data += chunk
+
+        assert data == b"hello"
+        await process.stdin.aclose()
+
+
+async def test_send_backpressure() -> None:
+    """
+    Sending more than the pipe buffer to a subprocess that isn't reading yet must apply
+    backpressure rather than failing or buffering without bound.
+    """
+    code = dedent("""\
+        import sys, time
+        time.sleep(0.2)
+        sys.stdin.buffer.read()
+        """)
+    async with await open_process([sys.executable, "-c", code]) as process:
+        assert process.stdin is not None
+        with fail_after(5):
+            await process.stdin.send(b"x" * 1024 * 1024)
+            await process.stdin.aclose()
+            assert await process.wait() == 0
