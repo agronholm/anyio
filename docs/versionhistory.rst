@@ -5,6 +5,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added support for running subprocesses on the asyncio ``SelectorEventLoop`` on Windows,
+  which does not support subprocesses natively; the pipe I/O is handled on a background
+  ``ProactorEventLoop`` (or winloop) thread
+  (`#783 <https://github.com/agronholm/anyio/issues/783>`_; PR by @graingert)
 - Changed subprocess handling to use a shared, backend-agnostic implementation built on
   ``subprocess.Popen()`` plus a small set of backend primitives (asynchronous pipes and
   child-process reaping). This is used by the asyncio backend on all platforms and by the
