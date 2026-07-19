@@ -989,7 +989,7 @@ class WorkerThread(Thread):
     ):
         kwargs: dict[str, Any] = {}
         if sys.version_info >= (3, 14):
-            kwargs["context"] = Context()
+            kwargs["context"] = False
 
         super().__init__(name="AnyIO worker thread", **kwargs)
         self.root_task = root_task
