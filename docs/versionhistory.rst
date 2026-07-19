@@ -3,6 +3,15 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Changed the default name for a task spawned with ``TaskGroup.create_task(func())`` to
+  match the default task name for the analogous task spawned with
+  ``TaskGroup.start_soon(func)`` or ``TaskGroup.start(func)`` in more situations.
+  Previously, the default name of a ``TaskGroup.create_task`` task never included the
+  module name. (The default name for a task spawned with ``TaskGroup.start_soon`` or
+  ``TaskGroup.start`` typically includes the module name.) (PR by @gschaffner)
+
 **4.14.2**
 
 - Changed ``ByteReceiveStream.receive()`` implementations to raise a ``ValueError`` when

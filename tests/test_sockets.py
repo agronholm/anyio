@@ -21,7 +21,7 @@ from pathlib import Path
 from socket import AddressFamily
 from ssl import SSLContext, SSLError
 from threading import Thread
-from typing import TYPE_CHECKING, Any, Literal, NoReturn, Protocol, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Literal, NoReturn, Protocol, cast
 from unittest import mock
 from unittest.mock import MagicMock, patch
 
@@ -209,13 +209,6 @@ def sock_or_fd_factory(
     return factory
 
 
-_T = TypeVar("_T")
-
-
-def _identity(v: _T) -> _T:
-    return v
-
-
 def fill_socket(sock: socket.socket) -> None:
     try:
         while True:
@@ -224,19 +217,6 @@ def fill_socket(sock: socket.socket) -> None:
         pass
 
 
-#  _ProactorBasePipeTransport.abort() after _ProactorBasePipeTransport.close()
-# does not cancel writes: https://bugs.python.org/issue44428
-_ignore_win32_resource_warnings = (
-    pytest.mark.filterwarnings(
-        "ignore:unclosed <socket.socket:ResourceWarning",
-        "ignore:unclosed transport <_ProactorSocketTransport closing:ResourceWarning",
-    )
-    if sys.version_info < (3, 10) and sys.platform == "win32"
-    else _identity
-)
-
-
-@_ignore_win32_resource_warnings
 class TestTCPStream:
     @pytest.fixture
     def server_sock(self, family: AnyIPAddressFamily) -> Iterator[socket.socket]:
@@ -437,10 +417,6 @@ class TestTCPStream:
         """
         Test derived from https://github.com/python/cpython/pull/124859
         """
-        if anyio_backend_name == "asyncio" and sys.version_info < (3, 10):
-            pytest.skip(
-                "asyncio.BaseEventLoop.create_connection creates refcycles on py 3.9"
-            )
         if (
             anyio_backend_name == "asyncio"
             and event_loop_implementation_name.startswith("rsloop")
