@@ -6,7 +6,7 @@ from collections.abc import (
     Coroutine,
     Generator,
 )
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from enum import Enum, auto
 from inspect import iscoroutine
 from types import TracebackType
@@ -196,10 +196,9 @@ def move_on_at(deadline: float | None, shield: bool = False) -> CancelScope:
     )
 
 
-@contextmanager
 def move_on_after(
     delay: float | None, shield: bool = False
-) -> Generator[CancelScope, None, None]:
+) -> AbstractContextManager[CancelScope]:
     """
     Create a cancel scope with a deadline that expires after the given delay.
 
@@ -210,14 +209,14 @@ def move_on_after(
     :raises NoEventLoopError: if no supported asynchronous event loop is running in the
         current thread
 
+    .. note:: Unlike with :func:`fail_after`, the timer starts when this function is
+        called, not when the context manager is entered. This will be changed in v5.0.
+
     """
     deadline = (
         (get_async_backend().current_time() + delay) if delay is not None else math.inf
     )
-    with get_async_backend().create_cancel_scope(
-        deadline=deadline, shield=shield
-    ) as scope:
-        yield scope
+    return get_async_backend().create_cancel_scope(deadline=deadline, shield=shield)
 
 
 def current_effective_deadline() -> float:
