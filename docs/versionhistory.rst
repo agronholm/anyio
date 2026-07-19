@@ -3,6 +3,25 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Changed subprocess handling to use a shared, backend-agnostic implementation built on
+  ``subprocess.Popen()`` plus a small set of backend primitives (asynchronous pipes and
+  child-process reaping). This is used by the asyncio backend on all platforms and by the
+  Trio backend on POSIX (Trio keeps its native implementation on Windows), and removes the
+  reliance on undocumented backend internals
+  (`#783 <https://github.com/agronholm/anyio/issues/783>`_; PR by @graingert)
+- Fixed several inconsistencies between the asyncio and Trio backends when working with
+  subprocesses (`#828 <https://github.com/agronholm/anyio/discussions/828>`_; PR by
+  @graingert):
+
+  * ``Process.wait()`` no longer waits for the standard streams to close, so it returns
+    promptly once the process exits, even when a pipe is inherited by a grandchild process
+  * ``Process.returncode`` now polls the process on both backends, so it no longer returns
+    a stale ``None`` after the process has exited
+  * Signalling an already-exited process via ``terminate()``, ``kill()`` or
+    ``send_signal()`` is now consistently a no-op instead of raising on asyncio
+
 **4.14.2**
 
 - Changed ``ByteReceiveStream.receive()`` implementations to raise a ``ValueError`` when

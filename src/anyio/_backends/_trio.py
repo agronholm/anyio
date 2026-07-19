@@ -4,6 +4,7 @@ import array
 import math
 import os
 import socket
+import subprocess
 import sys
 import types
 import weakref
@@ -412,6 +413,90 @@ class Process(abc.Process):
     @property
     def stderr(self) -> abc.ByteReceiveStream | None:
         return self._stderr
+
+
+class _ProcessPipeReceiveStream(abc.ByteReceiveStream):
+    def __init__(self, fd: int) -> None:
+        self._fd = fd
+        self._closed = False
+        self._receive_guard = ResourceGuard("reading from")
+        os.set_blocking(fd, False)
+
+    async def receive(self, max_bytes: int = 65536) -> bytes:
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be a positive integer")
+
+        with self._receive_guard:
+            while True:
+                if self._closed:
+                    raise ClosedResourceError
+
+                try:
+                    data = os.read(self._fd, max_bytes)
+                except BlockingIOError:
+                    try:
+                        await wait_readable(self._fd)
+                    except trio.ClosedResourceError:
+                        raise ClosedResourceError from None
+                except OSError as exc:
+                    if self._closed:
+                        raise ClosedResourceError from None
+
+                    raise BrokenResourceError from exc
+                else:
+                    if data:
+                        return data
+
+                    raise EndOfStream
+
+    async def aclose(self) -> None:
+        if not self._closed:
+            self._closed = True
+            notify_closing(self._fd)
+            os.close(self._fd)
+
+        await trio.lowlevel.checkpoint()
+
+
+class _ProcessPipeSendStream(abc.ByteSendStream):
+    def __init__(self, fd: int) -> None:
+        self._fd = fd
+        self._closed = False
+        self._send_guard = ResourceGuard("writing to")
+        os.set_blocking(fd, False)
+
+    async def send(self, item: bytes) -> None:
+        with self._send_guard:
+            await trio.lowlevel.checkpoint()
+            view = memoryview(item)
+            while view:
+                if self._closed:
+                    raise ClosedResourceError
+
+                try:
+                    bytes_sent = os.write(self._fd, view)
+                except BlockingIOError:
+                    try:
+                        await wait_writable(self._fd)
+                    except trio.ClosedResourceError:
+                        raise ClosedResourceError from None
+                except BrokenPipeError as exc:
+                    raise BrokenResourceError from exc
+                except OSError as exc:
+                    if self._closed:
+                        raise ClosedResourceError from None
+
+                    raise BrokenResourceError from exc
+                else:
+                    view = view[bytes_sent:]
+
+    async def aclose(self) -> None:
+        if not self._closed:
+            self._closed = True
+            notify_closing(self._fd)
+            os.close(self._fd)
+
+        await trio.lowlevel.checkpoint()
 
 
 class _ProcessPoolShutdownInstrument(trio.abc.Instrument):
@@ -1208,7 +1293,14 @@ class TrioBackend(AsyncBackend):
         stdout: int | IO[Any] | None,
         stderr: int | IO[Any] | None,
         **kwargs: Any,
-    ) -> Process:
+    ) -> abc.Process:
+        if sys.platform != "win32":
+            from .._core._subprocesses import _spawn_process
+
+            return await _spawn_process(
+                command, stdin=stdin, stdout=stdout, stderr=stderr, **kwargs
+            )
+
         def convert_item(item: StrOrBytesPath) -> str:
             str_or_bytes = os.fspath(item)
             if isinstance(str_or_bytes, str):
@@ -1239,6 +1331,32 @@ class TrioBackend(AsyncBackend):
         stdout_stream = ReceiveStreamWrapper(process.stdout) if process.stdout else None
         stderr_stream = ReceiveStreamWrapper(process.stderr) if process.stderr else None
         return Process(process, stdin_stream, stdout_stream, stderr_stream)
+
+    @classmethod
+    async def create_subprocess_stdin_pipe(cls) -> tuple[abc.ByteSendStream, int]:
+        read_fd, write_fd = os.pipe()
+        try:
+            return _ProcessPipeSendStream(write_fd), read_fd
+        except BaseException:
+            os.close(write_fd)
+            os.close(read_fd)
+            raise
+
+    @classmethod
+    async def create_subprocess_output_pipe(cls) -> tuple[abc.ByteReceiveStream, int]:
+        read_fd, write_fd = os.pipe()
+        try:
+            return _ProcessPipeReceiveStream(read_fd), write_fd
+        except BaseException:
+            os.close(read_fd)
+            os.close(write_fd)
+            raise
+
+    @classmethod
+    async def wait_for_child_exit(cls, process: subprocess.Popen) -> None:
+        from .._core._subprocesses import wait_for_child_exit
+
+        await wait_for_child_exit(process)
 
     @classmethod
     def setup_process_pool_exit_at_shutdown(cls, workers: set[abc.Process]) -> None:

@@ -1,16 +1,246 @@
 from __future__ import annotations
 
+import math
+import os
+import subprocess
+import sys
 from collections.abc import AsyncIterable, Iterable, Mapping, Sequence
+from functools import partial
 from io import BytesIO
 from os import PathLike
+from signal import Signals
 from subprocess import PIPE, CalledProcessError, CompletedProcess
 from typing import IO, Any, TypeAlias, cast
 
-from ..abc import Process
+from ..abc import ByteReceiveStream, ByteSendStream, Process
+from ..lowlevel import RunVar
 from ._eventloop import get_async_backend
-from ._tasks import create_task_group
+from ._synchronization import CapacityLimiter, Lock
+from ._tasks import CancelScope, create_task_group
 
 StrOrBytesPath: TypeAlias = str | bytes | PathLike[str] | PathLike[bytes]
+
+# A dedicated, unbounded limiter for the (potentially long-lived) child-reaping worker
+# threads, so that they don't starve the default thread limiter.
+_child_reaper_limiter: RunVar[CapacityLimiter] = RunVar("_child_reaper_limiter")
+
+
+def _get_child_reaper_limiter() -> CapacityLimiter:
+    try:
+        return _child_reaper_limiter.get()
+    except LookupError:
+        limiter = CapacityLimiter(math.inf)
+        _child_reaper_limiter.set(limiter)
+        return limiter
+
+
+def _sync_wait_reapable(pid: int) -> None:
+    """Block until the process ``pid`` is reapable, without consuming its exit status."""
+    while True:
+        try:
+            os.waitid(os.P_PID, pid, os.WEXITED | os.WNOWAIT)
+        except ChildProcessError:
+            # Already reaped elsewhere
+            return
+        except InterruptedError:
+            continue
+        else:
+            return
+
+
+async def wait_for_child_exit(process: subprocess.Popen) -> None:
+    """
+    Backend-agnostic POSIX implementation of
+    :meth:`~anyio.abc.AsyncBackend.wait_for_child_exit`.
+
+    On Linux this waits on a pidfd (no worker thread required); on other POSIX systems it
+    falls back to a ``waitid()`` call in a worker thread. Either way the child's exit
+    status is left intact so that :meth:`subprocess.Popen.wait` can consume it.
+    """
+    backend = get_async_backend()
+    if sys.platform == "linux":
+        try:
+            pidfd = os.pidfd_open(process.pid)
+        except OSError:
+            pass
+        else:
+            try:
+                await backend.wait_readable(pidfd)
+            finally:
+                os.close(pidfd)
+
+            return
+
+    await backend.run_sync_in_worker_thread(
+        _sync_wait_reapable,
+        (process.pid,),
+        abandon_on_cancel=True,
+        limiter=_get_child_reaper_limiter(),
+    )
+
+
+class _Process(Process):
+    """
+    A backend-agnostic :class:`~anyio.abc.Process` implementation.
+
+    The process itself is spawned via :class:`subprocess.Popen`; its standard streams and
+    the waiting for its exit are provided by small, backend-specific primitives
+    (:meth:`~anyio.abc.AsyncBackend.create_subprocess_stdin_pipe`,
+    :meth:`~anyio.abc.AsyncBackend.create_subprocess_output_pipe` and
+    :meth:`~anyio.abc.AsyncBackend.wait_for_child_exit`). This lifecycle logic is
+    therefore shared between all backends.
+    """
+
+    def __init__(
+        self,
+        popen: subprocess.Popen,
+        stdin: ByteSendStream | None,
+        stdout: ByteReceiveStream | None,
+        stderr: ByteReceiveStream | None,
+    ) -> None:
+        self._popen = popen
+        self._stdin = stdin
+        self._stdout = stdout
+        self._stderr = stderr
+        self._wait_lock = Lock()
+
+    async def aclose(self) -> None:
+        with CancelScope(shield=True) as scope:
+            if self._stdin:
+                await self._stdin.aclose()
+            if self._stdout:
+                await self._stdout.aclose()
+            if self._stderr:
+                await self._stderr.aclose()
+
+            scope.shield = False
+            try:
+                await self.wait()
+            except BaseException:
+                scope.shield = True
+                self.kill()
+                await self.wait()
+                raise
+
+    async def wait(self) -> int:
+        async with self._wait_lock:
+            if self._popen.poll() is None:
+                await get_async_backend().wait_for_child_exit(self._popen)
+                # The exit status hasn't been consumed yet, so this returns immediately
+                self._popen.wait()
+
+        return cast(int, self._popen.returncode)
+
+    def terminate(self) -> None:
+        self._popen.terminate()
+
+    def kill(self) -> None:
+        self._popen.kill()
+
+    def send_signal(self, signal: Signals) -> None:
+        self._popen.send_signal(signal)
+
+    @property
+    def pid(self) -> int:
+        return self._popen.pid
+
+    @property
+    def returncode(self) -> int | None:
+        # Poll so that the return code is up to date even if wait() hasn't been called
+        # yet (this matches the Trio backend's historical behavior, see discussion #828)
+        return self._popen.poll()
+
+    @property
+    def stdin(self) -> ByteSendStream | None:
+        return self._stdin
+
+    @property
+    def stdout(self) -> ByteReceiveStream | None:
+        return self._stdout
+
+    @property
+    def stderr(self) -> ByteReceiveStream | None:
+        return self._stderr
+
+
+async def _spawn_process(
+    command: StrOrBytesPath | Sequence[StrOrBytesPath],
+    *,
+    stdin: int | IO[Any] | None,
+    stdout: int | IO[Any] | None,
+    stderr: int | IO[Any] | None,
+    **kwargs: Any,
+) -> _Process:
+    """
+    Shared, backend-agnostic implementation of
+    :meth:`~anyio.abc.AsyncBackend.open_process`.
+
+    Standard streams requested as :data:`subprocess.PIPE` are connected to pipes created
+    by the active backend; every other value is passed through to
+    :class:`subprocess.Popen` unchanged.
+    """
+    backend = get_async_backend()
+    await backend.checkpoint()
+    if isinstance(command, PathLike):
+        command = os.fspath(command)
+
+    shell = isinstance(command, (str, bytes))
+    stdin_stream: ByteSendStream | None = None
+    stdout_stream: ByteReceiveStream | None = None
+    stderr_stream: ByteReceiveStream | None = None
+    streams: list[ByteSendStream | ByteReceiveStream] = []
+    child_fds: list[int] = []
+    try:
+        if stdin == PIPE:
+            stdin_stream, child_fd = await backend.create_subprocess_stdin_pipe()
+            streams.append(stdin_stream)
+            child_fds.append(child_fd)
+            popen_stdin: Any = child_fd
+        else:
+            popen_stdin = stdin
+
+        if stdout == PIPE:
+            stdout_stream, child_fd = await backend.create_subprocess_output_pipe()
+            streams.append(stdout_stream)
+            child_fds.append(child_fd)
+            popen_stdout: Any = child_fd
+        else:
+            popen_stdout = stdout
+
+        if stderr == PIPE:
+            stderr_stream, child_fd = await backend.create_subprocess_output_pipe()
+            streams.append(stderr_stream)
+            child_fds.append(child_fd)
+            popen_stderr: Any = child_fd
+        else:
+            popen_stderr = stderr
+
+        # Popen performs blocking reads on the exec-status pipe during startup, so it
+        # must not run in the event loop thread.
+        popen = await backend.run_sync_in_worker_thread(
+            partial(
+                subprocess.Popen,
+                command,
+                shell=shell,
+                stdin=popen_stdin,
+                stdout=popen_stdout,
+                stderr=popen_stderr,
+                **kwargs,
+            ),
+            (),
+        )
+    except BaseException:
+        for stream in streams:
+            await stream.aclose()
+
+        raise
+    finally:
+        # The child now holds its own copies of these descriptors; close ours so that
+        # EOF is delivered correctly once the child exits.
+        for child_fd in child_fds:
+            os.close(child_fd)
+
+    return _Process(popen, stdin_stream, stdout_stream, stderr_stream)
 
 
 async def run_process(

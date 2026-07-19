@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import platform
+import signal
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -21,6 +22,7 @@ from anyio import (
     fail_after,
     open_process,
     run_process,
+    sleep,
 )
 from anyio._core._eventloop import get_async_backend
 from anyio.streams.buffered import BufferedByteReceiveStream
@@ -483,7 +485,37 @@ async def test_close_with_stdout_blocked_subprocess(anyio_backend_name: str) -> 
         with fail_after(5):
             await process.aclose()
     except TimeoutError:
-        if anyio_backend_name == "asyncio":
-            process._process._transport.close()  # type: ignore[attr-defined]
-
+        # Force the process down so it doesn't leak, then fail the test
+        process.kill()
         pytest.fail("Process.aclose() deadlocked")
+
+
+async def test_returncode_polls_after_exit() -> None:
+    """
+    ``Process.returncode`` should reflect the real state once the process exits, even
+    if ``wait()`` was never called, consistently across backends (see discussion #828).
+    """
+    process = await open_process([sys.executable, "-c", ""])
+    try:
+        with fail_after(5):
+            # Deliberately poll returncode (that's what's under test here)
+            while process.returncode is None:  # noqa: ASYNC110
+                await sleep(0.01)
+    finally:
+        await process.aclose()
+
+    assert process.returncode == 0
+
+
+async def test_signal_already_exited_process() -> None:
+    """
+    Signalling an already-exited process must be a no-op rather than raising, on every
+    backend (see discussion #828).
+    """
+    process = await open_process([sys.executable, "-c", ""])
+    async with process:
+        await process.wait()
+        # None of these should raise ProcessLookupError or similar
+        process.terminate()
+        process.kill()
+        process.send_signal(signal.SIGTERM)
