@@ -5,7 +5,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
-  (`#1224 <https://github.com/agronholm/anyio/pull/1224>`_; PR by @EmmanuelNiyonshuti)
 - Changed the default name for a task spawned with ``TaskGroup.create_task(func())`` to
   match the default task name for the analogous task spawned with
   ``TaskGroup.start_soon(func)`` or ``TaskGroup.start(func)`` in more situations.
@@ -16,6 +15,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   free-threading builds, newly created threads inherit the current context by default,
   causing AnyIO to behave erroneously in relation to ``start_blocking_portal()`` and
   ``anyio.to_thread.run_sync()``
+  (`#1224 <https://github.com/agronholm/anyio/pull/1224>`_; PR by @EmmanuelNiyonshuti)
 
 **4.14.2**
 
