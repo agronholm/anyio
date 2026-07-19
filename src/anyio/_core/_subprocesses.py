@@ -34,28 +34,37 @@ def _get_child_reaper_limiter() -> CapacityLimiter:
         return limiter
 
 
-def _sync_wait_reapable(pid: int) -> None:
-    """Block until the process ``pid`` is reapable, without consuming its exit status."""
-    while True:
-        try:
-            os.waitid(os.P_PID, pid, os.WEXITED | os.WNOWAIT)
-        except ChildProcessError:
-            # Already reaped elsewhere
-            return
-        except InterruptedError:
-            continue
-        else:
-            return
+def _sync_wait_for_exit(process: subprocess.Popen[bytes]) -> None:
+    """
+    Block (in a worker thread) until ``process`` has exited.
+
+    Where ``os.waitid()`` is available (Linux, and macOS on Python 3.13+), this uses
+    ``WNOWAIT`` so the exit status is left intact for :meth:`subprocess.Popen.wait`.
+    Otherwise it falls back to :meth:`subprocess.Popen.wait`, which reaps the process
+    directly (that's fine, since the shared ``Process.wait()`` calls it again).
+    """
+    if hasattr(os, "waitid"):
+        while True:
+            try:
+                os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOWAIT)
+            except InterruptedError:
+                continue
+            except ChildProcessError:
+                # Already reaped elsewhere
+                return
+            else:
+                return
+
+    process.wait()
 
 
-async def wait_for_child_exit(process: subprocess.Popen) -> None:
+async def wait_for_child_exit(process: subprocess.Popen[bytes]) -> None:
     """
     Backend-agnostic POSIX implementation of
     :meth:`~anyio.abc.AsyncBackend.wait_for_child_exit`.
 
-    On Linux this waits on a pidfd (no worker thread required); on other POSIX systems it
-    falls back to a ``waitid()`` call in a worker thread. Either way the child's exit
-    status is left intact so that :meth:`subprocess.Popen.wait` can consume it.
+    On Linux this waits on a pidfd, without tying up a worker thread. On other POSIX
+    systems it waits in a worker thread (see :func:`_sync_wait_for_exit`).
     """
     backend = get_async_backend()
     if sys.platform == "linux":
@@ -72,8 +81,8 @@ async def wait_for_child_exit(process: subprocess.Popen) -> None:
             return
 
     await backend.run_sync_in_worker_thread(
-        _sync_wait_reapable,
-        (process.pid,),
+        _sync_wait_for_exit,
+        (process,),
         abandon_on_cancel=True,
         limiter=_get_child_reaper_limiter(),
     )

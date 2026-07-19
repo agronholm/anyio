@@ -267,13 +267,13 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    async def wait_for_child_exit(cls, process: subprocess.Popen) -> None:
+    async def wait_for_child_exit(cls, process: subprocess.Popen[bytes]) -> None:
         """
-        Wait until the given child process is ready to be reaped.
+        Wait until the given child process has exited.
 
         When this returns, a call to :meth:`subprocess.Popen.wait` is guaranteed to
-        return the exit status immediately. The exit status itself must **not** be
-        consumed by this call.
+        return the exit status immediately (the implementation may reap the process
+        itself, as long as it does so via ``process``).
         """
 
     @classmethod

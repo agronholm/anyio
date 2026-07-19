@@ -2741,8 +2741,12 @@ class AsyncIOBackend(AsyncBackend):
             from asyncio.windows_utils import PipeHandle
             from asyncio.windows_utils import pipe as windows_pipe
 
-            # The write end (our end) uses overlapped (IOCP) I/O
-            read_handle, write_handle = windows_pipe(overlapped=(False, True))
+            # A duplex pipe is required: asyncio's write-pipe transport issues a read on
+            # our end to detect when the child closes its side, so our (write) end needs
+            # read access too. The write end also uses overlapped (IOCP) I/O.
+            read_handle, write_handle = windows_pipe(
+                duplex=True, overlapped=(False, True)
+            )
             pipe_obj: Any = PipeHandle(write_handle)
             child_fd = msvcrt.open_osfhandle(read_handle, os.O_RDONLY)
         else:
