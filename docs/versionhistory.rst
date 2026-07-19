@@ -11,6 +11,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   Previously, the default name of a ``TaskGroup.create_task`` task never included the
   module name. (The default name for a task spawned with ``TaskGroup.start_soon`` or
   ``TaskGroup.start`` typically includes the module name.) (PR by @gschaffner)
+- Add `rsloop <https://pypi.org/project/rsloop/>`_ as backend to ``asyncio`` for tests.
+  (`#1191 <https://github.com/agronholm/anyio/pull/1191>`_; PR by @tapetersen )
+
 
 **4.14.2**
 
