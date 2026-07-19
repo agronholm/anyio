@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import platform
+import signal
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -21,6 +22,7 @@ from anyio import (
     fail_after,
     open_process,
     run_process,
+    sleep,
 )
 from anyio._core._eventloop import get_async_backend
 from anyio.streams.buffered import BufferedByteReceiveStream
@@ -483,7 +485,125 @@ async def test_close_with_stdout_blocked_subprocess(anyio_backend_name: str) -> 
         with fail_after(5):
             await process.aclose()
     except TimeoutError:
-        if anyio_backend_name == "asyncio":
-            process._process._transport.close()  # type: ignore[attr-defined]
-
+        # Force the process down so it doesn't leak, then fail the test
+        process.kill()
         pytest.fail("Process.aclose() deadlocked")
+
+
+async def test_returncode_polls_after_exit() -> None:
+    """
+    ``Process.returncode`` should reflect the real state once the process exits, even
+    if ``wait()`` was never called, consistently across backends (see discussion #828).
+    """
+    process = await open_process([sys.executable, "-c", ""])
+    try:
+        with fail_after(5):
+            # Deliberately poll returncode (that's what's under test here)
+            while process.returncode is None:  # noqa: ASYNC110
+                await sleep(0.01)
+    finally:
+        await process.aclose()
+
+    assert process.returncode == 0
+
+
+async def test_signal_already_exited_process() -> None:
+    """
+    Signalling an already-exited process must be a no-op rather than raising, on every
+    backend (see discussion #828).
+    """
+    process = await open_process([sys.executable, "-c", ""])
+    async with process:
+        await process.wait()
+        # None of these should raise ProcessLookupError or similar
+        process.terminate()
+        process.kill()
+        process.send_signal(signal.SIGTERM)
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="POSIX-only reaping fallback"
+)
+@pytest.mark.parametrize("have_waitid", [True, False], ids=["waitid", "popen-wait"])
+async def test_wait_without_pidfd(
+    monkeypatch: pytest.MonkeyPatch, have_waitid: bool
+) -> None:
+    """
+    Exercise the worker-thread reaping fallback used when ``os.pidfd_open`` is unavailable
+    (e.g. PyPy or kernels older than 5.3) and, in turn, when ``os.waitid`` is unavailable
+    too (e.g. macOS before Python 3.13).
+    """
+    monkeypatch.delattr(os, "pidfd_open", raising=False)
+    if not have_waitid:
+        monkeypatch.delattr(os, "waitid", raising=False)
+
+    async with await open_process([sys.executable, "-c", "print('hi')"]) as process:
+        assert process.pid > 0
+        assert process.stdout is not None
+        output = await BufferedByteReceiveStream(process.stdout).receive_exactly(3)
+        assert output == b"hi\n"
+        with fail_after(5):
+            assert await process.wait() == 0
+
+
+async def test_open_process_nonexistent_executable() -> None:
+    """
+    A failure to spawn the process should propagate and clean up the pipes that were
+    already created.
+    """
+    with pytest.raises(FileNotFoundError):
+        await open_process(
+            [os.path.join(os.getcwd(), "nonexistent-anyio-test-executable")]
+        )
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="uses a POSIX executable path"
+)
+async def test_run_process_pathlike_command() -> None:
+    """A single ``PathLike`` command is accepted (and run via the shell)."""
+    result = await run_process(Path("/bin/echo"))
+    assert result.returncode == 0
+
+
+async def test_receive_smaller_than_chunk() -> None:
+    """
+    Receiving with a ``max_bytes`` smaller than a buffered chunk returns just that many
+    bytes and keeps the rest for the next call.
+    """
+    code = dedent("""\
+        import sys
+        sys.stdout.buffer.write(b"hello")
+        sys.stdout.flush()
+        sys.stdin.read()
+        """)
+    async with await open_process([sys.executable, "-c", code]) as process:
+        assert process.stdin is not None
+        assert process.stdout is not None
+        data = b""
+        with fail_after(5):
+            while len(data) < 5:
+                chunk = await process.stdout.receive(1)
+                assert len(chunk) == 1
+                data += chunk
+
+        assert data == b"hello"
+        await process.stdin.aclose()
+
+
+async def test_send_backpressure() -> None:
+    """
+    Sending more than the pipe buffer to a subprocess that isn't reading yet must apply
+    backpressure rather than failing or buffering without bound.
+    """
+    code = dedent("""\
+        import sys, time
+        time.sleep(0.2)
+        sys.stdin.buffer.read()
+        """)
+    async with await open_process([sys.executable, "-c", code]) as process:
+        assert process.stdin is not None
+        with fail_after(5):
+            await process.stdin.send(b"x" * 1024 * 1024)
+            await process.stdin.aclose()
+            assert await process.wait() == 0

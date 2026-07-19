@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import subprocess
 import sys
 from abc import ABCMeta, abstractmethod
 from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Sequence
@@ -38,6 +39,7 @@ if TYPE_CHECKING:
         UNIXDatagramSocket,
         UNIXSocketStream,
     )
+    from ._streams import ByteReceiveStream, ByteSendStream
     from ._subprocesses import Process
     from ._tasks import TaskGroup
     from ._testing import TestRunner
@@ -238,6 +240,41 @@ class AsyncBackend(metaclass=ABCMeta):
         **kwargs: Any,
     ) -> Process:
         pass
+
+    @classmethod
+    @abstractmethod
+    async def create_subprocess_stdin_pipe(cls) -> tuple[ByteSendStream, int]:
+        """
+        Create a pipe for feeding data to the standard input of a subprocess.
+
+        :return: a tuple of ``(send_stream, child_fd)`` where ``send_stream`` is the
+            writable end of the pipe and ``child_fd`` is a file descriptor to be passed
+            as the ``stdin`` argument of :class:`subprocess.Popen` (and closed by the
+            caller afterwards)
+        """
+
+    @classmethod
+    @abstractmethod
+    async def create_subprocess_output_pipe(cls) -> tuple[ByteReceiveStream, int]:
+        """
+        Create a pipe for reading the standard output or error of a subprocess.
+
+        :return: a tuple of ``(receive_stream, child_fd)`` where ``receive_stream`` is
+            the readable end of the pipe and ``child_fd`` is a file descriptor to be
+            passed as the ``stdout``/``stderr`` argument of :class:`subprocess.Popen`
+            (and closed by the caller afterwards)
+        """
+
+    @classmethod
+    @abstractmethod
+    async def wait_for_child_exit(cls, process: subprocess.Popen[bytes]) -> None:
+        """
+        Wait until the given child process has exited.
+
+        When this returns, a call to :meth:`subprocess.Popen.wait` is guaranteed to
+        return the exit status immediately (the implementation may reap the process
+        itself, as long as it does so via ``process``).
+        """
 
     @classmethod
     @abstractmethod
