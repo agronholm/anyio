@@ -25,6 +25,8 @@ SYNCHRONIZE = 0x00100000
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 INFINITE = 0xFFFFFFFF
 WT_EXECUTEONLYONCE = 0x00000008
+# Passing this to UnregisterWaitEx() blocks until any in-flight callback has finished
+INVALID_HANDLE_VALUE = wintypes.HANDLE(-1)
 
 _WAIT_CALLBACK = ctypes.WINFUNCTYPE(None, wintypes.LPVOID, wintypes.BOOLEAN)
 
@@ -41,8 +43,8 @@ kernel32.RegisterWaitForSingleObject.argtypes = [
 ]
 kernel32.RegisterWaitForSingleObject.restype = wintypes.BOOL
 
-kernel32.UnregisterWait.argtypes = [wintypes.HANDLE]
-kernel32.UnregisterWait.restype = wintypes.BOOL
+kernel32.UnregisterWaitEx.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+kernel32.UnregisterWaitEx.restype = wintypes.BOOL
 
 kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
 kernel32.CloseHandle.restype = wintypes.BOOL
@@ -91,7 +93,11 @@ async def wait_for_pid(pid: int) -> None:
     try:
         await waiter.start()
     finally:
+        # UnregisterWaitEx() with INVALID_HANDLE_VALUE blocks until any callback already
+        # in flight has finished, so it's safe to release the process handle and let the
+        # ctypes callback be collected afterwards (avoids a callback-after-cleanup race on
+        # cancellation).
         if waiter._wait_handle:
-            kernel32.UnregisterWait(waiter._wait_handle)
+            kernel32.UnregisterWaitEx(waiter._wait_handle, INVALID_HANDLE_VALUE)
 
         kernel32.CloseHandle(process_handle)
