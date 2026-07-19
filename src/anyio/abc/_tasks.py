@@ -25,6 +25,20 @@ T_contra = TypeVar("T_contra", contravariant=True, default=None)
 PosArgsT = TypeVarTuple("PosArgsT")
 
 
+def get_coro_name(coro: Coroutine[Any, Any, object], override: object = None) -> str:
+    if override is not None:
+        return str(override)
+
+    try:
+        cr_frame = coro.cr_frame  # type: ignore[attr-defined]
+        module = cr_frame.f_globals["__name__"]
+    except (AttributeError, KeyError):
+        module = None
+
+    qualname = getattr(coro, "__qualname__", None)
+    return ".".join([x for x in (module, qualname) if x])
+
+
 def get_callable_name(func: Callable, override: object = None) -> str:
     if override is not None:
         return str(override)
