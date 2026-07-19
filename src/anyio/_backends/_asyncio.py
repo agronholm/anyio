@@ -2809,11 +2809,17 @@ class AsyncIOBackend(AsyncBackend):
     @classmethod
     async def wait_for_child_exit(cls, process: subprocess.Popen[bytes]) -> None:
         if sys.platform == "win32":
-            # Works regardless of the event loop implementation (ProactorEventLoop,
-            # winloop, SelectorEventLoop) and doesn't tie up a Python thread
-            from .._core._asyncio_windows_process import wait_for_pid
+            loop = asyncio.get_running_loop()
+            proactor = getattr(loop, "_proactor", None)
+            if proactor is not None:
+                # Native IOCP handle wait on the stdlib ProactorEventLoop
+                await proactor.wait_for_handle(int(process._handle))  # type: ignore[attr-defined]
+            else:
+                # winloop / SelectorEventLoop: use a Windows thread-pool wait, delivered
+                # through call_soon_threadsafe (no Python thread tied up)
+                from .._core._asyncio_windows_process import wait_for_pid
 
-            await wait_for_pid(process.pid)
+                await wait_for_pid(process.pid)
         else:
             from .._core._subprocesses import wait_for_child_exit
 
