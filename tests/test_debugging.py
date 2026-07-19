@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import sys
 from collections.abc import AsyncGenerator, Generator
 from types import CoroutineType, GeneratorType
@@ -97,6 +98,42 @@ async def test_get_running_tasks() -> None:
         assert task.parent_id == host_task.id
         assert task.name == expected_name
         assert repr(task).endswith(f"TaskInfo(id={task.id}, name={expected_name!r})")
+
+
+def test_task_info_ids_unique_across_runs() -> None:
+    async def current_task() -> TaskInfo:
+        return get_current_task()
+
+    t = anyio.run(current_task)
+    u = anyio.run(current_task)
+    assert t != u
+    assert t.id != u.id
+
+
+def test_task_info_ids_not_reused_after_gc() -> None:
+    # Regression test for #324: task IDs used to be derived from id(task), which
+    # CPython can (and does) hand out again once a task object is garbage
+    # collected, causing unrelated tasks to alias the same TaskInfo.id and
+    # compare/hash as equal. Using a WeakKeyDictionary-memoized counter instead
+    # means an id is only ever handed out once, regardless of GC/reuse timing.
+    seen: dict[TaskInfo, list[int]] = {}
+
+    async def leaf(n: int) -> None:
+        seen.setdefault(get_current_task(), []).append(n)
+
+    async def main() -> None:
+        for i in range(40):
+            async with create_task_group() as tg:
+                tg.start_soon(leaf, i)
+
+            gc.collect()
+
+    anyio.run(main)
+
+    # 40 distinct tasks were spawned; each must have gotten its own unique
+    # TaskInfo (and thus its own dict key), never aliasing a prior task's id.
+    assert len(seen) == 40
+    assert all(len(runs) == 1 for runs in seen.values())
 
 
 @pytest.mark.skipif(

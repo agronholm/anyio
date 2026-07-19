@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import array
+import itertools
 import math
 import os
 import socket
@@ -38,6 +39,7 @@ from typing import (
     cast,
     overload,
 )
+from weakref import WeakKeyDictionary
 
 import trio.from_thread
 import trio.lowlevel
@@ -1056,13 +1058,26 @@ class TestRunner(abc.TestRunner):
         self._call_in_runner_task(test_func, **kwargs)
 
 
+_task_id_counter = itertools.count(1)
+_task_ids: WeakKeyDictionary[trio.lowlevel.Task, int] = WeakKeyDictionary()
+
+
+def _get_task_id(task: trio.lowlevel.Task) -> int:
+    try:
+        return _task_ids[task]
+    except KeyError:
+        task_id = next(_task_id_counter)
+        _task_ids[task] = task_id
+        return task_id
+
+
 class TrioTaskInfo(TaskInfo):
     def __init__(self, task: trio.lowlevel.Task):
         parent_id = None
         if task.parent_nursery and task.parent_nursery.parent_task:
-            parent_id = id(task.parent_nursery.parent_task)
+            parent_id = _get_task_id(task.parent_nursery.parent_task)
 
-        super().__init__(id(task), parent_id, task.name, task.coro)
+        super().__init__(_get_task_id(task), parent_id, task.name, task.coro)
         self._task = weakref.proxy(task)
 
     def has_pending_cancellation(self) -> bool:
