@@ -8,6 +8,7 @@ from collections.abc import (
     Awaitable,
     Callable,
     Coroutine,
+    Iterable,
     Mapping,
     Sequence,
 )
@@ -242,14 +243,16 @@ class AsyncBackend(metaclass=ABCMeta):
         stdin: int | IO[Any] | None,
         stdout: int | IO[Any] | None,
         stderr: int | IO[Any] | None,
-        # These below may be sent with explicit default arguments and so must accept
-        # these literally
         cwd: StrOrBytesPath | None = None,
         env: Mapping[str, str] | None = None,
         startupinfo: Any = None,
         creationflags: int = 0,
         start_new_session: bool = False,
         pass_fds: Sequence[int] = (),
+        user: str | int | None = None,
+        group: str | int | None = None,
+        extra_groups: Iterable[str | int] | None = None,
+        umask: int = -1,
         **kwargs: Any,
     ) -> Process:
         pass
