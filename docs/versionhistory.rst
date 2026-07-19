@@ -5,6 +5,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed ``anyio.run`` leaking, or at least, delaying collection of loop and root_task
+  due to the root task being cached in a ``RunVar``.
+  (`#1203 <https://github.com/agronholm/anyio/issues/1203>`_; PR by @tapetersen)
+
+**4.14.2**
+
 - Changed ``ByteReceiveStream.receive()`` implementations to raise a ``ValueError`` when
   ``max_bytes`` is not a positive integer
   (`#1191 <https://github.com/agronholm/anyio/pull/1191>`_)
@@ -23,9 +29,20 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``anyio.open_process()`` (and ``run_process()``) ignoring the ``extra_groups``
   argument, as it mistakenly passed the value of the ``group`` argument instead
   (`#1209 <https://github.com/agronholm/anyio/pull/1209>`_)
-- Fixed ``anyio.run`` leaking, or at least, delaying collection of loop and root_task
-  due to the root task being cached in a ``RunVar``.
-  (`#1203 <https://github.com/agronholm/anyio/issues/1203>`_; PR by @tapetersen)
+- Fixed ``CapacityLimiter.acquire_nowait()`` and
+  ``CapacityLimiter.acquire_nowait_on_behalf_of()`` raising ``trio.WouldBlock`` instead
+  of ``anyio.WouldBlock`` on the ``trio`` backend when there are no tokens available
+  (`#1218 <https://github.com/agronholm/anyio/pull/1218>`_)
+- Fixed ``CapacityLimiter`` on the asyncio backend over-granting tokens
+  (``borrowed_tokens`` exceeding ``total_tokens`` and ``available_tokens`` going
+  negative) when a non-blocking acquire was made in the window between a token
+  being released and the notified waiter resuming. The freed token is now
+  reserved for the woken waiter right away, so the non-blocking acquire correctly
+  raises ``WouldBlock``
+  (`#1170 <https://github.com/agronholm/anyio/issues/1170>`_; PR by @gaoflow)
+- Fixed unnecessary CPU spin when delivering cancellation from ``CancelScope`` on
+  asyncio under certain conditions, including improper cancel scope nesting
+  (`#1111 <https://github.com/agronholm/anyio/issues/1111>`_)
 
 **4.14.1**
 

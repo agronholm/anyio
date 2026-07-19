@@ -108,43 +108,29 @@ class TestTLSStream:
         client_context: ssl.SSLContext,
         max_bytes: int,
     ) -> None:
-        server_exc = None
+        server_send, server_receive = create_memory_object_stream[bytes](1)
+        client_send, client_receive = create_memory_object_stream[bytes](1)
+        client_stream = StapledObjectStream(client_send, server_receive)
+        server_stream = StapledObjectStream(server_send, client_receive)
 
-        def serve_sync() -> None:
-            nonlocal server_exc
-            conn, addr = server_sock.accept()
-            try:
-                conn.settimeout(1)
-            except BaseException as exc:
-                server_exc = exc
-            finally:
-                conn.close()
+        async def server() -> None:
+            async with await TLSStream.wrap(
+                server_stream,
+                server_side=True,
+                hostname="localhost",
+                ssl_context=server_context,
+            ):
+                pass
 
-        server_sock = server_context.wrap_socket(
-            socket.socket(), server_side=True, suppress_ragged_eofs=True
-        )
-        server_sock.settimeout(1)
-        server_sock.bind(("127.0.0.1", 0))
-        server_sock.listen()
-        server_thread = Thread(target=serve_sync, daemon=True)
-        server_thread.start()
-        try:
-            async with await connect_tcp(*server_sock.getsockname()) as stream:
-                wrapper = await TLSStream.wrap(
-                    stream,
-                    hostname="localhost",
-                    ssl_context=client_context,
-                    standard_compatible=False,
-                )
+        async with create_task_group() as tg:
+            tg.start_soon(server)
+            async with await TLSStream.wrap(
+                client_stream, hostname="localhost", ssl_context=client_context
+            ) as client_tls_stream:
                 with pytest.raises(
                     ValueError, match="max_bytes must be a positive integer"
                 ):
-                    await wrapper.receive(max_bytes)
-        finally:
-            server_thread.join()
-            server_sock.close()
-
-        assert server_exc is None
+                    await client_tls_stream.receive(max_bytes)
 
     async def test_extra_attributes(
         self,
