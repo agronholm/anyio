@@ -3,6 +3,27 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Added the ``move_on_at()`` and ``fail_at()`` functions to complement
+  ``move_on_after()`` and ``fail_after()``
+- Changed the default name for a task spawned with ``TaskGroup.create_task(func())`` to
+  match the default task name for the analogous task spawned with
+  ``TaskGroup.start_soon(func)`` or ``TaskGroup.start(func)`` in more situations.
+  Previously, the default name of a ``TaskGroup.create_task`` task never included the
+  module name. (The default name for a task spawned with ``TaskGroup.start_soon`` or
+  ``TaskGroup.start`` typically includes the module name.)
+  (`#1234 <https://github.com/agronholm/anyio/pull/1234>`_; PR by @gschaffner)
+- Fixed free-threading compatibility issues arising from the fact that on Python 3.14
+  free-threading builds, newly created threads inherit the current context by default,
+  causing AnyIO to behave erroneously in relation to ``start_blocking_portal()`` and
+  ``anyio.to_thread.run_sync()``
+  (`#1224 <https://github.com/agronholm/anyio/pull/1224>`_; PR by @EmmanuelNiyonshuti)
+- Fixed ``SpooledTemporaryFile.readinto()`` and ``readinto1()`` reading twice before
+  rollover, so the destination buffer was overwritten by the second read and the file
+  position advanced twice, silently losing data
+  (`#1215 <https://github.com/agronholm/anyio/pull/1215>`_; PR by @c-tonneslan)
+
 **4.14.2**
 
 - Changed ``ByteReceiveStream.receive()`` implementations to raise a ``ValueError`` when

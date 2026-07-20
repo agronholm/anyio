@@ -108,6 +108,22 @@ class TestSpooledTemporaryFile:
             await stf.write(b"x")
             assert stf._rolled
 
+    async def test_readinto(self) -> None:
+        async with SpooledTemporaryFile(max_size=1024, mode="w+b") as stf:
+            await stf.write(b"hello world")
+            await stf.seek(0)
+            buf = bytearray(5)
+            assert await stf.readinto(buf) == 5
+            assert bytes(buf) == b"hello"
+
+    async def test_readinto1(self) -> None:
+        async with SpooledTemporaryFile(max_size=1024, mode="w+b") as stf:
+            await stf.write(b"hello world")
+            await stf.seek(0)
+            buf = bytearray(5)
+            assert await stf.readinto1(buf) == 5
+            assert bytes(buf) == b"hello"
+
 
 class TestTemporaryDirectory:
     async def test_context_manager(self) -> None:

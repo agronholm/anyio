@@ -101,7 +101,7 @@ from ..abc import (
     UNIXDatagramPacketType,
 )
 from ..abc._eventloop import StrOrBytesPath
-from ..abc._tasks import call_for_coroutine, get_callable_name
+from ..abc._tasks import call_for_coroutine, get_callable_name, get_coro_name
 from ..lowlevel import RunVar
 from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
@@ -926,10 +926,12 @@ class TaskGroup(abc.TaskGroup):
                 "This task group is not active; no new tasks can be started."
             )
 
+        final_name = get_coro_name(coro, name)
+
         if context is not None:
-            return context.run(self._spawn, coro, name=name)
+            return context.run(self._spawn, coro, name=final_name)
         else:
-            return self._spawn(coro, name=name)
+            return self._spawn(coro, name=final_name)
 
     async def start(
         self,
@@ -987,7 +989,11 @@ class WorkerThread(Thread):
         workers: set[WorkerThread],
         idle_workers: deque[WorkerThread],
     ):
-        super().__init__(name="AnyIO worker thread")
+        kwargs: dict[str, Any] = {}
+        if sys.version_info >= (3, 14):
+            kwargs["context"] = Context()
+
+        super().__init__(name="AnyIO worker thread", **kwargs)
         self.root_task = root_task
         self.workers = workers
         self.idle_workers = idle_workers
