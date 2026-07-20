@@ -23,6 +23,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   rollover, so the destination buffer was overwritten by the second read and the file
   position advanced twice, silently losing data
   (`#1215 <https://github.com/agronholm/anyio/pull/1215>`_; PR by @c-tonneslan)
+- Added a ``reason`` parameter to ``fail_after`` (and the new ``fail_at``) allowing for
+  added exception context when raising ``TimeoutError``
+  (`#1227 <https://github.com/agronholm/anyio/pull/1227>`_; PR by @Graeme22)
 
 **4.14.2**
 

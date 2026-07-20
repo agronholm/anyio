@@ -126,7 +126,7 @@ class CancelScope:
 
 @contextmanager
 def fail_at(
-    deadline: float | None, shield: bool = False
+    deadline: float | None, shield: bool = False, reason: str | None = None
 ) -> Generator[CancelScope, None, None]:
     """
     Create a context manager which raises a :class:`TimeoutError` if the code in the
@@ -135,6 +135,7 @@ def fail_at(
     :param deadline: the deadline before raising the exception, or
         ``None`` to disable the timeout
     :param shield: ``True`` to shield the cancel scope from external cancellation
+    :param reason: explanation for timeout to add to the message of a raised `TimeoutError`
     :return: a context manager that yields a cancel scope
     :rtype: :class:`~typing.ContextManager`\\[:class:`~anyio.CancelScope`\\]
     :raises NoEventLoopError: if no supported asynchronous event loop is running in the
@@ -151,12 +152,12 @@ def fail_at(
         yield cancel_scope
 
     if cancel_scope.cancelled_caught and current_time() >= cancel_scope.deadline:
-        raise TimeoutError
+        raise TimeoutError(reason) if reason else TimeoutError
 
 
 @contextmanager
 def fail_after(
-    delay: float | None, shield: bool = False
+    delay: float | None, shield: bool = False, reason: str | None = None
 ) -> Generator[CancelScope, None, None]:
     """
     Create a context manager which raises a :class:`TimeoutError` if the code in the
@@ -165,6 +166,7 @@ def fail_after(
     :param delay: maximum allowed time (in seconds) before raising the exception, or
         ``None`` to disable the timeout
     :param shield: ``True`` to shield the cancel scope from external cancellation
+    :param reason: explanation for timeout to add to the message of a raised `TimeoutError`
     :return: a context manager that yields a cancel scope
     :rtype: :class:`~typing.ContextManager`\\[:class:`~anyio.CancelScope`\\]
     :raises NoEventLoopError: if no supported asynchronous event loop is running in the
@@ -173,7 +175,7 @@ def fail_after(
     """
     current_time = get_async_backend().current_time
     deadline = (current_time() + delay) if delay is not None else math.inf
-    with fail_at(deadline, shield=shield) as scope:
+    with fail_at(deadline, shield=shield, reason=reason) as scope:
         yield scope
 
 
