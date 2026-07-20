@@ -84,7 +84,7 @@ from .._core._tasks import CancelScope as BaseCancelScope
 from .._core._tasks import TaskHandle
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend, StrOrBytesPath
-from ..abc._tasks import T_contra, call_for_coroutine, get_callable_name
+from ..abc._tasks import T_contra, call_for_coroutine, get_callable_name, get_coro_name
 from ..streams.memory import MemoryObjectSendStream
 
 if TYPE_CHECKING:
@@ -267,7 +267,8 @@ class TaskGroup(abc.TaskGroup):
             raise TypeError(f"expected a coroutine, got {coro.__class__.__qualname__}")
 
         self._check_active(coro)
-        handle = TaskHandle(coro, name)
+        final_name = get_coro_name(coro, name)
+        handle = TaskHandle(coro, final_name)
         if context is not None:
             context.run(
                 partial(self._nursery.start_soon, handle._run_coro, name=handle.name)

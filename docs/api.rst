@@ -32,7 +32,9 @@ Timeouts and cancellation
 -------------------------
 
 .. autofunction:: anyio.move_on_after
+.. autofunction:: anyio.move_on_at
 .. autofunction:: anyio.fail_after
+.. autofunction:: anyio.fail_at
 .. autofunction:: anyio.current_effective_deadline
 
 .. autoclass:: anyio.CancelScope
