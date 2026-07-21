@@ -647,6 +647,26 @@ class CancelScope(BaseCancelScope):
 
             scope = scope._parent_scope
 
+    def _reparent(self, new_parent: CancelScope) -> None:
+        """
+        Move this active scope from its current parent to ``new_parent``.
+
+        Used by :meth:`TaskGroup.start` to move a task that has just called
+        ``task_status.started()`` into the target task group's cancel scope.
+        """
+        if self._parent_scope is new_parent:
+            return
+
+        if self._parent_scope is not None:
+            self._parent_scope._child_scopes.discard(self)
+
+        self._parent_scope = new_parent
+        new_parent._child_scopes.add(self)
+
+        # If the new parent (or an ancestor) is already cancelled, (re)start the
+        # delivery loop to ensure we're cancelled at next checkpoint like Trio.
+        self._restart_cancellation_in_parent()
+
     def cancel(self, reason: str | None = None) -> None:
         if not self._cancel_called:
             if self._timeout_handle:
@@ -724,22 +744,34 @@ _task_states: WeakKeyDictionary[asyncio.Task, TaskState] = WeakKeyDictionary()
 #
 
 
-class _AsyncioTaskStatus(abc.TaskStatus):
-    def __init__(self, future: asyncio.Future, parent_id: int):
+class _AsyncioTaskStatus(abc.TaskStatus[T_contra]):
+    def __init__(
+        self,
+        future: asyncio.Future,
+        parent_id: int,
+        target_scope: CancelScope,
+        spawn_scope: CancelScope,
+    ):
         self._future = future
         self._parent_id = parent_id
+        self._target_scope = target_scope
+        # The spawned task's own cancel scope (also held by its TaskHandle). Until
+        # started() is called started()
+        # reparents it into the target task group's cancel scope.
+        self._spawn_scope = spawn_scope
 
     def started(self, value: T_contra | None = None) -> None:
-        try:
-            self._future.set_result(value)
-        except asyncio.InvalidStateError:
-            if not self._future.cancelled():
-                raise RuntimeError(
-                    "called 'started' twice on the same task status"
-                ) from None
-
         task = cast(asyncio.Task, current_task())
         _task_states[task].parent_id = self._parent_id
+        if self._future.done():
+            if not self._future.cancelled():
+                raise RuntimeError("called 'started' twice on the same task status")
+            else:
+                # Caller of start() was cancelled, nothing to reparent
+                return
+
+        self._future.set_result(value)
+        self._spawn_scope._reparent(self._target_scope)
 
 
 if sys.version_info >= (3, 12):
@@ -831,8 +863,10 @@ class TaskGroup(abc.TaskGroup):
         self,
         coro: Coroutine[Any, Any, T_co],
         name: object,
-        task_status_future: asyncio.Future | None = None,
+        task_status: _AsyncioTaskStatus | None = None,
     ) -> TaskHandle[T_co]:
+        task_status_future = task_status._future if task_status is not None else None
+
         def task_done(_task: asyncio.Task) -> None:
             if sys.version_info >= (3, 14) and self.cancel_scope._host_task is not None:
                 asyncio.future_discard_from_awaited_by(
@@ -880,12 +914,27 @@ class TaskGroup(abc.TaskGroup):
                     RuntimeError("Child exited without calling task_status.started()")
                 )
 
-        if task_status_future:
+        if task_status_future is not None:
             parent_id = id(current_task())
+            # Trio semantics: until started() is called, a task spawned via start()
+            # belongs to the *caller's* cancel scope, not the target group's, so
+            # cancelling the group does not cancel a task that hasn't reported
+            # startup yet. started() reparents it into self.cancel_scope.
+            #
+            # The caller may be an unmanaged task (no _task_states entry) or a task
+            # without an active cancel scope; in either case fall back to the group's
+            # own scope.
+            caller_state = _task_states.get(cast(asyncio.Task, current_task()))
+            if caller_state is not None and caller_state.cancel_scope is not None:
+                initial_scope = caller_state.cancel_scope
+            else:
+                initial_scope = self.cancel_scope
         else:
             parent_id = id(self.cancel_scope._host_task)
+            initial_scope = self.cancel_scope
 
-        handle = TaskHandle(coro, name)
+        spawn_scope = task_status._spawn_scope if task_status is not None else None
+        handle = TaskHandle(coro, name, cancel_scope=spawn_scope)
         loop = asyncio.get_running_loop()
         wrapper_coro = handle._run_coro()
         if (
@@ -898,11 +947,9 @@ class TaskGroup(abc.TaskGroup):
         else:
             task = loop.create_task(wrapper_coro, name=handle.name)
 
-        # Make the spawned task inherit the task group's cancel scope
-        _task_states[task] = TaskState(
-            parent_id=parent_id, cancel_scope=self.cancel_scope
-        )
-        self.cancel_scope._tasks.add(task)
+        # Make the spawned task inherit the initial cancel scope
+        _task_states[task] = TaskState(parent_id=parent_id, cancel_scope=initial_scope)
+        initial_scope._tasks.add(task)
         self._tasks.add(task)
         if sys.version_info >= (3, 14) and self.cancel_scope._host_task is not None:
             asyncio.future_add_to_awaited_by(task, self.cancel_scope._host_task)
@@ -947,9 +994,11 @@ class TaskGroup(abc.TaskGroup):
 
         future: asyncio.Future = asyncio.Future()
         final_name = get_callable_name(func, name)
-        task_status = _AsyncioTaskStatus(future, id(self.cancel_scope._host_task))
+        task_status: _AsyncioTaskStatus[Any] = _AsyncioTaskStatus(
+            future, id(self.cancel_scope._host_task), self.cancel_scope, CancelScope()
+        )
         coro = call_for_coroutine(func, args, task_status=task_status)
-        handle = self._spawn(coro, final_name, future)
+        handle = self._spawn(coro, final_name, task_status)
 
         # If the task raises an exception after sending a start value without a switch
         # point between, the task group is cancelled and this method never proceeds to
