@@ -5,6 +5,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added the ``anyio.Future`` synchronization primitive which behaves similar to
+  ``asyncio.Future``, allowing tasks to wait for a value (or exception) from another
+  task (`#1146 <https://github.com/agronholm/anyio/pull/1146>`_; PR by @Vizonex)
 - Added the ``move_on_at()`` and ``fail_at()`` functions to complement
   ``move_on_after()`` and ``fail_after()``
 - Changed the default name for a task spawned with ``TaskGroup.create_task(func())`` to
@@ -84,8 +87,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **4.14.0**
 
-- Added an implementation of the ``asyncio.Future`` object for single pending objects.
-  (`#1146 <https://github.com/agronholm/anyio/pull/1146>`_; PR by @Vizonex)
 - Added support for Python 3.15
 - Added an asynchronous implementation of the ``itertools`` module
   (`#998 <https://github.com/agronholm/anyio/issues/998>`_; PR by @11kkw)
