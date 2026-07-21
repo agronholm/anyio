@@ -161,10 +161,10 @@ class CancelScope(BaseCancelScope):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> bool:
-        return self.__original.__exit__(exc_type, exc_val, exc_tb)
+        return cast(bool, self.__original.__exit__(exc_type, exc_val, exc_tb))
 
     def cancel(self, reason: str | None = None) -> None:
-        self.__original.cancel(reason)
+        self.__original.cancel(reason)  # type: ignore[call-arg]
 
     @property
     def deadline(self) -> float:
@@ -200,7 +200,7 @@ empty_start_value = object()
 
 class _TrioTaskStatus(Generic[T_contra], abc.TaskStatus[T_contra]):
     early_start_value: T_contra | object = empty_start_value
-    real_task_status: trio.TaskStatus[T_contra | None] | None = None
+    real_task_status: trio.TaskStatus[T_contra | None] | None = None  # type: ignore[name-defined]
 
     def started(self, value: T_contra | None = None) -> None:
         if self.real_task_status is None:
@@ -240,7 +240,7 @@ class TaskGroup(abc.TaskGroup):
             return await self._nursery_manager.__aexit__(exc_type, exc_val, exc_tb)  # type: ignore[return-value]
         except BaseExceptionGroup as exc:
             if not exc.split(trio.Cancelled)[1]:
-                raise trio.Cancelled._create() from exc
+                raise trio.Cancelled._create() from exc  # type: ignore[attr-defined]
 
             raise
         finally:
@@ -285,10 +285,11 @@ class TaskGroup(abc.TaskGroup):
         name: object = None,
         return_handle: Literal[False] | Literal[True] = False,
     ) -> Any:
-        handle: TaskHandle[T_co]
+        handle = TaskHandle(cast("Coroutine[Any, Any, T_co]", None), name)  # type: ignore[arg-type]
 
         async def run_coro_with_task_status(
-            *, task_status: trio.TaskStatus[Any]
+            *,
+            task_status: trio.TaskStatus[Any],  # type: ignore[name-defined]
         ) -> None:
             nonlocal handle
             wrapper_task_status = _TrioTaskStatus()
@@ -304,11 +305,12 @@ class TaskGroup(abc.TaskGroup):
         self._check_active()
         final_name = get_callable_name(func, name)
         start_value = await self._nursery.start(
-            run_coro_with_task_status, name=final_name
+            run_coro_with_task_status,
+            name=final_name,  # type: ignore[arg-type]
         )
         if return_handle:
             handle._start_value = start_value
-            return handle
+            return handle  # type: ignore[return-value]
         else:
             return start_value
 
@@ -568,7 +570,7 @@ class UNIXSocketStream(SocketStream, abc.UNIXSocketStream):
                             (
                                 socket.SOL_SOCKET,
                                 socket.SCM_RIGHTS,
-                                fdarray,
+                                bytes(fdarray),
                             )
                         ],
                     )
@@ -754,7 +756,7 @@ class Lock(BaseLock):
         try:
             self.__original.acquire_nowait()
         except trio.WouldBlock:
-            await self.__original._lot.park()
+            await self.__original._lot.park()  # type: ignore[attr-defined]
         except RuntimeError as exc:
             self._convert_runtime_error_msg(exc)
             raise
@@ -814,7 +816,7 @@ class Semaphore(BaseSemaphore):
         try:
             self.__original.acquire_nowait()
         except trio.WouldBlock:
-            await self.__original._lot.park()
+            await self.__original._lot.park()  # type: ignore[attr-defined]
 
     def acquire_nowait(self) -> None:
         try:
@@ -984,7 +986,7 @@ class TestRunner(abc.TestRunner):
                 self._call_queue.get()()
 
     def is_running(self) -> bool:
-        return trio.lowlevel.in_trio_task()
+        return trio.lowlevel.in_trio_task()  # type: ignore[attr-defined]
 
     async def _run_tests_and_fixtures(self) -> None:
         self._send_stream, receive_stream = create_memory_object_stream[
@@ -1166,13 +1168,13 @@ class TrioBackend(AsyncBackend):
         token = TrioBackend.current_token()
         return await run_sync(
             wrapper,
-            abandon_on_cancel=abandon_on_cancel,
+            abandon_on_cancel=abandon_on_cancel,  # type: ignore[call-arg]
             limiter=cast(trio.CapacityLimiter, limiter),
         )
 
     @classmethod
     def check_cancelled(cls) -> None:
-        trio.from_thread.check_cancelled()
+        trio.from_thread.check_cancelled()  # type: ignore[attr-defined]
 
     @classmethod
     def run_async_from_thread(
@@ -1358,7 +1360,7 @@ class TrioBackend(AsyncBackend):
     @classmethod
     async def wait_readable(cls, obj: FileDescriptorLike) -> None:
         try:
-            await wait_readable(obj)
+            await wait_readable(obj)  # type: ignore[arg-type]
         except trio.ClosedResourceError as exc:
             raise ClosedResourceError().with_traceback(exc.__traceback__) from None
         except trio.BusyResourceError:
@@ -1367,7 +1369,7 @@ class TrioBackend(AsyncBackend):
     @classmethod
     async def wait_writable(cls, obj: FileDescriptorLike) -> None:
         try:
-            await wait_writable(obj)
+            await wait_writable(obj)  # type: ignore[arg-type]
         except trio.ClosedResourceError as exc:
             raise ClosedResourceError().with_traceback(exc.__traceback__) from None
         except trio.BusyResourceError:
@@ -1375,7 +1377,7 @@ class TrioBackend(AsyncBackend):
 
     @classmethod
     def notify_closing(cls, obj: FileDescriptorLike) -> None:
-        notify_closing(obj)
+        notify_closing(obj)  # type: ignore[arg-type]
 
     @classmethod
     async def wrap_listener_socket(cls, sock: socket.socket) -> abc.SocketListener:

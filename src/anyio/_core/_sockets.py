@@ -658,7 +658,13 @@ async def getaddrinfo(
         encoded_host, port, family=family, type=type, proto=proto, flags=flags
     )
     return [
-        (family, type, proto, canonname, convert_ipv6_sockaddr(sockaddr))
+        (
+            family,
+            type,
+            proto,
+            canonname,
+            convert_ipv6_sockaddr(cast("IPSockAddrType", sockaddr)),
+        )
         for family, type, proto, canonname, sockaddr in gai_res
         # filter out IPv6 results when IPv6 is disabled
         if not isinstance(sockaddr[0], int)

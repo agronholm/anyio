@@ -42,12 +42,12 @@ _process_pool_idle_workers: RunVar[deque[tuple[Process, float]]] = RunVar(
 _default_process_limiter: RunVar[CapacityLimiter] = RunVar("_default_process_limiter")
 
 
-async def run_sync(  # type: ignore[return]
+async def run_sync(
     func: Callable[[Unpack[PosArgsT]], T_Retval],
     *args: Unpack[PosArgsT],
     cancellable: bool = False,
     limiter: CapacityLimiter | None = None,
-) -> T_Retval:
+) -> T_Retval:  # type: ignore[return-value]
     """
     Call the given function with the given arguments in a worker process.
 

@@ -56,8 +56,10 @@ jobs:
         path: ~/.cache/pip
         key: pip-pyright
     - name: Install dependencies
-      run: pip install -e . pyright
+      run: pip install --group test -e .[trio] pyright
     - name: Run pyright
+      run: pyright src
+    - name: Run pyright --verifytypes
       run: pyright --ignoreexternal --verifytypes anyio
 
   test:

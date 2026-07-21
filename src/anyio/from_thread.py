@@ -256,6 +256,7 @@ class BlockingPortal:
                         scope.cancel, "the future was cancelled", token=self._token
                     )
 
+        scope: CancelScope
         try:
             retval_or_awaitable = func(*args, **kwargs)
             if isawaitable(retval_or_awaitable):
@@ -276,7 +277,7 @@ class BlockingPortal:
                 raise
         else:
             if not future.cancelled():
-                future.set_result(retval)
+                future.set_result(retval)  # type: ignore[arg-type, possibly-unbound]
         finally:
             scope = None  # type: ignore[assignment]
 

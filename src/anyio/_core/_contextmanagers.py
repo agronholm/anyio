@@ -67,7 +67,7 @@ class ContextManagerMixin:
                 f"'yield' statement?"
             )
 
-        value = cm.__enter__()
+        value = cast(_T_co, cm.__enter__())
         self.__cm = cm
         return value
 
@@ -160,7 +160,7 @@ class AsyncContextManagerMixin:
                 f"'yield' statement?"
             )
 
-        value = await cm.__aenter__()
+        value = cast(_T_co, await cm.__aenter__())
         self.__cm = cm
         return value
 

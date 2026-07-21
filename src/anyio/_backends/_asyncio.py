@@ -177,9 +177,10 @@ else:
         def get_loop(self) -> AbstractEventLoop:
             """Return embedded event loop."""
             self._lazy_init()
+            assert self._loop is not None
             return self._loop
 
-        def run(self, coro: Coroutine[T_Retval], *, context=None) -> T_Retval:
+        def run(self, coro: Coroutine[Any, Any, T_Retval], *, context=None) -> T_Retval:
             """Run a coroutine inside the embedded event loop."""
             if not coroutines.iscoroutine(coro):
                 raise ValueError(f"a coroutine was expected, got {coro!r}")
@@ -191,9 +192,11 @@ else:
                 )
 
             self._lazy_init()
+            assert self._loop is not None
 
             if context is None:
                 context = self._context
+            assert context is not None
             task = context.run(self._loop.create_task, coro)
 
             if (
@@ -251,6 +254,7 @@ else:
             if self._interrupt_count == 1 and not main_task.done():
                 main_task.cancel()
                 # wakeup loop if it is blocked by select() with long timeout
+                assert self._loop is not None
                 self._loop.call_soon_threadsafe(lambda: None)
                 return
             raise KeyboardInterrupt()
@@ -287,8 +291,8 @@ else:
             except Exception as ex:
                 loop.call_soon_threadsafe(future.set_exception, ex)
 
-        loop._executor_shutdown_called = True
-        if loop._default_executor is None:
+        loop._executor_shutdown_called = True  # type: ignore[attr-defined]
+        if loop._default_executor is None:  # type: ignore[attr-defined]
             return
         future = loop.create_future()
         thread = threading.Thread(target=_do_shutdown, args=(future,))
@@ -352,7 +356,10 @@ def _task_started(task: asyncio.Task) -> bool:
     # task list
     coro = task.get_coro()
     assert coro is not None
-    return getcoroutinestate(coro) in (CORO_RUNNING, CORO_SUSPENDED)
+    return getcoroutinestate(cast("Coroutine[Any, Any, object]", coro)) in (
+        CORO_RUNNING,
+        CORO_SUSPENDED,
+    )
 
 
 #
@@ -497,7 +504,7 @@ class CancelScope(BaseCancelScope):
             if self._cancel_called and not self._parent_cancellation_is_visible_to_us:
                 # For each level-cancel() call made on the host task, call uncancel()
                 while self._pending_uncancellations:
-                    self._host_task.uncancel()
+                    self._host_task.uncancel()  # type: ignore[attr-defined]
                     self._pending_uncancellations -= 1
 
                 # Update cancelled_caught and check for exceptions we must not swallow
@@ -729,7 +736,7 @@ class _AsyncioTaskStatus(abc.TaskStatus):
         self._future = future
         self._parent_id = parent_id
 
-    def started(self, value: T_contra | None = None) -> None:
+    def started(self, value: object | None = None) -> None:
         try:
             self._future.set_result(value)
         except asyncio.InvalidStateError:
@@ -750,7 +757,7 @@ else:
 
 class TaskGroup(abc.TaskGroup):
     def __init__(self) -> None:
-        self.cancel_scope: CancelScope = CancelScope()
+        self.cancel_scope: abc.CancelScope = CancelScope()
         self._entered = False
         self._exceptions: list[BaseException] = []
         self._tasks: set[asyncio.Task] = set()
@@ -871,7 +878,7 @@ class TaskGroup(abc.TaskGroup):
                     if not isinstance(exc, CancelledError):
                         self._exceptions.append(exc)
 
-                    if not self.cancel_scope._effectively_cancelled:
+                    if not self.cancel_scope._effectively_cancelled:  # type: ignore[attr-defined]
                         self.cancel_scope.cancel()
                 else:
                     task_status_future.set_exception(exc)
@@ -883,7 +890,7 @@ class TaskGroup(abc.TaskGroup):
         if task_status_future:
             parent_id = id(current_task())
         else:
-            parent_id = id(self.cancel_scope._host_task)
+            parent_id = id(cast(CancelScope, self.cancel_scope)._host_task)
 
         handle = TaskHandle(coro, name)
         loop = asyncio.get_running_loop()
@@ -900,12 +907,16 @@ class TaskGroup(abc.TaskGroup):
 
         # Make the spawned task inherit the task group's cancel scope
         _task_states[task] = TaskState(
-            parent_id=parent_id, cancel_scope=self.cancel_scope
+            parent_id=parent_id, cancel_scope=cast(CancelScope, self.cancel_scope)
         )
-        self.cancel_scope._tasks.add(task)
-        self._tasks.add(task)
-        if sys.version_info >= (3, 14) and self.cancel_scope._host_task is not None:
-            asyncio.future_add_to_awaited_by(task, self.cancel_scope._host_task)
+        cast(CancelScope, self.cancel_scope)._tasks.add(task)
+        if (
+            sys.version_info >= (3, 14)
+            and cast(CancelScope, self.cancel_scope)._host_task is not None
+        ):
+            asyncio.future_add_to_awaited_by(
+                task, cast(CancelScope, self.cancel_scope)._host_task
+            )
 
         task.add_done_callback(task_done)
         return handle
@@ -920,7 +931,7 @@ class TaskGroup(abc.TaskGroup):
         if not isinstance(coro, Coroutine):
             raise TypeError(f"expected a coroutine, got {coro.__class__.__qualname__}")
 
-        if not self._entered or not self.cancel_scope._active:
+        if not self._entered or not cast(CancelScope, self.cancel_scope)._active:
             coro.close()
             raise RuntimeError(
                 "This task group is not active; no new tasks can be started."
@@ -940,14 +951,16 @@ class TaskGroup(abc.TaskGroup):
         name: object = None,
         return_handle: Literal[False] | Literal[True] = False,
     ) -> Any:
-        if not self._entered or not self.cancel_scope._active:
+        if not self._entered or not cast(CancelScope, self.cancel_scope)._active:
             raise RuntimeError(
                 "This task group is not active; no new tasks can be started."
             )
 
         future: asyncio.Future = asyncio.Future()
         final_name = get_callable_name(func, name)
-        task_status = _AsyncioTaskStatus(future, id(self.cancel_scope._host_task))
+        task_status = _AsyncioTaskStatus(
+            future, id(cast(CancelScope, self.cancel_scope)._host_task)
+        )
         coro = call_for_coroutine(func, args, task_status=task_status)
         handle = self._spawn(coro, final_name, future)
 
@@ -1589,6 +1602,7 @@ class TCPSocketListener(abc.SocketListener):
 
         with self._accept_guard:
             await AsyncIOBackend.checkpoint()
+            client_sock: socket.socket
             with CancelScope() as self._accept_scope:
                 try:
                     client_sock, _addr = await self._loop.sock_accept(self._raw_socket)
@@ -1606,9 +1620,11 @@ class TCPSocketListener(abc.SocketListener):
                 finally:
                     self._accept_scope = None
 
-        client_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        assert client_sock is not None  # type: ignore[possibly-unbound]
+        client_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)  # type: ignore[possibly-unbound]
         transport, protocol = await self._loop.connect_accepted_socket(
-            StreamProtocol, client_sock
+            StreamProtocol,
+            client_sock,  # type: ignore[possibly-unbound]
         )
         return SocketStream(transport, protocol)
 
@@ -2586,13 +2602,13 @@ class AsyncIOBackend(AsyncBackend):
         return CapacityLimiter(total_tokens)
 
     @classmethod
-    async def run_sync_in_worker_thread(  # type: ignore[return]
+    async def run_sync_in_worker_thread(
         cls,
         func: Callable[[Unpack[PosArgsT]], T_Retval],
         args: tuple[Unpack[PosArgsT]],
         abandon_on_cancel: bool = False,
         limiter: abc.CapacityLimiter | None = None,
-    ) -> T_Retval:
+    ) -> T_Retval:  # type: ignore[return-value]
         await cls.checkpoint()
 
         # If this is the first run in this event loop thread, set up the necessary
@@ -2667,6 +2683,7 @@ class AsyncIOBackend(AsyncBackend):
     ) -> T_co:
         async def task_wrapper() -> T_co:
             __tracebackhide__ = True
+            task: asyncio.Task[object]
             if scope is not None:
                 task = cast(asyncio.Task, current_task())
                 _task_states[task] = TaskState(None, scope)
@@ -2677,7 +2694,7 @@ class AsyncIOBackend(AsyncBackend):
                 raise concurrent.futures.CancelledError(str(exc)) from None
             finally:
                 if scope is not None:
-                    scope._tasks.discard(task)
+                    scope._tasks.discard(task)  # type: ignore[possibly-unbound]
 
         loop = cast(
             "AbstractEventLoop", token or threadlocals.current_token.native_token
