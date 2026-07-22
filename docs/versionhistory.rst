@@ -20,8 +20,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   rollover, so the destination buffer was overwritten by the second read and the file
   position advanced twice, silently losing data
   (`#1215 <https://github.com/agronholm/anyio/pull/1215>`_; PR by @c-tonneslan)
-- Add `rsloop <https://pypi.org/project/rsloop/>`_ as backend to ``asyncio`` for tests.
-  (`#1191 <https://github.com/agronholm/anyio/pull/1191>`_; PR by @tapetersen )
 
 **4.14.2**
 
