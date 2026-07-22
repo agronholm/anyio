@@ -2344,37 +2344,6 @@ class TestCreateTask:
         async with create_task_group() as tg:
             assert await tg.create_task(taskfunc(), context=ctx) == 42
 
-    async def test_task_name_default(self) -> None:
-        async def taskfunc() -> str | None:
-            return get_current_task().name
-
-        async with create_task_group() as tg:
-            handle = tg.create_task(taskfunc())
-            assert re.match(
-                r"<TaskHandle pending "
-                r"name='tests.test_taskgroups.TestCreateTask.test_task_name_default.<locals>.taskfunc' "
-                r"coro=<coroutine object(.+)>>",
-                repr(handle),
-            )
-            assert await handle == handle.name
-
-        assert (
-            handle.name
-            == "tests.test_taskgroups.TestCreateTask.test_task_name_default.<locals>.taskfunc"
-        )
-
-    async def test_task_name_custom_name(self) -> None:
-        async def taskfunc() -> None:
-            assert get_current_task().name == "custom name"
-
-        async with create_task_group() as tg:
-            handle = tg.create_task(taskfunc(), name="custom name")
-            assert handle.name == "custom name"
-            assert re.match(
-                r"<TaskHandle pending name='custom name' coro=<coroutine object(.+)>>",
-                repr(handle),
-            )
-
     async def test_wait(self) -> None:
         async def taskfunc() -> None:
             raise RuntimeError("dummy error")
@@ -2390,28 +2359,65 @@ class TestCreateTask:
         await handle.wait()
 
 
-async def test_start_name_default() -> None:
-    """
-    This is similar to ``TestCreateTask.test_task_name_default``, but for ``start``
-    instead of ``create_task``.
-    """
-
-    async def taskfunc(*, task_status: TaskStatus[None]) -> str | None:
+@pytest.mark.parametrize("spawner", ["create_task", "start_soon", "start"])
+async def test_task_name_default(spawner: str) -> None:
+    async def taskfunc(
+        *, task_status: TaskStatus[None] = TASK_STATUS_IGNORED
+    ) -> str | None:
         task_status.started()
         return get_current_task().name
 
     async with create_task_group() as tg:
-        handle = await tg.start(taskfunc, return_handle=True)
+        match spawner:
+            case "create_task":
+                handle = tg.create_task(taskfunc())
+            case "start_soon":
+                handle = tg.start_soon(taskfunc)
+            case "start":
+                handle = await tg.start(taskfunc, return_handle=True)
+            case _:
+                raise NotImplementedError()
+
+        assert (
+            await handle
+            == handle.name
+            == "tests.test_taskgroups.test_task_name_default.<locals>.taskfunc"
+        )
         assert re.match(
-            r"<TaskHandle finished name='tests.test_taskgroups.test_start_name_default.<locals>.taskfunc' "
-            r"coro=<coroutine object test_start_name_default.<locals>.taskfunc at 0x[0-9a-fA-F]+>>",
+            r"<TaskHandle finished "
+            r"name='tests.test_taskgroups.test_task_name_default.<locals>.taskfunc' "
+            r"coro=<coroutine object test_task_name_default.<locals>.taskfunc at 0x[0-9a-fA-F]+>>",
             repr(handle),
         )
-        assert await handle == handle.name
 
-    assert (
-        handle.name == "tests.test_taskgroups.test_start_name_default.<locals>.taskfunc"
-    )
+
+@pytest.mark.parametrize("spawner", ["create_task", "start_soon", "start"])
+async def test_task_name_custom_name(spawner: str) -> None:
+    async def taskfunc(
+        *, task_status: TaskStatus[None] = TASK_STATUS_IGNORED
+    ) -> str | None:
+        task_status.started()
+        return get_current_task().name
+
+    async with create_task_group() as tg:
+        match spawner:
+            case "create_task":
+                handle = tg.create_task(taskfunc(), name="custom name")
+            case "start_soon":
+                handle = tg.start_soon(taskfunc, name="custom name")
+            case "start":
+                handle = await tg.start(
+                    taskfunc, return_handle=True, name="custom name"
+                )
+            case _:
+                raise NotImplementedError()
+
+        assert await handle == handle.name == "custom name"
+        assert re.match(
+            r"<TaskHandle finished name='custom name' "
+            r"coro=<coroutine object test_task_name_custom_name.<locals>.taskfunc at 0x[0-9a-fA-F]+>>",
+            repr(handle),
+        )
 
 
 @pytest.mark.parametrize("create_task", [False, True])
