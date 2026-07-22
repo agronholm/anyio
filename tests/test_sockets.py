@@ -417,12 +417,6 @@ class TestTCPStream:
         """
         Test derived from https://github.com/python/cpython/pull/124859
         """
-        if (
-            anyio_backend_name == "asyncio"
-            and event_loop_implementation_name.startswith("rsloop")
-        ):
-            pytest.skip("Not fixed yet on rsloop")
-
         exc = None
         try:
             async with await connect_tcp("127.0.0.1", free_tcp_port):
