@@ -2376,7 +2376,7 @@ async def test_task_name_default(spawner: str) -> None:
             case "start":
                 handle = await tg.start(taskfunc, return_handle=True)
             case _:
-                raise NotImplementedError()
+                raise ValueError
 
         assert (
             await handle
@@ -2410,7 +2410,7 @@ async def test_task_name_custom_name(spawner: str) -> None:
                     taskfunc, return_handle=True, name="custom name"
                 )
             case _:
-                raise NotImplementedError()
+                raise ValueError
 
         assert await handle == handle.name == "custom name"
         assert re.match(
