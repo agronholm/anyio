@@ -14,6 +14,8 @@
   :target: https://tidelift.com/subscription/pkg/pypi-anyio
   :alt: Tidelift
 
+<!-- test -->
+
 AnyIO is an asynchronous networking and concurrency library that works on top of either asyncio_ or
 Trio_. It implements Trio-like `structured concurrency`_ (SC) on top of asyncio and works in harmony
 with the native SC of Trio itself.
