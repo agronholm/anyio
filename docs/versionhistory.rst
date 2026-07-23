@@ -26,6 +26,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added a ``reason`` parameter to ``fail_after`` (and the new ``fail_at``) allowing for
   added exception context when raising ``TimeoutError``
   (`#1227 <https://github.com/agronholm/anyio/pull/1227>`_; PR by @Graeme22)
+- Fixed the default ``TaskHandle.name`` missing part of the task name for tasks started
+  with ``TaskGroup.start`` on Trio (`#1231
+  <https://github.com/agronholm/anyio/issues/1231>`_; PR by @gschaffner)
 
 **4.14.2**
 
