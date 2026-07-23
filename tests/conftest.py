@@ -45,6 +45,12 @@ else:
             )
         )
 
+
+try:
+    import rsloop
+except ImportError:
+    rsloop = None
+
 pytest_plugins = ["pytester"]
 
 asyncio_params = [
@@ -56,6 +62,17 @@ asyncio_params = [
         ),
         marks=uvloop_marks,
         id=f"asyncio+{uvloop_name}",
+    ),
+    pytest.param(
+        (
+            "asyncio",
+            {"debug": True, "loop_factory": rsloop.new_event_loop if rsloop else None},
+        ),
+        marks=[
+            pytest.mark.skipif(rsloop is None, reason="rsloop is unavailable"),
+            pytest.mark.rsloop,
+        ],
+        id="asyncio+rsloop",
     ),
 ]
 if sys.version_info >= (3, 12):
