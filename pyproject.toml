@@ -55,7 +55,7 @@ test = [
     "pytest >= 9.0",
     "pytest-mock >= 3.14",
     "pytest-timeout >= 2.4.0",
-    "rsloop >= 0.1.28; platform_python_implementation == 'CPython'",
+    "rsloop >= 0.1.30; platform_python_implementation == 'CPython'",
     "trustme >= 1.0.0",
     "truststore >= 0.9.1",
     """\
