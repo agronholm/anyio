@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added the ``move_on_at()`` and ``fail_at()`` functions to complement
+  ``move_on_after()`` and ``fail_after()``
 - Changed the default name for a task spawned with ``TaskGroup.create_task(func())`` to
   match the default task name for the analogous task spawned with
   ``TaskGroup.start_soon(func)`` or ``TaskGroup.start(func)`` in more situations.
@@ -20,6 +22,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   rollover, so the destination buffer was overwritten by the second read and the file
   position advanced twice, silently losing data
   (`#1215 <https://github.com/agronholm/anyio/pull/1215>`_; PR by @c-tonneslan)
+- Added a ``reason`` parameter to ``fail_after`` (and the new ``fail_at``) allowing for
+  added exception context when raising ``TimeoutError``
+  (`#1227 <https://github.com/agronholm/anyio/pull/1227>`_; PR by @Graeme22)
+- Fixed the default ``TaskHandle.name`` missing part of the task name for tasks started
+  with ``TaskGroup.start`` on Trio (`#1231
+  <https://github.com/agronholm/anyio/issues/1231>`_; PR by @gschaffner)
 
 **4.14.2**
 
