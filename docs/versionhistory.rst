@@ -29,6 +29,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed the default ``TaskHandle.name`` missing part of the task name for tasks started
   with ``TaskGroup.start`` on Trio (`#1231
   <https://github.com/agronholm/anyio/issues/1231>`_; PR by @gschaffner)
+- Fixed ``anyio.run`` leaking, or at least, delaying collection of loop and root_task
+  due to the root task being cached in a ``RunVar``.
+  (`#1203 <https://github.com/agronholm/anyio/issues/1203>`_; PR by @tapetersen)
 
 **4.14.2**
 
