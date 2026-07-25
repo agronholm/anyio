@@ -85,6 +85,9 @@ class StapledObjectStream(Generic[T_Item], ObjectStream[T_Item]):
     async def send(self, item: T_Item) -> None:
         await self.send_stream.send(item)
 
+    def send_nowait(self, item: T_Item) -> None:
+        self.send_stream.send_nowait(item)  # type: ignore[attr-defined]
+
     async def send_eof(self) -> None:
         await self.send_stream.aclose()
 

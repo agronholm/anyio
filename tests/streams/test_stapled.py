@@ -138,6 +138,12 @@ class DummyObjectSendStream(ObjectSendStream[T_Item]):
 
         self.buffer.append(item)
 
+    def send_nowait(self, item: T_Item) -> None:
+        if self._closed:
+            raise ClosedResourceError
+
+        self.buffer.append(item)
+
     async def aclose(self) -> None:
         self._closed = True
 
@@ -171,6 +177,12 @@ class TestStapledObjectStream:
         await stapled.send("today?")
         assert stapled.send_stream is send_stream
         assert send_stream.buffer == ["how are you ", "today?"]
+
+    def test_send_nowait(
+        self, stapled: StapledObjectStream[str], send_stream: DummyObjectSendStream[str]
+    ) -> None:
+        stapled.send_nowait("hello")
+        assert send_stream.buffer == ["hello"]
 
     async def test_send_eof(self, stapled: StapledObjectStream[str]) -> None:
         await stapled.send_eof()
