@@ -9,6 +9,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ini setting, and fix the pytest plugin's auto mode detection to recognize the mode
   when set via either mechanism(e.g: ``pytest_asyncio``).
   (`#1242 <https://github.com/agronholm/anyio/pull/1242>`_; PR by @EmmanuelNiyonshuti)
+- Added ``StapledObjectStream.send_nowait()`` that delegates to the underlying
+  ``ObjectSendStream``, if it implements it
+  (`#1241 <https://github.com/agronholm/anyio/pull/1241>`_; PR by @davidbrochart)
 - Added the ``move_on_at()`` and ``fail_at()`` functions to complement
   ``move_on_after()`` and ``fail_after()``
 - Changed the default name for a task spawned with ``TaskGroup.create_task(func())`` to
@@ -36,6 +39,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``anyio.run`` leaking, or at least, delaying collection of loop and root_task
   due to the root task being cached in a ``RunVar``.
   (`#1203 <https://github.com/agronholm/anyio/issues/1203>`_; PR by @tapetersen)
+- Fixed ``anyio.Path.with_stem()`` silently producing a wrong path (e.g.
+  ``Path(".txt")``) instead of raising ``ValueError`` when given an empty stem on a
+  path with a non-empty suffix, unlike :meth:`pathlib.PurePath.with_stem`
+  (`#1200 <https://github.com/agronholm/anyio/pull/1200>`_; PR by @Sanjays2402)
 
 **4.14.2**
 
