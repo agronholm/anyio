@@ -206,7 +206,7 @@ class TestStapledObjectStream:
         with pytest.raises(
             NotImplementedError,
             match="'send_nowait' method not implemented in "
-                  "<class 'tests.streams.test_stapled.DummyObjectSendStream'>",
+            "<class 'tests.streams.test_stapled.DummyObjectSendStream'>",
         ):
             stapled.send_nowait("hello")
 
