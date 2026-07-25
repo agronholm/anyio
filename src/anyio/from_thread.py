@@ -17,6 +17,7 @@ from contextlib import (
     AbstractContextManager,
     contextmanager,
 )
+from contextvars import Context
 from dataclasses import dataclass, field
 from functools import partial
 from inspect import isawaitable
@@ -541,7 +542,11 @@ def start_blocking_portal(
                     future.set_exception(exc)
 
     future: Future[BlockingPortal] = Future()
-    thread = Thread(target=run_blocking_portal, daemon=True, name=name)
+    kwargs: dict[str, Any] = {}
+    if sys.version_info >= (3, 14):
+        kwargs["context"] = Context()
+
+    thread = Thread(target=run_blocking_portal, daemon=True, name=name, **kwargs)
     thread.start()
     try:
         cancel_remaining_tasks = False

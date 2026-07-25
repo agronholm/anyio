@@ -101,8 +101,8 @@ from ..abc import (
     UNIXDatagramPacketType,
 )
 from ..abc._eventloop import StrOrBytesPath
-from ..abc._tasks import call_for_coroutine, get_callable_name
-from ..lowlevel import RunVar
+from ..abc._tasks import call_for_coroutine, get_callable_name, get_coro_name
+from ..lowlevel import RunVar, _run_vars
 from ..streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 if TYPE_CHECKING:
@@ -305,7 +305,7 @@ T_contra = TypeVar("T_contra", contravariant=True)
 PosArgsT = TypeVarTuple("PosArgsT")
 P = ParamSpec("P")
 
-_root_task: RunVar[asyncio.Task | None] = RunVar("_root_task")
+_root_task: RunVar[asyncio.Task[Any] | None] = RunVar("_root_task")
 
 
 def find_root_task() -> asyncio.Task:
@@ -316,13 +316,22 @@ def find_root_task() -> asyncio.Task:
     # Look for a task that has been started via run_until_complete()
     for task in all_tasks():
         if task._callbacks and not task.done():
-            callbacks = [cb for cb, context in task._callbacks]
-            for cb in callbacks:
+            for cb, context in task._callbacks:
                 if (
                     cb is _run_until_complete_cb
                     or getattr(cb, "__module__", None) == "uvloop.loop"
                 ):
                     _root_task.set(task)
+
+                    def _unset(t: asyncio.Task[Any]) -> None:
+                        if vars := _run_vars.get(t.get_loop()):
+                            vars.pop(_root_task, None)
+
+                    # Register a callback to break the task -> loop -> _run_var[loop][_root_task] -> task cycle
+                    # Also run it in its own context to not create another reference.
+                    # We can't use RunVar.reset() here since these are called synchronously
+                    # and thus lowlevel.current_token() (which RunVar.reset() depends on) fails.
+                    task.add_done_callback(_unset, context=context)
                     return task
 
     # Look up the topmost task in the AnyIO task tree, if possible
@@ -337,13 +346,6 @@ def find_root_task() -> asyncio.Task:
             return cast(asyncio.Task, cancel_scope._host_task)
 
     return task
-
-
-#
-# Event loop
-#
-
-_run_vars: WeakKeyDictionary[asyncio.AbstractEventLoop, Any] = WeakKeyDictionary()
 
 
 def _task_started(task: asyncio.Task) -> bool:
@@ -926,10 +928,12 @@ class TaskGroup(abc.TaskGroup):
                 "This task group is not active; no new tasks can be started."
             )
 
+        final_name = get_coro_name(coro, name)
+
         if context is not None:
-            return context.run(self._spawn, coro, name=name)
+            return context.run(self._spawn, coro, name=final_name)
         else:
-            return self._spawn(coro, name=name)
+            return self._spawn(coro, name=final_name)
 
     async def start(
         self,
@@ -987,7 +991,11 @@ class WorkerThread(Thread):
         workers: set[WorkerThread],
         idle_workers: deque[WorkerThread],
     ):
-        super().__init__(name="AnyIO worker thread")
+        kwargs: dict[str, Any] = {}
+        if sys.version_info >= (3, 14):
+            kwargs["context"] = Context()
+
+        super().__init__(name="AnyIO worker thread", **kwargs)
         self.root_task = root_task
         self.workers = workers
         self.idle_workers = idle_workers
