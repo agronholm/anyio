@@ -1710,6 +1710,31 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
 @pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestUDPSocket:
+    async def test_receive_transport_error(self, anyio_backend_name: str) -> None:
+        if anyio_backend_name != "asyncio":
+            pytest.skip("asyncio-specific transport behavior")
+
+        async with await create_udp_socket(
+            family=AddressFamily.AF_INET, local_host="127.0.0.1"
+        ) as udp:
+            protocol = cast(Any, udp)._protocol
+            transport_error = ConnectionResetError("ICMP port unreachable")
+
+            async def report_error() -> None:
+                await wait_all_tasks_blocked()
+                protocol.error_received(transport_error)
+
+            async with create_task_group() as task_group:
+                task_group.start_soon(report_error)
+                with pytest.raises(BrokenResourceError) as exc_info:
+                    await udp.receive()
+
+            assert exc_info.value.__cause__ is transport_error
+
+            host, port = cast(tuple[str, int], udp.extra(SocketAttribute.local_address))
+            await udp.sendto(b"still usable", host, port)
+            assert await udp.receive() == (b"still usable", (host, port))
+
     async def test_aclose_waits_for_fd_release(
         self, family: AnyIPAddressFamily, free_udp_port: int
     ) -> None:
@@ -1891,6 +1916,42 @@ class TestUDPSocket:
 @pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestConnectedUDPSocket:
+    async def test_receive_transport_error(self, anyio_backend_name: str) -> None:
+        if anyio_backend_name != "asyncio":
+            pytest.skip("asyncio-specific transport behavior")
+
+        async with await create_udp_socket(
+            family=AddressFamily.AF_INET, local_host="127.0.0.1"
+        ) as peer:
+            peer_host, peer_port = cast(
+                tuple[str, int], peer.extra(SocketAttribute.local_address)
+            )
+            async with await create_connected_udp_socket(
+                peer_host,
+                peer_port,
+                family=AddressFamily.AF_INET,
+                local_host="127.0.0.1",
+            ) as udp:
+                protocol = cast(Any, udp)._protocol
+                transport_error = ConnectionResetError("ICMP port unreachable")
+
+                async def report_error() -> None:
+                    await wait_all_tasks_blocked()
+                    protocol.error_received(transport_error)
+
+                async with create_task_group() as task_group:
+                    task_group.start_soon(report_error)
+                    with pytest.raises(BrokenResourceError) as exc_info:
+                        await udp.receive()
+
+                assert exc_info.value.__cause__ is transport_error
+
+                host, port = cast(
+                    tuple[str, int], udp.extra(SocketAttribute.local_address)
+                )
+                await peer.sendto(b"still usable", host, port)
+                assert await udp.receive() == b"still usable"
+
     async def test_aclose_waits_for_fd_release(
         self, family: AnyIPAddressFamily, free_udp_port: int
     ) -> None:

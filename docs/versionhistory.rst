@@ -39,6 +39,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``Path(".txt")``) instead of raising ``ValueError`` when given an empty stem on a
   path with a non-empty suffix, unlike :meth:`pathlib.PurePath.with_stem`
   (`#1200 <https://github.com/agronholm/anyio/pull/1200>`_; PR by @Sanjays2402)
+- Fixed UDP receives on the asyncio backend failing to wake up when the transport
+  reports an error, and preserved the transport error as the cause of the resulting
+  ``BrokenResourceError``
+  (`#1239 <https://github.com/agronholm/anyio/issues/1239>`_; PR by @deepakganesh78)
 
 **4.14.2**
 
