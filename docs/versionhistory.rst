@@ -35,6 +35,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``anyio.run`` leaking, or at least, delaying collection of loop and root_task
   due to the root task being cached in a ``RunVar``.
   (`#1203 <https://github.com/agronholm/anyio/issues/1203>`_; PR by @tapetersen)
+- Fixed ``anyio.Path.with_stem()`` silently producing a wrong path (e.g.
+  ``Path(".txt")``) instead of raising ``ValueError`` when given an empty stem on a
+  path with a non-empty suffix, unlike :meth:`pathlib.PurePath.with_stem`
+  (`#1200 <https://github.com/agronholm/anyio/pull/1200>`_; PR by @Sanjays2402)
 
 **4.14.2**
 
