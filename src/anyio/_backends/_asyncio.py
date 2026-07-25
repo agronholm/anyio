@@ -1321,6 +1321,19 @@ class DatagramProtocol(asyncio.DatagramProtocol):
         self.write_event.set()
 
 
+def _rearm_proactor_udp_transport(transport: asyncio.DatagramTransport) -> None:
+    # CPython's Proactor transport leaves _read_fut unset after a receive error.
+    transport_type = type(transport)
+    if (
+        sys.platform == "win32"
+        and transport_type.__module__ == "asyncio.proactor_events"
+        and transport_type.__name__ == "_ProactorDatagramTransport"
+        and not transport.is_closing()
+        and getattr(transport, "_read_fut", None) is None
+    ):
+        cast(Any, transport)._loop_reading()
+
+
 class SocketStream(abc.SocketStream):
     def __init__(self, transport: asyncio.Transport, protocol: StreamProtocol):
         self._transport = transport
@@ -1710,6 +1723,7 @@ class UDPSocket(abc.UDPSocket):
                     raise BrokenResourceError from None
 
             if isinstance(packet, Exception):
+                _rearm_proactor_udp_transport(self._transport)
                 raise BrokenResourceError from packet
 
             return packet
@@ -1765,6 +1779,7 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
                     raise BrokenResourceError from None
 
             if isinstance(packet, Exception):
+                _rearm_proactor_udp_transport(self._transport)
                 raise BrokenResourceError from packet
 
             return packet[0]

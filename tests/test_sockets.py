@@ -1952,6 +1952,51 @@ class TestConnectedUDPSocket:
                 await peer.sendto(b"still usable", host, port)
                 assert await udp.receive() == b"still usable"
 
+    @pytest.mark.skipif(
+        sys.platform != "win32", reason="requires the Windows Proactor event loop"
+    )
+    async def test_receive_icmp_error_rearms_transport(
+        self, anyio_backend_name: str
+    ) -> None:
+        if anyio_backend_name != "asyncio":
+            pytest.skip("asyncio-specific transport behavior")
+
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.bind(("127.0.0.1", 0))
+            peer_host, peer_port = cast(tuple[str, int], probe.getsockname())
+
+        async with await create_connected_udp_socket(
+            peer_host,
+            peer_port,
+            family=AddressFamily.AF_INET,
+            local_host="127.0.0.1",
+        ) as udp:
+            transport = cast(Any, udp)._transport
+            transport_type = type(transport)
+            if (
+                transport_type.__module__ != "asyncio.proactor_events"
+                or transport_type.__name__ != "_ProactorDatagramTransport"
+            ):
+                pytest.skip("requires the CPython Proactor datagram transport")
+
+            await udp.send(b"trigger ICMP port unreachable")
+            with fail_after(5):
+                with pytest.raises(BrokenResourceError) as exc_info:
+                    await udp.receive()
+
+            assert isinstance(exc_info.value.__cause__, OSError)
+
+            peer_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            peer_socket.bind((peer_host, peer_port))
+            peer_socket.setblocking(False)
+            async with await UDPSocket.from_socket(peer_socket) as peer:
+                host, port = cast(
+                    tuple[str, int], udp.extra(SocketAttribute.local_address)
+                )
+                await peer.sendto(b"still usable", host, port)
+                with fail_after(5):
+                    assert await udp.receive() == b"still usable"
+
     async def test_aclose_waits_for_fd_release(
         self, family: AnyIPAddressFamily, free_udp_port: int
     ) -> None:
