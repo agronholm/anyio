@@ -409,10 +409,7 @@ class TestTCPStream:
         ),
     )
     async def test_happy_eyeballs_refcycles(
-        self,
-        free_tcp_port: int,
-        anyio_backend_name: str,
-        event_loop_implementation_name: str,
+        self, free_tcp_port: int, anyio_backend_name: str
     ) -> None:
         """
         Test derived from https://github.com/python/cpython/pull/124859
