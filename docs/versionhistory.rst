@@ -5,6 +5,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added ``--anyio-mode`` command-line option as an alternative to the ``anyio_mode``
+  ini setting, and fix the pytest plugin's auto mode detection to recognize the mode
+  when set via either mechanism(e.g: ``pytest_asyncio``).
+  (`#1242 <https://github.com/agronholm/anyio/pull/1242>`_; PR by @EmmanuelNiyonshuti)
 - Added the ``move_on_at()`` and ``fail_at()`` functions to complement
   ``move_on_after()`` and ``fail_after()``
 - Changed the default name for a task spawned with ``TaskGroup.create_task(func())`` to
