@@ -683,7 +683,7 @@ def test_auto_mode_cmdline(testdir: Pytester) -> None:
             """
     )
 
-    result = testdir.runpytest("--anyio-mode=auto")
+    result = testdir.runpytest(*pytest_args, "--anyio-mode=auto")
     result.assert_outcomes(passed=len(get_available_backends()))
 
 
