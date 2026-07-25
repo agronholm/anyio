@@ -7,6 +7,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added ``StapledObjectStream.send_nowait()`` that delegates to the underlying
   ``ObjectSendStream``, if it implements it
+  (`#1241 <https://github.com/agronholm/anyio/pull/1241>`_; PR by @davidbrochart)
 - Added the ``move_on_at()`` and ``fail_at()`` functions to complement
   ``move_on_after()`` and ``fail_after()``
 - Changed the default name for a task spawned with ``TaskGroup.create_task(func())`` to
