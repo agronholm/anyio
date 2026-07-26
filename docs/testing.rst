@@ -15,7 +15,7 @@ marked for the AnyIO pytest plugin to pick them up. This can be done in one of t
 ways:
 
 #. Setting the ``anyio_mode = "auto"`` option in the pytest configuration, or passing
-   ``--anyio-mode=auto`` on the command line
+   the ``--anyio-mode=auto`` command-line flag
 #. Using the ``pytest.mark.anyio`` marker
 #. Using the ``anyio_backend`` fixture, either directly or via another fixture
 
@@ -25,12 +25,6 @@ The simplest way is thus the following:
 
     [tool.pytest.ini_options]
     anyio_mode = "auto"
-
-Alternatively, the same can be done via the command line:
-
-.. code-block:: bash
-
-    pytest --anyio-mode=auto
 
 .. note:: This does not work if ``pytest-asyncio`` is installed and configured to use
     its own ``auto`` mode, as it will conflict with the AnyIO plugin. To prevent this
