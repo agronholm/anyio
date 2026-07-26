@@ -211,6 +211,7 @@ def process_worker() -> None:
     stdout = sys.stdout
     sys.stdin = open(os.devnull)
     sys.stdout = open(os.devnull, "w")
+    sys.stderr = open(os.devnull, "w")
 
     stdout.buffer.write(b"READY\n")
     while True:

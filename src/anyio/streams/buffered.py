@@ -65,6 +65,9 @@ class BufferedByteReceiveStream(ByteReceiveStream):
         self._buffer.extend(data)
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be a positive integer")
+
         if self._closed:
             raise ClosedResourceError
 

@@ -178,7 +178,7 @@ async def open_process(
         kwargs["group"] = group
 
     if extra_groups is not None:
-        kwargs["extra_groups"] = group
+        kwargs["extra_groups"] = extra_groups
 
     if umask >= 0:
         kwargs["umask"] = umask

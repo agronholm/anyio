@@ -109,6 +109,29 @@ async def test_buffered_connectable() -> None:
         assert await stream.receive_exactly(2) == b"cd"
 
 
+@pytest.mark.parametrize("max_bytes", [0, -1])
+async def test_receive_invalid_max_bytes(max_bytes: int) -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
+    buffered_stream = BufferedByteReceiveStream(receive_stream)
+    with pytest.raises(ValueError, match="max_bytes must be a positive integer"):
+        await buffered_stream.receive(max_bytes)
+
+    send_stream.close()
+    receive_stream.close()
+
+
+@pytest.mark.parametrize("max_bytes", [0, -1])
+async def test_buffered_stream_receive_invalid_max_bytes(max_bytes: int) -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
+    buffered_stream = BufferedByteStream(
+        StapledObjectStream(send_stream, receive_stream)
+    )
+    with pytest.raises(ValueError, match="max_bytes must be a positive integer"):
+        await buffered_stream.receive(max_bytes)
+
+    await buffered_stream.aclose()
+
+
 async def test_feed_data() -> None:
     send_stream, receive_stream = create_memory_object_stream[bytes](1)
     buffered_stream = BufferedByteStream(
