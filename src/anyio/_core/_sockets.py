@@ -68,6 +68,58 @@ def idna2008_resolve(host: str) -> bytes:
         return idna.encode(host, uts46=True)
 
 
+def _host_has_routable_ipv6() -> bool:
+    """Return True if this host can source a non-link-local IPv6 address.
+
+    ``getaddrinfo`` with ``AI_ADDRCONFIG`` still returns AAAA records when the
+    only configured IPv6 address is link-local (``fe80::/10``). Preferring
+    those remote AAAA results first makes ``connect_tcp`` burn a failed IPv6
+    attempt (often "Network is unreachable") before falling back to IPv4.
+    A UDP ``connect`` to a well-known global address reveals the kernel's
+    chosen source address without sending packets.
+    """
+    if not getattr(socket, "has_ipv6", False):
+        return False
+    try:
+        with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as sock:
+            # Google Public DNS — connect() on UDP selects a route/source only.
+            sock.connect(("2001:4860:4860::8888", 53))
+            local = ip_address(sock.getsockname()[0])
+    except OSError:
+        return False
+    if not isinstance(local, IPv6Address):
+        return False
+    # Link-local / loopback / unspecified cannot reach global destinations.
+    return not (local.is_link_local or local.is_loopback or local.is_unspecified)
+
+
+def _order_happy_eyeballs_targets(
+    gai_res: list[tuple[Any, ...]], *, prefer_ipv6: bool
+) -> list[tuple[int, str]]:
+    """Reorder ``getaddrinfo`` results for Happy Eyeballs (RFC 6555).
+
+    When *prefer_ipv6* is true, the first IPv6 address is placed first and the
+    first IPv4 address second. When false (link-local-only IPv6 hosts), results
+    keep encounter order so a working IPv4 address is not delayed behind an
+    unreachable AAAA.
+    """
+    if not prefer_ipv6:
+        return [(af, sa[0]) for af, *_, sa in gai_res]
+
+    v6_found = v4_found = False
+    target_addrs: list[tuple[int, str]] = []
+    for af, *_, sa in gai_res:
+        if af == socket.AF_INET6 and not v6_found:
+            v6_found = True
+            target_addrs.insert(0, (af, sa[0]))
+        elif af == socket.AF_INET and not v4_found and v6_found:
+            v4_found = True
+            target_addrs.insert(1, (af, sa[0]))
+        else:
+            target_addrs.append((af, sa[0]))
+    return target_addrs
+
+
 # tls_hostname given
 @overload
 async def connect_tcp(
@@ -233,19 +285,12 @@ async def connect_tcp(
             target_host, remote_port, family=family, type=socket.SOCK_STREAM
         )
 
-        # Organize the list so that the first address is an IPv6 address (if available)
-        # and the second one is an IPv4 addresses. The rest can be in whatever order.
-        v6_found = v4_found = False
-        target_addrs = []
-        for af, *_, sa in gai_res:
-            if af == socket.AF_INET6 and not v6_found:
-                v6_found = True
-                target_addrs.insert(0, (af, sa[0]))
-            elif af == socket.AF_INET and not v4_found and v6_found:
-                v4_found = True
-                target_addrs.insert(1, (af, sa[0]))
-            else:
-                target_addrs.append((af, sa[0]))
+        # Prefer IPv6 first only when this host has a routable IPv6 source
+        # address. Link-local-only hosts still get AAAA from AI_ADDRCONFIG, but
+        # outbound IPv6 then fails with "Network is unreachable" (#1230).
+        target_addrs = _order_happy_eyeballs_targets(
+            list(gai_res), prefer_ipv6=_host_has_routable_ipv6()
+        )
 
     oserrors: list[OSError] = []
     try:

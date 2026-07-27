@@ -2557,6 +2557,65 @@ async def test_connect_tcp_getaddrinfo_context() -> None:
     assert exc_info.value.__context__ is None
 
 
+def test_order_happy_eyeballs_prefers_ipv6_when_routable() -> None:
+    from anyio._core._sockets import _order_happy_eyeballs_targets
+
+    # Encounter order: IPv4 then IPv6 — with prefer_ipv6, IPv6 moves first.
+    gai = [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("1.2.3.4", 443)),
+        (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("2001:db8::1", 443, 0, 0)),
+    ]
+    ordered = _order_happy_eyeballs_targets(gai, prefer_ipv6=True)
+    assert ordered[0] == (socket.AF_INET6, "2001:db8::1")
+    assert ordered[1] == (socket.AF_INET, "1.2.3.4")
+
+
+def test_order_happy_eyeballs_keeps_order_without_routable_ipv6() -> None:
+    from anyio._core._sockets import _order_happy_eyeballs_targets
+
+    # Link-local-only hosts: do not promote IPv6 ahead of a working IPv4 (#1230).
+    gai = [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("1.2.3.4", 443)),
+        (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("2001:db8::1", 443, 0, 0)),
+    ]
+    ordered = _order_happy_eyeballs_targets(gai, prefer_ipv6=False)
+    assert ordered == [
+        (socket.AF_INET, "1.2.3.4"),
+        (socket.AF_INET6, "2001:db8::1"),
+    ]
+
+
+def test_host_has_routable_ipv6_false_when_disabled(monkeypatch: MonkeyPatch) -> None:
+    from anyio._core._sockets import _host_has_routable_ipv6
+
+    monkeypatch.setattr(socket, "has_ipv6", False)
+    assert _host_has_routable_ipv6() is False
+
+
+def test_host_has_routable_ipv6_false_on_link_local(monkeypatch: MonkeyPatch) -> None:
+    from anyio._core._sockets import _host_has_routable_ipv6
+
+    class FakeSock:
+        def connect(self, address: object) -> None:
+            pass
+
+        def getsockname(self) -> tuple[str, int, int, int]:
+            return ("fe80::1", 0, 0, 0)
+
+        def __enter__(self) -> FakeSock:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            pass
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(socket, "has_ipv6", True)
+    monkeypatch.setattr(socket, "socket", lambda *a, **k: FakeSock())
+    assert _host_has_routable_ipv6() is False
+
+
 @pytest.mark.parametrize("socket_type", ["socket", "fd"])
 @pytest.mark.parametrize("event", ["readable", "writable"])
 async def test_wait_socket(event: str, socket_type: str) -> None:
