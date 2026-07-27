@@ -1687,8 +1687,11 @@ class UDPSocket(abc.UDPSocket):
         self._closed = True
         if not self._transport.is_closing():
             self._transport.close()
-            await sleep(0)
-            self._transport.abort()
+            try:
+                await sleep(0)
+            finally:
+                self._transport.abort()
+                await AsyncIOBackend.cancel_shielded_checkpoint()
 
         await self._protocol.closed_event.wait()
 
@@ -1739,8 +1742,11 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
         self._closed = True
         if not self._transport.is_closing():
             self._transport.close()
-            await sleep(0)
-            self._transport.abort()
+            try:
+                await sleep(0)
+            finally:
+                self._transport.abort()
+                await AsyncIOBackend.cancel_shielded_checkpoint()
 
         await self._protocol.closed_event.wait()
 

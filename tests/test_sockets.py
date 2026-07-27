@@ -34,6 +34,7 @@ from _pytest.tmpdir import TempPathFactory
 from pytest import FixtureRequest
 from pytest_mock.plugin import MockerFixture
 
+import anyio
 from anyio import (
     BrokenResourceError,
     BusyResourceError,
@@ -1747,9 +1748,12 @@ class TestUDPSocket:
     @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_aclose_during_send(self) -> None:
         udp = await create_udp_socket(local_host="127.0.0.1")
+        sock = udp.extra(SocketAttribute.raw_socket)
         await udp.sendto(b"x", "127.0.0.1", 9999)
         with fail_after(1):
-            await udp.aclose()
+            await anyio.aclose_forcefully(udp)
+
+        assert sock.fileno() == -1
 
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_udp_socket(
