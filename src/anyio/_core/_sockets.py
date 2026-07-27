@@ -107,7 +107,7 @@ def _ipv6_addr_is_locally_usable(host: str) -> bool:
 
 def _order_happy_eyeballs_targets(
     gai_res: list[tuple[Any, ...]], *, has_global_ipv6: bool
-) -> list[tuple[int, str]]:
+) -> list[tuple[AddressFamily, str]]:
     """Reorder ``getaddrinfo`` results for Happy Eyeballs (RFC 6555).
 
     Promotes the first *usable* IPv6 address to the front and the first IPv4
@@ -120,21 +120,22 @@ def _order_happy_eyeballs_targets(
       working IPv4 is not delayed (#1230).
     """
     v6_found = v4_found = False
-    target_addrs: list[tuple[int, str]] = []
+    target_addrs: list[tuple[AddressFamily, str]] = []
     for af, *_, sa in gai_res:
+        family = cast(AddressFamily, af)
         host = sa[0]
-        if af == socket.AF_INET6 and not v6_found:
+        if family == socket.AF_INET6 and not v6_found:
             if has_global_ipv6 or _ipv6_addr_is_locally_usable(host):
                 v6_found = True
-                target_addrs.insert(0, (af, host))
+                target_addrs.insert(0, (family, host))
             else:
                 # Global AAAA on a link-local-only host — do not promote.
-                target_addrs.append((af, host))
-        elif af == socket.AF_INET and not v4_found and v6_found:
+                target_addrs.append((family, host))
+        elif family == socket.AF_INET and not v4_found and v6_found:
             v4_found = True
-            target_addrs.insert(1, (af, host))
+            target_addrs.insert(1, (family, host))
         else:
-            target_addrs.append((af, host))
+            target_addrs.append((family, host))
     return target_addrs
 
 
