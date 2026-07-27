@@ -711,7 +711,7 @@ class TaskState:
     itself because there are no guarantees about its implementation.
     """
 
-    __slots__ = "parent_id", "cancel_scope", "__weakref__"
+    __slots__ = "__weakref__", "cancel_scope", "parent_id"
 
     def __init__(self, parent_id: int | None, cancel_scope: CancelScope | None):
         self.parent_id = parent_id
@@ -940,7 +940,7 @@ class TaskGroup(abc.TaskGroup):
         func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
         *args: Unpack[PosArgsT],
         name: object = None,
-        return_handle: Literal[False] | Literal[True] = False,
+        return_handle: Literal[False, True] = False,
     ) -> Any:
         if not self._entered or not self.cancel_scope._active:
             raise RuntimeError(
@@ -1962,7 +1962,7 @@ class Lock(BaseLock):
 
 
 class Semaphore(BaseSemaphore):
-    __slots__ = "_value", "_max_value", "_fast_acquire", "_waiters"
+    __slots__ = "_fast_acquire", "_max_value", "_value", "_waiters"
 
     def __new__(
         cls,
@@ -2050,7 +2050,7 @@ class Semaphore(BaseSemaphore):
 
 
 class CapacityLimiter(BaseCapacityLimiter):
-    __slots__ = "_total_tokens", "_borrowers", "_wait_queue"
+    __slots__ = "_borrowers", "_total_tokens", "_wait_queue"
 
     def __new__(cls, total_tokens: float) -> CapacityLimiter:
         return object.__new__(cls)
@@ -2243,12 +2243,10 @@ class AsyncIOTaskInfo(TaskInfo):
             # If the task isn't around anymore, it won't have a pending cancellation
             return False
 
-        if task._must_cancel:  # type: ignore[attr-defined]
-            return True
-        elif (
+        if task._must_cancel or (
             isinstance(task._fut_waiter, asyncio.Future)  # type: ignore[attr-defined]
             and task._fut_waiter.cancelled()  # type: ignore[attr-defined]
-        ):
+        ):  # type: ignore[attr-defined]
             return True
 
         if task_state := _task_states.get(task):

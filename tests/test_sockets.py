@@ -436,7 +436,7 @@ class TestTCPStream:
     async def test_connection_refused(
         self,
         target: str,
-        exception_class: type[ExceptionGroup] | type[ConnectionRefusedError],
+        exception_class: type[ExceptionGroup | ConnectionRefusedError],
         fake_localhost_dns: None,
         free_tcp_port: int,
     ) -> None:
@@ -739,12 +739,14 @@ class TestTCPStream:
             await SocketStream.from_socket("foo")  # type: ignore[arg-type]
 
     async def test_from_socket_pass_file_fd(self, tmp_path: Path) -> None:
-        with pytest.raises(
-            ValueError,
-            match="the file descriptor does not refer to a socket",
+        with (
+            pytest.raises(
+                ValueError,
+                match="the file descriptor does not refer to a socket",
+            ),
+            tmp_path.joinpath("foo").open("wb") as fd,
         ):
-            with tmp_path.joinpath("foo").open("wb") as fd:
-                await SocketStream.from_socket(fd.fileno())
+            await SocketStream.from_socket(fd.fileno())
 
     async def test_from_socket_wrong_socket_type(
         self, sock_or_fd_factory: SockFdFactoryProtocol
@@ -1789,16 +1791,18 @@ class TestUDPSocket:
             host, port = cast(
                 tuple[str, int], server.extra(SocketAttribute.local_address)
             )
-            async with await create_udp_socket(
-                family=family, local_host="localhost"
-            ) as client:
-                async with create_task_group() as tg:
-                    tg.start_soon(serve)
-                    await client.sendto(b"FOOBAR", host, port)
-                    assert await client.receive() == (b"RABOOF", (host, port))
-                    await client.sendto(b"123456", host, port)
-                    assert await client.receive() == (b"654321", (host, port))
-                    tg.cancel_scope.cancel()
+            async with (
+                await create_udp_socket(
+                    family=family, local_host="localhost"
+                ) as client,
+                create_task_group() as tg,
+            ):
+                tg.start_soon(serve)
+                await client.sendto(b"FOOBAR", host, port)
+                assert await client.receive() == (b"RABOOF", (host, port))
+                await client.sendto(b"123456", host, port)
+                assert await client.receive() == (b"654321", (host, port))
+                tg.cancel_scope.cancel()
 
     @pytest.mark.skipif(
         not hasattr(socket, "SO_REUSEPORT"), reason="SO_REUSEPORT option not supported"
@@ -1815,32 +1819,36 @@ class TestUDPSocket:
                 assert port == udp2.extra(SocketAttribute.local_port)
 
     async def test_concurrent_receive(self) -> None:
-        async with await create_udp_socket(
-            family=AddressFamily.AF_INET, local_host="localhost"
-        ) as udp:
-            async with create_task_group() as tg:
-                tg.start_soon(udp.receive)
-                await wait_all_tasks_blocked()
-                try:
-                    with pytest.raises(BusyResourceError) as exc:
-                        await udp.receive()
+        async with (
+            await create_udp_socket(
+                family=AddressFamily.AF_INET, local_host="localhost"
+            ) as udp,
+            create_task_group() as tg,
+        ):
+            tg.start_soon(udp.receive)
+            await wait_all_tasks_blocked()
+            try:
+                with pytest.raises(BusyResourceError) as exc:
+                    await udp.receive()
 
-                    exc.match("already reading from")
-                finally:
-                    tg.cancel_scope.cancel()
+                exc.match("already reading from")
+            finally:
+                tg.cancel_scope.cancel()
 
     async def test_close_during_receive(self) -> None:
         async def close_when_blocked() -> None:
             await wait_all_tasks_blocked()
             await udp.aclose()
 
-        async with await create_udp_socket(
-            family=AddressFamily.AF_INET, local_host="localhost"
-        ) as udp:
-            async with create_task_group() as tg:
-                tg.start_soon(close_when_blocked)
-                with pytest.raises(ClosedResourceError):
-                    await udp.receive()
+        async with (
+            await create_udp_socket(
+                family=AddressFamily.AF_INET, local_host="localhost"
+            ) as udp,
+            create_task_group() as tg,
+        ):
+            tg.start_soon(close_when_blocked)
+            with pytest.raises(ClosedResourceError):
+                await udp.receive()
 
     async def test_receive_after_close(self) -> None:
         udp = await create_udp_socket(
@@ -1994,32 +2002,36 @@ class TestConnectedUDPSocket:
                 assert port == udp2.extra(SocketAttribute.local_port)
 
     async def test_concurrent_receive(self) -> None:
-        async with await create_connected_udp_socket(
-            "localhost", 5000, local_host="localhost", family=AddressFamily.AF_INET
-        ) as udp:
-            async with create_task_group() as tg:
-                tg.start_soon(udp.receive)
-                await wait_all_tasks_blocked()
-                try:
-                    with pytest.raises(BusyResourceError) as exc:
-                        await udp.receive()
+        async with (
+            await create_connected_udp_socket(
+                "localhost", 5000, local_host="localhost", family=AddressFamily.AF_INET
+            ) as udp,
+            create_task_group() as tg,
+        ):
+            tg.start_soon(udp.receive)
+            await wait_all_tasks_blocked()
+            try:
+                with pytest.raises(BusyResourceError) as exc:
+                    await udp.receive()
 
-                    exc.match("already reading from")
-                finally:
-                    tg.cancel_scope.cancel()
+                exc.match("already reading from")
+            finally:
+                tg.cancel_scope.cancel()
 
     async def test_close_during_receive(self) -> None:
         async def close_when_blocked() -> None:
             await wait_all_tasks_blocked()
             await udp.aclose()
 
-        async with await create_connected_udp_socket(
-            "localhost", 5000, local_host="localhost", family=AddressFamily.AF_INET
-        ) as udp:
-            async with create_task_group() as tg:
-                tg.start_soon(close_when_blocked)
-                with pytest.raises(ClosedResourceError):
-                    await udp.receive()
+        async with (
+            await create_connected_udp_socket(
+                "localhost", 5000, local_host="localhost", family=AddressFamily.AF_INET
+            ) as udp,
+            create_task_group() as tg,
+        ):
+            tg.start_soon(close_when_blocked)
+            with pytest.raises(ClosedResourceError):
+                await udp.receive()
 
     async def test_receive_after_close(self, family: AnyIPAddressFamily) -> None:
         udp = await create_connected_udp_socket(
@@ -2144,16 +2156,16 @@ class TestUNIXDatagramSocket:
             local_path=peer_socket_path,
         ) as server:
             peer_path = str(peer_socket_path)
-            async with await create_unix_datagram_socket(
-                local_path=socket_path
-            ) as client:
-                async with create_task_group() as tg:
-                    tg.start_soon(serve)
-                    await client.sendto(b"FOOBAR", peer_path)
-                    assert await client.receive() == (b"RABOOF", peer_path)
-                    await client.sendto(b"123456", peer_path)
-                    assert await client.receive() == (b"654321", peer_path)
-                    tg.cancel_scope.cancel()
+            async with (
+                await create_unix_datagram_socket(local_path=socket_path) as client,
+                create_task_group() as tg,
+            ):
+                tg.start_soon(serve)
+                await client.sendto(b"FOOBAR", peer_path)
+                assert await client.receive() == (b"RABOOF", peer_path)
+                await client.sendto(b"123456", peer_path)
+                assert await client.receive() == (b"654321", peer_path)
+                tg.cancel_scope.cancel()
 
     async def test_concurrent_receive(self) -> None:
         async with await create_unix_datagram_socket() as unix_dg:
@@ -2304,22 +2316,24 @@ class TestConnectedUNIXDatagramSocket:
         socket_path_or_str: Path | str,
         peer_socket_path_or_str: Path | str,
     ) -> None:
-        async with await create_unix_datagram_socket(
-            local_path=peer_socket_path_or_str,
-        ) as unix_dg1:
-            async with await create_connected_unix_datagram_socket(
+        async with (
+            await create_unix_datagram_socket(
+                local_path=peer_socket_path_or_str,
+            ) as unix_dg1,
+            await create_connected_unix_datagram_socket(
                 peer_socket_path_or_str,
                 local_path=socket_path_or_str,
-            ) as unix_dg2:
-                socket_path = os.fsdecode(socket_path_or_str)
+            ) as unix_dg2,
+        ):
+            socket_path = os.fsdecode(socket_path_or_str)
 
-                await unix_dg2.send(b"blah")
-                data, remote_addr = await unix_dg1.receive()
-                assert (data, os.fsdecode(remote_addr)) == (b"blah", socket_path)
+            await unix_dg2.send(b"blah")
+            data, remote_addr = await unix_dg1.receive()
+            assert (data, os.fsdecode(remote_addr)) == (b"blah", socket_path)
 
-                await unix_dg1.sendto(b"halb", socket_path)
-                response = await unix_dg2.receive()
-                assert response == b"halb"
+            await unix_dg1.sendto(b"halb", socket_path)
+            response = await unix_dg2.receive()
+            assert response == b"halb"
 
     async def test_iterate(
         self,
@@ -2330,39 +2344,41 @@ class TestConnectedUNIXDatagramSocket:
             async for packet in unix_dg2:
                 await unix_dg2.send(packet[::-1])
 
-        async with await create_unix_datagram_socket(
-            local_path=peer_socket_path,
-        ) as unix_dg1:
-            async with await create_connected_unix_datagram_socket(
+        async with (
+            await create_unix_datagram_socket(
+                local_path=peer_socket_path,
+            ) as unix_dg1,
+            await create_connected_unix_datagram_socket(
                 peer_socket_path, local_path=socket_path
-            ) as unix_dg2:
-                path = os.fsdecode(socket_path)
-                async with create_task_group() as tg:
-                    tg.start_soon(serve)
-                    await unix_dg1.sendto(b"FOOBAR", path)
-                    data, addr = await unix_dg1.receive()
-                    assert (data, os.fsdecode(addr)) == (b"RABOOF", path)
-                    await unix_dg1.sendto(b"123456", path)
-                    data, addr = await unix_dg1.receive()
-                    assert (data, os.fsdecode(addr)) == (b"654321", path)
-                    tg.cancel_scope.cancel()
+            ) as unix_dg2,
+        ):
+            path = os.fsdecode(socket_path)
+            async with create_task_group() as tg:
+                tg.start_soon(serve)
+                await unix_dg1.sendto(b"FOOBAR", path)
+                data, addr = await unix_dg1.receive()
+                assert (data, os.fsdecode(addr)) == (b"RABOOF", path)
+                await unix_dg1.sendto(b"123456", path)
+                data, addr = await unix_dg1.receive()
+                assert (data, os.fsdecode(addr)) == (b"654321", path)
+                tg.cancel_scope.cancel()
 
     async def test_concurrent_receive(
         self, peer_socket_path: Path, peer_sock: socket.socket
     ) -> None:
-        async with await create_connected_unix_datagram_socket(
-            peer_socket_path
-        ) as unix_dg:
-            async with create_task_group() as tg:
-                tg.start_soon(unix_dg.receive)
-                await wait_all_tasks_blocked()
-                try:
-                    with pytest.raises(BusyResourceError) as exc:
-                        await unix_dg.receive()
+        async with (
+            await create_connected_unix_datagram_socket(peer_socket_path) as unix_dg,
+            create_task_group() as tg,
+        ):
+            tg.start_soon(unix_dg.receive)
+            await wait_all_tasks_blocked()
+            try:
+                with pytest.raises(BusyResourceError) as exc:
+                    await unix_dg.receive()
 
-                    exc.match("already reading from")
-                finally:
-                    tg.cancel_scope.cancel()
+                exc.match("already reading from")
+            finally:
+                tg.cancel_scope.cancel()
 
     async def test_close_during_receive(
         self, peer_socket_path_or_str: Path | str, peer_sock: socket.socket
@@ -2371,13 +2387,13 @@ class TestConnectedUNIXDatagramSocket:
             await wait_all_tasks_blocked()
             await udp.aclose()
 
-        async with await create_connected_unix_datagram_socket(
-            peer_socket_path_or_str
-        ) as udp:
-            async with create_task_group() as tg:
-                tg.start_soon(close_when_blocked)
-                with pytest.raises(ClosedResourceError):
-                    await udp.receive()
+        async with (
+            await create_connected_unix_datagram_socket(peer_socket_path_or_str) as udp,
+            create_task_group() as tg,
+        ):
+            tg.start_soon(close_when_blocked)
+            with pytest.raises(ClosedResourceError):
+                await udp.receive()
 
     async def test_receive_after_close(
         self, peer_socket_path_or_str: Path | str, peer_sock: socket.socket

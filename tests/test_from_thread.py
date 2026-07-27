@@ -458,9 +458,8 @@ class TestBlockingPortal:
             )
 
     def test_start_with_nonexistent_backend(self) -> None:
-        with pytest.raises(LookupError) as exc:
-            with start_blocking_portal("foo"):
-                pass
+        with pytest.raises(LookupError) as exc, start_blocking_portal("foo"):
+            pass
 
         exc.match("No such backend: foo")
 

@@ -203,7 +203,7 @@ class Lock:
 
 
 class LockAdapter(Lock):
-    __slots__ = "_internal_lock", "_fast_acquire"
+    __slots__ = "_fast_acquire", "_internal_lock"
 
     def __new__(cls, *, fast_acquire: bool = False) -> LockAdapter:
         return object.__new__(cls)
@@ -268,7 +268,7 @@ class LockAdapter(Lock):
 
 
 class Condition:
-    __slots__ = "__weakref__", "_owner_task", "_lock", "_waiters"
+    __slots__ = "__weakref__", "_lock", "_owner_task", "_waiters"
 
     def __init__(self, lock: Lock | None = None):
         self._owner_task: TaskInfo | None = None
@@ -466,7 +466,7 @@ class Semaphore:
 
 
 class SemaphoreAdapter(Semaphore):
-    __slots__ = "_internal_semaphore", "_initial_value", "_max_value"
+    __slots__ = "_initial_value", "_internal_semaphore", "_max_value"
 
     def __new__(
         cls,
@@ -751,7 +751,7 @@ class ResourceGuard:
     .. versionadded:: 4.1
     """
 
-    __slots__ = "__weakref__", "action", "_guarded"
+    __slots__ = "__weakref__", "_guarded", "action"
 
     def __init__(self, action: str = "using"):
         self.action: str = action

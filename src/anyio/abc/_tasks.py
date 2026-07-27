@@ -181,7 +181,7 @@ class TaskGroup(metaclass=ABCMeta):
         func: Callable[..., Coroutine[Any, Any, T_co]],
         *args: object,
         name: object = None,
-        return_handle: Literal[False] | Literal[True] = False,
+        return_handle: Literal[False, True] = False,
     ) -> Any:
         """
         Start a new task and wait until it signals for readiness.

@@ -283,7 +283,7 @@ class TaskGroup(abc.TaskGroup):
         func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
         *args: Unpack[PosArgsT],
         name: object = None,
-        return_handle: Literal[False] | Literal[True] = False,
+        return_handle: Literal[False, True] = False,
     ) -> Any:
         handle: TaskHandle[T_co]
 
@@ -725,7 +725,7 @@ class Event(BaseEvent):
 
 
 class Lock(BaseLock):
-    __slots__ = "_fast_acquire", "__original"
+    __slots__ = "__original", "_fast_acquire"
 
     def __new__(cls, *, fast_acquire: bool = False) -> Lock:
         return object.__new__(cls)

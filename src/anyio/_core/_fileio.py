@@ -356,7 +356,7 @@ class Path:
         Added the ``limiter`` keyword argument.
     """
 
-    __slots__ = "_path", "_limiter", "__weakref__"
+    __slots__ = "__weakref__", "_limiter", "_path"
 
     __weakref__: Any
 

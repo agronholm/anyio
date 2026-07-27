@@ -289,13 +289,13 @@ class TaskHandle(Generic[T_co, T_startval]):
 
     __slots__ = (
         "__weakref__",
-        "_coro",
-        "_name",
         "_cancel_scope",
+        "_coro",
+        "_exception",
         "_finished_event",
+        "_name",
         "_return_value",
         "_start_value",
-        "_exception",
     )
 
     _return_value: T_co

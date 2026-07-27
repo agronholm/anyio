@@ -4,6 +4,8 @@ from abc import ABCMeta, abstractmethod
 from types import TracebackType
 from typing import TypeVar
 
+from typing_extensions import Self
+
 T = TypeVar("T")
 
 
@@ -17,7 +19,7 @@ class AsyncResource(metaclass=ABCMeta):
 
     __slots__ = ()
 
-    async def __aenter__(self: T) -> T:
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(
