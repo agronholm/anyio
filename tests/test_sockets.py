@@ -1743,6 +1743,14 @@ class TestUDPSocket:
             udp = await UDPSocket.from_socket(sock)
             await udp.aclose()
 
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows only")
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_aclose_during_send(self) -> None:
+        udp = await create_udp_socket(local_host="127.0.0.1")
+        await udp.sendto(b"x", "127.0.0.1", 9999)
+        with fail_after(1):
+            await udp.aclose()
+
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_udp_socket(
             family=family, local_host="localhost"
@@ -1913,6 +1921,14 @@ class TestConnectedUDPSocket:
                 await udp.aclose()
         finally:
             peer.close()
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows only")
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_aclose_during_send(self) -> None:
+        udp = await create_connected_udp_socket("127.0.0.1", 9999)
+        await udp.send(b"x")
+        with fail_after(1):
+            await udp.aclose()
 
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_connected_udp_socket(

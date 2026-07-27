@@ -1687,6 +1687,8 @@ class UDPSocket(abc.UDPSocket):
         self._closed = True
         if not self._transport.is_closing():
             self._transport.close()
+            await sleep(0)
+            self._transport.abort()
 
         await self._protocol.closed_event.wait()
 
@@ -1737,6 +1739,8 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
         self._closed = True
         if not self._transport.is_closing():
             self._transport.close()
+            await sleep(0)
+            self._transport.abort()
 
         await self._protocol.closed_event.wait()
 
