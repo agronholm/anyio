@@ -76,6 +76,51 @@ Example::
 
     run(main)
 
+Managing multiple producers and consumers
+******************************************
+
+When several tasks share one stream end, the first task to finish would close that
+shared object and disrupt the others. Give each task its own clone so that it can close
+its stream independently::
+
+    from anyio import create_memory_object_stream, create_task_group, run
+    from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+
+
+    async def producer(
+        name: str, send_stream: MemoryObjectSendStream[str]
+    ) -> None:
+        async with send_stream:
+            for number in range(3):
+                await send_stream.send(f"{number} from producer {name}")
+
+
+    async def consumer(
+        name: str, receive_stream: MemoryObjectReceiveStream[str]
+    ) -> None:
+        async with receive_stream:
+            async for item in receive_stream:
+                print(f"consumer {name} received {item!r}")
+
+
+    async def main() -> None:
+        send_stream, receive_stream = create_memory_object_stream[str]()
+        async with create_task_group() as tg:
+            async with send_stream, receive_stream:
+                for name in "A", "B":
+                    tg.start_soon(producer, name, send_stream.clone())
+
+                for name in "X", "Y":
+                    tg.start_soon(consumer, name, receive_stream.clone())
+
+
+    run(main)
+
+The original streams must also be closed after their clones are created. Otherwise,
+for example, the receiving tasks will never see the end of the stream while the
+original send stream remains open. Receive clones distribute items among consumers;
+they do not broadcast every item to every consumer.
+
 In contrast to other AnyIO streams (but in line with Trio's Channels), memory object
 streams can be closed synchronously, using either the ``close()`` method or by using the
 stream as a context manager::
