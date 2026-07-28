@@ -5,6 +5,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed a race condition where a worker thread on the asyncio backend would crash with
+  a ``RuntimeError`` if the event loop was closed after the worker had checked whether
+  the loop was closed but before it could deliver the result of
+  ``to_thread.run_sync()``
+  (`#1245 <https://github.com/agronholm/anyio/pull/1245>`_; PR by @shleder)
 - Added ``StapledObjectStream.send_nowait()`` that delegates to the underlying
   ``ObjectSendStream``, if it implements it
   (`#1241 <https://github.com/agronholm/anyio/pull/1241>`_; PR by @davidbrochart)

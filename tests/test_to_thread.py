@@ -6,10 +6,13 @@ import sys
 import threading
 import time
 import weakref
+from collections import deque
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
-from contextvars import ContextVar
+from contextvars import Context, ContextVar
 from functools import partial
-from typing import Any, NoReturn
+from queue import Queue
+from typing import Any, NoReturn, cast
 
 import pytest
 
@@ -23,6 +26,7 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
+from anyio._backends._asyncio import AsyncIOBackend, WorkerThread
 from anyio._core._eventloop import current_async_library
 from anyio.from_thread import BlockingPortalProvider
 from anyio.lowlevel import checkpoint
@@ -415,3 +419,94 @@ def test_asyncio_run_does_not_leak_event_loop() -> None:
 
     gc.collect()
     assert loop_ref() is None
+
+
+class _FakeWorkerThreadLoop:
+    """
+    Minimal stand-in for an event loop, used to deterministically exercise the result
+    delivery path of ``WorkerThread.run()`` without running an actual event loop.
+    """
+
+    def __init__(self, call_soon_threadsafe_error: RuntimeError | None = None) -> None:
+        self.call_soon_threadsafe_error = call_soon_threadsafe_error
+        self.call_soon_threadsafe_calls: list[
+            tuple[Callable[..., Any], tuple[Any, ...]]
+        ] = []
+
+    def is_closed(self) -> bool:
+        return False
+
+    def call_soon_threadsafe(self, callback: Callable[..., Any], *args: Any) -> None:
+        self.call_soon_threadsafe_calls.append((callback, args))
+        if self.call_soon_threadsafe_error is not None:
+            raise self.call_soon_threadsafe_error
+
+        callback(*args)
+
+
+def _make_worker_thread(
+    loop: _FakeWorkerThreadLoop, future: Future[str]
+) -> WorkerThread:
+    """
+    Create a ``WorkerThread`` instance without starting it, with a preloaded work queue
+    containing a single work item followed by the shutdown sentinel (``None``).
+    """
+    worker = cast(Any, WorkerThread.__new__(WorkerThread))
+    worker.loop = loop
+    worker.queue = Queue()
+    worker.idle_workers = deque()
+    worker.stopping = False
+    worker.queue.put((Context(), lambda: "foo", (), future, None))
+    worker.queue.put(None)
+    return worker
+
+
+def test_worker_thread_run_loop_closed_race() -> None:
+    """
+    Regression test for #1245.
+
+    If the event loop gets closed after the ``is_closed()`` check but before
+    ``call_soon_threadsafe()`` runs, the resulting ``RuntimeError`` must be
+    suppressed and the result dropped instead of crashing the worker thread. The
+    future is left unresolved since the result can no longer be delivered.
+    """
+    future: Future[str] = Future()
+    loop = _FakeWorkerThreadLoop(RuntimeError("Event loop is closed"))
+    worker = _make_worker_thread(loop, future)
+
+    worker.run()
+
+    assert len(loop.call_soon_threadsafe_calls) == 1
+    assert not future.done()
+
+
+def test_worker_thread_run_unrelated_runtime_error_suppressed() -> None:
+    """
+    Verify that even an unrelated ``RuntimeError`` raised by
+    ``call_soon_threadsafe()`` is suppressed, consistent with the selector thread
+    precedent, and that the future is left unresolved.
+    """
+    future: Future[str] = Future()
+    loop = _FakeWorkerThreadLoop(RuntimeError("unrelated error"))
+    worker = _make_worker_thread(loop, future)
+
+    worker.run()
+
+    assert len(loop.call_soon_threadsafe_calls) == 1
+    assert not future.done()
+
+
+def test_worker_thread_run_reports_result(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Verify that when ``call_soon_threadsafe()`` succeeds, the scheduled callback is
+    invoked and the work item's return value is delivered to the future normally.
+    """
+    monkeypatch.setattr(AsyncIOBackend, "current_time", classmethod(lambda cls: 0.0))
+    future: Future[str] = Future()
+    loop = _FakeWorkerThreadLoop()
+    worker = _make_worker_thread(loop, future)
+
+    worker.run()
+
+    assert len(loop.call_soon_threadsafe_calls) == 1
+    assert future.result(timeout=5) == "foo"
