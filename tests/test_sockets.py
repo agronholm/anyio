@@ -2599,13 +2599,16 @@ def test_order_happy_eyeballs_still_promotes_loopback_without_global() -> None:
 
 
 def test_host_has_global_ipv6_false_when_disabled(monkeypatch: MonkeyPatch) -> None:
+    import anyio._core._sockets as sockets_mod
     from anyio._core._sockets import _host_has_global_ipv6
 
+    monkeypatch.setattr(sockets_mod, "_global_ipv6_cache", None)
     monkeypatch.setattr(socket, "has_ipv6", False)
     assert _host_has_global_ipv6() is False
 
 
 def test_host_has_global_ipv6_false_on_link_local(monkeypatch: MonkeyPatch) -> None:
+    import anyio._core._sockets as sockets_mod
     from anyio._core._sockets import _host_has_global_ipv6
 
     class FakeSock:
@@ -2624,6 +2627,7 @@ def test_host_has_global_ipv6_false_on_link_local(monkeypatch: MonkeyPatch) -> N
         def close(self) -> None:
             pass
 
+    monkeypatch.setattr(sockets_mod, "_global_ipv6_cache", None)
     monkeypatch.setattr(socket, "has_ipv6", True)
     monkeypatch.setattr(socket, "socket", lambda *a, **k: FakeSock())
     assert _host_has_global_ipv6() is False

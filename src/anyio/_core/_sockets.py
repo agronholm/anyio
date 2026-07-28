@@ -68,6 +68,9 @@ def idna2008_resolve(host: str) -> bytes:
         return idna.encode(host, uts46=True)
 
 
+_global_ipv6_cache: bool | None = None
+
+
 def _host_has_global_ipv6() -> bool:
     """Return True if this host can source a global/ULA IPv6 address.
 
@@ -80,20 +83,34 @@ def _host_has_global_ipv6() -> bool:
     chosen source without sending packets. Loopback-only IPv6 (``::1``) is
     intentionally *not* treated as global: dual-stack localhost still
     promotes ``::1`` via :func:`_ipv6_addr_is_locally_usable`.
+
+    This function performs a blocking socket operation and must not be called
+    directly on the event-loop thread (blockbuster / asyncio policy). Callers
+    in async code should use :func:`to_thread.run_sync`. The result is cached
+    for the process lifetime.
     """
-    if not getattr(socket, "has_ipv6", False):
-        return False
-    try:
-        with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as sock:
-            # Google Public DNS — connect() on UDP selects a route/source only.
-            sock.connect(("2001:4860:4860::8888", 53))
-            local = ip_address(sock.getsockname()[0])
-    except OSError:
-        return False
-    if not isinstance(local, IPv6Address):
-        return False
-    # Link-local / loopback / unspecified cannot reach global destinations.
-    return not (local.is_link_local or local.is_loopback or local.is_unspecified)
+    global _global_ipv6_cache
+    if _global_ipv6_cache is not None:
+        return _global_ipv6_cache
+
+    result = False
+    if getattr(socket, "has_ipv6", False):
+        try:
+            with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as sock:
+                # Google Public DNS — connect() on UDP selects a route/source only.
+                sock.connect(("2001:4860:4860::8888", 53))
+                local = ip_address(sock.getsockname()[0])
+        except OSError:
+            result = False
+        else:
+            if isinstance(local, IPv6Address):
+                # Link-local / loopback / unspecified cannot reach global destinations.
+                result = not (
+                    local.is_link_local or local.is_loopback or local.is_unspecified
+                )
+
+    _global_ipv6_cache = result
+    return result
 
 
 def _ipv6_addr_is_locally_usable(host: str) -> bool:
@@ -307,8 +324,10 @@ async def connect_tcp(
         # Prefer global AAAA first only with a global/ULA IPv6 source. Always
         # still promote loopback/link-local IPv6 (dual-stack localhost).
         # Link-local-only hosts otherwise keep AAAA in encounter order (#1230).
+        # Probe off the event loop: the check uses a blocking UDP connect.
+        has_global_ipv6 = await to_thread.run_sync(_host_has_global_ipv6)
         target_addrs = _order_happy_eyeballs_targets(
-            list(gai_res), has_global_ipv6=_host_has_global_ipv6()
+            list(gai_res), has_global_ipv6=has_global_ipv6
         )
 
     oserrors: list[OSError] = []
