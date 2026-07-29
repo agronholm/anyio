@@ -5,6 +5,43 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added ``StapledObjectStream.send_nowait()`` that delegates to the underlying
+  ``ObjectSendStream``, if it implements it
+  (`#1241 <https://github.com/agronholm/anyio/pull/1241>`_; PR by @davidbrochart)
+- Added the ``move_on_at()`` and ``fail_at()`` functions to complement
+  ``move_on_after()`` and ``fail_after()``
+- Changed the default name for a task spawned with ``TaskGroup.create_task(func())`` to
+  match the default task name for the analogous task spawned with
+  ``TaskGroup.start_soon(func)`` or ``TaskGroup.start(func)`` in more situations.
+  Previously, the default name of a ``TaskGroup.create_task`` task never included the
+  module name. (The default name for a task spawned with ``TaskGroup.start_soon`` or
+  ``TaskGroup.start`` typically includes the module name.)
+  (`#1234 <https://github.com/agronholm/anyio/pull/1234>`_; PR by @gschaffner)
+- Fixed free-threading compatibility issues arising from the fact that on Python 3.14
+  free-threading builds, newly created threads inherit the current context by default,
+  causing AnyIO to behave erroneously in relation to ``start_blocking_portal()`` and
+  ``anyio.to_thread.run_sync()``
+  (`#1224 <https://github.com/agronholm/anyio/pull/1224>`_; PR by @EmmanuelNiyonshuti)
+- Fixed ``SpooledTemporaryFile.readinto()`` and ``readinto1()`` reading twice before
+  rollover, so the destination buffer was overwritten by the second read and the file
+  position advanced twice, silently losing data
+  (`#1215 <https://github.com/agronholm/anyio/pull/1215>`_; PR by @c-tonneslan)
+- Added a ``reason`` parameter to ``fail_after`` (and the new ``fail_at``) allowing for
+  added exception context when raising ``TimeoutError``
+  (`#1227 <https://github.com/agronholm/anyio/pull/1227>`_; PR by @Graeme22)
+- Fixed the default ``TaskHandle.name`` missing part of the task name for tasks started
+  with ``TaskGroup.start`` on Trio (`#1231
+  <https://github.com/agronholm/anyio/issues/1231>`_; PR by @gschaffner)
+- Fixed ``anyio.run`` leaking, or at least, delaying collection of loop and root_task
+  due to the root task being cached in a ``RunVar``.
+  (`#1203 <https://github.com/agronholm/anyio/issues/1203>`_; PR by @tapetersen)
+- Fixed ``anyio.Path.with_stem()`` silently producing a wrong path (e.g.
+  ``Path(".txt")``) instead of raising ``ValueError`` when given an empty stem on a
+  path with a non-empty suffix, unlike :meth:`pathlib.PurePath.with_stem`
+  (`#1200 <https://github.com/agronholm/anyio/pull/1200>`_; PR by @Sanjays2402)
+
+**4.14.2**
+
 - Changed ``ByteReceiveStream.receive()`` implementations to raise a ``ValueError`` when
   ``max_bytes`` is not a positive integer
   (`#1191 <https://github.com/agronholm/anyio/pull/1191>`_)
@@ -38,6 +75,16 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``CapacityLimiter.acquire_nowait_on_behalf_of()`` raising ``trio.WouldBlock`` instead
   of ``anyio.WouldBlock`` on the ``trio`` backend when there are no tokens available
   (`#1218 <https://github.com/agronholm/anyio/pull/1218>`_)
+- Fixed ``CapacityLimiter`` on the asyncio backend over-granting tokens
+  (``borrowed_tokens`` exceeding ``total_tokens`` and ``available_tokens`` going
+  negative) when a non-blocking acquire was made in the window between a token
+  being released and the notified waiter resuming. The freed token is now
+  reserved for the woken waiter right away, so the non-blocking acquire correctly
+  raises ``WouldBlock``
+  (`#1170 <https://github.com/agronholm/anyio/issues/1170>`_; PR by @gaoflow)
+- Fixed unnecessary CPU spin when delivering cancellation from ``CancelScope`` on
+  asyncio under certain conditions, including improper cancel scope nesting
+  (`#1111 <https://github.com/agronholm/anyio/issues/1111>`_)
 
 **4.14.1**
 

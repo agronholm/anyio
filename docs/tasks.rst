@@ -187,7 +187,7 @@ By default, :meth:`TaskGroup.start() <.abc.TaskGroup.start>` returns the value p
 mode, the method returns a :class:`~.TaskHandle` whose :attr:`~.TaskHandle.start_value`
 property contains the value passed to ``task_status.started()``::
 
-    from anyio import create_task_group, run, sleep
+    from anyio import TASK_STATUS_IGNORED, create_task_group, run, sleep
     from anyio.abc import TaskStatus
 
 

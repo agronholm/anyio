@@ -17,6 +17,7 @@ from contextlib import (
     AbstractContextManager,
     contextmanager,
 )
+from contextvars import Context
 from dataclasses import dataclass, field
 from functools import partial
 from inspect import isawaitable
@@ -42,9 +43,9 @@ from .abc._tasks import TaskStatus
 from .lowlevel import EventLoopToken, current_token
 
 if sys.version_info >= (3, 11):
-    from typing import TypeVarTuple, Unpack
+    from typing import Self, TypeVarTuple, Unpack
 else:
-    from typing_extensions import TypeVarTuple, Unpack
+    from typing_extensions import Self, TypeVarTuple, Unpack
 
 T_Retval = TypeVar("T_Retval")
 T_co = TypeVar("T_co", covariant=True)
@@ -120,7 +121,7 @@ def run_sync(
     )
 
 
-class _BlockingAsyncContextManager(Generic[T_co], AbstractContextManager):
+class _BlockingAsyncContextManager(AbstractContextManager, Generic[T_co]):
     _enter_future: Future[T_co]
     _exit_future: Future[bool | None]
     _exit_event: Event
@@ -165,11 +166,12 @@ class _BlockingAsyncContextManager(Generic[T_co], AbstractContextManager):
 
     def __exit__(
         self,
-        __exc_type: type[BaseException] | None,
-        __exc_value: BaseException | None,
-        __traceback: TracebackType | None,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+        /,
     ) -> bool | None:
-        self._exit_exc_info = __exc_type, __exc_value, __traceback
+        self._exit_exc_info = exc_type, exc_value, traceback
         self._portal.call(self._exit_event.set)
         return self._exit_future.result()
 
@@ -196,7 +198,7 @@ class BlockingPortal:
         self._stop_event = Event()
         self._task_group = create_task_group()
 
-    async def __aenter__(self) -> BlockingPortal:
+    async def __aenter__(self) -> Self:
         await self._task_group.__aenter__()
         return self
 
@@ -541,7 +543,11 @@ def start_blocking_portal(
                     future.set_exception(exc)
 
     future: Future[BlockingPortal] = Future()
-    thread = Thread(target=run_blocking_portal, daemon=True, name=name)
+    kwargs: dict[str, Any] = {}
+    if sys.version_info >= (3, 14):
+        kwargs["context"] = Context()
+
+    thread = Thread(target=run_blocking_portal, daemon=True, name=name, **kwargs)
     thread.start()
     try:
         cancel_remaining_tasks = False

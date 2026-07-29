@@ -36,7 +36,7 @@ class TestTLSStream:
         self, server_context: ssl.SSLContext, client_context: ssl.SSLContext
     ) -> None:
         def serve_sync() -> None:
-            conn, addr = server_sock.accept()
+            conn, _addr = server_sock.accept()
             data = conn.recv(10)
             conn.send(data[::-1])
             conn.close()
@@ -108,40 +108,29 @@ class TestTLSStream:
         client_context: ssl.SSLContext,
         max_bytes: int,
     ) -> None:
-        server_exc = None
+        server_send, server_receive = create_memory_object_stream[bytes](1)
+        client_send, client_receive = create_memory_object_stream[bytes](1)
+        client_stream = StapledObjectStream(client_send, server_receive)
+        server_stream = StapledObjectStream(server_send, client_receive)
 
-        def serve_sync() -> None:
-            nonlocal server_exc
-            try:
-                conn, addr = server_sock.accept()
-                conn.close()
-            except BaseException as exc:
-                server_exc = exc
+        async def server() -> None:
+            async with await TLSStream.wrap(
+                server_stream,
+                server_side=True,
+                hostname="localhost",
+                ssl_context=server_context,
+            ):
+                pass
 
-        server_sock = server_context.wrap_socket(
-            socket.socket(), server_side=True, suppress_ragged_eofs=True
-        )
-        server_sock.settimeout(5)
-        server_sock.bind(("127.0.0.1", 0))
-        server_sock.listen()
-        server_thread = Thread(target=serve_sync, daemon=True)
-        server_thread.start()
-        try:
-            async with await connect_tcp(*server_sock.getsockname()) as stream:
-                wrapper = await TLSStream.wrap(
-                    stream,
-                    hostname="localhost",
-                    ssl_context=client_context,
-                )
+        async with create_task_group() as tg:
+            tg.start_soon(server)
+            async with await TLSStream.wrap(
+                client_stream, hostname="localhost", ssl_context=client_context
+            ) as client_tls_stream:
                 with pytest.raises(
                     ValueError, match="max_bytes must be a positive integer"
                 ):
-                    await wrapper.receive(max_bytes)
-        finally:
-            server_thread.join()
-            server_sock.close()
-
-        assert server_exc is None
+                    await client_tls_stream.receive(max_bytes)
 
     async def test_extra_attributes(
         self,
@@ -150,7 +139,7 @@ class TestTLSStream:
         client_context: ssl.SSLContext,
     ) -> None:
         def serve_sync() -> None:
-            conn, addr = server_sock.accept()
+            conn, _addr = server_sock.accept()
             with conn:
                 conn.unwrap()
 
@@ -197,7 +186,7 @@ class TestTLSStream:
         self, server_context: ssl.SSLContext, client_context: ssl.SSLContext
     ) -> None:
         def serve_sync() -> None:
-            conn, addr = server_sock.accept()
+            conn, _addr = server_sock.accept()
             conn.send(b"encrypted")
             unencrypted = conn.unwrap()
             unencrypted.send(b"unencrypted")
@@ -230,7 +219,7 @@ class TestTLSStream:
         self, server_context: ssl.SSLContext, client_context: ssl.SSLContext
     ) -> None:
         def serve_sync() -> None:
-            conn, addr = server_sock.accept()
+            conn, _addr = server_sock.accept()
             selected_alpn_protocol = conn.selected_alpn_protocol()
             assert selected_alpn_protocol is not None
             conn.send(selected_alpn_protocol.encode())
@@ -278,7 +267,7 @@ class TestTLSStream:
 
         def serve_sync() -> None:
             nonlocal server_exc
-            conn, addr = server_sock.accept()
+            conn, _addr = server_sock.accept()
             try:
                 conn.sendall(b"hello")
                 if server_compatible:
@@ -328,7 +317,7 @@ class TestTLSStream:
 
         def serve_sync() -> None:
             nonlocal server_exc
-            conn, addr = server_sock.accept()
+            conn, _addr = server_sock.accept()
             try:
                 conn.sendall(b"hello")
             except BaseException as exc:
@@ -364,7 +353,7 @@ class TestTLSStream:
         self, server_context: ssl.SSLContext, client_context: ssl.SSLContext
     ) -> None:
         def serve_sync() -> None:
-            conn, addr = server_sock.accept()
+            conn, _addr = server_sock.accept()
             conn.sendall(b"hello")
             conn.unwrap()
             conn.close()
@@ -408,7 +397,7 @@ class TestTLSStream:
         self, server_context: ssl.SSLContext, ca: CA, force_tlsv12: bool
     ) -> None:
         def serve_sync() -> None:
-            conn, addr = server_sock.accept()
+            conn, _addr = server_sock.accept()
             conn.sendall(b"hello")
             conn.unwrap()
             conn.close()
