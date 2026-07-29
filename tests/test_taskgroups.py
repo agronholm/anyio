@@ -325,16 +325,18 @@ async def test_cancel_with_nested_task_groups() -> None:
         pass
 
     async def shield_task() -> None:
-        with EditableCancelScope(shield=True) as scope:
-            with mock.patch.object(
+        with (
+            EditableCancelScope(shield=True) as scope,
+            mock.patch.object(
                 scope,
                 "_deliver_cancellation",
                 wraps=getattr(scope, "_deliver_cancellation"),
-            ) as shielded_cancel_spy:
-                await sleep(0.5)
+            ) as shielded_cancel_spy,
+        ):
+            await sleep(0.5)
 
-                assert len(outer_cancel_spy.call_args_list) < 10
-                shielded_cancel_spy.assert_not_called()
+            assert len(outer_cancel_spy.call_args_list) < 10
+            shielded_cancel_spy.assert_not_called()
 
     async def middle_task() -> None:
         try:
@@ -381,7 +383,7 @@ async def test_no_spin_on_done_task_in_cancel_scope(mocker: MockerFixture) -> No
         pass
 
     async def owner() -> EditableCancelScope:
-        return cast(EditableCancelScope, EditableCancelScope().__enter__())
+        return EditableCancelScope().__enter__()
 
     scope = await asyncio.create_task(owner())
     spy = mocker.spy(scope, "_deliver_cancellation")
@@ -769,15 +771,14 @@ async def test_nested_move_on_after() -> None:
 
 @pytest.mark.parametrize("delay", [0, 0.1], ids=["instant", "delayed"])
 async def test_fail_at(delay: float) -> None:
-    with pytest.raises(TimeoutError):
-        with fail_at(current_time() + delay) as scope:
-            try:
-                await sleep(1)
-            except get_cancelled_exc_class() as exc:
-                assert "deadline" in str(exc)
-                raise
-            else:
-                pytest.fail("sleep() should have raised a cancellation exception")
+    with pytest.raises(TimeoutError), fail_at(current_time() + delay) as scope:
+        try:
+            await sleep(1)
+        except get_cancelled_exc_class() as exc:
+            assert "deadline" in str(exc)
+            raise
+        else:
+            pytest.fail("sleep() should have raised a cancellation exception")
 
     assert scope.cancel_called
     assert scope.cancelled_caught
@@ -2468,9 +2469,8 @@ async def test_task_from_asyncgen_asend(create_task: bool) -> None:
     async def genfunc(x: int, y: int) -> AsyncGenerator[int, None]:
         yield x + y
 
-    async with create_task_group() as tg:
-        async with aclosing(genfunc(3, 5)) as g:
-            handle = tg.start_soon(g.asend, None)
-            assert handle.name == "async_generator.asend"
+    async with create_task_group() as tg, aclosing(genfunc(3, 5)) as g:
+        handle = tg.start_soon(g.asend, None)
+        assert handle.name == "async_generator.asend"
 
-            assert await handle == 8
+        assert await handle == 8

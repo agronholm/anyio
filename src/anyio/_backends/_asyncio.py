@@ -3,7 +3,6 @@ from __future__ import annotations
 import array
 import asyncio
 import concurrent.futures
-import contextvars
 import math
 import os
 import socket
@@ -112,7 +111,7 @@ else:
 
 if sys.version_info >= (3, 11):
     from asyncio import Runner
-    from typing import TypeVarTuple, Unpack
+    from typing import Self, TypeVarTuple, Unpack
 else:
     import contextvars
     import enum
@@ -120,7 +119,7 @@ else:
     from asyncio import coroutines, events, exceptions, tasks
 
     from exceptiongroup import BaseExceptionGroup
-    from typing_extensions import TypeVarTuple, Unpack
+    from typing_extensions import Self, TypeVarTuple, Unpack
 
     class _State(enum.Enum):
         CREATED = "created"
@@ -143,7 +142,7 @@ else:
             self._interrupt_count = 0
             self._set_event_loop = False
 
-        def __enter__(self) -> Runner:
+        def __enter__(self) -> Self:
             self._lazy_init()
             return self
 
@@ -399,9 +398,7 @@ class CancelScope(BaseCancelScope):
         "_timeout_handle",
     )
 
-    def __new__(
-        cls, *, deadline: float = math.inf, shield: bool = False
-    ) -> CancelScope:
+    def __new__(cls, *, deadline: float = math.inf, shield: bool = False) -> Self:
         return object.__new__(cls)
 
     def __init__(self, deadline: float = math.inf, shield: bool = False):
@@ -425,7 +422,7 @@ class CancelScope(BaseCancelScope):
         else:
             self._pending_uncancellations = None
 
-    def __enter__(self) -> CancelScope:
+    def __enter__(self) -> Self:
         if self._active:
             raise RuntimeError(
                 "Each CancelScope may only be used for a single 'with' block"
@@ -734,7 +731,7 @@ class TaskState:
     itself because there are no guarantees about its implementation.
     """
 
-    __slots__ = "parent_id", "cancel_scope", "__weakref__"
+    __slots__ = "__weakref__", "cancel_scope", "parent_id"
 
     def __init__(self, parent_id: int | None, cancel_scope: CancelScope | None):
         self.parent_id = parent_id
@@ -781,7 +778,7 @@ class TaskGroup(abc.TaskGroup):
         self._tasks: set[asyncio.Task] = set()
         self._on_completed_fut: asyncio.Future[None] | None = None
 
-    async def __aenter__(self) -> TaskGroup:
+    async def __aenter__(self) -> Self:
         if self._entered:
             raise RuntimeError("TaskGroup cannot be entered more than once")
 
@@ -963,7 +960,7 @@ class TaskGroup(abc.TaskGroup):
         func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
         *args: Unpack[PosArgsT],
         name: object = None,
-        return_handle: Literal[False] | Literal[True] = False,
+        return_handle: Literal[False, True] = False,
     ) -> Any:
         if not self._entered or not self.cancel_scope._active:
             raise RuntimeError(
@@ -1534,7 +1531,7 @@ class UNIXSocketStream(_RawSocketMixin, abc.UNIXSocketStream):
         with self._receive_guard:
             while True:
                 try:
-                    message, ancdata, flags, addr = self._raw_socket.recvmsg(
+                    message, ancdata, _flags, _addr = self._raw_socket.recvmsg(
                         msglen, socket.CMSG_LEN(maxfds * fds.itemsize)
                     )
                 except BlockingIOError:
@@ -1878,7 +1875,7 @@ _write_events: RunVar[dict[int, asyncio.Future[bool]]] = RunVar("write_events")
 class Event(BaseEvent):
     __slots__ = ("_event",)
 
-    def __new__(cls) -> Event:
+    def __new__(cls) -> Self:
         return object.__new__(cls)
 
     def __init__(self) -> None:
@@ -1903,7 +1900,7 @@ class Event(BaseEvent):
 class Lock(BaseLock):
     __slots__ = "_fast_acquire", "_owner_task", "_waiters"
 
-    def __new__(cls, *, fast_acquire: bool = False) -> Lock:
+    def __new__(cls, *, fast_acquire: bool = False) -> Self:
         return object.__new__(cls)
 
     def __init__(self, *, fast_acquire: bool = False) -> None:
@@ -1985,7 +1982,7 @@ class Lock(BaseLock):
 
 
 class Semaphore(BaseSemaphore):
-    __slots__ = "_value", "_max_value", "_fast_acquire", "_waiters"
+    __slots__ = "_fast_acquire", "_max_value", "_value", "_waiters"
 
     def __new__(
         cls,
@@ -1993,7 +1990,7 @@ class Semaphore(BaseSemaphore):
         *,
         max_value: int | None = None,
         fast_acquire: bool = False,
-    ) -> Semaphore:
+    ) -> Self:
         return object.__new__(cls)
 
     def __init__(
@@ -2073,9 +2070,9 @@ class Semaphore(BaseSemaphore):
 
 
 class CapacityLimiter(BaseCapacityLimiter):
-    __slots__ = "_total_tokens", "_borrowers", "_wait_queue"
+    __slots__ = "_borrowers", "_total_tokens", "_wait_queue"
 
-    def __new__(cls, total_tokens: float) -> CapacityLimiter:
+    def __new__(cls, total_tokens: float) -> Self:
         return object.__new__(cls)
 
     def __init__(self, total_tokens: float):
@@ -2215,7 +2212,7 @@ class _SignalReceiver:
         if not self._future.done():
             self._future.set_result(None)
 
-    def __enter__(self) -> _SignalReceiver:
+    def __enter__(self) -> Self:
         for sig in set(self._signals):
             self._loop.add_signal_handler(sig, self._deliver, sig)
             self._handled_signals.add(sig)
@@ -2266,9 +2263,7 @@ class AsyncIOTaskInfo(TaskInfo):
             # If the task isn't around anymore, it won't have a pending cancellation
             return False
 
-        if task._must_cancel:  # type: ignore[attr-defined]
-            return True
-        elif (
+        if task._must_cancel or (  # type: ignore[attr-defined]
             isinstance(task._fut_waiter, asyncio.Future)  # type: ignore[attr-defined]
             and task._fut_waiter.cancelled()  # type: ignore[attr-defined]
         ):
@@ -2305,7 +2300,7 @@ class TestRunner(abc.TestRunner):
         self._exceptions: list[BaseException] = []
         self._runner_task: asyncio.Task | None = None
 
-    def __enter__(self) -> TestRunner:
+    def __enter__(self) -> Self:
         self._runner.__enter__()
         self.get_loop().set_exception_handler(self._exception_handler)
         return self
@@ -2639,9 +2634,7 @@ class AsyncIOBackend(AsyncBackend):
                     worker = WorkerThread(root_task, workers, idle_workers)
                     worker.start()
                     workers.add(worker)
-                    root_task.add_done_callback(
-                        worker.stop, context=contextvars.Context()
-                    )
+                    root_task.add_done_callback(worker.stop, context=Context())
                 else:
                     worker = idle_workers.pop()
 
