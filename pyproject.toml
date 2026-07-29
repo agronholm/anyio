@@ -97,7 +97,15 @@ extend-select = [
     "UP",           # pyupgrade
     "W",            # pycodestyle warnings
 ]
-ignore = ["B009", "PERF203"]
+ignore = [
+    "B009",
+    "PERF203",
+    "SIM",
+    "BLE001",
+    "PT031",
+    "PYI034",
+    "TRY002",
+]
 
 [tool.ruff.lint.isort]
 "required-imports" = ["from __future__ import annotations"]
