@@ -5,6 +5,13 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed ``CancelScope`` on the asyncio backend swallowing a concurrent native
+  ``Task.cancel()`` when the scope was also cancelled (e.g. Happy Eyeballs
+  winning and cancelling the host task group while the caller cancels the host
+  task). The host task previously returned normally with ``cancelling() > 0``
+  and ``cancelled() is False``; ``CancelledError`` now propagates as expected
+  (`#1214 <https://github.com/agronholm/anyio/issues/1214>`_; PR by
+  @MohammedAnasNathani)
 - Added ``StapledObjectStream.send_nowait()`` that delegates to the underlying
   ``ObjectSendStream``, if it implements it
   (`#1241 <https://github.com/agronholm/anyio/pull/1241>`_; PR by @davidbrochart)

@@ -390,6 +390,7 @@ class CancelScope(BaseCancelScope):
         "_child_scopes",
         "_deadline",
         "_host_task",
+        "_host_task_cancel_count_at_enter",
         "_parent_scope",
         "_pending_uncancellations",
         "_shield",
@@ -413,6 +414,9 @@ class CancelScope(BaseCancelScope):
         self._cancel_handle: asyncio.Handle | None = None
         self._tasks: set[asyncio.Task] = set()
         self._host_task: asyncio.Task | None = None
+        # Snapshot of host Task.cancelling() at __enter__; used so that on exit we
+        # only treat *new* native cancels (above this baseline) as external (#1214).
+        self._host_task_cancel_count_at_enter: int = 0
         if sys.version_info >= (3, 11):
             self._pending_uncancellations: int | None = 0
         else:
@@ -442,6 +446,8 @@ class CancelScope(BaseCancelScope):
 
         self._timeout()
         self._active = True
+        if sys.version_info >= (3, 11):
+            self._host_task_cancel_count_at_enter = host_task.cancelling()
 
         # Start cancelling the host task if the scope was cancelled before entering
         if self._cancel_called:
@@ -499,6 +505,23 @@ class CancelScope(BaseCancelScope):
                     self._host_task.uncancel()
                     self._pending_uncancellations -= 1
 
+                # If a native Task.cancel() landed *while this scope was active*
+                # (e.g. Happy Eyeballs wins and cancels the host TG at the same
+                # time the caller cancels the host task), the CancelledError we
+                # hold may be the AnyIO-tagged one, but after undoing *our*
+                # cancels the host still has a cancel count above the enter
+                # baseline. Swallowing would leave cancelling() elevated with
+                # no exception propagating — the task returns normally and the
+                # caller's await never sees CancelledError (#1214).
+                # Compare against the enter baseline so a cancel that was
+                # already pending before ``__enter__`` does not block swallow
+                # (see test_cancel_message_replaced).
+                external_cancel_pending = (
+                    self._pending_uncancellations is not None
+                    and self._host_task.cancelling()
+                    > self._host_task_cancel_count_at_enter
+                )
+
                 # Update cancelled_caught and check for exceptions we must not swallow
                 if isinstance(exc_val, BaseExceptionGroup):
                     cancelleds_caught, remaining = exc_val.split(
@@ -514,7 +537,7 @@ class CancelScope(BaseCancelScope):
                     self._cancelled_caught = True
 
                     if remaining is None:
-                        return True
+                        return not external_cancel_pending
 
                     context = remaining.__context__
                     try:
@@ -530,7 +553,7 @@ class CancelScope(BaseCancelScope):
                         exc_val
                     ):
                         self._cancelled_caught = True
-                        return True
+                        return not external_cancel_pending
                     else:
                         return False
             else:

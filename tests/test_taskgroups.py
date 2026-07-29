@@ -1689,6 +1689,49 @@ class TestUncancel:
         assert task.cancelling() == 1
         task.uncancel()
 
+    async def test_child_scope_cancel_does_not_swallow_native_host_cancel(
+        self,
+    ) -> None:
+        """
+        When a child cancels its task group (Happy Eyeballs style) and a native
+        ``Task.cancel()`` lands on the host in the same cycle, the host must still
+        observe ``CancelledError`` — not return normally with ``cancelling() > 0``.
+
+        Regression test for #1214.
+        """
+        attempt_started = asyncio.Event()
+        connection_won = asyncio.Event()
+
+        async def operation() -> None:
+            async with create_task_group() as task_group:
+
+                async def connect_attempt() -> None:
+                    attempt_started.set()
+                    await connection_won.wait()
+                    # Same pattern as connect_tcp(): winner cancels the group.
+                    task_group.cancel_scope.cancel()
+
+                task_group.start_soon(connect_attempt)
+                await sleep_forever()
+
+        task = asyncio.create_task(operation())
+        await attempt_started.wait()
+
+        external_cancel_accepted: list[bool] = []
+
+        def externally_cancel() -> None:
+            external_cancel_accepted.append(task.cancel("external cancellation"))
+
+        connection_won.set()
+        asyncio.get_running_loop().call_soon(externally_cancel)
+
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        assert external_cancel_accepted == [True]
+        assert task.cancelled()
+        assert task.cancelling() >= 1
+
     async def test_cancel_message_replaced(self) -> None:
         task = asyncio.current_task()
         assert task
