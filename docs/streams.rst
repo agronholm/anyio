@@ -105,13 +105,12 @@ its stream independently::
 
     async def main() -> None:
         send_stream, receive_stream = create_memory_object_stream[str]()
-        async with create_task_group() as tg:
-            async with send_stream, receive_stream:
-                for name in "A", "B":
-                    tg.start_soon(producer, name, send_stream.clone())
+        async with create_task_group() as tg, send_stream, receive_stream:
+            for name in "A", "B":
+                tg.start_soon(producer, name, send_stream.clone())
 
-                for name in "X", "Y":
-                    tg.start_soon(consumer, name, receive_stream.clone())
+            for name in "X", "Y":
+                tg.start_soon(consumer, name, receive_stream.clone())
 
 
     run(main)
