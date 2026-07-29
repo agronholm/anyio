@@ -433,6 +433,11 @@ async def test_to_thread_run_sync_loop_closed_delivery_race(
     thread_waiting = Event()
     finish_thread = threading.Event()
 
+    is_closed_returnValue = False
+
+    def is_closed() -> bool:
+        return is_closed_returnValue
+
     def call_soon_threadsafe(
         callback: Callable[..., Any], *args: Any
     ) -> asyncio.Handle:
@@ -440,6 +445,8 @@ async def test_to_thread_run_sync_loop_closed_delivery_race(
             getattr(callback, "__self__", None).__class__ is WorkerThread
             and getattr(callback, "__func__", None) is WorkerThread._report_result
         ):
+            nonlocal is_closed_returnValue
+            is_closed_returnValue = True
             real_call_soon_threadsafe(delivery_attempted.set)
             raise RuntimeError("Event loop is closed")
 
@@ -450,6 +457,7 @@ async def test_to_thread_run_sync_loop_closed_delivery_race(
         finish_thread.wait(5)
 
     monkeypatch.setattr(loop, "call_soon_threadsafe", call_soon_threadsafe)
+    monkeypatch.setattr(loop, "is_closed", is_closed)
 
     with fail_after(5):
         async with create_task_group() as tg:
@@ -462,6 +470,71 @@ async def test_to_thread_run_sync_loop_closed_delivery_race(
         finish_thread.set()
         await delivery_attempted.wait()
 
+    monkeypatch.undo()
     assert not loop.is_closed()
     assert await to_thread.run_sync(lambda: "bar") == "bar"
     assert not loop.is_closed()
+
+
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_to_thread_run_sync_unrelated_runtime_error_reraised(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Exercise that an unrelated RuntimeError during result delivery is reraised."""
+    assert await to_thread.run_sync(lambda: "foo") == "foo"
+
+    loop = asyncio.get_running_loop()
+    real_call_soon_threadsafe = loop.call_soon_threadsafe
+    delivery_attempted = Event()
+    thread_waiting = Event()
+    finish_thread = threading.Event()
+
+    caught_exception: BaseException | None = None
+    exception_received = threading.Event()
+
+    def excepthook(args: Any) -> None:
+        nonlocal caught_exception
+        caught_exception = args.exc_value
+        exception_received.set()
+
+    def call_soon_threadsafe(
+        callback: Callable[..., Any], *args: Any
+    ) -> asyncio.Handle:
+        if not delivery_attempted.is_set() and (
+            getattr(callback, "__self__", None).__class__ is WorkerThread
+            and getattr(callback, "__func__", None) is WorkerThread._report_result
+        ):
+            real_call_soon_threadsafe(delivery_attempted.set)
+            raise RuntimeError("Unrelated error")
+
+        return real_call_soon_threadsafe(callback, *args)
+
+    def thread_worker() -> None:
+        real_call_soon_threadsafe(thread_waiting.set)
+        finish_thread.wait(5)
+
+    monkeypatch.setattr(loop, "call_soon_threadsafe", call_soon_threadsafe)
+
+    orig_excepthook = threading.excepthook
+    threading.excepthook = excepthook
+    try:
+        with fail_after(5):
+            async with create_task_group() as tg:
+                tg.start_soon(
+                    partial(to_thread.run_sync, abandon_on_cancel=True), thread_worker
+                )
+                await thread_waiting.wait()
+                tg.cancel_scope.cancel()
+
+            finish_thread.set()
+            await delivery_attempted.wait()
+            await to_thread.run_sync(exception_received.wait, 5)
+    finally:
+        threading.excepthook = orig_excepthook
+
+    monkeypatch.undo()
+    assert caught_exception is not None
+    assert isinstance(caught_exception, RuntimeError)
+    assert str(caught_exception) == "Unrelated error"
+
+    assert await to_thread.run_sync(lambda: "bar") == "bar"

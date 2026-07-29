@@ -1044,16 +1044,13 @@ class WorkerThread(Thread):
                     finally:
                         del threadlocals.current_cancel_scope
 
-                    if not self.loop.is_closed():
-                        try:
-                            self.loop.call_soon_threadsafe(
-                                self._report_result, future, result, exception
-                            )
-                        except RuntimeError:
-                            # The loop was closed after the is_closed() check
-                            # above (a race with event loop shutdown). The
-                            # result can no longer be delivered, so drop it.
-                            pass
+                    try:
+                        self.loop.call_soon_threadsafe(
+                            self._report_result, future, result, exception
+                        )
+                    except RuntimeError:
+                        if not self.loop.is_closed():
+                            raise
 
                     del result, exception
 
