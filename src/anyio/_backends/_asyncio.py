@@ -2565,11 +2565,11 @@ class AsyncIOBackend(AsyncBackend):
         return TaskGroup()
 
     @classmethod
-    def create_event(cls) -> abc.Event:
+    def create_event(cls) -> BaseEvent:
         return Event()
 
     @classmethod
-    def create_lock(cls, *, fast_acquire: bool) -> abc.Lock:
+    def create_lock(cls, *, fast_acquire: bool) -> BaseLock:
         return Lock(fast_acquire=fast_acquire)
 
     @classmethod
@@ -2579,11 +2579,11 @@ class AsyncIOBackend(AsyncBackend):
         *,
         max_value: int | None = None,
         fast_acquire: bool = False,
-    ) -> abc.Semaphore:
+    ) -> BaseSemaphore:
         return Semaphore(initial_value, max_value=max_value, fast_acquire=fast_acquire)
 
     @classmethod
-    def create_capacity_limiter(cls, total_tokens: float) -> abc.CapacityLimiter:
+    def create_capacity_limiter(cls, total_tokens: float) -> BaseCapacityLimiter:
         return CapacityLimiter(total_tokens)
 
     @classmethod
@@ -2592,7 +2592,7 @@ class AsyncIOBackend(AsyncBackend):
         func: Callable[[Unpack[PosArgsT]], T_Retval],
         args: tuple[Unpack[PosArgsT]],
         abandon_on_cancel: bool = False,
-        limiter: abc.CapacityLimiter | None = None,
+        limiter: BaseCapacityLimiter | None = None,
     ) -> T_Retval:
         await cls.checkpoint()
 

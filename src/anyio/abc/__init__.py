@@ -49,18 +49,6 @@ if TYPE_CHECKING or not install_lazy_importer():
     from ._tasks import TaskStatus as TaskStatus
     from ._testing import TestRunner as TestRunner
 
-    # Re-exported here, for backwards compatibility
-    # isort: off
-    from .._core._synchronization import (
-        CapacityLimiter as CapacityLimiter,
-        Condition as Condition,
-        Event as Event,
-        Lock as Lock,
-        Semaphore as Semaphore,
-    )
-    from .._core._tasks import CancelScope as CancelScope
-    from ..from_thread import BlockingPortal as BlockingPortal
-
     fix_package_names()
     set_deprecated_aliases(
         {

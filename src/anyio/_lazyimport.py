@@ -26,11 +26,7 @@ def install_lazy_importer() -> bool:
 
     def __getattr__(name: str) -> Any:
         if new_name := deprecated_aliases.get(name):
-            warnings.warn(
-                f"{module_name}.{name} is deprecated, use {new_name} instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
+            emit_deprecation_warning(module_name, name, new_name)
             target_mod, target_attr = new_name.rsplit(".", 1)
         else:
             try:
@@ -69,6 +65,14 @@ def fix_package_names() -> None:
                 )
 
 
+def emit_deprecation_warning(module_name: str, name: str, target: str) -> None:
+    warnings.warn(
+        f"{module_name}.{name} is deprecated, use {target} instead.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+
+
 def set_deprecated_aliases(aliases: dict[str, str]) -> None:
     module_globals = sys._getframe(1).f_globals
     module_name = module_globals["__name__"]
@@ -81,12 +85,7 @@ def set_deprecated_aliases(aliases: dict[str, str]) -> None:
                 f"module {module_name!r} has no attribute {name!r}"
             ) from None
 
-        warnings.warn(
-            f"{module_name}.{name} is deprecated, use {target!r} instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
+        emit_deprecation_warning(module_name, name, target)
         target_modname, attrname = target.rsplit(".", 1)
         module = import_module(target_modname)
         return getattr(module, attrname)

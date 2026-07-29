@@ -72,8 +72,8 @@ def test_sourceless_install(tmp_path: Path) -> None:
 
     import anyio.abc
 
-    deprecated_items = {DEPRECATIONS!r}
-    deprecations = dict.fromkeys(deprecated_items, False)
+    deprecated_items = {list(DEPRECATIONS)!r}
+    deprecations = dict.fromkeys(deprecated_items, None)
     result = {{
         "deprecations": deprecations,
         "modulenames": {{
@@ -86,10 +86,13 @@ def test_sourceless_install(tmp_path: Path) -> None:
 
     for item in deprecated_items:
         module, name = item.rsplit(".", 1)
-        with warnings.catch_warnings(record=True) as record:
+        with warnings.catch_warnings(record=True) as records:
             getattr(sys.modules[module], name)
 
-        deprecations[item] = bool(record)
+        if records:
+            warning = records[0].message
+            replacement = str(warning).split()[4]
+            deprecations[item] = replacement
 
     json.dump(result, sys.stdout)
     """)
@@ -118,7 +121,7 @@ def test_sourceless_install(tmp_path: Path) -> None:
 def test_package_names() -> None:
     assert anyio.sleep.__module__ == "anyio"
     assert anyio.CancelScope.__module__ == "anyio"
-    assert anyio.abc.CancelScope.__module__ == "anyio"
+    assert anyio.abc.CancelScope.__module__ == "anyio"  # type: ignore[attr-defined]
     assert anyio.abc.UDPSocket.__module__ == "anyio.abc"
 
 
