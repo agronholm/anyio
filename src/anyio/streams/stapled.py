@@ -65,7 +65,7 @@ class StapledByteStream(ByteStream):
 
 
 @dataclass(eq=False)
-class StapledObjectStream(Generic[T_Item], ObjectStream[T_Item]):
+class StapledObjectStream(ObjectStream[T_Item], Generic[T_Item]):
     """
     Combines two object streams into a single, bidirectional object stream.
 
@@ -101,7 +101,7 @@ class StapledObjectStream(Generic[T_Item], ObjectStream[T_Item]):
 
 
 @dataclass(eq=False)
-class MultiListener(Generic[T_Stream], Listener[T_Stream]):
+class MultiListener(Listener[T_Stream], Generic[T_Stream]):
     """
     Combines multiple listeners into one, serving connections from all of them at once.
 
