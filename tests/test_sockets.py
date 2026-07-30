@@ -506,6 +506,28 @@ class TestTCPStream:
                 with pytest.raises(ClosedResourceError):
                     await stream.receive()
 
+    @pytest.mark.parametrize("anyio_backend", asyncio_params[:1])
+    async def test_close_after_connection_lost(
+        self, server_addr: tuple[str, int], mocker: MockerFixture
+    ) -> None:
+        stream = cast(Any, await connect_tcp(*server_addr))
+        original_close = stream._transport.close
+
+        def close() -> None:
+            original_close()
+            stream._protocol.connection_lost(None)
+
+        mocker.patch.object(stream._transport, "close", side_effect=close)
+        abort = mocker.patch.object(
+            stream._transport,
+            "abort",
+            side_effect=AttributeError(
+                "'NoneType' object has no attribute 'call_soon'"
+            ),
+        )
+        await stream.aclose()
+        abort.assert_not_called()
+
     async def test_receive_after_close(self, server_addr: tuple[str, int]) -> None:
         stream = await connect_tcp(*server_addr)
         await stream.aclose()
