@@ -499,12 +499,12 @@ def test_keyboard_interrupt_does_not_resume_test(testdir: Pytester) -> None:
         async def test_keyboard_interrupt(myfixture):
             loop = asyncio.get_running_loop()
             loop.call_soon(signal.raise_signal, signal.SIGINT)
-            await anyio.sleep(3600)
+            await anyio.sleep(3)
             print("RESUMED_AFTER_INTERRUPT")
         """
     )
 
-    result = testdir.runpytest_subprocess(*pytest_args, timeout=5)
+    result = testdir.runpytest_subprocess(*pytest_args)
     assert result.ret == 2
     result.stdout.no_fnmatch_line("*RESUMED_AFTER_INTERRUPT*")
     result.stdout.fnmatch_lines(["*KeyboardInterrupt*"])
