@@ -5,6 +5,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed ``connect_tcp()`` preferring IPv6 on hosts that only have a link-local
+  IPv6 address, which caused an unnecessary failed attempt (often "Network is
+  unreachable") before falling back to IPv4
+  (`#1230 <https://github.com/agronholm/anyio/issues/1230>`_; PR by
+  @MohammedAnasNathani)
 - Added ``StapledObjectStream.send_nowait()`` that delegates to the underlying
   ``ObjectSendStream``, if it implements it
   (`#1241 <https://github.com/agronholm/anyio/pull/1241>`_; PR by @davidbrochart)

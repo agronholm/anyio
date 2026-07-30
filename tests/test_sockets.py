@@ -2575,6 +2575,82 @@ async def test_connect_tcp_getaddrinfo_context() -> None:
     assert exc_info.value.__context__ is None
 
 
+def test_order_happy_eyeballs_prefers_global_ipv6_when_routable() -> None:
+    from anyio._core._sockets import _order_happy_eyeballs_targets
+
+    # Encounter order: IPv4 then global IPv6 — with global IPv6, AAAA moves first.
+    gai = [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("1.2.3.4", 443)),
+        (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("2001:db8::1", 443, 0, 0)),
+    ]
+    ordered = _order_happy_eyeballs_targets(gai, has_global_ipv6=True)
+    assert ordered[0] == (socket.AF_INET6, "2001:db8::1")
+    assert ordered[1] == (socket.AF_INET, "1.2.3.4")
+
+
+def test_order_happy_eyeballs_does_not_promote_global_aaaa_without_route() -> None:
+    from anyio._core._sockets import _order_happy_eyeballs_targets
+
+    # Link-local-only hosts: do not promote global AAAA ahead of IPv4 (#1230).
+    gai = [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("1.2.3.4", 443)),
+        (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("2001:db8::1", 443, 0, 0)),
+    ]
+    ordered = _order_happy_eyeballs_targets(gai, has_global_ipv6=False)
+    assert ordered == [
+        (socket.AF_INET, "1.2.3.4"),
+        (socket.AF_INET6, "2001:db8::1"),
+    ]
+
+
+def test_order_happy_eyeballs_still_promotes_loopback_without_global() -> None:
+    from anyio._core._sockets import _order_happy_eyeballs_targets
+
+    # Dual-stack localhost must keep preferring ::1 even without global IPv6.
+    gai = [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 0)),
+        (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("::1", 0, 0, 0)),
+    ]
+    ordered = _order_happy_eyeballs_targets(gai, has_global_ipv6=False)
+    assert ordered[0] == (socket.AF_INET6, "::1")
+    assert ordered[1] == (socket.AF_INET, "127.0.0.1")
+
+
+def test_host_has_global_ipv6_false_when_disabled(monkeypatch: MonkeyPatch) -> None:
+    import anyio._core._sockets as sockets_mod
+    from anyio._core._sockets import _host_has_global_ipv6
+
+    monkeypatch.setattr(sockets_mod, "_global_ipv6_cache", None)
+    monkeypatch.setattr(socket, "has_ipv6", False)
+    assert _host_has_global_ipv6() is False
+
+
+def test_host_has_global_ipv6_false_on_link_local(monkeypatch: MonkeyPatch) -> None:
+    import anyio._core._sockets as sockets_mod
+    from anyio._core._sockets import _host_has_global_ipv6
+
+    class FakeSock:
+        def connect(self, address: object) -> None:
+            pass
+
+        def getsockname(self) -> tuple[str, int, int, int]:
+            return ("fe80::1", 0, 0, 0)
+
+        def __enter__(self) -> FakeSock:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            pass
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(sockets_mod, "_global_ipv6_cache", None)
+    monkeypatch.setattr(socket, "has_ipv6", True)
+    monkeypatch.setattr(socket, "socket", lambda *a, **k: FakeSock())
+    assert _host_has_global_ipv6() is False
+
+
 @pytest.mark.parametrize("socket_type", ["socket", "fd"])
 @pytest.mark.parametrize("event", ["readable", "writable"])
 async def test_wait_socket(event: str, socket_type: str) -> None:

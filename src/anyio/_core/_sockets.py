@@ -68,6 +68,94 @@ def idna2008_resolve(host: str) -> bytes:
         return idna.encode(host, uts46=True)
 
 
+_global_ipv6_cache: bool | None = None
+
+
+def _host_has_global_ipv6() -> bool:
+    """Return True if this host can source a global/ULA IPv6 address.
+
+    ``getaddrinfo`` with ``AI_ADDRCONFIG`` still returns AAAA records when the
+    only configured IPv6 address is link-local (``fe80::/10``). Preferring
+    those *global* AAAA results first makes ``connect_tcp`` burn a failed
+    attempt (often "Network is unreachable") before falling back to IPv4.
+
+    A UDP ``connect`` to a well-known global address reveals the kernel's
+    chosen source without sending packets. Loopback-only IPv6 (``::1``) is
+    intentionally *not* treated as global: dual-stack localhost still
+    promotes ``::1`` via :func:`_ipv6_addr_is_locally_usable`.
+
+    This function performs a blocking socket operation and must not be called
+    directly on the event-loop thread (blockbuster / asyncio policy). Callers
+    in async code should use :func:`to_thread.run_sync`. The result is cached
+    for the process lifetime.
+    """
+    global _global_ipv6_cache
+    if _global_ipv6_cache is not None:
+        return _global_ipv6_cache
+
+    result = False
+    if getattr(socket, "has_ipv6", False):
+        try:
+            with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as sock:
+                # Google Public DNS — connect() on UDP selects a route/source only.
+                sock.connect(("2001:4860:4860::8888", 53))
+                local = ip_address(sock.getsockname()[0])
+        except OSError:
+            result = False
+        else:
+            if isinstance(local, IPv6Address):
+                # Link-local / loopback / unspecified cannot reach global destinations.
+                result = not (
+                    local.is_link_local or local.is_loopback or local.is_unspecified
+                )
+
+    _global_ipv6_cache = result
+    return result
+
+
+def _ipv6_addr_is_locally_usable(host: str) -> bool:
+    """True for loopback/link-local literals that work without global IPv6."""
+    try:
+        addr = ip_address(host.split("%", 1)[0])
+    except ValueError:
+        return False
+    return isinstance(addr, IPv6Address) and (addr.is_loopback or addr.is_link_local)
+
+
+def _order_happy_eyeballs_targets(
+    gai_res: list[tuple[Any, ...]], *, has_global_ipv6: bool
+) -> list[tuple[AddressFamily, str]]:
+    """Reorder ``getaddrinfo`` results for Happy Eyeballs (RFC 6555).
+
+    Promotes the first *usable* IPv6 address to the front and the first IPv4
+    address to second place:
+
+    * Loopback / link-local IPv6 (``::1``, ``fe80::…``) is always promotable
+      so dual-stack ``localhost`` keeps working without global IPv6.
+    * Global/ULA AAAA is promotable only when *has_global_ipv6* is true; on
+      link-local-only hosts those AAAA entries stay in encounter order so a
+      working IPv4 is not delayed (#1230).
+    """
+    v6_found = v4_found = False
+    target_addrs: list[tuple[AddressFamily, str]] = []
+    for af, *_, sa in gai_res:
+        family = cast(AddressFamily, af)
+        host = sa[0]
+        if family == socket.AF_INET6 and not v6_found:
+            if has_global_ipv6 or _ipv6_addr_is_locally_usable(host):
+                v6_found = True
+                target_addrs.insert(0, (family, host))
+            else:
+                # Global AAAA on a link-local-only host — do not promote.
+                target_addrs.append((family, host))
+        elif family == socket.AF_INET and not v4_found and v6_found:
+            v4_found = True
+            target_addrs.insert(1, (family, host))
+        else:
+            target_addrs.append((family, host))
+    return target_addrs
+
+
 # tls_hostname given
 @overload
 async def connect_tcp(
@@ -233,19 +321,14 @@ async def connect_tcp(
             target_host, remote_port, family=family, type=socket.SOCK_STREAM
         )
 
-        # Organize the list so that the first address is an IPv6 address (if available)
-        # and the second one is an IPv4 addresses. The rest can be in whatever order.
-        v6_found = v4_found = False
-        target_addrs = []
-        for af, *_, sa in gai_res:
-            if af == socket.AF_INET6 and not v6_found:
-                v6_found = True
-                target_addrs.insert(0, (af, sa[0]))
-            elif af == socket.AF_INET and not v4_found and v6_found:
-                v4_found = True
-                target_addrs.insert(1, (af, sa[0]))
-            else:
-                target_addrs.append((af, sa[0]))
+        # Prefer global AAAA first only with a global/ULA IPv6 source. Always
+        # still promote loopback/link-local IPv6 (dual-stack localhost).
+        # Link-local-only hosts otherwise keep AAAA in encounter order (#1230).
+        # Probe off the event loop: the check uses a blocking UDP connect.
+        has_global_ipv6 = await to_thread.run_sync(_host_has_global_ipv6)
+        target_addrs = _order_happy_eyeballs_targets(
+            list(gai_res), has_global_ipv6=has_global_ipv6
+        )
 
     oserrors: list[OSError] = []
     try:
