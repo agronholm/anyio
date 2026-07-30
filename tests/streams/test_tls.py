@@ -36,7 +36,7 @@ class TestTLSStream:
         self, server_context: ssl.SSLContext, client_context: ssl.SSLContext
     ) -> None:
         def serve_sync() -> None:
-            conn, addr = server_sock.accept()
+            conn, _addr = server_sock.accept()
             data = conn.recv(10)
             conn.send(data[::-1])
             conn.close()
@@ -139,7 +139,7 @@ class TestTLSStream:
         client_context: ssl.SSLContext,
     ) -> None:
         def serve_sync() -> None:
-            conn, addr = server_sock.accept()
+            conn, _addr = server_sock.accept()
             with conn:
                 conn.unwrap()
 
@@ -186,7 +186,7 @@ class TestTLSStream:
         self, server_context: ssl.SSLContext, client_context: ssl.SSLContext
     ) -> None:
         def serve_sync() -> None:
-            conn, addr = server_sock.accept()
+            conn, _addr = server_sock.accept()
             conn.send(b"encrypted")
             unencrypted = conn.unwrap()
             unencrypted.send(b"unencrypted")
@@ -219,7 +219,7 @@ class TestTLSStream:
         self, server_context: ssl.SSLContext, client_context: ssl.SSLContext
     ) -> None:
         def serve_sync() -> None:
-            conn, addr = server_sock.accept()
+            conn, _addr = server_sock.accept()
             selected_alpn_protocol = conn.selected_alpn_protocol()
             assert selected_alpn_protocol is not None
             conn.send(selected_alpn_protocol.encode())
@@ -267,7 +267,7 @@ class TestTLSStream:
 
         def serve_sync() -> None:
             nonlocal server_exc
-            conn, addr = server_sock.accept()
+            conn, _addr = server_sock.accept()
             try:
                 conn.sendall(b"hello")
                 if server_compatible:
@@ -317,7 +317,7 @@ class TestTLSStream:
 
         def serve_sync() -> None:
             nonlocal server_exc
-            conn, addr = server_sock.accept()
+            conn, _addr = server_sock.accept()
             try:
                 conn.sendall(b"hello")
             except BaseException as exc:
@@ -353,7 +353,7 @@ class TestTLSStream:
         self, server_context: ssl.SSLContext, client_context: ssl.SSLContext
     ) -> None:
         def serve_sync() -> None:
-            conn, addr = server_sock.accept()
+            conn, _addr = server_sock.accept()
             conn.sendall(b"hello")
             conn.unwrap()
             conn.close()
@@ -397,7 +397,7 @@ class TestTLSStream:
         self, server_context: ssl.SSLContext, ca: CA, force_tlsv12: bool
     ) -> None:
         def serve_sync() -> None:
-            conn, addr = server_sock.accept()
+            conn, _addr = server_sock.accept()
             conn.sendall(b"hello")
             conn.unwrap()
             conn.close()
