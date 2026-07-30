@@ -499,7 +499,7 @@ def test_keyboard_interrupt_does_not_resume_test(testdir: Pytester) -> None:
         async def test_keyboard_interrupt(myfixture):
             loop = asyncio.get_running_loop()
             loop.call_soon(signal.raise_signal, signal.SIGINT)
-            await anyio.sleep(3)
+            await anyio.sleep(5)
             print("RESUMED_AFTER_INTERRUPT")
         """
     )
