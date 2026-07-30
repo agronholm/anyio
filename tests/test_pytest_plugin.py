@@ -594,7 +594,6 @@ def test_asyncgen_fixture_in_test_class(testdir: Pytester) -> None:
 def test_async_fixture_params(testdir: Pytester) -> None:
     testdir.makepyfile(
         """
-        import inspect
         import pytest
 
         @pytest.fixture(params=[1, 2])
@@ -653,7 +652,6 @@ def test_auto_mode(testdir: Pytester) -> None:
     )
     testdir.makepyfile(
         """
-        import inspect
         import pytest
 
         @pytest.fixture
@@ -698,7 +696,6 @@ def test_auto_mode_conflict_warning(testdir: Pytester) -> None:
     )
     testdir.makepyfile(
         """
-        import inspect
         import pytest
 
         @pytest.fixture
