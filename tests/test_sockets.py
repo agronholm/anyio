@@ -519,6 +519,16 @@ class TestTCPStream:
         with pytest.raises(ClosedResourceError):
             await stream.send(b"foo")
 
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_aclose_forcefully(
+        self, server_addr: tuple[str, int]
+    ) -> None:
+        stream = await connect_tcp(*server_addr)
+        sock = stream.extra(SocketAttribute.raw_socket)
+        await stream.send(b"x")
+        await anyio.aclose_forcefully(stream)
+        assert sock.fileno() == -1
+
     async def test_receive_after_peer_closed(
         self, family: AnyIPAddressFamily, request: FixtureRequest
     ) -> None:

@@ -1403,8 +1403,11 @@ class SocketStream(abc.SocketStream):
                 pass
 
             self._transport.close()
-            await sleep(0)
-            self._transport.abort()
+            try:
+                await sleep(0)
+            finally:
+                self._transport.abort()
+                await AsyncIOBackend.cancel_shielded_checkpoint()
 
 
 class _RawSocketMixin:
