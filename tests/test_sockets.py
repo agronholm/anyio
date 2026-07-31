@@ -520,9 +520,7 @@ class TestTCPStream:
             await stream.send(b"foo")
 
     @pytest.mark.parametrize("anyio_backend", asyncio_params)
-    async def test_aclose_forcefully(
-        self, server_addr: tuple[str, int]
-    ) -> None:
+    async def test_aclose_forcefully(self, server_addr: tuple[str, int]) -> None:
         stream = await connect_tcp(*server_addr)
         sock = stream.extra(SocketAttribute.raw_socket)
         await stream.send(b"x")
