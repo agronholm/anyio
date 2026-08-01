@@ -141,7 +141,7 @@ class _TeeAsyncIterator(AsyncIterator[T]):
 
 
 async def _operator_add(x: T, y: T) -> T:
-    return operator.add(x, y)
+    return operator.add(x, y)  # type: ignore[call-overload]
 
 
 async def accumulate(
