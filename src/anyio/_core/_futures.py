@@ -46,10 +46,10 @@ class Future(Generic[T]):
 
     __slots__ = (
         "_cancelled",
-        "_result_value",
-        "_finished_event",
         "_exception",
+        "_finished_event",
         "_name",
+        "_result_value",
     )
     _result_value: T
 
