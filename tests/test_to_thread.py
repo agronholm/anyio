@@ -6,8 +6,9 @@ import sys
 import threading
 import time
 import weakref
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
-from contextvars import ContextVar
+from contextvars import Context, ContextVar
 from functools import partial
 from typing import Any, NoReturn
 
@@ -421,20 +422,42 @@ def test_asyncio_run_does_not_leak_event_loop() -> None:
 
 def test_to_thread_run_sync_loop_closed_delivery_race() -> None:
     """Drop a result that cannot be delivered after its event loop has closed."""
-    worker_started = threading.Event()
+
+    class ClosingRaceLoop(asyncio.SelectorEventLoop):
+        delivery_attempted = False
+
+        def call_soon_threadsafe(
+            self,
+            callback: Callable[..., Any],
+            *args: Any,
+            context: Context | None = None,
+        ) -> asyncio.Handle:
+            if (
+                isinstance(getattr(callback, "__self__", None), WorkerThread)
+                and getattr(callback, "__func__", None) is WorkerThread._report_result
+            ):
+                self.delivery_attempted = True
+
+            return super().call_soon_threadsafe(callback, *args, context=context)
+
+        def is_closed(self) -> bool:
+            closed = super().is_closed()
+            if closed and not self.delivery_attempted:
+                return False
+
+            return closed
+
+    worker_started = Event()
     finish_worker = threading.Event()
     worker_thread: threading.Thread | None = None
-    caught_exception: BaseException | None = None
+    worker_exception: BaseException | None = None
+    runner_exception: BaseException | None = None
 
     def thread_worker() -> None:
         nonlocal worker_thread
         worker_thread = threading.current_thread()
-        worker_started.set()
+        from_thread.run_sync(worker_started.set)
         finish_worker.wait(5)
-
-    def excepthook(args: Any) -> None:
-        nonlocal caught_exception
-        caught_exception = args.exc_value
 
     async def main() -> None:
         async with create_task_group() as tg:
@@ -442,58 +465,81 @@ def test_to_thread_run_sync_loop_closed_delivery_race() -> None:
                 partial(to_thread.run_sync, abandon_on_cancel=True), thread_worker
             )
             with fail_after(5):
-                while not worker_started.is_set():
-                    await checkpoint()
+                await worker_started.wait()
 
             tg.cancel_scope.cancel()
 
+    def run_anyio() -> None:
+        nonlocal runner_exception
+        try:
+            anyio.run(
+                main,
+                backend="asyncio",
+                backend_options={"loop_factory": ClosingRaceLoop},
+            )
+        except BaseException as exc:
+            runner_exception = exc
+
+    def excepthook(args: threading.ExceptHookArgs) -> None:
+        nonlocal worker_exception
+        worker_exception = args.exc_value
+
     original_excepthook = threading.excepthook
     threading.excepthook = excepthook
+    runner = threading.Thread(target=run_anyio)
     try:
-        anyio.run(main, backend="asyncio")
+        runner.start()
+        runner.join(5)
+        assert not runner.is_alive()
         finish_worker.set()
         assert worker_thread is not None
         worker_thread.join(5)
     finally:
         finish_worker.set()
+        runner.join(5)
         threading.excepthook = original_excepthook
 
+    assert runner_exception is None
     assert worker_thread is not None
     assert not worker_thread.is_alive()
-    assert caught_exception is None
+    assert worker_exception is None
 
 
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_to_thread_run_sync_unrelated_runtime_error_reraised(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, anyio_backend: str
 ) -> None:
     """Re-raise a result-delivery RuntimeError while the event loop remains open."""
     loop = asyncio.get_running_loop()
     real_call_soon_threadsafe = loop.call_soon_threadsafe
-    worker_started = threading.Event()
+    worker_started = Event()
     finish_worker = threading.Event()
-    exception_received = threading.Event()
-    caught_exception: BaseException | None = None
+    exception_received = Event()
+    worker_exception: BaseException | None = None
     raise_on_delivery = True
 
-    def excepthook(args: Any) -> None:
-        nonlocal caught_exception
-        caught_exception = args.exc_value
-        exception_received.set()
+    def excepthook(args: threading.ExceptHookArgs) -> None:
+        nonlocal worker_exception
+        worker_exception = args.exc_value
+        real_call_soon_threadsafe(exception_received.set)
 
-    def call_soon_threadsafe(callback: Any, *args: Any) -> asyncio.Handle:
+    def call_soon_threadsafe(
+        callback: Callable[..., Any],
+        *args: Any,
+        context: Context | None = None,
+    ) -> asyncio.Handle:
         nonlocal raise_on_delivery
         if raise_on_delivery and (
-            getattr(callback, "__self__", None).__class__ is WorkerThread
+            isinstance(getattr(callback, "__self__", None), WorkerThread)
             and getattr(callback, "__func__", None) is WorkerThread._report_result
         ):
             raise_on_delivery = False
             raise RuntimeError("Unrelated error")
 
-        return real_call_soon_threadsafe(callback, *args)
+        return real_call_soon_threadsafe(callback, *args, context=context)
 
     def thread_worker() -> None:
-        worker_started.set()
+        from_thread.run_sync(worker_started.set)
         finish_worker.wait(5)
 
     monkeypatch.setattr(loop, "call_soon_threadsafe", call_soon_threadsafe)
@@ -506,17 +552,15 @@ async def test_to_thread_run_sync_unrelated_runtime_error_reraised(
                 tg.start_soon(
                     partial(to_thread.run_sync, abandon_on_cancel=True), thread_worker
                 )
-                while not worker_started.is_set():
-                    await checkpoint()
-
+                await worker_started.wait()
                 tg.cancel_scope.cancel()
 
             finish_worker.set()
-            while not exception_received.is_set():
-                await checkpoint()
+            await exception_received.wait()
     finally:
         finish_worker.set()
         threading.excepthook = original_excepthook
 
-    assert isinstance(caught_exception, RuntimeError)
-    assert str(caught_exception) == "Unrelated error"
+    assert isinstance(worker_exception, RuntimeError)
+    assert str(worker_exception) == "Unrelated error"
+    assert await to_thread.run_sync(lambda: "ok") == "ok"
