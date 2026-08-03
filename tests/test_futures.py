@@ -13,9 +13,7 @@ from anyio import (
     TaskCancelled,
     create_task_group,
 )
-from anyio.lowlevel import (
-    checkpoint,
-)
+from anyio.lowlevel import checkpoint
 
 
 class TestFuture:
