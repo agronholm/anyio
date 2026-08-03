@@ -14,9 +14,7 @@ from anyio import (
     create_task_group,
 )
 from anyio.lowlevel import (
-    # cancel_shielded_checkpoint,
     checkpoint,
-    # checkpoint_if_cancelled,
 )
 
 
