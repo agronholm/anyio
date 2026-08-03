@@ -48,10 +48,6 @@ Task groups
 .. autoclass:: anyio.abc.TaskGroup
 .. autoclass:: anyio.abc.TaskStatus
 
-Future objects
---------------
-.. autoclass:: anyio.Future
-
 Running code in worker threads
 ------------------------------
 
@@ -198,6 +194,7 @@ Synchronization
 ---------------
 
 .. autoclass:: anyio.Event
+.. autoclass:: anyio.Future
 .. autoclass:: anyio.Lock
 .. autoclass:: anyio.Condition
 .. autoclass:: anyio.Semaphore
