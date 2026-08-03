@@ -8,9 +8,9 @@ from anyio import (
     Future,
     FutureAlreadyFinished,
     FutureCancelled,
-    TaskCancelled,
     FutureFailed,
     FutureNotFinished,
+    TaskCancelled,
     create_task_group,
 )
 from anyio.lowlevel import (

@@ -152,7 +152,9 @@ class Future(Generic[T]):
             case Future.Status.CANCELLED:
                 raise FutureCancelled("the future was cancelled")
             case Future.Status.FAILED:
-                raise FutureFailed("the future raised an exception") from self._exception
+                raise FutureFailed(
+                    "the future raised an exception"
+                ) from self._exception
 
     @property
     def status(self) -> Future.Status:
