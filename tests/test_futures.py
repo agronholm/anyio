@@ -9,8 +9,8 @@ from anyio import (
     FutureAlreadyFinished,
     FutureCancelled,
     TaskCancelled,
-    TaskFailed,
-    TaskNotFinished,
+    FutureFailed,
+    FutureNotFinished,
     create_task_group,
 )
 from anyio.lowlevel import (
@@ -62,7 +62,7 @@ class TestFuture:
         future: Future[int] = Future()
         async with create_task_group() as tg:
             tg.start_soon(task, future)
-            with pytest.raises(TaskFailed, match="the future raised an exception"):
+            with pytest.raises(FutureFailed, match="the future raised an exception"):
                 await future
 
     async def test_already_cancelled(self) -> None:
@@ -79,10 +79,10 @@ class TestFuture:
 
     async def test_future_not_finished(self) -> None:
         future: Future[int] = Future()
-        with pytest.raises(TaskNotFinished, match=r"the future has not finished yet"):
+        with pytest.raises(FutureNotFinished, match=r"the future has not finished yet"):
             _ = future.return_value
 
-        with pytest.raises(TaskNotFinished, match=r"the future has not finished yet"):
+        with pytest.raises(FutureNotFinished, match=r"the future has not finished yet"):
             _ = future.exception
 
     async def test_future_cancelling_already_set_result(self) -> None:
@@ -95,7 +95,7 @@ class TestFuture:
         fut: Future[Any] = Future()
         fut.set_exception(RuntimeError("Failed"))
         fut.cancel()
-        with pytest.raises(TaskFailed, match=r"future raised an exception"):
+        with pytest.raises(FutureFailed, match=r"future raised an exception"):
             await fut
 
     async def test_future_cancelling_with_result(self) -> None:
