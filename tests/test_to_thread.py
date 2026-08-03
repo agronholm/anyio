@@ -32,6 +32,13 @@ from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params, no_other_refs
 
+if sys.version_info >= (3, 11):
+    from typing import TypeVarTuple, Unpack
+else:
+    from typing_extensions import TypeVarTuple, Unpack
+
+PosArgsT = TypeVarTuple("PosArgsT")
+
 
 async def test_run_in_thread_cancelled() -> None:
     state = 0
@@ -428,8 +435,8 @@ def test_to_thread_run_sync_loop_closed_delivery_race() -> None:
 
         def call_soon_threadsafe(
             self,
-            callback: Callable[..., Any],
-            *args: Any,
+            callback: Callable[[Unpack[PosArgsT]], object],
+            *args: Unpack[PosArgsT],
             context: Context | None = None,
         ) -> asyncio.Handle:
             if (
