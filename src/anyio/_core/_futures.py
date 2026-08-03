@@ -46,12 +46,12 @@ class Future(Generic[T]):
 
     __slots__ = (
         "_cancelled",
-        "_result_value",
-        "_finished_event",
         "_exception",
+        "_finished_event",
         "_name",
+        "_result",
     )
-    _result_value: T
+    _result: T
 
     def __init__(self, *, name: str | None = None) -> None:
         self._finished_event = Event()
@@ -91,7 +91,7 @@ class Future(Generic[T]):
         :raises FutureCancelled: if future has been cancelled previously.
         """
         self._check_pending()
-        self._result_value = value
+        self._result = value
         self._finished_event.set()
 
     def set_exception(self, exception: BaseException) -> None:
@@ -135,9 +135,9 @@ class Future(Generic[T]):
                 return self._exception
 
     @property
-    def return_value(self) -> T:
+    def result(self) -> T:
         """
-        The return value of the future.
+        The result value of the future.
 
         :raises TaskNotFinished: if the future has not finished yet
         :raises FutureCancelled: if the future was cancelled
@@ -148,7 +148,7 @@ class Future(Generic[T]):
             case Future.Status.PENDING:
                 raise TaskNotFinished("the future has not finished yet")
             case Future.Status.FINISHED:
-                return self._result_value
+                return self._result
             case Future.Status.CANCELLED:
                 raise FutureCancelled("the future was cancelled")
             case Future.Status.FAILED:

@@ -54,7 +54,7 @@ class TestFuture:
         async with create_task_group() as tg:
             tg.start_soon(task, future, 2)
             await future.wait()
-            assert future.return_value == 2
+            assert future.result == 2
 
     async def test_raising_exception(self) -> None:
         async def task(fut: Future[int]) -> None:
@@ -82,7 +82,7 @@ class TestFuture:
     async def test_future_not_finished(self) -> None:
         future: Future[int] = Future()
         with pytest.raises(TaskNotFinished, match=r"the future has not finished yet"):
-            _ = future.return_value
+            _ = future.result
 
         with pytest.raises(TaskNotFinished, match=r"the future has not finished yet"):
             _ = future.exception
