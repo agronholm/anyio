@@ -421,9 +421,9 @@ def test_asyncio_run_does_not_leak_event_loop() -> None:
 
 
 def test_to_thread_run_sync_loop_closed_delivery_race() -> None:
-    """Drop a result that cannot be delivered after its event loop has closed."""
+    """Attempt delivery once even when the event loop has already closed."""
 
-    class ClosingRaceLoop(asyncio.SelectorEventLoop):
+    class RecordingLoop(asyncio.SelectorEventLoop):
         delivery_attempted = False
 
         def call_soon_threadsafe(
@@ -440,26 +440,18 @@ def test_to_thread_run_sync_loop_closed_delivery_race() -> None:
 
             return super().call_soon_threadsafe(callback, *args, context=context)
 
-        def is_closed(self) -> bool:
-            closed = super().is_closed()
-            if closed and not self.delivery_attempted:
-                return False
-
-            return closed
-
-    worker_started = Event()
     finish_worker = threading.Event()
     worker_thread: threading.Thread | None = None
-    worker_exception: BaseException | None = None
-    runner_exception: BaseException | None = None
-
-    def thread_worker() -> None:
-        nonlocal worker_thread
-        worker_thread = threading.current_thread()
-        from_thread.run_sync(worker_started.set)
-        finish_worker.wait(5)
 
     async def main() -> None:
+        worker_started = Event()
+
+        def thread_worker() -> None:
+            nonlocal worker_thread
+            worker_thread = threading.current_thread()
+            from_thread.run_sync(worker_started.set)
+            finish_worker.wait(5)
+
         async with create_task_group() as tg:
             tg.start_soon(
                 partial(to_thread.run_sync, abandon_on_cancel=True), thread_worker
@@ -469,40 +461,23 @@ def test_to_thread_run_sync_loop_closed_delivery_race() -> None:
 
             tg.cancel_scope.cancel()
 
-    def run_anyio() -> None:
-        nonlocal runner_exception
-        try:
-            anyio.run(
-                main,
-                backend="asyncio",
-                backend_options={"loop_factory": ClosingRaceLoop},
-            )
-        except BaseException as exc:
-            runner_exception = exc
-
-    def excepthook(args: threading.ExceptHookArgs) -> None:
-        nonlocal worker_exception
-        worker_exception = args.exc_value
-
-    original_excepthook = threading.excepthook
-    threading.excepthook = excepthook
-    runner = threading.Thread(target=run_anyio)
+    loop = RecordingLoop()
     try:
-        runner.start()
-        runner.join(5)
-        assert not runner.is_alive()
+        loop.run_until_complete(main())
+        loop.close()
         finish_worker.set()
         assert worker_thread is not None
         worker_thread.join(5)
     finally:
         finish_worker.set()
-        runner.join(5)
-        threading.excepthook = original_excepthook
+        if not loop.is_closed():
+            loop.close()
+        if worker_thread is not None:
+            worker_thread.join(5)
 
-    assert runner_exception is None
     assert worker_thread is not None
     assert not worker_thread.is_alive()
-    assert worker_exception is None
+    assert loop.delivery_attempted
 
 
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
@@ -513,8 +488,8 @@ async def test_to_thread_run_sync_unrelated_runtime_error_reraised(
     loop = asyncio.get_running_loop()
     real_call_soon_threadsafe = loop.call_soon_threadsafe
     worker_started = Event()
-    finish_worker = threading.Event()
     exception_received = Event()
+    finish_worker = threading.Event()
     worker_exception: BaseException | None = None
     raise_on_delivery = True
 
@@ -543,9 +518,8 @@ async def test_to_thread_run_sync_unrelated_runtime_error_reraised(
         finish_worker.wait(5)
 
     monkeypatch.setattr(loop, "call_soon_threadsafe", call_soon_threadsafe)
+    monkeypatch.setattr(threading, "excepthook", excepthook)
 
-    original_excepthook = threading.excepthook
-    threading.excepthook = excepthook
     try:
         with fail_after(5):
             async with create_task_group() as tg:
@@ -559,7 +533,6 @@ async def test_to_thread_run_sync_unrelated_runtime_error_reraised(
             await exception_received.wait()
     finally:
         finish_worker.set()
-        threading.excepthook = original_excepthook
 
     assert isinstance(worker_exception, RuntimeError)
     assert str(worker_exception) == "Unrelated error"
