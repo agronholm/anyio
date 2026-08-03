@@ -184,6 +184,20 @@ class FutureCancelled(Exception):
     """
 
 
+class FutureNotFinished(Exception):
+    """
+    Raised when attempting to access the return value or exception of a
+    :class:`.Future` that is still pending completion.
+    """
+
+
+class FutureFailed(Exception):
+    """
+    Raised when awaiting on, or attempting to access the return value of, a
+    :class:`.Future` that raised an exception.
+    """
+
+
 class FutureAlreadyFinished(Exception):
     """
     Raised when attempting set a result of or await a

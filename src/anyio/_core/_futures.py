@@ -7,8 +7,8 @@ from typing import Any, Generic, TypeVar
 from ._exceptions import (
     FutureAlreadyFinished,
     FutureCancelled,
-    TaskFailed,
-    TaskNotFinished,
+    FutureFailed,
+    FutureNotFinished,
 )
 from ._synchronization import Event
 
@@ -118,7 +118,7 @@ class Future(Generic[T]):
         """
         The exception value of a `.Future`
 
-        :raises TaskNotFinished: if future is still pending
+        :raises FutureNotFinished: if future is still pending
         :raises FutureCancelled: if future was cancelled
         :returns: None if future succeeds with a result sent instead
             otherwise this will be an exception
@@ -126,7 +126,7 @@ class Future(Generic[T]):
 
         match self.status:
             case Future.Status.PENDING:
-                raise TaskNotFinished("the future has not finished yet")
+                raise FutureNotFinished("the future has not finished yet")
             case Future.Status.FINISHED:
                 return None
             case Future.Status.CANCELLED:
@@ -139,20 +139,22 @@ class Future(Generic[T]):
         """
         The result value of the future.
 
-        :raises TaskNotFinished: if the future has not finished yet
+        :raises FutureNotFinished: if the future has not finished yet
         :raises FutureCancelled: if the future was cancelled
-        :raises TaskFailed: if the future raised an exception
+        :raises FutureFailed: if the future raised an exception
 
         """
         match self.status:
             case Future.Status.PENDING:
-                raise TaskNotFinished("the future has not finished yet")
+                raise FutureNotFinished("the future has not finished yet")
             case Future.Status.FINISHED:
                 return self._result
             case Future.Status.CANCELLED:
                 raise FutureCancelled("the future was cancelled")
             case Future.Status.FAILED:
-                raise TaskFailed("the future raised an exception") from self._exception
+                raise FutureFailed(
+                    "the future raised an exception"
+                ) from self._exception
 
     @property
     def status(self) -> Future.Status:
@@ -178,7 +180,7 @@ class Future(Generic[T]):
 
     def __await__(self) -> Generator[Any, Any, T]:
         yield from self.wait().__await__()
-        return self.return_value
+        return self.result
 
     def __repr__(self) -> str:
         return (

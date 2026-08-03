@@ -32,7 +32,9 @@ Timeouts and cancellation
 -------------------------
 
 .. autofunction:: anyio.move_on_after
+.. autofunction:: anyio.move_on_at
 .. autofunction:: anyio.fail_after
+.. autofunction:: anyio.fail_at
 .. autofunction:: anyio.current_effective_deadline
 
 .. autoclass:: anyio.CancelScope
@@ -45,10 +47,6 @@ Task groups
 
 .. autoclass:: anyio.abc.TaskGroup
 .. autoclass:: anyio.abc.TaskStatus
-
-Future objects
---------------
-.. autoclass:: anyio.Future
 
 Running code in worker threads
 ------------------------------
@@ -196,6 +194,7 @@ Synchronization
 ---------------
 
 .. autoclass:: anyio.Event
+.. autoclass:: anyio.Future
 .. autoclass:: anyio.Lock
 .. autoclass:: anyio.Condition
 .. autoclass:: anyio.Semaphore

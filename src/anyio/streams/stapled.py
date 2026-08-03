@@ -65,7 +65,7 @@ class StapledByteStream(ByteStream):
 
 
 @dataclass(eq=False)
-class StapledObjectStream(Generic[T_Item], ObjectStream[T_Item]):
+class StapledObjectStream(ObjectStream[T_Item], Generic[T_Item]):
     """
     Combines two object streams into a single, bidirectional object stream.
 
@@ -85,6 +85,16 @@ class StapledObjectStream(Generic[T_Item], ObjectStream[T_Item]):
     async def send(self, item: T_Item) -> None:
         await self.send_stream.send(item)
 
+    def send_nowait(self, item: T_Item) -> None:
+        try:
+            send_nowait = self.send_stream.send_nowait  # type: ignore[attr-defined]
+        except AttributeError as exc:
+            raise NotImplementedError(
+                f"'send_nowait' method not implemented in {type(self.send_stream)}"
+            ) from exc
+
+        send_nowait(item)
+
     async def send_eof(self) -> None:
         await self.send_stream.aclose()
 
@@ -101,7 +111,7 @@ class StapledObjectStream(Generic[T_Item], ObjectStream[T_Item]):
 
 
 @dataclass(eq=False)
-class MultiListener(Generic[T_Stream], Listener[T_Stream]):
+class MultiListener(Listener[T_Stream], Generic[T_Stream]):
     """
     Combines multiple listeners into one, serving connections from all of them at once.
 
