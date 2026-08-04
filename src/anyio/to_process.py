@@ -119,7 +119,7 @@ async def run_sync(  # type: ignore[return]
         # find one that hasn't exited yet
         process: Process
         while idle_workers:
-            process, idle_since = idle_workers.pop()
+            process, _idle_since = idle_workers.pop()
             if process.returncode is None:
                 stdin = cast(ByteSendStream, process.stdin)
                 buffered = BufferedByteReceiveStream(
@@ -134,7 +134,7 @@ async def run_sync(  # type: ignore[return]
                     if now - idle_workers[0][1] < WORKER_MAX_IDLE_TIME:
                         break
 
-                    process_to_kill, idle_since = idle_workers.popleft()
+                    process_to_kill, _idle_since = idle_workers.popleft()
                     process_to_kill.kill()
                     workers.remove(process_to_kill)
                     killed_processes.append(process_to_kill)

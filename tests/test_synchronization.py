@@ -39,11 +39,10 @@ class TestLock:
 
         results = []
         lock = Lock()
-        async with create_task_group() as tg:
-            async with lock:
-                tg.start_soon(task)
-                await wait_all_tasks_blocked()
-                results.append("1")
+        async with create_task_group() as tg, lock:
+            tg.start_soon(task)
+            await wait_all_tasks_blocked()
+            results.append("1")
 
         assert not lock.locked()
         assert results == ["1", "2"]
@@ -356,11 +355,10 @@ class TestCondition:
                 condition.notify_all()
 
         condition = Condition()
-        async with create_task_group() as tg:
-            async with condition:
-                assert condition.locked()
-                tg.start_soon(notifier)
-                await condition.wait()
+        async with create_task_group() as tg, condition:
+            assert condition.locked()
+            tg.start_soon(notifier)
+            await condition.wait()
 
     async def test_manual_acquire(self) -> None:
         async def notifier() -> None:
@@ -805,14 +803,13 @@ class TestCapacityLimiter:
         assert limiter.statistics().total_tokens == 1
         assert limiter.statistics().borrowed_tokens == 0
         assert limiter.statistics().tasks_waiting == 0
-        async with create_task_group() as tg:
-            async with limiter:
-                assert limiter.statistics().borrowed_tokens == 1
-                assert limiter.statistics().tasks_waiting == 0
-                for i in range(1, 3):
-                    tg.start_soon(waiter)
-                    await wait_all_tasks_blocked()
-                    assert limiter.statistics().tasks_waiting == i
+        async with create_task_group() as tg, limiter:
+            assert limiter.statistics().borrowed_tokens == 1
+            assert limiter.statistics().tasks_waiting == 0
+            for i in range(1, 3):
+                tg.start_soon(waiter)
+                await wait_all_tasks_blocked()
+                assert limiter.statistics().tasks_waiting == i
 
         assert limiter.statistics().tasks_waiting == 0
         assert limiter.statistics().borrowed_tokens == 0

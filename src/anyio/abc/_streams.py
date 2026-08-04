@@ -17,7 +17,7 @@ T_contra = TypeVar("T_contra", contravariant=True)
 
 
 class UnreliableObjectReceiveStream(
-    Generic[T_co], AsyncResource, TypedAttributeProvider
+    AsyncResource, TypedAttributeProvider, Generic[T_co]
 ):
     """
     An interface for receiving objects.
@@ -52,7 +52,7 @@ class UnreliableObjectReceiveStream(
 
 
 class UnreliableObjectSendStream(
-    Generic[T_contra], AsyncResource, TypedAttributeProvider
+    AsyncResource, TypedAttributeProvider, Generic[T_contra]
 ):
     """
     An interface for sending objects.
@@ -193,7 +193,7 @@ AnyByteSendStream: TypeAlias = ObjectSendStream[bytes] | ByteSendStream
 AnyByteStream: TypeAlias = ObjectStream[bytes] | ByteStream
 
 
-class Listener(Generic[T_co], AsyncResource, TypedAttributeProvider):
+class Listener(AsyncResource, TypedAttributeProvider, Generic[T_co]):
     """An interface for objects that let you accept incoming connections."""
 
     @abstractmethod
