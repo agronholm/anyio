@@ -40,7 +40,7 @@ def test_sourceless_install(tmp_path: Path) -> None:
     # Install this project into the virtualenv
     project_root = Path(__file__).parent.parent
     assert project_root.joinpath("src").is_dir()
-    subprocess.run([interpreter_path, "-m", "pip", "install", project_root])
+    subprocess.run([interpreter_path, "-m", "pip", "install", project_root], check=True)
 
     # Find out the path to the site-packages directory
     process = subprocess.run(
@@ -58,7 +58,9 @@ def test_sourceless_install(tmp_path: Path) -> None:
     # Compile .py -> .pyc and then delete the original source file in the installed dir
     anyio_package_path = site_packages_path / "anyio"
     assert anyio_package_path.is_dir()
-    subprocess.run([interpreter_path, "-m", "compileall", "-b", anyio_package_path])
+    subprocess.run(
+        [interpreter_path, "-m", "compileall", "-b", anyio_package_path], check=True
+    )
     for root, _dirs, files in os.walk(anyio_package_path):
         for file in files:
             path = Path(root) / file
