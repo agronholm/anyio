@@ -49,9 +49,9 @@ class Future(Generic[T]):
         "_exception",
         "_finished_event",
         "_name",
-        "_result",
+        "_return_value",
     )
-    _result: T
+    _return_value: T
 
     def __init__(self, *, name: str | None = None) -> None:
         self._finished_event = Event()
@@ -83,27 +83,6 @@ class Future(Generic[T]):
         """
         await self._finished_event.wait()
 
-    def set_result(self, value: T) -> None:
-        """
-        Send pending result for a `.Future` object
-
-        :raises FutureAlreadyFinished: if future was already given a result or exception.
-        :raises FutureCancelled: if future has been cancelled previously.
-        """
-        self._check_pending()
-        self._result = value
-        self._finished_event.set()
-
-    def set_exception(self, exception: BaseException) -> None:
-        """Send exception for a `.Future` object
-
-        :raises FutureAlreadyFinished: if future was already given a result or exception.
-        :raises FutureCancelled: if future has been cancelled previously.
-        """
-        self._check_pending()
-        self._exception = exception
-        self._finished_event.set()
-
     def cancel(self) -> None:
         """Cancels a pending `.Future` object
 
@@ -134,10 +113,21 @@ class Future(Generic[T]):
             case Future.Status.FAILED:
                 return self._exception
 
-    @property
-    def result(self) -> T:
+    @exception.setter
+    def exception(self, exception: BaseException) -> None:
+        """Send exception for a `.Future` object
+
+        :raises FutureAlreadyFinished: if future was already given a result or exception.
+        :raises FutureCancelled: if future has been cancelled previously.
         """
-        The result value of the future.
+        self._check_pending()
+        self._exception = exception
+        self._finished_event.set()
+
+    @property
+    def return_value(self) -> T:
+        """
+        The return value of the future.
 
         :raises FutureNotFinished: if the future has not finished yet
         :raises FutureCancelled: if the future was cancelled
@@ -148,13 +138,25 @@ class Future(Generic[T]):
             case Future.Status.PENDING:
                 raise FutureNotFinished("the future has not finished yet")
             case Future.Status.FINISHED:
-                return self._result
+                return self._return_value
             case Future.Status.CANCELLED:
                 raise FutureCancelled("the future was cancelled")
             case Future.Status.FAILED:
                 raise FutureFailed(
                     "the future raised an exception"
                 ) from self._exception
+
+    @return_value.setter
+    def return_value(self, value: T) -> None:
+        """
+        Send pending result for a `.Future` object
+
+        :raises FutureAlreadyFinished: if future was already given a result or exception.
+        :raises FutureCancelled: if future has been cancelled previously.
+        """
+        self._check_pending()
+        self._return_value = value
+        self._finished_event.set()
 
     @property
     def status(self) -> Future.Status:
@@ -180,7 +182,7 @@ class Future(Generic[T]):
 
     def __await__(self) -> Generator[Any, Any, T]:
         yield from self.wait().__await__()
-        return self.result
+        return self.return_value
 
     def __repr__(self) -> str:
         return (
