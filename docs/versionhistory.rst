@@ -5,6 +5,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fix race condition in WorkerThread and timing flakiness (`#1265
+  <https://github.com/agronholm/anyio/issues/1265>`_; PR by
+  @mcepl)
 - Added guidance for managing multiple memory object stream producers and consumers
   with cloned streams
   (`#330 <https://github.com/agronholm/anyio/issues/330>`_; PR by @nightcityblade)
