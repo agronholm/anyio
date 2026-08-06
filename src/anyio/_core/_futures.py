@@ -165,10 +165,10 @@ class Future(Generic[T]):
 
         Every future starts in the :attr:`~Future.Status.PENDING` state.
         If a future is cancelled while in this state, it will transition to the
-        :attr:`Future.Status.CANCELLING` state. When the task finishes, it will
+        :attr:`Future.Status.CANCELLED` state. When the task finishes, it will
         transition to one of the three final states (
         :attr:`Future.Status.FINISHED`, :attr:`Future.Status.FAILED`, or
-        :attr:`Future.Status.CANCELLING`) depending on the exception the task
+        :attr:`Future.Status.CANCELLED`) depending on the exception the task
         raised, if any. No other status transitions will happen.
         """
         if not self._finished_event.is_set():

@@ -75,40 +75,47 @@ class TestFuture:
         with pytest.raises(FutureCancelled, match=r"future was cancelled"):
             await future
 
-    async def test_future_not_finished(self) -> None:
+    async def test_return_value_when_future_not_finished(self) -> None:
         future: Future[int] = Future()
         with pytest.raises(FutureNotFinished, match=r"the future has not finished yet"):
             _ = future.return_value
 
+    async def test_exception_when_future_not_finished(self) -> None:
+        future: Future[int] = Future()
         with pytest.raises(FutureNotFinished, match=r"the future has not finished yet"):
             _ = future.exception
 
-    async def test_future_cancelling_already_set_return_value(self) -> None:
+    async def test_exception_when_future_failed(self) -> None:
+        future: Future[int] = Future()
+        exc = RuntimeError("foo")
+        future.exception = exc
+        assert future.exception is exc
+
+    async def test_exception_when_future_cancelled(self) -> None:
+        future: Future[int] = Future()
+        future.cancel()
+        with pytest.raises(FutureCancelled, match=r"the future was cancelled"):
+            _ = future.exception
+
+    async def test_cancelling_already_set_return_value(self) -> None:
         fut: Future[str] = Future()
         fut.return_value = "Item"
         fut.cancel()
         assert await fut == "Item"
 
-    async def test_future_cancelling_already_set_exception(self) -> None:
+    async def test_cancelling_already_set_exception(self) -> None:
         fut: Future[Any] = Future()
         fut.exception = RuntimeError("Failed")
         fut.cancel()
         with pytest.raises(FutureFailed, match=r"future raised an exception"):
             await fut
 
-    async def test_future_cancelling_with_result(self) -> None:
+    async def test_cancelling_with_result(self) -> None:
         fut: Future[str] = Future()
         fut.cancel()
 
         with pytest.raises(FutureCancelled, match=r"future was cancelled"):
             fut.return_value = "Item"
-
-    async def test_future_cancelling_with_await(self) -> None:
-        fut: Future[str] = Future()
-        fut.cancel()
-
-        with pytest.raises(FutureCancelled, match=r"future was cancelled"):
-            await fut
 
     async def test_future_with_repr(self) -> None:
         repr_str = repr(Future(name="name"))
