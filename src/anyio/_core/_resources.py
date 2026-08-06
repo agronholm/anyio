@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
+from ..abc import AsyncResource  # noqa: TC001
 from ._tasks import CancelScope
-
-if TYPE_CHECKING:
-    from ..abc import AsyncResource
 
 
 async def aclose_forcefully(resource: AsyncResource) -> None:
