@@ -1283,7 +1283,7 @@ class StreamProtocol(asyncio.Protocol):
 
 
 class DatagramProtocol(asyncio.DatagramProtocol):
-    read_queue: deque[tuple[bytes, IPSockAddrType]]
+    read_queue: deque[tuple[bytes, IPSockAddrType] | Exception]
     read_event: asyncio.Event
     write_event: asyncio.Event
     closed_event: asyncio.Event
@@ -1308,12 +1308,27 @@ class DatagramProtocol(asyncio.DatagramProtocol):
 
     def error_received(self, exc: Exception) -> None:
         self.exception = exc
+        self.read_queue.append(exc)
+        self.read_event.set()
 
     def pause_writing(self) -> None:
         self.write_event.clear()
 
     def resume_writing(self) -> None:
         self.write_event.set()
+
+
+def _rearm_proactor_udp_transport(transport: asyncio.DatagramTransport) -> None:
+    # CPython's Proactor transport leaves _read_fut unset after a receive error.
+    transport_type = type(transport)
+    if (
+        sys.platform == "win32"
+        and transport_type.__module__ == "asyncio.proactor_events"
+        and transport_type.__name__ == "_ProactorDatagramTransport"
+        and not transport.is_closing()
+        and getattr(transport, "_read_fut", None) is None
+    ):
+        cast(Any, transport)._loop_reading()
 
 
 class SocketStream(abc.SocketStream):
@@ -1697,12 +1712,18 @@ class UDPSocket(abc.UDPSocket):
                 await self._protocol.read_event.wait()
 
             try:
-                return self._protocol.read_queue.popleft()
+                packet = self._protocol.read_queue.popleft()
             except IndexError:
                 if self._closed:
                     raise ClosedResourceError from None
                 else:
                     raise BrokenResourceError from None
+
+            if isinstance(packet, Exception):
+                _rearm_proactor_udp_transport(self._transport)
+                raise BrokenResourceError from packet
+
+            return packet
 
     async def send(self, item: UDPPacketType) -> None:
         with self._send_guard:
@@ -1753,6 +1774,10 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
                     raise ClosedResourceError from None
                 else:
                     raise BrokenResourceError from None
+
+            if isinstance(packet, Exception):
+                _rearm_proactor_udp_transport(self._transport)
+                raise BrokenResourceError from packet
 
             return packet[0]
 
