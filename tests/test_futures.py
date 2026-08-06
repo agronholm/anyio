@@ -164,6 +164,5 @@ async def test_cancelled_waiter_allows_other() -> None:
             await th1
 
         f.return_value = "Finished"
-
-            tg.cancel_scope.deadline += 1.0
-            assert await th2 == "Finished"
+        tg.cancel_scope.deadline += 1.0
+        assert await th2 == "Finished"
