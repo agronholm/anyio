@@ -29,6 +29,10 @@ if TYPE_CHECKING or not install_lazy_importer():
     from ._core._exceptions import ConnectionFailed as ConnectionFailed
     from ._core._exceptions import DelimiterNotFound as DelimiterNotFound
     from ._core._exceptions import EndOfStream as EndOfStream
+    from ._core._exceptions import FutureAlreadyFinished as FutureAlreadyFinished
+    from ._core._exceptions import FutureCancelled as FutureCancelled
+    from ._core._exceptions import FutureFailed as FutureFailed
+    from ._core._exceptions import FutureNotFinished as FutureNotFinished
     from ._core._exceptions import IncompleteRead as IncompleteRead
     from ._core._exceptions import NoEventLoopError as NoEventLoopError
     from ._core._exceptions import RunFinishedError as RunFinishedError
@@ -43,6 +47,7 @@ if TYPE_CHECKING or not install_lazy_importer():
     from ._core._fileio import Path as Path
     from ._core._fileio import open_file as open_file
     from ._core._fileio import wrap_file as wrap_file
+    from ._core._futures import Future as Future
     from ._core._resources import aclose_forcefully as aclose_forcefully
     from ._core._signals import open_signal_receiver as open_signal_receiver
     from ._core._sockets import TCPConnectable as TCPConnectable
