@@ -9,7 +9,7 @@ from concurrent import futures
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
 from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
-from typing import Any, Literal, NoReturn, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, NoReturn, TypeVar
 
 import pytest
 from pytest import LogCaptureFixture
@@ -30,11 +30,13 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
-from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
 from anyio.lowlevel import EventLoopToken, checkpoint, current_token
 
 from .conftest import asyncio_params, return_non_coro_awaitable
+
+if TYPE_CHECKING:
+    from anyio.abc import TaskStatus
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
