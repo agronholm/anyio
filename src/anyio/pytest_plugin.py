@@ -339,9 +339,9 @@ class FreePortFactory:
         while True:
             port = 0
             with ExitStack() as stack:
-                for family in families:
-                    sock = stack.enter_context(socket.socket(family, self._kind))
-                    addr = "::1" if family == socket.AF_INET6 else "127.0.0.1"
+                for fam in families:
+                    sock = stack.enter_context(socket.socket(fam, self._kind))
+                    addr = "::1" if fam == socket.AF_INET6 else "127.0.0.1"
                     try:
                         sock.bind((addr, port))
                     except OSError:

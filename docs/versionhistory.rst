@@ -7,6 +7,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added ``amap``, ``gather``, and ``as_completed`` utility functions to simplify common
   patterns (`#1173 <https://github.com/agronholm/anyio/pull/1173>`_; PR by @Graeme22)
+- Added the ``anyio.Future`` synchronization primitive which behaves similar to
+  ``asyncio.Future``, allowing tasks to wait for a value (or exception) from another
+  task (`#1146 <https://github.com/agronholm/anyio/pull/1146>`_; PR by @Vizonex)
+- Added guidance for managing multiple memory object stream producers and consumers
+  with cloned streams
+  (`#330 <https://github.com/agronholm/anyio/issues/330>`_; PR by @nightcityblade)
 - Added ``StapledObjectStream.send_nowait()`` that delegates to the underlying
   ``ObjectSendStream``, if it implements it
   (`#1241 <https://github.com/agronholm/anyio/pull/1241>`_; PR by @davidbrochart)

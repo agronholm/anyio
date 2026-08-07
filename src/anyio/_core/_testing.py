@@ -17,7 +17,7 @@ class TaskInfo:
     :ivar ~collections.abc.Coroutine coro: the coroutine object of the task
     """
 
-    __slots__ = "_name", "id", "parent_id", "name", "coro"
+    __slots__ = "_name", "coro", "id", "name", "parent_id"
 
     def __init__(
         self,
