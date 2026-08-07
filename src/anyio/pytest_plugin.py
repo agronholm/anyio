@@ -165,7 +165,7 @@ def pytest_pycollect_makeitem(
     collector: pytest.Module | pytest.Class, name: str, obj: object
 ) -> None:
     if collector.istestfunction(obj, name):
-        inner_func = obj.hypothesis.inner_test if hasattr(obj, "hypothesis") else obj
+        inner_func = obj.hypothesis.inner_test if hasattr(obj, "hypothesis") else obj  # type: ignore[attr-defined]
         if iscoroutinefunction(inner_func):
             anyio_auto_mode = collector.config.getini("anyio_mode") == "auto"
             marker = collector.get_closest_marker("anyio")
@@ -202,12 +202,12 @@ def pytest_collection_finish(session: pytest.Session) -> None:
                         marks=[],
                     )
                 else:  # pytest 7.x
-                    callspec = CallSpec2(  # type: ignore[call-arg]
-                        funcargs={},
+                    callspec = CallSpec2(
+                        funcargs={},  # type: ignore[call-arg]
                         params={"anyio_backend": backend},
                         indices={"anyio_backend": param_index},
-                        arg2scope={"anyio_backend": Scope.Module},
-                        idlist=[backend],
+                        arg2scope={"anyio_backend": Scope.Module},  # type: ignore[call-arg]
+                        idlist=[backend],  # type: ignore[call-arg]
                         marks=[],
                     )
 
@@ -223,7 +223,7 @@ def pytest_collection_finish(session: pytest.Session) -> None:
                     name2fixturedefs=fi.name2fixturedefs,
                 )
                 new_item = pytest.Function.from_parent(
-                    item.parent,
+                    item.parent,  # type: ignore[arg-type]
                     name=f"{item.originalname}[{backend}]",
                     callspec=callspec,
                     callobj=item.obj,
