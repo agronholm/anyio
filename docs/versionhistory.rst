@@ -8,9 +8,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added the ``anyio.Future`` synchronization primitive which behaves similar to
   ``asyncio.Future``, allowing tasks to wait for a value (or exception) from another
   task (`#1146 <https://github.com/agronholm/anyio/pull/1146>`_; PR by @Vizonex)
-- Fixed cancellation delivery on asyncio scheduling an unnecessary retry for tasks
-  that already had native cancellation pending
-  (`#1258 <https://github.com/agronholm/anyio/issues/1258>`_; PR by @subotac)
 - Added guidance for managing multiple memory object stream producers and consumers
   with cloned streams
   (`#330 <https://github.com/agronholm/anyio/issues/330>`_; PR by @nightcityblade)
@@ -48,6 +45,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``Path(".txt")``) instead of raising ``ValueError`` when given an empty stem on a
   path with a non-empty suffix, unlike :meth:`pathlib.PurePath.with_stem`
   (`#1200 <https://github.com/agronholm/anyio/pull/1200>`_; PR by @Sanjays2402)
+- Fixed cancellation delivery on asyncio scheduling an unnecessary retry for tasks
+  that already had native cancellation pending
+  (`#1258 <https://github.com/agronholm/anyio/issues/1258>`_; PR by @subotac)
 
 **4.14.2**
 
