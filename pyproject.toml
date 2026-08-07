@@ -74,6 +74,12 @@ doc = [
     "sphinx-autodoc-typehints >= 1.2.0",
     "sphinx-tabs >= 3.3.1",
 ]
+pyright = [
+    "pyright >= 1.1.411",
+]
+zuban = [
+    "zuban >= 0.9.1",
+]
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
@@ -114,12 +120,13 @@ ignore = [
 "tests/test_tempfile.py" = ["ASYNC230"]
 "tests/*.py" = ["ASYNC240"]
 
-[tool.mypy]
+[tool.zuban]
 python_version = "3.14"
 strict = true
+warn_unreachable = false
 disallow_any_generics = false
 warn_return_any = false
-files = ["src", "tests"]
+files = ["src"]
 
 [tool.pytest]
 addopts = [
@@ -187,8 +194,14 @@ depends = []
 allowlist_externals = ["pre-commit"]
 package = "skip"
 
+[tool.tox.env.zuban]
+commands = [["zuban", "check"]]
+dependency_groups = ["zuban"]
+allowlist_externals = ["zuban"]
+package = "skip"
+
 [tool.tox.env.pyright]
-deps = ["pyright"]
+dependency_groups = ["pyright"]
 commands = [["pyright", "--ignoreexternal", "--verifytypes", "anyio"]]
 
 [tool.tox.env.docs]

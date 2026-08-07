@@ -35,15 +35,6 @@ repos:
         args: [--fix, --show-fixes]
       - id: ruff-format
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v2.3.0
-    hooks:
-      - id: mypy
-        pass_filenames: false
-        additional_dependencies:
-          - pytest
-          - trio >= 0.26
-
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0
     hooks:
