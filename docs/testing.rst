@@ -59,7 +59,7 @@ Specifying the backends to run on
 ---------------------------------
 
 The ``anyio_backend`` fixture determines the backends and their options that tests and
-fixtures are run with. The AnyIO pytest plugin comes with a function scoped fixture with
+fixtures are run with. The AnyIO pytest plugin comes with a module scoped fixture with
 this name which runs everything on all supported backends.
 
 If you change the backends/options for the entire project, then put something like this
@@ -143,16 +143,16 @@ For ``autouse=True`` fixtures, you may need to use the other approach::
 Using async fixtures with higher scopes
 ---------------------------------------
 
-For async fixtures with scopes other than ``function``, you will need to define your own
-``anyio_backend`` fixture because the default ``anyio_backend`` fixture is function
+For async fixtures with scopes other than ``module``, you will need to define your own
+``anyio_backend`` fixture because the default ``anyio_backend`` fixture is module
 scoped::
 
-    @pytest.fixture(scope='module')
+    @pytest.fixture(scope='session')
     def anyio_backend():
         return 'asyncio'
 
 
-    @pytest.fixture(scope='module')
+    @pytest.fixture(scope='session')
     async def server(anyio_backend):
         server = await setup_server()
         yield
