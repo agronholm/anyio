@@ -58,6 +58,7 @@ from anyio import (
     getnameinfo,
     move_on_after,
     notify_closing,
+    sleep_forever,
     wait_all_tasks_blocked,
     wait_readable,
     wait_socket_readable,
@@ -1446,6 +1447,33 @@ class TestUNIXStream:
                 tg.start_soon(interrupt)
                 with pytest.raises(ClosedResourceError):
                     await stream.receive()
+
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_close_after_cancelled_receive(self, socket_path: Path) -> None:
+        async def handler(stream: SocketStream) -> None:
+            async def receive() -> None:
+                # Closing may wake the receive before cancellation reaches it.
+                with suppress(ClosedResourceError):
+                    await stream.receive()
+
+            async with create_task_group() as tg:
+                tg.start_soon(receive)
+                try:
+                    await sleep_forever()
+                finally:
+                    await stream.aclose()
+
+        client = None
+        try:
+            async with await create_unix_listener(socket_path) as listener:
+                async with create_task_group() as tg:
+                    tg.start_soon(listener.serve, handler)
+                    client = await connect_unix(socket_path)
+                    await wait_all_tasks_blocked()
+                    tg.cancel_scope.cancel()
+        finally:
+            if client is not None:
+                await client.aclose()
 
     async def test_receive_after_close(
         self, server_sock: socket.socket, socket_path: Path
