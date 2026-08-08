@@ -24,7 +24,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``TaskGroup.start`` typically includes the module name.)
   (`#1234 <https://github.com/agronholm/anyio/pull/1234>`_; PR by @gschaffner)
 - Fixed ``UNIXSocketStream.aclose()`` raising ``asyncio.InvalidStateError`` when a
-  concurrent I/O operation had just been cancelled on the asyncio backend
+  concurrent receive or send operation had just been cancelled on the asyncio backend
   (`#1267 <https://github.com/agronholm/anyio/issues/1267>`_; PR by @alloutflo)
 - Fixed free-threading compatibility issues arising from the fact that on Python 3.14
   free-threading builds, newly created threads inherit the current context by default,
