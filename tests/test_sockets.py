@@ -1449,15 +1449,22 @@ class TestUNIXStream:
                     await stream.receive()
 
     @pytest.mark.parametrize("anyio_backend", asyncio_params)
-    async def test_close_after_cancelled_receive(self, socket_path: Path) -> None:
+    @pytest.mark.parametrize("operation", ["receive", "send"])
+    async def test_close_after_cancelled_io(
+        self, socket_path: Path, operation: Literal["receive", "send"]
+    ) -> None:
         async def handler(stream: SocketStream) -> None:
-            async def receive() -> None:
-                # Closing may wake the receive before cancellation reaches it.
+            async def operate() -> None:
+                # Closing may wake the operation before cancellation reaches it.
                 with suppress(ClosedResourceError):
-                    await stream.receive()
+                    if operation == "receive":
+                        await stream.receive()
+                    else:
+                        while True:
+                            await stream.send(b"\0" * 4096)
 
             async with create_task_group() as tg:
-                tg.start_soon(receive)
+                tg.start_soon(operate)
                 try:
                     await sleep_forever()
                 finally:
