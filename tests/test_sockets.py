@@ -1448,7 +1448,6 @@ class TestUNIXStream:
                 with pytest.raises(ClosedResourceError):
                     await stream.receive()
 
-    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     @pytest.mark.parametrize("operation", ["receive", "send"])
     async def test_close_after_cancelled_io(
         self, socket_path: Path, operation: Literal["receive", "send"]
