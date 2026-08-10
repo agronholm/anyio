@@ -5,11 +5,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
-- Fixed a race condition where a worker thread on the asyncio backend would crash with
-  a ``RuntimeError`` if the event loop was closed after the worker had checked whether
-  the loop was closed but before it could deliver the result of
-  ``to_thread.run_sync()``
-  (`#1245 <https://github.com/agronholm/anyio/pull/1245>`_; PR by @shleder)
+- Added the ``anyio.Future`` synchronization primitive which behaves similar to
+  ``asyncio.Future``, allowing tasks to wait for a value (or exception) from another
+  task (`#1146 <https://github.com/agronholm/anyio/pull/1146>`_; PR by @Vizonex)
+- Added guidance for managing multiple memory object stream producers and consumers
+  with cloned streams
+  (`#330 <https://github.com/agronholm/anyio/issues/330>`_; PR by @nightcityblade)
 - Added ``StapledObjectStream.send_nowait()`` that delegates to the underlying
   ``ObjectSendStream``, if it implements it
   (`#1241 <https://github.com/agronholm/anyio/pull/1241>`_; PR by @davidbrochart)
@@ -44,6 +45,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``Path(".txt")``) instead of raising ``ValueError`` when given an empty stem on a
   path with a non-empty suffix, unlike :meth:`pathlib.PurePath.with_stem`
   (`#1200 <https://github.com/agronholm/anyio/pull/1200>`_; PR by @Sanjays2402)
+- Fixed a race condition where a worker thread on the asyncio backend would crash with
+  a ``RuntimeError`` if the event loop was closed after the worker had checked whether
+  the loop was closed but before it could deliver the result of
+  ``to_thread.run_sync()``
+  (`#1245 <https://github.com/agronholm/anyio/pull/1245>`_; PR by @shleder)
 
 **4.14.2**
 
