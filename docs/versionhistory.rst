@@ -45,6 +45,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``Path(".txt")``) instead of raising ``ValueError`` when given an empty stem on a
   path with a non-empty suffix, unlike :meth:`pathlib.PurePath.with_stem`
   (`#1200 <https://github.com/agronholm/anyio/pull/1200>`_; PR by @Sanjays2402)
+- Fixed a race condition where a worker thread on the asyncio backend would crash with
+  a ``RuntimeError`` if the event loop was closed after the worker had checked whether
+  the loop was closed but before it could deliver the result of
+  ``to_thread.run_sync()``
+  (`#1245 <https://github.com/agronholm/anyio/pull/1245>`_; PR by @shleder)
 
 **4.14.2**
 

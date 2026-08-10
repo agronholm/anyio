@@ -1041,10 +1041,13 @@ class WorkerThread(Thread):
                     finally:
                         del threadlocals.current_cancel_scope
 
-                    if not self.loop.is_closed():
+                    try:
                         self.loop.call_soon_threadsafe(
                             self._report_result, future, result, exception
                         )
+                    except RuntimeError:
+                        if not self.loop.is_closed():
+                            raise
 
                     del result, exception
 
