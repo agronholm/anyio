@@ -202,12 +202,12 @@ def pytest_collection_finish(session: pytest.Session) -> None:
                         marks=[],
                     )
                 else:  # pytest 7.x
-                    callspec = CallSpec2(  # type: ignore[call-arg]
-                        funcargs={},
+                    callspec = CallSpec2(
+                        funcargs={},  # type: ignore[call-arg]
                         params={"anyio_backend": backend},
                         indices={"anyio_backend": param_index},
-                        arg2scope={"anyio_backend": Scope.Module},
-                        idlist=[backend],
+                        arg2scope={"anyio_backend": Scope.Module},  # type: ignore[call-arg]
+                        idlist=[backend],  # type: ignore[call-arg]
                         marks=[],
                     )
 
