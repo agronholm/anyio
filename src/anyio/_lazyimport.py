@@ -22,7 +22,7 @@ def install_lazy_importer() -> bool:
     module = sys.modules[module_name]
     lazy_map, deprecated_aliases = _build_lazy_map(module)
     names = sorted(lazy_map)
-    if not lazy_map:
+    if not lazy_map and not deprecated_aliases:
         return False
 
     def __getattr__(name: str) -> Any:
