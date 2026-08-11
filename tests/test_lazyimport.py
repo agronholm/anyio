@@ -127,6 +127,11 @@ def test_package_names() -> None:
     assert anyio.abc.UDPSocket.__module__ == "anyio.abc"
 
 
+def test_dir() -> None:
+    assert "Event" in dir(anyio)
+    assert "AsyncBackend" in dir(anyio.abc)
+
+
 def test_deprecations() -> None:
     for old_name, new_name in DEPRECATIONS.items():
         module_name, attrname = old_name.rsplit(".", 1)

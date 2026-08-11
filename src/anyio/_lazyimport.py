@@ -21,6 +21,7 @@ def install_lazy_importer() -> bool:
     module_prefix = module_name + "."
     module = sys.modules[module_name]
     lazy_map, deprecated_aliases = _build_lazy_map(module)
+    names = sorted(lazy_map)
     if not lazy_map:
         return False
 
@@ -46,6 +47,10 @@ def install_lazy_importer() -> bool:
         module.__dict__[name] = value
         return value
 
+    def __dir__() -> list[str]:
+        return names
+
+    module.__dict__["__dir__"] = __dir__
     module.__dict__["__getattr__"] = __getattr__
     del module.__dict__["TYPE_CHECKING"]
     del module.__dict__["install_lazy_importer"]
