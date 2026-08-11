@@ -41,7 +41,10 @@ def install_lazy_importer() -> bool:
         value = getattr(imported, target_attr)
 
         # patch the module name to match
-        if getattr(value, "__module__", "").startswith(module_prefix):
+        if (
+            getattr(value, "__module__", "").startswith(module_prefix)
+            and name not in deprecated_aliases
+        ):
             value.__module__ = module_name
 
         module.__dict__[name] = value
@@ -55,6 +58,7 @@ def install_lazy_importer() -> bool:
     del module.__dict__["TYPE_CHECKING"]
     del module.__dict__["install_lazy_importer"]
     del module.__dict__["fix_package_names"]
+    module.__dict__.pop("set_deprecated_aliases", None)
     return True
 
 
@@ -72,7 +76,7 @@ def fix_package_names() -> None:
 
 def emit_deprecation_warning(module_name: str, name: str, target: str) -> None:
     warnings.warn(
-        f"{module_name}.{name} is deprecated, use {target} instead.",
+        f"The {module_name}.{name} alias is deprecated, use {target} instead.",
         DeprecationWarning,
         stacklevel=3,
     )
