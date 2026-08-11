@@ -93,7 +93,7 @@ def test_sourceless_install(tmp_path: Path) -> None:
 
         if records:
             warning = records[0].message
-            replacement = str(warning).split()[4]
+            replacement = str(warning).split()[-2]
             deprecations[item] = replacement
 
     json.dump(result, sys.stdout)
