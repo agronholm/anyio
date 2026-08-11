@@ -42,7 +42,7 @@ from ._core._synchronization import Lock
 from ._core._tasks import CancelScope
 from .lowlevel import cancel_shielded_checkpoint, checkpoint, checkpoint_if_cancelled
 
-T = TypeVar("T")
+T = TypeVar("T", bound=object)
 R = TypeVar("R")
 _tee_end = object()
 
@@ -141,7 +141,7 @@ class _TeeAsyncIterator(AsyncIterator[T]):
 
 
 async def _operator_add(x: T, y: T) -> T:
-    return operator.add(x, y)
+    return operator.add(x, y)  # type: ignore[arg-type, return-value]
 
 
 async def accumulate(
