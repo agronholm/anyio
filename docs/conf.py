@@ -31,6 +31,17 @@ autodoc_default_options = {"members": True, "show-inheritance": True}
 autodoc_mock_imports = ["_typeshed", "pytest", "_pytest"]
 todo_include_todos = False
 
+
+def fixup_module_name(module: str) -> str:
+    if module.startswith("anyio.abc._"):
+        return "anyio.abc"
+    elif module.startswith("anyio._"):
+        return "anyio"
+    else:
+        return module
+
+
+typehints_fixup_module_name = fixup_module_name
 html_theme = "sphinx_rtd_theme"
 htmlhelp_basename = "anyiodoc"
 
