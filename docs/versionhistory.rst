@@ -23,7 +23,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   module name. (The default name for a task spawned with ``TaskGroup.start_soon`` or
   ``TaskGroup.start`` typically includes the module name.)
   (`#1234 <https://github.com/agronholm/anyio/pull/1234>`_; PR by @gschaffner)
-- Changed the ``anyio`` and ``anyio.abc`` modules to lazily (much like :pep:`690`)
+- Changed the ``anyio`` and ``anyio.abc`` modules to lazily (much like :pep:`810`)
   import the necessary submodules. This is done by parsing the AST of the module and
   building a lookup table from the ``if TYPE_CHECKING:`` block. A fallback mode has been
   provided for installations where the source code is unavailable (e.g. PyInstaller).
