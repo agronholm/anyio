@@ -30,6 +30,7 @@ pygments_style = "sphinx"
 autodoc_default_options = {"members": True, "show-inheritance": True}
 autodoc_mock_imports = ["_typeshed", "pytest", "_pytest"]
 todo_include_todos = False
+suppress_warnings = ["config.cache"]
 
 
 def fixup_module_name(module: str) -> str:
