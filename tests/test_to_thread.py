@@ -19,7 +19,6 @@ from anyio import (
     Event,
     create_task_group,
     from_thread,
-    sleep,
     to_thread,
     wait_all_tasks_blocked,
 )
@@ -67,6 +66,9 @@ async def test_run_in_custom_limiter() -> None:
         nonlocal max_active_threads
         active_threads.add(threading.current_thread())
         max_active_threads = max(max_active_threads, len(active_threads))
+        if len(active_threads) == 3:
+            from_thread.run_sync(threads_started.set)
+
         event.wait(1)
         active_threads.remove(threading.current_thread())
 
@@ -74,13 +76,14 @@ async def test_run_in_custom_limiter() -> None:
         await to_thread.run_sync(thread_worker, limiter=limiter)
 
     event = threading.Event()
+    threads_started = Event()
     limiter = CapacityLimiter(3)
     active_threads: set[threading.Thread] = set()
     async with create_task_group() as tg:
         for _ in range(4):
             tg.start_soon(task_worker)
 
-        await sleep(0.1)
+        await threads_started.wait()
         assert len(active_threads) == 3
         assert limiter.borrowed_tokens == 3
         event.set()
