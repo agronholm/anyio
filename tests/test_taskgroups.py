@@ -11,6 +11,7 @@ from asyncio import CancelledError
 from collections.abc import AsyncGenerator, Coroutine, Generator
 from contextlib import aclosing
 from contextvars import ContextVar, copy_context
+from inspect import CORO_CLOSED, getcoroutinestate
 from typing import Any, NoReturn, cast
 from unittest import mock
 
@@ -178,9 +179,9 @@ async def test_start_soon_closes_coroutines_when_create_task_fails(
                     pytest.fail("TaskGroup.start_soon() did not propagate the error")
 
                 assert caller_coro is not None
-                assert caller_coro.cr_frame is None
+                assert getcoroutinestate(caller_coro) is CORO_CLOSED
                 assert wrapper_coro is not None
-                assert wrapper_coro.cr_frame is None
+                assert getcoroutinestate(wrapper_coro) is CORO_CLOSED
 
             caller_coro = wrapper_coro = None
             gc.collect()
