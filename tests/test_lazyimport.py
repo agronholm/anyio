@@ -22,6 +22,7 @@ DEPRECATIONS = {
 }
 
 
+@pytest.mark.timeout(60)
 def test_sourceless_install(tmp_path: Path) -> None:
     """
     Test how importing the anyio and anyio.abc packages works in a sourceless (.py files
