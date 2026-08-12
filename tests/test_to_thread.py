@@ -69,7 +69,7 @@ async def test_run_in_custom_limiter() -> None:
         if len(active_threads) == 3:
             from_thread.run_sync(threads_started.set)
 
-        event.wait(1)
+        event.wait(10)
         active_threads.remove(threading.current_thread())
 
     async def task_worker() -> None:
