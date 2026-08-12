@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 __all__ = (
+    "Chain",
     "accumulate",
     "batched",
-    "Chain",
     "combinations",
     "combinations_with_replacement",
     "compress",
@@ -18,8 +18,8 @@ __all__ = (
     "product",
     "repeat",
     "starmap",
-    "tee",
     "takewhile",
+    "tee",
     "zip_longest",
 )
 

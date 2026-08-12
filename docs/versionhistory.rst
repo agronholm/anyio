@@ -5,6 +5,15 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added the ``anyio.Future`` synchronization primitive which behaves similar to
+  ``asyncio.Future``, allowing tasks to wait for a value (or exception) from another
+  task (`#1146 <https://github.com/agronholm/anyio/pull/1146>`_; PR by @Vizonex)
+- Added guidance for managing multiple memory object stream producers and consumers
+  with cloned streams
+  (`#330 <https://github.com/agronholm/anyio/issues/330>`_; PR by @nightcityblade)
+- Added ``StapledObjectStream.send_nowait()`` that delegates to the underlying
+  ``ObjectSendStream``, if it implements it
+  (`#1241 <https://github.com/agronholm/anyio/pull/1241>`_; PR by @davidbrochart)
 - Added the ``move_on_at()`` and ``fail_at()`` functions to complement
   ``move_on_after()`` and ``fail_after()``
 - Changed the default name for a task spawned with ``TaskGroup.create_task(func())`` to
@@ -26,6 +35,23 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Added a ``reason`` parameter to ``fail_after`` (and the new ``fail_at``) allowing for
   added exception context when raising ``TimeoutError``
   (`#1227 <https://github.com/agronholm/anyio/pull/1227>`_; PR by @Graeme22)
+- Fixed the default ``TaskHandle.name`` missing part of the task name for tasks started
+  with ``TaskGroup.start`` on Trio (`#1231
+  <https://github.com/agronholm/anyio/issues/1231>`_; PR by @gschaffner)
+- Fixed ``anyio.run`` leaking, or at least, delaying collection of loop and root_task
+  due to the root task being cached in a ``RunVar``.
+  (`#1203 <https://github.com/agronholm/anyio/issues/1203>`_; PR by @tapetersen)
+- Fixed ``anyio.Path.with_stem()`` silently producing a wrong path (e.g.
+  ``Path(".txt")``) instead of raising ``ValueError`` when given an empty stem on a
+  path with a non-empty suffix, unlike :meth:`pathlib.PurePath.with_stem`
+  (`#1200 <https://github.com/agronholm/anyio/pull/1200>`_; PR by @Sanjays2402)
+- Fixed ``UNIXSocketStream.aclose()`` raising ``asyncio.InvalidStateError`` when a
+  concurrent receive or send operation had just been cancelled on the asyncio backend
+  (`#1267 <https://github.com/agronholm/anyio/issues/1267>`_; PR by @alloutflo)
+- Fixed the pytest plugin importing the deprecated ``_pytest.python.CallSpec2`` alias,
+  which triggers ``PytestRemovedIn10Warning`` on ``pytest>=9.2`` and crashes pytest at
+  startup when ``filterwarnings = error`` is configured
+  (`#1271 <https://github.com/agronholm/anyio/issues/1271>`_; PR by @matthewfeickert)
 
 **4.14.2**
 

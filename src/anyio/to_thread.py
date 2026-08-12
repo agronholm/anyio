@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 __all__ = (
-    "run_sync",
     "current_default_thread_limiter",
+    "run_sync",
 )
 
 import sys

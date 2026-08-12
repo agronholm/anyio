@@ -22,13 +22,13 @@ else:
     from typing_extensions import TypeVar
 
 if sys.version_info >= (3, 11):
-    from typing import Never, TypeVarTuple
+    from typing import Never, Self, TypeVarTuple
 else:
-    from typing_extensions import Never, TypeVarTuple
+    from typing_extensions import Never, Self, TypeVarTuple
 
 T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
-T_startval = TypeVar("T_startval", covariant=True, default=Never)
+T_startval_co = TypeVar("T_startval_co", covariant=True, default=Never)
 PosArgsT = TypeVarTuple("PosArgsT")
 
 
@@ -112,7 +112,7 @@ class CancelScope:
     def shield(self, value: bool) -> None:
         raise NotImplementedError
 
-    def __enter__(self) -> CancelScope:
+    def __enter__(self) -> Self:
         raise NotImplementedError
 
     def __exit__(
@@ -250,7 +250,7 @@ def create_task_group() -> TaskGroup:
 
 
 @final
-class TaskHandle(Generic[T_co, T_startval]):
+class TaskHandle(Generic[T_co, T_startval_co]):
     """
     Returned from the task-spawning methods of :class:`TaskGroup`. Can be awaited on to
     get the return value of the task (or the raised exception). If the task was
@@ -289,17 +289,17 @@ class TaskHandle(Generic[T_co, T_startval]):
 
     __slots__ = (
         "__weakref__",
-        "_coro",
-        "_name",
         "_cancel_scope",
+        "_coro",
+        "_exception",
         "_finished_event",
+        "_name",
         "_return_value",
         "_start_value",
-        "_exception",
     )
 
     _return_value: T_co
-    _start_value: T_startval
+    _start_value: T_startval_co
 
     def __init__(self, coro: Coroutine[Any, Any, T_co], name: object) -> None:
         from ._synchronization import Event
@@ -427,7 +427,7 @@ class TaskHandle(Generic[T_co, T_startval]):
                 raise TaskFailed("the task raised an exception") from self._exception
 
     @property
-    def start_value(self) -> T_startval:
+    def start_value(self) -> T_startval_co:
         """
         The value passed to :meth:`task_status.started() <.abc.TaskStatus.started>`,
 

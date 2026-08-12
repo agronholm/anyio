@@ -194,6 +194,7 @@ Synchronization
 ---------------
 
 .. autoclass:: anyio.Event
+.. autoclass:: anyio.Future
 .. autoclass:: anyio.Lock
 .. autoclass:: anyio.Condition
 .. autoclass:: anyio.Semaphore
