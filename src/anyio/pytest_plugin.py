@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 from _pytest.fixtures import FuncFixtureInfo, SubRequest
 from _pytest.outcomes import Exit
-from _pytest.python import CallSpec2
 from _pytest.scope import Scope
 
 from . import get_available_backends
@@ -28,6 +27,17 @@ if TYPE_CHECKING:
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
+
+if TYPE_CHECKING:
+    # pytest >= 9.2 keeps CallSpec2 as a TYPE_CHECKING-only alias of CallSpec
+    from _pytest.python import CallSpec2 as CallSpec
+else:
+    try:
+        # c.f. https://github.com/pytest-dev/pytest/pull/14742
+        # pytest >= 9.2
+        from _pytest.python import CallSpec
+    except ImportError:
+        from _pytest.python import CallSpec2 as CallSpec
 
 _current_runner: TestRunner | None = None
 _runner_stack: ExitStack | None = None
@@ -190,13 +200,13 @@ def pytest_collection_finish(session: pytest.Session) -> None:
         ):
             new_items = []
             try:
-                cs_fields = {f.name for f in dataclasses.fields(CallSpec2)}
+                cs_fields = {f.name for f in dataclasses.fields(CallSpec)}
             except TypeError:
                 cs_fields = set()
 
             for param_index, backend in enumerate(get_available_backends()):
                 if "_arg2scope" in cs_fields:  # pytest >= 8
-                    callspec = CallSpec2(
+                    callspec = CallSpec(
                         params={"anyio_backend": backend},
                         indices={"anyio_backend": param_index},
                         _arg2scope={"anyio_backend": Scope.Module},
@@ -204,7 +214,7 @@ def pytest_collection_finish(session: pytest.Session) -> None:
                         marks=[],
                     )
                 else:  # pytest 7.x
-                    callspec = CallSpec2(  # type: ignore[call-arg]
+                    callspec = CallSpec(  # type: ignore[call-arg]
                         funcargs={},
                         params={"anyio_backend": backend},
                         indices={"anyio_backend": param_index},

@@ -825,3 +825,27 @@ def test_func_as_parametrize_param_name(testdir: Pytester) -> None:
 
     result = testdir.runpytest(*pytest_args)
     result.assert_outcomes(passed=len(get_available_backends()))
+
+
+def test_plugin_loads_with_filterwarnings_error(testdir: Pytester) -> None:
+    """
+    Regression test for Issue #1271: importing the plugin must not touch the
+    deprecated ``_pytest.python.CallSpec2`` alias, which crashes pytest at startup
+    on pytest >= 9.2 when ``filterwarnings = error`` is configured, as pytest applies
+    the ini filters while importing plugins.
+    """
+    testdir.makeini(
+        """
+        [pytest]
+        filterwarnings = error
+        """
+    )
+    testdir.makepyfile(
+        """
+        def test_ok():
+            assert True
+        """
+    )
+
+    result = testdir.runpytest_subprocess(*pytest_args)
+    result.assert_outcomes(passed=1)

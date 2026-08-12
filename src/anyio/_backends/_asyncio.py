@@ -1445,9 +1445,9 @@ class _RawSocketMixin:
             if self.__raw_socket.fileno() != -1:
                 self.__raw_socket.close()
 
-            if self._receive_future:
+            if self._receive_future and not self._receive_future.done():
                 self._receive_future.set_result(None)
-            if self._send_future:
+            if self._send_future and not self._send_future.done():
                 self._send_future.set_result(None)
 
 
