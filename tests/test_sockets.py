@@ -43,6 +43,7 @@ from anyio import (
     TCPConnectable,
     TypedAttributeLookupError,
     UNIXConnectable,
+    aclose_forcefully,
     as_connectable,
     connect_tcp,
     connect_unix,
@@ -506,6 +507,23 @@ class TestTCPStream:
                 tg.start_soon(interrupt)
                 with pytest.raises(ClosedResourceError):
                     await stream.receive()
+
+    async def test_concurrent_aclose_forcefully_returns_before_socket_closes(
+        self, server_addr: tuple[str, int]
+    ) -> None:
+        stream = await connect_tcp(*server_addr)
+        raw_socket = stream.extra(SocketAttribute.raw_socket)
+        fds: list[int] = []
+
+        async def do_aclose() -> None:
+            await aclose_forcefully(stream)
+            fds.append(raw_socket.fileno())
+
+        async with create_task_group() as tg:
+            tg.start_soon(do_aclose)
+            tg.start_soon(do_aclose)
+
+        assert fds == [-1, -1]
 
     async def test_receive_after_close(self, server_addr: tuple[str, int]) -> None:
         stream = await connect_tcp(*server_addr)

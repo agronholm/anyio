@@ -1323,6 +1323,7 @@ class SocketStream(abc.SocketStream):
         self._receive_guard = ResourceGuard("reading from")
         self._send_guard = ResourceGuard("writing to")
         self._closed = False
+        self._aclose_event: asyncio.Event | None = None
 
     @property
     def _raw_socket(self) -> socket.socket:
@@ -1393,15 +1394,31 @@ class SocketStream(abc.SocketStream):
 
     async def aclose(self) -> None:
         self._closed = True
-        if not self._transport.is_closing():
-            try:
-                self._transport.write_eof()
-            except OSError:
-                pass
+        if self._aclose_event is not None:
+            # Another task is already closing (or has already closed) the
+            # transport. Wait for it to actually finish, shielded from our own
+            # cancellation, so that we never return before the socket is
+            # really released (see #1273).
+            with CancelScope(shield=True):
+                await self._aclose_event.wait()
 
-            self._transport.close()
-            await sleep(0)
-            self._transport.abort()
+            return
+
+        self._aclose_event = event = asyncio.Event()
+        try:
+            if not self._transport.is_closing():
+                try:
+                    self._transport.write_eof()
+                except OSError:
+                    pass
+
+                try:
+                    self._transport.close()
+                    await sleep(0)
+                finally:
+                    self._transport.abort()
+        finally:
+            event.set()
 
 
 class _RawSocketMixin:

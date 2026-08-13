@@ -23,6 +23,14 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   module name. (The default name for a task spawned with ``TaskGroup.start_soon`` or
   ``TaskGroup.start`` typically includes the module name.)
   (`#1234 <https://github.com/agronholm/anyio/pull/1234>`_; PR by @gschaffner)
+- Fixed ``aclose_forcefully()`` (and, more generally, concurrent calls to
+  ``SocketStream.aclose()``) returning before the underlying TCP socket was actually
+  released on asyncio: a checkpoint hit while the cancel scope used by
+  ``aclose_forcefully()`` was already cancelled could skip the transport's
+  ``abort()`` call, and a second, concurrent ``aclose()`` call could see the
+  transport already marked as closing and return immediately without waiting for
+  the socket to actually be released
+  (`#1273 <https://github.com/agronholm/anyio/issues/1273>`_)
 - Fixed free-threading compatibility issues arising from the fact that on Python 3.14
   free-threading builds, newly created threads inherit the current context by default,
   causing AnyIO to behave erroneously in relation to ``start_blocking_portal()`` and
