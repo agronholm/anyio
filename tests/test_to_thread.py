@@ -139,14 +139,14 @@ async def test_cancel_worker_thread(
 
 
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
-async def test_worker_thread_loop_closed_before_result_report(
+async def test_worker_thread_loop_closed_during_result_report(
     mocker: MockerFixture,
 ) -> None:
     root_task = asyncio.current_task()
     assert root_task is not None
 
     loop = mocker.Mock(spec=asyncio.AbstractEventLoop)
-    loop.is_closed.side_effect = [False, True]
+    loop.is_closed.return_value = True
     loop.call_soon_threadsafe.side_effect = RuntimeError("Event loop is closed")
     workers: set[WorkerThread] = set()
     idle_workers: deque[WorkerThread] = deque()
@@ -163,7 +163,7 @@ async def test_worker_thread_loop_closed_before_result_report(
     loop.call_soon_threadsafe.assert_called_once_with(
         worker._report_result, future, None, None
     )
-    assert loop.is_closed.call_count == 2
+    loop.is_closed.assert_called_once_with()
 
 
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
