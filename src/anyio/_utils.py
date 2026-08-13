@@ -6,7 +6,12 @@ from collections.abc import AsyncGenerator, Callable, Coroutine, Iterable
 from contextlib import asynccontextmanager
 from typing import Any, TypeVar, overload
 
-from anyio import TaskHandle, create_memory_object_stream, create_task_group
+from anyio import (
+    BrokenResourceError,
+    TaskHandle,
+    create_memory_object_stream,
+    create_task_group,
+)
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 R = TypeVar("R")
@@ -83,7 +88,7 @@ async def gather(*coros: Coroutine[Any, Any, Any]) -> tuple[Any, ...]:
     async with create_task_group() as tg:
         handles.extend(tg.create_task(coro) for coro in coros)
 
-    return tuple(r.return_value for r in handles)
+    return tuple(h.return_value for h in handles)
 
 
 @asynccontextmanager
@@ -92,22 +97,25 @@ async def as_completed(
 ) -> AsyncGenerator[MemoryObjectReceiveStream[R]]:
     """
     Run awaitable objects concurrently in a task group, returning an iterator which can
-    be used to get result values as they resolve in the order they finish.
+    be used to get result values in the order they complete.
 
     :param coros: coroutine objects to run as tasks
-    :return: MemoryObjectReceiveStream for iterating over results as they resolve.
+    :return: MemoryObjectReceiveStream for iterating over results as tasks complete.
 
     """
     if not coros:
         raise ValueError("as_completed() takes at least one coroutine")
-    send, recv = create_memory_object_stream[R]()
 
     async def runner(
         coro: Coroutine[Any, Any, R], _send: MemoryObjectSendStream[R]
     ) -> None:
         async with _send:
-            await _send.send(await coro)
+            try:
+                _send.send_nowait(await coro)
+            except BrokenResourceError:
+                pass
 
+    send, recv = create_memory_object_stream[R](len(coros))
     async with recv, create_task_group() as tg:
         async with send:
             for coro in coros:
