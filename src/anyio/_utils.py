@@ -84,7 +84,7 @@ async def gather(*coros: Coroutine[Any, Any, Any]) -> tuple[Any, ...]:
     :return: task results for each argument in the same order as they were passed
 
     """
-    handles: list[TaskHandle[Any, Any]] = []
+    handles: list[TaskHandle[Any]] = []
     async with create_task_group() as tg:
         handles.extend(tg.create_task(coro) for coro in coros)
 
@@ -94,32 +94,38 @@ async def gather(*coros: Coroutine[Any, Any, Any]) -> tuple[Any, ...]:
 @asynccontextmanager
 async def as_completed(
     *coros: Coroutine[Any, Any, R],
-) -> AsyncGenerator[MemoryObjectReceiveStream[R]]:
+) -> AsyncGenerator[MemoryObjectReceiveStream[TaskHandle[R]]]:
     """
     Run awaitable objects concurrently in a task group, returning an iterator which can
-    be used to get result values in the order they complete.
+    be used to get finished task handles in the order they complete.
 
     :param coros: coroutine objects to run as tasks
-    :return: MemoryObjectReceiveStream for iterating over results as tasks complete.
+    :return: MemoryObjectReceiveStream for iterating over task handles as tasks complete.
 
     """
     if not coros:
         raise ValueError("as_completed() takes at least one coroutine")
+    send, recv = create_memory_object_stream[TaskHandle[R]](len(coros))
+    task_handles: list[TaskHandle[R]] = []
 
     async def runner(
-        coro: Coroutine[Any, Any, R], _send: MemoryObjectSendStream[R]
-    ) -> None:
+        coro: Coroutine[Any, Any, R],
+        index: int,
+        _send: MemoryObjectSendStream[TaskHandle[R]],
+    ) -> R:
         async with _send:
             try:
-                _send.send_nowait(await coro)
-            except BrokenResourceError:
-                pass
+                return await coro
+            finally:
+                try:
+                    _send.send_nowait(task_handles[index])
+                except BrokenResourceError:
+                    pass
 
-    send, recv = create_memory_object_stream[R](len(coros))
     async with recv, create_task_group() as tg:
         async with send:
-            for coro in coros:
-                tg.start_soon(runner, coro, send.clone())
+            for i, coro in enumerate(coros):
+                task_handles.append(tg.start_soon(runner, coro, i, send.clone()))
         try:
             yield recv
         finally:
@@ -137,7 +143,7 @@ async def amap(
     :return: task results for each argument in the same order as they were passed
 
     """
-    handles: list[TaskHandle[Any, R]] = []
+    handles: list[TaskHandle[R]] = []
     async with create_task_group() as tg:
         handles.extend(tg.start_soon(func, arg) for arg in args)
 

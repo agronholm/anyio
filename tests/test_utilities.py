@@ -44,11 +44,11 @@ class TestUtilties:
 
             return value
 
-        results = []
+        results: list[int] = []
         async with as_completed(
             return_when(1), return_when(2), return_when(3)
         ) as stream:
-            results.extend([r async for r in stream])
+            results.extend([r.return_value async for r in stream])
 
         assert results == [2, 3, 1]
 
@@ -80,7 +80,7 @@ class TestUtilties:
 
         # Exiting after the first result must cancel the unfinished task
         async with as_completed(return_now(), never()) as stream:
-            assert await anext(stream) == 1
+            assert (await anext(stream)).return_value == 1
 
     async def test_map_results_ordering(self) -> None:
         # Chain events so the tasks complete in reverse order (3, 2, 1)
