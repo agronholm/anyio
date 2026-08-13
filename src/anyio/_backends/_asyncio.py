@@ -1393,15 +1393,19 @@ class SocketStream(abc.SocketStream):
 
     async def aclose(self) -> None:
         self._closed = True
-        if not self._transport.is_closing():
-            try:
-                self._transport.write_eof()
-            except OSError:
-                pass
+        try:
+            if not self._transport.is_closing():
+                try:
+                    self._transport.write_eof()
+                except OSError:
+                    pass
 
-            self._transport.close()
-            await sleep(0)
+                self._transport.close()
+                await sleep(0)
+        finally:
             self._transport.abort()
+            with CancelScope(shield=True):
+                await sleep(0)
 
 
 class _RawSocketMixin:
