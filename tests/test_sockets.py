@@ -1764,6 +1764,17 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
 @pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestUDPSocket:
+    async def test_aclose_forcefully_waits_for_fd_release(
+        self, family: AnyIPAddressFamily
+    ) -> None:
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        udp = await create_udp_socket(family=family, local_host=host)
+        raw_socket = udp.extra(SocketAttribute.raw_socket)
+
+        await aclose_forcefully(udp)
+
+        assert raw_socket.fileno() == -1
+
     async def test_aclose_waits_for_fd_release(
         self, family: AnyIPAddressFamily, free_udp_port: int
     ) -> None:
@@ -1951,6 +1962,22 @@ class TestUDPSocket:
 @pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestConnectedUDPSocket:
+    async def test_aclose_forcefully_waits_for_fd_release(
+        self, family: AnyIPAddressFamily
+    ) -> None:
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        peer = socket.socket(family, socket.SOCK_DGRAM)
+        peer.bind((host, 0))
+        try:
+            udp = await create_connected_udp_socket(*peer.getsockname()[:2])
+            raw_socket = udp.extra(SocketAttribute.raw_socket)
+
+            await aclose_forcefully(udp)
+
+            assert raw_socket.fileno() == -1
+        finally:
+            peer.close()
+
     async def test_aclose_waits_for_fd_release(
         self, family: AnyIPAddressFamily, free_udp_port: int
     ) -> None:
