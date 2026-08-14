@@ -7,6 +7,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added ``amap``, ``gather``, and ``as_completed`` utility functions to simplify common
   patterns (`#1173 <https://github.com/agronholm/anyio/pull/1173>`_; PR by @Graeme22)
+- Added ``--anyio-mode`` command-line option as an alternative to the ``anyio_mode``
+  ini setting, and fix the pytest plugin's auto mode detection to recognize the mode
+  when set via either mechanism(e.g: ``pytest_asyncio``).
+  (`#1242 <https://github.com/agronholm/anyio/pull/1242>`_; PR by @EmmanuelNiyonshuti)
 - Added the ``anyio.Future`` synchronization primitive which behaves similar to
   ``asyncio.Future``, allowing tasks to wait for a value (or exception) from another
   task (`#1146 <https://github.com/agronholm/anyio/pull/1146>`_; PR by @Vizonex)
