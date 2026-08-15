@@ -23,9 +23,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   module name. (The default name for a task spawned with ``TaskGroup.start_soon`` or
   ``TaskGroup.start`` typically includes the module name.)
   (`#1234 <https://github.com/agronholm/anyio/pull/1234>`_; PR by @gschaffner)
-- Fixed asyncio task groups leaking unawaited coroutines when a custom task constructor
-  fails; default task creation is unaffected
-  (`#1274 <https://github.com/agronholm/anyio/issues/1274>`_; PR by @dsfaccini)
 - Fixed free-threading compatibility issues arising from the fact that on Python 3.14
   free-threading builds, newly created threads inherit the current context by default,
   causing AnyIO to behave erroneously in relation to ``start_blocking_portal()`` and
@@ -55,6 +52,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   which triggers ``PytestRemovedIn10Warning`` on ``pytest>=9.2`` and crashes pytest at
   startup when ``filterwarnings = error`` is configured
   (`#1271 <https://github.com/agronholm/anyio/issues/1271>`_; PR by @matthewfeickert)
+- Fixed asyncio task groups leaking unawaited coroutines when a custom task constructor
+  fails; default task creation is unaffected
+  (`#1274 <https://github.com/agronholm/anyio/issues/1274>`_; PR by @dsfaccini)
 
 **4.14.2**
 
