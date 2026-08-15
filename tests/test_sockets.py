@@ -37,6 +37,7 @@ from pytest_mock.plugin import MockerFixture
 from anyio import (
     BrokenResourceError,
     BusyResourceError,
+    CancelScope,
     ClosedResourceError,
     EndOfStream,
     Event,
@@ -59,6 +60,7 @@ from anyio import (
     move_on_after,
     notify_closing,
     sleep_forever,
+    to_thread,
     wait_all_tasks_blocked,
     wait_readable,
     wait_socket_readable,
@@ -66,6 +68,7 @@ from anyio import (
     wait_writable,
 )
 from anyio._core._eventloop import get_async_backend
+from anyio._core._sockets import sendfile_blocking
 from anyio.abc import (
     AnyByteStream,
     ConnectedUDPSocket,
@@ -322,6 +325,130 @@ class TestTCPStream:
 
         thread.join()
         assert response == b"\ndlrow ,olleh"
+
+    @pytest.mark.parametrize(
+        ("offset", "count"),
+        [
+            (0, None),
+            (0, 100),
+            (10, 30),
+            (9980, None),
+            (10, 20_000),
+        ],
+    )
+    async def test_sendfile(
+        self,
+        server_sock: socket.socket,
+        server_addr: tuple[str, int],
+        tmp_path: Path,
+        offset: int,
+        count: int | None,
+    ) -> None:
+        buffer = os.urandom(10_000)
+        file_path = tmp_path / "testfile"
+        file_path.write_bytes(buffer)
+        expected = buffer[offset:] if count is None else buffer[offset : offset + count]
+
+        def serve() -> None:
+            client, _ = server_sock.accept()
+            with client:
+                received = b""
+                while len(received) < len(expected):
+                    chunk = client.recv(65536)
+                    if not chunk:
+                        break
+
+                    received += chunk
+
+                assert received == expected
+
+        thread = Thread(target=serve, daemon=True)
+        thread.start()
+        async with await connect_tcp(*server_addr) as stream:
+            with file_path.open("rb") as file:
+                sent = await stream.sendfile(file, offset, count)
+
+                assert sent == len(expected)
+                assert file.tell() == offset + sent
+
+        thread.join(timeout=5)
+
+    @pytest.mark.parametrize(
+        ("offset", "count", "expected_exc"),
+        [
+            (-1, None, ValueError),
+            (0, 0, ValueError),
+            (0, -10, ValueError),
+            ("5", None, TypeError),
+            (0, "10", TypeError),
+        ],
+    )
+    async def test_sendfile_invalid_arguments(
+        self,
+        server_addr: tuple[str, int],
+        tmp_path: Path,
+        offset: object,
+        count: object | None,
+        expected_exc: type[ValueError | TypeError],
+    ) -> None:
+        file_path = tmp_path / "testfile"
+        file_path.write_bytes(b"\x00" * 100)
+        async with await connect_tcp(*server_addr) as stream:
+            with file_path.open("rb") as file:
+                with pytest.raises(expected_exc):
+                    await stream.sendfile(file, offset, count)  # type: ignore[arg-type]
+
+    async def test_sendfile_unseekable_file(self, server_addr: tuple[str, int]) -> None:
+        async with await connect_tcp(*server_addr) as stream:
+            with pytest.raises(TypeError, match="working fileno\\(\\) method"):
+                await stream.sendfile(io.BytesIO(b"some data"))
+
+    async def test_sendfile_cancellation(
+        self,
+        server_sock: socket.socket,
+        server_addr: tuple[str, int],
+        tmp_path: Path,
+    ) -> None:
+        # The file is large and the peer paces itself (1 ms per chunk), guaranteeing
+        # the transfer is still in progress when the cancellation arrives
+        buffer = os.urandom(8_000_000)
+        file_path = tmp_path / "testfile"
+        file_path.write_bytes(buffer)
+        received = 0
+        started = threading.Event()
+
+        def serve() -> None:
+            nonlocal received
+            client, _ = server_sock.accept()
+            with client:
+                while chunk := client.recv(65536):
+                    received += len(chunk)
+                    started.set()
+                    time.sleep(0.001)
+
+        thread = Thread(target=serve, daemon=True)
+        thread.start()
+        raw_sock = socket.create_connection(server_addr)
+        scope = CancelScope()
+
+        async def canceller() -> None:
+            assert await to_thread.run_sync(started.wait, 5)
+            scope.cancel()
+
+        try:
+            async with create_task_group() as tg:
+                tg.start_soon(canceller)
+                with scope:
+                    with file_path.open("rb") as file:
+                        await to_thread.run_sync(
+                            sendfile_blocking, raw_sock, file, 0, None
+                        )
+        finally:
+            raw_sock.close()
+
+        thread.join(timeout=5)
+        assert scope.cancelled_caught
+        assert 0 < received < len(buffer)
 
     async def test_iterate(
         self, server_sock: socket.socket, server_addr: tuple[str, int]
@@ -1212,6 +1339,38 @@ class TestUNIXStream:
             client.close()
 
         assert response == b"halb"
+
+    async def test_sendfile(
+        self, server_sock: socket.socket, socket_path_or_str: Path | str, tmp_path: Path
+    ) -> None:
+        buffer = os.urandom(10_000)
+        file_path = tmp_path / "testfile"
+        file_path.write_bytes(buffer)
+        expected = buffer[1000:5000]
+
+        def serve() -> None:
+            client, _ = server_sock.accept()
+            with client:
+                received = b""
+                while len(received) < len(expected):
+                    chunk = client.recv(65536)
+                    if not chunk:
+                        break
+
+                    received += chunk
+
+                assert received == expected
+
+        thread = Thread(target=serve, daemon=True)
+        thread.start()
+        async with await connect_unix(socket_path_or_str) as stream:
+            with file_path.open("rb") as file:
+                sent = await stream.sendfile(file, 1000, 4000)
+
+                assert sent == 4000
+                assert file.tell() == 5000
+
+        thread.join(timeout=5)
 
     @pytest.mark.parametrize("max_bytes", [0, -1])
     async def test_receive_invalid_max_bytes(

@@ -8,7 +8,7 @@ from contextlib import AsyncExitStack
 from io import IOBase
 from ipaddress import IPv4Address, IPv6Address
 from socket import AddressFamily
-from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar
+from typing import IO, TYPE_CHECKING, Any, TypeAlias, TypeVar
 
 from .._core._eventloop import get_async_backend
 from .._core._typedattr import (
@@ -19,6 +19,7 @@ from .._core._typedattr import (
 from ._streams import ByteStream, Listener, UnreliableObjectStream
 
 if TYPE_CHECKING:
+    from .._core._synchronization import ResourceGuard
     from ._tasks import TaskGroup
 
 IPAddressType: TypeAlias = str | IPv4Address | IPv6Address
@@ -184,6 +185,8 @@ class SocketStream(ByteStream, _SocketProvider):
     Supports all relevant extra attributes from :class:`~SocketAttribute`.
     """
 
+    _send_guard: ResourceGuard
+
     @classmethod
     async def from_socket(cls, sock_or_fd: socket.socket | int) -> SocketStream:
         """
@@ -198,6 +201,38 @@ class SocketStream(ByteStream, _SocketProvider):
         """
         sock = _validate_socket(sock_or_fd, socket.SOCK_STREAM, require_connected=True)
         return await get_async_backend().wrap_stream_socket(sock)
+
+    async def sendfile(
+        self, file: IO[bytes], offset: int = 0, count: int | None = None
+    ) -> int:
+        """
+        Send the contents of the binary file to the peer.
+
+        .. versionadded:: 4.15.0
+
+        :param file: a file object opened in binary mode, providing working
+            ``fileno()`` and ``seek()`` methods
+        :param offset: seek the file to this position before sending
+        :param count: send at most this many bytes (``None`` means until the end of
+            the file)
+        :return: the total number of bytes sent
+        :raises TypeError: if the file lacks a working ``fileno()`` or ``seek()``
+            method, or if the offset or count is not an integer
+        :raises ValueError: if the offset or count is negative (or the count is zero)
+        :raises OSError: if the socket is closed or the connection is broken (the
+            exact exception may vary depending on the backend)
+
+        The transfer is interrupted when the surrounding cancel scope is cancelled.
+
+        """
+        from .. import to_thread
+        from .._core._sockets import sendfile_blocking, validate_sendfile_args
+
+        validate_sendfile_args(file, offset, count)
+        with self._send_guard:
+            return await to_thread.run_sync(
+                sendfile_blocking, self._raw_socket, file, offset, count
+            )
 
 
 class UNIXSocketStream(SocketStream):

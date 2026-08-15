@@ -5,6 +5,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added ``SocketStream.sendfile()`` for sending the contents of a binary file over the
+  socket, using the ``sendfile()`` system call for zero-copy transfers when the backend
+  and operating system and Python itself support it
+  (`#1259 <https://github.com/agronholm/anyio/issues/1259>`_
 - Added ``--anyio-mode`` command-line option as an alternative to the ``anyio_mode``
   ini setting, and fix the pytest plugin's auto mode detection to recognize the mode
   when set via either mechanism(e.g: ``pytest_asyncio``).
