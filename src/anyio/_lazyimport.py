@@ -24,8 +24,8 @@ def install_lazy_importer() -> bool:
     names = sorted(lazy_map)
 
     # Delete symbols that are not part of the API
-    del module.__dict__["TYPE_CHECKING"]
-    del module.__dict__["install_lazy_importer"]
+    del module_globals["TYPE_CHECKING"]
+    del module_globals["install_lazy_importer"]
 
     if not lazy_map and not deprecated_aliases:
         return False
@@ -52,22 +52,23 @@ def install_lazy_importer() -> bool:
         ):
             value.__module__ = module_name
 
-        module.__dict__[name] = value
+        module_globals[name] = value
         return value
 
     def __dir__() -> list[str]:
         return names
 
-    module.__dict__["__dir__"] = __dir__
-    module.__dict__["__getattr__"] = __getattr__
-    module.__dict__.pop("fix_package_names", None)
-    module.__dict__.pop("set_deprecated_aliases", None)
+    module_globals["__dir__"] = __dir__
+    module_globals["__getattr__"] = __getattr__
+    module_globals.pop("fix_package_names", None)
+    module_globals.pop("set_deprecated_aliases", None)
     return True
 
 
 def fix_package_names() -> None:
     module_globals = sys._getframe(1).f_globals
     module_prefix = module_globals["__name__"] + "."
+    del module_globals[fix_package_names.__name__]
     for value in module_globals.values():
         if modname := getattr(value, "__module__", ""):
             if modname.startswith(module_prefix):
@@ -88,6 +89,7 @@ def emit_deprecation_warning(module_name: str, name: str, target: str) -> None:
 def set_deprecated_aliases(aliases: dict[str, str]) -> None:
     module_globals = sys._getframe(1).f_globals
     module_name = module_globals["__name__"]
+    del module_globals[set_deprecated_aliases.__name__]
 
     def __getattr__(name: str) -> Any:
         try:
