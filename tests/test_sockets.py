@@ -129,6 +129,18 @@ def fake_localhost_dns(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr("socket.getaddrinfo", fake_getaddrinfo)
 
 
+@pytest.fixture
+def fake_localhost_dns_ipv6_first(monkeypatch: MonkeyPatch) -> None:
+    def fake_getaddrinfo(*args: Any, **kwargs: Any) -> object:
+        # Make it return IPv6 addresses first, as a resolver does on hosts with
+        # a usable IPv6 connection
+        results = real_getaddrinfo(*args, **kwargs)
+        return sorted(results, key=lambda item: item[0], reverse=True)
+
+    real_getaddrinfo = socket.getaddrinfo
+    monkeypatch.setattr("socket.getaddrinfo", fake_getaddrinfo)
+
+
 @pytest.fixture(
     params=[
         pytest.param(AddressFamily.AF_INET, id="ipv4"),
@@ -355,7 +367,11 @@ class TestTCPStream:
     @pytest.mark.parametrize(
         "local_addr, expected_client_addr",
         [
-            pytest.param("", "::1", id="dualstack"),
+            # With the resolver returning IPv4 first, the connection follows the
+            # resolver order (RFC 6724): IPv4 for the dual-stack server, with
+            # IPv6 still reached via the Happy Eyeballs fallback when the IPv4
+            # attempt fails (the "ipv6" case below).
+            pytest.param("", "::ffff:127.0.0.1", id="dualstack"),
             pytest.param("127.0.0.1", "127.0.0.1", id="ipv4"),
             pytest.param("::1", "::1", id="ipv6"),
         ],
@@ -388,6 +404,34 @@ class TestTCPStream:
         thread.join()
         server_sock.close()
         assert client_addr[0] == expected_client_addr
+
+    @skip_ipv6_mark
+    async def test_happy_eyeballs_prefers_ipv6_in_resolver_order(
+        self, fake_localhost_dns_ipv6_first: None
+    ) -> None:
+        # When the resolver returns IPv6 first (as it does on hosts with a
+        # usable IPv6 connection), connect_tcp honors that order and connects
+        # via IPv6 rather than blindly reordering. Refs: #1230
+        client_addr = None, None
+
+        def serve() -> None:
+            nonlocal client_addr
+            client, client_addr = server_sock.accept()
+            client.close()
+
+        server_sock = socket.socket(AddressFamily.AF_INET6)
+        server_sock.bind(("", 0))
+        server_sock.listen()
+        port = server_sock.getsockname()[1]
+        thread = Thread(target=serve, daemon=True)
+        thread.start()
+
+        async with await connect_tcp("localhost", port):
+            pass
+
+        thread.join()
+        server_sock.close()
+        assert client_addr[0] == "::1"
 
     async def test_connect_tcp_with_local_port(
         self,

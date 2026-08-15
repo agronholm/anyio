@@ -161,8 +161,9 @@ async def connect_tcp(
     6555). If ``remote_host`` is a host name that resolves to multiple IP addresses,
     each one is tried until one connection attempt succeeds. If the first attempt does
     not connected within 250 milliseconds, a second attempt is started using the next
-    address in the list, and so on. On IPv6 enabled systems, an IPv6 address (if
-    available) is tried first.
+    address in the list, and so on. The addresses are tried in the order returned by
+    the resolver, which follows RFC 6724 destination address selection (IPv6 is
+    preferred when the host has a usable IPv6 connection).
 
     When the connection has been established, a TLS handshake will be done if either
     ``ssl_context`` or ``tls_hostname`` is not ``None``, or if ``tls`` is ``True``.
@@ -233,19 +234,13 @@ async def connect_tcp(
             target_host, remote_port, family=family, type=socket.SOCK_STREAM
         )
 
-        # Organize the list so that the first address is an IPv6 address (if available)
-        # and the second one is an IPv4 addresses. The rest can be in whatever order.
-        v6_found = v4_found = False
-        target_addrs = []
-        for af, *_, sa in gai_res:
-            if af == socket.AF_INET6 and not v6_found:
-                v6_found = True
-                target_addrs.insert(0, (af, sa[0]))
-            elif af == socket.AF_INET and not v4_found and v6_found:
-                v4_found = True
-                target_addrs.insert(1, (af, sa[0]))
-            else:
-                target_addrs.append((af, sa[0]))
+        # Use the addresses in the order returned by the resolver, which
+        # implements RFC 6724 destination address selection: IPv6 is preferred
+        # when the host has a usable IPv6 connection, and IPv4 comes first (or
+        # IPv6 is omitted entirely) when it does not. Reordering to blindly put
+        # IPv6 first caused unnecessary delays on hosts whose only IPv6
+        # addresses are link-local or loopback (see #1230).
+        target_addrs = [(af, sa[0]) for af, *_, sa in gai_res]
 
     oserrors: list[OSError] = []
     try:

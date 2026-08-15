@@ -5,6 +5,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed ``connect_tcp()`` blindly prioritizing IPv6 even when the host has no usable
+  IPv6 connection. The connection attempts now follow the order returned by the
+  resolver (RFC 6724 destination address selection), which prefers IPv6 when the host
+  has a working IPv6 connection and IPv4 otherwise, avoiding needless delays on hosts
+  whose only IPv6 addresses are link-local or loopback
+  (`#1230 <https://github.com/agronholm/anyio/issues/1230>`_)
 - Added ``--anyio-mode`` command-line option as an alternative to the ``anyio_mode``
   ini setting, and fix the pytest plugin's auto mode detection to recognize the mode
   when set via either mechanism(e.g: ``pytest_asyncio``).
