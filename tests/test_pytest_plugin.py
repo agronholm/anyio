@@ -670,6 +670,24 @@ def test_auto_mode(testdir: Pytester) -> None:
     result.assert_outcomes(passed=len(get_available_backends()))
 
 
+def test_auto_mode_cmdline(testdir: Pytester) -> None:
+    testdir.makepyfile(
+        """
+            import pytest
+
+            @pytest.fixture
+            async def fixt(request):
+                return 1
+
+            async def test_params(fixt):
+                assert fixt == 1
+            """
+    )
+
+    result = testdir.runpytest(*pytest_args, "--anyio-mode=auto")
+    result.assert_outcomes(passed=len(get_available_backends()))
+
+
 def test_auto_mode_conflict_warning(testdir: Pytester) -> None:
     testdir.makepyprojecttoml(
         """
