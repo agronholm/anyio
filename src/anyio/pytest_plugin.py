@@ -21,7 +21,9 @@ from ._core._eventloop import (
     set_current_async_library,
 )
 from ._core._exceptions import iterate_exceptions
-from .abc import TestRunner
+
+if TYPE_CHECKING:
+    from .abc import TestRunner
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
