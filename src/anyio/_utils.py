@@ -4,7 +4,7 @@ __all__ = ("amap", "as_completed", "gather")
 
 from collections.abc import AsyncGenerator, Callable, Coroutine, Iterable
 from contextlib import asynccontextmanager
-from typing import Any, TypeVar, overload
+from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 from anyio import (
     BrokenResourceError,
@@ -12,7 +12,9 @@ from anyio import (
     create_memory_object_stream,
     create_task_group,
 )
-from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+
+if TYPE_CHECKING:
+    from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 R = TypeVar("R")
 S = TypeVar("S")
