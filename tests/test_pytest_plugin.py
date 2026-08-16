@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import socket
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import pytest
 from _pytest.logging import LogCaptureFixture
 from _pytest.pytester import Pytester
 
 from anyio import get_available_backends
-from anyio.pytest_plugin import FreePortFactory
+
+if TYPE_CHECKING:
+    from anyio.pytest_plugin import FreePortFactory
 
 pytestmark = [
     pytest.mark.filterwarnings(
@@ -664,6 +667,24 @@ def test_auto_mode(testdir: Pytester) -> None:
     )
 
     result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=len(get_available_backends()))
+
+
+def test_auto_mode_cmdline(testdir: Pytester) -> None:
+    testdir.makepyfile(
+        """
+            import pytest
+
+            @pytest.fixture
+            async def fixt(request):
+                return 1
+
+            async def test_params(fixt):
+                assert fixt == 1
+            """
+    )
+
+    result = testdir.runpytest(*pytest_args, "--anyio-mode=auto")
     result.assert_outcomes(passed=len(get_available_backends()))
 
 

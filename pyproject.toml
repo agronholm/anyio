@@ -94,6 +94,7 @@ extend-select = [
     "PGH",          # pygrep-hooks
     "RUF100",       # unused noqa (yesqa)
     "T201",         # print
+    "TC001",        # typing-only-first-party-import
     "UP",           # pyupgrade
     "W",            # pycodestyle warnings
 ]
@@ -106,9 +107,8 @@ ignore = [
     "PYI034",
     "TRY002",
 ]
-
-[tool.ruff.lint.isort]
-"required-imports" = ["from __future__ import annotations"]
+future-annotations = true
+extend-safe-fixes = ["TC001"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/test_tempfile.py" = ["ASYNC230"]
