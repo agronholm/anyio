@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from inspect import iscoroutine
+
 __all__ = ("amap", "as_completed", "gather")
 
 from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine, Iterable
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
+from ..abc._tasks import get_coro_name
 from ._exceptions import BrokenResourceError
 from ._streams import create_memory_object_stream
 from ._tasks import TaskHandle, create_task_group
@@ -124,8 +127,11 @@ async def as_completed(
 
     async with recv, create_task_group() as tg:
         async with send:
-            for i, coro in enumerate(awaitables):
-                task_handles.append(tg.start_soon(runner, coro, i, send.clone()))
+            for i, awaitable in enumerate(awaitables):
+                name = get_coro_name(awaitable) if iscoroutine(awaitable) else None
+                task_handles.append(
+                    tg.start_soon(runner, awaitable, i, send.clone(), name=name)
+                )
         try:
             yield recv
         finally:

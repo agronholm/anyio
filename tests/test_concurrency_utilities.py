@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable
+from typing import TYPE_CHECKING, Any
+
 import pytest
 
 from anyio import Event, amap, as_completed, gather
+from anyio.lowlevel import checkpoint
+
+if TYPE_CHECKING:
+    from anyio._core._tasks import TaskHandle
 
 
 async def test_gather_results_in_order() -> None:
@@ -52,8 +59,25 @@ async def test_as_completed_ordering() -> None:
     assert results == [2, 3, 1]
 
 
+async def test_as_completed_naming() -> None:
+    class Testing(Awaitable[int]):
+        async def get_answer(self) -> int:
+            return 42
+
+        def __await__(self):
+            return self.get_answer().__await__()
+
+    results: list[TaskHandle[Any]] = []
+    async with as_completed(checkpoint(), Testing()) as stream:
+        results.extend([r async for r in stream])
+
+    # anyio._core._concurrency_utils.as_completed.<locals>.runner
+    # would be name of both if coroutine name didn't pass through
+    assert results[0].name != results[1].name
+
+
 async def test_as_completed_no_coroutines() -> None:
-    with pytest.raises(ValueError, match="at least one coroutine"):
+    with pytest.raises(ValueError, match="at least one awaitable"):
         async with as_completed():
             pass
 
