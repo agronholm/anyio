@@ -2,16 +2,13 @@ from __future__ import annotations
 
 __all__ = ("amap", "as_completed", "gather")
 
-from collections.abc import AsyncGenerator, Callable, Coroutine, Iterable
+from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine, Iterable
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
-from anyio import (
-    BrokenResourceError,
-    TaskHandle,
-    create_memory_object_stream,
-    create_task_group,
-)
+from ._exceptions import BrokenResourceError
+from ._streams import create_memory_object_stream
+from ._tasks import TaskHandle, create_task_group
 
 if TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
@@ -95,29 +92,30 @@ async def gather(*coros: Coroutine[Any, Any, Any]) -> tuple[Any, ...]:
 
 @asynccontextmanager
 async def as_completed(
-    *coros: Coroutine[Any, Any, R],
+    *awaitables: Awaitable[R],
 ) -> AsyncGenerator[MemoryObjectReceiveStream[TaskHandle[R]]]:
     """
     Run awaitable objects concurrently in a task group, returning an iterator which can
     be used to get finished task handles in the order they complete.
 
-    :param coros: coroutine objects to run as tasks
+    :param awaitables: awaitable objects to run as tasks
     :return: MemoryObjectReceiveStream for iterating over task handles as tasks complete.
 
     """
-    if not coros:
-        raise ValueError("as_completed() takes at least one coroutine")
-    send, recv = create_memory_object_stream[TaskHandle[R]](len(coros))
+    if not awaitables:
+        raise ValueError("as_completed() takes at least one awaitable")
+
+    send, recv = create_memory_object_stream[TaskHandle[R]](len(awaitables))
     task_handles: list[TaskHandle[R]] = []
 
     async def runner(
-        coro: Coroutine[Any, Any, R],
+        awaitable: Awaitable[R],
         index: int,
         _send: MemoryObjectSendStream[TaskHandle[R]],
     ) -> R:
         async with _send:
             try:
-                return await coro
+                return await awaitable
             finally:
                 try:
                     _send.send_nowait(task_handles[index])
@@ -126,7 +124,7 @@ async def as_completed(
 
     async with recv, create_task_group() as tg:
         async with send:
-            for i, coro in enumerate(coros):
+            for i, coro in enumerate(awaitables):
                 task_handles.append(tg.start_soon(runner, coro, i, send.clone()))
         try:
             yield recv

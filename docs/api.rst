@@ -288,8 +288,8 @@ Exceptions
 .. autoexception:: anyio.TypedAttributeLookupError
 .. autoexception:: anyio.WouldBlock
 
-Utility functions
------------------
+Concurrency utilities
+---------------------
 
 .. autofunction:: anyio.amap
 .. autofunction:: anyio.as_completed
