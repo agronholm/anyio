@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Generator
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -64,7 +64,7 @@ async def test_as_completed_naming() -> None:
         async def get_answer(self) -> int:
             return 42
 
-        def __await__(self):
+        def __await__(self) -> Generator[Any, Any, int]:
             return self.get_answer().__await__()
 
     results: list[TaskHandle[Any]] = []
