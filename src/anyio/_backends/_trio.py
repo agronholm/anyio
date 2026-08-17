@@ -91,6 +91,9 @@ if TYPE_CHECKING:
 
     from ..streams.memory import MemoryObjectSendStream
 
+if sys.version_info < (3, 15):
+    from typing_extensions import sentinel
+
 if sys.version_info >= (3, 11):
     from typing import Self, TypeVarTuple, Unpack
 else:
@@ -196,7 +199,7 @@ class CancelScope(BaseCancelScope):
 # Task groups
 #
 
-empty_start_value = object()
+empty_start_value = sentinel("empty_start_value")
 
 
 class _TrioTaskStatus(abc.TaskStatus[T_contra], Generic[T_contra]):
