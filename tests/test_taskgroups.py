@@ -1865,7 +1865,7 @@ async def test_start_not_cancelled_before_started_by_tg() -> None:
     # * Any value passed to started should be available and correctly passed
     #   back to the caller of start.
     #
-    #  * The CancelledError shouldn't leak out of the start() call to the calling
+    # * The CancelledError shouldn't leak out of the start() call to the calling
     #   task.
 
     # To manage the sibling tasks needed for the test
