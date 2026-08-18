@@ -5,6 +5,18 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added ``amap``, ``gather``, and ``as_completed`` utility functions to simplify common
+  patterns (`#1173 <https://github.com/agronholm/anyio/pull/1173>`_; PR by @Graeme22)
+- Added ``--anyio-mode`` command-line option as an alternative to the ``anyio_mode``
+  ini setting, and fix the pytest plugin's auto mode detection to recognize the mode
+  when set via either mechanism(e.g: ``pytest_asyncio``).
+  (`#1242 <https://github.com/agronholm/anyio/pull/1242>`_; PR by @EmmanuelNiyonshuti)
+- Added the ``anyio.Future`` synchronization primitive which behaves similar to
+  ``asyncio.Future``, allowing tasks to wait for a value (or exception) from another
+  task (`#1146 <https://github.com/agronholm/anyio/pull/1146>`_; PR by @Vizonex)
+- Added guidance for managing multiple memory object stream producers and consumers
+  with cloned streams
+  (`#330 <https://github.com/agronholm/anyio/issues/330>`_; PR by @nightcityblade)
 - Added ``StapledObjectStream.send_nowait()`` that delegates to the underlying
   ``ObjectSendStream``, if it implements it
   (`#1241 <https://github.com/agronholm/anyio/pull/1241>`_; PR by @davidbrochart)
@@ -17,6 +29,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   module name. (The default name for a task spawned with ``TaskGroup.start_soon`` or
   ``TaskGroup.start`` typically includes the module name.)
   (`#1234 <https://github.com/agronholm/anyio/pull/1234>`_; PR by @gschaffner)
+- Changed the ``anyio`` and ``anyio.abc`` modules to lazily (much like :pep:`810`)
+  import the necessary submodules. This is done by parsing the AST of the module and
+  building a lookup table from the ``if TYPE_CHECKING:`` block. A fallback mode has been
+  provided for installations where the source code is unavailable (e.g. PyInstaller).
+  (`#1169 <https://github.com/agronholm/anyio/pull/1169>`_)
 - Fixed free-threading compatibility issues arising from the fact that on Python 3.14
   free-threading builds, newly created threads inherit the current context by default,
   causing AnyIO to behave erroneously in relation to ``start_blocking_portal()`` and
@@ -39,6 +56,13 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``Path(".txt")``) instead of raising ``ValueError`` when given an empty stem on a
   path with a non-empty suffix, unlike :meth:`pathlib.PurePath.with_stem`
   (`#1200 <https://github.com/agronholm/anyio/pull/1200>`_; PR by @Sanjays2402)
+- Fixed ``UNIXSocketStream.aclose()`` raising ``asyncio.InvalidStateError`` when a
+  concurrent receive or send operation had just been cancelled on the asyncio backend
+  (`#1267 <https://github.com/agronholm/anyio/issues/1267>`_; PR by @alloutflo)
+- Fixed the pytest plugin importing the deprecated ``_pytest.python.CallSpec2`` alias,
+  which triggers ``PytestRemovedIn10Warning`` on ``pytest>=9.2`` and crashes pytest at
+  startup when ``filterwarnings = error`` is configured
+  (`#1271 <https://github.com/agronholm/anyio/issues/1271>`_; PR by @matthewfeickert)
 
 **4.14.2**
 
