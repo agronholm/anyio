@@ -12,7 +12,7 @@ from collections.abc import AsyncGenerator, Coroutine, Generator
 from contextlib import aclosing
 from contextvars import ContextVar, copy_context
 from inspect import CORO_CLOSED, getcoroutinestate
-from typing import Any, NoReturn, cast
+from typing import TYPE_CHECKING, Any, NoReturn, cast
 from unittest import mock
 
 import pytest
@@ -41,10 +41,12 @@ from anyio import (
     sleep_forever,
     wait_all_tasks_blocked,
 )
-from anyio.abc import TaskGroup, TaskStatus
 from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params, no_other_refs
+
+if TYPE_CHECKING:
+    from anyio.abc import TaskGroup, TaskStatus
 
 if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup, ExceptionGroup

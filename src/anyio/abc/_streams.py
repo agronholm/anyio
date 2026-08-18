@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
 from collections.abc import Callable
-from typing import Any, Generic, TypeAlias, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeAlias, TypeVar
 
 from .._core._exceptions import EndOfStream
 from .._core._typedattr import TypedAttributeProvider
 from ._resources import AsyncResource
-from ._tasks import TaskGroup
+
+if TYPE_CHECKING:
+    from ._tasks import TaskGroup
 
 T_Item = TypeVar("T_Item")
 T_co = TypeVar("T_co", covariant=True)
