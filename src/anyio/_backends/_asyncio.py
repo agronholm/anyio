@@ -64,6 +64,7 @@ from .. import (
     LockStatistics,
     TaskInfo,
     abc,
+    to_thread,
 )
 from .._core._eventloop import (
     claim_worker_thread,
@@ -78,7 +79,11 @@ from .._core._exceptions import (
     RunFinishedError,
     WouldBlock,
 )
-from .._core._sockets import convert_ipv6_sockaddr
+from .._core._sockets import (
+    convert_ipv6_sockaddr,
+    sendfile_blocking,
+    validate_sendfile_args,
+)
 from .._core._streams import create_memory_object_stream
 from .._core._synchronization import (
     CapacityLimiter as BaseCapacityLimiter,
@@ -1385,6 +1390,32 @@ class SocketStream(abc.SocketStream):
                     raise
 
             await self._protocol.write_event.wait()
+
+    async def sendfile(
+        self, file: IO[bytes], offset: int = 0, count: int | None = None
+    ) -> int:
+        validate_sendfile_args(file, offset, count)
+        with self._send_guard:
+            if self._closed:
+                raise ClosedResourceError
+            elif self._protocol.exception is not None:
+                raise BrokenResourceError from self._protocol.exception
+
+            try:
+                return await get_running_loop().sendfile(
+                    self._transport, file, offset, count
+                )
+            except NotImplementedError:
+                # The event loop does not implement the (deprecated) sendfile()
+                # method (e.g. uvloop), so fall back to manual file copying
+                return await to_thread.run_sync(
+                    sendfile_blocking, self._raw_socket, file, offset, count
+                )
+            except RuntimeError as exc:
+                if self._transport.is_closing():
+                    raise BrokenResourceError from exc
+                else:
+                    raise
 
     async def send_eof(self) -> None:
         try:

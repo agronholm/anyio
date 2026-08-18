@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address, ip_address
 from os import PathLike, chmod
 from socket import AddressFamily, SocketKind
-from typing import TYPE_CHECKING, Any, Literal, cast, overload
+from typing import IO, TYPE_CHECKING, Any, Literal, cast, overload
 
 from .. import ConnectionFailed, to_thread
 from ..abc import (
@@ -26,6 +26,7 @@ from ..abc import (
     UNIXDatagramSocket,
     UNIXSocketStream,
 )
+from ..from_thread import check_cancelled
 from ..streams.stapled import MultiListener
 from ..streams.tls import TLSConnectable, TLSStream
 from ._eventloop import get_async_backend
@@ -1009,3 +1010,102 @@ def as_connectable(
         )
 
     return connectable
+
+
+def validate_sendfile_args(file: IO[bytes], offset: int, count: int | None) -> None:
+    """Validate the arguments of a ``sendfile()`` call."""
+    try:
+        file.fileno()
+    except (AttributeError, OSError) as exc:
+        raise TypeError(
+            "the file must be a file object with a working fileno() method"
+        ) from exc
+
+    if not hasattr(file, "seek"):
+        raise TypeError("the file must be a file object with a working seek() method")
+
+    if not isinstance(offset, int):
+        raise TypeError(f"offset must be a non-negative integer (got {offset!r})")
+
+    if offset < 0:
+        raise ValueError(f"offset must be a non-negative integer (got {offset!r})")
+
+    if count is not None:
+        if not isinstance(count, int):
+            raise TypeError(f"count must be a positive integer (got {count!r})")
+
+        if count < 1:
+            raise ValueError(f"count must be a positive integer (got {count!r})")
+
+
+def sendfile_blocking(
+    sock: socket.socket, file: IO[bytes], offset: int, count: int | None
+) -> int:
+    """
+    Send a file over a socket, blocking; the caller must hold the send guard.
+
+    Note that we cannot use ``socket.sendfile()`` here since it doesn't work with
+    uvloop's pseudo-sockets.
+    """
+    total = 0
+    if os.name == "posix":
+        sock_fd = sock.fileno()
+        os.set_blocking(sock_fd, True)
+        try:
+            file_fd = file.fileno()
+            size: int | None = None
+            position = offset
+
+            while count is None or total < count:
+                check_cancelled()
+                if count is not None:
+                    to_send = count - total
+                else:
+                    if size is None:
+                        size = os.fstat(file_fd).st_size
+
+                    to_send = size - position
+
+                if to_send <= 0:
+                    break
+
+                # Cap the amount sent per call: an uncapped sendfile() would not
+                # return until the whole transfer is done, leaving no opportunity
+                # for the next iteration (and its cancellation check) to run
+                sent = os.sendfile(sock_fd, file_fd, position, min(to_send, 65536))
+                if sent == 0:
+                    break
+
+                total += sent
+                position += sent
+        finally:
+            os.set_blocking(sock_fd, False)
+    else:
+        # On Windows, os.sendfile() has an incompatible signature (it mirrors
+        # the Windows TransmitFile() API)
+        sock.setblocking(True)
+        try:
+            file.seek(offset)
+            while count is None or total < count:
+                check_cancelled()
+                if count is None:
+                    chunk = file.read(65536)
+                else:
+                    remaining = count - total
+                    if remaining <= 0:
+                        break
+
+                    chunk = file.read(min(65536, remaining))
+
+                if not chunk:
+                    break
+
+                sock.sendall(chunk)
+                total += len(chunk)
+        finally:
+            sock.setblocking(False)
+
+    if total:
+        file.seek(offset + total)
+
+    return total
