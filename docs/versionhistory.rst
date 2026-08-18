@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added ``amap``, ``gather``, and ``as_completed`` utility functions to simplify common
+  patterns (`#1173 <https://github.com/agronholm/anyio/pull/1173>`_; PR by @Graeme22)
 - Added ``--anyio-mode`` command-line option as an alternative to the ``anyio_mode``
   ini setting, and fix the pytest plugin's auto mode detection to recognize the mode
   when set via either mechanism(e.g: ``pytest_asyncio``).

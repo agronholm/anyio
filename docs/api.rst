@@ -287,3 +287,10 @@ Exceptions
 .. autoexception:: anyio.TaskNotFinished
 .. autoexception:: anyio.TypedAttributeLookupError
 .. autoexception:: anyio.WouldBlock
+
+Concurrency utilities
+---------------------
+
+.. autofunction:: anyio.amap
+.. autofunction:: anyio.as_completed
+.. autofunction:: anyio.gather
