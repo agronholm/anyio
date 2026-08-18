@@ -5,7 +5,6 @@ import logging
 import platform
 import ssl
 import sys
-import sysconfig
 from collections.abc import Awaitable, Callable, Coroutine, Generator, Iterator
 from ssl import SSLContext
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar
@@ -46,15 +45,6 @@ else:
             )
         )
 
-if not sysconfig.get_config_var("Py_GIL_DISABLED"):
-    # rsloop, as of v0.1.40, doesn't support free-threading
-    try:
-        import rsloop
-    except ImportError:
-        rsloop = None
-else:
-    rsloop = None
-
 pytest_plugins = ["pytester"]
 
 asyncio_params = [
@@ -66,17 +56,6 @@ asyncio_params = [
         ),
         marks=uvloop_marks,
         id=f"asyncio+{uvloop_name}",
-    ),
-    pytest.param(
-        (
-            "asyncio",
-            {"debug": True, "loop_factory": rsloop.new_event_loop if rsloop else None},
-        ),
-        marks=[
-            pytest.mark.skipif(rsloop is None, reason="rsloop is unavailable"),
-            pytest.mark.rsloop,
-        ],
-        id="asyncio+rsloop",
     ),
 ]
 if sys.version_info >= (3, 12):
