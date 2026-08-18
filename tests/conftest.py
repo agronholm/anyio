@@ -5,6 +5,7 @@ import logging
 import platform
 import ssl
 import sys
+import sysconfig
 from collections.abc import Awaitable, Callable, Coroutine, Generator, Iterator
 from ssl import SSLContext
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar
@@ -45,10 +46,13 @@ else:
             )
         )
 
-
-try:
-    import rsloop
-except ImportError:
+if not sysconfig.get_config_var("Py_GIL_DISABLED"):
+    # rsloop, as of v0.1.40, doesn't support free-threading
+    try:
+        import rsloop
+    except ImportError:
+        rsloop = None
+else:
     rsloop = None
 
 pytest_plugins = ["pytester"]
