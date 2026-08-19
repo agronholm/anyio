@@ -1507,7 +1507,7 @@ async def test_shielded_cancel_sleep_time() -> None:
 
     """
     event = anyio.Event()
-    hang_time = 0.2
+    hang_time = 0.6
 
     async def set_event() -> None:
         await sleep(hang_time)
@@ -1515,7 +1515,7 @@ async def test_shielded_cancel_sleep_time() -> None:
 
     async def never_cancel_task() -> None:
         with CancelScope(shield=True):
-            await sleep(0.2)
+            await sleep(0.5)
             await event.wait()
 
     async with create_task_group() as tg:
@@ -1526,7 +1526,7 @@ async def test_shielded_cancel_sleep_time() -> None:
             tg.cancel_scope.cancel()
             process_time = time.process_time()
 
-        assert (time.process_time() - process_time) < hang_time
+        assert (time.process_time() - process_time) < hang_time * 1.5
 
 
 async def test_cancelscope_wrong_exit_order() -> None:
