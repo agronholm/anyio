@@ -802,9 +802,11 @@ class TestCapacityLimiter:
         limiter = CapacityLimiter(1)
         assert limiter.statistics().total_tokens == 1
         assert limiter.statistics().borrowed_tokens == 0
+        assert limiter.statistics().borrowers == ()
         assert limiter.statistics().tasks_waiting == 0
         async with create_task_group() as tg, limiter:
             assert limiter.statistics().borrowed_tokens == 1
+            assert len(limiter.statistics().borrowers) == 1
             assert limiter.statistics().tasks_waiting == 0
             for i in range(1, 3):
                 tg.start_soon(waiter)
@@ -813,6 +815,7 @@ class TestCapacityLimiter:
 
         assert limiter.statistics().tasks_waiting == 0
         assert limiter.statistics().borrowed_tokens == 0
+        assert limiter.statistics().borrowers == ()
 
     @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_asyncio_deadlock(self) -> None:
