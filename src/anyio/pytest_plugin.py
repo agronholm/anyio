@@ -21,7 +21,9 @@ from ._core._eventloop import (
     set_current_async_library,
 )
 from ._core._exceptions import iterate_exceptions
-from .abc import TestRunner
+
+if TYPE_CHECKING:
+    from .abc import TestRunner
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -83,10 +85,27 @@ def get_runner(
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
+    group = parser.getgroup("anyio")
     parser.addini(
         "anyio_mode",
         default="strict",
         help='AnyIO plugin mode (either "strict" or "auto")',
+    )
+    group.addoption(
+        "--anyio-mode",
+        default=None,
+        dest="anyio_mode",
+        help="""
+        'auto'   - All async test functions will be handled by AnyIO pytest plugin
+        'strict' - Disabling autoprocessing(useful when anyio tests
+            need to coexist with other async test plugins)
+        """,
+    )
+
+
+def _is_auto_mode(config: pytest.Config, mode: str) -> bool:
+    return (
+        config.getoption(mode, default=None) == "auto" or config.getini(mode) == "auto"
     )
 
 
@@ -96,9 +115,9 @@ def pytest_configure(config: pytest.Config) -> None:
         "anyio: mark the (coroutine function) test to be run asynchronously via anyio.",
     )
     if (
-        config.getini("anyio_mode") == "auto"
+        _is_auto_mode(config, "anyio_mode")
         and config.pluginmanager.has_plugin("asyncio")
-        and config.getini("asyncio_mode") == "auto"
+        and _is_auto_mode(config, "asyncio_mode")
     ):
         config.issue_config_time_warning(
             pytest.PytestConfigWarning(
@@ -177,7 +196,7 @@ def pytest_pycollect_makeitem(
     if collector.istestfunction(obj, name):
         inner_func = obj.hypothesis.inner_test if hasattr(obj, "hypothesis") else obj
         if iscoroutinefunction(inner_func):
-            anyio_auto_mode = collector.config.getini("anyio_mode") == "auto"
+            anyio_auto_mode = _is_auto_mode(collector.config, "anyio_mode")
             marker = collector.get_closest_marker("anyio")
             own_markers = getattr(obj, "pytestmark", ())
             if (

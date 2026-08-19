@@ -80,7 +80,6 @@ from anyio.abc import (
     UNIXSocketStream,
 )
 from anyio.lowlevel import checkpoint
-from anyio.pytest_plugin import FreePortFactory
 from anyio.streams.stapled import MultiListener
 from anyio.streams.tls import TLSConnectable, TLSStream
 
@@ -91,6 +90,8 @@ if sys.version_info < (3, 11):
 
 if TYPE_CHECKING:
     from _typeshed import FileDescriptorLike
+
+    from anyio.pytest_plugin import FreePortFactory
 
 AnyIPAddressFamily = Literal[
     AddressFamily.AF_UNSPEC, AddressFamily.AF_INET, AddressFamily.AF_INET6
