@@ -5,6 +5,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added ``amap``, ``gather``, and ``as_completed`` utility functions to simplify common
+  patterns (`#1173 <https://github.com/agronholm/anyio/pull/1173>`_; PR by @Graeme22)
+- Added ``--anyio-mode`` command-line option as an alternative to the ``anyio_mode``
+  ini setting, and fix the pytest plugin's auto mode detection to recognize the mode
+  when set via either mechanism(e.g: ``pytest_asyncio``).
+  (`#1242 <https://github.com/agronholm/anyio/pull/1242>`_; PR by @EmmanuelNiyonshuti)
 - Added the ``anyio.Future`` synchronization primitive which behaves similar to
   ``asyncio.Future``, allowing tasks to wait for a value (or exception) from another
   task (`#1146 <https://github.com/agronholm/anyio/pull/1146>`_; PR by @Vizonex)
@@ -23,6 +29,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   module name. (The default name for a task spawned with ``TaskGroup.start_soon`` or
   ``TaskGroup.start`` typically includes the module name.)
   (`#1234 <https://github.com/agronholm/anyio/pull/1234>`_; PR by @gschaffner)
+- Changed the ``anyio`` and ``anyio.abc`` modules to lazily (much like :pep:`810`)
+  import the necessary submodules. This is done by parsing the AST of the module and
+  building a lookup table from the ``if TYPE_CHECKING:`` block. A fallback mode has been
+  provided for installations where the source code is unavailable (e.g. PyInstaller).
+  (`#1169 <https://github.com/agronholm/anyio/pull/1169>`_)
 - Fixed free-threading compatibility issues arising from the fact that on Python 3.14
   free-threading builds, newly created threads inherit the current context by default,
   causing AnyIO to behave erroneously in relation to ``start_blocking_portal()`` and
