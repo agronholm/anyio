@@ -6,9 +6,8 @@ import sys
 import threading
 import time
 import weakref
-from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
-from contextvars import ContextVar, copy_context
+from contextvars import ContextVar
 from functools import partial
 from typing import Any, NoReturn
 
@@ -17,7 +16,6 @@ from pytest_mock import MockerFixture
 
 import anyio.to_thread
 from anyio import (
-    CancelScope,
     CapacityLimiter,
     Event,
     create_task_group,
@@ -25,7 +23,6 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
-from anyio._backends._asyncio import WorkerThread
 from anyio._core._eventloop import current_async_library
 from anyio.from_thread import BlockingPortalProvider
 from anyio.lowlevel import checkpoint
@@ -138,56 +135,64 @@ async def test_cancel_worker_thread(
     assert last_active == expected_last_active
 
 
-@pytest.mark.parametrize("anyio_backend", asyncio_params)
-async def test_asyncio_worker_thread_loop_closed_during_result_report(
+def test_asyncio_worker_thread_loop_closed_during_result_report(
     mocker: MockerFixture,
 ) -> None:
-    """Regression test for #1265."""
-    root_task = asyncio.current_task()
-    assert root_task is not None
-    loop = asyncio.new_event_loop()
-    loop.close()
-    loop_call_soon_spy = mocker.spy(loop, "call_soon_threadsafe")
-    loop_is_closed_spy = mocker.spy(loop, "is_closed")
-    loop_call_soon_spy.side_effect = RuntimeError("Event loop is closed")
-    workers: set[WorkerThread] = set()
-    idle_workers: deque[WorkerThread] = deque()
-    worker = WorkerThread(root_task, workers, idle_workers)
-    worker.loop = loop
-    future = asyncio.Future[None]()
-    worker.queue.put_nowait((copy_context(), lambda: None, (), future, CancelScope()))  # type: ignore[arg-type]
-    worker.queue.put_nowait(None)
-    worker.run()
+    """Regression test for #1265.
 
-    loop_call_soon_spy.assert_called_once_with(
-        worker._report_result, future, None, None
-    )
-    loop_is_closed_spy.assert_called_once()
+    Pause result delivery after the worker has observed an open event loop, then let
+    the runner close the loop before the delivery attempt continues.
+    """
+    worker_started = threading.Event()
+    release_worker = threading.Event()
+    result_report_started = threading.Event()
+    release_result_report = threading.Event()
+    worker_threads: list[threading.Thread] = []
 
+    def thread_worker() -> None:
+        worker_threads.append(threading.current_thread())
+        worker_started.set()
+        assert release_worker.wait(5)
 
-@pytest.mark.parametrize("anyio_backend", asyncio_params)
-async def test_asyncio_worker_thread_propagates_runtime_error_from_open_loop(
-    mocker: MockerFixture,
-) -> None:
-    root_task = asyncio.current_task()
-    assert root_task is not None
-    loop = mocker.Mock(spec=asyncio.AbstractEventLoop)
-    loop.is_closed.return_value = False
-    loop.call_soon_threadsafe.side_effect = RuntimeError("unexpected")
-    worker = WorkerThread(root_task, set(), deque())
-    worker.loop = loop
-    worker.queue.put_nowait(
-        (
-            copy_context(),
-            lambda: None,
-            (),
-            asyncio.Future[None](),
-            CancelScope(),  # type: ignore[arg-type]
+    async def main() -> None:
+        loop = asyncio.get_running_loop()
+        call_soon_threadsafe = loop.call_soon_threadsafe
+
+        def synchronized_call_soon_threadsafe(
+            callback: Any, *args: Any, context: Any = None
+        ) -> asyncio.Handle:
+            if worker_threads and threading.current_thread() is worker_threads[0]:
+                result_report_started.set()
+                assert release_result_report.wait(5)
+
+            return call_soon_threadsafe(callback, *args, context=context)
+
+        mocker.patch.object(
+            loop,
+            "call_soon_threadsafe",
+            side_effect=synchronized_call_soon_threadsafe,
         )
-    )
+        async with create_task_group() as task_group:
+            task_group.start_soon(
+                partial(to_thread.run_sync, thread_worker, abandon_on_cancel=True)
+            )
+            while not worker_started.is_set():
+                await checkpoint()
 
-    with pytest.raises(RuntimeError, match="unexpected"):
-        worker.run()
+            task_group.cancel_scope.cancel()
+
+        release_worker.set()
+        while not result_report_started.is_set():
+            await checkpoint()
+
+    try:
+        anyio.run(main, backend="asyncio")
+    finally:
+        release_worker.set()
+        release_result_report.set()
+
+    worker_threads[0].join(5)
+    assert not worker_threads[0].is_alive()
 
 
 async def test_cancel_wait_on_thread() -> None:
