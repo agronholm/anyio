@@ -12,6 +12,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``follow_symlinks`` on ``is_dir()`` (Python 3.13+)
   * ``follow_symlinks`` on ``is_file()`` (Python 3.13+)
   * ``newline`` on ``read_text()`` (Python 3.13+)
+
   (`#1286 <https://github.com/agronholm/anyio/pull/1286>`_; PR by @jaideeppyne)
 - Added ``amap``, ``gather``, and ``as_completed`` utility functions to simplify common
   patterns (`#1173 <https://github.com/agronholm/anyio/pull/1173>`_; PR by @Graeme22)
