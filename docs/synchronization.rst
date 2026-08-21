@@ -42,6 +42,59 @@ Example::
    replaced instead. This practice prevents a class of race conditions, and matches the
    semantics of the Trio library.
 
+Futures
+-------
+
+Futures (:class:`Future`) are used to hand a result, an exception, or a cancellation from
+one task to another. Once a future object is resolved, awaiting it again immediately returns or
+raises the same outcome.
+
+Example::
+
+    from anyio import Future, create_task_group, run
+
+
+    async def task(future: Future[int], value: int):
+        future.return_value = value
+
+
+    async def main():
+        future = Future()
+        async with create_task_group() as tg:
+            tg.start_soon(task, future, 5)
+            result = await future
+
+            print(f"Returned: {result}")
+
+    run(main)
+
+    # Output:
+    # Returned: 5
+
+Example::
+
+    from anyio import Future, FutureFailed, create_task_group, run
+
+
+    async def task(future: Future[int]):
+        future.exception = ValueError("Something went wrong!")
+
+
+    async def main():
+        future = Future()
+        async with create_task_group() as tg:
+            tg.start_soon(task, future)
+
+            try:
+                await future
+            except FutureFailed as exc:
+                print(f"Caught: {exc.__cause__!r}")
+
+    run(main)
+
+    # Output:
+    # Caught: ValueError('Something went wrong!')
+
 Semaphores
 ----------
 
