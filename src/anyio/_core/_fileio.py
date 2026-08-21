@@ -356,7 +356,7 @@ class Path:
         Added the ``limiter`` keyword argument.
     """
 
-    __slots__ = "_path", "_limiter", "__weakref__"
+    __slots__ = "__weakref__", "_limiter", "_path"
 
     __weakref__: Any
 
@@ -575,10 +575,21 @@ class Path:
         path = await to_thread.run_sync(pathlib.Path.cwd, limiter=limiter)
         return cls(path, limiter=limiter)
 
-    async def exists(self) -> bool:
-        return await to_thread.run_sync(
-            self._path.exists, abandon_on_cancel=True, limiter=self._limiter
-        )
+    if sys.version_info >= (3, 12):
+
+        async def exists(self, *, follow_symlinks: bool = True) -> bool:
+            return await to_thread.run_sync(
+                partial(self._path.exists, follow_symlinks=follow_symlinks),
+                abandon_on_cancel=True,
+                limiter=self._limiter,
+            )
+
+    else:
+
+        async def exists(self) -> bool:
+            return await to_thread.run_sync(
+                self._path.exists, abandon_on_cancel=True, limiter=self._limiter
+            )
 
     async def expanduser(self) -> Self:
         return type(self)(
@@ -653,20 +664,42 @@ class Path:
             self._path.is_char_device, abandon_on_cancel=True, limiter=self._limiter
         )
 
-    async def is_dir(self) -> bool:
-        return await to_thread.run_sync(
-            self._path.is_dir, abandon_on_cancel=True, limiter=self._limiter
-        )
+    if sys.version_info >= (3, 13):
+
+        async def is_dir(self, *, follow_symlinks: bool = True) -> bool:
+            return await to_thread.run_sync(
+                partial(self._path.is_dir, follow_symlinks=follow_symlinks),
+                abandon_on_cancel=True,
+                limiter=self._limiter,
+            )
+
+    else:
+
+        async def is_dir(self) -> bool:
+            return await to_thread.run_sync(
+                self._path.is_dir, abandon_on_cancel=True, limiter=self._limiter
+            )
 
     async def is_fifo(self) -> bool:
         return await to_thread.run_sync(
             self._path.is_fifo, abandon_on_cancel=True, limiter=self._limiter
         )
 
-    async def is_file(self) -> bool:
-        return await to_thread.run_sync(
-            self._path.is_file, abandon_on_cancel=True, limiter=self._limiter
-        )
+    if sys.version_info >= (3, 13):
+
+        async def is_file(self, *, follow_symlinks: bool = True) -> bool:
+            return await to_thread.run_sync(
+                partial(self._path.is_file, follow_symlinks=follow_symlinks),
+                abandon_on_cancel=True,
+                limiter=self._limiter,
+            )
+
+    else:
+
+        async def is_file(self) -> bool:
+            return await to_thread.run_sync(
+                self._path.is_file, abandon_on_cancel=True, limiter=self._limiter
+            )
 
     if sys.version_info >= (3, 12):
 
@@ -771,12 +804,30 @@ class Path:
     async def read_bytes(self) -> bytes:
         return await to_thread.run_sync(self._path.read_bytes, limiter=self._limiter)
 
-    async def read_text(
-        self, encoding: str | None = None, errors: str | None = None
-    ) -> str:
-        return await to_thread.run_sync(
-            self._path.read_text, encoding, errors, limiter=self._limiter
-        )
+    if sys.version_info >= (3, 13):
+
+        async def read_text(
+            self,
+            encoding: str | None = None,
+            errors: str | None = None,
+            newline: str | None = None,
+        ) -> str:
+            return await to_thread.run_sync(
+                self._path.read_text,
+                encoding,
+                errors,
+                newline,
+                limiter=self._limiter,
+            )
+
+    else:
+
+        async def read_text(
+            self, encoding: str | None = None, errors: str | None = None
+        ) -> str:
+            return await to_thread.run_sync(
+                self._path.read_text, encoding, errors, limiter=self._limiter
+            )
 
     if sys.version_info >= (3, 12):
 
@@ -924,10 +975,22 @@ class Path:
     def with_name(self, name: str) -> Self:
         return type(self)(self._path.with_name(name), limiter=self._limiter)
 
-    def with_stem(self, stem: str) -> Self:
-        return type(self)(
-            self._path.with_name(stem + self._path.suffix), limiter=self._limiter
-        )
+    if sys.version_info < (3, 13):
+        # Backport pathlib's Python>=3.13 behavior for empty stems on paths with non-empty suffixes.
+        # See: https://github.com/python/cpython/pull/114612
+        def with_stem(self, stem: str) -> Self:
+            suffix = self._path.suffix
+            if not suffix:
+                return self.with_name(stem)
+            elif not stem:
+                # If the suffix is non-empty, we can't make the stem empty.
+                raise ValueError(f"{self!r} has a non-empty suffix")
+            else:
+                return self.with_name(stem + suffix)
+    else:
+
+        def with_stem(self, stem: str) -> Self:
+            return type(self)(self._path.with_stem(stem), limiter=self._limiter)
 
     def with_suffix(self, suffix: str) -> Self:
         return type(self)(self._path.with_suffix(suffix), limiter=self._limiter)

@@ -347,6 +347,50 @@ class TestPath:
 
     @pytest.mark.skipif(
         sys.version_info < (3, 12),
+        reason="Path.exists(follow_symlinks=...) is only available on Python 3.12+",
+    )
+    async def test_exists_follow_symlinks(self, tmp_path: pathlib.Path) -> None:
+        link = tmp_path / "link"
+        link.symlink_to(tmp_path / "missing")
+        assert await Path(link).exists(follow_symlinks=False)
+        assert not await Path(link).exists(follow_symlinks=True)
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 13),
+        reason="Path.is_file(follow_symlinks=...) is only available on Python 3.13+",
+    )
+    async def test_is_file_follow_symlinks(self, tmp_path: pathlib.Path) -> None:
+        target = tmp_path / "target"
+        target.touch()
+        link = tmp_path / "link"
+        link.symlink_to(target)
+        assert await Path(link).is_file(follow_symlinks=True)
+        assert not await Path(link).is_file(follow_symlinks=False)
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 13),
+        reason="Path.is_dir(follow_symlinks=...) is only available on Python 3.13+",
+    )
+    async def test_is_dir_follow_symlinks(self, tmp_path: pathlib.Path) -> None:
+        target = tmp_path / "target"
+        target.mkdir()
+        link = tmp_path / "link"
+        link.symlink_to(target, target_is_directory=True)
+        assert await Path(link).is_dir(follow_symlinks=True)
+        assert not await Path(link).is_dir(follow_symlinks=False)
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 13),
+        reason="Path.read_text(newline=...) is only available on Python 3.13+",
+    )
+    async def test_read_text_newline(self, tmp_path: pathlib.Path) -> None:
+        path = tmp_path / "textfile"
+        path.write_bytes(b"a\r\nb")
+        assert await Path(path).read_text(newline="") == "a\r\nb"
+        assert await Path(path).read_text() == "a\nb"
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 12),
         reason="Path.is_junction() is only available on Python 3.12+",
     )
     async def test_is_junction(self, tmp_path: pathlib.Path) -> None:
@@ -851,6 +895,14 @@ class TestPath:
 
     def test_with_stem(self) -> None:
         assert Path("/xyz/foo.txt").with_stem("bar").name == "bar.txt"
+
+    def test_with_stem_empty_stem_with_suffix(self) -> None:
+        # An empty stem on a path with a non-empty suffix is rejected by
+        # pathlib (the resulting name would be just the suffix). anyio.Path
+        # must match that behavior rather than silently producing e.g.
+        # Path(".txt").
+        with pytest.raises(ValueError, match="non-empty suffix"):
+            Path("/xyz/foo.txt").with_stem("")
 
     def test_with_suffix(self) -> None:
         assert Path("/xyz/foo.txt.gz").with_suffix(".zip").name == "foo.txt.zip"

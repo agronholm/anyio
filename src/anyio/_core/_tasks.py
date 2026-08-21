@@ -6,9 +6,7 @@ from collections.abc import (
     Coroutine,
     Generator,
 )
-from contextlib import (
-    contextmanager,
-)
+from contextlib import AbstractContextManager, contextmanager
 from enum import Enum, auto
 from inspect import iscoroutine
 from types import TracebackType
@@ -24,13 +22,13 @@ else:
     from typing_extensions import TypeVar
 
 if sys.version_info >= (3, 11):
-    from typing import Never, TypeVarTuple
+    from typing import Never, Self, TypeVarTuple
 else:
-    from typing_extensions import Never, TypeVarTuple
+    from typing_extensions import Never, Self, TypeVarTuple
 
 T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
-T_startval = TypeVar("T_startval", covariant=True, default=Never)
+T_startval_co = TypeVar("T_startval_co", covariant=True, default=Never)
 PosArgsT = TypeVarTuple("PosArgsT")
 
 
@@ -114,7 +112,7 @@ class CancelScope:
     def shield(self, value: bool) -> None:
         raise NotImplementedError
 
-    def __enter__(self) -> CancelScope:
+    def __enter__(self) -> Self:
         raise NotImplementedError
 
     def __exit__(
@@ -127,16 +125,48 @@ class CancelScope:
 
 
 @contextmanager
-def fail_after(
-    delay: float | None, shield: bool = False
+def fail_at(
+    deadline: float | None, shield: bool = False, reason: str | None = None
 ) -> Generator[CancelScope, None, None]:
     """
-    Create a context manager which raises a :class:`TimeoutError` if does not finish in
-    time.
+    Create a context manager which raises a :class:`TimeoutError` if the code in the
+    enclosing context does not finish by the given deadline.
+
+    :param deadline: the deadline before raising the exception, or
+        ``None`` to disable the timeout
+    :param shield: ``True`` to shield the cancel scope from external cancellation
+    :param reason: explanation for timeout to add to the message of a raised `TimeoutError`
+    :return: a context manager that yields a cancel scope
+    :rtype: :class:`~typing.ContextManager`\\[:class:`~anyio.CancelScope`\\]
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
+
+    .. versionadded:: 4.15.0
+
+    """
+    current_time = get_async_backend().current_time
+    effective_deadline = math.inf if deadline is None else deadline
+    with get_async_backend().create_cancel_scope(
+        deadline=effective_deadline, shield=shield
+    ) as cancel_scope:
+        yield cancel_scope
+
+    if cancel_scope.cancelled_caught and current_time() >= cancel_scope.deadline:
+        raise TimeoutError(reason) if reason else TimeoutError
+
+
+@contextmanager
+def fail_after(
+    delay: float | None, shield: bool = False, reason: str | None = None
+) -> Generator[CancelScope, None, None]:
+    """
+    Create a context manager which raises a :class:`TimeoutError` if the code in the
+    enclosing context block does not finish in time.
 
     :param delay: maximum allowed time (in seconds) before raising the exception, or
         ``None`` to disable the timeout
     :param shield: ``True`` to shield the cancel scope from external cancellation
+    :param reason: explanation for timeout to add to the message of a raised `TimeoutError`
     :return: a context manager that yields a cancel scope
     :rtype: :class:`~typing.ContextManager`\\[:class:`~anyio.CancelScope`\\]
     :raises NoEventLoopError: if no supported asynchronous event loop is running in the
@@ -145,16 +175,32 @@ def fail_after(
     """
     current_time = get_async_backend().current_time
     deadline = (current_time() + delay) if delay is not None else math.inf
-    with get_async_backend().create_cancel_scope(
-        deadline=deadline, shield=shield
-    ) as cancel_scope:
-        yield cancel_scope
-
-    if cancel_scope.cancelled_caught and current_time() >= cancel_scope.deadline:
-        raise TimeoutError
+    with fail_at(deadline, shield=shield, reason=reason) as scope:
+        yield scope
 
 
-def move_on_after(delay: float | None, shield: bool = False) -> CancelScope:
+def move_on_at(deadline: float | None, shield: bool = False) -> CancelScope:
+    """
+    Create a cancel scope with a deadline that expires after the given delay.
+
+    :param deadline: the deadline before exiting the context block, or
+        ``None`` to disable the timeout
+    :param shield: ``True`` to shield the cancel scope from external cancellation
+    :return: a cancel scope
+    :raises NoEventLoopError: if no supported asynchronous event loop is running in the
+        current thread
+
+    .. versionadded:: 4.15.0
+
+    """
+    return get_async_backend().create_cancel_scope(
+        deadline=deadline if deadline is not None else math.inf, shield=shield
+    )
+
+
+def move_on_after(
+    delay: float | None, shield: bool = False
+) -> AbstractContextManager[CancelScope]:
     """
     Create a cancel scope with a deadline that expires after the given delay.
 
@@ -164,6 +210,9 @@ def move_on_after(delay: float | None, shield: bool = False) -> CancelScope:
     :return: a cancel scope
     :raises NoEventLoopError: if no supported asynchronous event loop is running in the
         current thread
+
+    .. note:: Unlike with :func:`fail_after`, the timer starts when this function is
+        called, not when the context manager is entered. This will be changed in v5.0.
 
     """
     deadline = (
@@ -201,7 +250,7 @@ def create_task_group() -> TaskGroup:
 
 
 @final
-class TaskHandle(Generic[T_co, T_startval]):
+class TaskHandle(Generic[T_co, T_startval_co]):
     """
     Returned from the task-spawning methods of :class:`TaskGroup`. Can be awaited on to
     get the return value of the task (or the raised exception). If the task was
@@ -240,17 +289,17 @@ class TaskHandle(Generic[T_co, T_startval]):
 
     __slots__ = (
         "__weakref__",
-        "_coro",
-        "_name",
         "_cancel_scope",
+        "_coro",
+        "_exception",
         "_finished_event",
+        "_name",
         "_return_value",
         "_start_value",
-        "_exception",
     )
 
     _return_value: T_co
-    _start_value: T_startval
+    _start_value: T_startval_co
 
     def __init__(self, coro: Coroutine[Any, Any, T_co], name: object) -> None:
         from ._synchronization import Event
@@ -378,7 +427,7 @@ class TaskHandle(Generic[T_co, T_startval]):
                 raise TaskFailed("the task raised an exception") from self._exception
 
     @property
-    def start_value(self) -> T_startval:
+    def start_value(self) -> T_startval_co:
         """
         The value passed to :meth:`task_status.started() <.abc.TaskStatus.started>`,
 

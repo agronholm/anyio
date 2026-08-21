@@ -24,12 +24,13 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: 3.15",
+    "Programming Language :: Python :: Free Threading :: 2 - Beta",
 ]
 requires-python = ">= 3.10"
 dependencies = [
     "exceptiongroup >= 1.0.2; python_version < '3.11'",
     "idna >= 2.8",
-    "typing_extensions >= 4.5; python_version < '3.13'",
+    "typing_extensions >= 4.16.0; python_version < '3.15'",
 ]
 dynamic = ["version"]
 
@@ -63,7 +64,7 @@ test = [
     """
     winloop >= 0.2.3; platform_python_implementation == 'CPython' \
     and platform_system == 'Windows' \
-    """
+    """,
 ]
 doc = [
     "packaging >= 14.1",
@@ -92,13 +93,21 @@ extend-select = [
     "PGH",          # pygrep-hooks
     "RUF100",       # unused noqa (yesqa)
     "T201",         # print
+    "TC001",        # typing-only-first-party-import
     "UP",           # pyupgrade
     "W",            # pycodestyle warnings
 ]
-ignore = ["B009", "PERF203"]
-
-[tool.ruff.lint.isort]
-"required-imports" = ["from __future__ import annotations"]
+ignore = [
+    "B009",
+    "PERF203",
+    "SIM",
+    "BLE001",
+    "PT031",
+    "PYI034",
+    "TRY002",
+]
+future-annotations = true
+extend-safe-fixes = ["TC001"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/test_tempfile.py" = ["ASYNC230"]
@@ -153,7 +162,7 @@ exclude_also = [
 ]
 
 [tool.tox]
-env_list = ["pre-commit", "py310", "py311", "py312", "py313", "py314", "py315", "pypy3", "only_asyncio"]
+env_list = ["pre-commit", "py310", "py311", "py312", "py313", "py314", "py314t", "py315", "pypy3", "only_asyncio"]
 skip_missing_interpreters = true
 requires = ["tox >= 4.22"]
 

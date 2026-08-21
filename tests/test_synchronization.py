@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import math
-import sys
 from contextlib import AbstractContextManager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -23,10 +22,12 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
-from anyio.abc import TaskStatus
 from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params
+
+if TYPE_CHECKING:
+    from anyio.abc import TaskStatus
 
 
 class TestLock:
@@ -38,11 +39,10 @@ class TestLock:
 
         results = []
         lock = Lock()
-        async with create_task_group() as tg:
-            async with lock:
-                tg.start_soon(task)
-                await wait_all_tasks_blocked()
-                results.append("1")
+        async with create_task_group() as tg, lock:
+            tg.start_soon(task)
+            await wait_all_tasks_blocked()
+            results.append("1")
 
         assert not lock.locked()
         assert results == ["1", "2"]
@@ -355,11 +355,10 @@ class TestCondition:
                 condition.notify_all()
 
         condition = Condition()
-        async with create_task_group() as tg:
-            async with condition:
-                assert condition.locked()
-                tg.start_soon(notifier)
-                await condition.wait()
+        async with create_task_group() as tg, condition:
+            assert condition.locked()
+            tg.start_soon(notifier)
+            await condition.wait()
 
     async def test_manual_acquire(self) -> None:
         async def notifier() -> None:
@@ -712,23 +711,12 @@ class TestCapacityLimiter:
             "total_tokens must be an int or math.inf"
         )
 
-    async def test_bad_init_value(self, anyio_backend_name: str) -> None:
-        # TODO: Remove this once Python 3.9 is dropped
-        if sys.version_info < (3, 10) and anyio_backend_name == "trio":
-            bad_value = 0
-            min_value = 1
-        else:
-            bad_value = -1
-            min_value = 0
-
-        pytest.raises(ValueError, CapacityLimiter, bad_value).match(
-            f"total_tokens must be >= {min_value}"
+    async def test_bad_init_value(self) -> None:
+        pytest.raises(ValueError, CapacityLimiter, -1).match(
+            "total_tokens must be >= 0"
         )
 
-    async def test_zero_tokens(self, anyio_backend_name: str) -> None:
-        if sys.version_info < (3, 10) and anyio_backend_name == "trio":
-            pytest.skip("Trio does not support zero-capacity limiters on Python 3.9")
-
+    async def test_zero_tokens(self) -> None:
         limiter = CapacityLimiter(0)
         assert limiter.total_tokens == 0
 
@@ -815,14 +803,13 @@ class TestCapacityLimiter:
         assert limiter.statistics().total_tokens == 1
         assert limiter.statistics().borrowed_tokens == 0
         assert limiter.statistics().tasks_waiting == 0
-        async with create_task_group() as tg:
-            async with limiter:
-                assert limiter.statistics().borrowed_tokens == 1
-                assert limiter.statistics().tasks_waiting == 0
-                for i in range(1, 3):
-                    tg.start_soon(waiter)
-                    await wait_all_tasks_blocked()
-                    assert limiter.statistics().tasks_waiting == i
+        async with create_task_group() as tg, limiter:
+            assert limiter.statistics().borrowed_tokens == 1
+            assert limiter.statistics().tasks_waiting == 0
+            for i in range(1, 3):
+                tg.start_soon(waiter)
+                await wait_all_tasks_blocked()
+                assert limiter.statistics().tasks_waiting == i
 
         assert limiter.statistics().tasks_waiting == 0
         assert limiter.statistics().borrowed_tokens == 0

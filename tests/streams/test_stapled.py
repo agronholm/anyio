@@ -142,6 +142,19 @@ class DummyObjectSendStream(ObjectSendStream[T_Item]):
         self._closed = True
 
 
+class DummyObjectSendStreamWithSendNowait(DummyObjectSendStream[T_Item]):
+    def send_nowait(self, item: T_Item) -> None:
+        if self._closed:
+            raise ClosedResourceError
+
+        self.buffer.append(item)
+
+
+class DummyObjectSendStreamWithBrokenSendNowait(DummyObjectSendStream[T_Item]):
+    def send_nowait(self, item: T_Item) -> None:
+        raise AttributeError("no attribute 'nonexistent'")
+
+
 class TestStapledObjectStream:
     @pytest.fixture
     def receive_stream(self) -> DummyObjectReceiveStream[str]:
@@ -152,12 +165,24 @@ class TestStapledObjectStream:
         return DummyObjectSendStream[str]()
 
     @pytest.fixture
+    def send_stream_with_send_nowait(self) -> DummyObjectSendStreamWithSendNowait[str]:
+        return DummyObjectSendStreamWithSendNowait[str]()
+
+    @pytest.fixture
     def stapled(
         self,
         receive_stream: DummyObjectReceiveStream[str],
         send_stream: DummyObjectSendStream[str],
     ) -> StapledObjectStream[str]:
         return StapledObjectStream(send_stream, receive_stream)
+
+    @pytest.fixture
+    def stapled_with_send_nowait(
+        self,
+        receive_stream: DummyObjectReceiveStream[str],
+        send_stream_with_send_nowait: DummyObjectSendStreamWithSendNowait[str],
+    ) -> StapledObjectStream[str]:
+        return StapledObjectStream(send_stream_with_send_nowait, receive_stream)
 
     async def test_receive_send(
         self, stapled: StapledObjectStream[str], send_stream: DummyObjectSendStream[str]
@@ -171,6 +196,33 @@ class TestStapledObjectStream:
         await stapled.send("today?")
         assert stapled.send_stream is send_stream
         assert send_stream.buffer == ["how are you ", "today?"]
+
+    def test_send_nowait_implemented(
+        self,
+        stapled_with_send_nowait: StapledObjectStream[str],
+        send_stream_with_send_nowait: DummyObjectSendStream[str],
+    ) -> None:
+        stapled_with_send_nowait.send_nowait("hello")
+        assert send_stream_with_send_nowait.buffer == ["hello"]
+
+    def test_send_nowait_not_implemented(
+        self, stapled: StapledObjectStream[str], send_stream: DummyObjectSendStream[str]
+    ) -> None:
+        with pytest.raises(
+            NotImplementedError,
+            match="'send_nowait' method not implemented in "
+            "<class 'tests.streams.test_stapled.DummyObjectSendStream'>",
+        ):
+            stapled.send_nowait("hello")
+
+    def test_send_nowait_does_not_mask_attribute_error(
+        self, receive_stream: DummyObjectReceiveStream[str]
+    ) -> None:
+        stapled = StapledObjectStream(
+            DummyObjectSendStreamWithBrokenSendNowait[str](), receive_stream
+        )
+        with pytest.raises(AttributeError, match="no attribute 'nonexistent'"):
+            stapled.send_nowait("hello")
 
     async def test_send_eof(self, stapled: StapledObjectStream[str]) -> None:
         await stapled.send_eof()

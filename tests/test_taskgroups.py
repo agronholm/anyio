@@ -10,7 +10,7 @@ from asyncio import CancelledError
 from collections.abc import AsyncGenerator, Coroutine, Generator
 from contextlib import aclosing
 from contextvars import ContextVar, copy_context
-from typing import Any, NoReturn, cast
+from typing import TYPE_CHECKING, Any, NoReturn, cast
 from unittest import mock
 
 import pytest
@@ -30,17 +30,21 @@ from anyio import (
     current_effective_deadline,
     current_time,
     fail_after,
+    fail_at,
     get_cancelled_exc_class,
     get_current_task,
     move_on_after,
+    move_on_at,
     sleep,
     sleep_forever,
     wait_all_tasks_blocked,
 )
-from anyio.abc import TaskGroup, TaskStatus
 from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params, no_other_refs
+
+if TYPE_CHECKING:
+    from anyio.abc import TaskGroup, TaskStatus
 
 if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup, ExceptionGroup
@@ -323,16 +327,18 @@ async def test_cancel_with_nested_task_groups() -> None:
         pass
 
     async def shield_task() -> None:
-        with EditableCancelScope(shield=True) as scope:
-            with mock.patch.object(
+        with (
+            EditableCancelScope(shield=True) as scope,
+            mock.patch.object(
                 scope,
                 "_deliver_cancellation",
                 wraps=getattr(scope, "_deliver_cancellation"),
-            ) as shielded_cancel_spy:
-                await sleep(0.5)
+            ) as shielded_cancel_spy,
+        ):
+            await sleep(0.5)
 
-                assert len(outer_cancel_spy.call_args_list) < 10
-                shielded_cancel_spy.assert_not_called()
+            assert len(outer_cancel_spy.call_args_list) < 10
+            shielded_cancel_spy.assert_not_called()
 
     async def middle_task() -> None:
         try:
@@ -379,7 +385,7 @@ async def test_no_spin_on_done_task_in_cancel_scope(mocker: MockerFixture) -> No
         pass
 
     async def owner() -> EditableCancelScope:
-        return cast(EditableCancelScope, EditableCancelScope().__enter__())
+        return EditableCancelScope().__enter__()
 
     scope = await asyncio.create_task(owner())
     spy = mocker.spy(scope, "_deliver_cancellation")
@@ -714,6 +720,15 @@ async def test_fail_after_scope_cancelled_before_timeout() -> None:
         await checkpoint()
 
 
+async def test_fail_after_reason() -> None:
+    with pytest.raises(TimeoutError, match="oopsies"):
+        with fail_after(0, reason="oopsies") as scope:
+            await sleep(1)
+
+    assert scope.cancel_called
+    assert scope.cancelled_caught
+
+
 @pytest.mark.parametrize("delay", [0, 0.1], ids=["instant", "delayed"])
 async def test_move_on_after(delay: float) -> None:
     result = False
@@ -754,6 +769,62 @@ async def test_nested_move_on_after() -> None:
     assert outer_scope.cancelled_caught
     assert not inner_scope.cancel_called
     assert not inner_scope.cancelled_caught
+
+
+@pytest.mark.parametrize("delay", [0, 0.1], ids=["instant", "delayed"])
+async def test_fail_at(delay: float) -> None:
+    with pytest.raises(TimeoutError), fail_at(current_time() + delay) as scope:
+        try:
+            await sleep(1)
+        except get_cancelled_exc_class() as exc:
+            assert "deadline" in str(exc)
+            raise
+        else:
+            pytest.fail("sleep() should have raised a cancellation exception")
+
+    assert scope.cancel_called
+    assert scope.cancelled_caught
+
+
+async def test_fail_at_no_timeout() -> None:
+    with fail_at(None) as scope:
+        assert scope.deadline == float("inf")
+        await sleep(0.1)
+
+    assert not scope.cancel_called
+    assert not scope.cancelled_caught
+
+
+async def test_fail_at_reason() -> None:
+    with pytest.raises(TimeoutError, match="oopsies"):
+        with fail_at(current_time(), reason="oopsies") as scope:
+            await sleep(1)
+
+    assert scope.cancel_called
+    assert scope.cancelled_caught
+
+
+@pytest.mark.parametrize("delay", [0, 0.1], ids=["instant", "delayed"])
+async def test_move_on_at(delay: float) -> None:
+    result = False
+    with move_on_at(current_time() + delay) as scope:
+        await sleep(1)
+        result = True
+
+    assert not result
+    assert scope.cancel_called
+    assert scope.cancelled_caught
+
+
+async def test_move_on_at_no_timeout() -> None:
+    result = False
+    with move_on_at(None) as scope:
+        assert scope.deadline == float("inf")
+        await sleep(0.1)
+        result = True
+
+    assert result
+    assert not scope.cancel_called
 
 
 async def test_shielding() -> None:
@@ -2145,14 +2216,14 @@ class TestCreateTask:
 
             assert re.match(
                 r"<TaskHandle pending "
-                r"name='TestCreateTask.test_return_value.<locals>.taskfunc' "
+                r"name='tests.test_taskgroups.TestCreateTask.test_return_value.<locals>.taskfunc' "
                 r"coro=<coroutine object(.+)>>",
                 repr(handle),
             )
             assert await handle == 6
             assert re.match(
                 r"<TaskHandle finished "
-                r"name='TestCreateTask.test_return_value.<locals>.taskfunc' "
+                r"name='tests.test_taskgroups.TestCreateTask.test_return_value.<locals>.taskfunc' "
                 r"coro=<coroutine object(.+)>>",
                 repr(handle),
             )
@@ -2179,7 +2250,7 @@ class TestCreateTask:
 
         assert re.match(
             r"<TaskHandle failed "
-            r"name='TestCreateTask.test_exception.<locals>.taskfunc' "
+            r"name='tests.test_taskgroups.TestCreateTask.test_exception.<locals>.taskfunc' "
             r"coro=<coroutine object(.+)>",
             repr(handle),
         )
@@ -2202,7 +2273,7 @@ class TestCreateTask:
                 assert handle.status is TaskHandle.Status.FAILED
                 assert re.match(
                     r"<TaskHandle failed "
-                    r"name='TestCreateTask.test_base_exception.<locals>.taskfunc' "
+                    r"name='tests.test_taskgroups.TestCreateTask.test_base_exception.<locals>.taskfunc' "
                     r"coro=<coroutine object(.+)>",
                     repr(handle),
                 )
@@ -2237,7 +2308,7 @@ class TestCreateTask:
             assert handle.status is TaskHandle.Status.CANCELLING
             assert re.match(
                 r"<TaskHandle cancelling "
-                r"name='TestCreateTask.test_cancel.<locals>.taskfunc' "
+                r"name='tests.test_taskgroups.TestCreateTask.test_cancel.<locals>.taskfunc' "
                 r"coro=<coroutine object(.+)>>",
                 repr(handle),
             )
@@ -2259,7 +2330,7 @@ class TestCreateTask:
         assert task_started
         assert re.match(
             r"<TaskHandle cancelled "
-            r"name='TestCreateTask.test_cancel.<locals>.taskfunc' "
+            r"name='tests.test_taskgroups.TestCreateTask.test_cancel.<locals>.taskfunc' "
             r"coro=<coroutine object(.+)>>",
             repr(handle),
         )
@@ -2276,34 +2347,6 @@ class TestCreateTask:
         async with create_task_group() as tg:
             assert await tg.create_task(taskfunc(), context=ctx) == 42
 
-    async def test_task_name_default(self) -> None:
-        async def taskfunc() -> str | None:
-            return get_current_task().name
-
-        async with create_task_group() as tg:
-            handle = tg.create_task(taskfunc())
-            assert re.match(
-                r"<TaskHandle pending "
-                r"name='TestCreateTask.test_task_name_default.<locals>.taskfunc' "
-                r"coro=<coroutine object(.+)>>",
-                repr(handle),
-            )
-            assert await handle == handle.name
-
-        assert handle.name == "TestCreateTask.test_task_name_default.<locals>.taskfunc"
-
-    async def test_task_name_custom_name(self) -> None:
-        async def taskfunc() -> None:
-            assert get_current_task().name == "custom name"
-
-        async with create_task_group() as tg:
-            handle = tg.create_task(taskfunc(), name="custom name")
-            assert handle.name == "custom name"
-            assert re.match(
-                r"<TaskHandle pending name='custom name' coro=<coroutine object(.+)>>",
-                repr(handle),
-            )
-
     async def test_wait(self) -> None:
         async def taskfunc() -> None:
             raise RuntimeError("dummy error")
@@ -2319,18 +2362,74 @@ class TestCreateTask:
         await handle.wait()
 
 
+@pytest.mark.parametrize("spawner", ["create_task", "start_soon", "start"])
+async def test_task_name_default(spawner: str) -> None:
+    async def taskfunc(
+        *, task_status: TaskStatus[None] = TASK_STATUS_IGNORED
+    ) -> str | None:
+        task_status.started()
+        return get_current_task().name
+
+    async with create_task_group() as tg:
+        match spawner:
+            case "create_task":
+                handle = tg.create_task(taskfunc())
+            case "start_soon":
+                handle = tg.start_soon(taskfunc)
+            case "start":
+                handle = await tg.start(taskfunc, return_handle=True)
+            case _:
+                raise ValueError
+
+        assert (
+            await handle
+            == handle.name
+            == "tests.test_taskgroups.test_task_name_default.<locals>.taskfunc"
+        )
+        assert re.match(
+            r"<TaskHandle finished "
+            r"name='tests.test_taskgroups.test_task_name_default.<locals>.taskfunc' "
+            r"coro=<coroutine object test_task_name_default.<locals>.taskfunc at 0x[0-9a-fA-F]+>>",
+            repr(handle),
+        )
+
+
+@pytest.mark.parametrize("spawner", ["create_task", "start_soon", "start"])
+async def test_task_name_custom_name(spawner: str) -> None:
+    async def taskfunc(
+        *, task_status: TaskStatus[None] = TASK_STATUS_IGNORED
+    ) -> str | None:
+        task_status.started()
+        return get_current_task().name
+
+    async with create_task_group() as tg:
+        match spawner:
+            case "create_task":
+                handle = tg.create_task(taskfunc(), name="custom name")
+            case "start_soon":
+                handle = tg.start_soon(taskfunc, name="custom name")
+            case "start":
+                handle = await tg.start(
+                    taskfunc, return_handle=True, name="custom name"
+                )
+            case _:
+                raise ValueError
+
+        assert await handle == handle.name == "custom name"
+        assert re.match(
+            r"<TaskHandle finished name='custom name' "
+            r"coro=<coroutine object test_task_name_custom_name.<locals>.taskfunc at 0x[0-9a-fA-F]+>>",
+            repr(handle),
+        )
+
+
 @pytest.mark.parametrize("create_task", [False, True])
 async def test_task_from_asyncgen_asend(create_task: bool) -> None:
     async def genfunc(x: int, y: int) -> AsyncGenerator[int, None]:
         yield x + y
 
-    async with create_task_group() as tg:
-        async with aclosing(genfunc(3, 5)) as g:
-            if create_task:
-                handle = tg.create_task(g.asend(None))
-                assert handle.name.startswith("<async_generator_asend object at ")
-            else:
-                handle = tg.start_soon(g.asend, None)
-                assert handle.name == "async_generator.asend"
+    async with create_task_group() as tg, aclosing(genfunc(3, 5)) as g:
+        handle = tg.start_soon(g.asend, None)
+        assert handle.name == "async_generator.asend"
 
-            assert await handle == 8
+        assert await handle == 8

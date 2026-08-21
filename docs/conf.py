@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from __future__ import annotations
 
 from importlib.metadata import version as get_version
@@ -31,7 +30,19 @@ pygments_style = "sphinx"
 autodoc_default_options = {"members": True, "show-inheritance": True}
 autodoc_mock_imports = ["_typeshed", "pytest", "_pytest"]
 todo_include_todos = False
+suppress_warnings = ["config.cache"]
 
+
+def fixup_module_name(module: str) -> str:
+    if module.startswith("anyio.abc._"):
+        return "anyio.abc"
+    elif module.startswith("anyio._"):
+        return "anyio"
+    else:
+        return module
+
+
+typehints_fixup_module_name = fixup_module_name
 html_theme = "sphinx_rtd_theme"
 htmlhelp_basename = "anyiodoc"
 

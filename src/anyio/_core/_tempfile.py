@@ -365,14 +365,14 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
     async def readinto(self: SpooledTemporaryFile[bytes], b: WriteableBuffer) -> int:
         if not self._rolled:
             await checkpoint_if_cancelled()
-            self._fp.readinto(b)
+            return self._fp.readinto(b)
 
         return await super().readinto(b)
 
     async def readinto1(self: SpooledTemporaryFile[bytes], b: WriteableBuffer) -> int:
         if not self._rolled:
             await checkpoint_if_cancelled()
-            self._fp.readinto(b)
+            return self._fp.readinto1(b)
 
         return await super().readinto1(b)
 
