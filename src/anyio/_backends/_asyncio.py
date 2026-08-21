@@ -1407,8 +1407,7 @@ class SocketStream(abc.SocketStream):
         finally:
             self._transport.abort()
             if not self._protocol.is_connection_lost:
-                with CancelScope(shield=True):
-                    await sleep(0)
+                await AsyncIOBackend.cancel_shielded_checkpoint()
 
 
 class _RawSocketMixin:
