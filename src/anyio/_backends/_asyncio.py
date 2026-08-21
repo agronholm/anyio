@@ -31,11 +31,13 @@ from collections.abc import (
     Sequence,
 )
 from concurrent.futures import Future
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, suppress
 from contextvars import Context, copy_context
 from dataclasses import dataclass, field
 from functools import partial, wraps
 from inspect import (
+    CORO_CLOSED,
+    CORO_CREATED,
     CORO_RUNNING,
     CORO_SUSPENDED,
     getcoroutinestate,
@@ -888,15 +890,30 @@ class TaskGroup(abc.TaskGroup):
         handle = TaskHandle(coro, name)
         loop = asyncio.get_running_loop()
         wrapper_coro = handle._run_coro()
-        if (
-            (factory := loop.get_task_factory())
-            and getattr(factory, "__code__", None) is _eager_task_factory_code
-            and (closure := getattr(factory, "__closure__", None))
-        ):
-            custom_task_constructor = closure[0].cell_contents
-            task = custom_task_constructor(wrapper_coro, loop=loop, name=handle.name)
-        else:
-            task = loop.create_task(wrapper_coro, name=handle.name)
+        try:
+            if (
+                (factory := loop.get_task_factory())
+                and getattr(factory, "__code__", None) is _eager_task_factory_code
+                and (closure := getattr(factory, "__closure__", None))
+            ):
+                custom_task_constructor = closure[0].cell_contents
+                task = custom_task_constructor(
+                    wrapper_coro, loop=loop, name=handle.name
+                )
+            else:
+                task = loop.create_task(wrapper_coro, name=handle.name)
+        except BaseException:
+            wrapper_state = getcoroutinestate(wrapper_coro)
+            if wrapper_state is CORO_CREATED:
+                with suppress(BaseException):
+                    wrapper_coro.close()
+
+            # A suspended wrapper may still belong to a partially constructed task.
+            if wrapper_state in {CORO_CREATED, CORO_CLOSED}:
+                with suppress(BaseException):
+                    coro.close()
+
+            raise
 
         # Make the spawned task inherit the task group's cancel scope
         _task_states[task] = TaskState(
