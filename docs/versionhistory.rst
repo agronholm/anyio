@@ -7,7 +7,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added support for the newer keyword-only arguments on ``anyio.Path`` methods to match
   the standard library ``pathlib.Path``:
-  
+
   * ``follow_symlinks`` on ``exists()`` (Python 3.12+)
   * ``follow_symlinks`` on ``is_dir()`` (Python 3.13+)
   * ``follow_symlinks`` on ``is_file()`` (Python 3.13+)
