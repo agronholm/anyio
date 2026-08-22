@@ -287,6 +287,10 @@ Exceptions
 .. autoexception:: anyio.TaskNotFinished
 .. autoexception:: anyio.TypedAttributeLookupError
 .. autoexception:: anyio.WouldBlock
+.. autoexception:: anyio.FutureFailed
+.. autoexception:: anyio.FutureCancelled
+.. autoexception:: anyio.FutureAlreadyFinished
+.. autoexception:: anyio.FutureNotFinished
 
 Concurrency utilities
 ---------------------
