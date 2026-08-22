@@ -282,8 +282,8 @@ Example::
 
 A future can also finish with an exception instead of a value, or be cancelled before
 it finishes at all. Assigning an exception to :attr:`~Future.exception` puts the future into the
-FAILED state; awaiting it then raises :exc:`FutureFailed`, with the original exception
-attached as ``__cause__``. Calling :meth:`~Future.cancel` puts it into the CANCELLED
+``FAILED`` state; awaiting it then raises :exc:`FutureFailed`, with the original exception
+attached as ``__cause__``. Calling :meth:`~Future.cancel` puts it into the ``CANCELLED``
 state instead, and awaiting it raises :exc:`FutureCancelled`. To check which of these
 states a future ended up in without triggering either exception, use :meth:`~Future.wait`
 and inspect :attr:`~Future.status`::
