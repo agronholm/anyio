@@ -289,7 +289,7 @@ state instead, and awaiting it raises :exc:`FutureCancelled`. To check which of 
 states a future ended up in without triggering either exception, use :meth:`~Future.wait`
 and inspect :attr:`~Future.status`::
 
-    from anyio import Future, FutureFailed, FutureCancelled, create_task_group, run
+    from anyio import Future, FutureFailed, create_task_group, run
 
 
     async def task1(future: Future[int]):
