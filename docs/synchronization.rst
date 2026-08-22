@@ -250,3 +250,72 @@ Queues
 
 In place of queues, AnyIO offers a more powerful construct:
 :ref:`memory object streams <memory object streams>`.
+
+Futures
+-------
+
+Futures (:class:`Future`) are used to hand a result, an exception, or a cancellation from
+one task to another. Once a future object is resolved, awaiting it again immediately returns or
+raises the same outcome.
+
+Example::
+
+    from anyio import Future, create_task_group, run
+
+
+    async def task(future: Future[int], value: int):
+        future.return_value = value
+
+
+    async def main():
+        future = Future()
+        async with create_task_group() as tg:
+            tg.start_soon(task, future, 5)
+            result = await future
+
+            print(f"Returned: {result}")
+
+    run(main)
+
+    # Output:
+    # Returned: 5
+
+A future can also finish with an exception instead of a value, or be cancelled before
+it finishes at all. Assigning an exception to :attr:`~Future.exception` puts the future into the
+:attr:`~Future.Status.FAILED` state; awaiting it then raises :exc:`FutureFailed`, with
+the original exception attached as ``__cause__``. Calling :meth:`~Future.cancel` puts it
+into the :attr:`~Future.Status.CANCELLED`
+state instead, and awaiting it raises :exc:`FutureCancelled`. To check which of these
+states a future ended up in without triggering either exception, use :meth:`~Future.wait`
+and inspect :attr:`~Future.status`::
+
+    from anyio import Future, FutureFailed, create_task_group, run
+
+
+    async def task1(future: Future[int]):
+        future.exception = ValueError("Something went wrong!")
+
+
+    async def task2(future: Future[int]):
+        future.cancel()
+
+
+    async def main():
+        fut1, fut2 = Future(), Future()
+        async with create_task_group() as tg:
+            tg.start_soon(task1, fut1)
+            tg.start_soon(task2, fut2)
+
+            try:
+                await fut1
+            except FutureFailed as exc:
+                print(f"Caught: {exc.__cause__!r}")
+
+            await fut2.wait()
+            print(f"Status: {fut2.status.name}")
+
+    run(main)
+
+    # Output:
+    # Caught: ValueError('Something went wrong!')
+    # Status: CANCELLED
