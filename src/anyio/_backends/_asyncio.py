@@ -1251,6 +1251,7 @@ class StreamProtocol(asyncio.Protocol):
     write_event: asyncio.Event
     exception: Exception | None = None
     is_at_eof: bool = False
+    is_connection_lost: bool = False
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.read_queue = deque()
@@ -1260,6 +1261,7 @@ class StreamProtocol(asyncio.Protocol):
         cast(asyncio.Transport, transport).set_write_buffer_limits(0)
 
     def connection_lost(self, exc: Exception | None) -> None:
+        self.is_connection_lost = True
         if exc:
             self.exception = exc
 
@@ -1394,15 +1396,19 @@ class SocketStream(abc.SocketStream):
 
     async def aclose(self) -> None:
         self._closed = True
-        if not self._transport.is_closing():
-            try:
-                self._transport.write_eof()
-            except OSError:
-                pass
+        try:
+            if not self._transport.is_closing():
+                try:
+                    self._transport.write_eof()
+                except OSError:
+                    pass
 
-            self._transport.close()
-            await sleep(0)
+                self._transport.close()
+                await sleep(0)
+        finally:
             self._transport.abort()
+            if not self._protocol.is_connection_lost:
+                await AsyncIOBackend.cancel_shielded_checkpoint()
 
 
 class _RawSocketMixin:
@@ -1686,7 +1692,8 @@ class UDPSocket(abc.UDPSocket):
         if not self._transport.is_closing():
             self._transport.close()
 
-        await self._protocol.closed_event.wait()
+        with CancelScope(shield=True):
+            await self._protocol.closed_event.wait()
 
     async def receive(self) -> tuple[bytes, IPSockAddrType]:
         with self._receive_guard:
@@ -1736,7 +1743,8 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
         if not self._transport.is_closing():
             self._transport.close()
 
-        await self._protocol.closed_event.wait()
+        with CancelScope(shield=True):
+            await self._protocol.closed_event.wait()
 
     async def receive(self) -> bytes:
         with self._receive_guard:

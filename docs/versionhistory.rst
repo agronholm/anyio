@@ -72,6 +72,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   which triggers ``PytestRemovedIn10Warning`` on ``pytest>=9.2`` and crashes pytest at
   startup when ``filterwarnings = error`` is configured
   (`#1271 <https://github.com/agronholm/anyio/issues/1271>`_; PR by @matthewfeickert)
+- Fixed concurrent ``aclose_forcefully()`` calls on asyncio socket streams returning
+  before the underlying socket was closed
+  (`#1273 <https://github.com/agronholm/anyio/issues/1273>`_; PR by @hansu650)
 
 **4.14.2**
 
