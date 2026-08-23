@@ -324,8 +324,8 @@ use :meth:`~Future.wait` and inspect :attr:`~Future.status`::
    :class:`asyncio.Future` in a few ways:
 
    * Results and exceptions are set via the :attr:`~Future.return_value` and
-     :attr:`~Future.exception` attributes, rather than ``set_result()`` and
-     ``set_exception()`` methods.
+     :attr:`~Future.exception` attributes, rather than :meth:`asyncio.Future.set_result`` and
+     :meth:`asyncio.Future.set_exception` methods.
    * Unlike ``asyncio.Future.cancel(msg=None)``, :meth:`~Future.cancel` takes no arguments.
    * Awaiting a failed future raises :exc:`FutureFailed` rather than the original
      exception; the original exception is available as ``__cause__``.
