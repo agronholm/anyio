@@ -311,7 +311,7 @@ use :meth:`~Future.wait` and inspect :attr:`~Future.status`::
                 print(f"Caught: {exc.__cause__!r}")
 
             await fut2.wait()
-            assert fut2.status == Future.Status.CANCELLED
+            assert fut2.status is Future.Status.CANCELLED
             print(f"Status: {fut2.status.name}")
 
     run(main)
