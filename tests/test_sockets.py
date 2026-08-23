@@ -81,7 +81,6 @@ from anyio.abc import (
     UNIXSocketStream,
 )
 from anyio.lowlevel import checkpoint
-from anyio.pytest_plugin import FreePortFactory
 from anyio.streams.stapled import MultiListener
 from anyio.streams.tls import TLSConnectable, TLSStream
 
@@ -92,6 +91,8 @@ if sys.version_info < (3, 11):
 
 if TYPE_CHECKING:
     from _typeshed import FileDescriptorLike
+
+    from anyio.pytest_plugin import FreePortFactory
 
 AnyIPAddressFamily = Literal[
     AddressFamily.AF_UNSPEC, AddressFamily.AF_INET, AddressFamily.AF_INET6
@@ -1465,6 +1466,23 @@ class TestUNIXStream:
                 tg.start_soon(interrupt)
                 with pytest.raises(ClosedResourceError):
                     await stream.receive()
+
+    async def test_close_during_send(
+        self, server_sock: socket.socket, socket_path: Path
+    ) -> None:
+        async def interrupt() -> None:
+            await wait_all_tasks_blocked()
+            await stream.aclose()
+
+        async with await connect_unix(socket_path) as stream:
+            async with create_task_group() as tg:
+                tg.start_soon(interrupt)
+                with pytest.raises(ClosedResourceError):
+                    # Nothing reads from server_sock, so this blocks once the
+                    # socket buffer fills, leaving a pending send future for
+                    # aclose() to wake.
+                    while True:
+                        await stream.send(b"\0" * 4096)
 
     @pytest.mark.parametrize("operation", ["receive", "send"])
     async def test_close_after_cancelled_io(
