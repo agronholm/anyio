@@ -284,10 +284,9 @@ A future can also finish with an exception instead of a value, or be cancelled b
 it finishes at all. Assigning an exception to :attr:`~Future.exception` puts the future into the
 :attr:`~Future.Status.FAILED` state; awaiting it then raises :exc:`FutureFailed`, with
 the original exception attached as ``__cause__``. Calling :meth:`~Future.cancel` puts it
-into the :attr:`~Future.Status.CANCELLED`
-state instead, and awaiting it raises :exc:`FutureCancelled`. To check which of these
-states a future ended up in without triggering either exception, use :meth:`~Future.wait`
-and inspect :attr:`~Future.status`::
+into the :attr:`~Future.Status.CANCELLED` state instead, and awaiting it raises :exc:`FutureCancelled`.
+To check which of these states a future ended up in without triggering either exception,
+use :meth:`~Future.wait` and inspect :attr:`~Future.status`::
 
     from anyio import Future, FutureFailed, create_task_group, run
 
@@ -320,3 +319,13 @@ and inspect :attr:`~Future.status`::
     # Output:
     # Caught: ValueError('Something went wrong!')
     # Status: CANCELLED
+
+.. note:: If you're coming from :mod:`asyncio`, :class:`Future` differs from
+   :class:`asyncio.Future` in a few ways:
+
+   * Results and exceptions are set via the :attr:`~Future.return_value` and
+     :attr:`~Future.exception` attributes, rather than ``set_result()`` and
+     ``set_exception()`` methods.
+   * Unlike ``asyncio.Future.cancel(msg=None)``, :meth:`~Future.cancel` takes no arguments.
+   * Awaiting a failed future raises :exc:`FutureFailed` rather than the original
+     exception; the original exception is available as ``__cause__``.
