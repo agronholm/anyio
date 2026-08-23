@@ -329,3 +329,5 @@ use :meth:`~Future.wait` and inspect :attr:`~Future.status`::
    * Unlike ``asyncio.Future.cancel(msg=None)``, :meth:`~Future.cancel` takes no arguments.
    * Awaiting a failed future raises :exc:`FutureFailed` rather than the original
      exception; the original exception is available as ``__cause__``.
+   * Checking for ``asyncio.Future.cancelled()`` or ``asyncio.Future.done()`` can be achieved by comparing :attr:`~Future.status`; it would be equal to :attr:`~Future.Status.CANCELLED` or not equal to :attr:`~Future.Status.PENDING`, respectively.
+   * The equivalent of ``asyncio.Future.add_done_callback(callback)`` is to create a task which calls ``callback`` after awaiting :meth:`~Future.wait`.
