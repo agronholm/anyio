@@ -633,10 +633,21 @@ class Path:
             )
             return _PathIterator(gen, self._limiter, type(self))
 
-    async def group(self) -> str:
-        return await to_thread.run_sync(
-            self._path.group, abandon_on_cancel=True, limiter=self._limiter
-        )
+    if sys.version_info >= (3, 13):
+
+        async def group(self, *, follow_symlinks: bool = True) -> str:
+            return await to_thread.run_sync(
+                partial(self._path.group, follow_symlinks=follow_symlinks),
+                abandon_on_cancel=True,
+                limiter=self._limiter,
+            )
+
+    else:
+
+        async def group(self) -> str:
+            return await to_thread.run_sync(
+                self._path.group, abandon_on_cancel=True, limiter=self._limiter
+            )
 
     async def hardlink_to(
         self, target: str | bytes | PathLike[str] | PathLike[bytes]
@@ -796,10 +807,21 @@ class Path:
         )
         return AsyncFile(fp, limiter=self._limiter)
 
-    async def owner(self) -> str:
-        return await to_thread.run_sync(
-            self._path.owner, abandon_on_cancel=True, limiter=self._limiter
-        )
+    if sys.version_info >= (3, 13):
+
+        async def owner(self, *, follow_symlinks: bool = True) -> str:
+            return await to_thread.run_sync(
+                partial(self._path.owner, follow_symlinks=follow_symlinks),
+                abandon_on_cancel=True,
+                limiter=self._limiter,
+            )
+
+    else:
+
+        async def owner(self) -> str:
+            return await to_thread.run_sync(
+                self._path.owner, abandon_on_cancel=True, limiter=self._limiter
+            )
 
     async def read_bytes(self) -> bytes:
         return await to_thread.run_sync(self._path.read_bytes, limiter=self._limiter)
