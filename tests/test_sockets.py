@@ -37,6 +37,7 @@ from pytest_mock.plugin import MockerFixture
 from anyio import (
     BrokenResourceError,
     BusyResourceError,
+    CancelScope,
     ClosedResourceError,
     EndOfStream,
     Event,
@@ -54,6 +55,7 @@ from anyio import (
     create_unix_datagram_socket,
     create_unix_listener,
     fail_after,
+    get_cancelled_exc_class,
     getaddrinfo,
     getnameinfo,
     move_on_after,
@@ -1498,6 +1500,19 @@ class TestUNIXStream:
         finally:
             if client is not None:
                 await client.aclose()
+
+    async def test_aclose_checkpoints_when_cancelled(
+        self, server_sock: socket.socket, socket_path: Path
+    ) -> None:
+        stream = await connect_unix(socket_path)
+        raw_socket = stream.extra(SocketAttribute.raw_socket)
+
+        with CancelScope() as scope:
+            scope.cancel()
+            with pytest.raises(get_cancelled_exc_class()):
+                await stream.aclose()
+
+        assert raw_socket.fileno() == -1
 
     async def test_receive_after_close(
         self, server_sock: socket.socket, socket_path: Path

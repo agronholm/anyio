@@ -467,6 +467,8 @@ class _TrioSocketMixin(Generic[T_SockAddr]):
             self._closed = True
             self._trio_socket.close()
 
+        await trio.lowlevel.checkpoint()
+
     def _convert_socket_error(self, exc: BaseException) -> NoReturn:
         if isinstance(exc, trio.ClosedResourceError):
             raise ClosedResourceError from exc

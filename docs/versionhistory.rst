@@ -68,6 +68,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``UNIXSocketStream.aclose()`` raising ``asyncio.InvalidStateError`` when a
   concurrent receive or send operation had just been cancelled on the asyncio backend
   (`#1267 <https://github.com/agronholm/anyio/issues/1267>`_; PR by @alloutflo)
+- Fixed socket ``aclose()`` implementations not checkpointing after closing on the
+  asyncio and Trio backends
+  (`#1288 <https://github.com/agronholm/anyio/issues/1288>`_; PR by @hansu650)
 - Fixed the pytest plugin importing the deprecated ``_pytest.python.CallSpec2`` alias,
   which triggers ``PytestRemovedIn10Warning`` on ``pytest>=9.2`` and crashes pytest at
   startup when ``filterwarnings = error`` is configured

@@ -1453,6 +1453,8 @@ class _RawSocketMixin:
             if self._send_future and not self._send_future.done():
                 self._send_future.set_result(None)
 
+        await AsyncIOBackend.checkpoint()
+
 
 class UNIXSocketStream(_RawSocketMixin, abc.UNIXSocketStream):
     async def send_eof(self) -> None:
