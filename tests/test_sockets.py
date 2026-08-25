@@ -1582,9 +1582,24 @@ class TestUNIXStream:
             await UNIXSocketStream.from_socket(sock_or_fd)
 
 
-@pytest.mark.skipif(
-    sys.platform == "win32", reason="UNIX sockets are not available on Windows"
-)
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="UNIX sockets are not available on Windows"
+    )
+    async def test_aclose_in_cancelled_scope_raises_cancelled_exc(
+        self, server_sock: socket.socket, socket_path: Path
+    ) -> None:
+        exc = None
+        stream = await connect_unix(socket_path)
+
+        with CancelScope() as scope:
+            scope.cancel()
+            try:
+                await stream.aclose()
+            except get_cancelled_exc_class() as e:
+                exc = e
+                raise
+
+        assert exc is not None
 class TestUNIXListener:
     @pytest.fixture(
         params=[
