@@ -1581,7 +1581,6 @@ class TestUNIXStream:
         with pytest.raises(ValueError, match="the socket must be connected"):
             await UNIXSocketStream.from_socket(sock_or_fd)
 
-
     @pytest.mark.skipif(
         sys.platform == "win32", reason="UNIX sockets are not available on Windows"
     )
@@ -1600,6 +1599,8 @@ class TestUNIXStream:
                 raise
 
         assert exc is not None
+
+
 class TestUNIXListener:
     @pytest.fixture(
         params=[
