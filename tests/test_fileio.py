@@ -713,6 +713,24 @@ class TestPath:
         group_name = grp.getgrgid(os.getegid()).gr_name
         assert await Path(tmp_path).group() == group_name
 
+    @pytest.mark.skipif(
+        platform.system() == "Windows",
+        reason="owner and group are not supported on Windows",
+    )
+    @pytest.mark.skipif(
+        sys.version_info < (3, 13),
+        reason="Path.group(follow_symlinks=...) is only available on Python 3.13+",
+    )
+    async def test_group_follow_symlinks(self, tmp_path: pathlib.Path) -> None:
+        import grp
+
+        group_name = grp.getgrgid(os.getegid()).gr_name
+        link = tmp_path / "link"
+        link.symlink_to(tmp_path / "missing")
+        assert await Path(link).group(follow_symlinks=False) == group_name
+        with pytest.raises(FileNotFoundError):
+            await Path(link).group(follow_symlinks=True)
+
     async def test_mkdir(self, tmp_path: pathlib.Path) -> None:
         path = tmp_path / "testdir"
         await Path(path).mkdir()
@@ -738,6 +756,24 @@ class TestPath:
 
         user_name = pwd.getpwuid(os.geteuid()).pw_name
         assert await Path(tmp_path).owner() == user_name
+
+    @pytest.mark.skipif(
+        platform.system() == "Windows",
+        reason="owner and group are not supported on Windows",
+    )
+    @pytest.mark.skipif(
+        sys.version_info < (3, 13),
+        reason="Path.owner(follow_symlinks=...) is only available on Python 3.13+",
+    )
+    async def test_owner_follow_symlinks(self, tmp_path: pathlib.Path) -> None:
+        import pwd
+
+        user_name = pwd.getpwuid(os.geteuid()).pw_name
+        link = tmp_path / "link"
+        link.symlink_to(tmp_path / "missing")
+        assert await Path(link).owner(follow_symlinks=False) == user_name
+        with pytest.raises(FileNotFoundError):
+            await Path(link).owner(follow_symlinks=True)
 
     @pytest.mark.skipif(
         platform.system() == "Windows",

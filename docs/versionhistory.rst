@@ -14,6 +14,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   * ``newline`` on ``read_text()`` (Python 3.13+)
 
   (`#1286 <https://github.com/agronholm/anyio/pull/1286>`_; PR by @jaideeppyne)
+- Added the ``follow_symlinks`` keyword-only argument to ``anyio.Path.owner()`` and
+  ``anyio.Path.group()`` (Python 3.13+) to match the standard library ``pathlib.Path``.
+  Previously these were rejected with ``TypeError``
+  (`#XXXX <https://github.com/agronholm/anyio/pull/XXXX>`_; PR by @jaideeppyne)
 - Added ``amap``, ``gather``, and ``as_completed`` utility functions to simplify common
   patterns (`#1173 <https://github.com/agronholm/anyio/pull/1173>`_; PR by @Graeme22)
 - Added ``--anyio-mode`` command-line option as an alternative to the ``anyio_mode``
