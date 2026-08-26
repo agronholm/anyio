@@ -117,6 +117,10 @@ skip_unix_abstract_mark = pytest.mark.skipif(
     not sys.platform.startswith("linux"),
     reason="Abstract namespace sockets is a Linux only feature",
 )
+skip_no_dgram_backpressure_mark = pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="Datagram sockets are only known to refuse datagrams with EAGAIN on Linux",
+)
 
 
 @pytest.fixture
@@ -1761,6 +1765,72 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
         assert client_addresses == expected_addresses
 
 
+DGRAM_BACKPRESSURE_PAYLOAD = b"\x00" * 64
+
+
+def drain_datagram_socket(sock: socket.socket) -> None:
+    """Receive and discard every datagram currently queued on ``sock``."""
+    try:
+        while True:
+            sock.recv(65536)
+    except BlockingIOError:
+        pass
+
+
+def make_backpressured_pair(
+    tmp_path: Path, *, connect: bool
+) -> tuple[socket.socket, socket.socket, str, int]:
+    """
+    Create a datagram socket that the operating system will refuse datagrams from,
+    along with the peer it sends to.
+
+    UNIX datagram sockets are used here because UDP sockets never exert any
+    back-pressure on the loopback interface: the kernel accounts for the datagram
+    only until it has been delivered or dropped, so ``sendto()`` always succeeds, no
+    matter how small the send buffer is or how full the peer's receive buffer is.
+    UNIX datagram sockets, on the other hand, refuse datagrams with ``EAGAIN`` once
+    the send buffer is full, and they go through the very same code path in both
+    backends.
+
+    The send buffer is deliberately made as small as the OS allows, so that only a
+    handful of datagrams are needed to fill it up. The buffer is left empty on
+    return.
+
+    :return: the socket, its peer, the peer's path, and the number of datagrams the
+        OS accepts before it starts refusing them
+
+    """
+    peer_path = str(tmp_path / "peer.sock")
+    peer = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    peer.setblocking(False)
+    peer.bind(peer_path)
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    sock.bind(str(tmp_path / "local.sock"))
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024)
+    if connect:
+        sock.connect(peer_path)
+
+    sock.setblocking(False)
+
+    # Find out how many datagrams the OS accepts before it refuses any more, and then
+    # empty both buffers again
+    capacity = 0
+    try:
+        while True:
+            if connect:
+                sock.send(DGRAM_BACKPRESSURE_PAYLOAD)
+            else:
+                sock.sendto(DGRAM_BACKPRESSURE_PAYLOAD, peer_path)
+
+            capacity += 1
+    except BlockingIOError:
+        pass
+
+    assert capacity >= 2, f"the send buffer only fits {capacity} datagram(s)"
+    drain_datagram_socket(peer)
+    return sock, peer, peer_path, capacity
+
+
 @pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestUDPSocket:
@@ -1831,6 +1901,48 @@ class TestUDPSocket:
             response, addr = await sock.receive()
             assert response == b"halb"
             assert addr == (host, port)
+
+    @skip_no_dgram_backpressure_mark
+    async def test_send_waits_for_the_os_to_accept_the_datagram(
+        self, tmp_path: Path
+    ) -> None:
+        """
+        ``send()`` must not return before the OS has accepted the datagram.
+
+        The asyncio backend sets the transport's write buffer high water mark to 0,
+        so the transport pauses the sender as soon as it has had to buffer a datagram
+        the OS refused, instead of quietly buffering up to 64 KiB worth of them. The
+        trio backend never buffers datagrams to begin with.
+        """
+        sock, peer, peer_path, capacity = make_backpressured_pair(
+            tmp_path, connect=False
+        )
+        addr = cast(IPSockAddrType, peer_path)
+        with peer:
+            async with await UDPSocket.from_socket(sock) as udp:
+                # Fill up the send buffer again
+                for _ in range(capacity):
+                    await udp.send((DGRAM_BACKPRESSURE_PAYLOAD, addr))
+
+                send_completed = False
+
+                async def send_two_more() -> None:
+                    nonlocal send_completed
+                    await udp.send((DGRAM_BACKPRESSURE_PAYLOAD, addr))
+                    await udp.send((DGRAM_BACKPRESSURE_PAYLOAD, addr))
+                    send_completed = True
+
+                with fail_after(5):
+                    async with create_task_group() as tg:
+                        tg.start_soon(send_two_more)
+                        await wait_all_tasks_blocked()
+                        blocked = not send_completed
+
+                        # Make room in the send buffer so the sender can continue
+                        drain_datagram_socket(peer)
+
+                assert blocked, "send() returned before the OS accepted the datagram"
+                assert send_completed
 
     async def test_iterate(self, family: AnyIPAddressFamily) -> None:
         async def serve() -> None:
@@ -2010,6 +2122,47 @@ class TestConnectedUDPSocket:
                 await udp1.sendto(b"halb", host, port)
                 response = await udp2.receive()
                 assert response == b"halb"
+
+    @skip_no_dgram_backpressure_mark
+    async def test_send_waits_for_the_os_to_accept_the_datagram(
+        self, tmp_path: Path
+    ) -> None:
+        """
+        ``send()`` must not return before the OS has accepted the datagram.
+
+        The asyncio backend sets the transport's write buffer high water mark to 0,
+        so the transport pauses the sender as soon as it has had to buffer a datagram
+        the OS refused, instead of quietly buffering up to 64 KiB worth of them. The
+        trio backend never buffers datagrams to begin with.
+        """
+        sock, peer, _peer_path, capacity = make_backpressured_pair(
+            tmp_path, connect=True
+        )
+        with peer:
+            async with await ConnectedUDPSocket.from_socket(sock) as udp:
+                # Fill up the send buffer again
+                for _ in range(capacity):
+                    await udp.send(DGRAM_BACKPRESSURE_PAYLOAD)
+
+                send_completed = False
+
+                async def send_two_more() -> None:
+                    nonlocal send_completed
+                    await udp.send(DGRAM_BACKPRESSURE_PAYLOAD)
+                    await udp.send(DGRAM_BACKPRESSURE_PAYLOAD)
+                    send_completed = True
+
+                with fail_after(5):
+                    async with create_task_group() as tg:
+                        tg.start_soon(send_two_more)
+                        await wait_all_tasks_blocked()
+                        blocked = not send_completed
+
+                        # Make room in the send buffer so the sender can continue
+                        drain_datagram_socket(peer)
+
+                assert blocked, "send() returned before the OS accepted the datagram"
+                assert send_completed
 
     async def test_iterate(self, family: AnyIPAddressFamily) -> None:
         async def serve() -> None:

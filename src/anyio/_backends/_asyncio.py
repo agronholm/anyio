@@ -1299,6 +1299,7 @@ class DatagramProtocol(asyncio.DatagramProtocol):
         self.write_event = asyncio.Event()
         self.closed_event = asyncio.Event()
         self.write_event.set()
+        cast(asyncio.WriteTransport, transport).set_write_buffer_limits(0)
 
     def connection_lost(self, exc: Exception | None) -> None:
         self.read_event.set()
