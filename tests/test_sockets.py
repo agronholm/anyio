@@ -58,6 +58,7 @@ from anyio import (
     getnameinfo,
     move_on_after,
     notify_closing,
+    sleep,
     sleep_forever,
     wait_all_tasks_blocked,
     wait_readable,
@@ -1943,6 +1944,91 @@ class TestUDPSocket:
                 assert blocked, "send() returned before the OS accepted the datagram"
                 assert send_completed
 
+    async def test_send_reports_error(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        """
+        ``sendto()`` must report an error reported by the OS instead of silently
+        discarding it, just like the Trio backend does.
+
+        Unconnected sockets are not told about ICMP errors on POSIX, so the error is
+        elicited by sending a datagram larger than the maximum size of a UDP packet,
+        which the OS refuses to send.
+        """
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        async with await create_udp_socket(family=family, local_host=host) as udp:
+            with fail_after(5), pytest.raises(BrokenResourceError) as exc_info:
+                while True:
+                    await udp.sendto(b"\x00" * 70000, host, free_udp_port)
+                    await sleep(0.01)
+
+            # EMSGSIZE on POSIX; WSAEMSGSIZE on Windows
+            assert isinstance(exc_info.value.__cause__, OSError)
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="the proactor event loop only reports the error asynchronously",
+    )
+    async def test_send_error_not_reported_to_receiver(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        """
+        The error must be raised by the ``sendto()`` call that caused it, and not
+        handed to an unrelated task blocked in ``receive()``.
+
+        On the asyncio backend the transport reports the error to the protocol, which
+        both paths share, so the sender has to claim it before the receiver sees it.
+        """
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        async with await create_udp_socket(family=family, local_host=host) as udp:
+            local_host, local_port = cast(
+                tuple[str, int], udp.extra(SocketAttribute.local_address)
+            )
+
+            async def receive() -> None:
+                packet, _addr = await udp.receive()
+                assert packet == b"hello"
+
+            with fail_after(5):
+                async with create_task_group() as tg:
+                    tg.start_soon(receive)
+                    await wait_all_tasks_blocked()
+                    with pytest.raises(BrokenResourceError) as exc_info:
+                        await udp.sendto(b"\x00" * 70000, host, free_udp_port)
+
+                    assert isinstance(exc_info.value.__cause__, OSError)
+
+                    # The receiver must still be waiting for a real datagram
+                    await wait_all_tasks_blocked()
+                    await udp.sendto(b"hello", local_host, local_port)
+
+    async def test_socket_usable_after_error(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        """
+        An error reported by the OS must only be raised once, leaving the socket usable
+        afterwards (a rejected datagram does not invalidate the socket).
+        """
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        async with await create_udp_socket(family=family, local_host=host) as udp:
+            with fail_after(5), pytest.raises(BrokenResourceError) as exc_info:
+                while True:
+                    await udp.sendto(b"\x00" * 70000, host, free_udp_port)
+                    await sleep(0.01)
+
+            assert isinstance(exc_info.value.__cause__, OSError)
+
+            # The socket must still be able to send a datagram of a sane size
+            async with await create_udp_socket(
+                family=family, local_host=host, local_port=free_udp_port
+            ) as peer:
+                with fail_after(5):
+                    await udp.sendto(b"hello", host, free_udp_port)
+                    packet, addr = await peer.receive()
+
+                assert packet == b"hello"
+                assert addr == udp.extra(SocketAttribute.local_address)
+
     async def test_iterate(self, family: AnyIPAddressFamily) -> None:
         async def serve() -> None:
             async for packet, addr in server:
@@ -2162,6 +2248,144 @@ class TestConnectedUDPSocket:
                 assert blocked, "send() returned before the OS accepted the datagram"
                 assert send_completed
 
+    @pytest.mark.usefixtures("check_libuv_udp_error_bug")
+    async def test_receive_wakes_up_on_error(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        """
+        A blocked ``receive()`` must be woken up when the OS reports an error on the
+        socket, instead of blocking forever.
+
+        The error is elicited by sending a datagram to a port nobody is listening on,
+        which makes the OS send back an ICMP port unreachable message.
+        """
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        async with await create_connected_udp_socket(
+            host, free_udp_port, family=family
+        ) as udp:
+
+            async def receive() -> None:
+                with pytest.raises(BrokenResourceError) as exc_info:
+                    await udp.receive()
+
+                # ConnectionRefusedError on POSIX; on Windows either
+                # ConnectionResetError or a plain OSError carrying
+                # ERROR_PORT_UNREACHABLE, depending on the backend
+                assert isinstance(exc_info.value.__cause__, OSError)
+
+            with fail_after(5):
+                async with create_task_group() as tg:
+                    tg.start_soon(receive)
+                    await wait_all_tasks_blocked()
+                    await udp.send(b"blah")
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Windows only reports the error to the receive path",
+    )
+    async def test_send_reports_error(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        """
+        ``send()`` must report an error received from the OS instead of silently
+        discarding it, just like the Trio backend does.
+
+        The error is elicited by sending a datagram to a port nobody is listening on,
+        which makes the OS send back an ICMP port unreachable message.
+        """
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        async with await create_connected_udp_socket(
+            host, free_udp_port, family=family
+        ) as udp:
+            with fail_after(5), pytest.raises(BrokenResourceError) as exc_info:
+                while True:
+                    await udp.send(b"blah")
+                    await sleep(0.01)
+
+            # ConnectionRefusedError on POSIX; on Windows either
+            # ConnectionResetError or a plain OSError carrying
+            # ERROR_PORT_UNREACHABLE, depending on the backend
+            assert isinstance(exc_info.value.__cause__, OSError)
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="the proactor event loop only reports the error asynchronously",
+    )
+    async def test_send_error_not_reported_to_receiver(
+        self, family: AnyIPAddressFamily
+    ) -> None:
+        """
+        The error must be raised by the ``send()`` call that caused it, and not handed
+        to an unrelated task blocked in ``receive()``.
+
+        On the asyncio backend the transport reports the error to the protocol, which
+        both paths share, so the sender has to claim it before the receiver sees it.
+        An ICMP port unreachable would only be reported asynchronously, so the error is
+        elicited by sending a datagram larger than the maximum size of a UDP packet,
+        which the OS refuses to send right away.
+        """
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        async with await create_udp_socket(family=family, local_host=host) as peer:
+            peer_host, peer_port = cast(
+                tuple[str, int], peer.extra(SocketAttribute.local_address)
+            )
+            async with await create_connected_udp_socket(
+                peer_host, peer_port, family=family
+            ) as udp:
+                local_host, local_port = cast(
+                    tuple[str, int], udp.extra(SocketAttribute.local_address)
+                )
+
+                async def receive() -> None:
+                    assert await udp.receive() == b"hello"
+
+                with fail_after(5):
+                    async with create_task_group() as tg:
+                        tg.start_soon(receive)
+                        await wait_all_tasks_blocked()
+                        with pytest.raises(BrokenResourceError) as exc_info:
+                            await udp.send(b"\x00" * 70000)
+
+                        # EMSGSIZE on POSIX; WSAEMSGSIZE on Windows
+                        assert isinstance(exc_info.value.__cause__, OSError)
+
+                        # The receiver must still be waiting for a real datagram
+                        await wait_all_tasks_blocked()
+                        await peer.sendto(b"hello", local_host, local_port)
+
+    @pytest.mark.usefixtures("check_libuv_udp_error_bug")
+    async def test_socket_usable_after_error(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        """
+        An error reported by the OS must only be raised once, leaving the socket
+        usable afterwards, just like on the Trio backend (an ICMP port unreachable
+        does not invalidate the socket).
+        """
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        async with await create_connected_udp_socket(
+            host, free_udp_port, family=family
+        ) as udp:
+            # Elicit an ICMP port unreachable message and let it be reported
+            await udp.send(b"blah")
+            with fail_after(5), pytest.raises(BrokenResourceError) as exc_info:
+                await udp.receive()
+
+            # ConnectionRefusedError on POSIX; on Windows either
+            # ConnectionResetError or a plain OSError carrying
+            # ERROR_PORT_UNREACHABLE, depending on the backend
+            assert isinstance(exc_info.value.__cause__, OSError)
+
+            # The socket must work again now that somebody is listening on the port
+            async with await create_udp_socket(
+                family=family, local_host=host, local_port=free_udp_port
+            ) as peer:
+                with fail_after(5):
+                    await udp.send(b"hello")
+                    packet, _addr = await peer.receive()
+
+                assert packet == b"hello"
+
     async def test_iterate(self, family: AnyIPAddressFamily) -> None:
         async def serve() -> None:
             async for packet in udp2:
@@ -2278,6 +2502,36 @@ class TestConnectedUDPSocket:
         sock_or_fd = sock_or_fd_factory(socket.AF_INET, socket.SOCK_DGRAM, bound=True)
         with pytest.raises(ValueError, match="the socket must be connected"):
             await ConnectedUDPSocket.from_socket(sock_or_fd)
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_datagram_protocol_restores_back_pressure() -> None:
+    """
+    ``error_received()`` wakes up a sender waiting on the write event, but if the
+    transport is still paused, the event has to be cleared again once the error has
+    been raised, or the back-pressure would be lost.
+
+    This can only be tested directly, as pausing a datagram transport requires the OS
+    to refuse datagrams, which loopback UDP sockets never do.
+    """
+    from anyio._backends._asyncio import DatagramProtocol
+
+    protocol = DatagramProtocol()
+    protocol.connection_made(MagicMock())
+    protocol.pause_writing()
+    assert not protocol.write_event.is_set()
+
+    # The sender must be woken up by the error
+    protocol.error_received(ConnectionRefusedError())
+    assert protocol.write_event.is_set()
+
+    # ...but only to raise it, after which it must wait for the transport again
+    assert isinstance(protocol.take_exception(), ConnectionRefusedError)
+    assert protocol.take_exception() is None
+    assert not protocol.write_event.is_set()
+
+    protocol.resume_writing()
+    assert protocol.write_event.is_set()
 
 
 @pytest.mark.skipif(
