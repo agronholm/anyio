@@ -1926,15 +1926,14 @@ class TestUDPSocket:
 
                 send_completed = False
 
-                async def send_two_more() -> None:
+                async def send_one_more() -> None:
                     nonlocal send_completed
-                    await udp.send((DGRAM_BACKPRESSURE_PAYLOAD, addr))
                     await udp.send((DGRAM_BACKPRESSURE_PAYLOAD, addr))
                     send_completed = True
 
                 with fail_after(5):
                     async with create_task_group() as tg:
-                        tg.start_soon(send_two_more)
+                        tg.start_soon(send_one_more)
                         await wait_all_tasks_blocked()
                         blocked = not send_completed
 
@@ -2146,15 +2145,14 @@ class TestConnectedUDPSocket:
 
                 send_completed = False
 
-                async def send_two_more() -> None:
+                async def send_one_more() -> None:
                     nonlocal send_completed
-                    await udp.send(DGRAM_BACKPRESSURE_PAYLOAD)
                     await udp.send(DGRAM_BACKPRESSURE_PAYLOAD)
                     send_completed = True
 
                 with fail_after(5):
                     async with create_task_group() as tg:
-                        tg.start_soon(send_two_more)
+                        tg.start_soon(send_one_more)
                         await wait_all_tasks_blocked()
                         blocked = not send_completed
 

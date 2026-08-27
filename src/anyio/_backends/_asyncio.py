@@ -1712,13 +1712,17 @@ class UDPSocket(abc.UDPSocket):
     async def send(self, item: UDPPacketType) -> None:
         with self._send_guard:
             await AsyncIOBackend.checkpoint()
-            await self._protocol.write_event.wait()
             if self._closed:
                 raise ClosedResourceError
             elif self._transport.is_closing():
                 raise BrokenResourceError
-            else:
-                self._transport.sendto(*item)
+
+            self._transport.sendto(*item)
+
+            # If the OS refused the datagram, the transport has buffered it and
+            # (because the high water mark is 0) already cleared the write event, so
+            # this waits until this call's own datagram has been handed to the OS
+            await self._protocol.write_event.wait()
 
 
 class ConnectedUDPSocket(abc.ConnectedUDPSocket):
@@ -1764,13 +1768,17 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
     async def send(self, item: bytes) -> None:
         with self._send_guard:
             await AsyncIOBackend.checkpoint()
-            await self._protocol.write_event.wait()
             if self._closed:
                 raise ClosedResourceError
             elif self._transport.is_closing():
                 raise BrokenResourceError
-            else:
-                self._transport.sendto(item)
+
+            self._transport.sendto(item)
+
+            # If the OS refused the datagram, the transport has buffered it and
+            # (because the high water mark is 0) already cleared the write event, so
+            # this waits until this call's own datagram has been handed to the OS
+            await self._protocol.write_event.wait()
 
 
 class UNIXDatagramSocket(_RawSocketMixin, abc.UNIXDatagramSocket):
