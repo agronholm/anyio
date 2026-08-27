@@ -36,8 +36,6 @@ from contextvars import Context, copy_context
 from dataclasses import dataclass, field
 from functools import partial, wraps
 from inspect import (
-    CORO_CLOSED,
-    CORO_CREATED,
     CORO_RUNNING,
     CORO_SUSPENDED,
     getcoroutinestate,
@@ -903,15 +901,11 @@ class TaskGroup(abc.TaskGroup):
             else:
                 task = loop.create_task(wrapper_coro, name=handle.name)
         except BaseException:
-            wrapper_state = getcoroutinestate(wrapper_coro)
-            if wrapper_state is CORO_CREATED:
-                with suppress(BaseException):
-                    wrapper_coro.close()
+            with suppress(BaseException):
+                wrapper_coro.close()
 
-            # A suspended wrapper may still belong to a partially constructed task.
-            if wrapper_state in {CORO_CREATED, CORO_CLOSED}:
-                with suppress(BaseException):
-                    coro.close()
+            with suppress(BaseException):
+                coro.close()
 
             raise
 
