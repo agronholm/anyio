@@ -2525,8 +2525,14 @@ async def test_datagram_protocol_restores_back_pressure() -> None:
     protocol.error_received(ConnectionRefusedError())
     assert protocol.write_event.is_set()
 
-    # ...but only to raise it, after which it must wait for the transport again
+    # Errors are queued, so a second one doesn't displace the first
+    protocol.error_received(ConnectionResetError())
+
+    # ...but the sender is only woken up to raise them, after which it must wait for
+    # the transport again
     assert isinstance(protocol.take_exception(), ConnectionRefusedError)
+    assert protocol.write_event.is_set()
+    assert isinstance(protocol.take_exception(), ConnectionResetError)
     assert protocol.take_exception() is None
     assert not protocol.write_event.is_set()
 

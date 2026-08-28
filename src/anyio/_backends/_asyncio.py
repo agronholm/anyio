@@ -1288,14 +1288,16 @@ class StreamProtocol(asyncio.Protocol):
 
 class DatagramProtocol(asyncio.DatagramProtocol):
     read_queue: deque[tuple[bytes, IPSockAddrType]]
+    exceptions: deque[Exception]
     read_event: asyncio.Event
     write_event: asyncio.Event
     closed_event: asyncio.Event
-    exception: Exception | None = None
     write_paused: bool = False
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.read_queue = deque(maxlen=100)  # arbitrary value
+        # Unbounded, as every error reported by the OS must be raised exactly once
+        self.exceptions = deque()
         self.read_event = asyncio.Event()
         self.write_event = asyncio.Event()
         self.closed_event = asyncio.Event()
@@ -1304,7 +1306,7 @@ class DatagramProtocol(asyncio.DatagramProtocol):
 
     def connection_lost(self, exc: Exception | None) -> None:
         if exc:
-            self.exception = exc
+            self.exceptions.append(exc)
 
         self.read_event.set()
         self.write_event.set()
@@ -1316,7 +1318,7 @@ class DatagramProtocol(asyncio.DatagramProtocol):
         self.read_event.set()
 
     def error_received(self, exc: Exception) -> None:
-        self.exception = exc
+        self.exceptions.append(exc)
         self.read_event.set()
         self.write_event.set()
 
@@ -1330,20 +1332,22 @@ class DatagramProtocol(asyncio.DatagramProtocol):
 
     def take_exception(self) -> Exception | None:
         """
-        Return the last error reported by the transport, clearing it so that it's only
-        reported once, just like the OS does.
+        Return the oldest error reported by the transport, removing it from the queue so
+        that it's only reported once, just like the OS does.
 
         The read event is left alone, as ``receive()`` clears it before waiting on it
         anyway. The write event, however, was set by :meth:`error_received` in order to
         wake up any sender waiting on it, so it has to be cleared again if the transport
-        is still paused, or the back-pressure would be lost.
+        is still paused and no error is left to report, or the back-pressure would be
+        lost.
 
         """
-        exc = self.exception
-        if exc is not None:
-            self.exception = None
-            if self.write_paused:
-                self.write_event.clear()
+        if not self.exceptions:
+            return None
+
+        exc = self.exceptions.popleft()
+        if self.write_paused and not self.exceptions:
+            self.write_event.clear()
 
         return exc
 
@@ -2909,9 +2913,9 @@ class AsyncIOBackend(AsyncBackend):
             family=family,
             reuse_port=reuse_port,
         )
-        if protocol.exception:
+        if (exc := protocol.take_exception()) is not None:
             transport.close()
-            raise protocol.exception
+            raise exc
 
         if not remote_address:
             return UDPSocket(transport, protocol)
