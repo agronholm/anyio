@@ -6,7 +6,6 @@ import math
 import re
 import sys
 import time
-import warnings
 from asyncio import CancelledError
 from collections.abc import AsyncGenerator, Coroutine, Generator
 from contextlib import aclosing
