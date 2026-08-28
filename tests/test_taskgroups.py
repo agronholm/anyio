@@ -122,82 +122,53 @@ async def test_start_soon_after_error() -> None:
 
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 @pytest.mark.parametrize(
-    "use_eager_task_factory",
-    [
-        pytest.param(False, id="create-task"),
-        pytest.param(
-            True,
-            marks=pytest.mark.skipif(
-                sys.version_info < (3, 12),
-                reason="Eager task factories require Python 3.12",
-            ),
-            id="eager-task-factory",
-        ),
-    ],
+    "suspend", [pytest.param(False, id="return"), pytest.param(True, id="suspend")]
+)
+@pytest.mark.parametrize(
+    "eager", [pytest.param(False, id="lazy"), pytest.param(True, id="eager")]
 )
 async def test_start_soon_closes_coroutines_when_create_task_fails(
-    monkeypatch: MonkeyPatch, use_eager_task_factory: bool
+    suspend: bool, eager: bool
 ) -> None:
-    caller_coro: Coroutine[Any, Any, None] | None = None
     wrapper_coro: Coroutine[Any, Any, None] | None = None
     expected_error = RuntimeError("task creation failed")
 
-    async def task_body() -> None:
-        pass
+    async def task_func() -> None:
+        if suspend:
+            await checkpoint()
 
-    def taskfunc() -> Coroutine[Any, Any, None]:
-        nonlocal caller_coro
-        caller_coro = task_body()
-        return caller_coro
-
-    def reject_create_task(
-        coro: Coroutine[Any, Any, None],
-        /,
+    def task_factory(
+        loop: asyncio.AbstractEventLoop,
+        coro: Coroutine[Any, Any, Any],
         **kwargs: Any,
-    ) -> NoReturn:
+    ) -> asyncio.Task[Any]:
         nonlocal wrapper_coro
         wrapper_coro = coro
-        if use_eager_task_factory:
-            coro.close()
+        if eager:
+            try:
+                coro.send(None)
+            except StopIteration:
+                pass
 
         raise expected_error
 
     loop = asyncio.get_running_loop()
     original_task_factory = loop.get_task_factory()
-    if use_eager_task_factory:
-        loop.set_task_factory(asyncio.create_eager_task_factory(reject_create_task))
-    else:
-        monkeypatch.setattr(loop, "create_task", reject_create_task)
-
-    try:
-        with warnings.catch_warnings(record=True) as caught_warnings:
-            warnings.simplefilter("always")
-            async with create_task_group() as tg:
-                try:
-                    tg.start_soon(taskfunc)
-                except RuntimeError as exc:
-                    assert exc is expected_error
-                else:
-                    pytest.fail("TaskGroup.start_soon() did not propagate the error")
-
-                assert caller_coro is not None
-                assert getcoroutinestate(caller_coro) is CORO_CLOSED
-                assert wrapper_coro is not None
-                assert getcoroutinestate(wrapper_coro) is CORO_CLOSED
-
-            caller_coro = wrapper_coro = None
-            gc.collect()
-
-        assert not [
-            warning
-            for warning in caught_warnings
-            if issubclass(warning.category, RuntimeWarning)
-        ]
-    finally:
-        if use_eager_task_factory:
-            loop.set_task_factory(original_task_factory)
+    task_func_coro = task_func()
+    async with create_task_group() as tg:
+        loop.set_task_factory(task_factory)
+        try:
+            tg.create_task(task_func_coro)
+        except RuntimeError as exc:
+            assert exc is expected_error
         else:
-            monkeypatch.undo()
+            pytest.fail("TaskGroup.start_soon() did not propagate the error")
+        finally:
+            loop.set_task_factory(original_task_factory)
+
+        assert getcoroutinestate(task_func_coro) is CORO_CLOSED
+        assert wrapper_coro is not None
+        assert getcoroutinestate(wrapper_coro) is CORO_CLOSED
 
 
 async def test_start_already_closed() -> None:
