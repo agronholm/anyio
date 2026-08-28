@@ -95,6 +95,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     task.
 
   (`#1197 <https://github.com/agronholm/anyio/issues/1197>`_; PR by @tapetersen)
+- Fixed ``CancelScope`` on the asyncio backend allowing a scope to be entered again
+  after it had been exited, instead of raising ``RuntimeError`` like the Trio backend
+  does. Reusing a cancelled scope silently cancelled the body of the second ``with``
+  block (`#1296 <https://github.com/agronholm/anyio/pull/1296>`_;
+  PR by @jaideeppyne)
 
 **4.14.2**
 

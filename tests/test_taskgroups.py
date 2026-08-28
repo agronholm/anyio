@@ -1604,6 +1604,42 @@ async def test_cancelscope_exit_before_enter() -> None:
     pytest.raises(RuntimeError, scope.__exit__, None, None, None)
 
 
+async def test_cancelscope_reuse() -> None:
+    """
+    Test that a RuntimeError is raised if one tries to enter a cancel scope that has
+    already been exited.
+
+    """
+    scope = CancelScope()
+    with scope:
+        pass
+
+    with pytest.raises(
+        RuntimeError,
+        match="Each CancelScope may only be used for a single 'with' block",
+    ):
+        with scope:
+            pass
+
+
+async def test_cancelscope_reuse_after_cancel() -> None:
+    """
+    Test that reusing a cancelled cancel scope raises a RuntimeError instead of
+    silently cancelling the body of the second ``with`` block.
+
+    """
+    scope = CancelScope()
+    with scope:
+        scope.cancel()
+
+    with pytest.raises(
+        RuntimeError,
+        match="Each CancelScope may only be used for a single 'with' block",
+    ):
+        with scope:
+            await checkpoint()
+
+
 @pytest.mark.parametrize(
     "anyio_backend", asyncio_params
 )  # trio does not check for this yet
