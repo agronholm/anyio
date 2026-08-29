@@ -7,6 +7,7 @@ import io
 import os
 import platform
 import re
+import select
 import socket
 import struct
 import sys
@@ -251,69 +252,62 @@ class TestTCPStream:
             assert stream.extra(SocketAttribute.remote_address) == server_addr
             assert stream.extra(SocketAttribute.remote_port) == server_addr[1]
 
-    @pytest.mark.parametrize("anyio_backend", asyncio_params)
-    async def test_cancelled_send_does_not_buffer_the_next_one(
+    async def test_cancelled_send_does_not_send_the_next_one(
         self, server_sock: socket.socket, server_addr: tuple[str, int]
     ) -> None:
         """
         A ``send()`` cancelled while blocked must not let the next one skip ahead.
 
-        The transport's write buffer high water mark is 0, so the protocol is paused as
-        soon as the transport has had to buffer anything the OS would not take. The
-        next ``send()`` must wait for that buffer to be flushed rather than append to
-        it: ``transport.write()`` never offers anything to the OS while its buffer is
-        non-empty, so otherwise repeated cancellation would grow the buffer without
-        bound, despite the zero high water mark.
+        The data of the *first* cancelled send may have been handed over already (on
+        asyncio, ``transport.write()`` accepts it whenever the transport is not paused,
+        and the proactor event loop even starts an overlapped write of the lot), but
+        any subsequent one, cancelled while the connection is still backed up, must not
+        have delivered anything of its own. Handing data to a paused transport merely
+        appends it to the transport's write buffer, from where it is delivered anyway,
+        and repeated cancellation would grow that buffer without bound despite its zero
+        high water mark.
         """
-        # A small receive buffer on the listening socket is inherited by the accepted
-        # one, so that the sender stays backed up while nothing is being read
-        server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2048)
         async with await connect_tcp(*server_addr) as stream:
             client, _ = server_sock.accept()
             with client:
-                stream.extra(SocketAttribute.raw_socket).setsockopt(
-                    socket.SOL_SOCKET, socket.SO_SNDBUF, 2048
-                )
-                transport = cast(Any, stream)._transport
-                protocol = cast(Any, stream)._protocol
+                client.setblocking(False)
+                raw_socket = stream.extra(SocketAttribute.raw_socket)
 
-                # Cancel a send of far more data than the sockets can hold, so that
-                # the transport is left paused with a buffer it cannot flush in the
-                # few event loop iterations that follow
-                async with create_task_group() as tg:
-                    tg.start_soon(stream.send, b"x" * 1024 * 1024)
-                    await wait_all_tasks_blocked()
-                    tg.cancel_scope.cancel()
+                async def send_and_cancel(payload: bytes) -> None:
+                    async with create_task_group() as tg:
+                        tg.start_soon(stream.send, payload)
+                        await wait_all_tasks_blocked()
+                        tg.cancel_scope.cancel()
 
-                assert transport.get_write_buffer_size()
-                assert not protocol.write_event.is_set()
+                # Back the connection up until the OS will not take another byte, and
+                # leave it that way: nothing is read from the peer until further down
+                await send_and_cancel(b"a" * 8 * 1024 * 1024)
+                with fail_after(10):
+                    while select.select([], [raw_socket], [], 0)[1]:
+                        await checkpoint()
 
-                # Record whether the next send() hands anything over while the
-                # transport is still paused. The paused state has to be sampled at the
-                # moment of the write, as the transport may legitimately be resumed
-                # (and then paused again) while the sender is waiting.
-                writes_while_paused = 0
+                # The first of these may end up in the transport's buffer, but the
+                # second must not: the OS never accepted any of it
+                await send_and_cancel(b"b" * 64)
+                await send_and_cancel(b"c" * 64)
 
-                class SpyTransport:
-                    def __getattr__(self, name: str) -> Any:
-                        return getattr(transport, name)
+                # Drain the peer until a final, uncancelled send() has arrived. Any
+                # data a cancelled send() wrongly handed over would arrive first.
+                received = bytearray()
+                arrived = False
+                with fail_after(30):
+                    async with create_task_group() as tg:
+                        tg.start_soon(stream.send, b"z" * 64)
+                        while not arrived:
+                            try:
+                                data = client.recv(65536)
+                            except BlockingIOError:
+                                await wait_readable(client)
+                            else:
+                                received += data
+                                arrived = b"z" in data
 
-                    def write(self, data: bytes) -> None:
-                        nonlocal writes_while_paused
-                        if not protocol.write_event.is_set():
-                            writes_while_paused += 1
-
-                        transport.write(data)
-
-                cast(Any, stream)._transport = SpyTransport()
-                async with create_task_group() as tg:
-                    tg.start_soon(stream.send, b"y" * 4096)
-                    await wait_all_tasks_blocked()
-                    tg.cancel_scope.cancel()
-
-                assert not writes_while_paused, (
-                    "send() handed its data to a still-paused transport"
-                )
+                assert b"c" not in received
 
     async def test_send_receive(
         self, server_sock: socket.socket, server_addr: tuple[str, int]
