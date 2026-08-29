@@ -1777,6 +1777,23 @@ def drain_datagram_socket(sock: socket.socket) -> None:
         pass
 
 
+async def receive_datagrams_until(sock: socket.socket, sentinel: bytes) -> list[bytes]:
+    """
+    Receive datagrams from ``sock`` until ``sentinel`` has been received.
+
+    :return: every datagram received, in the order they arrived, ``sentinel`` last
+
+    """
+    received: list[bytes] = []
+    while not received or received[-1] != sentinel:
+        try:
+            received.append(sock.recv(65536))
+        except BlockingIOError:
+            await wait_readable(sock)
+
+    return received
+
+
 def make_backpressured_pair(
     tmp_path: Path, *, connect: bool
 ) -> tuple[socket.socket, socket.socket, str, int]:
@@ -1942,6 +1959,47 @@ class TestUDPSocket:
 
                 assert blocked, "send() returned before the OS accepted the datagram"
                 assert send_completed
+
+    @skip_no_dgram_backpressure_mark
+    async def test_cancelled_send_does_not_buffer_the_next_datagram(
+        self, tmp_path: Path
+    ) -> None:
+        """
+        A ``send()`` cancelled while blocked must not let the next one skip ahead.
+
+        On asyncio, the datagram of the *first* cancelled send has unavoidably been
+        buffered by the transport already, but any subsequent ``send()`` must wait for
+        that buffer to be flushed instead of appending to it — otherwise repeated
+        cancellation would grow the transport's buffer without bound, despite the zero
+        high water mark.
+        """
+        sock, peer, peer_path, capacity = make_backpressured_pair(
+            tmp_path, connect=False
+        )
+        addr = cast(IPSockAddrType, peer_path)
+        with peer:
+            async with await UDPSocket.from_socket(sock) as udp:
+                # Fill up the send buffer again
+                for _ in range(capacity):
+                    await udp.send((DGRAM_BACKPRESSURE_PAYLOAD, addr))
+
+                async def send_and_cancel(payload: bytes) -> None:
+                    async with create_task_group() as tg:
+                        tg.start_soon(udp.send, (payload, addr))
+                        await wait_all_tasks_blocked()
+                        tg.cancel_scope.cancel()
+
+                with fail_after(5):
+                    # The first cancelled send may leave its datagram in the asyncio
+                    # transport's buffer, but the second one must never reach it
+                    await send_and_cancel(b"one")
+                    await send_and_cancel(b"two")
+
+                    async with create_task_group() as tg:
+                        tg.start_soon(udp.send, (b"three", addr))
+                        received = await receive_datagrams_until(peer, b"three")
+
+                assert b"two" not in received
 
     async def test_iterate(self, family: AnyIPAddressFamily) -> None:
         async def serve() -> None:
@@ -2161,6 +2219,46 @@ class TestConnectedUDPSocket:
 
                 assert blocked, "send() returned before the OS accepted the datagram"
                 assert send_completed
+
+    @skip_no_dgram_backpressure_mark
+    async def test_cancelled_send_does_not_buffer_the_next_datagram(
+        self, tmp_path: Path
+    ) -> None:
+        """
+        A ``send()`` cancelled while blocked must not let the next one skip ahead.
+
+        On asyncio, the datagram of the *first* cancelled send has unavoidably been
+        buffered by the transport already, but any subsequent ``send()`` must wait for
+        that buffer to be flushed instead of appending to it — otherwise repeated
+        cancellation would grow the transport's buffer without bound, despite the zero
+        high water mark.
+        """
+        sock, peer, _peer_path, capacity = make_backpressured_pair(
+            tmp_path, connect=True
+        )
+        with peer:
+            async with await ConnectedUDPSocket.from_socket(sock) as udp:
+                # Fill up the send buffer again
+                for _ in range(capacity):
+                    await udp.send(DGRAM_BACKPRESSURE_PAYLOAD)
+
+                async def send_and_cancel(payload: bytes) -> None:
+                    async with create_task_group() as tg:
+                        tg.start_soon(udp.send, payload)
+                        await wait_all_tasks_blocked()
+                        tg.cancel_scope.cancel()
+
+                with fail_after(5):
+                    # The first cancelled send may leave its datagram in the asyncio
+                    # transport's buffer, but the second one must never reach it
+                    await send_and_cancel(b"one")
+                    await send_and_cancel(b"two")
+
+                    async with create_task_group() as tg:
+                        tg.start_soon(udp.send, b"three")
+                        received = await receive_datagrams_until(peer, b"three")
+
+                assert b"two" not in received
 
     async def test_iterate(self, family: AnyIPAddressFamily) -> None:
         async def serve() -> None:
