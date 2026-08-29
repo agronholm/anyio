@@ -575,10 +575,21 @@ class Path:
         path = await to_thread.run_sync(pathlib.Path.cwd, limiter=limiter)
         return cls(path, limiter=limiter)
 
-    async def exists(self) -> bool:
-        return await to_thread.run_sync(
-            self._path.exists, abandon_on_cancel=True, limiter=self._limiter
-        )
+    if sys.version_info >= (3, 12):
+
+        async def exists(self, *, follow_symlinks: bool = True) -> bool:
+            return await to_thread.run_sync(
+                partial(self._path.exists, follow_symlinks=follow_symlinks),
+                abandon_on_cancel=True,
+                limiter=self._limiter,
+            )
+
+    else:
+
+        async def exists(self) -> bool:
+            return await to_thread.run_sync(
+                self._path.exists, abandon_on_cancel=True, limiter=self._limiter
+            )
 
     async def expanduser(self) -> Self:
         return type(self)(
@@ -622,10 +633,21 @@ class Path:
             )
             return _PathIterator(gen, self._limiter, type(self))
 
-    async def group(self) -> str:
-        return await to_thread.run_sync(
-            self._path.group, abandon_on_cancel=True, limiter=self._limiter
-        )
+    if sys.version_info >= (3, 13):
+
+        async def group(self, *, follow_symlinks: bool = True) -> str:
+            return await to_thread.run_sync(
+                partial(self._path.group, follow_symlinks=follow_symlinks),
+                abandon_on_cancel=True,
+                limiter=self._limiter,
+            )
+
+    else:
+
+        async def group(self) -> str:
+            return await to_thread.run_sync(
+                self._path.group, abandon_on_cancel=True, limiter=self._limiter
+            )
 
     async def hardlink_to(
         self, target: str | bytes | PathLike[str] | PathLike[bytes]
@@ -653,20 +675,42 @@ class Path:
             self._path.is_char_device, abandon_on_cancel=True, limiter=self._limiter
         )
 
-    async def is_dir(self) -> bool:
-        return await to_thread.run_sync(
-            self._path.is_dir, abandon_on_cancel=True, limiter=self._limiter
-        )
+    if sys.version_info >= (3, 13):
+
+        async def is_dir(self, *, follow_symlinks: bool = True) -> bool:
+            return await to_thread.run_sync(
+                partial(self._path.is_dir, follow_symlinks=follow_symlinks),
+                abandon_on_cancel=True,
+                limiter=self._limiter,
+            )
+
+    else:
+
+        async def is_dir(self) -> bool:
+            return await to_thread.run_sync(
+                self._path.is_dir, abandon_on_cancel=True, limiter=self._limiter
+            )
 
     async def is_fifo(self) -> bool:
         return await to_thread.run_sync(
             self._path.is_fifo, abandon_on_cancel=True, limiter=self._limiter
         )
 
-    async def is_file(self) -> bool:
-        return await to_thread.run_sync(
-            self._path.is_file, abandon_on_cancel=True, limiter=self._limiter
-        )
+    if sys.version_info >= (3, 13):
+
+        async def is_file(self, *, follow_symlinks: bool = True) -> bool:
+            return await to_thread.run_sync(
+                partial(self._path.is_file, follow_symlinks=follow_symlinks),
+                abandon_on_cancel=True,
+                limiter=self._limiter,
+            )
+
+    else:
+
+        async def is_file(self) -> bool:
+            return await to_thread.run_sync(
+                self._path.is_file, abandon_on_cancel=True, limiter=self._limiter
+            )
 
     if sys.version_info >= (3, 12):
 
@@ -763,20 +807,49 @@ class Path:
         )
         return AsyncFile(fp, limiter=self._limiter)
 
-    async def owner(self) -> str:
-        return await to_thread.run_sync(
-            self._path.owner, abandon_on_cancel=True, limiter=self._limiter
-        )
+    if sys.version_info >= (3, 13):
+
+        async def owner(self, *, follow_symlinks: bool = True) -> str:
+            return await to_thread.run_sync(
+                partial(self._path.owner, follow_symlinks=follow_symlinks),
+                abandon_on_cancel=True,
+                limiter=self._limiter,
+            )
+
+    else:
+
+        async def owner(self) -> str:
+            return await to_thread.run_sync(
+                self._path.owner, abandon_on_cancel=True, limiter=self._limiter
+            )
 
     async def read_bytes(self) -> bytes:
         return await to_thread.run_sync(self._path.read_bytes, limiter=self._limiter)
 
-    async def read_text(
-        self, encoding: str | None = None, errors: str | None = None
-    ) -> str:
-        return await to_thread.run_sync(
-            self._path.read_text, encoding, errors, limiter=self._limiter
-        )
+    if sys.version_info >= (3, 13):
+
+        async def read_text(
+            self,
+            encoding: str | None = None,
+            errors: str | None = None,
+            newline: str | None = None,
+        ) -> str:
+            return await to_thread.run_sync(
+                self._path.read_text,
+                encoding,
+                errors,
+                newline,
+                limiter=self._limiter,
+            )
+
+    else:
+
+        async def read_text(
+            self, encoding: str | None = None, errors: str | None = None
+        ) -> str:
+            return await to_thread.run_sync(
+                self._path.read_text, encoding, errors, limiter=self._limiter
+            )
 
     if sys.version_info >= (3, 12):
 

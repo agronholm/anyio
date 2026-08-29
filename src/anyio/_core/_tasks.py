@@ -6,7 +6,7 @@ from collections.abc import (
     Coroutine,
     Generator,
 )
-from contextlib import AbstractContextManager, contextmanager
+from contextlib import contextmanager
 from enum import Enum, auto
 from inspect import iscoroutine
 from types import TracebackType
@@ -198,9 +198,7 @@ def move_on_at(deadline: float | None, shield: bool = False) -> CancelScope:
     )
 
 
-def move_on_after(
-    delay: float | None, shield: bool = False
-) -> AbstractContextManager[CancelScope]:
+def move_on_after(delay: float | None, shield: bool = False) -> CancelScope:
     """
     Create a cancel scope with a deadline that expires after the given delay.
 

@@ -279,6 +279,10 @@ Exceptions
 .. autoexception:: anyio.ConnectionFailed
 .. autoexception:: anyio.DelimiterNotFound
 .. autoexception:: anyio.EndOfStream
+.. autoexception:: anyio.FutureAlreadyFinished
+.. autoexception:: anyio.FutureCancelled
+.. autoexception:: anyio.FutureFailed
+.. autoexception:: anyio.FutureNotFinished
 .. autoexception:: anyio.IncompleteRead
 .. autoexception:: anyio.NoEventLoopError
 .. autoexception:: anyio.RunFinishedError

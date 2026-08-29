@@ -31,7 +31,7 @@ from collections.abc import (
     Sequence,
 )
 from concurrent.futures import Future
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, suppress
 from contextvars import Context, copy_context
 from dataclasses import dataclass, field
 from functools import partial, wraps
@@ -937,15 +937,26 @@ class TaskGroup(abc.TaskGroup):
         handle = TaskHandle(coro, name, cancel_scope=spawn_scope)
         loop = asyncio.get_running_loop()
         wrapper_coro = handle._run_coro()
-        if (
-            (factory := loop.get_task_factory())
-            and getattr(factory, "__code__", None) is _eager_task_factory_code
-            and (closure := getattr(factory, "__closure__", None))
-        ):
-            custom_task_constructor = closure[0].cell_contents
-            task = custom_task_constructor(wrapper_coro, loop=loop, name=handle.name)
-        else:
-            task = loop.create_task(wrapper_coro, name=handle.name)
+        try:
+            if (
+                (factory := loop.get_task_factory())
+                and getattr(factory, "__code__", None) is _eager_task_factory_code
+                and (closure := getattr(factory, "__closure__", None))
+            ):
+                custom_task_constructor = closure[0].cell_contents
+                task = custom_task_constructor(
+                    wrapper_coro, loop=loop, name=handle.name
+                )
+            else:
+                task = loop.create_task(wrapper_coro, name=handle.name)
+        except BaseException:
+            with suppress(BaseException):
+                wrapper_coro.close()
+
+            with suppress(BaseException):
+                coro.close()
+
+            raise
 
         # Make the spawned task inherit the initial cancel scope
         _task_states[task] = TaskState(parent_id=parent_id, cancel_scope=initial_scope)
@@ -1091,10 +1102,13 @@ class WorkerThread(Thread):
                     finally:
                         del threadlocals.current_cancel_scope
 
-                    if not self.loop.is_closed():
+                    try:
                         self.loop.call_soon_threadsafe(
                             self._report_result, future, result, exception
                         )
+                    except RuntimeError:
+                        if not self.loop.is_closed():
+                            raise
 
                     del result, exception
 
@@ -2131,15 +2145,14 @@ class CapacityLimiter(BaseCapacityLimiter):
         if value < 0:
             raise ValueError("total_tokens must be >= 0")
 
-        waiters_to_notify = max(value - self._total_tokens, 0)
         self._total_tokens = value
 
-        # Notify waiting tasks that they have acquired the limiter
-        while self._wait_queue and waiters_to_notify:
+        # Notify waiting tasks that they have acquired the limiter while
+        # there is spare capacity.
+        while self._wait_queue and len(self._borrowers) < self._total_tokens:
             borrower, event = self._wait_queue.popitem(last=False)
             self._borrowers.add(borrower)
             event.set()
-            waiters_to_notify -= 1
 
     @property
     def borrowed_tokens(self) -> int:

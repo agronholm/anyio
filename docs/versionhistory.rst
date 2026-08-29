@@ -5,6 +5,18 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added support for the newer keyword-only arguments on ``anyio.Path`` methods to match
+  the standard library ``pathlib.Path``:
+
+  * ``follow_symlinks`` on ``exists()`` (Python 3.12+)
+  * ``follow_symlinks`` on ``is_dir()`` (Python 3.13+)
+  * ``follow_symlinks`` on ``is_file()`` (Python 3.13+)
+  * ``follow_symlinks`` on ``owner()`` (Python 3.13+)
+  * ``follow_symlinks`` on ``group()`` (Python 3.13+)
+  * ``newline`` on ``read_text()`` (Python 3.13+)
+
+  (`#1286 <https://github.com/agronholm/anyio/pull/1286>`_,
+  `#1293 <https://github.com/agronholm/anyio/pull/1293>`_; PR by @jaideeppyne)
 - Added ``amap``, ``gather``, and ``as_completed`` utility functions to simplify common
   patterns (`#1173 <https://github.com/agronholm/anyio/pull/1173>`_; PR by @Graeme22)
 - Added ``--anyio-mode`` command-line option as an alternative to the ``anyio_mode``
@@ -63,6 +75,15 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   which triggers ``PytestRemovedIn10Warning`` on ``pytest>=9.2`` and crashes pytest at
   startup when ``filterwarnings = error`` is configured
   (`#1271 <https://github.com/agronholm/anyio/issues/1271>`_; PR by @matthewfeickert)
+- Fixed an asyncio worker thread race that could raise ``RuntimeError`` when the event
+  loop closed between checking its state and scheduling the worker result
+  (`#1265 <https://github.com/agronholm/anyio/issues/1265>`_; PR by @hansu650)
+- Fixed ``CapacityLimiter`` on the asyncio backend over-granting tokens when
+  ``total_tokens`` was raised while the limiter was over-subscribed
+  (`#1223 <https://github.com/agronholm/anyio/pull/1223>`_; PR by @zelinewang)
+- Fixed asyncio task groups leaking unawaited coroutines when a custom task constructor
+  fails; default task creation is unaffected
+  (`#1274 <https://github.com/agronholm/anyio/issues/1274>`_; PR by @dsfaccini)
 - Fixed inconsistencies between Trio and asyncio when target ``TaskGroup`` is
   cancelled before a task created with ``.start()`` calls ``TaskStatus.started()``
 
