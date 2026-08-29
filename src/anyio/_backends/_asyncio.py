@@ -1761,14 +1761,20 @@ class UDPSocket(abc.UDPSocket):
             # Wait until the transport has flushed any datagram the OS previously
             # refused, so that this datagram is not merely appended to the transport's
             # buffer (which would happen if a previous send() was cancelled while
-            # waiting below)
-            await self._protocol.write_event.wait()
-            if self._closed:
-                raise ClosedResourceError
-            elif (exc := self._protocol.take_exception()) is not None:
-                raise BrokenResourceError from exc
-            elif self._transport.is_closing():
-                raise BrokenResourceError
+            # waiting below). As below, error_received() may have set the write event
+            # while the transport is still paused, so it's the pause flag, and not the
+            # event, that says when it's safe to hand over the datagram
+            while True:
+                if self._closed:
+                    raise ClosedResourceError
+                elif (exc := self._protocol.take_exception()) is not None:
+                    raise BrokenResourceError from exc
+                elif self._transport.is_closing():
+                    raise BrokenResourceError
+                elif not self._protocol.write_paused:
+                    break
+
+                await self._protocol.write_event.wait()
 
             self._transport.sendto(*item)
 
@@ -1842,14 +1848,20 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
             # Wait until the transport has flushed any datagram the OS previously
             # refused, so that this datagram is not merely appended to the transport's
             # buffer (which would happen if a previous send() was cancelled while
-            # waiting below)
-            await self._protocol.write_event.wait()
-            if self._closed:
-                raise ClosedResourceError
-            elif (exc := self._protocol.take_exception()) is not None:
-                raise BrokenResourceError from exc
-            elif self._transport.is_closing():
-                raise BrokenResourceError
+            # waiting below). As below, error_received() may have set the write event
+            # while the transport is still paused, so it's the pause flag, and not the
+            # event, that says when it's safe to hand over the datagram
+            while True:
+                if self._closed:
+                    raise ClosedResourceError
+                elif (exc := self._protocol.take_exception()) is not None:
+                    raise BrokenResourceError from exc
+                elif self._transport.is_closing():
+                    raise BrokenResourceError
+                elif not self._protocol.write_paused:
+                    break
+
+                await self._protocol.write_event.wait()
 
             self._transport.sendto(item)
 

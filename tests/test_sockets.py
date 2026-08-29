@@ -2087,6 +2087,65 @@ class TestUDPSocket:
 
                 assert b"two" not in received
 
+    @skip_no_dgram_backpressure_mark
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_send_stays_blocked_when_another_task_takes_the_error(
+        self, tmp_path: Path
+    ) -> None:
+        """
+        A sender must not be released by an error that another task has claimed.
+
+        ``error_received()`` sets the write event while the transport is still paused,
+        so that a sender blocked on it can raise the error. If a concurrent
+        ``receive()`` claims that error first, the woken sender must go back to waiting
+        instead of handing its datagram to a transport that would merely append it to
+        its buffer.
+        """
+        sock, peer, peer_path, capacity = make_backpressured_pair(
+            tmp_path, connect=False
+        )
+        addr = cast(IPSockAddrType, peer_path)
+        with peer:
+            async with await UDPSocket.from_socket(sock) as udp:
+                protocol = cast(Any, udp)._protocol
+                transport = cast(Any, udp)._transport
+
+                # Fill up the send buffer again
+                for _ in range(capacity):
+                    await udp.send((DGRAM_BACKPRESSURE_PAYLOAD, addr))
+
+                # Cancel a paused send, leaving its datagram in the transport's buffer
+                async with create_task_group() as tg:
+                    tg.start_soon(udp.send, (b"one", addr))
+                    await wait_all_tasks_blocked()
+                    tg.cancel_scope.cancel()
+
+                assert protocol.write_paused
+                buffered = transport.get_write_buffer_size()
+                assert buffered > 0
+
+                with fail_after(5):
+                    async with create_task_group() as tg:
+                        tg.start_soon(udp.send, (b"two", addr))
+                        await wait_all_tasks_blocked()
+
+                        # The OS reports an error, waking the blocked sender, but a
+                        # receiver claims it before the sender gets to run
+                        protocol.error_received(OSError(errno.ECONNREFUSED, "nope"))
+                        assert protocol.take_exception() is not None
+
+                        await wait_all_tasks_blocked()
+                        size_while_paused = transport.get_write_buffer_size()
+
+                        # Let the sender finish, so that the transport's buffer is
+                        # empty by the time the socket is closed
+                        received = await receive_datagrams_until(peer, b"two")
+
+                assert size_while_paused == buffered, (
+                    "send() handed its datagram to a still-paused transport"
+                )
+                assert b"one" in received
+
     async def test_iterate(self, family: AnyIPAddressFamily) -> None:
         async def serve() -> None:
             async for packet, addr in server:
@@ -2483,6 +2542,64 @@ class TestConnectedUDPSocket:
                         received = await receive_datagrams_until(peer, b"three")
 
                 assert b"two" not in received
+
+    @skip_no_dgram_backpressure_mark
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_send_stays_blocked_when_another_task_takes_the_error(
+        self, tmp_path: Path
+    ) -> None:
+        """
+        A sender must not be released by an error that another task has claimed.
+
+        ``error_received()`` sets the write event while the transport is still paused,
+        so that a sender blocked on it can raise the error. If a concurrent
+        ``receive()`` claims that error first, the woken sender must go back to waiting
+        instead of handing its datagram to a transport that would merely append it to
+        its buffer.
+        """
+        sock, peer, _peer_path, capacity = make_backpressured_pair(
+            tmp_path, connect=True
+        )
+        with peer:
+            async with await ConnectedUDPSocket.from_socket(sock) as udp:
+                protocol = cast(Any, udp)._protocol
+                transport = cast(Any, udp)._transport
+
+                # Fill up the send buffer again
+                for _ in range(capacity):
+                    await udp.send(DGRAM_BACKPRESSURE_PAYLOAD)
+
+                # Cancel a paused send, leaving its datagram in the transport's buffer
+                async with create_task_group() as tg:
+                    tg.start_soon(udp.send, b"one")
+                    await wait_all_tasks_blocked()
+                    tg.cancel_scope.cancel()
+
+                assert protocol.write_paused
+                buffered = transport.get_write_buffer_size()
+                assert buffered > 0
+
+                with fail_after(5):
+                    async with create_task_group() as tg:
+                        tg.start_soon(udp.send, b"two")
+                        await wait_all_tasks_blocked()
+
+                        # The OS reports an error, waking the blocked sender, but a
+                        # receiver claims it before the sender gets to run
+                        protocol.error_received(OSError(errno.ECONNREFUSED, "nope"))
+                        assert protocol.take_exception() is not None
+
+                        await wait_all_tasks_blocked()
+                        size_while_paused = transport.get_write_buffer_size()
+
+                        # Let the sender finish, so that the transport's buffer is
+                        # empty by the time the socket is closed
+                        received = await receive_datagrams_until(peer, b"two")
+
+                assert size_while_paused == buffered, (
+                    "send() handed its datagram to a still-paused transport"
+                )
+                assert b"one" in received
 
     async def test_iterate(self, family: AnyIPAddressFamily) -> None:
         async def serve() -> None:
