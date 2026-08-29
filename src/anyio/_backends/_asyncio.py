@@ -754,10 +754,10 @@ class _AsyncioTaskStatus(abc.TaskStatus[T_contra]):
     ):
         self._future = future
         self._parent_id = parent_id
+        # The eventual parent scope for this spawn_scope
+        # (after task_status.started() has been called)
         self._target_scope = target_scope
-        # The spawned task's own cancel scope (also held by its TaskHandle). Until
-        # started() is called started()
-        # reparents it into the target task group's cancel scope.
+        # The task's own cancel scope, also held by its TaskHandle
         self._spawn_scope = spawn_scope
 
     def started(self, value: T_contra | None = None) -> None:
