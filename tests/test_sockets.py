@@ -277,18 +277,12 @@ class TestTCPStream:
                 transport = cast(Any, stream)._transport
                 protocol = cast(Any, stream)._protocol
 
-                async def send_forever() -> None:
-                    while True:
-                        await stream.send(b"x" * 4096)
-
-                # Cancel a send once the transport has had to buffer something, so
-                # that it is left paused with a non-empty buffer
+                # Cancel a send of far more data than the sockets can hold, so that
+                # the transport is left paused with a buffer it cannot flush in the
+                # few event loop iterations that follow
                 async with create_task_group() as tg:
-                    tg.start_soon(send_forever)
-                    with fail_after(10):
-                        while not transport.get_write_buffer_size():
-                            await checkpoint()
-
+                    tg.start_soon(stream.send, b"x" * 1024 * 1024)
+                    await wait_all_tasks_blocked()
                     tg.cancel_scope.cancel()
 
                 assert transport.get_write_buffer_size()
