@@ -84,6 +84,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed asyncio task groups leaking unawaited coroutines when a custom task constructor
   fails; default task creation is unaffected
   (`#1274 <https://github.com/agronholm/anyio/issues/1274>`_; PR by @dsfaccini)
+- Fixed ``SocketStream.aclose()`` on the asyncio backend raising ``AttributeError``
+  when the connection is lost while the close is suspended at its checkpoint between
+  ``transport.close()`` and ``transport.abort()``
+  (`#1250 <https://github.com/agronholm/anyio/issues/1250>`_; PR by @afonsojanu)
 
 **4.14.2**
 

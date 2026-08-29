@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import array
+import asyncio
 import errno
 import gc
 import io
@@ -65,6 +66,8 @@ from anyio import (
     wait_socket_writable,
     wait_writable,
 )
+from anyio._backends._asyncio import SocketStream as AsyncioSocketStream
+from anyio._backends._asyncio import StreamProtocol
 from anyio._core._eventloop import get_async_backend
 from anyio.abc import (
     AnyByteStream,
@@ -724,6 +727,51 @@ class TestTCPStream:
                 if not re.search("took [0-9.]+ seconds", msg)
             )
             assert not caplog_text
+
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_aclose_after_connection_already_lost(self) -> None:
+        """
+        Regression test for #1250: if connection_lost() fires while
+        SocketStream.aclose() is suspended at its checkpoint between
+        transport.close() and transport.abort() (which happens when a buffered
+        write finishes draining during that window), the transport has already
+        detached from the event loop, so aclose() must not call abort() on it.
+        Calling abort() at that point raises AttributeError on the real
+        asyncio transport.
+        """
+
+        class DetachingTransport(asyncio.Transport):
+            def __init__(self) -> None:
+                self.closed = False
+                self.aborted = False
+
+            def is_closing(self) -> bool:
+                return self.closed
+
+            def write_eof(self) -> None:
+                pass
+
+            def set_write_buffer_limits(
+                self, high: int | None = None, low: int | None = None
+            ) -> None:
+                pass
+
+            def close(self) -> None:
+                self.closed = True
+
+            def abort(self) -> None:
+                self.aborted = True
+
+        transport = DetachingTransport()
+        protocol = StreamProtocol()
+        protocol.connection_made(transport)
+        stream = AsyncioSocketStream(transport, protocol)
+
+        loop = asyncio.get_running_loop()
+        loop.call_soon(protocol.connection_lost, None)
+        await stream.aclose()
+
+        assert not transport.aborted
 
     async def test_from_socket(
         self, family: AnyIPAddressFamily, sock_or_fd_factory: SockFdFactoryProtocol

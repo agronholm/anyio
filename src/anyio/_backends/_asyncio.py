@@ -1265,6 +1265,7 @@ class StreamProtocol(asyncio.Protocol):
     write_event: asyncio.Event
     exception: Exception | None = None
     is_at_eof: bool = False
+    is_connection_lost: bool = False
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.read_queue = deque()
@@ -1277,6 +1278,7 @@ class StreamProtocol(asyncio.Protocol):
         if exc:
             self.exception = exc
 
+        self.is_connection_lost = True
         self.read_event.set()
         self.write_event.set()
 
@@ -1416,7 +1418,13 @@ class SocketStream(abc.SocketStream):
 
             self._transport.close()
             await sleep(0)
-            self._transport.abort()
+
+            # If connection_lost() has already fired by the time we get here (e.g.
+            # a buffered write drained and completed the close during that checkpoint),
+            # the transport has detached itself from the event loop, so calling
+            # abort() on it would raise AttributeError instead of being a no-op.
+            if not self._protocol.is_connection_lost:
+                self._transport.abort()
 
 
 class _RawSocketMixin:
