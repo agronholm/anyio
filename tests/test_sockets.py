@@ -251,6 +251,76 @@ class TestTCPStream:
             assert stream.extra(SocketAttribute.remote_address) == server_addr
             assert stream.extra(SocketAttribute.remote_port) == server_addr[1]
 
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_cancelled_send_does_not_buffer_the_next_one(
+        self, server_sock: socket.socket, server_addr: tuple[str, int]
+    ) -> None:
+        """
+        A ``send()`` cancelled while blocked must not let the next one skip ahead.
+
+        The transport's write buffer high water mark is 0, so the protocol is paused as
+        soon as the transport has had to buffer anything the OS would not take. The
+        next ``send()`` must wait for that buffer to be flushed rather than append to
+        it: ``transport.write()`` never offers anything to the OS while its buffer is
+        non-empty, so otherwise repeated cancellation would grow the buffer without
+        bound, despite the zero high water mark.
+        """
+        # A small receive buffer on the listening socket is inherited by the accepted
+        # one, so that the sender stays backed up while nothing is being read
+        server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2048)
+        async with await connect_tcp(*server_addr) as stream:
+            client, _ = server_sock.accept()
+            with client:
+                stream.extra(SocketAttribute.raw_socket).setsockopt(
+                    socket.SOL_SOCKET, socket.SO_SNDBUF, 2048
+                )
+                transport = cast(Any, stream)._transport
+                protocol = cast(Any, stream)._protocol
+
+                async def send_forever() -> None:
+                    while True:
+                        await stream.send(b"x" * 4096)
+
+                # Cancel a send once the transport has had to buffer something, so
+                # that it is left paused with a non-empty buffer
+                async with create_task_group() as tg:
+                    tg.start_soon(send_forever)
+                    with fail_after(10):
+                        while not transport.get_write_buffer_size():
+                            await checkpoint()
+
+                    tg.cancel_scope.cancel()
+
+                assert transport.get_write_buffer_size()
+                assert not protocol.write_event.is_set()
+
+                # Record whether the next send() hands anything over while the
+                # transport is still paused. The paused state has to be sampled at the
+                # moment of the write, as the transport may legitimately be resumed
+                # (and then paused again) while the sender is waiting.
+                writes_while_paused = 0
+
+                class SpyTransport:
+                    def __getattr__(self, name: str) -> Any:
+                        return getattr(transport, name)
+
+                    def write(self, data: bytes) -> None:
+                        nonlocal writes_while_paused
+                        if not protocol.write_event.is_set():
+                            writes_while_paused += 1
+
+                        transport.write(data)
+
+                cast(Any, stream)._transport = SpyTransport()
+                async with create_task_group() as tg:
+                    tg.start_soon(stream.send, b"y" * 4096)
+                    await wait_all_tasks_blocked()
+                    tg.cancel_scope.cancel()
+
+                assert not writes_while_paused, (
+                    "send() handed its data to a still-paused transport"
+                )
+
     async def test_send_receive(
         self, server_sock: socket.socket, server_addr: tuple[str, int]
     ) -> None:

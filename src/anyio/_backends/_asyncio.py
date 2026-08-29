@@ -1385,6 +1385,11 @@ class SocketStream(abc.SocketStream):
         with self._send_guard:
             await AsyncIOBackend.checkpoint()
 
+            # Wait until the transport has flushed anything the OS previously refused,
+            # so that this data is not merely appended to the transport's buffer (which
+            # would happen if a previous send() was cancelled while waiting below):
+            # write() never offers anything to the OS while its buffer is non-empty
+            await self._protocol.write_event.wait()
             if self._closed:
                 raise ClosedResourceError
             elif self._protocol.exception is not None:
