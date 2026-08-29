@@ -90,6 +90,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   cancellation exception when called inside a cancelled scope (affected UNIX socket
   streams and UNIX datagram sockets on asyncio, and all sockets on Trio)
   (`#1288 <https://github.com/agronholm/anyio/issues/1288>`_; PR by @graingert)
+- Fixed asyncio task groups leaking unawaited coroutines when a custom task constructor
+  fails; default task creation is unaffected
+  (`#1274 <https://github.com/agronholm/anyio/issues/1274>`_; PR by @dsfaccini)
 
 **4.14.2**
 
