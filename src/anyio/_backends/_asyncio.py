@@ -916,18 +916,11 @@ class TaskGroup(abc.TaskGroup):
 
         if task_status_future is not None:
             parent_id = id(current_task())
-            # Trio semantics: until started() is called, a task spawned via start()
-            # belongs to the *caller's* cancel scope, not the target group's, so
-            # cancelling the group does not cancel a task that hasn't reported
-            # startup yet. started() reparents it into self.cancel_scope.
-            #
-            # The caller may be an unmanaged task (no _task_states entry) or a task
-            # without an active cancel scope; in either case fall back to the group's
-            # own scope.
             caller_state = _task_states.get(cast(asyncio.Task, current_task()))
             if caller_state is not None and caller_state.cancel_scope is not None:
                 initial_scope = caller_state.cancel_scope
             else:
+                # The caller is an unmanaged task (no task state)
                 initial_scope = self.cancel_scope
         else:
             parent_id = id(self.cancel_scope._host_task)
@@ -1003,6 +996,14 @@ class TaskGroup(abc.TaskGroup):
                 "This task group is not active; no new tasks can be started."
             )
 
+        # Until task_status.started() is called, a task spawned via start() belongs to
+        # the *caller's* cancel scope, not the target group's, so cancelling the group
+        # does not cancel a task that hasn't reported startup yet. The
+        # task_status.started() call moves the task's cancel scope to this task group's
+        # cancel scope.
+        #
+        # The caller may be an unmanaged task (no _task_states entry), in which case
+        # fall back to the group's own scope.
         future: asyncio.Future = asyncio.Future()
         final_name = get_callable_name(func, name)
         task_status: _AsyncioTaskStatus[Any] = _AsyncioTaskStatus(
