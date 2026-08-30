@@ -1711,10 +1711,12 @@ class UDPSocket(abc.UDPSocket):
 
     async def send(self, item: UDPPacketType) -> None:
         with self._send_guard:
-            await AsyncIOBackend.checkpoint()
-
             # Wait for any datagram the transport had to buffer to be flushed first
-            await self._protocol.write_event.wait()
+            if self._protocol.write_event.is_set():
+                await AsyncIOBackend.checkpoint()
+            else:
+                await self._protocol.write_event.wait()
+
             if self._closed:
                 raise ClosedResourceError
             elif self._transport.is_closing():
@@ -1769,10 +1771,12 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
 
     async def send(self, item: bytes) -> None:
         with self._send_guard:
-            await AsyncIOBackend.checkpoint()
-
             # Wait for any datagram the transport had to buffer to be flushed first
-            await self._protocol.write_event.wait()
+            if self._protocol.write_event.is_set():
+                await AsyncIOBackend.checkpoint()
+            else:
+                await self._protocol.write_event.wait()
+
             if self._closed:
                 raise ClosedResourceError
             elif self._transport.is_closing():
