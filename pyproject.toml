@@ -134,7 +134,7 @@ addopts = [
 ]
 testpaths = ["tests"]
 anyio_mode = "auto"
-timeout = "20"
+timeout = 20.0
 xfail_strict = true
 filterwarnings = [
     "error",
