@@ -1754,12 +1754,11 @@ class UDPSocket(abc.UDPSocket):
 
     async def send(self, item: UDPPacketType) -> None:
         with self._send_guard:
-            await AsyncIOBackend.checkpoint()
+            await AsyncIOBackend.checkpoint_if_cancelled()
+            yielded = False
 
-            # Wait for any datagram the transport had to buffer to be flushed first.
-            # error_received() may have set the write event while the transport is
-            # still paused, so it's the pause flag, and not the event, that says when
-            # it's safe to hand over the datagram
+            # error_received() may set the write event while the transport is still
+            # paused, so it's the pause flag that says when it's safe to send
             while True:
                 if self._closed:
                     raise ClosedResourceError
@@ -1770,13 +1769,14 @@ class UDPSocket(abc.UDPSocket):
                 elif not self._protocol.write_paused:
                     break
 
+                yielded = True
                 await self._protocol.write_event.wait()
 
             self._transport.sendto(*item)
 
-            # The high water mark is 0, so the transport is paused if the OS refused
-            # the datagram; wait until it has been handed over
+            # The high water mark is 0, so the transport is paused if the OS refused it
             while self._protocol.write_paused:
+                yielded = True
                 await self._protocol.write_event.wait()
                 if self._closed:
                     raise ClosedResourceError
@@ -1786,10 +1786,12 @@ class UDPSocket(abc.UDPSocket):
                     raise BrokenResourceError
 
             # A send that fails right away is reported to the protocol; raise it here
-            # instead of leaving it for another task to pick up, as the Trio backend
-            # does
+            # instead of leaving it for another task to pick up, as Trio does
             if (exc := self._protocol.take_exception()) is not None:
                 raise BrokenResourceError from exc
+
+            if not yielded:
+                await AsyncIOBackend.cancel_shielded_checkpoint()
 
 
 class ConnectedUDPSocket(abc.ConnectedUDPSocket):
@@ -1836,12 +1838,11 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
 
     async def send(self, item: bytes) -> None:
         with self._send_guard:
-            await AsyncIOBackend.checkpoint()
+            await AsyncIOBackend.checkpoint_if_cancelled()
+            yielded = False
 
-            # Wait for any datagram the transport had to buffer to be flushed first.
-            # error_received() may have set the write event while the transport is
-            # still paused, so it's the pause flag, and not the event, that says when
-            # it's safe to hand over the datagram
+            # error_received() may set the write event while the transport is still
+            # paused, so it's the pause flag that says when it's safe to send
             while True:
                 if self._closed:
                     raise ClosedResourceError
@@ -1852,13 +1853,14 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
                 elif not self._protocol.write_paused:
                     break
 
+                yielded = True
                 await self._protocol.write_event.wait()
 
             self._transport.sendto(item)
 
-            # The high water mark is 0, so the transport is paused if the OS refused
-            # the datagram; wait until it has been handed over
+            # The high water mark is 0, so the transport is paused if the OS refused it
             while self._protocol.write_paused:
+                yielded = True
                 await self._protocol.write_event.wait()
                 if self._closed:
                     raise ClosedResourceError
@@ -1868,10 +1870,12 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
                     raise BrokenResourceError
 
             # A send that fails right away is reported to the protocol; raise it here
-            # instead of leaving it for another task to pick up, as the Trio backend
-            # does
+            # instead of leaving it for another task to pick up, as Trio does
             if (exc := self._protocol.take_exception()) is not None:
                 raise BrokenResourceError from exc
+
+            if not yielded:
+                await AsyncIOBackend.cancel_shielded_checkpoint()
 
 
 class UNIXDatagramSocket(_RawSocketMixin, abc.UNIXDatagramSocket):
