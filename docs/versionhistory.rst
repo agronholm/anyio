@@ -90,6 +90,17 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   cancellation could therefore grow that buffer without bound, despite its zero high
   water mark
   (`#1299 <https://github.com/agronholm/anyio/pull/1299>`_; PR by @graingert)
+- Fixed inconsistencies between Trio and asyncio when target ``TaskGroup`` is
+  cancelled before a task created with ``.start()`` calls ``TaskStatus.started()``
+
+  * The started task shouldn't get a ``CancelledError`` until the first
+    checkpoint after the ``started()`` call.
+  * A value passed to ``started()`` should be available on the ``TaskHandle``
+    and correctly passed back to the caller of start even if cancelled.
+  * The CancelledError shouldn't leak out of the ``TaskGroup.start()`` call to the calling
+    task.
+
+  (`#1197 <https://github.com/agronholm/anyio/issues/1197>`_; PR by @tapetersen)
 
 **4.14.2**
 
