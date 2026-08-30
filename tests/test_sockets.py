@@ -251,11 +251,6 @@ class TestTCPStream:
             assert stream.extra(SocketAttribute.remote_address) == server_addr
             assert stream.extra(SocketAttribute.remote_port) == server_addr[1]
 
-    @pytest.mark.skipif(
-        sys.platform == "win32",
-        reason="the proactor transport does not stay paused while the connection is "
-        "backed up, so there is no back-pressure for this test to observe",
-    )
     async def test_cancelled_send_does_not_send_the_next_one(
         self, server_sock: socket.socket, server_addr: tuple[str, int]
     ) -> None:
@@ -282,7 +277,16 @@ class TestTCPStream:
                 await send_and_cancel(payload)
                 await send_and_cancel(payload)
 
-                # As the OS never accepted any of this, none of it may reach the peer
+                # On Windows, a transport can be genuinely backed up without its
+                # pause_writing() having fired yet: that only happens as a side effect
+                # of the next write() call discovering it, by which point that call's
+                # own data is already appended to the write buffer. Spend that one on
+                # a throwaway payload so the transport is *known* paused going into
+                # the next send() below, before it ever calls write() again.
+                await send_and_cancel(b"r" * 64)
+
+                # Now that the transport is known paused, the OS still never accepted
+                # any of this, so none of it may reach the peer
                 await send_and_cancel(b"c" * 64)
 
                 # Drain the peer until a final, uncancelled send() has arrived; data
