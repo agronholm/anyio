@@ -49,7 +49,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   a ``RuntimeError`` if the event loop was closed after the worker had checked whether
   the loop was closed but before it could deliver the result of
   ``to_thread.run_sync()``
-  (`#1245 <https://github.com/agronholm/anyio/pull/1245>`_; PR by @shleder)
+  (`#1303 <https://github.com/agronholm/anyio/pull/1303>`_; PR by @shleder)
 
 **4.14.2**
 
