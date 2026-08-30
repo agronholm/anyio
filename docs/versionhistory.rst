@@ -85,10 +85,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   fails; default task creation is unaffected
   (`#1274 <https://github.com/agronholm/anyio/issues/1274>`_; PR by @dsfaccini)
 - Fixed ``SocketStream.send()`` on the asyncio backend handing its data to a paused
-  transport after a previous ``send()`` was cancelled, which appended it to the
-  transport's write buffer without ever offering it to the operating system. Repeated
-  cancellation could therefore grow that buffer without bound, despite its zero high
-  water mark
+  transport after a previous ``send()`` was cancelled
   (`#1299 <https://github.com/agronholm/anyio/pull/1299>`_; PR by @graingert)
 - Fixed inconsistencies between Trio and asyncio when target ``TaskGroup`` is
   cancelled before a task created with ``.start()`` calls ``TaskStatus.started()``

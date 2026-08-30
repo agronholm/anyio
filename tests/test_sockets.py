@@ -261,16 +261,8 @@ class TestTCPStream:
         self, server_sock: socket.socket, server_addr: tuple[str, int]
     ) -> None:
         """
-        A ``send()`` cancelled while blocked must not let the next one skip ahead.
-
-        The data of an earlier cancelled send may well have been handed over already
-        (on asyncio, ``transport.write()`` accepts it whenever the transport is not
-        paused, and the proactor event loop even starts an overlapped write of the
-        lot), but once the connection is thoroughly backed up, a cancelled ``send()``
-        must not have delivered anything of its own. Handing data to a paused transport
-        merely appends it to the transport's write buffer, from where it is delivered
-        anyway, and repeated cancellation would grow that buffer without bound despite
-        its zero high water mark.
+        Handing data to a paused transport merely appends it to the write buffer, from
+        where it is delivered anyway, so a cancelled ``send()`` must not have done so.
         """
         payload = b"a" * 8 * 1024 * 1024
         async with await connect_tcp(*server_addr) as stream:
