@@ -5,6 +5,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- **BREAKING:** ``move_on_after()`` now starts its timer when the context manager is
+  entered, matching ``fail_after()``, instead of when the function is called
+  (`#1298 <https://github.com/agronholm/anyio/issues/1298>`_)
 - Added support for the newer keyword-only arguments on ``anyio.Path`` methods to match
   the standard library ``pathlib.Path``:
 

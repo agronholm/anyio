@@ -804,6 +804,16 @@ async def test_move_on_after_no_timeout() -> None:
     assert not scope.cancel_called
 
 
+async def test_move_on_after_starts_timer_on_enter() -> None:
+    cm = move_on_after(0.25)
+    await sleep(0.2)
+    finished = False
+    with cm:
+        await sleep(0.1)
+        finished = True
+    assert finished
+
+
 async def test_nested_move_on_after() -> None:
     sleep_completed = inner_scope_completed = False
     with move_on_after(0.1) as outer_scope:
