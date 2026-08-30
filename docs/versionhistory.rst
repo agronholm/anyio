@@ -84,9 +84,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed asyncio task groups leaking unawaited coroutines when a custom task constructor
   fails; default task creation is unaffected
   (`#1274 <https://github.com/agronholm/anyio/issues/1274>`_; PR by @dsfaccini)
-- Fixed ``SocketStream.send()`` on the asyncio backend handing its data to a paused
-  transport after a previous ``send()`` was cancelled
-  (`#1299 <https://github.com/agronholm/anyio/pull/1299>`_; PR by @graingert)
 - Fixed inconsistencies between Trio and asyncio when target ``TaskGroup`` is
   cancelled before a task created with ``.start()`` calls ``TaskStatus.started()``
 
@@ -98,6 +95,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     task.
 
   (`#1197 <https://github.com/agronholm/anyio/issues/1197>`_; PR by @tapetersen)
+- Fixed ``SocketStream.send()`` on the asyncio backend handing its data to a paused
+  transport after a previous ``send()`` was cancelled
+  (`#1299 <https://github.com/agronholm/anyio/pull/1299>`_; PR by @graingert)
 
 **4.14.2**
 
