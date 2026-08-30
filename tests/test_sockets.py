@@ -1940,14 +1940,8 @@ class TestUDPSocket:
     async def test_send_reports_error(
         self, family: AnyIPAddressFamily, free_udp_port: int
     ) -> None:
-        """
-        ``sendto()`` must report an error reported by the OS instead of silently
-        discarding it, just like the Trio backend does.
-
-        Unconnected sockets are not told about ICMP errors on POSIX, so the error is
-        elicited by sending a datagram larger than the maximum size of a UDP packet,
-        which the OS refuses to send.
-        """
+        # Unconnected sockets are not told about ICMP errors on POSIX, so an
+        # oversized datagram is used to elicit an error from the OS instead
         host = "127.0.0.1" if family == socket.AF_INET else "::1"
         async with await create_udp_socket(family=family, local_host=host) as udp:
             with fail_after(5), pytest.raises(BrokenResourceError) as exc_info:
@@ -1965,13 +1959,8 @@ class TestUDPSocket:
     async def test_send_error_not_reported_to_receiver(
         self, family: AnyIPAddressFamily, free_udp_port: int
     ) -> None:
-        """
-        The error must be raised by the ``sendto()`` call that caused it, and not
-        handed to an unrelated task blocked in ``receive()``.
-
-        On the asyncio backend the transport reports the error to the protocol, which
-        both paths share, so the sender has to claim it before the receiver sees it.
-        """
+        # On asyncio both paths share the protocol the transport reports errors to,
+        # so the sender has to claim the error before the receiver sees it
         host = "127.0.0.1" if family == socket.AF_INET else "::1"
         async with await create_udp_socket(family=family, local_host=host) as udp:
             local_host, local_port = cast(
@@ -1998,10 +1987,8 @@ class TestUDPSocket:
     async def test_socket_usable_after_error(
         self, family: AnyIPAddressFamily, free_udp_port: int
     ) -> None:
-        """
-        An error reported by the OS must only be raised once, leaving the socket usable
-        afterwards (a rejected datagram does not invalidate the socket).
-        """
+        # A rejected datagram does not invalidate the socket, so the error must only
+        # be raised once
         host = "127.0.0.1" if family == socket.AF_INET else "::1"
         async with await create_udp_socket(family=family, local_host=host) as udp:
             with fail_after(5), pytest.raises(BrokenResourceError) as exc_info:
@@ -2060,13 +2047,8 @@ class TestUDPSocket:
         self, tmp_path: Path
     ) -> None:
         """
-        A sender must not be released by an error that another task has claimed.
-
         ``error_received()`` sets the write event while the transport is still paused,
-        so that a sender blocked on it can raise the error. If a concurrent
-        ``receive()`` claims that error first, the woken sender must go back to waiting
-        instead of handing its datagram to a transport that would merely append it to
-        its buffer.
+        so a sender woken by an error that another task claimed must resume waiting.
         """
         sock, peer, peer_path, capacity = make_backpressured_pair(
             tmp_path, connect=False
@@ -2328,13 +2310,6 @@ class TestConnectedUDPSocket:
     async def test_receive_wakes_up_on_error(
         self, family: AnyIPAddressFamily, free_udp_port: int
     ) -> None:
-        """
-        A blocked ``receive()`` must be woken up when the OS reports an error on the
-        socket, instead of blocking forever.
-
-        The error is elicited by sending a datagram to a port nobody is listening on,
-        which makes the OS send back an ICMP port unreachable message.
-        """
         host = "127.0.0.1" if family == socket.AF_INET else "::1"
         async with await create_connected_udp_socket(
             host, free_udp_port, family=family
@@ -2362,13 +2337,6 @@ class TestConnectedUDPSocket:
     async def test_send_reports_error(
         self, family: AnyIPAddressFamily, free_udp_port: int
     ) -> None:
-        """
-        ``send()`` must report an error received from the OS instead of silently
-        discarding it, just like the Trio backend does.
-
-        The error is elicited by sending a datagram to a port nobody is listening on,
-        which makes the OS send back an ICMP port unreachable message.
-        """
         host = "127.0.0.1" if family == socket.AF_INET else "::1"
         async with await create_connected_udp_socket(
             host, free_udp_port, family=family
@@ -2390,16 +2358,10 @@ class TestConnectedUDPSocket:
     async def test_send_error_not_reported_to_receiver(
         self, family: AnyIPAddressFamily
     ) -> None:
-        """
-        The error must be raised by the ``send()`` call that caused it, and not handed
-        to an unrelated task blocked in ``receive()``.
-
-        On the asyncio backend the transport reports the error to the protocol, which
-        both paths share, so the sender has to claim it before the receiver sees it.
-        An ICMP port unreachable would only be reported asynchronously, so the error is
-        elicited by sending a datagram larger than the maximum size of a UDP packet,
-        which the OS refuses to send right away.
-        """
+        # On asyncio both paths share the protocol the transport reports errors to,
+        # so the sender has to claim the error before the receiver sees it. An
+        # oversized datagram is used because an ICMP port unreachable would only be
+        # reported asynchronously
         host = "127.0.0.1" if family == socket.AF_INET else "::1"
         async with await create_udp_socket(family=family, local_host=host) as peer:
             peer_host, peer_port = cast(
@@ -2433,11 +2395,8 @@ class TestConnectedUDPSocket:
     async def test_socket_usable_after_error(
         self, family: AnyIPAddressFamily, free_udp_port: int
     ) -> None:
-        """
-        An error reported by the OS must only be raised once, leaving the socket
-        usable afterwards, just like on the Trio backend (an ICMP port unreachable
-        does not invalidate the socket).
-        """
+        # An ICMP port unreachable does not invalidate the socket, so the error must
+        # only be raised once
         host = "127.0.0.1" if family == socket.AF_INET else "::1"
         async with await create_connected_udp_socket(
             host, free_udp_port, family=family
@@ -2499,13 +2458,8 @@ class TestConnectedUDPSocket:
         self, tmp_path: Path
     ) -> None:
         """
-        A sender must not be released by an error that another task has claimed.
-
         ``error_received()`` sets the write event while the transport is still paused,
-        so that a sender blocked on it can raise the error. If a concurrent
-        ``receive()`` claims that error first, the woken sender must go back to waiting
-        instead of handing its datagram to a transport that would merely append it to
-        its buffer.
+        so a sender woken by an error that another task claimed must resume waiting.
         """
         sock, peer, _peer_path, capacity = make_backpressured_pair(
             tmp_path, connect=True
@@ -2672,12 +2626,8 @@ class TestConnectedUDPSocket:
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_datagram_protocol_restores_back_pressure() -> None:
     """
-    ``error_received()`` wakes up a sender waiting on the write event, but if the
-    transport is still paused, the event has to be cleared again once the error has
-    been raised, or the back-pressure would be lost.
-
-    This can only be tested directly, as pausing a datagram transport requires the OS
-    to refuse datagrams, which loopback UDP sockets never do.
+    Tested directly, as pausing a datagram transport requires the OS to refuse
+    datagrams, which loopback UDP sockets never do.
     """
     from anyio._backends._asyncio import DatagramProtocol
 

@@ -1346,11 +1346,9 @@ class DatagramProtocol(asyncio.DatagramProtocol):
         Return the oldest error reported by the transport, removing it from the queue so
         that it's only reported once, just like the OS does.
 
-        The read event is left alone, as ``receive()`` clears it before waiting on it
-        anyway. The write event, however, was set by :meth:`error_received` in order to
-        wake up any sender waiting on it, so it has to be cleared again if the transport
-        is still paused and no error is left to report, or the back-pressure would be
-        lost.
+        :meth:`error_received` set the write event to wake up any waiting sender, so it
+        has to be cleared again if the transport is still paused and no error is left
+        to report, or the back-pressure would be lost.
 
         """
         if not self.exceptions:
