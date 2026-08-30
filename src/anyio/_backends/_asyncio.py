@@ -1436,34 +1436,27 @@ class SocketStream(abc.SocketStream):
             await AsyncIOBackend.checkpoint_if_cancelled()
             yielded = False
 
-            # Wait for anything the transport had to buffer to be flushed first, as
-            # write() never offers anything to the OS while its buffer is non-empty
             if not self._protocol.write_event.is_set():
                 yielded = True
                 await self._protocol.write_event.wait()
 
+            if self._closed:
+                raise ClosedResourceError
+            elif self._protocol.exception is not None:
+                raise BrokenResourceError from self._protocol.exception
+
             try:
-                if self._closed:
-                    raise ClosedResourceError
-                elif self._protocol.exception is not None:
-                    raise BrokenResourceError from self._protocol.exception
+                self._transport.write(item)
+            except RuntimeError as exc:
+                if self._transport.is_closing():
+                    raise BrokenResourceError from exc
+                else:
+                    raise
 
-                try:
-                    self._transport.write(item)
-                except RuntimeError as exc:
-                    if self._transport.is_closing():
-                        raise BrokenResourceError from exc
-                    else:
-                        raise
-
-                if not self._protocol.write_event.is_set():
-                    yielded = True
-                    await self._protocol.write_event.wait()
-            finally:
-                # Nothing blocked, so make the mandatory yield here instead, where it
-                # can no longer lose already sent data to cancellation
-                if not yielded:
-                    await AsyncIOBackend.cancel_shielded_checkpoint()
+            if not self._protocol.write_event.is_set():
+                await self._protocol.write_event.wait()
+            elif not yielded:
+                await AsyncIOBackend.cancel_shielded_checkpoint()
 
     async def send_eof(self) -> None:
         try:
