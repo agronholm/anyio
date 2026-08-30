@@ -1758,12 +1758,10 @@ class UDPSocket(abc.UDPSocket):
         with self._send_guard:
             await AsyncIOBackend.checkpoint()
 
-            # Wait until the transport has flushed any datagram the OS previously
-            # refused, so that this datagram is not merely appended to the transport's
-            # buffer (which would happen if a previous send() was cancelled while
-            # waiting below). As below, error_received() may have set the write event
-            # while the transport is still paused, so it's the pause flag, and not the
-            # event, that says when it's safe to hand over the datagram
+            # Wait for any datagram the transport had to buffer to be flushed first.
+            # error_received() may have set the write event while the transport is
+            # still paused, so it's the pause flag, and not the event, that says when
+            # it's safe to hand over the datagram
             while True:
                 if self._closed:
                     raise ClosedResourceError
@@ -1778,11 +1776,8 @@ class UDPSocket(abc.UDPSocket):
 
             self._transport.sendto(*item)
 
-            # If the OS refused the datagram, the transport has buffered it and
-            # (because the high water mark is 0) already cleared the write event, so
-            # this waits until this call's own datagram has been handed to the OS.
-            # The event may also have been set by error_received() while the transport
-            # is still paused, so keep waiting until writing is actually resumed.
+            # The high water mark is 0, so the transport is paused if the OS refused
+            # the datagram; wait until it has been handed over
             while self._protocol.write_paused:
                 await self._protocol.write_event.wait()
                 if self._closed:
@@ -1845,12 +1840,10 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
         with self._send_guard:
             await AsyncIOBackend.checkpoint()
 
-            # Wait until the transport has flushed any datagram the OS previously
-            # refused, so that this datagram is not merely appended to the transport's
-            # buffer (which would happen if a previous send() was cancelled while
-            # waiting below). As below, error_received() may have set the write event
-            # while the transport is still paused, so it's the pause flag, and not the
-            # event, that says when it's safe to hand over the datagram
+            # Wait for any datagram the transport had to buffer to be flushed first.
+            # error_received() may have set the write event while the transport is
+            # still paused, so it's the pause flag, and not the event, that says when
+            # it's safe to hand over the datagram
             while True:
                 if self._closed:
                     raise ClosedResourceError
@@ -1865,11 +1858,8 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
 
             self._transport.sendto(item)
 
-            # If the OS refused the datagram, the transport has buffered it and
-            # (because the high water mark is 0) already cleared the write event, so
-            # this waits until this call's own datagram has been handed to the OS.
-            # The event may also have been set by error_received() while the transport
-            # is still paused, so keep waiting until writing is actually resumed.
+            # The high water mark is 0, so the transport is paused if the OS refused
+            # the datagram; wait until it has been handed over
             while self._protocol.write_paused:
                 await self._protocol.write_event.wait()
                 if self._closed:

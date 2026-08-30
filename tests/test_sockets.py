@@ -1770,7 +1770,6 @@ DGRAM_BACKPRESSURE_PAYLOAD = b"\x00" * 64
 
 
 def drain_datagram_socket(sock: socket.socket) -> None:
-    """Receive and discard every datagram currently queued on ``sock``."""
     try:
         while True:
             sock.recv(65536)
@@ -1779,12 +1778,7 @@ def drain_datagram_socket(sock: socket.socket) -> None:
 
 
 async def receive_datagrams_until(sock: socket.socket, sentinel: bytes) -> list[bytes]:
-    """
-    Receive datagrams from ``sock`` until ``sentinel`` has been received.
-
-    :return: every datagram received, in the order they arrived, ``sentinel`` last
-
-    """
+    """Receive datagrams until ``sentinel`` arrives, and return all of them."""
     received: list[bytes] = []
     while not received or received[-1] != sentinel:
         try:
@@ -1799,23 +1793,13 @@ def make_backpressured_pair(
     tmp_path: Path, *, connect: bool
 ) -> tuple[socket.socket, socket.socket, str, int]:
     """
-    Create a datagram socket that the operating system will refuse datagrams from,
-    along with the peer it sends to.
+    Create a datagram socket with a full send buffer, along with the peer it sends to.
 
-    UNIX datagram sockets are used here because UDP sockets never exert any
-    back-pressure on the loopback interface: the kernel accounts for the datagram
-    only until it has been delivered or dropped, so ``sendto()`` always succeeds, no
-    matter how small the send buffer is or how full the peer's receive buffer is.
-    UNIX datagram sockets, on the other hand, refuse datagrams with ``EAGAIN`` once
-    the send buffer is full, and they go through the very same code path in both
-    backends.
+    UNIX datagram sockets are used because UDP sockets never exert back-pressure on the
+    loopback interface, but they take the same code path in both backends.
 
-    The send buffer is deliberately made as small as the OS allows, so that only a
-    handful of datagrams are needed to fill it up. The buffer is left empty on
-    return.
-
-    :return: the socket, its peer, the peer's path, and the number of datagrams the
-        OS accepts before it starts refusing them
+    :return: the socket, its peer, the peer's path, and the number of datagrams the OS
+        accepts before it starts refusing them
 
     """
     peer_path = str(tmp_path / "peer.sock")
@@ -1924,14 +1908,6 @@ class TestUDPSocket:
     async def test_send_waits_for_the_os_to_accept_the_datagram(
         self, tmp_path: Path
     ) -> None:
-        """
-        ``send()`` must not return before the OS has accepted the datagram.
-
-        The asyncio backend sets the transport's write buffer high water mark to 0,
-        so the transport pauses the sender as soon as it has had to buffer a datagram
-        the OS refused, instead of quietly buffering up to 64 KiB worth of them. The
-        trio backend never buffers datagrams to begin with.
-        """
         sock, peer, peer_path, capacity = make_backpressured_pair(
             tmp_path, connect=False
         )
@@ -2050,15 +2026,6 @@ class TestUDPSocket:
     async def test_cancelled_send_does_not_buffer_the_next_datagram(
         self, tmp_path: Path
     ) -> None:
-        """
-        A ``send()`` cancelled while blocked must not let the next one skip ahead.
-
-        On asyncio, the datagram of the *first* cancelled send has unavoidably been
-        buffered by the transport already, but any subsequent ``send()`` must wait for
-        that buffer to be flushed instead of appending to it — otherwise repeated
-        cancellation would grow the transport's buffer without bound, despite the zero
-        high water mark.
-        """
         sock, peer, peer_path, capacity = make_backpressured_pair(
             tmp_path, connect=False
         )
@@ -2329,14 +2296,6 @@ class TestConnectedUDPSocket:
     async def test_send_waits_for_the_os_to_accept_the_datagram(
         self, tmp_path: Path
     ) -> None:
-        """
-        ``send()`` must not return before the OS has accepted the datagram.
-
-        The asyncio backend sets the transport's write buffer high water mark to 0,
-        so the transport pauses the sender as soon as it has had to buffer a datagram
-        the OS refused, instead of quietly buffering up to 64 KiB worth of them. The
-        trio backend never buffers datagrams to begin with.
-        """
         sock, peer, _peer_path, capacity = make_backpressured_pair(
             tmp_path, connect=True
         )
@@ -2507,15 +2466,6 @@ class TestConnectedUDPSocket:
     async def test_cancelled_send_does_not_buffer_the_next_datagram(
         self, tmp_path: Path
     ) -> None:
-        """
-        A ``send()`` cancelled while blocked must not let the next one skip ahead.
-
-        On asyncio, the datagram of the *first* cancelled send has unavoidably been
-        buffered by the transport already, but any subsequent ``send()`` must wait for
-        that buffer to be flushed instead of appending to it — otherwise repeated
-        cancellation would grow the transport's buffer without bound, despite the zero
-        high water mark.
-        """
         sock, peer, _peer_path, capacity = make_backpressured_pair(
             tmp_path, connect=True
         )
