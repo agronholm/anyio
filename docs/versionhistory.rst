@@ -46,13 +46,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   building a lookup table from the ``if TYPE_CHECKING:`` block. A fallback mode has been
   provided for installations where the source code is unavailable (e.g. PyInstaller).
   (`#1169 <https://github.com/agronholm/anyio/pull/1169>`_)
-- Changed the asyncio backend to set the write buffer high water mark to 0 on UDP
-  sockets (both connected and unconnected), and to wait on the write event both before
-  and after handing the datagram to the transport, so that each ``send()`` waits until
-  its own datagram has actually been passed to the operating system instead of letting
-  the transport buffer it. Note that on asyncio, a ``send()`` cancelled while waiting
-  may still result in the datagram being delivered, as the transport has already
-  accepted it; on trio, a cancelled ``send()`` never sends
+- Changed UDP sockets on the asyncio backend to make ``send()`` wait until the
+  datagram has been passed to the operating system
   (`#1294 <https://github.com/agronholm/anyio/pull/1294>`_; PR by @graingert)
 - Fixed free-threading compatibility issues arising from the fact that on Python 3.14
   free-threading builds, newly created threads inherit the current context by default,
