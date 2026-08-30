@@ -253,9 +253,8 @@ class TestTCPStream:
 
     @pytest.mark.skipif(
         sys.platform == "win32",
-        reason="the asyncio transports on Windows hand the data to an overlapped write "
-        "and resume the protocol before the OS has accepted it, so a cancelled send() "
-        "can still deliver its data",
+        reason="the proactor transport does not stay paused while the connection is "
+        "backed up, so there is no back-pressure for this test to observe",
     )
     async def test_cancelled_send_does_not_send_the_next_one(
         self, server_sock: socket.socket, server_addr: tuple[str, int]
