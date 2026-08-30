@@ -1713,10 +1713,7 @@ class UDPSocket(abc.UDPSocket):
         with self._send_guard:
             await AsyncIOBackend.checkpoint()
 
-            # Wait until the transport has flushed any datagram the OS previously
-            # refused, so that this datagram is not merely appended to the transport's
-            # buffer (which would happen if a previous send() was cancelled while
-            # waiting below)
+            # Wait for any datagram the transport had to buffer to be flushed first
             await self._protocol.write_event.wait()
             if self._closed:
                 raise ClosedResourceError
@@ -1725,9 +1722,8 @@ class UDPSocket(abc.UDPSocket):
 
             self._transport.sendto(*item)
 
-            # If the OS refused the datagram, the transport has buffered it and
-            # (because the high water mark is 0) already cleared the write event, so
-            # this waits until this call's own datagram has been handed to the OS
+            # The high water mark is 0, so the write event has been cleared if the OS
+            # refused the datagram; wait until it has been handed over
             await self._protocol.write_event.wait()
 
 
@@ -1775,10 +1771,7 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
         with self._send_guard:
             await AsyncIOBackend.checkpoint()
 
-            # Wait until the transport has flushed any datagram the OS previously
-            # refused, so that this datagram is not merely appended to the transport's
-            # buffer (which would happen if a previous send() was cancelled while
-            # waiting below)
+            # Wait for any datagram the transport had to buffer to be flushed first
             await self._protocol.write_event.wait()
             if self._closed:
                 raise ClosedResourceError
@@ -1787,9 +1780,8 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
 
             self._transport.sendto(item)
 
-            # If the OS refused the datagram, the transport has buffered it and
-            # (because the high water mark is 0) already cleared the write event, so
-            # this waits until this call's own datagram has been handed to the OS
+            # The high water mark is 0, so the write event has been cleared if the OS
+            # refused the datagram; wait until it has been handed over
             await self._protocol.write_event.wait()
 
 
