@@ -1714,29 +1714,23 @@ class UDPSocket(abc.UDPSocket):
             await AsyncIOBackend.checkpoint_if_cancelled()
             yielded = False
 
-            # Wait for any datagram the transport had to buffer to be flushed first
+            # Wait out any datagram the transport had to buffer
             if not self._protocol.write_event.is_set():
                 yielded = True
                 await self._protocol.write_event.wait()
 
-            try:
-                if self._closed:
-                    raise ClosedResourceError
-                elif self._transport.is_closing():
-                    raise BrokenResourceError
+            if self._closed:
+                raise ClosedResourceError
+            elif self._transport.is_closing():
+                raise BrokenResourceError
 
-                self._transport.sendto(*item)
+            self._transport.sendto(*item)
 
-                # The high water mark is 0, so the write event has been cleared if the
-                # OS refused the datagram; wait until it has been handed over
-                if not self._protocol.write_event.is_set():
-                    yielded = True
-                    await self._protocol.write_event.wait()
-            finally:
-                # Nothing blocked, so make the mandatory yield here instead, where it
-                # can no longer lose an already sent datagram to cancellation
-                if not yielded:
-                    await AsyncIOBackend.cancel_shielded_checkpoint()
+            # The high water mark is 0, so the event is clear if the OS refused it
+            if not self._protocol.write_event.is_set():
+                await self._protocol.write_event.wait()
+            elif not yielded:
+                await AsyncIOBackend.cancel_shielded_checkpoint()
 
 
 class ConnectedUDPSocket(abc.ConnectedUDPSocket):
@@ -1784,29 +1778,23 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
             await AsyncIOBackend.checkpoint_if_cancelled()
             yielded = False
 
-            # Wait for any datagram the transport had to buffer to be flushed first
+            # Wait out any datagram the transport had to buffer
             if not self._protocol.write_event.is_set():
                 yielded = True
                 await self._protocol.write_event.wait()
 
-            try:
-                if self._closed:
-                    raise ClosedResourceError
-                elif self._transport.is_closing():
-                    raise BrokenResourceError
+            if self._closed:
+                raise ClosedResourceError
+            elif self._transport.is_closing():
+                raise BrokenResourceError
 
-                self._transport.sendto(item)
+            self._transport.sendto(item)
 
-                # The high water mark is 0, so the write event has been cleared if the
-                # OS refused the datagram; wait until it has been handed over
-                if not self._protocol.write_event.is_set():
-                    yielded = True
-                    await self._protocol.write_event.wait()
-            finally:
-                # Nothing blocked, so make the mandatory yield here instead, where it
-                # can no longer lose an already sent datagram to cancellation
-                if not yielded:
-                    await AsyncIOBackend.cancel_shielded_checkpoint()
+            # The high water mark is 0, so the event is clear if the OS refused it
+            if not self._protocol.write_event.is_set():
+                await self._protocol.write_event.wait()
+            elif not yielded:
+                await AsyncIOBackend.cancel_shielded_checkpoint()
 
 
 class UNIXDatagramSocket(_RawSocketMixin, abc.UNIXDatagramSocket):
