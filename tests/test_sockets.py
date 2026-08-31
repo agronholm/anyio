@@ -251,6 +251,62 @@ class TestTCPStream:
             assert stream.extra(SocketAttribute.remote_address) == server_addr
             assert stream.extra(SocketAttribute.remote_port) == server_addr[1]
 
+    async def test_cancelled_send_does_not_send_the_next_one(
+        self, server_sock: socket.socket, server_addr: tuple[str, int]
+    ) -> None:
+        """
+        Handing data to a paused transport merely appends it to the write buffer, from
+        where it is delivered anyway, so a cancelled ``send()`` must not have done so.
+        """
+        payload = b"a" * 8 * 1024 * 1024
+        async with await connect_tcp(*server_addr) as stream:
+            client, _ = server_sock.accept()
+            with client:
+                client.setblocking(False)
+
+                async def send_and_cancel(item: bytes) -> None:
+                    async with create_task_group() as tg:
+                        tg.start_soon(stream.send, item)
+                        await wait_all_tasks_blocked()
+                        tg.cancel_scope.cancel()
+
+                # Back the connection up, and then soak up any room that the peer's
+                # acknowledgements may have reopened in the meantime, so that the OS
+                # cannot take another byte. Nothing is read from the peer until further
+                # down, so the connection stays that way.
+                await send_and_cancel(payload)
+                await send_and_cancel(payload)
+
+                # On Windows, a transport can be genuinely backed up without its
+                # pause_writing() having fired yet: that only happens as a side effect
+                # of the next write() call discovering it, by which point that call's
+                # own data is already appended to the write buffer. Spend that one on
+                # a throwaway payload so the transport is *known* paused going into
+                # the next send() below, before it ever calls write() again.
+                await send_and_cancel(b"r" * 64)
+
+                # Now that the transport is known paused, the OS still never accepted
+                # any of this, so none of it may reach the peer
+                await send_and_cancel(b"c" * 64)
+
+                # Drain the peer until a final, uncancelled send() has arrived; data
+                # that a cancelled send() wrongly handed over would arrive first
+                received = bytearray()
+                arrived = False
+                with fail_after(60):
+                    async with create_task_group() as tg:
+                        tg.start_soon(stream.send, b"z" * 64)
+                        while not arrived:
+                            try:
+                                data = client.recv(65536)
+                            except BlockingIOError:
+                                await wait_readable(client)
+                            else:
+                                received += data
+                                arrived = b"z" in data
+
+                assert b"c" not in received
+
     async def test_send_receive(
         self, server_sock: socket.socket, server_addr: tuple[str, int]
     ) -> None:
