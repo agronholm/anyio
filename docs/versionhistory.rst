@@ -46,6 +46,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   building a lookup table from the ``if TYPE_CHECKING:`` block. A fallback mode has been
   provided for installations where the source code is unavailable (e.g. PyInstaller).
   (`#1169 <https://github.com/agronholm/anyio/pull/1169>`_)
+- Fixed ``TemporaryDirectory`` not cleaning up when the host task was cancelled while
+  exiting the context manager, as the cleanup now runs in a shielded cancel scope
+  (`#1304 <https://github.com/agronholm/anyio/pull/1304>`_; PR by @smurfix)
 - Fixed free-threading compatibility issues arising from the fact that on Python 3.14
   free-threading builds, newly created threads inherit the current context by default,
   causing AnyIO to behave erroneously in relation to ``start_blocking_portal()`` and
