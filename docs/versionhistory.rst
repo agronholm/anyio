@@ -95,6 +95,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     task.
 
   (`#1197 <https://github.com/agronholm/anyio/issues/1197>`_; PR by @tapetersen)
+- Fixed ``TemporaryDirectory`` not cleaning up when the host task was cancelled while
+  exiting the context manager, as the cleanup now runs in a shielded cancel scope
+  (`#1304 <https://github.com/agronholm/anyio/pull/1304>`_; PR by @smurfix)
 
 **4.14.2**
 
