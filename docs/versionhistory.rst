@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**4.15.0**
 
 - Added support for the newer keyword-only arguments on ``anyio.Path`` methods to match
   the standard library ``pathlib.Path``:
