@@ -89,9 +89,12 @@ async def sleep(delay: float) -> None:
     """
     Pause the current task for the specified duration.
 
-    :param delay: the duration, in seconds
+    :param delay: the duration, in seconds. Negative values are treated as zero.
 
     """
+    if delay < 0:
+        delay = 0
+
     return await get_async_backend().sleep(delay)
 
 

@@ -47,6 +47,14 @@ async def test_sleep_forever(fake_sleep: AsyncMock) -> None:
     fake_sleep.assert_called_once_with(math.inf)
 
 
+@pytest.mark.parametrize("delay", [-1.0, -math.inf])
+async def test_sleep_negative_delay(delay: float) -> None:
+    """Negative delays return immediately on all backends, matching sleep(0)."""
+    start = current_time()
+    await sleep(delay)
+    assert current_time() - start < 0.1
+
+
 def test_run_task() -> None:
     """Test that anyio.run() on asyncio will work with a callable returning a Future."""
 
