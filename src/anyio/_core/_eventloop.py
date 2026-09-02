@@ -92,8 +92,7 @@ async def sleep(delay: float) -> None:
     :param delay: the duration, in seconds. Negative values are treated as zero.
 
     """
-    if delay < 0:
-        delay = 0
+    delay = max(delay, 0)
 
     return await get_async_backend().sleep(delay)
 
