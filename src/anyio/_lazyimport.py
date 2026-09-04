@@ -36,12 +36,6 @@ def install_lazy_importer() -> bool:
             target_mod, target_attr = new_name.rsplit(".", 1)
         elif name in submodule_names:
             target_mod, target_attr = "." + name, ""
-            warnings.warn(
-                f"You should not access {module_name}.{name} directly without "
-                f"importing it first.",
-                FutureWarning,
-                stacklevel=2,
-            )
         else:
             try:
                 target_mod, target_attr = lazy_map[name]

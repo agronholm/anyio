@@ -134,30 +134,23 @@ def test_sourceless_install(tmp_path: Path) -> None:
     assert result["deprecations"] == DEPRECATIONS
 
 
-def test_futurewarning_on_access_without_direct_import() -> None:
+def test_submodule_access_without_direct_import() -> None:
     """
     Test that accessing an anyio submodule via attribute access, without having imported
-    it directly, emits a FutureWarning advising the user to import the submodule first.
+    it directly, imports the submodule.
     """
     script = dedent(f"""\
     import json
     import sys
-    import warnings
+    import types
 
     import anyio
 
     submodules = {SUBMODULES!r}
     result = {{}}
     for name in submodules:
-        with warnings.catch_warnings(record=True) as records:
-            warnings.simplefilter("always")
-            getattr(anyio, name)
-
-        result[name] = any(
-            f"anyio.{{name}} directly without importing it first" in str(record.message)
-            for record in records
-            if issubclass(record.category, FutureWarning)
-        )
+        value = getattr(anyio, name)
+        result[name] = isinstance(value, types.ModuleType)
 
     json.dump(result, sys.stdout)
     """)
