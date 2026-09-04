@@ -7,6 +7,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Implemented a compatibility fix for supporting direct access of ``anyio.*`` submodules
   from the main package even when those submodules were not directly imported first
+  (`#1311 <https://github.com/agronholm/anyio/issues/1311>`)
 
 **4.15.0**
 
