@@ -21,6 +21,20 @@ DEPRECATIONS = {
     "anyio.abc.Semaphore": "anyio.Semaphore",
 }
 
+# Submodules tracked by the lazy importer. Order matters: a submodule that imports
+# another tracked submodule must come after the ones it imports, so that its import does
+# not pre-set their attributes on the package and mask the expected warning.
+SUBMODULES = (
+    "abc",
+    "to_thread",
+    "lowlevel",
+    "from_thread",
+    "functools",
+    "itertools",
+    "to_process",
+    "to_interpreter",
+)
+
 
 @pytest.mark.timeout(60)
 def test_sourceless_install(tmp_path: Path) -> None:
@@ -118,6 +132,43 @@ def test_sourceless_install(tmp_path: Path) -> None:
         "anyio.abc.UDPSocket": "anyio.abc",
     }
     assert result["deprecations"] == DEPRECATIONS
+
+
+def test_futurewarning_on_access_without_direct_import() -> None:
+    """
+    Test that accessing an anyio submodule via attribute access, without having imported
+    it directly, emits a FutureWarning advising the user to import the submodule first.
+    """
+    script = dedent(f"""\
+    import json
+    import sys
+    import warnings
+
+    import anyio
+
+    submodules = {SUBMODULES!r}
+    result = {{}}
+    for name in submodules:
+        with warnings.catch_warnings(record=True) as records:
+            warnings.simplefilter("always")
+            getattr(anyio, name)
+
+        result[name] = any(
+            f"anyio.{{name}} directly without importing it first" in str(record.message)
+            for record in records
+            if issubclass(record.category, FutureWarning)
+        )
+
+    json.dump(result, sys.stdout)
+    """)
+
+    process = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        check=True,
+    )
+    result = json.loads(process.stdout.decode("utf-8"))
+    assert result == dict.fromkeys(SUBMODULES, True)
 
 
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
