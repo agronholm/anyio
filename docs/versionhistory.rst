@@ -84,6 +84,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed an asyncio worker thread race that could raise ``RuntimeError`` when the event
   loop closed between checking its state and scheduling the worker result
   (`#1265 <https://github.com/agronholm/anyio/issues/1265>`_; PR by @hansu650)
+- Fixed concurrent ``aclose_forcefully()`` calls on asyncio socket streams returning
+  before the underlying socket was closed
+  (`#1273 <https://github.com/agronholm/anyio/issues/1273>`_; PR by @hansu650)
 - Fixed ``CapacityLimiter`` on the asyncio backend over-granting tokens when
   ``total_tokens`` was raised while the limiter was over-subscribed
   (`#1223 <https://github.com/agronholm/anyio/pull/1223>`_; PR by @zelinewang)
