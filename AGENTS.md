@@ -20,6 +20,10 @@ AnyIO is a high-level asynchronous concurrency and networking library for Python
 
 ## Pull Request Guidelines
 
+Important: Before making a pull request, check if anyone else has already made a PR that fixes the same issue or implements the same feature.
+If there is an existing PR that does what your PR would do, and your PR would not be substantially superior, then do not send it.
+Instead, collaborate with the original PR author to improve that one. Duplicate AI-generated PRs are grounds for a ban.
+
 Every pull request **must** follow the PR template in `.github/pull_request_template.md`. Do **not** erase or replace the template contents — PRs that do so will be closed without review.
 
 A properly filled-out PR contains:
@@ -27,7 +31,7 @@ A properly filled-out PR contains:
 ### 1. Changes section
 
 - Reference the related issue number, if applicable (e.g., `Fixes #123.`).
-- Provide a short description of what the PR changes and why.
+- Provide a short description of what the PR changes and why. This should be a terse, information-dense summary of what problem was fixed or what feature was added, or otherwise what was changed.
 
 ### 2. Checklist
 
@@ -57,8 +61,8 @@ Entries in the changelog should be ordered as follows:
 
 #. Backwards incompatible changes (prefixed with `**BACKWARDS INCOMPATIBLE**`)
 #. New features (should start with the word `Added`)
-#. Backwards compatible API changes (should start with the word `Changed`)
-#. Bug fixes (should start with the word `Fixed`)
+#. Backwards compatible uncategorized but user-visible code changes (should start with the word `Changed`; add the entry below any new features but before bug fixes)
+#. Bug fixes (should start with the word `Fixed`; add the entry to the bottom of the section)
 
 ### 5. Good and bad examples
 

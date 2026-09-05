@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from _pytest.fixtures import SubRequest
 from _pytest.tmpdir import TempPathFactory
 
 from anyio import ClosedResourceError, EndOfStream
-from anyio.abc import ByteReceiveStream
 from anyio.streams.file import FileReadStream, FileStreamAttribute, FileWriteStream
+
+if TYPE_CHECKING:
+    from anyio.abc import ByteReceiveStream
 
 
 class TestFileReadStream:

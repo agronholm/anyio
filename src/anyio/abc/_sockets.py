@@ -8,7 +8,7 @@ from contextlib import AsyncExitStack
 from io import IOBase
 from ipaddress import IPv4Address, IPv6Address
 from socket import AddressFamily
-from typing import Any, TypeAlias, TypeVar
+from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar
 
 from .._core._eventloop import get_async_backend
 from .._core._typedattr import (
@@ -17,7 +17,9 @@ from .._core._typedattr import (
     typed_attribute,
 )
 from ._streams import ByteStream, Listener, UnreliableObjectStream
-from ._tasks import TaskGroup
+
+if TYPE_CHECKING:
+    from ._tasks import TaskGroup
 
 IPAddressType: TypeAlias = str | IPv4Address | IPv6Address
 IPSockAddrType: TypeAlias = tuple[str, int]

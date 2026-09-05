@@ -45,7 +45,7 @@ AnyIO offers the following functionality:
 
 * A versatile API for byte streams and object streams
 * Inter-task synchronization and communication (locks, conditions, events, semaphores, object
-  streams)
+  streams and futures)
 * Worker threads
 * Subprocesses
 * Subinterpreter support for code parallelization (on Python 3.13 and later)

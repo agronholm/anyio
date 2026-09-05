@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       workflow-changed: ${{ steps.changed-files.outputs.workflow_any_changed }}
-      pyproject-changed: ${{ steps.changed-files.outputs.src_any_changed }}
+      pyproject-changed: ${{ steps.changed-files.outputs.pyproject_any_changed }}
       src-changed: ${{ steps.changed-files.outputs.src_any_changed }}
       tests-changed: ${{ steps.changed-files.outputs.tests_any_changed }}
       docs-changed: ${{ steps.changed-files.outputs.doc_any_changed }}

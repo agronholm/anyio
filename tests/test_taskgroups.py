@@ -10,7 +10,8 @@ from asyncio import CancelledError
 from collections.abc import AsyncGenerator, Coroutine, Generator
 from contextlib import aclosing
 from contextvars import ContextVar, copy_context
-from typing import Any, NoReturn, cast
+from inspect import CORO_CLOSED, getcoroutinestate
+from typing import TYPE_CHECKING, Any, NoReturn, cast
 from unittest import mock
 
 import pytest
@@ -39,10 +40,12 @@ from anyio import (
     sleep_forever,
     wait_all_tasks_blocked,
 )
-from anyio.abc import TaskGroup, TaskStatus
 from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params, no_other_refs
+
+if TYPE_CHECKING:
+    from anyio.abc import TaskGroup, TaskStatus
 
 if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup, ExceptionGroup
@@ -114,6 +117,57 @@ async def test_start_soon_after_error() -> None:
         tg.start_soon(sleep, 0)
 
     exc.match("This task group is not active; no new tasks can be started")
+
+
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize(
+    "suspend", [pytest.param(False, id="return"), pytest.param(True, id="suspend")]
+)
+@pytest.mark.parametrize(
+    "eager", [pytest.param(False, id="lazy"), pytest.param(True, id="eager")]
+)
+async def test_start_soon_closes_coroutines_when_create_task_fails(
+    suspend: bool, eager: bool
+) -> None:
+    wrapper_coro: Coroutine[Any, Any, None] | None = None
+    expected_error = RuntimeError("task creation failed")
+
+    async def task_func() -> None:
+        if suspend:
+            await checkpoint()
+
+    def task_factory(
+        loop: asyncio.AbstractEventLoop,
+        coro: Coroutine[Any, Any, Any],
+        **kwargs: Any,
+    ) -> asyncio.Task[Any]:
+        nonlocal wrapper_coro
+        wrapper_coro = coro
+        if eager:
+            try:
+                coro.send(None)
+            except StopIteration:
+                pass
+
+        raise expected_error
+
+    loop = asyncio.get_running_loop()
+    original_task_factory = loop.get_task_factory()
+    task_func_coro = task_func()
+    async with create_task_group() as tg:
+        loop.set_task_factory(task_factory)
+        try:
+            tg.create_task(task_func_coro)
+        except RuntimeError as exc:
+            assert exc is expected_error
+        else:
+            pytest.fail("TaskGroup.start_soon() did not propagate the error")
+        finally:
+            loop.set_task_factory(original_task_factory)
+
+        assert getcoroutinestate(task_func_coro) is CORO_CLOSED
+        assert wrapper_coro is not None
+        assert getcoroutinestate(wrapper_coro) is CORO_CLOSED
 
 
 async def test_start_already_closed() -> None:
@@ -1851,6 +1905,57 @@ async def test_cancel_child_task_when_host_is_shielded() -> None:
             with CancelScope(shield=True), fail_after(1):
                 parent_scope.cancel()
                 await cancelled.wait()
+
+
+async def test_start_not_cancelled_before_started_by_tg() -> None:
+    # A task started with start() shouldn't get cancelled by the TaskGroup until
+    # it has called started
+    #
+    # * The started task shouldn't get a CancelledError until the first
+    #   checkpoint after the started() call.
+    #
+    # * Any value passed to started should be available and correctly passed
+    #   back to the caller of start.
+    #
+    # * The CancelledError shouldn't leak out of the start() call to the calling
+    #   task.
+
+    # To manage the sibling tasks needed for the test
+    th: TaskHandle[str] | None = None
+    async with anyio.create_task_group() as tg:
+        # Task holding the task_group we're trying to start a task in and will cancel.
+        async def group_task(
+            *, task_status: TaskStatus[TaskGroup] = anyio.TASK_STATUS_IGNORED
+        ) -> None:
+            async with create_task_group() as tg:
+                task_status.started(tg)
+                await anyio.sleep_forever()
+
+        inner_tg: TaskGroup = await tg.start(group_task)
+        ev = anyio.Event()
+
+        # Task outside the inner_tg that tries to start a task with status_reporting
+        async def outside_task() -> str:
+
+            async def just_wait(
+                *, task_status: TaskStatus[str] = anyio.TASK_STATUS_IGNORED
+            ) -> None:
+                await ev.wait()
+                await checkpoint()  # Should not get cancelled here
+                task_status.started("started")
+                await checkpoint()  # Should be cancelled here
+                pytest.fail("Should've been cancelled before this")
+
+            return await inner_tg.start(just_wait)
+
+        th = tg.start_soon(outside_task)
+        await anyio.wait_all_tasks_blocked()
+        inner_tg.cancel()
+        ev.set()
+
+    assert th is not None
+    await th.wait()
+    assert th.return_value == "started"
 
 
 async def test_start_cancels_parent_scope() -> None:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import math
 from contextlib import AbstractContextManager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -22,10 +22,12 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
-from anyio.abc import TaskStatus
 from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params
+
+if TYPE_CHECKING:
+    from anyio.abc import TaskStatus
 
 
 class TestLock:
@@ -876,6 +878,31 @@ class TestCapacityLimiter:
 
             # Allow all tasks to exit
             continue_event.set()
+
+    async def test_increase_tokens_does_not_oversubscribe(self) -> None:
+        """
+        Raising ``total_tokens`` must not grant more waiters than the spare
+        capacity, even when the limiter is over-subscribed because
+        ``total_tokens`` was previously lowered below the number of current
+        borrowers.
+        """
+        limiter = CapacityLimiter(2)
+        limiter.acquire_on_behalf_of_nowait("A")
+        limiter.acquire_on_behalf_of_nowait("B")
+
+        async with create_task_group() as tg:
+            tg.start_soon(limiter.acquire)
+            tg.start_soon(limiter.acquire)
+            await wait_all_tasks_blocked()
+            assert limiter.statistics().borrowed_tokens == 2
+            assert limiter.statistics().tasks_waiting == 2
+
+            limiter.total_tokens = 1
+            limiter.total_tokens = 2
+            await wait_all_tasks_blocked()
+            assert limiter.statistics().borrowed_tokens == 2
+            assert limiter.statistics().tasks_waiting == 2
+            tg.cancel()
 
     def test_instantiate_outside_event_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]

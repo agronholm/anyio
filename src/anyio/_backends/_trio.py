@@ -85,10 +85,14 @@ from .._core._tasks import TaskHandle
 from ..abc import IPSockAddrType, UDPPacketType, UNIXDatagramPacketType
 from ..abc._eventloop import AsyncBackend, StrOrBytesPath
 from ..abc._tasks import T_contra, call_for_coroutine, get_callable_name, get_coro_name
-from ..streams.memory import MemoryObjectSendStream
 
 if TYPE_CHECKING:
     from _typeshed import FileDescriptorLike
+
+    from ..streams.memory import MemoryObjectSendStream
+
+if sys.version_info < (3, 15):
+    from typing_extensions import sentinel
 
 if sys.version_info >= (3, 11):
     from typing import Self, TypeVarTuple, Unpack
@@ -195,7 +199,7 @@ class CancelScope(BaseCancelScope):
 # Task groups
 #
 
-empty_start_value = object()
+empty_start_value = sentinel("empty_start_value")
 
 
 class _TrioTaskStatus(abc.TaskStatus[T_contra], Generic[T_contra]):
@@ -1118,7 +1122,7 @@ class TrioBackend(AsyncBackend):
     @classmethod
     def create_cancel_scope(
         cls, *, deadline: float = math.inf, shield: bool = False
-    ) -> abc.CancelScope:
+    ) -> BaseCancelScope:
         return CancelScope(deadline=deadline, shield=shield)
 
     @classmethod
@@ -1130,7 +1134,7 @@ class TrioBackend(AsyncBackend):
         return TaskGroup()
 
     @classmethod
-    def create_event(cls) -> abc.Event:
+    def create_event(cls) -> BaseEvent:
         return Event()
 
     @classmethod
@@ -1144,7 +1148,7 @@ class TrioBackend(AsyncBackend):
         *,
         max_value: int | None = None,
         fast_acquire: bool = False,
-    ) -> abc.Semaphore:
+    ) -> BaseSemaphore:
         return Semaphore(initial_value, max_value=max_value, fast_acquire=fast_acquire)
 
     @classmethod
@@ -1157,7 +1161,7 @@ class TrioBackend(AsyncBackend):
         func: Callable[[Unpack[PosArgsT]], T_Retval],
         args: tuple[Unpack[PosArgsT]],
         abandon_on_cancel: bool = False,
-        limiter: abc.CapacityLimiter | None = None,
+        limiter: BaseCapacityLimiter | None = None,
     ) -> T_Retval:
         def wrapper() -> T_Retval:
             with claim_worker_thread(TrioBackend, token):

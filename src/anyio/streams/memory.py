@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from types import TracebackType
 from typing import Generic, NamedTuple, TypeVar
 
-from .. import (
+from .._core._exceptions import (
     BrokenResourceError,
     ClosedResourceError,
     EndOfStream,
