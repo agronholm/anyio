@@ -87,6 +87,15 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``CapacityLimiter`` on the asyncio backend over-granting tokens when
   ``total_tokens`` was raised while the limiter was over-subscribed
   (`#1223 <https://github.com/agronholm/anyio/pull/1223>`_; PR by @zelinewang)
+- Fixed UDP socket closing hanging on Windows if a datagram send was still in flight
+  (`#1237 <https://github.com/agronholm/anyio/issues/1237>`_; PR by @graingert)
+- Fixed concurrent ``aclose_forcefully()`` calls on asyncio socket streams returning
+  before the underlying socket was closed
+  (`#1273 <https://github.com/agronholm/anyio/issues/1273>`_; PR by @graingert)
+- Fixed ``aclose()`` on sockets not checkpointing, and thus failing to raise a
+  cancellation exception when called inside a cancelled scope (affected UNIX socket
+  streams and UNIX datagram sockets on asyncio, and all sockets on Trio)
+  (`#1288 <https://github.com/agronholm/anyio/issues/1288>`_; PR by @graingert)
 - Fixed asyncio task groups leaking unawaited coroutines when a custom task constructor
   fails; default task creation is unaffected
   (`#1274 <https://github.com/agronholm/anyio/issues/1274>`_; PR by @dsfaccini)
