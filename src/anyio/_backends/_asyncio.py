@@ -390,6 +390,7 @@ class CancelScope(BaseCancelScope):
         "_cancelled_caught",
         "_child_scopes",
         "_deadline",
+        "_has_been_entered",
         "_host_task",
         "_parent_scope",
         "_pending_uncancellations",
@@ -410,6 +411,7 @@ class CancelScope(BaseCancelScope):
         self._cancel_reason: str | None = None
         self._cancelled_caught = False
         self._active = False
+        self._has_been_entered = False
         self._timeout_handle: asyncio.TimerHandle | None = None
         self._cancel_handle: asyncio.Handle | None = None
         self._tasks: set[asyncio.Task] = set()
@@ -420,11 +422,12 @@ class CancelScope(BaseCancelScope):
             self._pending_uncancellations = None
 
     def __enter__(self) -> Self:
-        if self._active:
+        if self._has_been_entered:
             raise RuntimeError(
                 "Each CancelScope may only be used for a single 'with' block"
             )
 
+        self._has_been_entered = True
         self._host_task = host_task = cast(asyncio.Task, current_task())
         self._tasks.add(host_task)
         try:
