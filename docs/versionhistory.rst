@@ -3,7 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+**4.15.1**
 
 - Implemented a compatibility fix for supporting direct access of ``anyio.*`` submodules
   from the main package even when those submodules were not directly imported first
