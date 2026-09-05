@@ -51,7 +51,7 @@ async def test_sleep_forever(fake_sleep: AsyncMock) -> None:
     "delay",
     [
         pytest.param(-1.0, id="negative"),
-        pytest.param(-math.inf, "neg_inf"),
+        pytest.param(-math.inf, id="neg_inf"),
         pytest.param(math.nan, id="nan"),
     ],
 )
