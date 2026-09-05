@@ -47,12 +47,13 @@ async def test_sleep_forever(fake_sleep: AsyncMock) -> None:
     fake_sleep.assert_called_once_with(math.inf)
 
 
-@pytest.mark.parametrize("delay", [-1.0, -math.inf])
-async def test_sleep_negative_delay(delay: float) -> None:
-    """Negative delays return immediately on all backends, matching sleep(0)."""
-    start = current_time()
-    await sleep(delay)
-    assert current_time() - start < 0.1
+@pytest.mark.parametrize(
+    "delay", [-1.0, -math.inf, math.nan], ids=["negative", "neg_inf", "nan"]
+)
+async def test_sleep_invalid_delay(delay: float) -> None:
+    """Invalid delays raise ValueError on all backends."""
+    with pytest.raises(ValueError, match="delay must be a non-negative number"):
+        await sleep(delay)
 
 
 def test_run_task() -> None:

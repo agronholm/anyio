@@ -5,9 +5,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
-- Fixed ``sleep()`` raising ``ValueError`` on Trio for a negative delay (including
-  ``-inf``) while asyncio returned immediately, by clamping negative delays to zero like
-  ``sleep_until()``
+- Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
+  across backends (asyncio returned immediately; Trio raised ``ValueError``) by
+  raising ``ValueError`` on all backends
   (`#1306 <https://github.com/agronholm/anyio/issues/1306>`_; PR by @BetterAndBetterII)
 
 **4.15.1**
