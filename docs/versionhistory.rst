@@ -3,6 +3,13 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
+**UNRELEASED**
+
+- Fixed ``create_tcp_listener()`` occasionally failing with a message like
+  ``Could not create 2 listeners with a consistent port`` when an ephemeral port is
+  requested and IPv6 is enabled and the dual-stack path is not available or a specific
+  local host name was given
+
 **4.15.1**
 
 - Implemented a compatibility fix for supporting direct access of ``anyio.*`` submodules
