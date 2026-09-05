@@ -89,9 +89,14 @@ async def sleep(delay: float) -> None:
     """
     Pause the current task for the specified duration.
 
-    :param delay: the duration, in seconds
+    :param delay: the duration, in seconds. Negative values raise
+        :exc:`ValueError`.
+    :raises ValueError: if ``delay`` is negative (including ``-inf``) or NaN
 
     """
+    if not delay >= 0:
+        raise ValueError("delay must be a non-negative number")
+
     return await get_async_backend().sleep(delay)
 
 
