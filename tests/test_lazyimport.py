@@ -20,6 +20,16 @@ DEPRECATIONS = {
     "anyio.abc.Lock": "anyio.Lock",
     "anyio.abc.Semaphore": "anyio.Semaphore",
 }
+SUBMODULES = (
+    "abc",
+    "to_thread",
+    "lowlevel",
+    "from_thread",
+    "functools",
+    "itertools",
+    "to_process",
+    "to_interpreter",
+)
 
 
 @pytest.mark.timeout(60)
@@ -118,6 +128,36 @@ def test_sourceless_install(tmp_path: Path) -> None:
         "anyio.abc.UDPSocket": "anyio.abc",
     }
     assert result["deprecations"] == DEPRECATIONS
+
+
+def test_submodule_access_without_direct_import() -> None:
+    """
+    Test that accessing an anyio submodule via attribute access, without having imported
+    it directly, imports the submodule.
+    """
+    script = dedent(f"""\
+    import json
+    import sys
+    import types
+
+    import anyio
+
+    submodules = {SUBMODULES!r}
+    result = {{}}
+    for name in submodules:
+        value = getattr(anyio, name)
+        result[name] = isinstance(value, types.ModuleType)
+
+    json.dump(result, sys.stdout)
+    """)
+
+    process = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        check=True,
+    )
+    result = json.loads(process.stdout.decode("utf-8"))
+    assert result == dict.fromkeys(SUBMODULES, True)
 
 
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")

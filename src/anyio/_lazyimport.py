@@ -20,7 +20,7 @@ def install_lazy_importer() -> bool:
     module_name = module_globals["__name__"]
     module_prefix = module_name + "."
     module = sys.modules[module_name]
-    lazy_map, deprecated_aliases = _build_lazy_map(module)
+    lazy_map, deprecated_aliases, submodule_names = _build_lazy_map(module)
     names = sorted(lazy_map)
 
     # Delete symbols that are not part of the API
@@ -34,6 +34,8 @@ def install_lazy_importer() -> bool:
         if new_name := deprecated_aliases.get(name):
             emit_deprecation_warning(module_name, name, new_name)
             target_mod, target_attr = new_name.rsplit(".", 1)
+        elif name in submodule_names:
+            target_mod, target_attr = "." + name, ""
         else:
             try:
                 target_mod, target_attr = lazy_map[name]
@@ -43,7 +45,7 @@ def install_lazy_importer() -> bool:
                 ) from None
 
         imported = import_module(target_mod, module_name)
-        value = getattr(imported, target_attr)
+        value = getattr(imported, target_attr) if target_attr else imported
 
         # patch the module name to match
         if (
@@ -109,16 +111,17 @@ def set_deprecated_aliases(aliases: dict[str, str]) -> None:
 
 def _build_lazy_map(
     module: ModuleType,
-) -> tuple[dict[str, tuple[str, str]], dict[str, str]]:
+) -> tuple[dict[str, tuple[str, str]], dict[str, str], list[str]]:
     try:
         source = inspect.getsource(module)
     except OSError:
-        return {}, {}
+        return {}, {}, []
 
     tree = compile(source, module.__file__ or "", "exec", ast.PyCF_ONLY_AST)
     assert isinstance(tree, ast.Module)
     out: dict[str, tuple[str, str]] = {}
     deprecated_aliases: dict[str, str] = {}
+    submodule_names: list[str] = []
 
     for node in tree.body:
         if not isinstance(node, ast.If) or not _is_type_checking_block(node.test):
@@ -127,13 +130,16 @@ def _build_lazy_map(
         for stmt in node.body:
             match stmt:
                 case ast.ImportFrom():
-                    base = "." * stmt.level + (stmt.module or "")
-                    for alias in stmt.names:
-                        if alias.name == "*":
-                            raise RuntimeError("star imports not supported")
+                    if stmt.module is None:
+                        submodule_names.extend(alias.name for alias in stmt.names)
+                    else:
+                        base = "." * stmt.level + (stmt.module or "")
+                        for alias in stmt.names:
+                            if alias.name == "*":
+                                raise RuntimeError("star imports not supported")
 
-                        exported = alias.asname or alias.name
-                        out[exported] = (base, alias.name)
+                            exported = alias.asname or alias.name
+                            out[exported] = (base, alias.name)
                 case ast.Expr() if isinstance(stmt.value, ast.Call):
                     call = stmt.value
                     if (
@@ -149,7 +155,7 @@ def _build_lazy_map(
                             assert isinstance(value.value, str)
                             deprecated_aliases[key.value] = value.value
 
-    return out, deprecated_aliases
+    return out, deprecated_aliases, submodule_names
 
 
 def _is_type_checking_block(test: ast.AST) -> bool:
