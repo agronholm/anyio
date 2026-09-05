@@ -52,6 +52,15 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   building a lookup table from the ``if TYPE_CHECKING:`` block. A fallback mode has been
   provided for installations where the source code is unavailable (e.g. PyInstaller).
   (`#1169 <https://github.com/agronholm/anyio/pull/1169>`_)
+- Changed UDP sockets on the asyncio backend to make ``send()`` wait until the
+  datagram has been passed to the operating system
+  (`#1294 <https://github.com/agronholm/anyio/pull/1294>`_; PR by @graingert)
+- Fixed UDP sockets on the asyncio backend silently discarding errors reported by the
+  OS (such as an ICMP port unreachable). A task blocked in ``receive()`` or ``send()``
+  is now woken up by such an error, and both raise ``BrokenResourceError``, chained to
+  the original error, as they already did on the Trio backend. As on the Trio backend,
+  the error is only reported once, leaving the socket usable afterwards
+  (`#1294 <https://github.com/agronholm/anyio/pull/1294>`_; PR by @graingert)
 - Fixed free-threading compatibility issues arising from the fact that on Python 3.14
   free-threading builds, newly created threads inherit the current context by default,
   causing AnyIO to behave erroneously in relation to ``start_blocking_portal()`` and

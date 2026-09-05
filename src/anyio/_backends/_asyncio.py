@@ -1349,19 +1349,26 @@ class StreamProtocol(asyncio.Protocol):
 
 class DatagramProtocol(asyncio.DatagramProtocol):
     read_queue: deque[tuple[bytes, IPSockAddrType]]
+    exceptions: deque[Exception]
     read_event: asyncio.Event
     write_event: asyncio.Event
     closed_event: asyncio.Event
-    exception: Exception | None = None
+    write_paused: bool = False
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.read_queue = deque(maxlen=100)  # arbitrary value
+        # Unbounded, as every error reported by the OS must be raised exactly once
+        self.exceptions = deque()
         self.read_event = asyncio.Event()
         self.write_event = asyncio.Event()
         self.closed_event = asyncio.Event()
         self.write_event.set()
+        cast(asyncio.WriteTransport, transport).set_write_buffer_limits(0)
 
     def connection_lost(self, exc: Exception | None) -> None:
+        if exc:
+            self.exceptions.append(exc)
+
         self.read_event.set()
         self.write_event.set()
         self.closed_event.set()
@@ -1372,13 +1379,36 @@ class DatagramProtocol(asyncio.DatagramProtocol):
         self.read_event.set()
 
     def error_received(self, exc: Exception) -> None:
-        self.exception = exc
+        self.exceptions.append(exc)
+        self.read_event.set()
+        self.write_event.set()
 
     def pause_writing(self) -> None:
+        self.write_paused = True
         self.write_event.clear()
 
     def resume_writing(self) -> None:
+        self.write_paused = False
         self.write_event.set()
+
+    def take_exception(self) -> Exception | None:
+        """
+        Return the oldest error reported by the transport, removing it from the queue so
+        that it's only reported once, just like the OS does.
+
+        :meth:`error_received` set the write event to wake up any waiting sender, so it
+        has to be cleared again if the transport is still paused and no error is left
+        to report, or the back-pressure would be lost.
+
+        """
+        if not self.exceptions:
+            return None
+
+        exc = self.exceptions.popleft()
+        if self.write_paused and not self.exceptions:
+            self.write_event.clear()
+
+        return exc
 
 
 class SocketStream(abc.SocketStream):
@@ -1756,29 +1786,62 @@ class UDPSocket(abc.UDPSocket):
         with self._receive_guard:
             await AsyncIOBackend.checkpoint()
 
-            # If the buffer is empty, ask for more data
-            if not self._protocol.read_queue and not self._transport.is_closing():
+            # Wait until there's a packet in the buffer. An error reported by the
+            # transport also wakes us up, but it may have been claimed by a sender
+            # already, in which case there's nothing to do but wait for more data.
+            while not self._protocol.read_queue:
+                if self._closed:
+                    raise ClosedResourceError
+                elif (exc := self._protocol.take_exception()) is not None:
+                    raise BrokenResourceError from exc
+                elif self._transport.is_closing():
+                    raise BrokenResourceError
+
                 self._protocol.read_event.clear()
                 await self._protocol.read_event.wait()
 
-            try:
-                return self._protocol.read_queue.popleft()
-            except IndexError:
-                if self._closed:
-                    raise ClosedResourceError from None
-                else:
-                    raise BrokenResourceError from None
+            return self._protocol.read_queue.popleft()
 
     async def send(self, item: UDPPacketType) -> None:
         with self._send_guard:
-            await AsyncIOBackend.checkpoint()
-            await self._protocol.write_event.wait()
-            if self._closed:
-                raise ClosedResourceError
-            elif self._transport.is_closing():
-                raise BrokenResourceError
-            else:
-                self._transport.sendto(*item)
+            await AsyncIOBackend.checkpoint_if_cancelled()
+            yielded = False
+
+            # error_received() may set the write event while the transport is still
+            # paused, so it's the pause flag that says when it's safe to send
+            while True:
+                if self._closed:
+                    raise ClosedResourceError
+                elif (exc := self._protocol.take_exception()) is not None:
+                    raise BrokenResourceError from exc
+                elif self._transport.is_closing():
+                    raise BrokenResourceError
+                elif not self._protocol.write_paused:
+                    break
+
+                yielded = True
+                await self._protocol.write_event.wait()
+
+            self._transport.sendto(*item)
+
+            # The high water mark is 0, so the transport is paused if the OS refused it
+            while self._protocol.write_paused:
+                yielded = True
+                await self._protocol.write_event.wait()
+                if self._closed:
+                    raise ClosedResourceError
+                elif (exc := self._protocol.take_exception()) is not None:
+                    raise BrokenResourceError from exc
+                elif self._transport.is_closing():
+                    raise BrokenResourceError
+
+            # A send that fails right away is reported to the protocol; raise it here
+            # instead of leaving it for another task to pick up, as Trio does
+            if (exc := self._protocol.take_exception()) is not None:
+                raise BrokenResourceError from exc
+
+            if not yielded:
+                await AsyncIOBackend.cancel_shielded_checkpoint()
 
 
 class ConnectedUDPSocket(abc.ConnectedUDPSocket):
@@ -1806,31 +1869,63 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
         with self._receive_guard:
             await AsyncIOBackend.checkpoint()
 
-            # If the buffer is empty, ask for more data
-            if not self._protocol.read_queue and not self._transport.is_closing():
+            # Wait until there's a packet in the buffer. An error reported by the
+            # transport also wakes us up, but it may have been claimed by a sender
+            # already, in which case there's nothing to do but wait for more data.
+            while not self._protocol.read_queue:
+                if self._closed:
+                    raise ClosedResourceError
+                elif (exc := self._protocol.take_exception()) is not None:
+                    raise BrokenResourceError from exc
+                elif self._transport.is_closing():
+                    raise BrokenResourceError
+
                 self._protocol.read_event.clear()
                 await self._protocol.read_event.wait()
 
-            try:
-                packet = self._protocol.read_queue.popleft()
-            except IndexError:
-                if self._closed:
-                    raise ClosedResourceError from None
-                else:
-                    raise BrokenResourceError from None
-
+            packet = self._protocol.read_queue.popleft()
             return packet[0]
 
     async def send(self, item: bytes) -> None:
         with self._send_guard:
-            await AsyncIOBackend.checkpoint()
-            await self._protocol.write_event.wait()
-            if self._closed:
-                raise ClosedResourceError
-            elif self._transport.is_closing():
-                raise BrokenResourceError
-            else:
-                self._transport.sendto(item)
+            await AsyncIOBackend.checkpoint_if_cancelled()
+            yielded = False
+
+            # error_received() may set the write event while the transport is still
+            # paused, so it's the pause flag that says when it's safe to send
+            while True:
+                if self._closed:
+                    raise ClosedResourceError
+                elif (exc := self._protocol.take_exception()) is not None:
+                    raise BrokenResourceError from exc
+                elif self._transport.is_closing():
+                    raise BrokenResourceError
+                elif not self._protocol.write_paused:
+                    break
+
+                yielded = True
+                await self._protocol.write_event.wait()
+
+            self._transport.sendto(item)
+
+            # The high water mark is 0, so the transport is paused if the OS refused it
+            while self._protocol.write_paused:
+                yielded = True
+                await self._protocol.write_event.wait()
+                if self._closed:
+                    raise ClosedResourceError
+                elif (exc := self._protocol.take_exception()) is not None:
+                    raise BrokenResourceError from exc
+                elif self._transport.is_closing():
+                    raise BrokenResourceError
+
+            # A send that fails right away is reported to the protocol; raise it here
+            # instead of leaving it for another task to pick up, as Trio does
+            if (exc := self._protocol.take_exception()) is not None:
+                raise BrokenResourceError from exc
+
+            if not yielded:
+                await AsyncIOBackend.cancel_shielded_checkpoint()
 
 
 class UNIXDatagramSocket(_RawSocketMixin, abc.UNIXDatagramSocket):
@@ -2895,9 +2990,9 @@ class AsyncIOBackend(AsyncBackend):
             family=family,
             reuse_port=reuse_port,
         )
-        if protocol.exception:
+        if (exc := protocol.take_exception()) is not None:
             transport.close()
-            raise protocol.exception
+            raise exc
 
         if not remote_address:
             return UDPSocket(transport, protocol)
