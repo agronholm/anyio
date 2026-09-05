@@ -48,7 +48,12 @@ async def test_sleep_forever(fake_sleep: AsyncMock) -> None:
 
 
 @pytest.mark.parametrize(
-    "delay", [-1.0, -math.inf, math.nan], ids=["negative", "neg_inf", "nan"]
+    "delay",
+    [
+        pytest.param(-1.0, id="negative"),
+        pytest.param(-math.inf, "neg_inf"),
+        pytest.param(math.nan, id="nan")
+    ]
 )
 async def test_sleep_invalid_delay(delay: float) -> None:
     """Invalid delays raise ValueError on all backends."""
