@@ -20,10 +20,6 @@ DEPRECATIONS = {
     "anyio.abc.Lock": "anyio.Lock",
     "anyio.abc.Semaphore": "anyio.Semaphore",
 }
-
-# Submodules tracked by the lazy importer. Order matters: a submodule that imports
-# another tracked submodule must come after the ones it imports, so that its import does
-# not pre-set their attributes on the package and mask the expected warning.
 SUBMODULES = (
     "abc",
     "to_thread",
