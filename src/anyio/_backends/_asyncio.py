@@ -3171,7 +3171,11 @@ class AsyncIOBackend(AsyncBackend):
 
     @classmethod
     def get_current_task(cls) -> TaskInfo:
-        return AsyncIOTaskInfo(current_task())  # type: ignore[arg-type]
+        task = current_task()
+        if task is None:
+            raise RuntimeError("There is no task currently running")
+
+        return AsyncIOTaskInfo(task)
 
     @classmethod
     def get_running_tasks(cls) -> Sequence[TaskInfo]:
