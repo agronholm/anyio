@@ -5,6 +5,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
+  across backends (asyncio returned immediately; Trio raised ``ValueError``) by
+  raising ``ValueError`` on all backends
+  (`#1306 <https://github.com/agronholm/anyio/issues/1306>`_; PR by @BetterAndBetterII)
 - Fixed ``create_tcp_listener()`` occasionally failing with a message like
   ``Could not create 2 listeners with a consistent port`` when an ephemeral port is
   requested and IPv6 is enabled and the dual-stack path is not available or a specific
