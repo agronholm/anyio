@@ -13,6 +13,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``Could not create 2 listeners with a consistent port`` when an ephemeral port is
   requested and IPv6 is enabled and the dual-stack path is not available or a specific
   local host name was given
+- Fixed ``AsyncFile`` not shielding against cancellation while closing
+  (`#1314 <https://github.com/agronholm/anyio/pull/1314>`_)
 
 **4.15.1**
 

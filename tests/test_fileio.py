@@ -12,7 +12,14 @@ import pytest
 from _pytest.fixtures import FixtureRequest
 from _pytest.tmpdir import TempPathFactory
 
-from anyio import AsyncFile, CapacityLimiter, Path, open_file, wrap_file
+from anyio import (
+    AsyncFile,
+    CancelScope,
+    CapacityLimiter,
+    Path,
+    open_file,
+    wrap_file,
+)
 
 
 @pytest.fixture(params=[False, True])
@@ -85,6 +92,14 @@ class TestAsyncFile:
             await wrapped.write("dummydata")
 
         assert path.read_text() == "dummydata"
+
+    async def test_shieled_aclose(self, tmp_path: pathlib.Path) -> None:
+        async with await open_file(tmp_path / "foo", "wb") as f:
+            with CancelScope() as scope:
+                scope.cancel()
+                await f.aclose()
+
+            assert f.closed
 
 
 class TestPath:

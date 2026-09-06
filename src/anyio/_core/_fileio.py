@@ -25,7 +25,7 @@ from typing import (
     overload,
 )
 
-from .. import to_thread
+from .. import CancelScope, to_thread
 from ..abc import AsyncResource
 from ._synchronization import CapacityLimiter
 
@@ -114,7 +114,8 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
                 break
 
     async def aclose(self) -> None:
-        return await to_thread.run_sync(self._fp.close, limiter=self._limiter)
+        with CancelScope(shield=True):
+            await to_thread.run_sync(self._fp.close, limiter=self._limiter)
 
     async def read(self, size: int = -1) -> AnyStr:
         return await to_thread.run_sync(self._fp.read, size, limiter=self._limiter)
