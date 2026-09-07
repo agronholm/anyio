@@ -25,9 +25,10 @@ from typing import (
     overload,
 )
 
-from .. import CancelScope, to_thread
+from .. import to_thread
 from ..abc import AsyncResource
 from ._synchronization import CapacityLimiter
+from ._tasks import CancelScope
 
 if sys.version_info >= (3, 11):
     from typing import Self
