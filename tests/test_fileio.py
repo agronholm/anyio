@@ -93,7 +93,7 @@ class TestAsyncFile:
 
         assert path.read_text() == "dummydata"
 
-    async def test_shieled_aclose(self, tmp_path: pathlib.Path) -> None:
+    async def test_shielded_aclose(self, tmp_path: pathlib.Path) -> None:
         async with await open_file(tmp_path / "foo", "wb") as f:
             with CancelScope() as scope:
                 scope.cancel()
