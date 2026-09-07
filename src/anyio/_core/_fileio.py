@@ -28,6 +28,7 @@ from typing import (
 from .. import to_thread
 from ..abc import AsyncResource
 from ._synchronization import CapacityLimiter
+from ._tasks import CancelScope
 
 if sys.version_info >= (3, 11):
     from typing import Self
@@ -114,7 +115,8 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
                 break
 
     async def aclose(self) -> None:
-        return await to_thread.run_sync(self._fp.close, limiter=self._limiter)
+        with CancelScope(shield=True):
+            await to_thread.run_sync(self._fp.close, limiter=self._limiter)
 
     async def read(self, size: int = -1) -> AnyStr:
         return await to_thread.run_sync(self._fp.read, size, limiter=self._limiter)
