@@ -17,8 +17,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#1314 <https://github.com/agronholm/anyio/pull/1314>`_)
 - Fixed ``TemporaryDirectory.cleanup()`` not cleaning up when the host task was
   already cancelled, as the cleanup now runs in a shielded cancel scope like
-  ``__aexit__`` does (see `#1304 <https://github.com/agronholm/anyio/pull/1304>`_,
-  which shielded ``__aexit__`` but left ``cleanup()`` unshielded)
+  ``__aexit__`` does
+  (`#1316 <https://github.com/agronholm/anyio/pull/1316>`_; PR by @Yasser-Ameur)
 
 **4.15.1**
 
