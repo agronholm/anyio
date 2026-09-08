@@ -177,6 +177,28 @@ class TestTemporaryDirectory:
 
         assert not td_path.exists()
 
+    async def test_cleanup_method_with_cancellation(self) -> None:
+        """
+        Test that the ``cleanup()`` method removes the directory even if the host
+        task is already cancelled when it is called.
+
+        ``cleanup()`` runs the synchronous cleanup in a worker thread via
+        ``to_thread.run_sync``, which performs a cancellation checkpoint on entry.
+        Wrapping that call in a shielded cancel scope ensures that a pending
+        cancellation does not prevent the cleanup from running, matching
+        ``__aexit__``.
+        """
+        td = TemporaryDirectory()
+        td_str = await td.__aenter__()
+        td_path = pathlib.Path(td_str)
+        assert td_path.exists() and td_path.is_dir()
+
+        with CancelScope() as outer_scope:
+            outer_scope.cancel()
+            await td.cleanup()
+
+        assert not td_path.exists()
+
 
 @pytest.mark.parametrize(
     "suffix, prefix, text, content",
