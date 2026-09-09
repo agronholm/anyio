@@ -7,7 +7,7 @@ import re
 import sys
 import time
 from asyncio import CancelledError
-from collections.abc import AsyncGenerator, Coroutine, Generator
+from collections.abc import AsyncGenerator, Callable, Coroutine, Generator
 from contextlib import aclosing
 from contextvars import ContextVar, copy_context
 from inspect import CORO_CLOSED, getcoroutinestate
@@ -2536,3 +2536,26 @@ async def test_task_from_asyncgen_asend(create_task: bool) -> None:
         assert handle.name == "async_generator.asend"
 
         assert await handle == 8
+
+
+@pytest.mark.parametrize(
+    "scope_factory",
+    [
+        pytest.param(lambda: CancelScope(deadline=math.nan), id="constructor"),
+        pytest.param(lambda: move_on_at(math.nan), id="move_on_at"),
+        pytest.param(lambda: fail_at(math.nan), id="fail_at"),
+        pytest.param(lambda: move_on_after(math.nan), id="move_on_after"),
+        pytest.param(lambda: fail_after(math.nan), id="fail_after"),
+    ],
+)
+async def test_nan_deadline_rejected(scope_factory: Callable[[], Any]) -> None:
+    """A NaN deadline raises ValueError on all backends."""
+    with pytest.raises(ValueError, match="deadline must not be NaN"), scope_factory():
+        pass
+
+
+async def test_nan_deadline_setter_rejected() -> None:
+    """Assigning a NaN deadline raises ValueError on all backends."""
+    scope = CancelScope()
+    with pytest.raises(ValueError, match="deadline must not be NaN"):
+        scope.deadline = math.nan
