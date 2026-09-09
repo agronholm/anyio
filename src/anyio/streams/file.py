@@ -14,6 +14,7 @@ from typing import IO, Any
 
 from .. import (
     BrokenResourceError,
+    CancelScope,
     ClosedResourceError,
     EndOfStream,
     TypedAttributeSet,
@@ -37,7 +38,8 @@ class _BaseFileStream:
         self._file = file
 
     async def aclose(self) -> None:
-        await to_thread.run_sync(self._file.close)
+        with CancelScope(shield=True):
+            await to_thread.run_sync(self._file.close)
 
     @property
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:

@@ -7,7 +7,8 @@ import pytest
 from _pytest.fixtures import SubRequest
 from _pytest.tmpdir import TempPathFactory
 
-from anyio import ClosedResourceError, EndOfStream
+import anyio.lowlevel
+from anyio import CancelScope, ClosedResourceError, EndOfStream
 from anyio.streams.file import FileReadStream, FileStreamAttribute, FileWriteStream
 
 if TYPE_CHECKING:
@@ -47,6 +48,22 @@ class TestFileReadStream:
 
         with pytest.raises(ClosedResourceError):
             await stream.receive()
+
+    async def test_close_on_cancel(self, file_path: Path) -> None:
+        stream = await FileReadStream.from_path(file_path)
+        file = stream.extra(FileStreamAttribute.file)
+        try:
+            with CancelScope() as scope:
+                async with stream:
+                    scope.cancel()
+
+                await anyio.lowlevel.checkpoint()
+                pytest.fail("Cancellation was not propagated")
+
+            assert scope.cancelled_caught
+            assert file.closed
+        finally:
+            file.close()
 
     @pytest.mark.parametrize("max_bytes", [0, -1])
     async def test_receive_invalid_max_bytes(
@@ -104,6 +121,24 @@ class TestFileWriteStream:
 
         with pytest.raises(ClosedResourceError):
             await stream.send(b"foo")
+
+    async def test_close_on_cancel(self, file_path: Path) -> None:
+        stream = await FileWriteStream.from_path(file_path)
+        file = stream.extra(FileStreamAttribute.file)
+        try:
+            with CancelScope() as scope:
+                async with stream:
+                    await stream.send(b"Hello")
+                    scope.cancel()
+
+                await anyio.lowlevel.checkpoint()
+                pytest.fail("Cancellation was not propagated")
+
+            assert scope.cancelled_caught
+            assert file.closed
+            assert file_path.read_bytes() == b"Hello"
+        finally:
+            file.close()
 
     async def test_extra_attributes(self, file_path: Path) -> None:
         async with await FileWriteStream.from_path(file_path) as stream:

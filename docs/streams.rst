@@ -219,6 +219,10 @@ File streams read from or write to files on the file system. They can be useful 
 substituting a file for another source of data, or writing output to a file for logging
 or debugging purposes.
 
+Closing a file stream, including when leaving its asynchronous context manager, waits
+for the file to close even if the calling task has been cancelled. For write streams,
+this also flushes buffered output before closing the file.
+
 Example::
 
     from anyio import run
