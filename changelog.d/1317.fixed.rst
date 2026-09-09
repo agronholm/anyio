@@ -1,0 +1,4 @@
+Fixed a NaN deadline being accepted on asyncio while Trio raised ``ValueError``,
+which silently disabled the timeout (``fail_after(math.nan)`` returned instead of
+raising ``TimeoutError``); ``CancelScope`` now rejects it on both backends
+PR by @dylanpulver
