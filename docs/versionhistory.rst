@@ -16,7 +16,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``AsyncFile`` not shielding against cancellation while closing
   (`#1314 <https://github.com/agronholm/anyio/pull/1314>`_)
 - Fixed ``FileReadStream`` and ``FileWriteStream`` leaving files open when cancelled
-  during context manager exit, including unflushed writes (PR by @Kuang-xianxin)
+  during context manager exit, including unflushed writes
+  (`#1318 <https://github.com/agronholm/anyio/pull/1318>`_; PR by @Kuang-xianxin)
 
 **4.15.1**
 
