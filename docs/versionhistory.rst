@@ -15,6 +15,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   local host name was given
 - Fixed ``AsyncFile`` not shielding against cancellation while closing
   (`#1314 <https://github.com/agronholm/anyio/pull/1314>`_)
+- Fixed a NaN deadline being accepted on asyncio while Trio raised ``ValueError``,
+  which silently disabled the timeout (``fail_after(math.nan)`` returned instead of
+  raising ``TimeoutError``); ``CancelScope`` now rejects it on both backends
+  (`#1317 <https://github.com/agronholm/anyio/pull/1317>`_; PR by @dylanpulver)
 
 **4.15.1**
 
