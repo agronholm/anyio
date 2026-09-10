@@ -274,10 +274,9 @@ class LockAdapter(Lock):
 
 
 class Condition:
-    __slots__ = "__weakref__", "_lock", "_owner_task", "_waiters"
+    __slots__ = "__weakref__", "_lock", "_waiters"
 
     def __init__(self, lock: Lock | None = None):
-        self._owner_task: TaskInfo | None = None
         self._lock = lock or Lock()
         self._waiters: deque[Event] = deque()
 
@@ -292,6 +291,10 @@ class Condition:
     ) -> None:
         self.release()
 
+    @property
+    def _owner_task(self) -> TaskInfo | None:
+        return self._lock.statistics().owner
+
     def _check_acquired(self) -> None:
         if self._owner_task != get_current_task():
             raise RuntimeError("The current task is not holding the underlying lock")
@@ -299,7 +302,6 @@ class Condition:
     async def acquire(self) -> None:
         """Acquire the underlying lock."""
         await self._lock.acquire()
-        self._owner_task = get_current_task()
 
     def acquire_nowait(self) -> None:
         """
@@ -309,7 +311,6 @@ class Condition:
 
         """
         self._lock.acquire_nowait()
-        self._owner_task = get_current_task()
 
     def release(self) -> None:
         """Release the underlying lock."""

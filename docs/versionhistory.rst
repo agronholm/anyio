@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed ``Condition.notify()`` and ``Condition.notify_all()`` failing when the underlying lock was acquired directly rather than through the condition
+  (`#1319 <https://github.com/agronholm/anyio/issues/1319>`_; PR by @GruffElixir)
 - Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
   across backends (asyncio returned immediately; Trio raised ``ValueError``) by
   raising ``ValueError`` on all backends
