@@ -291,12 +291,8 @@ class Condition:
     ) -> None:
         self.release()
 
-    @property
-    def _owner_task(self) -> TaskInfo | None:
-        return self._lock.statistics().owner
-
     def _check_acquired(self) -> None:
-        if self._owner_task != get_current_task():
+        if self._lock.statistics().owner != get_current_task():
             raise RuntimeError("The current task is not holding the underlying lock")
 
     async def acquire(self) -> None:
