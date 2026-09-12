@@ -22,6 +22,7 @@ from .. import (
     typed_attribute,
 )
 from ..abc import ByteReceiveStream, ByteSendStream
+from ..lowlevel import checkpoint_if_cancelled
 
 
 class FileStreamAttribute(TypedAttributeSet):
@@ -40,6 +41,8 @@ class _BaseFileStream:
     async def aclose(self) -> None:
         with CancelScope(shield=True):
             await to_thread.run_sync(self._file.close)
+
+        await checkpoint_if_cancelled()
 
     @property
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:

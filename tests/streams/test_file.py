@@ -7,7 +7,7 @@ import pytest
 from _pytest.fixtures import SubRequest
 from _pytest.tmpdir import TempPathFactory
 
-from anyio import CancelScope, ClosedResourceError, EndOfStream
+from anyio import CancelScope, ClosedResourceError, EndOfStream, get_cancelled_exc_class
 from anyio.streams.file import FileReadStream, FileStreamAttribute, FileWriteStream
 
 if TYPE_CHECKING:
@@ -53,8 +53,9 @@ class TestFileReadStream:
         file = stream.extra(FileStreamAttribute.file)
         try:
             with CancelScope() as scope:
-                async with stream:
-                    scope.cancel()
+                with pytest.raises(get_cancelled_exc_class()):
+                    async with stream:
+                        scope.cancel()
 
             assert file.closed
         finally:
@@ -122,8 +123,9 @@ class TestFileWriteStream:
         file = stream.extra(FileStreamAttribute.file)
         try:
             with CancelScope() as scope:
-                async with stream:
-                    scope.cancel()
+                with pytest.raises(get_cancelled_exc_class()):
+                    async with stream:
+                        scope.cancel()
 
             assert file.closed
         finally:
