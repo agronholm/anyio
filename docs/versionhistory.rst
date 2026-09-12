@@ -17,6 +17,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#1314 <https://github.com/agronholm/anyio/pull/1314>`_)
 - Fixed ``Condition.notify()`` and ``Condition.notify_all()`` failing when the underlying lock was acquired directly rather than through the condition
   (`#1319 <https://github.com/agronholm/anyio/issues/1319>`_; PR by @GruffElixir)
+- Fixed ``FileReadStream`` and ``FileWriteStream`` leaving files open when cancelled
+  during context manager exit, including unflushed writes
+  (`#1318 <https://github.com/agronholm/anyio/pull/1318>`_; PR by @Kuang-xianxin)
 
 **4.15.1**
 
