@@ -15,6 +15,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   local host name was given
 - Fixed ``AsyncFile`` not shielding against cancellation while closing
   (`#1314 <https://github.com/agronholm/anyio/pull/1314>`_)
+- Fixed ``Condition.notify()`` and ``Condition.notify_all()`` failing when the underlying lock was acquired directly rather than through the condition
+  (`#1319 <https://github.com/agronholm/anyio/issues/1319>`_; PR by @GruffElixir)
 
 **4.15.1**
 
