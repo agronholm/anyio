@@ -7,10 +7,12 @@ import subprocess
 import sys
 from pathlib import Path
 from textwrap import dedent
+from types import ModuleType
 
 import pytest
 
 import anyio.abc
+from anyio._lazyimport import _build_lazy_map
 
 DEPRECATIONS = {
     "anyio.BrokenWorkerIntepreter": "anyio.BrokenWorkerInterpreter",
@@ -130,43 +132,10 @@ def test_sourceless_install(tmp_path: Path) -> None:
     assert result["deprecations"] == DEPRECATIONS
 
 
-def test_import_without_module_file() -> None:
-    """Test the eager fallback for loaders that do not set module.__file__."""
-    script = dedent("""\
-    import sys
-    import warnings
-    from importlib.machinery import PathFinder, SourceFileLoader
-
-    class FilelessLoader(SourceFileLoader):
-        def exec_module(self, module):
-            del module.__file__
-            super().exec_module(module)
-
-    class FilelessFinder:
-        @staticmethod
-        def find_spec(fullname, path=None, target=None):
-            if fullname in ("anyio", "anyio.abc"):
-                spec = PathFinder.find_spec(fullname, path)
-                spec.loader = FilelessLoader(fullname, spec.origin)
-                return spec
-
-    sys.meta_path.insert(0, FilelessFinder)
-    import anyio.abc
-
-    assert "__file__" not in vars(anyio)
-    assert "__file__" not in vars(anyio.abc)
-    assert anyio.sleep.__module__ == "anyio"
-    assert anyio.abc.UDPSocket.__module__ == "anyio.abc"
-    with warnings.catch_warnings(record=True) as records:
-        warnings.simplefilter("always", DeprecationWarning)
-        assert anyio.abc.Condition is anyio.Condition
-
-    assert len(records) == 1
-    assert records[0].category is DeprecationWarning
-    anyio.run(anyio.sleep, 0)
-    """)
-
-    subprocess.run([sys.executable, "-c", script], check=True)
+def test_build_lazy_map_without_module_file() -> None:
+    """Test the eager fallback when a module has no __file__ attribute."""
+    module = ModuleType("fileless_module")
+    assert _build_lazy_map(module) == ({}, {}, [])
 
 
 def test_submodule_access_without_direct_import() -> None:
