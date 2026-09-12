@@ -114,7 +114,7 @@ def _build_lazy_map(
 ) -> tuple[dict[str, tuple[str, str]], dict[str, str], list[str]]:
     try:
         source = inspect.getsource(module)
-    except OSError:
+    except (OSError, TypeError):
         return {}, {}, []
 
     tree = compile(source, module.__file__ or "", "exec", ast.PyCF_ONLY_AST)

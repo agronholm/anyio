@@ -7,10 +7,12 @@ import subprocess
 import sys
 from pathlib import Path
 from textwrap import dedent
+from types import ModuleType
 
 import pytest
 
 import anyio.abc
+from anyio._lazyimport import _build_lazy_map
 
 DEPRECATIONS = {
     "anyio.BrokenWorkerIntepreter": "anyio.BrokenWorkerInterpreter",
@@ -128,6 +130,12 @@ def test_sourceless_install(tmp_path: Path) -> None:
         "anyio.abc.UDPSocket": "anyio.abc",
     }
     assert result["deprecations"] == DEPRECATIONS
+
+
+def test_build_lazy_map_without_module_file() -> None:
+    """Test the eager fallback when a module has no __file__ attribute."""
+    module = ModuleType("fileless_module")
+    assert _build_lazy_map(module) == ({}, {}, [])
 
 
 def test_submodule_access_without_direct_import() -> None:
