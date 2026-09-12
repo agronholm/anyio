@@ -58,6 +58,7 @@ from anyio import (
     getnameinfo,
     move_on_after,
     notify_closing,
+    sleep,
     sleep_forever,
     wait_all_tasks_blocked,
     wait_readable,
@@ -116,6 +117,10 @@ skip_ipv6_mark = pytest.mark.skipif(not has_ipv6, reason="IPv6 is not available"
 skip_unix_abstract_mark = pytest.mark.skipif(
     not sys.platform.startswith("linux"),
     reason="Abstract namespace sockets is a Linux only feature",
+)
+skip_no_dgram_backpressure_mark = pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="Datagram sockets are only known to refuse datagrams with EAGAIN on Linux",
 )
 
 
@@ -1761,6 +1766,73 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
         assert client_addresses == expected_addresses
 
 
+DGRAM_BACKPRESSURE_PAYLOAD = b"\x00" * 64
+
+
+def drain_datagram_socket(sock: socket.socket) -> None:
+    try:
+        while True:
+            sock.recv(65536)
+    except BlockingIOError:
+        pass
+
+
+async def receive_datagrams_until(sock: socket.socket, sentinel: bytes) -> list[bytes]:
+    """Receive datagrams until ``sentinel`` arrives, and return all of them."""
+    received: list[bytes] = []
+    while not received or received[-1] != sentinel:
+        try:
+            received.append(sock.recv(65536))
+        except BlockingIOError:
+            await wait_readable(sock)
+
+    return received
+
+
+def make_backpressured_pair(
+    tmp_path: Path, *, connect: bool
+) -> tuple[socket.socket, socket.socket, str, int]:
+    """
+    Create a datagram socket with a full send buffer, along with the peer it sends to.
+
+    UNIX datagram sockets are used because UDP sockets never exert back-pressure on the
+    loopback interface, but they take the same code path in both backends.
+
+    :return: the socket, its peer, the peer's path, and the number of datagrams the OS
+        accepts before it starts refusing them
+
+    """
+    peer_path = str(tmp_path / "peer.sock")
+    peer = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    peer.setblocking(False)
+    peer.bind(peer_path)
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    sock.bind(str(tmp_path / "local.sock"))
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024)
+    if connect:
+        sock.connect(peer_path)
+
+    sock.setblocking(False)
+
+    # Find out how many datagrams the OS accepts before it refuses any more, and then
+    # empty both buffers again
+    capacity = 0
+    try:
+        while True:
+            if connect:
+                sock.send(DGRAM_BACKPRESSURE_PAYLOAD)
+            else:
+                sock.sendto(DGRAM_BACKPRESSURE_PAYLOAD, peer_path)
+
+            capacity += 1
+    except BlockingIOError:
+        pass
+
+    assert capacity >= 2, f"the send buffer only fits {capacity} datagram(s)"
+    drain_datagram_socket(peer)
+    return sock, peer, peer_path, capacity
+
+
 @pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestUDPSocket:
@@ -1831,6 +1903,197 @@ class TestUDPSocket:
             response, addr = await sock.receive()
             assert response == b"halb"
             assert addr == (host, port)
+
+    @skip_no_dgram_backpressure_mark
+    async def test_send_waits_for_the_os_to_accept_the_datagram(
+        self, tmp_path: Path
+    ) -> None:
+        sock, peer, peer_path, capacity = make_backpressured_pair(
+            tmp_path, connect=False
+        )
+        addr = cast(IPSockAddrType, peer_path)
+        with peer:
+            async with await UDPSocket.from_socket(sock) as udp:
+                # Fill up the send buffer again
+                for _ in range(capacity):
+                    await udp.send((DGRAM_BACKPRESSURE_PAYLOAD, addr))
+
+                send_completed = False
+
+                async def send_one_more() -> None:
+                    nonlocal send_completed
+                    await udp.send((DGRAM_BACKPRESSURE_PAYLOAD, addr))
+                    send_completed = True
+
+                with fail_after(5):
+                    async with create_task_group() as tg:
+                        tg.start_soon(send_one_more)
+                        await wait_all_tasks_blocked()
+                        blocked = not send_completed
+
+                        # Make room in the send buffer so the sender can continue
+                        drain_datagram_socket(peer)
+
+                assert blocked, "send() returned before the OS accepted the datagram"
+                assert send_completed
+
+    async def test_send_reports_error(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        # Unconnected sockets are not told about ICMP errors on POSIX, so an
+        # oversized datagram is used to elicit an error from the OS instead
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        async with await create_udp_socket(family=family, local_host=host) as udp:
+            with fail_after(5), pytest.raises(BrokenResourceError) as exc_info:
+                while True:
+                    await udp.sendto(b"\x00" * 70000, host, free_udp_port)
+                    await sleep(0.01)
+
+            # EMSGSIZE on POSIX; WSAEMSGSIZE on Windows
+            assert isinstance(exc_info.value.__cause__, OSError)
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="the proactor event loop only reports the error asynchronously",
+    )
+    async def test_send_error_not_reported_to_receiver(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        # On asyncio both paths share the protocol the transport reports errors to,
+        # so the sender has to claim the error before the receiver sees it
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        async with await create_udp_socket(family=family, local_host=host) as udp:
+            local_host, local_port = cast(
+                tuple[str, int], udp.extra(SocketAttribute.local_address)
+            )
+
+            async def receive() -> None:
+                packet, _addr = await udp.receive()
+                assert packet == b"hello"
+
+            with fail_after(5):
+                async with create_task_group() as tg:
+                    tg.start_soon(receive)
+                    await wait_all_tasks_blocked()
+                    with pytest.raises(BrokenResourceError) as exc_info:
+                        await udp.sendto(b"\x00" * 70000, host, free_udp_port)
+
+                    assert isinstance(exc_info.value.__cause__, OSError)
+
+                    # The receiver must still be waiting for a real datagram
+                    await wait_all_tasks_blocked()
+                    await udp.sendto(b"hello", local_host, local_port)
+
+    async def test_socket_usable_after_error(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        # A rejected datagram does not invalidate the socket, so the error must only
+        # be raised once
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        async with await create_udp_socket(family=family, local_host=host) as udp:
+            with fail_after(5), pytest.raises(BrokenResourceError) as exc_info:
+                while True:
+                    await udp.sendto(b"\x00" * 70000, host, free_udp_port)
+                    await sleep(0.01)
+
+            assert isinstance(exc_info.value.__cause__, OSError)
+
+            # The socket must still be able to send a datagram of a sane size
+            async with await create_udp_socket(
+                family=family, local_host=host, local_port=free_udp_port
+            ) as peer:
+                with fail_after(5):
+                    await udp.sendto(b"hello", host, free_udp_port)
+                    packet, addr = await peer.receive()
+
+                assert packet == b"hello"
+                assert addr == udp.extra(SocketAttribute.local_address)
+
+    @skip_no_dgram_backpressure_mark
+    async def test_cancelled_send_does_not_buffer_the_next_datagram(
+        self, tmp_path: Path
+    ) -> None:
+        sock, peer, peer_path, capacity = make_backpressured_pair(
+            tmp_path, connect=False
+        )
+        addr = cast(IPSockAddrType, peer_path)
+        with peer:
+            async with await UDPSocket.from_socket(sock) as udp:
+                # Fill up the send buffer again
+                for _ in range(capacity):
+                    await udp.send((DGRAM_BACKPRESSURE_PAYLOAD, addr))
+
+                async def send_and_cancel(payload: bytes) -> None:
+                    async with create_task_group() as tg:
+                        tg.start_soon(udp.send, (payload, addr))
+                        await wait_all_tasks_blocked()
+                        tg.cancel_scope.cancel()
+
+                with fail_after(5):
+                    # The first cancelled send may leave its datagram in the asyncio
+                    # transport's buffer, but the second one must never reach it
+                    await send_and_cancel(b"one")
+                    await send_and_cancel(b"two")
+
+                    async with create_task_group() as tg:
+                        tg.start_soon(udp.send, (b"three", addr))
+                        received = await receive_datagrams_until(peer, b"three")
+
+                assert b"two" not in received
+
+    @skip_no_dgram_backpressure_mark
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_send_stays_blocked_when_another_task_takes_the_error(
+        self, tmp_path: Path
+    ) -> None:
+        """
+        ``error_received()`` sets the write event while the transport is still paused,
+        so a sender woken by an error that another task claimed must resume waiting.
+        """
+        sock, peer, peer_path, capacity = make_backpressured_pair(
+            tmp_path, connect=False
+        )
+        addr = cast(IPSockAddrType, peer_path)
+        with peer:
+            async with await UDPSocket.from_socket(sock) as udp:
+                protocol = cast(Any, udp)._protocol
+                transport = cast(Any, udp)._transport
+
+                # Fill up the send buffer again
+                for _ in range(capacity):
+                    await udp.send((DGRAM_BACKPRESSURE_PAYLOAD, addr))
+
+                # Cancel a paused send, leaving its datagram in the transport's buffer
+                async with create_task_group() as tg:
+                    tg.start_soon(udp.send, (b"one", addr))
+                    await wait_all_tasks_blocked()
+                    tg.cancel_scope.cancel()
+
+                assert protocol.write_paused
+                buffered = transport.get_write_buffer_size()
+                assert buffered > 0
+
+                with fail_after(5):
+                    async with create_task_group() as tg:
+                        tg.start_soon(udp.send, (b"two", addr))
+                        await wait_all_tasks_blocked()
+
+                        # The OS reports an error, waking the blocked sender, but a
+                        # receiver claims it before the sender gets to run
+                        protocol.error_received(OSError(errno.ECONNREFUSED, "nope"))
+                        assert protocol.take_exception() is not None
+
+                        await wait_all_tasks_blocked()
+                        size_while_paused = transport.get_write_buffer_size()
+
+                        # Let the sender finish, so that the transport's buffer is
+                        # empty by the time the socket is closed
+                        received = await receive_datagrams_until(peer, b"two")
+
+                assert size_while_paused == buffered, (
+                    "send() handed its datagram to a still-paused transport"
+                )
+                assert b"one" in received
 
     async def test_iterate(self, family: AnyIPAddressFamily) -> None:
         async def serve() -> None:
@@ -2011,6 +2274,237 @@ class TestConnectedUDPSocket:
                 response = await udp2.receive()
                 assert response == b"halb"
 
+    @skip_no_dgram_backpressure_mark
+    async def test_send_waits_for_the_os_to_accept_the_datagram(
+        self, tmp_path: Path
+    ) -> None:
+        sock, peer, _peer_path, capacity = make_backpressured_pair(
+            tmp_path, connect=True
+        )
+        with peer:
+            async with await ConnectedUDPSocket.from_socket(sock) as udp:
+                # Fill up the send buffer again
+                for _ in range(capacity):
+                    await udp.send(DGRAM_BACKPRESSURE_PAYLOAD)
+
+                send_completed = False
+
+                async def send_one_more() -> None:
+                    nonlocal send_completed
+                    await udp.send(DGRAM_BACKPRESSURE_PAYLOAD)
+                    send_completed = True
+
+                with fail_after(5):
+                    async with create_task_group() as tg:
+                        tg.start_soon(send_one_more)
+                        await wait_all_tasks_blocked()
+                        blocked = not send_completed
+
+                        # Make room in the send buffer so the sender can continue
+                        drain_datagram_socket(peer)
+
+                assert blocked, "send() returned before the OS accepted the datagram"
+                assert send_completed
+
+    @pytest.mark.usefixtures("check_libuv_udp_error_bug")
+    async def test_receive_wakes_up_on_error(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        async with await create_connected_udp_socket(
+            host, free_udp_port, family=family
+        ) as udp:
+
+            async def receive() -> None:
+                with pytest.raises(BrokenResourceError) as exc_info:
+                    await udp.receive()
+
+                # ConnectionRefusedError on POSIX; on Windows either
+                # ConnectionResetError or a plain OSError carrying
+                # ERROR_PORT_UNREACHABLE, depending on the backend
+                assert isinstance(exc_info.value.__cause__, OSError)
+
+            with fail_after(5):
+                async with create_task_group() as tg:
+                    tg.start_soon(receive)
+                    await wait_all_tasks_blocked()
+                    await udp.send(b"blah")
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Windows only reports the error to the receive path",
+    )
+    async def test_send_reports_error(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        async with await create_connected_udp_socket(
+            host, free_udp_port, family=family
+        ) as udp:
+            with fail_after(5), pytest.raises(BrokenResourceError) as exc_info:
+                while True:
+                    await udp.send(b"blah")
+                    await sleep(0.01)
+
+            # ConnectionRefusedError on POSIX; on Windows either
+            # ConnectionResetError or a plain OSError carrying
+            # ERROR_PORT_UNREACHABLE, depending on the backend
+            assert isinstance(exc_info.value.__cause__, OSError)
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="the proactor event loop only reports the error asynchronously",
+    )
+    async def test_send_error_not_reported_to_receiver(
+        self, family: AnyIPAddressFamily
+    ) -> None:
+        # On asyncio both paths share the protocol the transport reports errors to,
+        # so the sender has to claim the error before the receiver sees it. An
+        # oversized datagram is used because an ICMP port unreachable would only be
+        # reported asynchronously
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        async with await create_udp_socket(family=family, local_host=host) as peer:
+            peer_host, peer_port = cast(
+                tuple[str, int], peer.extra(SocketAttribute.local_address)
+            )
+            async with await create_connected_udp_socket(
+                peer_host, peer_port, family=family
+            ) as udp:
+                local_host, local_port = cast(
+                    tuple[str, int], udp.extra(SocketAttribute.local_address)
+                )
+
+                async def receive() -> None:
+                    assert await udp.receive() == b"hello"
+
+                with fail_after(5):
+                    async with create_task_group() as tg:
+                        tg.start_soon(receive)
+                        await wait_all_tasks_blocked()
+                        with pytest.raises(BrokenResourceError) as exc_info:
+                            await udp.send(b"\x00" * 70000)
+
+                        # EMSGSIZE on POSIX; WSAEMSGSIZE on Windows
+                        assert isinstance(exc_info.value.__cause__, OSError)
+
+                        # The receiver must still be waiting for a real datagram
+                        await wait_all_tasks_blocked()
+                        await peer.sendto(b"hello", local_host, local_port)
+
+    @pytest.mark.usefixtures("check_libuv_udp_error_bug")
+    async def test_socket_usable_after_error(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        # An ICMP port unreachable does not invalidate the socket, so the error must
+        # only be raised once
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        async with await create_connected_udp_socket(
+            host, free_udp_port, family=family
+        ) as udp:
+            # Elicit an ICMP port unreachable message and let it be reported
+            await udp.send(b"blah")
+            with fail_after(5), pytest.raises(BrokenResourceError) as exc_info:
+                await udp.receive()
+
+            # ConnectionRefusedError on POSIX; on Windows either
+            # ConnectionResetError or a plain OSError carrying
+            # ERROR_PORT_UNREACHABLE, depending on the backend
+            assert isinstance(exc_info.value.__cause__, OSError)
+
+            # The socket must work again now that somebody is listening on the port
+            async with await create_udp_socket(
+                family=family, local_host=host, local_port=free_udp_port
+            ) as peer:
+                with fail_after(5):
+                    await udp.send(b"hello")
+                    packet, _addr = await peer.receive()
+
+                assert packet == b"hello"
+
+    @skip_no_dgram_backpressure_mark
+    async def test_cancelled_send_does_not_buffer_the_next_datagram(
+        self, tmp_path: Path
+    ) -> None:
+        sock, peer, _peer_path, capacity = make_backpressured_pair(
+            tmp_path, connect=True
+        )
+        with peer:
+            async with await ConnectedUDPSocket.from_socket(sock) as udp:
+                # Fill up the send buffer again
+                for _ in range(capacity):
+                    await udp.send(DGRAM_BACKPRESSURE_PAYLOAD)
+
+                async def send_and_cancel(payload: bytes) -> None:
+                    async with create_task_group() as tg:
+                        tg.start_soon(udp.send, payload)
+                        await wait_all_tasks_blocked()
+                        tg.cancel_scope.cancel()
+
+                with fail_after(5):
+                    # The first cancelled send may leave its datagram in the asyncio
+                    # transport's buffer, but the second one must never reach it
+                    await send_and_cancel(b"one")
+                    await send_and_cancel(b"two")
+
+                    async with create_task_group() as tg:
+                        tg.start_soon(udp.send, b"three")
+                        received = await receive_datagrams_until(peer, b"three")
+
+                assert b"two" not in received
+
+    @skip_no_dgram_backpressure_mark
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_send_stays_blocked_when_another_task_takes_the_error(
+        self, tmp_path: Path
+    ) -> None:
+        """
+        ``error_received()`` sets the write event while the transport is still paused,
+        so a sender woken by an error that another task claimed must resume waiting.
+        """
+        sock, peer, _peer_path, capacity = make_backpressured_pair(
+            tmp_path, connect=True
+        )
+        with peer:
+            async with await ConnectedUDPSocket.from_socket(sock) as udp:
+                protocol = cast(Any, udp)._protocol
+                transport = cast(Any, udp)._transport
+
+                # Fill up the send buffer again
+                for _ in range(capacity):
+                    await udp.send(DGRAM_BACKPRESSURE_PAYLOAD)
+
+                # Cancel a paused send, leaving its datagram in the transport's buffer
+                async with create_task_group() as tg:
+                    tg.start_soon(udp.send, b"one")
+                    await wait_all_tasks_blocked()
+                    tg.cancel_scope.cancel()
+
+                assert protocol.write_paused
+                buffered = transport.get_write_buffer_size()
+                assert buffered > 0
+
+                with fail_after(5):
+                    async with create_task_group() as tg:
+                        tg.start_soon(udp.send, b"two")
+                        await wait_all_tasks_blocked()
+
+                        # The OS reports an error, waking the blocked sender, but a
+                        # receiver claims it before the sender gets to run
+                        protocol.error_received(OSError(errno.ECONNREFUSED, "nope"))
+                        assert protocol.take_exception() is not None
+
+                        await wait_all_tasks_blocked()
+                        size_while_paused = transport.get_write_buffer_size()
+
+                        # Let the sender finish, so that the transport's buffer is
+                        # empty by the time the socket is closed
+                        received = await receive_datagrams_until(peer, b"two")
+
+                assert size_while_paused == buffered, (
+                    "send() handed its datagram to a still-paused transport"
+                )
+                assert b"one" in received
+
     async def test_iterate(self, family: AnyIPAddressFamily) -> None:
         async def serve() -> None:
             async for packet in udp2:
@@ -2127,6 +2621,38 @@ class TestConnectedUDPSocket:
         sock_or_fd = sock_or_fd_factory(socket.AF_INET, socket.SOCK_DGRAM, bound=True)
         with pytest.raises(ValueError, match="the socket must be connected"):
             await ConnectedUDPSocket.from_socket(sock_or_fd)
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_datagram_protocol_restores_back_pressure() -> None:
+    """
+    Tested directly, as pausing a datagram transport requires the OS to refuse
+    datagrams, which loopback UDP sockets never do.
+    """
+    from anyio._backends._asyncio import DatagramProtocol
+
+    protocol = DatagramProtocol()
+    protocol.connection_made(MagicMock())
+    protocol.pause_writing()
+    assert not protocol.write_event.is_set()
+
+    # The sender must be woken up by the error
+    protocol.error_received(ConnectionRefusedError())
+    assert protocol.write_event.is_set()
+
+    # Errors are queued, so a second one doesn't displace the first
+    protocol.error_received(ConnectionResetError())
+
+    # ...but the sender is only woken up to raise them, after which it must wait for
+    # the transport again
+    assert isinstance(protocol.take_exception(), ConnectionRefusedError)
+    assert protocol.write_event.is_set()
+    assert isinstance(protocol.take_exception(), ConnectionResetError)
+    assert protocol.take_exception() is None
+    assert not protocol.write_event.is_set()
+
+    protocol.resume_writing()
+    assert protocol.write_event.is_set()
 
 
 @pytest.mark.skipif(
