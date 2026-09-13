@@ -256,7 +256,9 @@ class TestTCPStream:
     ) -> None:
         """
         Handing data to a paused transport merely appends it to the write buffer, from
-        where it is delivered anyway, so a cancelled ``send()`` must not have done so.
+        If a ``send()`` was cancelled after the data was written to the buffer, the
+        next call must ensure that the previous send completed one way or another
+        before attempting to send its own data.
         """
         payload = b"a" * 8 * 1024 * 1024
         async with await connect_tcp(*server_addr) as stream:
