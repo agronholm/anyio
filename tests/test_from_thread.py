@@ -332,6 +332,21 @@ class TestRunSyncFromThread:
 
         assert await to_thread.run_sync(worker) == anyio_backend_name
 
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_get_current_task(self) -> None:
+        """
+        Regression test for #773: get_current_task() must raise a clear
+        RuntimeError, not an opaque weakref TypeError, when called from a
+        callback scheduled via loop.call_soon_threadsafe() (as from_thread.run_sync
+        does), where asyncio.current_task() is legitimately None.
+        """
+
+        def worker() -> None:
+            from_thread.run_sync(get_current_task)
+
+        with pytest.raises(RuntimeError, match="There is no task currently running"):
+            await to_thread.run_sync(worker)
+
 
 class TestBlockingPortal:
     class AsyncCM:
