@@ -7,10 +7,12 @@ import subprocess
 import sys
 from pathlib import Path
 from textwrap import dedent
+from types import ModuleType
 
 import pytest
 
 import anyio.abc
+from anyio._lazyimport import _build_lazy_map
 
 DEPRECATIONS = {
     "anyio.BrokenWorkerIntepreter": "anyio.BrokenWorkerInterpreter",
@@ -20,6 +22,16 @@ DEPRECATIONS = {
     "anyio.abc.Lock": "anyio.Lock",
     "anyio.abc.Semaphore": "anyio.Semaphore",
 }
+SUBMODULES = (
+    "abc",
+    "to_thread",
+    "lowlevel",
+    "from_thread",
+    "functools",
+    "itertools",
+    "to_process",
+    "to_interpreter",
+)
 
 
 @pytest.mark.timeout(60)
@@ -118,6 +130,42 @@ def test_sourceless_install(tmp_path: Path) -> None:
         "anyio.abc.UDPSocket": "anyio.abc",
     }
     assert result["deprecations"] == DEPRECATIONS
+
+
+def test_build_lazy_map_without_module_file() -> None:
+    """Test the eager fallback when a module has no __file__ attribute."""
+    module = ModuleType("fileless_module")
+    assert _build_lazy_map(module) == ({}, {}, [])
+
+
+def test_submodule_access_without_direct_import() -> None:
+    """
+    Test that accessing an anyio submodule via attribute access, without having imported
+    it directly, imports the submodule.
+    """
+    script = dedent(f"""\
+    import json
+    import sys
+    import types
+
+    import anyio
+
+    submodules = {SUBMODULES!r}
+    result = {{}}
+    for name in submodules:
+        value = getattr(anyio, name)
+        result[name] = isinstance(value, types.ModuleType)
+
+    json.dump(result, sys.stdout)
+    """)
+
+    process = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        check=True,
+    )
+    result = json.loads(process.stdout.decode("utf-8"))
+    assert result == dict.fromkeys(SUBMODULES, True)
 
 
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")

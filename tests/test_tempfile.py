@@ -10,6 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from anyio import (
+    CancelScope,
     NamedTemporaryFile,
     SpooledTemporaryFile,
     TemporaryDirectory,
@@ -157,6 +158,24 @@ class TestTemporaryDirectory:
 
         with pytest.raises(FileNotFoundError):
             (td_path / "nonexistent.txt").write_text("should fail", encoding="utf-8")
+
+    async def test_exit_with_cancellation(self) -> None:
+        """
+        Test that the directory is cleaned up even if the host task is cancelled
+        while exiting the context manager.
+
+        ``__aexit__`` runs the synchronous cleanup in a worker thread via
+        ``to_thread.run_sync``, which performs a cancellation checkpoint on entry.
+        Wrapping that call in a shielded cancel scope ensures that a pending
+        cancellation does not prevent the cleanup from running.
+        """
+        with CancelScope() as outer_scope:
+            async with TemporaryDirectory() as td:
+                td_path = pathlib.Path(td)
+                assert td_path.exists() and td_path.is_dir()
+                outer_scope.cancel()
+
+        assert not td_path.exists()
 
 
 @pytest.mark.parametrize(
