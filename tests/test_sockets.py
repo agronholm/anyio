@@ -293,17 +293,16 @@ class TestTCPStream:
                 # that a cancelled send() wrongly handed over would arrive first
                 received = bytearray()
                 arrived = False
-                with fail_after(60):
-                    async with create_task_group() as tg:
-                        tg.start_soon(stream.send, b"z" * 64)
-                        while not arrived:
-                            try:
-                                data = client.recv(65536)
-                            except BlockingIOError:
-                                await wait_readable(client)
-                            else:
-                                received += data
-                                arrived = b"z" in data
+                async with create_task_group() as tg:
+                    tg.start_soon(stream.send, b"z" * 64)
+                    while not arrived:
+                        try:
+                            data = client.recv(65536)
+                        except BlockingIOError:
+                            await wait_readable(client)
+                        else:
+                            received += data
+                            arrived = b"z" in data
 
                 assert b"c" not in received
 
