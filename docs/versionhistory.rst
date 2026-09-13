@@ -20,6 +20,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed importing AnyIO with loaders that do not provide ``__file__``, such as
   PyOxidizer, raising ``TypeError`` instead of falling back to eager imports
   (`#1322 <https://github.com/agronholm/anyio/issues/1322>`_; PR by @skulitom)
+- Fixed ``SocketStream.send()`` on the asyncio backend handing its data to a paused
+  transport after a previous ``send()`` was cancelled
+  (`#1299 <https://github.com/agronholm/anyio/pull/1299>`_; PR by @graingert)
 
 **4.15.1**
 
