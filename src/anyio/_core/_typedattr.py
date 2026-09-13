@@ -75,7 +75,7 @@ class TypedAttributeProvider:
 
         """
         try:
-            getter = self.extra_attributes[attribute]
+            getter: Callable[[], object] = self.extra_attributes[attribute]
         except KeyError:
             if default is undefined:
                 raise TypedAttributeLookupError("Attribute not found") from None
