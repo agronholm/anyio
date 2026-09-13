@@ -393,7 +393,7 @@ async def create_tcp_listener(
 
     errors: list[OSError] = []
     try:
-        for _ in range(len(sockaddrs)):
+        for _ in range(10):  # enough to absorb ephemeral port collisions
             listeners: list[SocketListener] = []
             bound_ephemeral_port = local_port
             try:

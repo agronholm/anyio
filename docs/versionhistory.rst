@@ -5,6 +5,33 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
+  across backends (asyncio returned immediately; Trio raised ``ValueError``) by
+  raising ``ValueError`` on all backends
+  (`#1306 <https://github.com/agronholm/anyio/issues/1306>`_; PR by @BetterAndBetterII)
+- Fixed ``create_tcp_listener()`` occasionally failing with a message like
+  ``Could not create 2 listeners with a consistent port`` when an ephemeral port is
+  requested and IPv6 is enabled and the dual-stack path is not available or a specific
+  local host name was given
+- Fixed ``AsyncFile`` not shielding against cancellation while closing
+  (`#1314 <https://github.com/agronholm/anyio/pull/1314>`_)
+- Fixed ``Condition.notify()`` and ``Condition.notify_all()`` failing when the underlying lock was acquired directly rather than through the condition
+  (`#1319 <https://github.com/agronholm/anyio/issues/1319>`_; PR by @GruffElixir)
+- Fixed importing AnyIO with loaders that do not provide ``__file__``, such as
+  PyOxidizer, raising ``TypeError`` instead of falling back to eager imports
+  (`#1322 <https://github.com/agronholm/anyio/issues/1322>`_; PR by @skulitom)
+- Fixed ``SocketStream.send()`` on the asyncio backend handing its data to a paused
+  transport after a previous ``send()`` was cancelled
+  (`#1299 <https://github.com/agronholm/anyio/pull/1299>`_; PR by @graingert)
+
+**4.15.1**
+
+- Implemented a compatibility fix for supporting direct access of ``anyio.*`` submodules
+  from the main package even when those submodules were not directly imported first
+  (`#1311 <https://github.com/agronholm/anyio/issues/1311>`)
+
+**4.15.0**
+
 - Added support for the newer keyword-only arguments on ``anyio.Path`` methods to match
   the standard library ``pathlib.Path``:
 
@@ -95,9 +122,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
     task.
 
   (`#1197 <https://github.com/agronholm/anyio/issues/1197>`_; PR by @tapetersen)
-- Fixed ``SocketStream.send()`` on the asyncio backend handing its data to a paused
-  transport after a previous ``send()`` was cancelled
-  (`#1299 <https://github.com/agronholm/anyio/pull/1299>`_; PR by @graingert)
+- Fixed ``TemporaryDirectory`` not cleaning up when the host task was cancelled while
+  exiting the context manager, as the cleanup now runs in a shielded cancel scope
+  (`#1304 <https://github.com/agronholm/anyio/pull/1304>`_; PR by @smurfix)
 
 **4.14.2**
 
