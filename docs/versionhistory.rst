@@ -23,6 +23,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``SocketStream.send()`` on the asyncio backend handing its data to a paused
   transport after a previous ``send()`` was cancelled
   (`#1299 <https://github.com/agronholm/anyio/pull/1299>`_; PR by @graingert)
+- Fixed ``get_current_task()`` on the asyncio backend raising an opaque
+  ``TypeError: cannot create weak reference to 'NoneType' object`` instead of a clear
+  error when called from a callback scheduled via ``loop.call_soon_threadsafe()`` (e.g.
+  from within ``from_thread.run_sync()``), where ``asyncio.current_task()`` is
+  legitimately ``None``
+  (`#773 <https://github.com/agronholm/anyio/issues/773>`_; PR by @AmirF194)
 
 **4.15.1**
 
