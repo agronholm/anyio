@@ -439,6 +439,34 @@ class TestCondition:
         ):
             await condition.wait()
 
+    async def test_notify_with_shared_lock(self) -> None:
+        lock = Lock()
+        condition = Condition(lock)
+        async with lock:
+            condition.notify()
+            condition.notify_all()
+
+    async def test_notify_no_lock(self) -> None:
+        condition = Condition()
+        with pytest.raises(
+            RuntimeError, match="The current task is not holding the underlying lock"
+        ):
+            condition.notify()
+
+        with pytest.raises(
+            RuntimeError, match="The current task is not holding the underlying lock"
+        ):
+            condition.notify_all()
+
+    async def test_notify_after_release(self) -> None:
+        condition = Condition()
+        await condition.acquire()
+        condition.release()
+        with pytest.raises(
+            RuntimeError, match="The current task is not holding the underlying lock"
+        ):
+            condition.notify()
+
     async def test_statistics(self) -> None:
         async def waiter() -> None:
             async with condition:
