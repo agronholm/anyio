@@ -17,6 +17,7 @@ from anyio import (
     CapacityLimiter,
     create_task_group,
     fail_after,
+    get_available_backends,
     to_process,
 )
 
@@ -240,7 +241,7 @@ def _wait_reaped(pid: int) -> None:
     assert not _pid_exists(pid)
 
 
-@pytest.mark.parametrize("anyio_backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("anyio_backend", get_available_backends())
 @pytest.mark.usefixtures("deactivate_blockbuster")
 def test_inherit_stderr_normal_and_abnormal_or_failure_shutdown(
     anyio_backend: str, tmp_path: Path
