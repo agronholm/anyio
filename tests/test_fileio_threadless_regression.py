@@ -200,7 +200,7 @@ async def test_open_file_opener_args_and_synchronous_cancel(
             wrapped = await open_file(str(path), opener=opener)
 
         assert len(opener_calls) == 1
-        assert (opener_calls[0][1] & os.O_ACCMODE) == os.O_RDONLY
+        assert (opener_calls[0][1] & (os.O_WRONLY | os.O_RDWR)) == os.O_RDONLY
         _assert_callback_thread(
             [opener_calls[0][2]], caller_thread, simulated_fileio_sys
         )
