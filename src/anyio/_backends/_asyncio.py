@@ -1433,7 +1433,12 @@ class SocketStream(abc.SocketStream):
 
     async def send(self, item: bytes) -> None:
         with self._send_guard:
-            await AsyncIOBackend.checkpoint()
+            await AsyncIOBackend.checkpoint_if_cancelled()
+            yielded = False
+
+            if not self._protocol.write_event.is_set():
+                yielded = True
+                await self._protocol.write_event.wait()
 
             if self._closed:
                 raise ClosedResourceError
@@ -1448,7 +1453,10 @@ class SocketStream(abc.SocketStream):
                 else:
                     raise
 
-            await self._protocol.write_event.wait()
+            if not self._protocol.write_event.is_set():
+                await self._protocol.write_event.wait()
+            elif not yielded:
+                await AsyncIOBackend.cancel_shielded_checkpoint()
 
     async def send_eof(self) -> None:
         try:
@@ -3171,7 +3179,11 @@ class AsyncIOBackend(AsyncBackend):
 
     @classmethod
     def get_current_task(cls) -> TaskInfo:
-        return AsyncIOTaskInfo(current_task())  # type: ignore[arg-type]
+        task = current_task()
+        if task is None:
+            raise RuntimeError("There is no task currently running")
+
+        return AsyncIOTaskInfo(task)
 
     @classmethod
     def get_running_tasks(cls) -> Sequence[TaskInfo]:
