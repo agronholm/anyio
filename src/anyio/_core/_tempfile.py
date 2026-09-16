@@ -516,6 +516,8 @@ class TemporaryDirectory(Generic[AnyStr]):
             with CancelScope(shield=True):
                 await to_thread.run_sync(self._tempdir.cleanup)
 
+            await checkpoint_if_cancelled()
+
 
 @overload
 async def mkstemp(
