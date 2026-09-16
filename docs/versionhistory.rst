@@ -29,6 +29,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   from within ``from_thread.run_sync()``), where ``asyncio.current_task()`` is
   legitimately ``None``
   (`#773 <https://github.com/agronholm/anyio/issues/773>`_; PR by @AmirF194)
+- Fixed ``TemporaryDirectory.cleanup()`` not cleaning up when the host task was
+  already cancelled, as the cleanup now runs in a shielded cancel scope like
+  ``__aexit__`` does, and the pending cancellation is now delivered to the caller
+  right after
+  (`#1316 <https://github.com/agronholm/anyio/pull/1316>`_; PR by @Yasser-Ameur)
 
 **4.15.1**
 
