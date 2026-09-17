@@ -37,6 +37,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``Semaphore(fast_acquire=True)`` losing its fast-acquire behavior when
   instantiated outside a running event loop
   (`#1348 <https://github.com/agronholm/anyio/pull/1348>`_; PR by @feiiiiii5)
+- Fixed worker threads on the asyncio backend never returning to the idle pool (and
+  thus never being reused or pruned) when a ``to_thread.run_sync()`` call was cancelled
+  after it had been queued for the worker but before the worker thread had picked it up
 
 **4.15.1**
 

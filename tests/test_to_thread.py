@@ -242,6 +242,51 @@ async def test_asyncio_cancel_native_task() -> None:
         task.cancel()
 
 
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_asyncio_worker_reused_after_cancelled_call(
+    mocker: MockerFixture,
+) -> None:
+    """
+    Regression test for a worker thread being leaked when the call was cancelled after
+    it had been queued for the worker, but before the worker thread dequeued it.
+
+    Such a worker must be returned to the idle worker pool so that it gets reused by
+    later calls (and pruned when idle for too long) instead of staying alive forever.
+    """
+    from anyio._backends._asyncio import _threadpool_idle_workers, _threadpool_workers
+
+    # Make sure there is exactly one, idle worker thread
+    await to_thread.run_sync(int)
+    idle_workers = _threadpool_idle_workers.get()
+    workers = _threadpool_workers.get()
+    assert len(workers) == len(idle_workers) == 1
+    worker = idle_workers[0]
+
+    def put_cancelled_item(item: tuple[Any, ...]) -> None:
+        # Cancel the future before the worker thread gets a chance to dequeue the item
+        item[3].cancel()
+        original_put_nowait(item)
+
+    original_put_nowait = worker.queue.put_nowait
+    mocker.patch.object(worker.queue, "put_nowait", side_effect=put_cancelled_item)
+    with pytest.raises(asyncio.CancelledError):
+        await to_thread.run_sync(int, abandon_on_cancel=True)
+
+    mocker.stopall()
+
+    # Wait for the worker thread to dequeue the item and to schedule a callback that
+    # returns it to the idle pool, then let the event loop run that callback
+    worker.queue.join()
+    await wait_all_tasks_blocked()
+    assert workers == {worker}
+    assert list(idle_workers) == [worker]
+
+    # The next call should reuse that worker rather than start a new one
+    await to_thread.run_sync(int)
+    assert workers == {worker}
+    assert list(idle_workers) == [worker]
+
+
 def test_asyncio_no_root_task(asyncio_event_loop: asyncio.AbstractEventLoop) -> None:
     """
     Regression test for #264.
