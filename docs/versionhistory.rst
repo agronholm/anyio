@@ -40,6 +40,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed worker threads on the asyncio backend never returning to the idle pool (and
   thus never being reused or pruned) when a ``to_thread.run_sync()`` call was cancelled
   after it had been queued for the worker but before the worker thread had picked it up
+- Fixed ``CapacityLimiter.acquire_on_behalf_of()`` on the asyncio backend leaking the
+  token and raising ``RuntimeError`` instead of ``CancelledError`` when a native
+  cancellation (``Task.cancel()``) landed right after an uncontended acquire on behalf
+  of an object other than the current task
 
 **4.15.1**
 

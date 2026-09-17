@@ -2233,7 +2233,7 @@ class CapacityLimiter(BaseCapacityLimiter):
             try:
                 await AsyncIOBackend.cancel_shielded_checkpoint()
             except BaseException:
-                self.release()
+                self.release_on_behalf_of(borrower)
                 raise
 
     def release(self) -> None:
