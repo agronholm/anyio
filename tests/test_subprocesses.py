@@ -58,8 +58,10 @@ async def test_run_process_checked() -> None:
             [
                 sys.executable,
                 "-c",
-                'import sys; print("stderr-text", file=sys.stderr); '
-                'print("stdout-text"); sys.exit(1)',
+                (
+                    'import sys; print("stderr-text", file=sys.stderr); '
+                    'print("stdout-text"); sys.exit(1)'
+                ),
             ],
             check=True,
         )
@@ -160,10 +162,12 @@ async def test_open_process_connect_to_file(tmp_path: Path) -> None:
             [
                 sys.executable,
                 "-c",
-                "import sys; txt = sys.stdin.read().strip(); "
-                'print("stdin says", repr(txt), "but stderr says NO!", '
-                "file=sys.stderr); "
-                'print("stdin says", repr(txt), "and stdout says YES!")',
+                (
+                    "import sys; txt = sys.stdin.read().strip(); "
+                    'print("stdin says", repr(txt), "but stderr says NO!", '
+                    "file=sys.stderr); "
+                    'print("stdin says", repr(txt), "and stdout says YES!")'
+                ),
             ],
             stdin=fin,
             stdout=fout,
@@ -193,10 +197,12 @@ async def test_run_process_connect_to_file(tmp_path: Path) -> None:
             [
                 sys.executable,
                 "-c",
-                "import sys; txt = sys.stdin.read().strip(); "
-                'print("stdin says", repr(txt), "but stderr says NO!", '
-                "file=sys.stderr); "
-                'print("stdin says", repr(txt), "and stdout says YES!")',
+                (
+                    "import sys; txt = sys.stdin.read().strip(); "
+                    'print("stdin says", repr(txt), "but stderr says NO!", '
+                    "file=sys.stderr); "
+                    'print("stdin says", repr(txt), "and stdout says YES!")'
+                ),
             ],
             stdin=fin,
             stdout=fout,

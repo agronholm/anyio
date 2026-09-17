@@ -21,11 +21,13 @@ fake_current_time = 1620581544.0
 
 @pytest.fixture
 def fake_sleep() -> Generator[AsyncMock, None, None]:
-    with mock.patch(
-        "anyio._core._eventloop.current_time", return_value=fake_current_time
+    with (
+        mock.patch(
+            "anyio._core._eventloop.current_time", return_value=fake_current_time
+        ),
+        mock.patch("anyio._core._eventloop.sleep", AsyncMock()) as v,
     ):
-        with mock.patch("anyio._core._eventloop.sleep", AsyncMock()) as v:
-            yield v
+        yield v
 
 
 async def test_sleep_until(fake_sleep: AsyncMock) -> None:
@@ -43,6 +45,20 @@ async def test_sleep_until_in_past(fake_sleep: AsyncMock) -> None:
 async def test_sleep_forever(fake_sleep: AsyncMock) -> None:
     await sleep_forever()
     fake_sleep.assert_called_once_with(math.inf)
+
+
+@pytest.mark.parametrize(
+    "delay",
+    [
+        pytest.param(-1.0, id="negative"),
+        pytest.param(-math.inf, id="neg_inf"),
+        pytest.param(math.nan, id="nan"),
+    ],
+)
+async def test_sleep_invalid_delay(delay: float) -> None:
+    """Invalid delays raise ValueError on all backends."""
+    with pytest.raises(ValueError, match="delay must be a non-negative number"):
+        await sleep(delay)
 
 
 def test_run_task() -> None:

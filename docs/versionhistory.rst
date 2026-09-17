@@ -5,6 +5,68 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
+  across backends (asyncio returned immediately; Trio raised ``ValueError``) by
+  raising ``ValueError`` on all backends
+  (`#1306 <https://github.com/agronholm/anyio/issues/1306>`_; PR by @BetterAndBetterII)
+- Fixed ``create_tcp_listener()`` occasionally failing with a message like
+  ``Could not create 2 listeners with a consistent port`` when an ephemeral port is
+  requested and IPv6 is enabled and the dual-stack path is not available or a specific
+  local host name was given
+- Fixed ``AsyncFile`` not shielding against cancellation while closing
+  (`#1314 <https://github.com/agronholm/anyio/pull/1314>`_)
+- Fixed ``Condition.notify()`` and ``Condition.notify_all()`` failing when the underlying lock was acquired directly rather than through the condition
+  (`#1319 <https://github.com/agronholm/anyio/issues/1319>`_; PR by @GruffElixir)
+- Fixed importing AnyIO with loaders that do not provide ``__file__``, such as
+  PyOxidizer, raising ``TypeError`` instead of falling back to eager imports
+  (`#1322 <https://github.com/agronholm/anyio/issues/1322>`_; PR by @skulitom)
+- Fixed ``SocketStream.send()`` on the asyncio backend handing its data to a paused
+  transport after a previous ``send()`` was cancelled
+  (`#1299 <https://github.com/agronholm/anyio/pull/1299>`_; PR by @graingert)
+- Fixed ``get_current_task()`` on the asyncio backend raising an opaque
+  ``TypeError: cannot create weak reference to 'NoneType' object`` instead of a clear
+  error when called from a callback scheduled via ``loop.call_soon_threadsafe()`` (e.g.
+  from within ``from_thread.run_sync()``), where ``asyncio.current_task()`` is
+  legitimately ``None``
+  (`#773 <https://github.com/agronholm/anyio/issues/773>`_; PR by @AmirF194)
+- Fixed UDP receives on the asyncio backend failing to wake up when the transport
+  reports an error, preserved the transport error as the cause of the resulting
+  ``BrokenResourceError``, and kept the Windows Proactor receive loop running after
+  nonfatal errors
+  (`#1239 <https://github.com/agronholm/anyio/issues/1239>`_; PR by @deepakganesh78)
+
+**4.15.1**
+
+- Implemented a compatibility fix for supporting direct access of ``anyio.*`` submodules
+  from the main package even when those submodules were not directly imported first
+  (`#1311 <https://github.com/agronholm/anyio/issues/1311>`)
+
+**4.15.0**
+
+- Added support for the newer keyword-only arguments on ``anyio.Path`` methods to match
+  the standard library ``pathlib.Path``:
+
+  * ``follow_symlinks`` on ``exists()`` (Python 3.12+)
+  * ``follow_symlinks`` on ``is_dir()`` (Python 3.13+)
+  * ``follow_symlinks`` on ``is_file()`` (Python 3.13+)
+  * ``follow_symlinks`` on ``owner()`` (Python 3.13+)
+  * ``follow_symlinks`` on ``group()`` (Python 3.13+)
+  * ``newline`` on ``read_text()`` (Python 3.13+)
+
+  (`#1286 <https://github.com/agronholm/anyio/pull/1286>`_,
+  `#1293 <https://github.com/agronholm/anyio/pull/1293>`_; PR by @jaideeppyne)
+- Added ``amap``, ``gather``, and ``as_completed`` utility functions to simplify common
+  patterns (`#1173 <https://github.com/agronholm/anyio/pull/1173>`_; PR by @Graeme22)
+- Added ``--anyio-mode`` command-line option as an alternative to the ``anyio_mode``
+  ini setting, and fix the pytest plugin's auto mode detection to recognize the mode
+  when set via either mechanism(e.g: ``pytest_asyncio``).
+  (`#1242 <https://github.com/agronholm/anyio/pull/1242>`_; PR by @EmmanuelNiyonshuti)
+- Added the ``anyio.Future`` synchronization primitive which behaves similar to
+  ``asyncio.Future``, allowing tasks to wait for a value (or exception) from another
+  task (`#1146 <https://github.com/agronholm/anyio/pull/1146>`_; PR by @Vizonex)
+- Added guidance for managing multiple memory object stream producers and consumers
+  with cloned streams
+  (`#330 <https://github.com/agronholm/anyio/issues/330>`_; PR by @nightcityblade)
 - Added ``StapledObjectStream.send_nowait()`` that delegates to the underlying
   ``ObjectSendStream``, if it implements it
   (`#1241 <https://github.com/agronholm/anyio/pull/1241>`_; PR by @davidbrochart)
@@ -17,6 +79,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   module name. (The default name for a task spawned with ``TaskGroup.start_soon`` or
   ``TaskGroup.start`` typically includes the module name.)
   (`#1234 <https://github.com/agronholm/anyio/pull/1234>`_; PR by @gschaffner)
+- Changed the ``anyio`` and ``anyio.abc`` modules to lazily (much like :pep:`810`)
+  import the necessary submodules. This is done by parsing the AST of the module and
+  building a lookup table from the ``if TYPE_CHECKING:`` block. A fallback mode has been
+  provided for installations where the source code is unavailable (e.g. PyInstaller).
+  (`#1169 <https://github.com/agronholm/anyio/pull/1169>`_)
 - Fixed free-threading compatibility issues arising from the fact that on Python 3.14
   free-threading builds, newly created threads inherit the current context by default,
   causing AnyIO to behave erroneously in relation to ``start_blocking_portal()`` and
@@ -39,11 +106,36 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``Path(".txt")``) instead of raising ``ValueError`` when given an empty stem on a
   path with a non-empty suffix, unlike :meth:`pathlib.PurePath.with_stem`
   (`#1200 <https://github.com/agronholm/anyio/pull/1200>`_; PR by @Sanjays2402)
-- Fixed UDP receives on the asyncio backend failing to wake up when the transport
-  reports an error, preserved the transport error as the cause of the resulting
-  ``BrokenResourceError``, and kept the Windows Proactor receive loop running after
-  nonfatal errors
-  (`#1239 <https://github.com/agronholm/anyio/issues/1239>`_; PR by @deepakganesh78)
+- Fixed ``UNIXSocketStream.aclose()`` raising ``asyncio.InvalidStateError`` when a
+  concurrent receive or send operation had just been cancelled on the asyncio backend
+  (`#1267 <https://github.com/agronholm/anyio/issues/1267>`_; PR by @alloutflo)
+- Fixed the pytest plugin importing the deprecated ``_pytest.python.CallSpec2`` alias,
+  which triggers ``PytestRemovedIn10Warning`` on ``pytest>=9.2`` and crashes pytest at
+  startup when ``filterwarnings = error`` is configured
+  (`#1271 <https://github.com/agronholm/anyio/issues/1271>`_; PR by @matthewfeickert)
+- Fixed an asyncio worker thread race that could raise ``RuntimeError`` when the event
+  loop closed between checking its state and scheduling the worker result
+  (`#1265 <https://github.com/agronholm/anyio/issues/1265>`_; PR by @hansu650)
+- Fixed ``CapacityLimiter`` on the asyncio backend over-granting tokens when
+  ``total_tokens`` was raised while the limiter was over-subscribed
+  (`#1223 <https://github.com/agronholm/anyio/pull/1223>`_; PR by @zelinewang)
+- Fixed asyncio task groups leaking unawaited coroutines when a custom task constructor
+  fails; default task creation is unaffected
+  (`#1274 <https://github.com/agronholm/anyio/issues/1274>`_; PR by @dsfaccini)
+- Fixed inconsistencies between Trio and asyncio when target ``TaskGroup`` is
+  cancelled before a task created with ``.start()`` calls ``TaskStatus.started()``
+
+  * The started task shouldn't get a ``CancelledError`` until the first
+    checkpoint after the ``started()`` call.
+  * A value passed to ``started()`` should be available on the ``TaskHandle``
+    and correctly passed back to the caller of start even if cancelled.
+  * The CancelledError shouldn't leak out of the ``TaskGroup.start()`` call to the calling
+    task.
+
+  (`#1197 <https://github.com/agronholm/anyio/issues/1197>`_; PR by @tapetersen)
+- Fixed ``TemporaryDirectory`` not cleaning up when the host task was cancelled while
+  exiting the context manager, as the cleanup now runs in a shielded cancel scope
+  (`#1304 <https://github.com/agronholm/anyio/pull/1304>`_; PR by @smurfix)
 
 **4.14.2**
 

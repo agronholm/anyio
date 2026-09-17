@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import socket
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import pytest
 from _pytest.logging import LogCaptureFixture
 from _pytest.pytester import Pytester
 
 from anyio import get_available_backends
-from anyio.pytest_plugin import FreePortFactory
+
+if TYPE_CHECKING:
+    from anyio.pytest_plugin import FreePortFactory
 
 pytestmark = [
     pytest.mark.filterwarnings(
@@ -499,12 +502,12 @@ def test_keyboard_interrupt_does_not_resume_test(testdir: Pytester) -> None:
         async def test_keyboard_interrupt(myfixture):
             loop = asyncio.get_running_loop()
             loop.call_soon(signal.raise_signal, signal.SIGINT)
-            await anyio.sleep(3600)
+            await anyio.sleep(5)
             print("RESUMED_AFTER_INTERRUPT")
         """
     )
 
-    result = testdir.runpytest_subprocess(*pytest_args, timeout=5)
+    result = testdir.runpytest_subprocess(*pytest_args)
     assert result.ret == 2
     result.stdout.no_fnmatch_line("*RESUMED_AFTER_INTERRUPT*")
     result.stdout.fnmatch_lines(["*KeyboardInterrupt*"])
@@ -594,7 +597,6 @@ def test_asyncgen_fixture_in_test_class(testdir: Pytester) -> None:
 def test_async_fixture_params(testdir: Pytester) -> None:
     testdir.makepyfile(
         """
-        import inspect
         import pytest
 
         @pytest.fixture(params=[1, 2])
@@ -653,7 +655,6 @@ def test_auto_mode(testdir: Pytester) -> None:
     )
     testdir.makepyfile(
         """
-        import inspect
         import pytest
 
         @pytest.fixture
@@ -666,6 +667,24 @@ def test_auto_mode(testdir: Pytester) -> None:
     )
 
     result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=len(get_available_backends()))
+
+
+def test_auto_mode_cmdline(testdir: Pytester) -> None:
+    testdir.makepyfile(
+        """
+            import pytest
+
+            @pytest.fixture
+            async def fixt(request):
+                return 1
+
+            async def test_params(fixt):
+                assert fixt == 1
+            """
+    )
+
+    result = testdir.runpytest(*pytest_args, "--anyio-mode=auto")
     result.assert_outcomes(passed=len(get_available_backends()))
 
 
@@ -698,7 +717,6 @@ def test_auto_mode_conflict_warning(testdir: Pytester) -> None:
     )
     testdir.makepyfile(
         """
-        import inspect
         import pytest
 
         @pytest.fixture
@@ -825,3 +843,27 @@ def test_func_as_parametrize_param_name(testdir: Pytester) -> None:
 
     result = testdir.runpytest(*pytest_args)
     result.assert_outcomes(passed=len(get_available_backends()))
+
+
+def test_plugin_loads_with_filterwarnings_error(testdir: Pytester) -> None:
+    """
+    Regression test for Issue #1271: importing the plugin must not touch the
+    deprecated ``_pytest.python.CallSpec2`` alias, which crashes pytest at startup
+    on pytest >= 9.2 when ``filterwarnings = error`` is configured, as pytest applies
+    the ini filters while importing plugins.
+    """
+    testdir.makeini(
+        """
+        [pytest]
+        filterwarnings = error
+        """
+    )
+    testdir.makepyfile(
+        """
+        def test_ok():
+            assert True
+        """
+    )
+
+    result = testdir.runpytest_subprocess(*pytest_args)
+    result.assert_outcomes(passed=1)

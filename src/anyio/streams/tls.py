@@ -354,7 +354,7 @@ class TLSListener(Listener[TLSStream]):
 
         # Only reraise base exceptions and cancellation exceptions
         if not isinstance(exc, Exception) or isinstance(exc, get_cancelled_exc_class()):
-            raise
+            raise  # noqa: PLE0704
 
     async def serve(
         self,

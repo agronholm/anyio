@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import math
 from contextlib import AbstractContextManager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -22,10 +22,12 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
-from anyio.abc import TaskStatus
 from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params
+
+if TYPE_CHECKING:
+    from anyio.abc import TaskStatus
 
 
 class TestLock:
@@ -37,11 +39,10 @@ class TestLock:
 
         results = []
         lock = Lock()
-        async with create_task_group() as tg:
-            async with lock:
-                tg.start_soon(task)
-                await wait_all_tasks_blocked()
-                results.append("1")
+        async with create_task_group() as tg, lock:
+            tg.start_soon(task)
+            await wait_all_tasks_blocked()
+            results.append("1")
 
         assert not lock.locked()
         assert results == ["1", "2"]
@@ -354,11 +355,10 @@ class TestCondition:
                 condition.notify_all()
 
         condition = Condition()
-        async with create_task_group() as tg:
-            async with condition:
-                assert condition.locked()
-                tg.start_soon(notifier)
-                await condition.wait()
+        async with create_task_group() as tg, condition:
+            assert condition.locked()
+            tg.start_soon(notifier)
+            await condition.wait()
 
     async def test_manual_acquire(self) -> None:
         async def notifier() -> None:
@@ -438,6 +438,34 @@ class TestCondition:
             RuntimeError, match="The current task is not holding the underlying lock"
         ):
             await condition.wait()
+
+    async def test_notify_with_shared_lock(self) -> None:
+        lock = Lock()
+        condition = Condition(lock)
+        async with lock:
+            condition.notify()
+            condition.notify_all()
+
+    async def test_notify_no_lock(self) -> None:
+        condition = Condition()
+        with pytest.raises(
+            RuntimeError, match="The current task is not holding the underlying lock"
+        ):
+            condition.notify()
+
+        with pytest.raises(
+            RuntimeError, match="The current task is not holding the underlying lock"
+        ):
+            condition.notify_all()
+
+    async def test_notify_after_release(self) -> None:
+        condition = Condition()
+        await condition.acquire()
+        condition.release()
+        with pytest.raises(
+            RuntimeError, match="The current task is not holding the underlying lock"
+        ):
+            condition.notify()
 
     async def test_statistics(self) -> None:
         async def waiter() -> None:
@@ -803,14 +831,13 @@ class TestCapacityLimiter:
         assert limiter.statistics().total_tokens == 1
         assert limiter.statistics().borrowed_tokens == 0
         assert limiter.statistics().tasks_waiting == 0
-        async with create_task_group() as tg:
-            async with limiter:
-                assert limiter.statistics().borrowed_tokens == 1
-                assert limiter.statistics().tasks_waiting == 0
-                for i in range(1, 3):
-                    tg.start_soon(waiter)
-                    await wait_all_tasks_blocked()
-                    assert limiter.statistics().tasks_waiting == i
+        async with create_task_group() as tg, limiter:
+            assert limiter.statistics().borrowed_tokens == 1
+            assert limiter.statistics().tasks_waiting == 0
+            for i in range(1, 3):
+                tg.start_soon(waiter)
+                await wait_all_tasks_blocked()
+                assert limiter.statistics().tasks_waiting == i
 
         assert limiter.statistics().tasks_waiting == 0
         assert limiter.statistics().borrowed_tokens == 0
@@ -879,6 +906,31 @@ class TestCapacityLimiter:
 
             # Allow all tasks to exit
             continue_event.set()
+
+    async def test_increase_tokens_does_not_oversubscribe(self) -> None:
+        """
+        Raising ``total_tokens`` must not grant more waiters than the spare
+        capacity, even when the limiter is over-subscribed because
+        ``total_tokens`` was previously lowered below the number of current
+        borrowers.
+        """
+        limiter = CapacityLimiter(2)
+        limiter.acquire_on_behalf_of_nowait("A")
+        limiter.acquire_on_behalf_of_nowait("B")
+
+        async with create_task_group() as tg:
+            tg.start_soon(limiter.acquire)
+            tg.start_soon(limiter.acquire)
+            await wait_all_tasks_blocked()
+            assert limiter.statistics().borrowed_tokens == 2
+            assert limiter.statistics().tasks_waiting == 2
+
+            limiter.total_tokens = 1
+            limiter.total_tokens = 2
+            await wait_all_tasks_blocked()
+            assert limiter.statistics().borrowed_tokens == 2
+            assert limiter.statistics().tasks_waiting == 2
+            tg.cancel()
 
     def test_instantiate_outside_event_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]

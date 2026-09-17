@@ -2,11 +2,11 @@ from __future__ import annotations
 
 __all__ = (
     "EventLoopToken",
-    "RunvarToken",
     "RunVar",
+    "RunvarToken",
+    "cancel_shielded_checkpoint",
     "checkpoint",
     "checkpoint_if_cancelled",
-    "cancel_shielded_checkpoint",
     "current_token",
 )
 
@@ -111,7 +111,7 @@ class RunvarToken(Generic[T]):
     reset the variable on exit, or passed directly to :meth:`RunVar.reset`.
     """
 
-    __slots__ = "_var", "_value", "_redeemed"
+    __slots__ = "_redeemed", "_value", "_var"
 
     def __init__(self, var: RunVar[T], value: T | Literal[_NoValueSet.NO_VALUE_SET]):
         self._var = var
@@ -138,7 +138,7 @@ class RunVar(Generic[T]):
     will reset the variable to its previous value when the context block is exited.
     """
 
-    __slots__ = "_name", "_default"
+    __slots__ = "_default", "_name"
 
     NO_VALUE_SET: Literal[_NoValueSet.NO_VALUE_SET] = _NoValueSet.NO_VALUE_SET
 

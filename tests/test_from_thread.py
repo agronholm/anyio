@@ -9,7 +9,7 @@ from concurrent import futures
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
 from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
-from typing import Any, Literal, NoReturn, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, NoReturn, TypeVar
 
 import pytest
 from pytest import LogCaptureFixture
@@ -30,16 +30,18 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
-from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
 from anyio.lowlevel import EventLoopToken, checkpoint, current_token
 
 from .conftest import asyncio_params, return_non_coro_awaitable
 
+if TYPE_CHECKING:
+    from anyio.abc import TaskStatus
+
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
-T_co = TypeVar("T_co")
+T = TypeVar("T")
 
 
 async def async_add(a: int, b: int) -> int:
@@ -56,14 +58,12 @@ def sync_add(a: int, b: int) -> int:
     return a + b
 
 
-def thread_worker_async(
-    func: Callable[..., Coroutine[Any, Any, T_co]], *args: Any
-) -> T_co:
+def thread_worker_async(func: Callable[..., Coroutine[Any, Any, T]], *args: Any) -> T:
     assert threading.current_thread() is not threading.main_thread()
     return from_thread.run(func, *args)
 
 
-def thread_worker_sync(func: Callable[..., T_co], *args: Any) -> T_co:
+def thread_worker_sync(func: Callable[..., T], *args: Any) -> T:
     assert threading.current_thread() is not threading.main_thread()
     return from_thread.run_sync(func, *args)
 
@@ -332,6 +332,21 @@ class TestRunSyncFromThread:
 
         assert await to_thread.run_sync(worker) == anyio_backend_name
 
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_get_current_task(self) -> None:
+        """
+        Regression test for #773: get_current_task() must raise a clear
+        RuntimeError, not an opaque weakref TypeError, when called from a
+        callback scheduled via loop.call_soon_threadsafe() (as from_thread.run_sync
+        does), where asyncio.current_task() is legitimately None.
+        """
+
+        def worker() -> None:
+            from_thread.run_sync(get_current_task)
+
+        with pytest.raises(RuntimeError, match="There is no task currently running"):
+            await to_thread.run_sync(worker)
+
 
 class TestBlockingPortal:
     class AsyncCM:
@@ -458,9 +473,8 @@ class TestBlockingPortal:
             )
 
     def test_start_with_nonexistent_backend(self) -> None:
-        with pytest.raises(LookupError) as exc:
-            with start_blocking_portal("foo"):
-                pass
+        with pytest.raises(LookupError) as exc, start_blocking_portal("foo"):
+            pass
 
         exc.match("No such backend: foo")
 
@@ -702,7 +716,7 @@ class TestBlockingPortal:
             task_status.started(get_current_task().name)
 
         with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
-            future, start_value = portal.start_task(taskfunc, name="testname")
+            _future, start_value = portal.start_task(taskfunc, name="testname")
             assert start_value == "testname"
 
     def test_contextvar_propagation_sync(
@@ -787,7 +801,7 @@ class TestBlockingPortal:
         def sync_thread() -> None:
             fs = [portal.start_task_soon(sleep, math.inf)]
             from_thread.run_sync(event.set)
-            done, not_done = futures.wait(
+            _done, not_done = futures.wait(
                 fs, timeout=5, return_when=futures.FIRST_COMPLETED
             )
             assert not not_done

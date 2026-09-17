@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 __all__ = (
-    "run_sync",
     "current_default_interpreter_limiter",
+    "run_sync",
 )
 
 import atexit

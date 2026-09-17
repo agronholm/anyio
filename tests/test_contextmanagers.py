@@ -104,13 +104,15 @@ class TestContextManagerMixin:
                 pass
 
     def test_enter_twice(self) -> None:
-        with DummyContextManager() as cm:
-            with pytest.raises(
+        with (
+            DummyContextManager() as cm,
+            pytest.raises(
                 RuntimeError,
                 match="^this DummyContextManager has already been entered$",
-            ):
-                with cm:
-                    pass
+            ),
+            cm,
+        ):
+            pass
 
     def test_exit_before_enter(self) -> None:
         cm = DummyContextManager()

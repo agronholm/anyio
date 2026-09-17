@@ -14,7 +14,8 @@ Pytest does not natively support running asynchronous test functions, so they ha
 marked for the AnyIO pytest plugin to pick them up. This can be done in one of three
 ways:
 
-#. Setting the ``anyio_mode = "auto"`` option in the pytest configuration
+#. Setting the ``anyio_mode = "auto"`` option in the pytest configuration, or passing
+   the ``--anyio-mode=auto`` command-line flag
 #. Using the ``pytest.mark.anyio`` marker
 #. Using the ``anyio_backend`` fixture, either directly or via another fixture
 

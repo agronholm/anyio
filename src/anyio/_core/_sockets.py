@@ -393,7 +393,7 @@ async def create_tcp_listener(
 
     errors: list[OSError] = []
     try:
-        for _ in range(len(sockaddrs)):
+        for _ in range(10):  # enough to absorb ephemeral port collisions
             listeners: list[SocketListener] = []
             bound_ephemeral_port = local_port
             try:
@@ -838,7 +838,7 @@ def convert_ipv6_sockaddr(
     """
     # This is more complicated than it should be because of MyPy
     if isinstance(sockaddr, tuple) and len(sockaddr) == 4:
-        host, port, flowinfo, scope_id = sockaddr
+        host, port, _flowinfo, scope_id = sockaddr
         if scope_id:
             # PyPy (as of v7.3.11) leaves the interface name in the result, so
             # we discard it and only get the scope ID from the end

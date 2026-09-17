@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import sys
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -12,6 +13,11 @@ from ._eventloop import get_async_backend
 from ._exceptions import BusyResourceError, NoEventLoopError
 from ._tasks import CancelScope
 from ._testing import TaskInfo, get_current_task
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
 
 T = TypeVar("T")
 
@@ -114,7 +120,7 @@ class Event:
 class EventAdapter(Event):
     __slots__ = "_internal_event", "_is_set"
 
-    def __new__(cls) -> EventAdapter:
+    def __new__(cls) -> Self:
         return object.__new__(cls)
 
     def __init__(self) -> None:
@@ -203,9 +209,9 @@ class Lock:
 
 
 class LockAdapter(Lock):
-    __slots__ = "_internal_lock", "_fast_acquire"
+    __slots__ = "_fast_acquire", "_internal_lock"
 
-    def __new__(cls, *, fast_acquire: bool = False) -> LockAdapter:
+    def __new__(cls, *, fast_acquire: bool = False) -> Self:
         return object.__new__(cls)
 
     def __init__(self, *, fast_acquire: bool = False):
@@ -268,10 +274,9 @@ class LockAdapter(Lock):
 
 
 class Condition:
-    __slots__ = "__weakref__", "_owner_task", "_lock", "_waiters"
+    __slots__ = "__weakref__", "_lock", "_waiters"
 
     def __init__(self, lock: Lock | None = None):
-        self._owner_task: TaskInfo | None = None
         self._lock = lock or Lock()
         self._waiters: deque[Event] = deque()
 
@@ -287,13 +292,12 @@ class Condition:
         self.release()
 
     def _check_acquired(self) -> None:
-        if self._owner_task != get_current_task():
+        if self._lock.statistics().owner != get_current_task():
             raise RuntimeError("The current task is not holding the underlying lock")
 
     async def acquire(self) -> None:
         """Acquire the underlying lock."""
         await self._lock.acquire()
-        self._owner_task = get_current_task()
 
     def acquire_nowait(self) -> None:
         """
@@ -303,7 +307,6 @@ class Condition:
 
         """
         self._lock.acquire_nowait()
-        self._owner_task = get_current_task()
 
     def release(self) -> None:
         """Release the underlying lock."""
@@ -417,7 +420,7 @@ class Semaphore:
 
         self._fast_acquire = fast_acquire
 
-    async def __aenter__(self) -> Semaphore:
+    async def __aenter__(self) -> Self:
         await self.acquire()
         return self
 
@@ -466,7 +469,7 @@ class Semaphore:
 
 
 class SemaphoreAdapter(Semaphore):
-    __slots__ = "_internal_semaphore", "_initial_value", "_max_value"
+    __slots__ = "_initial_value", "_internal_semaphore", "_max_value"
 
     def __new__(
         cls,
@@ -474,7 +477,7 @@ class SemaphoreAdapter(Semaphore):
         *,
         max_value: int | None = None,
         fast_acquire: bool = False,
-    ) -> SemaphoreAdapter:
+    ) -> Self:
         return object.__new__(cls)
 
     def __init__(
@@ -646,7 +649,7 @@ class CapacityLimiter:
 class CapacityLimiterAdapter(CapacityLimiter):
     __slots__ = "_internal_limiter", "_total_tokens"
 
-    def __new__(cls, total_tokens: float) -> CapacityLimiterAdapter:
+    def __new__(cls, total_tokens: float) -> Self:
         return object.__new__(cls)
 
     def __init__(self, total_tokens: float) -> None:
@@ -751,7 +754,7 @@ class ResourceGuard:
     .. versionadded:: 4.1
     """
 
-    __slots__ = "__weakref__", "action", "_guarded"
+    __slots__ = "__weakref__", "_guarded", "action"
 
     def __init__(self, action: str = "using"):
         self.action: str = action
