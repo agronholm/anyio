@@ -392,6 +392,18 @@ class Semaphore:
         max_value: int | None = None,
         fast_acquire: bool = False,
     ) -> Semaphore:
+        # Validate before backend dispatch (bool is a subclass of int)
+        if isinstance(initial_value, bool) or not isinstance(initial_value, int):
+            raise TypeError("initial_value must be an integer")
+        if initial_value < 0:
+            raise ValueError("initial_value must be >= 0")
+        if max_value is not None:
+            if isinstance(max_value, bool) or not isinstance(max_value, int):
+                raise TypeError("max_value must be an integer or None")
+            if max_value < initial_value:
+                raise ValueError(
+                    "max_value must be equal to or higher than initial_value"
+                )
         try:
             return get_async_backend().create_semaphore(
                 initial_value, max_value=max_value, fast_acquire=fast_acquire
@@ -406,12 +418,12 @@ class Semaphore:
         max_value: int | None = None,
         fast_acquire: bool = False,
     ):
-        if not isinstance(initial_value, int):
+        if isinstance(initial_value, bool) or not isinstance(initial_value, int):
             raise TypeError("initial_value must be an integer")
         if initial_value < 0:
             raise ValueError("initial_value must be >= 0")
         if max_value is not None:
-            if not isinstance(max_value, int):
+            if isinstance(max_value, bool) or not isinstance(max_value, int):
                 raise TypeError("max_value must be an integer or None")
             if max_value < initial_value:
                 raise ValueError(
@@ -532,6 +544,13 @@ class CapacityLimiter:
     __slots__ = ("__weakref__",)
 
     def __new__(cls, total_tokens: float) -> CapacityLimiter:
+        # bool is a subclass of int; reject so True does not become 1 token
+        if isinstance(total_tokens, bool) or (
+            not isinstance(total_tokens, int) and not math.isinf(total_tokens)
+        ):
+            raise TypeError("total_tokens must be an int or math.inf")
+        if total_tokens < 0:
+            raise ValueError("total_tokens must be >= 0")
         try:
             return get_async_backend().create_capacity_limiter(total_tokens)
         except NoEventLoopError:
@@ -685,7 +704,9 @@ class CapacityLimiterAdapter(CapacityLimiter):
 
     @total_tokens.setter
     def total_tokens(self, value: float) -> None:
-        if not isinstance(value, int) and not math.isinf(value):
+        if isinstance(value, bool) or (
+            not isinstance(value, int) and not math.isinf(value)
+        ):
             raise TypeError("total_tokens must be an int or math.inf")
         elif value < 0:
             raise ValueError("total_tokens must be >= 0")
