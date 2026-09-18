@@ -5,6 +5,7 @@ import asyncio
 import concurrent.futures
 import math
 import os
+import signal
 import socket
 import sys
 import threading
@@ -43,7 +44,7 @@ from inspect import (
 from io import IOBase
 from os import PathLike
 from queue import Queue
-from signal import Signals, getsignal, signal
+from signal import Signals
 from socket import AddressFamily, SocketKind
 from threading import Thread
 from types import CodeType, FrameType, TracebackType
@@ -116,7 +117,6 @@ if sys.version_info >= (3, 11):
 else:
     import contextvars
     import enum
-    import signal
     from asyncio import coroutines, events, exceptions, tasks
 
     from exceptiongroup import BaseExceptionGroup
@@ -2265,7 +2265,7 @@ class _SignalReceiver:
 
     def __enter__(self) -> Self:
         for sig in set(self._signals):
-            previous_handler = getsignal(sig)
+            previous_handler = signal.getsignal(sig)
             self._loop.add_signal_handler(sig, self._deliver, sig)
             self._previous_handlers[sig] = previous_handler
 
@@ -2279,7 +2279,7 @@ class _SignalReceiver:
     ) -> None:
         for sig, previous_handler in self._previous_handlers.items():
             self._loop.remove_signal_handler(sig)
-            signal(sig, previous_handler)
+            signal.signal(sig, previous_handler)
 
     def __aiter__(self) -> _SignalReceiver:
         return self
