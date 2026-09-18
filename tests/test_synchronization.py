@@ -537,6 +537,15 @@ class TestCondition:
 
 
 class TestSemaphore:
+    async def test_bool_rejected_as_initial_value(self) -> None:
+        # bool is a subclass of int; reject so True does not become value 1
+        with pytest.raises(TypeError, match="initial_value must be an integer"):
+            Semaphore(True)
+        with pytest.raises(TypeError, match="initial_value must be an integer"):
+            Semaphore(False)
+        with pytest.raises(TypeError, match="max_value must be an integer or None"):
+            Semaphore(1, max_value=True)
+
     async def test_contextmanager(self) -> None:
         async def acquire() -> None:
             async with semaphore:
@@ -738,6 +747,18 @@ class TestCapacityLimiter:
         pytest.raises(TypeError, CapacityLimiter, 1.0).match(
             "total_tokens must be an int or math.inf"
         )
+
+    async def test_bool_rejected_as_total_tokens(self) -> None:
+        # bool is a subclass of int; reject so True does not become 1 token
+        pytest.raises(TypeError, CapacityLimiter, True).match(
+            "total_tokens must be an int or math.inf"
+        )
+        pytest.raises(TypeError, CapacityLimiter, False).match(
+            "total_tokens must be an int or math.inf"
+        )
+        limiter = CapacityLimiter(1)
+        with pytest.raises(TypeError, match="total_tokens must be an int or math.inf"):
+            limiter.total_tokens = True
 
     async def test_bad_init_value(self) -> None:
         pytest.raises(ValueError, CapacityLimiter, -1).match(

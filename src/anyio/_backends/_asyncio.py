@@ -2148,7 +2148,9 @@ class CapacityLimiter(BaseCapacityLimiter):
 
     @total_tokens.setter
     def total_tokens(self, value: float) -> None:
-        if not isinstance(value, int) and not math.isinf(value):
+        if isinstance(value, bool) or (
+            not isinstance(value, int) and not math.isinf(value)
+        ):
             raise TypeError("total_tokens must be an int or math.inf")
 
         if value < 0:
