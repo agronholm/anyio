@@ -29,6 +29,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   from within ``from_thread.run_sync()``), where ``asyncio.current_task()`` is
   legitimately ``None``
   (`#773 <https://github.com/agronholm/anyio/issues/773>`_; PR by @AmirF194)
+- Fixed UDP receives on the asyncio backend failing to wake up when the transport
+  reports an error, preserved the transport error as the cause of the resulting
+  ``BrokenResourceError``, and kept the Windows Proactor receive loop running after
+  nonfatal errors
+  (`#1239 <https://github.com/agronholm/anyio/issues/1239>`_; PR by @deepakganesh78)
 
 **4.15.1**
 
