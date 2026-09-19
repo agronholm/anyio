@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import pathlib
 import shutil
+import sys
 import tempfile
 from typing import AnyStr
 from unittest.mock import patch
@@ -56,6 +57,49 @@ class TestNamedTemporaryFile:
 
         with pytest.raises(ValueError):
             await af.write(b"should fail")
+
+    @pytest.mark.skipif(sys.version_info < (3, 12), reason="requires Python 3.12+")
+    @pytest.mark.parametrize("delete", [False, True])
+    @pytest.mark.parametrize("close_before_exit", [False, True])
+    async def test_delete_on_context_exit(
+        self, tmp_path: pathlib.Path, delete: bool, close_before_exit: bool
+    ) -> None:
+        async with NamedTemporaryFile(
+            dir=str(tmp_path), delete=delete, delete_on_close=False
+        ) as af:
+            filename = pathlib.Path(str(af.name))
+            await af.write(b"temporary data")
+            if close_before_exit:
+                await af.aclose()
+
+            assert filename.exists()
+
+        assert af.closed
+        assert filename.exists() is not delete
+
+    @pytest.mark.skipif(sys.version_info < (3, 12), reason="requires Python 3.12+")
+    async def test_delete_on_exception(self, tmp_path: pathlib.Path) -> None:
+        with pytest.raises(ValueError, match="test error"):
+            async with NamedTemporaryFile(
+                dir=str(tmp_path), delete_on_close=False
+            ) as af:
+                filename = pathlib.Path(str(af.name))
+                raise ValueError("test error")
+
+        assert af.closed
+        assert not filename.exists()
+
+    @pytest.mark.skipif(sys.version_info < (3, 12), reason="requires Python 3.12+")
+    async def test_delete_on_cancelled_exit(self, tmp_path: pathlib.Path) -> None:
+        with CancelScope() as scope:
+            async with NamedTemporaryFile(
+                dir=str(tmp_path), delete_on_close=False
+            ) as af:
+                filename = pathlib.Path(str(af.name))
+                scope.cancel()
+
+        assert af.closed
+        assert not filename.exists()
 
 
 class TestSpooledTemporaryFile:

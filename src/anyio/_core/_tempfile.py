@@ -136,9 +136,10 @@ class NamedTemporaryFile(Generic[AnyStr]):
     :param suffix: The suffix for the temporary file name.
     :param prefix: The prefix for the temporary file name.
     :param dir: The directory in which the temporary file is created.
-    :param delete: Whether to delete the file when it is closed.
+    :param delete: Whether to delete the file automatically.
     :param errors: The error handling scheme used for encoding/decoding errors.
-    :param delete_on_close: (Python 3.12+) Whether to delete the file on close.
+    :param delete_on_close: (Python 3.12+) If ``delete`` is true, whether to delete the
+        file on close. If false, deletion is deferred until context exit.
     """
 
     _async_file: AsyncFile[AnyStr]
@@ -215,7 +216,10 @@ class NamedTemporaryFile(Generic[AnyStr]):
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        await self._async_file.aclose()
+        with CancelScope(shield=True):
+            await to_thread.run_sync(
+                self._async_file.wrapped.__exit__, exc_type, exc_value, traceback
+            )
 
 
 class SpooledTemporaryFile(AsyncFile[AnyStr]):
