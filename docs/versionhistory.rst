@@ -29,6 +29,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   from within ``from_thread.run_sync()``), where ``asyncio.current_task()`` is
   legitimately ``None``
   (`#773 <https://github.com/agronholm/anyio/issues/773>`_; PR by @AmirF194)
+- Fixed ``FileReadStream`` and ``FileWriteStream`` leaving files open when cancelled
+  during context manager exit, including unflushed writes
+  (`#1318 <https://github.com/agronholm/anyio/pull/1318>`_; PR by @Kuang-xianxin)
 
 **4.15.1**
 
