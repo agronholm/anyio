@@ -388,6 +388,7 @@ class CancelScope(BaseCancelScope):
         "_cancel_handle",
         "_cancel_reason",
         "_cancelled_caught",
+        "_cancelling_at_enter",
         "_child_scopes",
         "_deadline",
         "_host_task",
@@ -414,6 +415,8 @@ class CancelScope(BaseCancelScope):
         self._cancel_handle: asyncio.Handle | None = None
         self._tasks: set[asyncio.Task] = set()
         self._host_task: asyncio.Task | None = None
+        # Value of Task.cancelling() on the host task when the scope was entered
+        self._cancelling_at_enter = 0
         if sys.version_info >= (3, 11):
             self._pending_uncancellations: int | None = 0
         else:
@@ -443,6 +446,8 @@ class CancelScope(BaseCancelScope):
 
         self._timeout()
         self._active = True
+        if self._pending_uncancellations is not None:
+            self._cancelling_at_enter = host_task.cancelling()
 
         # Start cancelling the host task if the scope was cancelled before entering
         if self._cancel_called:
@@ -499,6 +504,18 @@ class CancelScope(BaseCancelScope):
                 while self._pending_uncancellations:
                     self._host_task.uncancel()
                     self._pending_uncancellations -= 1
+
+                # If the host task still has more cancellation requests pending than it
+                # had when this scope was entered, a native Task.cancel() landed while
+                # the scope was active. If it arrived in the same event loop iteration
+                # as our own cancellation, asyncio folded the two requests into a
+                # single CancelledError carrying our cancellation message, so we must
+                # not swallow that exception even though it looks like ours (#1214).
+                if (
+                    self._pending_uncancellations is not None
+                    and self._host_task.cancelling() > self._cancelling_at_enter
+                ):
+                    return False
 
                 # Update cancelled_caught and check for exceptions we must not swallow
                 if isinstance(exc_val, BaseExceptionGroup):
