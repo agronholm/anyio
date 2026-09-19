@@ -410,7 +410,7 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
         If the file has not yet been rolled over, the data is written synchronously,
         and a rollover is triggered if the size exceeds the maximum size.
 
-        :param s: The data to write.
+        :param b: The data to write.
         :return: The number of bytes written.
         :raises RuntimeError: If the underlying file is not initialized.
 

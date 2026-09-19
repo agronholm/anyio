@@ -17,7 +17,7 @@ AnyIO uses pre-commit_ to perform several code style/quality checks. It is recom
 to activate pre-commit_ on your local clone of the repository (using
 ``pre-commit install``) to ensure that your changes will pass the same checks on GitHub.
 
-.. _tox: https://tox.readthedocs.io/en/latest/install.html
+.. _tox: https://tox.wiki/en/latest/installation.html
 .. _pre-commit: https://pre-commit.com/#installation
 
 Making a pull request on Github
