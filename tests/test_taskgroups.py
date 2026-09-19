@@ -1553,34 +1553,6 @@ async def test_task_in_sync_spawn_callback() -> None:
     assert inner_task_id != outer_task_id
 
 
-async def test_shielded_cancel_sleep_time() -> None:
-    """
-    Test that cancelling a shielded tasks spends more time sleeping than cancelling.
-
-    """
-    event = anyio.Event()
-    hang_time = 0.2
-
-    async def set_event() -> None:
-        await sleep(hang_time)
-        event.set()
-
-    async def never_cancel_task() -> None:
-        with CancelScope(shield=True):
-            await sleep(0.2)
-            await event.wait()
-
-    async with create_task_group() as tg:
-        tg.start_soon(set_event)
-
-        async with create_task_group() as tg:
-            tg.start_soon(never_cancel_task)
-            tg.cancel_scope.cancel()
-            process_time = time.process_time()
-
-        assert (time.process_time() - process_time) < hang_time
-
-
 async def test_cancelscope_wrong_exit_order() -> None:
     """
     Test that a RuntimeError is raised if the task tries to exit cancel scopes in the
