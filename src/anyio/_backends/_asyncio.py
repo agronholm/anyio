@@ -1277,7 +1277,8 @@ def _forcibly_shutdown_process_pool_on_exit(
 
         process._stdin._stream._transport.close()  # type: ignore[union-attr]
         process._stdout._stream._transport.close()  # type: ignore[union-attr]
-        process._stderr._stream._transport.close()  # type: ignore[union-attr]
+        if process._stderr is not None:
+            process._stderr._stream._transport.close()  # type: ignore[attr-defined]
         process.kill()
         if child_watcher:
             child_watcher.remove_child_handler(process.pid)
