@@ -75,9 +75,9 @@ Timeouts
 Networked operations can often take a long time, and you usually want to set up some
 kind of a timeout to ensure that your application doesn't stall forever. There are two
 principal ways to do this: :func:`~move_on_after` and :func:`~fail_after`. Both are used
-as synchronous context managers. The difference between these two is that the former
-simply exits the context block prematurely on a timeout, while the other raises a
-:exc:`TimeoutError`.
+as synchronous context managers, and their relative timeout starts when the context
+manager is entered. The difference between these two is that the former simply exits
+the context block prematurely on a timeout, while the other raises a :exc:`TimeoutError`.
 
 Both methods create a new cancel scope, and you can check the deadline by accessing the
 :attr:`~.CancelScope.deadline` attribute. Note, however, that an outer cancel scope
