@@ -5,6 +5,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Changed UDP sockets on the asyncio backend to make ``send()`` wait until the
+  datagram has been passed to the operating system
+  (`#1294 <https://github.com/agronholm/anyio/pull/1294>`_; PR by @graingert)
 - Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
   across backends (asyncio returned immediately; Trio raised ``ValueError``) by
   raising ``ValueError`` on all backends
