@@ -106,6 +106,9 @@ Other considerations:
 
 * Even ``cancellable=False`` runs can be cancelled before the request has been sent to
   the worker process
+* If initialization fails or is cancelled after a worker has been created, its streams
+  are closed and its exit is awaited before the error is propagated. A worker that is
+  still running is terminated first.
 * If a cancellable call is cancelled during execution on the worker process, the worker
   process will be killed
 * The worker process imports the parent's ``__main__`` module, so guarding for any
