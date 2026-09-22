@@ -11,6 +11,7 @@ from typing import (
     Any,
     AnyStr,
     Generic,
+    cast,
     overload,
 )
 
@@ -324,12 +325,21 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
 
         self._rolled = True
         buffer = self._fp
+        position = buffer.tell()
         buffer.seek(0)
         self._fp = await to_thread.run_sync(
             lambda: tempfile.TemporaryFile(**self._tempfile_params)
         )
-        await self.write(buffer.read())
+        if isinstance(buffer, TextIOWrapper):
+            # Preserve newline sequences so text seek cookies remain valid.
+            await to_thread.run_sync(
+                cast(TextIOWrapper, self._fp).buffer.write, buffer.buffer.read()
+            )
+        else:
+            await self.write(buffer.read())
+
         buffer.close()
+        await self.seek(position)
 
     @property
     def closed(self) -> bool:

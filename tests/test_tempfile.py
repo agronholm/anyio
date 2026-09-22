@@ -59,6 +59,40 @@ class TestNamedTemporaryFile:
 
 
 class TestSpooledTemporaryFile:
+    @pytest.mark.parametrize("position", [0, 3, 6, 9])
+    async def test_rollover_preserves_position(self, position: int) -> None:
+        data = b"abcdef"
+        async with SpooledTemporaryFile[bytes](max_size=1024) as stf:
+            await stf.write(data)
+            await stf.seek(position)
+            await stf.rollover()
+
+            assert await stf.tell() == position
+            assert await stf.read() == data[position:]
+
+    @pytest.mark.parametrize("encoding", ["utf-8", "utf-16"])
+    @pytest.mark.parametrize("newline", [None, "", "\r\n"])
+    async def test_rollover_preserves_text_position(
+        self, encoding: str, newline: str | None
+    ) -> None:
+        async with SpooledTemporaryFile[str](
+            max_size=1024, mode="w+t", encoding=encoding, newline=newline
+        ) as stf:
+            await stf.write("café\r\n☕")
+            await stf.seek(0)
+            expected_text = await stf.read()
+            await stf.seek(0)
+            await stf.read(5)
+            position = await stf.tell()
+            expected_remaining = await stf.read()
+            await stf.seek(position)
+            await stf.rollover()
+
+            assert await stf.tell() == position
+            assert await stf.read() == expected_remaining
+            await stf.seek(0)
+            assert await stf.read() == expected_text
+
     async def test_writewithout_rolled(self) -> None:
         rollover_called = False
 
