@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import os
+import pickle
 import sys
 import time
 from functools import partial
 from pathlib import Path
+from typing import NoReturn
 from unittest.mock import Mock
 
 import pytest
 from pytest import MonkeyPatch
+from pytest_mock import MockerFixture
 
 from anyio import (
+    BrokenWorkerProcess,
     CancelScope,
     create_task_group,
     fail_after,
@@ -18,6 +22,173 @@ from anyio import (
     wait_all_tasks_blocked,
 )
 from anyio.abc import Process
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup, format_exception
+else:
+    from traceback import format_exception
+
+
+def raise_worker_error(mode: str) -> None:
+    if mode == "group":
+        try:
+            raise_worker_error("plain")
+        except ValueError as exc:
+            raise ExceptionGroup(
+                "worker group", [exc, TypeError("other error")]
+            ) from None
+
+    try:
+        raise KeyError("original worker error")
+    except KeyError as cause:
+        error = ValueError("worker error")
+        if mode == "cause":
+            raise error from cause
+        elif mode == "context":
+            raise error  # noqa: B904 (exercise implicit exception chaining)
+        elif mode == "suppressed":
+            raise error from None
+
+    if mode == "notes" and sys.version_info >= (3, 11):
+        error.add_note("worker note")
+
+    raise error
+
+
+@pytest.mark.parametrize(
+    "mode",
+    [
+        "plain",
+        "cause",
+        "context",
+        "suppressed",
+        "group",
+        pytest.param(
+            "notes",
+            marks=pytest.mark.skipif(
+                sys.version_info < (3, 11), reason="notes require Python 3.11"
+            ),
+        ),
+    ],
+)
+async def test_worker_traceback(mode: str) -> None:
+    expected = ExceptionGroup if mode == "group" else ValueError
+    with pytest.raises(expected) as caught:
+        await to_process.run_sync(raise_worker_error, mode)
+
+    error = caught.value
+    assert type(error) is expected
+    assert error.__cause__ is not None
+    remote = str(error.__cause__)
+    assert "in raise_worker_error" in remote
+    assert "test_to_process.py" in remote
+    assert "worker error" in remote
+    assert ("original worker error" in remote) == (mode in ("cause", "context"))
+    if mode == "group":
+        assert isinstance(error, ExceptionGroup)
+        assert error.message == "worker group"
+        assert [type(exc) for exc in error.exceptions] == [ValueError, TypeError]
+        assert [exc.args for exc in error.exceptions] == [
+            ("worker error",),
+            ("other error",),
+        ]
+    else:
+        assert error.args == ("worker error",)
+
+    if mode == "notes" and sys.version_info >= (3, 11):
+        assert error.__notes__ == ["worker note"]
+        assert "worker note" in remote
+
+    assert remote in "".join(format_exception(error))
+
+
+class UnpicklableError(Exception):
+    def __reduce__(self) -> NoReturn:
+        raise TypeError("cannot pickle worker error")
+
+
+def unpicklable_worker_result(raise_error: bool) -> object:
+    if raise_error:
+        raise UnpicklableError("worker error")
+
+    return lambda: None
+
+
+@pytest.mark.parametrize("raise_error", [False, True])
+async def test_worker_traceback_pickle_failure(raise_error: bool) -> None:
+    # Pickling a local function raises different errors across Python runtimes.
+    expected = TypeError if raise_error else (AttributeError, pickle.PicklingError)
+    pid = await to_process.run_sync(os.getpid)
+    with pytest.raises(expected) as caught:
+        await to_process.run_sync(unpicklable_worker_result, raise_error)
+
+    assert caught.value.__cause__ is not None
+    assert "in process_worker" in str(caught.value.__cause__)
+    assert "pickle.dumps" in str(caught.value.__cause__)
+    assert await to_process.run_sync(os.getpid) == pid
+
+
+class CausePreservingError(Exception):
+    def __reduce__(self) -> tuple[object, ...]:
+        return rebuild_cause_preserving_error, (self.args, self.__cause__)
+
+
+def rebuild_cause_preserving_error(
+    args: tuple[object, ...], cause: BaseException | None
+) -> CausePreservingError:
+    error = CausePreservingError(*args)
+    error.__cause__ = cause
+    return error
+
+
+def raise_cause_preserving_error() -> NoReturn:
+    raise CausePreservingError("worker error") from KeyError("preserved cause")
+
+
+async def test_worker_preserves_custom_pickled_cause() -> None:
+    with pytest.raises(CausePreservingError) as caught:
+        await to_process.run_sync(raise_cause_preserving_error)
+
+    assert caught.value.args == ("worker error",)
+    assert type(caught.value.__cause__) is KeyError
+    assert caught.value.__cause__.args == ("preserved cause",)
+
+
+def raise_worker_base_exception(exception_type: type[BaseException]) -> NoReturn:
+    raise exception_type("worker base error")
+
+
+@pytest.mark.parametrize("exception_type", [SystemExit, KeyboardInterrupt])
+async def test_worker_traceback_base_exception(
+    exception_type: type[BaseException],
+) -> None:
+    with pytest.raises(exception_type) as caught:
+        await to_process.run_sync(raise_worker_base_exception, exception_type)
+
+    assert caught.value.args == ("worker base error",)
+    assert "in raise_worker_base_exception" in str(caught.value.__cause__)
+
+
+async def test_worker_initialization_traceback(
+    monkeypatch: MonkeyPatch, mocker: MockerFixture, tmp_path: Path
+) -> None:
+    script = tmp_path / "failing_main.py"
+    script.write_text("raise ValueError('worker initialization failed')\n")
+    monkeypatch.setattr("__main__.__file__", str(script))
+    opened = mocker.spy(to_process, "open_process")
+    try:
+        with pytest.raises(
+            BrokenWorkerProcess, match="Error during worker process"
+        ) as caught:
+            await to_process.run_sync(os.getpid)
+    finally:
+        # Failed initialization does not register the process for pool cleanup.
+        await opened.spy_return.aclose()
+
+    error = caught.value.__cause__
+    assert type(error) is ValueError
+    assert error.args == ("worker initialization failed",)
+    assert "failing_main.py" in str(error.__cause__)
 
 
 async def test_run_sync_in_process_pool() -> None:

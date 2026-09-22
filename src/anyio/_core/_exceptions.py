@@ -1,12 +1,38 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from textwrap import dedent
 from typing import Any
 
 if sys.version_info < (3, 11):
-    from exceptiongroup import BaseExceptionGroup
+    from exceptiongroup import BaseExceptionGroup, format_exception
+else:
+    from traceback import format_exception
+
+
+class _RemoteTraceback(Exception):
+    """Readable traceback from another process, without live traceback frames."""
+
+
+def _restore_exception(exception: BaseException, traceback: str) -> BaseException:
+    if exception.__cause__ is None:
+        exception.__cause__ = _RemoteTraceback(f"\n{traceback}")
+
+    return exception
+
+
+class _ExceptionWithTraceback:
+    def __init__(self, exception: BaseException) -> None:
+        self.exception = exception
+        self.traceback = "".join(format_exception(exception))
+
+    def __reduce__(
+        self,
+    ) -> tuple[
+        Callable[[BaseException, str], BaseException], tuple[BaseException, str]
+    ]:
+        return _restore_exception, (self.exception, self.traceback)
 
 
 class BrokenResourceError(Exception):

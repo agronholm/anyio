@@ -96,6 +96,13 @@ This is done by using :func:`.to_process.run_sync`::
 Technical details
 *****************
 
+Exceptions raised by worker functions are raised in the calling task with their
+original type and arguments, provided that they can be pickled. Their ``__cause__``
+contains a readable rendering of the worker's traceback, including exception chains
+and exception groups. This is text for diagnostics, not a live traceback whose frames
+can be inspected. If custom exception serialization already preserves a non-``None``
+``__cause__``, that cause is kept and no remote traceback is attached.
+
 There are some limitations regarding the arguments and return values passed:
 
 * the arguments must be pickleable (using the highest available protocol)

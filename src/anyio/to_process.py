@@ -17,7 +17,7 @@ from types import ModuleType
 from typing import TypeVar, cast
 
 from ._core._eventloop import current_time, get_async_backend, get_cancelled_exc_class
-from ._core._exceptions import BrokenWorkerProcess
+from ._core._exceptions import BrokenWorkerProcess, _ExceptionWithTraceback
 from ._core._subprocesses import open_process
 from ._core._synchronization import CapacityLimiter
 from ._core._tasks import CancelScope, fail_after
@@ -248,14 +248,18 @@ def process_worker() -> None:
         try:
             if exception is not None:
                 status = b"EXCEPTION"
-                pickled = pickle.dumps(exception, pickle.HIGHEST_PROTOCOL)
+                pickled = pickle.dumps(
+                    _ExceptionWithTraceback(exception), pickle.HIGHEST_PROTOCOL
+                )
             else:
                 status = b"RETURN"
                 pickled = pickle.dumps(retval, pickle.HIGHEST_PROTOCOL)
         except BaseException as exc:
             exception = exc
             status = b"EXCEPTION"
-            pickled = pickle.dumps(exc, pickle.HIGHEST_PROTOCOL)
+            pickled = pickle.dumps(
+                _ExceptionWithTraceback(exc), pickle.HIGHEST_PROTOCOL
+            )
 
         stdout.buffer.write(b"%s %d\n" % (status, len(pickled)))
         stdout.buffer.write(pickled)

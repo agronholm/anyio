@@ -29,6 +29,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   from within ``from_thread.run_sync()``), where ``asyncio.current_task()`` is
   legitimately ``None``
   (`#773 <https://github.com/agronholm/anyio/issues/773>`_; PR by @AmirF194)
+- Fixed exceptions raised by worker processes losing their diagnostic traceback,
+  except when custom serialization already preserves an exception cause
+  (`#587 <https://github.com/agronholm/anyio/issues/587>`_; PR by @Aurelucien)
 
 **4.15.1**
 
