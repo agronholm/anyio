@@ -29,6 +29,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   from within ``from_thread.run_sync()``), where ``asyncio.current_task()`` is
   legitimately ``None``
   (`#773 <https://github.com/agronholm/anyio/issues/773>`_; PR by @AmirF194)
+- Fixed ``SpooledTemporaryFile.rollover()`` changing the file position and translating
+  line endings in text mode
+  (`#1341 <https://github.com/agronholm/anyio/pull/1341>`_; PR by @Eric3-jp)
 
 **4.15.1**
 
