@@ -1205,6 +1205,19 @@ class TrioBackend(AsyncBackend):
             raise RunFinishedError from None
 
     @classmethod
+    def run_sync_soon(
+        cls,
+        func: Callable[[Unpack[PosArgsT]], object],
+        args: tuple[Unpack[PosArgsT]],
+        token: object,
+    ) -> None:
+        trio_token = cast("trio.lowlevel.TrioToken", token)
+        try:
+            trio_token.run_sync_soon(func, *args)
+        except trio.RunFinishedError:
+            raise RunFinishedError from None
+
+    @classmethod
     async def open_process(
         cls,
         command: StrOrBytesPath | Sequence[StrOrBytesPath],
