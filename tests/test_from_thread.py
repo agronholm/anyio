@@ -371,7 +371,9 @@ class TestBlockingPortal:
     async def test_call_async_corofunc(self, target_backend: str) -> None:
         async def get_backend_and_add(a: int, b: int) -> tuple[str, int]:
             await checkpoint()
-            return current_async_library(), a + b
+            backend = current_async_library()
+            assert backend is not None
+            return backend, a + b
 
         portal_cm = start_blocking_portal(backend=target_backend)
         portal = await to_thread.run_sync(portal_cm.__enter__)
@@ -395,7 +397,7 @@ class TestBlockingPortal:
             await to_thread.run_sync(portal_cm.__exit__, None, None, None)
 
     async def test_call_async_context_variable(self) -> None:
-        var = ContextVar("var")
+        var = ContextVar[str]("var")
 
         async def read_var() -> str:
             await checkpoint()
