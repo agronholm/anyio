@@ -1496,6 +1496,7 @@ class _RawSocketMixin:
             del self._receive_future
             loop.remove_reader(self.__raw_socket)
 
+        f: asyncio.Future[None]
         f = self._receive_future = asyncio.Future()
         loop.add_reader(self.__raw_socket, f.set_result, None)
         f.add_done_callback(callback)
@@ -1506,6 +1507,7 @@ class _RawSocketMixin:
             del self._send_future
             loop.remove_writer(self.__raw_socket)
 
+        f: asyncio.Future[None]
         f = self._send_future = asyncio.Future()
         loop.add_writer(self.__raw_socket, f.set_result, None)
         f.add_done_callback(callback)
@@ -2655,7 +2657,7 @@ class AsyncIOBackend(AsyncBackend):
         return CapacityLimiter(total_tokens)
 
     @classmethod
-    async def run_sync_in_worker_thread(  # type: ignore[return]
+    async def run_sync_in_worker_thread(  # type: ignore[return-value]
         cls,
         func: Callable[[Unpack[PosArgsT]], T_Retval],
         args: tuple[Unpack[PosArgsT]],
@@ -2851,11 +2853,8 @@ class AsyncIOBackend(AsyncBackend):
     async def connect_tcp(
         cls, host: str, port: int, local_address: IPSockAddrType | None = None
     ) -> abc.SocketStream:
-        transport, protocol = cast(
-            tuple[asyncio.Transport, StreamProtocol],
-            await get_running_loop().create_connection(
-                StreamProtocol, host, port, local_addr=local_address
-            ),
+        transport, protocol = await get_running_loop().create_connection(
+            StreamProtocol, host, port, local_addr=local_address
         )
         transport.pause_reading()
         return SocketStream(transport, protocol)
