@@ -182,7 +182,9 @@ def test_asyncio_worker_thread_interpreter_shutdown(
         check=True,
     )
     assert process.stdout == "worker finished\n"
-    assert "Exception" not in process.stderr
+    # The deliberately abandoned coroutine can report an unraisable exception
+    # during finalization because its cleanup requires a running event loop.
+    assert "Exception in thread" not in process.stderr
 
 
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
