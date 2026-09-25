@@ -29,6 +29,13 @@ thread to finish. You can pass the ``abandon_on_cancel=True`` parameter to allow
 be cancelled. Note, however, that the thread will still continue running – only its
 outcome will be ignored.
 
+On the asyncio backend, shutting down the event loop's asynchronous generators also
+stops its worker threads, even if tasks are still pending. When managing an event loop
+manually, call ``loop.run_until_complete(loop.shutdown_asyncgens())`` before closing it.
+Simply stopping a loop leaves its workers available for when the loop is restarted.
+Interpreter shutdown also stops remaining workers. Functions already running in worker
+threads are allowed to finish before the interpreter exits.
+
 .. seealso:: :ref:`RunInProcess`
 
 Calling asynchronous code from a worker thread

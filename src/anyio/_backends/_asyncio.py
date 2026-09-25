@@ -56,7 +56,7 @@ from typing import (
     TypeVar,
     cast,
 )
-from weakref import WeakKeyDictionary
+from weakref import WeakKeyDictionary, WeakSet
 
 from .. import (
     CapacityLimiterStatistics,
@@ -1041,6 +1041,18 @@ class TaskGroup(abc.TaskGroup):
 _Retval_Queue_Type = tuple[T_Retval | None, BaseException | None]
 
 
+_all_worker_threads: WeakSet[WorkerThread] = WeakSet()
+
+
+def _shutdown_worker_threads() -> None:
+    # Normal atexit callbacks run too late: Python joins non-daemon threads first.
+    for worker in list(_all_worker_threads):
+        worker.stop()
+
+
+threading._register_atexit(_shutdown_worker_threads)  # type: ignore[attr-defined]
+
+
 class WorkerThread(Thread):
     MAX_IDLE_TIME = 10  # seconds
 
@@ -1064,6 +1076,8 @@ class WorkerThread(Thread):
         ] = Queue(2)
         self.idle_since = AsyncIOBackend.current_time()
         self.stopping = False
+        self._stop_lock = threading.Lock()
+        _all_worker_threads.add(self)
 
     def _report_result(
         self, future: asyncio.Future, result: Any, exc: BaseException | None
@@ -1117,8 +1131,14 @@ class WorkerThread(Thread):
                 del item, context, func, args, future, cancel_scope
 
     def stop(self, f: asyncio.Task | None = None) -> None:
-        self.stopping = True
-        self.queue.put_nowait(None)
+        # Interpreter shutdown can race with the root task's completion callback.
+        with self._stop_lock:
+            if self.stopping:
+                return
+
+            self.stopping = True
+            self.queue.put_nowait(None)
+
         self.workers.discard(self)
         try:
             self.idle_workers.remove(self)
@@ -1130,6 +1150,26 @@ _threadpool_idle_workers: RunVar[deque[WorkerThread]] = RunVar(
     "_threadpool_idle_workers"
 )
 _threadpool_workers: RunVar[set[WorkerThread]] = RunVar("_threadpool_workers")
+_threadpool_shutdown: RunVar[AsyncGenerator[None, None]] = RunVar(
+    "_threadpool_shutdown"
+)
+
+
+async def _shutdown_workers_on_asyncgen_exit(
+    workers: set[WorkerThread],
+    loop_ref: weakref.ReferenceType[AbstractEventLoop],
+) -> AsyncGenerator[None, None]:
+    try:
+        yield
+    finally:
+        # Async generators retain the loop's finalizer hook even after closing.
+        # Drop our reference to avoid keeping the loop alive through its RunVars.
+        if (loop := loop_ref()) is not None and (run_vars := _run_vars.get(loop)):
+            run_vars.pop(_threadpool_shutdown, None)
+
+        for worker in list(workers):
+            worker.root_task.remove_done_callback(worker.stop)
+            worker.stop()
 
 
 #
@@ -2674,6 +2714,13 @@ class AsyncIOBackend(AsyncBackend):
             workers = set()
             _threadpool_idle_workers.set(idle_workers)
             _threadpool_workers.set(workers)
+            # Prime an async generator so loop.shutdown_asyncgens() also stops
+            # workers whose root tasks have not finished. Keep it alive until then.
+            shutdown = _shutdown_workers_on_asyncgen_exit(
+                workers, weakref.ref(get_running_loop())
+            )
+            _threadpool_shutdown.set(shutdown)
+            await shutdown.asend(None)
 
         async with limiter or cls.current_default_thread_limiter():
             with CancelScope(shield=not abandon_on_cancel) as scope:

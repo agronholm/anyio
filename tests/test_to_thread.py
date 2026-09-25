@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import gc
+import subprocess
 import sys
 import threading
 import time
@@ -9,6 +10,7 @@ import weakref
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextvars import ContextVar
 from functools import partial
+from textwrap import dedent
 from typing import Any, NoReturn
 
 import pytest
@@ -133,6 +135,91 @@ async def test_cancel_worker_thread(
 
     await finish_event.wait()
     assert last_active == expected_last_active
+
+
+@pytest.mark.parametrize("close_loop", [False, True])
+@pytest.mark.parametrize("busy_worker", [False, True])
+def test_asyncio_worker_thread_interpreter_shutdown(
+    close_loop: bool,
+    busy_worker: bool,
+) -> None:
+    script = dedent(f"""
+        import asyncio
+        import threading
+
+        from anyio import to_thread
+
+        release_worker = threading.Event()
+
+        def worker():
+            if {busy_worker!r}:
+                loop.call_soon_threadsafe(loop.stop)
+                assert release_worker.wait(5)
+
+            print("worker finished", flush=True)
+
+        async def main():
+            await to_thread.run_sync(worker)
+            loop.stop()
+            await asyncio.Event().wait()
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        task = loop.create_task(main())
+        loop.run_forever()
+        assert not task.done()
+        if {close_loop!r}:
+            loop.close()
+
+        # Release a busy worker only once interpreter shutdown has started.
+        threading._register_atexit(release_worker.set)
+    """)
+    process = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=True,
+    )
+    assert process.stdout == "worker finished\n"
+    assert "Exception" not in process.stderr
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+def test_asyncio_worker_thread_asyncgen_shutdown(
+    anyio_backend: tuple[str, dict[str, Any]],
+) -> None:
+    async def main() -> None:
+        workers.append(await to_thread.run_sync(threading.current_thread))
+        loop.stop()
+        await asyncio.Event().wait()
+
+    loop_factory = anyio_backend[1].get("loop_factory", asyncio.new_event_loop)
+    for _ in range(3):
+        loop = loop_factory()
+        workers: list[threading.Thread] = []
+        task = loop.create_task(main())
+        try:
+            loop.run_forever()
+            assert not task.done()
+            assert workers[0].is_alive()
+
+            # Stopping and restarting a loop must not shut down its thread pool.
+            loop.call_soon(loop.stop)
+            loop.run_forever()
+            assert workers[0].is_alive()
+
+            # Shut down async generators without first draining pending tasks.
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            workers[0].join(2)
+            assert not workers[0].is_alive()
+            assert not task.done()
+        finally:
+            task.cancel()
+            loop.run_until_complete(asyncio.gather(task, return_exceptions=True))
+            loop.close()
+            for worker in workers:
+                worker.join(2)
 
 
 def test_asyncio_worker_thread_loop_closed_during_result_report(
