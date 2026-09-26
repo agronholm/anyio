@@ -335,9 +335,8 @@ def test_asyncio_no_root_task(asyncio_event_loop: asyncio.AbstractEventLoop) -> 
     """
     Regression test for #264.
 
-    Ensures that to_thread.run_sync() does not raise an error when there is no root
-    task, but instead tries to find the top most parent task by traversing the cancel
-    scope tree, or failing that, uses the current task to set up a shutdown callback.
+    Ensures that to_thread.run_sync() works with a manually managed loop and that
+    asynchronous generator shutdown stops its workers without a root task.
 
     """
 
@@ -350,6 +349,7 @@ def test_asyncio_no_root_task(asyncio_event_loop: asyncio.AbstractEventLoop) -> 
     task = asyncio_event_loop.create_task(run_in_thread())
     asyncio_event_loop.run_forever()
     task.result()
+    asyncio_event_loop.run_until_complete(asyncio_event_loop.shutdown_asyncgens())
 
     # Wait for worker threads to exit
     for t in threading.enumerate():
@@ -397,14 +397,19 @@ def test_asyncio_run_sync_multiple(
     asyncio_event_loop: asyncio.AbstractEventLoop,
 ) -> None:
     """Regression test for #304."""
-    asyncio_event_loop.call_later(0.5, asyncio_event_loop.stop)
-    for _ in range(3):
-        asyncio_event_loop.run_until_complete(to_thread.run_sync(time.sleep, 0))
+    workers = [
+        asyncio_event_loop.run_until_complete(
+            to_thread.run_sync(threading.current_thread)
+        )
+        for _ in range(3)
+    ]
 
-    for t in threading.enumerate():
-        if t.name == "AnyIO worker thread":
-            t.join(2)
-            assert not t.is_alive()
+    # Completed root tasks no longer stop workers: subsequent runs reuse the pool.
+    assert workers[0] is workers[1] is workers[2]
+    assert workers[0].is_alive()
+    asyncio_event_loop.run_until_complete(asyncio_event_loop.shutdown_asyncgens())
+    workers[0].join(2)
+    assert not workers[0].is_alive()
 
 
 def test_asyncio_no_recycle_stopping_worker(
@@ -421,8 +426,7 @@ def test_asyncio_no_recycle_stopping_worker(
         await event1.wait()
         asyncio_event_loop.call_soon(event2.set)
         await anyio.to_thread.run_sync(time.sleep, 0)
-        # At this point, the worker would be stopped but still in the idle workers pool,
-        # so the following would hang prior to the fix
+        # Completing the other task must not prevent subsequent worker calls.
         await anyio.to_thread.run_sync(time.sleep, 0)
 
     event1 = asyncio.Event()
@@ -552,15 +556,13 @@ def test_asyncio_run_does_not_leak_event_loop() -> None:
     """
     Regression test for #1203.
 
-    Ensure we don't leak the root task and event loop in when caching it in a RunVar.
+    Ensure the thread pool's RunVars do not keep the event loop alive after shutdown.
     """
 
     def thread_worker() -> None:
         pass
 
     async def main() -> weakref.ref[object]:
-        # Exercising to_thread.run_sync() triggers find_root_task(), which caches
-        # the root task (and thus the loop) in the run-vars mapping.
         await to_thread.run_sync(thread_worker)
         return weakref.ref(asyncio.get_running_loop())
 

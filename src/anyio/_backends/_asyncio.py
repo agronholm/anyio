@@ -1058,7 +1058,7 @@ class WorkerThread(Thread):
 
     def __init__(
         self,
-        root_task: asyncio.Task,
+        loop: AbstractEventLoop,
         workers: set[WorkerThread],
         idle_workers: deque[WorkerThread],
     ):
@@ -1067,10 +1067,9 @@ class WorkerThread(Thread):
             kwargs["context"] = Context()
 
         super().__init__(name="AnyIO worker thread", **kwargs)
-        self.root_task = root_task
         self.workers = workers
         self.idle_workers = idle_workers
-        self.loop = root_task._loop
+        self.loop = loop
         self.queue: Queue[
             tuple[Context, Callable, tuple, asyncio.Future, CancelScope] | None
         ] = Queue(2)
@@ -1130,8 +1129,8 @@ class WorkerThread(Thread):
                 self.queue.task_done()
                 del item, context, func, args, future, cancel_scope
 
-    def stop(self, f: asyncio.Task | None = None) -> None:
-        # Interpreter shutdown can race with the root task's completion callback.
+    def stop(self) -> None:
+        # Interpreter shutdown can race with async generator shutdown.
         with self._stop_lock:
             if self.stopping:
                 return
@@ -1168,7 +1167,6 @@ async def _shutdown_workers_on_asyncgen_exit(
             run_vars.pop(_threadpool_shutdown, None)
 
         for worker in list(workers):
-            worker.root_task.remove_done_callback(worker.stop)
             worker.stop()
 
 
@@ -2714,8 +2712,8 @@ class AsyncIOBackend(AsyncBackend):
             workers = set()
             _threadpool_idle_workers.set(idle_workers)
             _threadpool_workers.set(workers)
-            # Prime an async generator so loop.shutdown_asyncgens() also stops
-            # workers whose root tasks have not finished. Keep it alive until then.
+            # Prime an async generator so loop.shutdown_asyncgens() stops the pool.
+            # Keep it alive until then.
             shutdown = _shutdown_workers_on_asyncgen_exit(workers, get_running_loop())
             _threadpool_shutdown.set(shutdown)
             await shutdown.asend(None)
@@ -2723,12 +2721,10 @@ class AsyncIOBackend(AsyncBackend):
         async with limiter or cls.current_default_thread_limiter():
             with CancelScope(shield=not abandon_on_cancel) as scope:
                 future = asyncio.Future[T_Retval]()
-                root_task = find_root_task()
                 if not idle_workers:
-                    worker = WorkerThread(root_task, workers, idle_workers)
+                    worker = WorkerThread(get_running_loop(), workers, idle_workers)
                     worker.start()
                     workers.add(worker)
-                    root_task.add_done_callback(worker.stop, context=Context())
                 else:
                     worker = idle_workers.pop()
 
@@ -2743,9 +2739,6 @@ class AsyncIOBackend(AsyncBackend):
                             break
 
                         expired_worker = idle_workers.popleft()
-                        expired_worker.root_task.remove_done_callback(
-                            expired_worker.stop
-                        )
                         expired_worker.stop()
 
                 context = copy_context()

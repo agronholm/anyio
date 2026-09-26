@@ -31,7 +31,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   (`#773 <https://github.com/agronholm/anyio/issues/773>`_; PR by @AmirF194)
 - Fixed worker threads on the asyncio backend surviving asynchronous generator shutdown
   with pending tasks and preventing interpreter shutdown when an event loop was stopped
-  without draining its tasks
+  without draining its tasks. Worker pool cleanup now follows asynchronous generator
+  shutdown instead of root task completion, allowing reuse across successive
+  ``loop.run_until_complete()`` calls
   (`#1344 <https://github.com/agronholm/anyio/issues/1344>`_)
 
 **4.15.1**
