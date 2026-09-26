@@ -41,6 +41,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   ``__enter__()`` call failed to start the portal, causing every subsequent
   attempt to fail with an unrelated ``AttributeError`` instead of getting a
   chance to retry
+  (`#1350 <https://github.com/agronholm/anyio/pull/1350>`_; PR by @Yasser-Ameur)
 
 **4.15.1**
 

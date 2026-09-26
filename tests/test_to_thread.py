@@ -432,10 +432,7 @@ class TestBlockingPortalProvider:
         anyio_backend_name: str,
         mocker: MockerFixture,
     ) -> None:
-        """Regression test: a failed first ``__enter__()`` must not poison the
-        provider so that later attempts keep failing with an unrelated
-        ``AttributeError`` instead of getting a chance to succeed.
-        """
+        """Regression test for #1350."""
         real_start = threading.Thread.start
         calls = {"n": 0}
 
