@@ -48,13 +48,14 @@ To provide values for these attributes, implement the
 :meth:`~.TypedAttributeProvider.extra_attributes` property in your class::
 
     from collections.abc import Callable, Mapping
+    from typing import Any
 
     from anyio import TypedAttributeProvider
 
 
     class MyAttributeProvider(TypedAttributeProvider):
         @property
-        def extra_attributes() -> Mapping[Any, Callable[[], Any]]:
+        def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
             return {
                 MyTypedAttribute.string_valued_attribute: lambda: 'my attribute value',
                 MyTypedAttribute.some_float_attribute: lambda: 6.492
@@ -65,7 +66,7 @@ attributes in the return value::
 
     class AnotherAttributeProvider(MyAttributeProvider):
         @property
-        def extra_attributes() -> Mapping[Any, Callable[[], Any]]:
+        def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
             return {
                 **super().extra_attributes,
                 MyTypedAttribute.string_valued_attribute: lambda: 'overridden attribute value'
