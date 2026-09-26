@@ -426,6 +426,34 @@ class TestBlockingPortalProvider:
 
         assert len(threads) == 1
 
+    def test_failed_first_enter_leaves_provider_retryable(
+        self,
+        provider: BlockingPortalProvider,
+        anyio_backend_name: str,
+        mocker: MockerFixture,
+    ) -> None:
+        """Regression test: a failed first ``__enter__()`` must not poison the
+        provider so that later attempts keep failing with an unrelated
+        ``AttributeError`` instead of getting a chance to succeed.
+        """
+        real_start = threading.Thread.start
+        calls = {"n": 0}
+
+        def flaky_start(self: threading.Thread) -> None:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("simulated startup failure")
+
+            real_start(self)
+
+        mocker.patch.object(threading.Thread, "start", flaky_start)
+
+        with pytest.raises(RuntimeError, match="simulated startup failure"):
+            provider.__enter__()
+
+        with provider as portal:
+            assert portal.call(current_async_library) == anyio_backend_name
+
 
 skipif_pypy_mark = pytest.mark.skipif(
     sys.implementation.name == "pypy",

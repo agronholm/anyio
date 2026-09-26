@@ -37,6 +37,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``Semaphore(fast_acquire=True)`` losing its fast-acquire behavior when
   instantiated outside a running event loop
   (`#1348 <https://github.com/agronholm/anyio/pull/1348>`_; PR by @feiiiiii5)
+- Fixed ``BlockingPortalProvider`` permanently poisoning itself when the first
+  ``__enter__()`` call failed to start the portal, causing every subsequent
+  attempt to fail with an unrelated ``AttributeError`` instead of getting a
+  chance to retry
 
 **4.15.1**
 
