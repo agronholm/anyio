@@ -1157,14 +1157,14 @@ _threadpool_shutdown: RunVar[AsyncGenerator[None, None]] = RunVar(
 
 async def _shutdown_workers_on_asyncgen_exit(
     workers: set[WorkerThread],
-    loop_ref: weakref.ReferenceType[AbstractEventLoop],
+    loop: AbstractEventLoop,
 ) -> AsyncGenerator[None, None]:
     try:
         yield
     finally:
         # Async generators retain the loop's finalizer hook even after closing.
         # Drop our reference to avoid keeping the loop alive through its RunVars.
-        if (loop := loop_ref()) is not None and (run_vars := _run_vars.get(loop)):
+        if run_vars := _run_vars.get(loop):
             run_vars.pop(_threadpool_shutdown, None)
 
         for worker in list(workers):
@@ -2716,9 +2716,7 @@ class AsyncIOBackend(AsyncBackend):
             _threadpool_workers.set(workers)
             # Prime an async generator so loop.shutdown_asyncgens() also stops
             # workers whose root tasks have not finished. Keep it alive until then.
-            shutdown = _shutdown_workers_on_asyncgen_exit(
-                workers, weakref.ref(get_running_loop())
-            )
+            shutdown = _shutdown_workers_on_asyncgen_exit(workers, get_running_loop())
             _threadpool_shutdown.set(shutdown)
             await shutdown.asend(None)
 
