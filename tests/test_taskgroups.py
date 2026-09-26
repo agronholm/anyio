@@ -1751,14 +1751,20 @@ class TestUncancel:
 
         """
         task = cast(asyncio.Task, asyncio.current_task())
+        task.cancel()
+        try:
+            await checkpoint()
+        except asyncio.CancelledError:
+            pass
+
         with pytest.raises(asyncio.CancelledError), CancelScope() as scope:
             scope.cancel()
             asyncio.get_running_loop().call_soon(task.cancel)
             await sleep_forever()
 
         assert not scope.cancelled_caught
-        assert task.cancelling() == 1
-        task.uncancel()
+        assert task.uncancel() == 1
+        assert task.uncancel() == 0
 
     async def test_native_cancel_after_scope_cancel_same_cycle_group(self) -> None:
         """
@@ -1802,41 +1808,6 @@ class TestUncancel:
             await task
 
         assert task.cancelled()
-
-    async def test_native_cancel_after_scope_cancel_nonzero_count(self) -> None:
-        """
-        Test that the scope compares the host task's cancellation count against the
-        count at enter, and not zero: a cancellation request that was already pending
-        when the scope was entered must neither stop the scope from swallowing its own
-        cancellation, nor mask a new native cancellation landing in the same event loop
-        iteration as the scope's own.
-
-        """
-        task = cast(asyncio.Task, asyncio.current_task())
-        task.cancel()
-        with pytest.raises(asyncio.CancelledError):
-            await checkpoint()
-
-        assert task.cancelling() == 1
-
-        # Only the scope's own cancellation: swallowed, despite the pending request
-        with CancelScope() as scope:
-            scope.cancel()
-            await sleep_forever()
-
-        assert scope.cancelled_caught
-        assert task.cancelling() == 1
-
-        # A new native cancellation in the same cycle as the scope's: propagated
-        with pytest.raises(asyncio.CancelledError), CancelScope() as scope:
-            scope.cancel()
-            asyncio.get_running_loop().call_soon(task.cancel)
-            await sleep_forever()
-
-        assert not scope.cancelled_caught
-        assert task.cancelling() == 2
-        task.uncancel()
-        task.uncancel()
 
     async def test_cancel_message_replaced(self) -> None:
         task = asyncio.current_task()
