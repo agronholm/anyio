@@ -32,6 +32,14 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed worker threads preventing interpreter shutdown when the asyncio event loop is managed
   manually (i.e. ``loop.run_until_complete()`` instead of ``asyncio.run()`` or ``anyio.run()``)
   (`#1344 <https://github.com/agronholm/anyio/issues/1344>`_)
+- Fixed ``CancelScope`` on the asyncio backend swallowing a native ``Task.cancel()``
+  that was delivered in the same event loop iteration as the scope's own cancellation
+  (such as a ``move_on_after()`` deadline expiring), which left the host task with a
+  pending cancellation request that never raised ``CancelledError``
+  (`#1214 <https://github.com/agronholm/anyio/issues/1214>`_)
+- Fixed ``Semaphore(fast_acquire=True)`` losing its fast-acquire behavior when
+  instantiated outside a running event loop
+  (`#1348 <https://github.com/agronholm/anyio/pull/1348>`_; PR by @feiiiiii5)
 
 **4.15.1**
 
