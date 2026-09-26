@@ -133,7 +133,7 @@ class BufferedByteReceiveStream(ByteReceiveStream):
         offset = 0
         while True:
             # Check if the delimiter can be found in the current buffer
-            index = self._buffer.find(delimiter, offset)
+            index = self._buffer.find(delimiter, offset, max_bytes)
             if index >= 0:
                 found = self._buffer[:index]
                 del self._buffer[: index + len(delimiter) :]
