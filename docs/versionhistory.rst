@@ -29,6 +29,14 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   from within ``from_thread.run_sync()``), where ``asyncio.current_task()`` is
   legitimately ``None``
   (`#773 <https://github.com/agronholm/anyio/issues/773>`_; PR by @AmirF194)
+- Fixed ``CancelScope`` on the asyncio backend swallowing a native ``Task.cancel()``
+  that was delivered in the same event loop iteration as the scope's own cancellation
+  (such as a ``move_on_after()`` deadline expiring), which left the host task with a
+  pending cancellation request that never raised ``CancelledError``
+  (`#1214 <https://github.com/agronholm/anyio/issues/1214>`_)
+- Fixed ``Semaphore(fast_acquire=True)`` losing its fast-acquire behavior when
+  instantiated outside a running event loop
+  (`#1348 <https://github.com/agronholm/anyio/pull/1348>`_; PR by @feiiiiii5)
 
 **4.15.1**
 
