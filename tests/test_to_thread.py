@@ -189,14 +189,14 @@ def test_asyncio_worker_thread_interpreter_shutdown(
 
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
 def test_asyncio_worker_thread_asyncgen_shutdown(
-    anyio_backend: tuple[str, dict[str, Any]],
+    anyio_backend_options: dict[str, Any],
 ) -> None:
     async def main() -> None:
         workers.append(await to_thread.run_sync(threading.current_thread))
         loop.stop()
         await asyncio.Event().wait()
 
-    loop_factory = anyio_backend[1].get("loop_factory", asyncio.new_event_loop)
+    loop_factory = anyio_backend_options.get("loop_factory", asyncio.new_event_loop)
     for _ in range(3):
         loop = loop_factory()
         workers: list[threading.Thread] = []
