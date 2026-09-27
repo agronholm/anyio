@@ -27,5 +27,5 @@ Twisted either.
 There is a Twisted `issue <https://github.com/twisted/twisted/pull/1263>`_ that you can
 follow if you're interested in Twisted support in AnyIO.
 
-.. _Twisted: https://twistedmatrix.com/trac/
+.. _Twisted: https://twisted.org/
 .. _sniffio: https://github.com/python-trio/sniffio
