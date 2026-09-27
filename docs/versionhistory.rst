@@ -43,6 +43,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``create_udp_socket()`` silently ignoring the ``local_port`` argument when
   ``local_host`` was omitted, making the socket bind to a random ephemeral port
   instead of the requested one
+- Fixed pytest plugin running Hypothesis async tests only on the first parametrized
+  backend instead of each backend
+  (`#1353 <https://github.com/agronholm/anyio/issues/1353>`_; PR by @DYNOSuprovo)
 
 **4.15.1**
 
