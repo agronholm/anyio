@@ -1022,7 +1022,12 @@ class TestCapacityLimiter:
         borrower = object()
         loop = asyncio.get_running_loop()
         task = loop.create_task(limiter.acquire_on_behalf_of(borrower))
-        await asyncio.sleep(0)
+        # With an eager task factory, the task has already taken the token and is
+        # parked at the cancel-shielded checkpoint; otherwise let it run that far
+        if limiter.borrowed_tokens == 0:
+            await asyncio.sleep(0)
+
+        assert limiter.borrowed_tokens == 1
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
