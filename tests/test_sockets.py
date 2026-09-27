@@ -1988,11 +1988,9 @@ class TestUDPSocket:
         self, family: AnyIPAddressFamily, free_udp_port: int
     ) -> None:
         """
-        ``local_port`` must be honored even when ``local_host`` is omitted.
-
-        Regression test: the wildcard ("no local host") code path used to build the
-        local address with a hardcoded port of ``0``, so the requested ``local_port``
-        was silently dropped and the socket always got a random ephemeral port.
+        Test that passing an explicit ``local_port`` to ``create_udp_socket()``
+        without a ``local_address`` parameter still honors that port when binding
+        to the "any" address.
 
         """
         async with await create_udp_socket(
