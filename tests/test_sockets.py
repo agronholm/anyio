@@ -1984,6 +1984,22 @@ class TestUDPSocket:
             )
             assert local_address[1] > 0
 
+    async def test_create_socket_bound_to_port(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        """
+        ``local_port`` must be honored even when ``local_host`` is omitted.
+
+        Regression test: the wildcard ("no local host") code path used to build the
+        local address with a hardcoded port of ``0``, so the requested ``local_port``
+        was silently dropped and the socket always got a random ephemeral port.
+
+        """
+        async with await create_udp_socket(
+            family=family, local_port=free_udp_port
+        ) as udp:
+            assert udp.extra(SocketAttribute.local_port) == free_udp_port
+
     async def test_from_socket(
         self, family: AnyIPAddressFamily, sock_or_fd_factory: SockFdFactoryProtocol
     ) -> None:

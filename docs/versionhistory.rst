@@ -37,6 +37,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``Semaphore(fast_acquire=True)`` losing its fast-acquire behavior when
   instantiated outside a running event loop
   (`#1348 <https://github.com/agronholm/anyio/pull/1348>`_; PR by @feiiiiii5)
+- Fixed ``create_udp_socket()`` silently ignoring the ``local_port`` argument when
+  ``local_host`` was omitted, making the socket bind to a random ephemeral port
+  instead of the requested one
 
 **4.15.1**
 
