@@ -1010,6 +1010,31 @@ class TestCapacityLimiter:
         limiter = CapacityLimiter(total_tokens=1)
         assert limiter.total_tokens == 1
 
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_native_cancel_after_uncontended_acquire_on_behalf_of(self) -> None:
+        """
+        Test that a native asyncio cancellation landing right after an uncontended
+        acquire_on_behalf_of() releases the token on behalf of the borrower rather than
+        the current task.
+
+        """
+        limiter = CapacityLimiter(1)
+        borrower = object()
+        loop = asyncio.get_running_loop()
+        task = loop.create_task(limiter.acquire_on_behalf_of(borrower))
+        # With an eager task factory, the task has already taken the token and is
+        # parked at the cancel-shielded checkpoint; otherwise let it run that far
+        if limiter.borrowed_tokens == 0:
+            await asyncio.sleep(0)
+
+        assert limiter.borrowed_tokens == 1
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        assert limiter.borrowed_tokens == 0
+        limiter.acquire_on_behalf_of_nowait(object())
+
     async def test_acquire_cancelled(self) -> None:
         # Regression test for #947
         limiter = CapacityLimiter(1)
