@@ -1989,7 +1989,7 @@ class TestUDPSocket:
     ) -> None:
         """
         Test that passing an explicit ``local_port`` to ``create_udp_socket()``
-        without a ``local_address`` parameter still honors that port when binding
+        without a ``local_host`` parameter still honors that port when binding
         to the "any" address.
 
         """
