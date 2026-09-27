@@ -5,6 +5,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- **BACKWARDS INCOMPATIBLE** Changed ``move_on_after()`` to start its relative timeout
+  when the context manager is entered, matching ``fail_after()``, instead of when
+  ``move_on_after()`` is called
+  (`#1298 <https://github.com/agronholm/anyio/issues/1298>`_; PR by @Rayan-and-beyond)
 - Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
   across backends (asyncio returned immediately; Trio raised ``ValueError``) by
   raising ``ValueError`` on all backends
