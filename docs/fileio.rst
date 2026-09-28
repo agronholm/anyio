@@ -6,6 +6,17 @@ Asynchronous file I/O support
 AnyIO provides asynchronous wrappers for blocking file operations. These wrappers run
 blocking operations in worker threads.
 
+On Emscripten builds without pthreads, synchronous file operations made through
+:func:`open_file` and :class:`AsyncFile` (including wrappers returned by
+:func:`wrap_file`) run on the event-loop thread. These operations can block the
+event loop and cannot be preempted after they start. Cancellation can still interrupt
+a task while it is waiting for the capacity limiter. The opener callback passed to
+:func:`open_file` runs in a copied context, so context variable changes made by
+the callback do not propagate back to the caller. This fallback is limited to the
+asynchronous file APIs. Path operations that use worker threads and temporary-file
+creation still require threads; this fallback does not provide worker-thread execution
+or from_thread support.
+
 Example::
 
     from anyio import open_file, run

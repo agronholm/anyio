@@ -5,6 +5,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added a threadless fallback for asynchronous file operations on Emscripten builds
+  without pthreads
+  (`#1268 <https://github.com/agronholm/anyio/issues/1268>`_; PR by @dexhunter)
+
 - Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
   across backends (asyncio returned immediately; Trio raised ``ValueError``) by
   raising ``ValueError`` on all backends

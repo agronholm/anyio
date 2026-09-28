@@ -10,6 +10,7 @@ from collections.abc import (
     Iterator,
     Sequence,
 )
+from contextvars import copy_context
 from dataclasses import dataclass
 from functools import partial
 from os import PathLike
@@ -27,6 +28,7 @@ from typing import (
 
 from .. import to_thread
 from ..abc import AsyncResource
+from ..lowlevel import checkpoint
 from ._synchronization import CapacityLimiter
 from ._tasks import CancelScope
 
@@ -47,6 +49,22 @@ else:
 
 
 T = TypeVar("T", bound="Path")
+T_Retval = TypeVar("T_Retval")
+
+
+async def _run_sync_in_fileio(
+    func: Callable[..., T_Retval], *args: Any, limiter: CapacityLimiter | None
+) -> T_Retval:
+    emscripten_info = getattr(sys, "_emscripten_info", None)
+    if (
+        sys.platform != "emscripten"
+        or getattr(emscripten_info, "pthreads", None) is not False
+    ):
+        return await to_thread.run_sync(func, *args, limiter=limiter)
+
+    await checkpoint()
+    async with limiter or to_thread.current_default_thread_limiter():
+        return copy_context().run(func, *args)
 
 
 class AsyncFile(AsyncResource, Generic[AnyStr]):
@@ -116,25 +134,25 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
 
     async def aclose(self) -> None:
         with CancelScope(shield=True):
-            await to_thread.run_sync(self._fp.close, limiter=self._limiter)
+            await _run_sync_in_fileio(self._fp.close, limiter=self._limiter)
 
     async def read(self, size: int = -1) -> AnyStr:
-        return await to_thread.run_sync(self._fp.read, size, limiter=self._limiter)
+        return await _run_sync_in_fileio(self._fp.read, size, limiter=self._limiter)
 
     async def read1(self: AsyncFile[bytes], size: int = -1) -> bytes:
-        return await to_thread.run_sync(self._fp.read1, size, limiter=self._limiter)
+        return await _run_sync_in_fileio(self._fp.read1, size, limiter=self._limiter)
 
     async def readline(self) -> AnyStr:
-        return await to_thread.run_sync(self._fp.readline, limiter=self._limiter)
+        return await _run_sync_in_fileio(self._fp.readline, limiter=self._limiter)
 
     async def readlines(self) -> list[AnyStr]:
-        return await to_thread.run_sync(self._fp.readlines, limiter=self._limiter)
+        return await _run_sync_in_fileio(self._fp.readlines, limiter=self._limiter)
 
     async def readinto(self: AsyncFile[bytes], b: WriteableBuffer) -> int:
-        return await to_thread.run_sync(self._fp.readinto, b, limiter=self._limiter)
+        return await _run_sync_in_fileio(self._fp.readinto, b, limiter=self._limiter)
 
     async def readinto1(self: AsyncFile[bytes], b: WriteableBuffer) -> int:
-        return await to_thread.run_sync(self._fp.readinto1, b, limiter=self._limiter)
+        return await _run_sync_in_fileio(self._fp.readinto1, b, limiter=self._limiter)
 
     @overload
     async def write(self: AsyncFile[bytes], b: ReadableBuffer) -> int: ...
@@ -143,7 +161,7 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
     async def write(self: AsyncFile[str], b: str) -> int: ...
 
     async def write(self, b: ReadableBuffer | str) -> int:
-        return await to_thread.run_sync(self._fp.write, b, limiter=self._limiter)
+        return await _run_sync_in_fileio(self._fp.write, b, limiter=self._limiter)
 
     @overload
     async def writelines(
@@ -154,23 +172,23 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
     async def writelines(self: AsyncFile[str], lines: Iterable[str]) -> None: ...
 
     async def writelines(self, lines: Iterable[ReadableBuffer] | Iterable[str]) -> None:
-        return await to_thread.run_sync(
+        return await _run_sync_in_fileio(
             self._fp.writelines, lines, limiter=self._limiter
         )
 
     async def truncate(self, size: int | None = None) -> int:
-        return await to_thread.run_sync(self._fp.truncate, size, limiter=self._limiter)
+        return await _run_sync_in_fileio(self._fp.truncate, size, limiter=self._limiter)
 
     async def seek(self, offset: int, whence: int | None = os.SEEK_SET) -> int:
-        return await to_thread.run_sync(
+        return await _run_sync_in_fileio(
             self._fp.seek, offset, whence, limiter=self._limiter
         )
 
     async def tell(self) -> int:
-        return await to_thread.run_sync(self._fp.tell, limiter=self._limiter)
+        return await _run_sync_in_fileio(self._fp.tell, limiter=self._limiter)
 
     async def flush(self) -> None:
-        return await to_thread.run_sync(self._fp.flush, limiter=self._limiter)
+        return await _run_sync_in_fileio(self._fp.flush, limiter=self._limiter)
 
 
 @overload
@@ -228,7 +246,7 @@ async def open_file(
         Added the ``limiter`` keyword argument.
 
     """
-    fp = await to_thread.run_sync(
+    fp = await _run_sync_in_fileio(
         open,
         file,
         mode,
