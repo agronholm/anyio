@@ -91,6 +91,24 @@ for backend_name in get_all_backends():
     )
 
 
+@pytest.fixture
+def check_libuv_udp_error_bug(anyio_backend_options: dict[str, Any]) -> None:
+    """
+    Skip the test on winloop, which never reports ICMP errors on UDP sockets.
+
+    This is not winloop's doing: libuv deliberately ignores ``WSAECONNRESET`` and
+    ``WSAENETRESET`` on Windows UDP receives (``src/win/udp.c``), reporting them as
+    "nothing to read" instead, so the error never reaches the protocol. libuv on other
+    platforms does report them, which is why uvloop is unaffected.
+    """
+    # ``uvloop`` is the winloop module on Windows (see the import above)
+    if (
+        uvloop_name == "winloop"
+        and anyio_backend_options.get("loop_factory") is uvloop.new_event_loop
+    ):
+        pytest.skip("libuv ignores ICMP errors on UDP sockets on Windows")
+
+
 @pytest.fixture(scope="session", autouse=True)
 def suppress_slow_callbacks() -> None:
     class SuppressSlowCallbacks(logging.Filter):
