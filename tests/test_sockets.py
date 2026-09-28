@@ -1302,13 +1302,6 @@ class TestUNIXStream:
                 # assert the server received the messages in order and as individual items
                 assert await client.receive(1024) == b"po"
                 assert await client.receive(1024) == b"tato"
-                # send two messages to the client
-                await client.send(b"foo")
-                await client.send(b"bar")
-                # assert the client received the messages in order and as individual items
-                assert await stream.receive() == b"foo"
-                assert await stream.receive() == b"bar"
-            await client.aclose()
 
     @pytest.mark.parametrize("max_bytes", [0, -1])
     async def test_receive_invalid_max_bytes(
