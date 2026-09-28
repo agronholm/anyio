@@ -308,6 +308,32 @@ async def test_start_cancelled() -> None:
     assert not finished
 
 
+async def test_start_cancelled_child_raises() -> None:
+    """
+    Test that an exception raised by the child task while being cancelled before
+    calling ``task_status.started()`` is propagated from ``start()``.
+
+    """
+
+    async def taskfunc(*, task_status: TaskStatus) -> None:
+        try:
+            await sleep_forever()
+        finally:
+            raise RuntimeError("cleanup failed")
+
+    async with create_task_group() as tg:
+        with CancelScope() as scope:
+            scope.cancel()
+            # Catch BaseException so a cancellation exception doesn't get swallowed by
+            # the cancelled scope
+            with pytest.raises(BaseException) as exc:
+                await tg.start(taskfunc)
+
+    assert isinstance(exc.value, RuntimeError)
+    assert str(exc.value) == "cleanup failed"
+    assert not tg.cancel_scope.cancel_called
+
+
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_start_native_host_cancelled() -> None:
     started = finished = False

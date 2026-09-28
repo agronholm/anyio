@@ -1042,6 +1042,13 @@ class TaskGroup(abc.TaskGroup):
                 with CancelScope(shield=True):
                     await handle.wait()
 
+            # If the child raised an exception other than a cancellation exception,
+            # propagate it from here, as it won't be delivered to the task group
+            if future.cancelled() and not isinstance(
+                handle._exception, (CancelledError, type(None))
+            ):
+                raise handle._exception from None
+
             raise
 
         if return_handle:
