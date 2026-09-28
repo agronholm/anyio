@@ -1984,6 +1984,20 @@ class TestUDPSocket:
             )
             assert local_address[1] > 0
 
+    async def test_create_socket_bound_to_port(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        """
+        Test that passing an explicit ``local_port`` to ``create_udp_socket()``
+        without a ``local_host`` parameter still honors that port when binding
+        to the "any" address.
+
+        """
+        async with await create_udp_socket(
+            family=family, local_port=free_udp_port
+        ) as udp:
+            assert udp.extra(SocketAttribute.local_port) == free_udp_port
+
     async def test_from_socket(
         self, family: AnyIPAddressFamily, sock_or_fd_factory: SockFdFactoryProtocol
     ) -> None:
