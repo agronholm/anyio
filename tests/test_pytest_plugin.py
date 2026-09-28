@@ -450,7 +450,6 @@ def test_hypothesis_multiple_backends(testdir: Pytester) -> None:
     result.assert_outcomes(passed=len(get_available_backends()))
 
 
-
 @pytest.mark.parametrize("anyio_backend_name", get_available_backends())
 def test_debugger_exit_in_taskgroup(testdir: Pytester, anyio_backend_name: str) -> None:
     testdir.makepyfile(
