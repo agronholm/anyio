@@ -43,6 +43,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``create_udp_socket()`` silently ignoring the ``local_port`` argument when
   ``local_host`` was omitted, making the socket bind to a random ephemeral port
   instead of the requested one
+- Added SOCK_SEQPACKET support to ``connect_unix()`` and ``create_unix_listener()``
+  (`#1349 <https://github.com/agronholm/anyio/issues/1349>`_; PR by @theunkn0wn1)
 
 **4.15.1**
 

@@ -108,6 +108,11 @@ And the listener::
 .. note:: The UNIX socket listener does not remove the socket it creates, so you may
    need to delete them manually.
 
+.. note:: By default, the UNIX socket listener will be `SOCK_STREAM` type, but you can also create a `SOCK_SEQPACKET` listener by passing
+   ``kind=socket.SOCK_SEQPACKET`` to :func:`create_unix_listener`. Similarly, you can
+   create a `SOCK_SEQPACKET` client by passing the same argument to
+   :func:`connect_unix`.
+
 Sending and receiving file descriptors
 ++++++++++++++++++++++++++++++++++++++
 

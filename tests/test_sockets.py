@@ -1225,6 +1225,14 @@ class TestUNIXStream:
         return socket_path if request.param else str(socket_path)
 
     @pytest.fixture
+    def server_sock_seqsocket(self, socket_path: Path) -> Iterable[socket.socket]:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        sock.bind(str(socket_path))
+        sock.listen()
+        yield sock
+        sock.close()
+
+    @pytest.fixture
     def server_sock(self, socket_path: Path) -> Iterable[socket.socket]:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.bind(str(socket_path))
@@ -1262,6 +1270,19 @@ class TestUNIXStream:
     ) -> None:
         async with await connect_unix(socket_path_or_str) as stream:
             client, _ = server_sock.accept()
+            await stream.send(b"blah")
+            request = client.recv(100)
+            client.sendall(request[::-1])
+            response = await stream.receive()
+            client.close()
+
+        assert response == b"halb"
+
+    async def test_send_receive_seqsocket(
+        self, server_sock_seqsocket: socket.socket, socket_path_or_str: Path | str
+    ) -> None:
+        async with await connect_unix(socket_path_or_str, kind=socket.SOCK_SEQPACKET) as stream:
+            client, _ = server_sock_seqsocket.accept()
             await stream.send(b"blah")
             request = client.recv(100)
             client.sendall(request[::-1])
