@@ -2879,7 +2879,11 @@ class AsyncIOBackend(AsyncBackend):
 
     @classmethod
     async def connect_unix(
-        cls, path: str | bytes, kind: SocketKind = SocketKind.SOCK_STREAM
+        cls,
+        path: str | bytes,
+        kind: Literal[
+            SocketKind.SOCK_STREAM, SocketKind.SOCK_SEQPACKET
+        ] = SocketKind.SOCK_STREAM,
     ) -> abc.UNIXSocketStream:
         await cls.checkpoint()
         loop = get_running_loop()

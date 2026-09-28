@@ -34,7 +34,6 @@ from _pytest.tmpdir import TempPathFactory
 from pytest import FixtureRequest
 from pytest_mock.plugin import MockerFixture
 
-import anyio
 from anyio import (
     BrokenResourceError,
     BusyResourceError,
@@ -1296,7 +1295,7 @@ class TestUNIXStream:
             # and finally accept the client connection
             await server.accept() as client,
         ):
-            with anyio.fail_after(1):
+            with fail_after(1):
                 # send two messages to the server
                 await stream.send(b"po")
                 await stream.send(b"tato")

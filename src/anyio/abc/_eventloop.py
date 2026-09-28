@@ -20,6 +20,7 @@ from typing import (
     IO,
     TYPE_CHECKING,
     Any,
+    Literal,
     TypeAlias,
     TypeVar,
     overload,
@@ -272,7 +273,9 @@ class AsyncBackend(metaclass=ABCMeta):
     @classmethod
     @abstractmethod
     async def connect_unix(
-        cls, path: str | bytes, kind: SocketKind = SocketKind.SOCK_STREAM
+        cls,
+        path: str | bytes,
+        kind: Literal[SocketKind.SOCK_STREAM, SocketKind.SOCK_SEQPACKET],
     ) -> UNIXSocketStream:
         pass
 

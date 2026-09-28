@@ -4,7 +4,8 @@ Version history
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
-
+- Added SOCK_SEQPACKET support to ``connect_unix()`` and ``create_unix_listener()``
+  (`#1349 <https://github.com/agronholm/anyio/issues/1349>`_; PR by @theunkn0wn1)
 - Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
   across backends (asyncio returned immediately; Trio raised ``ValueError``) by
   raising ``ValueError`` on all backends
@@ -43,8 +44,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``create_udp_socket()`` silently ignoring the ``local_port`` argument when
   ``local_host`` was omitted, making the socket bind to a random ephemeral port
   instead of the requested one
-- Added SOCK_SEQPACKET support to ``connect_unix()`` and ``create_unix_listener()``
-  (`#1349 <https://github.com/agronholm/anyio/issues/1349>`_; PR by @theunkn0wn1)
 
 **4.15.1**
 

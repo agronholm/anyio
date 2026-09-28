@@ -283,7 +283,10 @@ async def connect_tcp(
 
 
 async def connect_unix(
-    path: str | bytes | PathLike[Any], kind: socket.SocketKind = socket.SOCK_STREAM
+    path: str | bytes | PathLike[Any],
+    kind: Literal[
+        SocketKind.SOCK_STREAM, SocketKind.SOCK_SEQPACKET
+    ] = socket.SOCK_STREAM,
 ) -> UNIXSocketStream:
     """
     Connect to the given UNIX socket.
@@ -442,7 +445,9 @@ async def create_unix_listener(
     *,
     mode: int | None = None,
     backlog: int = 65536,
-    kind: SocketKind = SocketKind.SOCK_STREAM,
+    kind: Literal[
+        SocketKind.SOCK_STREAM, SocketKind.SOCK_SEQPACKET
+    ] = SocketKind.SOCK_STREAM,
 ) -> SocketListener:
     """
     Create a UNIX socket listener.
