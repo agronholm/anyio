@@ -300,7 +300,7 @@ async def connect_unix(
 
     """
     path = os.fspath(path)
-    return await get_async_backend().connect_unix(path, kind=kind)
+    return await get_async_backend().connect_unix(path, kind)
 
 
 async def create_tcp_listener(
