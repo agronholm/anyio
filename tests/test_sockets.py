@@ -34,6 +34,7 @@ from _pytest.tmpdir import TempPathFactory
 from pytest import FixtureRequest
 from pytest_mock.plugin import MockerFixture
 
+import anyio
 from anyio import (
     BrokenResourceError,
     BusyResourceError,
@@ -1225,6 +1226,14 @@ class TestUNIXStream:
         return socket_path if request.param else str(socket_path)
 
     @pytest.fixture
+    def server_sock_seqsocket(self, socket_path: Path) -> Iterable[socket.socket]:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        sock.bind(str(socket_path))
+        sock.listen()
+        yield sock
+        sock.close()
+
+    @pytest.fixture
     def server_sock(self, socket_path: Path) -> Iterable[socket.socket]:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.bind(str(socket_path))
@@ -1269,6 +1278,24 @@ class TestUNIXStream:
             client.close()
 
         assert response == b"halb"
+
+    async def test_send_receive_seqsocket(
+        self, server_sock_seqsocket: socket.socket, socket_path_or_str: Path | str
+    ) -> None:
+        async with await connect_unix(
+            socket_path_or_str, kind=socket.SOCK_SEQPACKET
+        ) as stream:
+            client, _ = server_sock_seqsocket.accept()
+            with anyio.fail_after(1):
+                await stream.send(b"po")
+                await stream.send(b"tato")
+                assert client.recv(1024) == b"po"
+                assert client.recv(1024) == b"tato"
+                client.sendall(b"foo")
+                client.sendall(b"bar")
+                assert await stream.receive() == b"foo"
+                assert await stream.receive() == b"bar"
+            client.close()
 
     @pytest.mark.parametrize("max_bytes", [0, -1])
     async def test_receive_invalid_max_bytes(
