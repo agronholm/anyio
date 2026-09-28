@@ -396,14 +396,15 @@ class TestBlockingPortal:
         finally:
             await to_thread.run_sync(portal_cm.__exit__, None, None, None)
 
-    async def test_call_async_context_variable(self) -> None:
+    @pytest.mark.parametrize("target_backend", get_available_backends())
+    async def test_call_async_context_variable(self, target_backend: str) -> None:
         var = ContextVar[str]("var")
 
         async def read_var() -> str:
             await checkpoint()
             return var.get()
 
-        portal_cm = start_blocking_portal()
+        portal_cm = start_blocking_portal(backend=target_backend)
         portal = await to_thread.run_sync(portal_cm.__enter__)
         try:
             var.set("value")
