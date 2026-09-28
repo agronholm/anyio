@@ -5,6 +5,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Fixed parametrized Hypothesis tests with the AnyIO pytest plugin always running on
+  the first backend rather than each parametrized backend (e.g. a ``[trio]`` test was
+  actually executed on asyncio). Each parametrized backend now wraps the Hypothesis
+  inner test against its own runner
+  (`#1353 <https://github.com/agronholm/anyio/issues/1353>`_; PR by @inchang-ing)
 - Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
   across backends (asyncio returned immediately; Trio raised ``ValueError``) by
   raising ``ValueError`` on all backends

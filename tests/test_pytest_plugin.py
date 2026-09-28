@@ -867,3 +867,38 @@ def test_plugin_loads_with_filterwarnings_error(testdir: Pytester) -> None:
 
     result = testdir.runpytest_subprocess(*pytest_args)
     result.assert_outcomes(passed=1)
+
+
+def test_hypothesis_runs_on_each_parametrized_backend(
+    testdir: Pytester,
+) -> None:
+    # Regression test for #1353: a Hypothesis-based async test that is
+    # parametrized over every available backend must actually be executed on each
+    # backend. Previously the first backend's runner was reused for every later
+    # backend, so all parametrized items ran on the first backend.
+    testdir.makepyfile(
+        """
+        import pytest
+        from hypothesis import given
+        from hypothesis.strategies import just
+
+        from anyio import get_all_backends
+        from anyio._core._eventloop import current_async_library
+
+        pytestmark = pytest.mark.anyio
+
+        seen_backends = set()
+
+
+        @given(x=just(1))
+        async def test_hypothesis_backends(x):
+            seen_backends.add(current_async_library())
+
+
+        def test_all_backends_seen():
+            assert seen_backends == set(get_all_backends())
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=len(get_available_backends()) + 1)

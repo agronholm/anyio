@@ -265,22 +265,38 @@ def pytest_collection_finish(session: pytest.Session) -> None:
             session.items[i : i + 1] = new_items
 
 
-@pytest.hookimpl(tryfirst=True)
-def pytest_pyfunc_call(pyfuncitem: Any) -> bool | None:
+def _wrap_hypothesis_test(
+    inner_test: Any, backend_name: str, backend_options: dict[str, Any]
+) -> Callable[..., None]:
     def run_with_hypothesis(**kwargs: Any) -> None:
         with get_runner(backend_name, backend_options) as runner:
-            runner.run_test(original_func, kwargs)
+            runner.run_test(inner_test, kwargs)
 
+    run_with_hypothesis._anyio_original_inner_test = inner_test
+    return run_with_hypothesis
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_pyfunc_call(pyfuncitem: Any) -> bool | None:
     backend = pyfuncitem.funcargs.get("anyio_backend")
     if backend:
         backend_name, backend_options = extract_backend_and_options(backend)
 
         if hasattr(pyfuncitem.obj, "hypothesis"):
-            # Wrap the inner test function unless it's already wrapped
-            original_func = pyfuncitem.obj.hypothesis.inner_test
-            if original_func.__qualname__ != run_with_hypothesis.__qualname__:
-                if iscoroutinefunction(original_func):
-                    pyfuncitem.obj.hypothesis.inner_test = run_with_hypothesis
+            # Each parametrized backend run must execute the hypothesis inner
+            # test inside a runner bound to *that* backend. The parametrized
+            # items share the same hypothesis handle, so once the first backend
+            # wraps ``inner_test`` the wrapper is reused for every later backend
+            # unless we unwrap back to the original coroutine and re-wrap it here.
+            inner_test = pyfuncitem.obj.hypothesis.inner_test
+            original = getattr(inner_test, "_anyio_original_inner_test", None)
+            if original is not None:
+                inner_test = original
+
+            if iscoroutinefunction(inner_test):
+                pyfuncitem.obj.hypothesis.inner_test = _wrap_hypothesis_test(
+                    inner_test, backend_name, backend_options
+                )
 
             return None
 
