@@ -5,7 +5,7 @@ import sys
 
 import pytest
 
-from anyio import create_memory_object_stream
+from anyio import EndOfStream, create_memory_object_stream
 from anyio.abc import ObjectStream, ObjectStreamConnectable
 from anyio.streams.stapled import StapledObjectStream
 from anyio.streams.text import (
@@ -28,6 +28,31 @@ async def test_receive() -> None:
 
     send_stream.close()
     receive_stream.close()
+
+
+@pytest.mark.parametrize("stream_class", [TextReceiveStream, TextStream])
+@pytest.mark.parametrize("errors", ["strict", "replace", "ignore"])
+async def test_incomplete_character_at_eof(
+    stream_class: type[TextReceiveStream | TextStream],
+    errors: str,
+) -> None:
+    send, receive = create_memory_object_stream[bytes](1)
+    async with send, receive:
+        await send.send(b"\xc3")
+        await send.aclose()
+        transport = StapledObjectStream(send, receive)
+        stream = stream_class(transport, errors=errors)
+        if errors == "strict":
+            with pytest.raises(UnicodeDecodeError):
+                await stream.receive()
+        elif errors == "replace":
+            assert await stream.receive() == "\ufffd"
+        else:
+            with pytest.raises(EndOfStream):
+                await stream.receive()
+
+        with pytest.raises(EndOfStream):
+            await stream.receive()
 
 
 async def test_send() -> None:

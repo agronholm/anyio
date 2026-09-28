@@ -45,6 +45,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``create_udp_socket()`` silently ignoring the ``local_port`` argument when
   ``local_host`` was omitted, making the socket bind to a random ephemeral port
   instead of the requested one
+- Fixed text receive streams silently discarding incomplete characters at end-of-file
+  instead of applying the configured decoding error handler
+  (`#1339 <https://github.com/agronholm/anyio/pull/1339>`_; PR by @Aurelucien)
 
 **4.15.1**
 

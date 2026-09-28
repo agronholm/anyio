@@ -13,6 +13,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import InitVar, dataclass, field
 from typing import Any
 
+from .._core._exceptions import EndOfStream
 from ..abc import (
     AnyByteReceiveStream,
     AnyByteSendStream,
@@ -52,6 +53,7 @@ class TextReceiveStream(ObjectReceiveStream[str]):
     encoding: InitVar[str] = "utf-8"
     errors: InitVar[str] = "strict"
     _decoder: codecs.IncrementalDecoder = field(init=False)
+    _eof: bool = field(init=False, default=False)
 
     def __post_init__(self, encoding: str, errors: str) -> None:
         decoder_class = codecs.getincrementaldecoder(encoding)
@@ -59,14 +61,26 @@ class TextReceiveStream(ObjectReceiveStream[str]):
 
     async def receive(self) -> str:
         while True:
-            chunk = await self.transport_stream.receive()
-            decoded = self._decoder.decode(chunk)
+            try:
+                chunk = await self.transport_stream.receive()
+            except EndOfStream:
+                if self._eof:
+                    raise
+
+                self._eof = True
+                decoded = self._decoder.decode(b"", final=True)
+                if not decoded:
+                    raise
+            else:
+                decoded = self._decoder.decode(chunk)
+
             if decoded:
                 return decoded
 
     async def aclose(self) -> None:
         await self.transport_stream.aclose()
         self._decoder.reset()
+        self._eof = False
 
     @property
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
