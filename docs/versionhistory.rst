@@ -43,6 +43,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``create_udp_socket()`` silently ignoring the ``local_port`` argument when
   ``local_host`` was omitted, making the socket bind to a random ephemeral port
   instead of the requested one
+- Fixed ``TaskGroup.start()`` on asyncio silently discarding an exception raised by the
+  child task while it was being cancelled before calling ``task_status.started()``,
+  instead of raising it from ``start()`` like on Trio
+  (`#1356 <https://github.com/agronholm/anyio/issues/1356>`_; PR by @hsusul)
 
 **4.15.1**
 
