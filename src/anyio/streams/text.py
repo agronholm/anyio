@@ -13,7 +13,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import InitVar, dataclass, field
 from typing import Any
 
-from .. import EndOfStream
+from .._core._exceptions import EndOfStream
 from ..abc import (
     AnyByteReceiveStream,
     AnyByteSendStream,
