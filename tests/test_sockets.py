@@ -1279,20 +1279,35 @@ class TestUNIXStream:
 
         assert response == b"halb"
 
+    @pytest.mark.skipif(
+        platform.system() != "Linux",
+        reason="SOCK_SEQPACKET only supported for linux targets.",
+    )
     async def test_send_receive_seqsocket(
         self, server_sock_seqsocket: socket.socket, socket_path_or_str: Path | str
     ) -> None:
+        """
+        Verifies the behavior of a SOCK_SEQPACKET socket, which is a connection-oriented socket that preserves message
+        boundaries.
+
+        Each send() call corresponds to a single receive() call on the other end, and vice versa. This test ensures that
+        messages sent from the client are received in order and as individual items by the server and vice versa.
+        """
         async with await connect_unix(
             socket_path_or_str, kind=socket.SOCK_SEQPACKET
         ) as stream:
             client, _ = server_sock_seqsocket.accept()
             with anyio.fail_after(1):
+                # send two messages to the server
                 await stream.send(b"po")
                 await stream.send(b"tato")
+                # assert the server received the messages in order and as individual items
                 assert client.recv(1024) == b"po"
                 assert client.recv(1024) == b"tato"
+                # send two messages to the client
                 client.sendall(b"foo")
                 client.sendall(b"bar")
+                # assert the client received the messages in order and as individual items
                 assert await stream.receive() == b"foo"
                 assert await stream.receive() == b"bar"
             client.close()
