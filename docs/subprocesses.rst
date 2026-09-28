@@ -111,8 +111,12 @@ Other considerations:
 * The worker process imports the parent's ``__main__`` module, so guarding for any
   import time side effects using ``if __name__ == '__main__':`` is required to avoid
   infinite recursion
-* ``sys.stdin`` and ``sys.stdout``, ``sys.stderr`` are redirected to ``/dev/null`` so
-  :func:`print` and :func:`input` won't work
+* ``sys.stdin``, ``sys.stdout`` and (by default) ``sys.stderr`` are redirected to
+  ``/dev/null`` so :func:`print` and :func:`input` won't work. Passing
+  ``inherit_stderr=True`` to :func:`.to_process.run_sync` leaves ``sys.stderr``
+  connected to the parent's standard error stream for opt-in logging. Inherited writes
+  can block on a slow sink, and AnyIO does not provide global ordering or atomicity
+  guarantees for output from multiple workers; worker ``stdout`` remains private.
 * Worker processes terminate after 5 minutes of inactivity, or when the event loop is
   finished
 

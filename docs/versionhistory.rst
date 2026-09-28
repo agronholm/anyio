@@ -5,6 +5,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added the opt-in ``inherit_stderr`` argument to ``to_process.run_sync()`` so worker
+  logging can reach the parent process's standard error stream while preserving the
+  default private worker streams and protocol
+  (`#516 <https://github.com/agronholm/anyio/issues/516>`_; PR by @dexhunter)
 - Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
   across backends (asyncio returned immediately; Trio raised ``ValueError``) by
   raising ``ValueError`` on all backends
