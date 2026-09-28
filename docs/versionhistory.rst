@@ -43,6 +43,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``create_udp_socket()`` silently ignoring the ``local_port`` argument when
   ``local_host`` was omitted, making the socket bind to a random ephemeral port
   instead of the requested one
+- Fixed ``TypedAttributeSet`` reporting the attributes inherited from a base class as
+  missing type annotations, which made subclassing any typed attribute set impossible
+  (``#XXXX <https://github.com/agronholm/anyio/pull/XXXX>`_; PR by @pasmud)
 
 **4.15.1**
 
