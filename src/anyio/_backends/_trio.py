@@ -1271,9 +1271,7 @@ class TrioBackend(AsyncBackend):
     async def connect_unix(
         cls,
         path: str | bytes,
-        kind: Literal[
-            SocketKind.SOCK_STREAM, SocketKind.SOCK_SEQPACKET
-        ] = SocketKind.SOCK_STREAM,
+        kind: Literal[SocketKind.SOCK_STREAM, SocketKind.SOCK_SEQPACKET],
     ) -> abc.UNIXSocketStream:
         trio_socket = trio.socket.socket(socket.AF_UNIX, kind)
         try:
