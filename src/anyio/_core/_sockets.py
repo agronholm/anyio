@@ -502,9 +502,9 @@ async def create_udp_socket(
         family = cast(AnyIPAddressFamily, gai_res[0][0])
         local_address = gai_res[0][-1]
     elif family is AddressFamily.AF_INET6:
-        local_address = ("::", 0)
+        local_address = ("::", local_port)
     else:
-        local_address = ("0.0.0.0", 0)
+        local_address = ("0.0.0.0", local_port)
 
     sock = await get_async_backend().create_udp_socket(
         family, local_address, None, reuse_port

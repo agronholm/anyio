@@ -40,6 +40,12 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed worker threads preventing interpreter shutdown when the asyncio event loop is managed
   manually (i.e. ``loop.run_until_complete()`` instead of ``asyncio.run()`` or ``anyio.run()``)
   (`#1344 <https://github.com/agronholm/anyio/issues/1344>`_)
+- Fixed ``FileReadStream`` and ``FileWriteStream`` leaving files open when cancelled
+  during context manager exit, including unflushed writes
+  (`#1318 <https://github.com/agronholm/anyio/pull/1318>`_; PR by @Kuang-xianxin)
+- Fixed ``create_udp_socket()`` silently ignoring the ``local_port`` argument when
+  ``local_host`` was omitted, making the socket bind to a random ephemeral port
+  instead of the requested one
 
 **4.15.1**
 
