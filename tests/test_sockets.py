@@ -1281,7 +1281,9 @@ class TestUNIXStream:
     async def test_send_receive_seqsocket(
         self, server_sock_seqsocket: socket.socket, socket_path_or_str: Path | str
     ) -> None:
-        async with await connect_unix(socket_path_or_str, kind=socket.SOCK_SEQPACKET) as stream:
+        async with await connect_unix(
+            socket_path_or_str, kind=socket.SOCK_SEQPACKET
+        ) as stream:
             client, _ = server_sock_seqsocket.accept()
             await stream.send(b"blah")
             request = client.recv(100)

@@ -282,7 +282,9 @@ async def connect_tcp(
     return connected_stream
 
 
-async def connect_unix(path: str | bytes | PathLike[Any], kind: socket.SocketKind=socket.SOCK_STREAM) -> UNIXSocketStream:
+async def connect_unix(
+    path: str | bytes | PathLike[Any], kind: socket.SocketKind = socket.SOCK_STREAM
+) -> UNIXSocketStream:
     """
     Connect to the given UNIX socket.
 

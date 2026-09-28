@@ -1268,7 +1268,9 @@ class TrioBackend(AsyncBackend):
         return SocketStream(trio_socket)
 
     @classmethod
-    async def connect_unix(cls, path: str | bytes, kind: SocketKind=SocketKind.SOCK_STREAM) -> abc.UNIXSocketStream:
+    async def connect_unix(
+        cls, path: str | bytes, kind: SocketKind = SocketKind.SOCK_STREAM
+    ) -> abc.UNIXSocketStream:
         trio_socket = trio.socket.socket(socket.AF_UNIX, kind)
         try:
             await trio_socket.connect(path)
