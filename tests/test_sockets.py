@@ -1274,32 +1274,30 @@ class TestUNIXStream:
         platform.system() != "Linux",
         reason="SOCK_SEQPACKET only supported for linux targets.",
     )
+    async def test_from_socket_not_connected(
+        self, sock_or_fd_factory: SockFdFactoryProtocol
+    ) -> None:
+        sock_or_fd = sock_or_fd_factory(socket.AF_UNIX, socket.SOCK_STREAM)
+        with pytest.raises(ValueError, match="the socket must be connected"):
+            await UNIXSocketStream.from_socket(sock_or_fd)
     async def test_send_receive_seqsocket(self, socket_path_or_str: Path | str) -> None:
         """
-        Verifies the behavior of a SOCK_SEQPACKET socket, which is a connection-oriented socket that preserves message
-        boundaries.
+        Verifies the behavior of a SOCK_SEQPACKET socket, which is a connection-oriented
+        socket that preserves message boundaries.
 
-        Each send() call corresponds to a single receive() call on the other end, and vice versa. This test ensures that
-        messages sent from the client are received in order and as individual items by the server and vice versa.
         """
-        # giant context manager block to ensure everything gets cleaned up properly without nested async with blocks
         async with (
-            # spawn the server
             await create_unix_listener(
                 socket_path_or_str, kind=socket.SOCK_SEQPACKET
             ) as server,
-            # then connect a client
             await connect_unix(
                 socket_path_or_str, kind=socket.SOCK_SEQPACKET
             ) as stream,
-            # and finally accept the client connection
             await server.accept() as client,
         ):
             with fail_after(1):
-                # send two messages to the server
                 await stream.send(b"po")
                 await stream.send(b"tato")
-                # assert the server received the messages in order and as individual items
                 assert await client.receive(1024) == b"po"
                 assert await client.receive(1024) == b"tato"
 
