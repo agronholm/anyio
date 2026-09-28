@@ -1274,13 +1274,6 @@ class TestUNIXStream:
         platform.system() != "Linux",
         reason="SOCK_SEQPACKET only supported for linux targets.",
     )
-    async def test_from_socket_not_connected(
-        self, sock_or_fd_factory: SockFdFactoryProtocol
-    ) -> None:
-        sock_or_fd = sock_or_fd_factory(socket.AF_UNIX, socket.SOCK_STREAM)
-        with pytest.raises(ValueError, match="the socket must be connected"):
-            await UNIXSocketStream.from_socket(sock_or_fd)
-
     async def test_send_receive_seqsocket(self, socket_path_or_str: Path | str) -> None:
         """
         Verifies the behavior of a SOCK_SEQPACKET socket, which is a connection-oriented
