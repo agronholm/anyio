@@ -436,6 +436,7 @@ def test_hypothesis_multiple_backends(testdir: Pytester) -> None:
         import pytest
         from hypothesis import given
         from hypothesis.strategies import just
+
         from anyio._core._eventloop import current_async_library
 
 
