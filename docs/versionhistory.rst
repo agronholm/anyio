@@ -49,6 +49,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``Lock.locked()`` (and ``Condition.locked()``) raising ``NoEventLoopError``
   when the lock was created outside a running event loop
   (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
+- Fixed ``create_connected_udp_socket()`` silently ignoring ``local_port`` when
+  ``local_host`` was not given: ``local_address`` stayed ``None``, so the OS
+  picked an ephemeral port instead of the requested one
+  (`#1365 <https://github.com/agronholm/anyio/pull/1365>`_; PR by @feiiiiii5)
 
 **4.15.1**
 
