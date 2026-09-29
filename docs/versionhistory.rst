@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added SOCK_SEQPACKET support to ``connect_unix()`` and ``create_unix_listener()``
+  (`#1349 <https://github.com/agronholm/anyio/issues/1349>`_; PR by @theunkn0wn1)
 - Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
   across backends (asyncio returned immediately; Trio raised ``ValueError``) by
   raising ``ValueError`` on all backends
@@ -15,7 +17,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   local host name was given
 - Fixed ``AsyncFile`` not shielding against cancellation while closing
   (`#1314 <https://github.com/agronholm/anyio/pull/1314>`_)
-- Fixed ``Condition.notify()`` and ``Condition.notify_all()`` failing when the underlying lock was acquired directly rather than through the condition
+- Fixed ``Condition.notify()`` and ``Condition.notify_all()`` failing when the
+  underlying lock was acquired directly rather than through the condition
   (`#1319 <https://github.com/agronholm/anyio/issues/1319>`_; PR by @GruffElixir)
 - Fixed importing AnyIO with loaders that do not provide ``__file__``, such as
   PyOxidizer, raising ``TypeError`` instead of falling back to eager imports
@@ -32,6 +35,20 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``lru_cache().cache_clear()`` raising ``NoEventLoopError`` when called
   outside a running event loop
   (`#1347 <https://github.com/agronholm/anyio/pull/1347>`_; PR by @feiiiiii5)
+- Fixed ``CancelScope`` on the asyncio backend swallowing a native ``Task.cancel()``
+  that was delivered in the same event loop iteration as the scope's own cancellation
+  (such as a ``move_on_after()`` deadline expiring), which left the host task with a
+  pending cancellation request that never raised ``CancelledError``
+  (`#1214 <https://github.com/agronholm/anyio/issues/1214>`_)
+- Fixed ``Semaphore(fast_acquire=True)`` losing its fast-acquire behavior when
+  instantiated outside a running event loop
+  (`#1348 <https://github.com/agronholm/anyio/pull/1348>`_; PR by @feiiiiii5)
+- Fixed ``FileReadStream`` and ``FileWriteStream`` leaving files open when cancelled
+  during context manager exit, including unflushed writes
+  (`#1318 <https://github.com/agronholm/anyio/pull/1318>`_; PR by @Kuang-xianxin)
+- Fixed ``create_udp_socket()`` silently ignoring the ``local_port`` argument when
+  ``local_host`` was omitted, making the socket bind to a random ephemeral port
+  instead of the requested one
 
 **4.15.1**
 
