@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added SOCK_SEQPACKET support to ``connect_unix()`` and ``create_unix_listener()``
+  (`#1349 <https://github.com/agronholm/anyio/issues/1349>`_; PR by @theunkn0wn1)
 - Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
   across backends (asyncio returned immediately; Trio raised ``ValueError``) by
   raising ``ValueError`` on all backends
@@ -15,7 +17,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   local host name was given
 - Fixed ``AsyncFile`` not shielding against cancellation while closing
   (`#1314 <https://github.com/agronholm/anyio/pull/1314>`_)
-- Fixed ``Condition.notify()`` and ``Condition.notify_all()`` failing when the underlying lock was acquired directly rather than through the condition
+- Fixed ``Condition.notify()`` and ``Condition.notify_all()`` failing when the
+  underlying lock was acquired directly rather than through the condition
   (`#1319 <https://github.com/agronholm/anyio/issues/1319>`_; PR by @GruffElixir)
 - Fixed importing AnyIO with loaders that do not provide ``__file__``, such as
   PyOxidizer, raising ``TypeError`` instead of falling back to eager imports
@@ -43,6 +46,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``create_udp_socket()`` silently ignoring the ``local_port`` argument when
   ``local_host`` was omitted, making the socket bind to a random ephemeral port
   instead of the requested one
+- Fixed ``Lock.locked()`` (and ``Condition.locked()``) raising ``NoEventLoopError``
+  when the lock was created outside a running event loop
+  (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
 - Fixed pytest plugin running Hypothesis async tests only on the first parametrized
   backend instead of each backend
   (`#1353 <https://github.com/agronholm/anyio/issues/1353>`_; PR by @DYNOSuprovo)
