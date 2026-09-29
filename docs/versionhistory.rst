@@ -7,6 +7,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Added ``BlockingPortal.call_async()`` for asynchronously calling into an event loop
   running in another thread
+- Added SOCK_SEQPACKET support to ``connect_unix()`` and ``create_unix_listener()``
+  (`#1349 <https://github.com/agronholm/anyio/issues/1349>`_; PR by @theunkn0wn1)
 - Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
   across backends (asyncio returned immediately; Trio raised ``ValueError``) by
   raising ``ValueError`` on all backends
@@ -17,7 +19,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   local host name was given
 - Fixed ``AsyncFile`` not shielding against cancellation while closing
   (`#1314 <https://github.com/agronholm/anyio/pull/1314>`_)
-- Fixed ``Condition.notify()`` and ``Condition.notify_all()`` failing when the underlying lock was acquired directly rather than through the condition
+- Fixed ``Condition.notify()`` and ``Condition.notify_all()`` failing when the
+  underlying lock was acquired directly rather than through the condition
   (`#1319 <https://github.com/agronholm/anyio/issues/1319>`_; PR by @GruffElixir)
 - Fixed importing AnyIO with loaders that do not provide ``__file__``, such as
   PyOxidizer, raising ``TypeError`` instead of falling back to eager imports
