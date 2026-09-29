@@ -46,6 +46,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``create_udp_socket()`` silently ignoring the ``local_port`` argument when
   ``local_host`` was omitted, making the socket bind to a random ephemeral port
   instead of the requested one
+- Fixed ``Lock.locked()`` (and ``Condition.locked()``) raising ``NoEventLoopError``
+  when the lock was created outside a running event loop
+  (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
 
 **4.15.1**
 
