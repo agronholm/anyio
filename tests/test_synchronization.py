@@ -582,6 +582,28 @@ class TestSemaphore:
             async with semaphore:
                 assert not other_task_called
 
+    def test_fast_acquire_outside_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        semaphore = Semaphore(1, fast_acquire=True)
+        other_task_called = False
+
+        async def other_task() -> None:
+            nonlocal other_task_called
+            other_task_called = True
+
+        async def use_semaphore() -> None:
+            async with create_task_group() as tg:
+                tg.start_soon(other_task)
+                async with semaphore:
+                    assert not other_task_called
+
+        run(
+            use_semaphore,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
+        )
+
     async def test_acquire_nowait(self) -> None:
         semaphore = Semaphore(1)
         semaphore.acquire_nowait()

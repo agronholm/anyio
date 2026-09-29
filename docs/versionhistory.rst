@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added SOCK_SEQPACKET support to ``connect_unix()`` and ``create_unix_listener()``
+  (`#1349 <https://github.com/agronholm/anyio/issues/1349>`_; PR by @theunkn0wn1)
 - Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
   across backends (asyncio returned immediately; Trio raised ``ValueError``) by
   raising ``ValueError`` on all backends
@@ -29,6 +31,20 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   from within ``from_thread.run_sync()``), where ``asyncio.current_task()`` is
   legitimately ``None``
   (`#773 <https://github.com/agronholm/anyio/issues/773>`_; PR by @AmirF194)
+- Fixed ``CancelScope`` on the asyncio backend swallowing a native ``Task.cancel()``
+  that was delivered in the same event loop iteration as the scope's own cancellation
+  (such as a ``move_on_after()`` deadline expiring), which left the host task with a
+  pending cancellation request that never raised ``CancelledError``
+  (`#1214 <https://github.com/agronholm/anyio/issues/1214>`_)
+- Fixed ``Semaphore(fast_acquire=True)`` losing its fast-acquire behavior when
+  instantiated outside a running event loop
+  (`#1348 <https://github.com/agronholm/anyio/pull/1348>`_; PR by @feiiiiii5)
+- Fixed ``FileReadStream`` and ``FileWriteStream`` leaving files open when cancelled
+  during context manager exit, including unflushed writes
+  (`#1318 <https://github.com/agronholm/anyio/pull/1318>`_; PR by @Kuang-xianxin)
+- Fixed ``create_udp_socket()`` silently ignoring the ``local_port`` argument when
+  ``local_host`` was omitted, making the socket bind to a random ephemeral port
+  instead of the requested one
 - Fixed ``TemporaryDirectory.cleanup()`` not cleaning up when the host task was
   already cancelled, as the cleanup now runs in a shielded cancel scope like
   ``__aexit__`` does, and the pending cancellation is now delivered to the caller

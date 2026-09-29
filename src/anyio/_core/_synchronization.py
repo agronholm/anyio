@@ -496,7 +496,9 @@ class SemaphoreAdapter(Semaphore):
     def _semaphore(self) -> Semaphore:
         if self._internal_semaphore is None:
             self._internal_semaphore = get_async_backend().create_semaphore(
-                self._initial_value, max_value=self._max_value
+                self._initial_value,
+                max_value=self._max_value,
+                fast_acquire=self._fast_acquire,
             )
 
         return self._internal_semaphore
