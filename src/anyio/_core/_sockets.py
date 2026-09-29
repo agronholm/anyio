@@ -282,19 +282,25 @@ async def connect_tcp(
     return connected_stream
 
 
-async def connect_unix(path: str | bytes | PathLike[Any]) -> UNIXSocketStream:
+async def connect_unix(
+    path: str | bytes | PathLike[Any],
+    kind: Literal[
+        SocketKind.SOCK_STREAM, SocketKind.SOCK_SEQPACKET
+    ] = socket.SOCK_STREAM,
+) -> UNIXSocketStream:
     """
     Connect to the given UNIX socket.
 
     Not available on Windows.
 
     :param path: path to the socket
+    :param kind: socket type (``SOCK_STREAM`` or ``SOCK_SEQPACKET``)
     :return: a socket stream object
     :raises ConnectionFailed: if the connection fails
 
     """
     path = os.fspath(path)
-    return await get_async_backend().connect_unix(path)
+    return await get_async_backend().connect_unix(path, kind)
 
 
 async def create_tcp_listener(
@@ -439,6 +445,9 @@ async def create_unix_listener(
     *,
     mode: int | None = None,
     backlog: int = 65536,
+    kind: Literal[
+        SocketKind.SOCK_STREAM, SocketKind.SOCK_SEQPACKET
+    ] = SocketKind.SOCK_STREAM,
 ) -> SocketListener:
     """
     Create a UNIX socket listener.
@@ -449,6 +458,7 @@ async def create_unix_listener(
     :param mode: permissions to set on the socket
     :param backlog: maximum number of queued incoming connections (up to a maximum of
         2**16, or 65536)
+    :param kind: socket type (``SOCK_STREAM`` or ``SOCK_SEQPACKET``)
     :return: a listener object
 
     .. versionchanged:: 3.0
@@ -457,7 +467,7 @@ async def create_unix_listener(
 
     """
     backlog = min(backlog, 65536)
-    raw_socket = await setup_unix_local_socket(path, mode, socket.SOCK_STREAM)
+    raw_socket = await setup_unix_local_socket(path, mode, kind)
     try:
         raw_socket.listen(backlog)
         return get_async_backend().create_unix_listener(raw_socket)
