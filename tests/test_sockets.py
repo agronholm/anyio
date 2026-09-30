@@ -37,6 +37,7 @@ from pytest_mock.plugin import MockerFixture
 from anyio import (
     BrokenResourceError,
     BusyResourceError,
+    CancelScope,
     ClosedResourceError,
     EndOfStream,
     Event,
@@ -446,6 +447,55 @@ class TestTCPStream:
         thread.join()
         server_sock.close()
         assert client_addr[0] == expected_client_addr
+
+    async def test_connect_tcp_closes_winner_on_outer_cancellation(
+        self, monkeypatch: MonkeyPatch
+    ) -> None:
+        """A connected stream must not be lost when the caller is cancelled."""
+        backend = get_async_backend()
+        original_connect_tcp = backend.connect_tcp
+        connected_stream: SocketStream | None = None
+        peer_closed = Event()
+
+        async def handle(stream: SocketStream) -> None:
+            async with stream:
+                with pytest.raises(EndOfStream):
+                    await stream.receive()
+                peer_closed.set()
+
+        async with await create_tcp_listener(local_host="127.0.0.1") as listener:
+            async with create_task_group() as tg:
+                tg.start_soon(listener.serve, handle)
+                with CancelScope() as scope:
+
+                    async def connect_and_cancel(
+                        host: str,
+                        port: int,
+                        local_address: IPSockAddrType | None = None,
+                    ) -> SocketStream:
+                        nonlocal connected_stream
+                        connected_stream = await original_connect_tcp(
+                            host, port, local_address
+                        )
+                        scope.cancel()
+                        return connected_stream
+
+                    monkeypatch.setattr(backend, "connect_tcp", connect_and_cancel)
+                    await connect_tcp(
+                        "127.0.0.1", listener.extra(SocketAttribute.local_port)
+                    )
+                    pytest.fail("connect_tcp() returned despite outer cancellation")
+
+                assert scope.cancelled_caught
+                assert connected_stream is not None
+                try:
+                    with pytest.raises(ClosedResourceError):
+                        await connected_stream.send(b"unexpected")
+                    with fail_after(1):
+                        await peer_closed.wait()
+                finally:
+                    await connected_stream.aclose()
+                    tg.cancel_scope.cancel()
 
     async def test_connect_tcp_with_local_port(
         self,

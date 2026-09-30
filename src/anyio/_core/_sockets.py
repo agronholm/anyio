@@ -263,6 +263,10 @@ async def connect_tcp(
                 else ExceptionGroup("multiple connection attempts failed", oserrors)
             )
             raise OSError("All connection attempts failed") from cause
+    except BaseException:
+        if connected_stream is not None:
+            await aclose_forcefully(connected_stream)
+        raise
     finally:
         oserrors.clear()
 

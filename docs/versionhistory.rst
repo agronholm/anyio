@@ -49,6 +49,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``Lock.locked()`` (and ``Condition.locked()``) raising ``NoEventLoopError``
   when the lock was created outside a running event loop
   (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
+- Fixed ``connect_tcp()`` leaking a connected socket when an enclosing cancel scope
+  was cancelled before the connection attempt task group exited
+  (`#1364 <https://github.com/agronholm/anyio/issues/1364>`_; PR by @charan-rathore)
 
 **4.15.1**
 
