@@ -71,6 +71,26 @@ async def test_run_process_checked() -> None:
     assert exc.value.stderr.rstrip() == b"stderr-text"
 
 
+async def test_run_process_input_not_fully_read() -> None:
+    """
+    Test that a process exiting without reading all of its input does not cause an
+    error, just like with :func:`subprocess.run`.
+
+    """
+    with pytest.raises(CalledProcessError) as exc:
+        await run_process(
+            [
+                sys.executable,
+                "-c",
+                'import os, sys; os.close(0); print("stdout-text"); sys.exit(3)',
+            ],
+            input=b"x" * 1_000_000,
+        )
+
+    assert exc.value.returncode == 3
+    assert exc.value.stdout.rstrip() == b"stdout-text"
+
+
 @pytest.mark.skipif(
     platform.system() == "Windows",
     reason="process.terminate() kills the process instantly on Windows",
