@@ -1,0 +1,3 @@
+Fixed ``BlockingPortalProvider`` not passing the exception raised in its ``with``
+body on to the ``start_blocking_portal()`` context manager it wraps, so the tasks
+still running in the portal were drained to completion instead of being cancelled
