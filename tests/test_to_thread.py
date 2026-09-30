@@ -22,6 +22,7 @@ from anyio import (
     create_task_group,
     from_thread,
     get_cancelled_exc_class,
+    sleep,
     to_thread,
     wait_all_tasks_blocked,
 )
@@ -441,6 +442,7 @@ class TestBlockingPortalProvider:
         :func:`~anyio.from_thread.start_blocking_portal` directly.
         """
         started = threading.Event()
+        release = threading.Event()
         cancelled = False
         completed = False
 
@@ -448,13 +450,21 @@ class TestBlockingPortalProvider:
             nonlocal cancelled, completed
             started.set()
             try:
-                for _ in range(1000):
+                # Wait to be released rather than counting checkpoints: a fixed
+                # count can run out before the main thread gets scheduled to
+                # raise, which would make this pass on a draining portal.
+                while not release.is_set():
                     await checkpoint()
             except get_cancelled_exc_class():
                 cancelled = True
                 raise
 
             completed = True
+
+        async def release_later() -> None:
+            # Bound the draining case so the test fails instead of hanging.
+            await sleep(1)
+            release.set()
 
         def run() -> None:
             nonlocal cancelled, completed
@@ -469,6 +479,7 @@ class TestBlockingPortalProvider:
             with pytest.raises(RuntimeError, match="boom"):
                 with portal_context as portal:
                     portal.start_task_soon(spin)
+                    portal.start_task_soon(release_later)
                     # Wait for the task to actually start: if the portal is told to
                     # cancel before the task's first step, the task never runs and so
                     # never observes the cancellation.
