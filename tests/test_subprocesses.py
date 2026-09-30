@@ -71,12 +71,20 @@ async def test_run_process_checked() -> None:
     assert exc.value.stderr.rstrip() == b"stderr-text"
 
 
-async def test_run_process_input_not_fully_read() -> None:
+async def test_run_process_input_not_fully_read(
+    event_loop_implementation_name: str | None,
+) -> None:
     """
     Test that a process exiting without reading all of its input does not cause an
     error, just like with :func:`subprocess.run`.
 
     """
+    if event_loop_implementation_name == "winloop":
+        pytest.skip(
+            reason="winloop raises a plain OSError instead of BrokenPipeError when "
+            "writing to a closed pipe"
+        )
+
     with pytest.raises(CalledProcessError) as exc:
         await run_process(
             [
