@@ -53,7 +53,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   task to compute the same entry if the entry was evicted before the waiting task got
   to read it, and fixed failed calls to the wrapped function being counted in
   ``currsize``, which permanently reduced the number of values the cache could hold
-  (`#PR <https://github.com/agronholm/anyio/pull/PR>`_; PR by @breken-ai)
+  (`#1368 <https://github.com/agronholm/anyio/pull/1368>`_; PR by @breken-ai)
 
 **4.15.1**
 
