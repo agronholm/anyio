@@ -53,7 +53,7 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   group) instead of returning the completed process (or raising
   ``CalledProcessError``) when the process exited or closed its standard input before
   reading all of the ``input``, unlike ``subprocess.run()``
-  (`#PR <https://github.com/agronholm/anyio/pull/PR>`_; PR by @breken-ai)
+  (`#1369 <https://github.com/agronholm/anyio/pull/1369>`_; PR by @breken-ai)
 
 **4.15.1**
 
