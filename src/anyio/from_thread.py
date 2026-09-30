@@ -499,7 +499,7 @@ class BlockingPortalProvider:
                 del self._portal
 
         if portal_cm:
-            portal_cm.__exit__(None, None, None)
+            portal_cm.__exit__(exc_type, exc_val, exc_tb)
 
 
 @contextmanager
