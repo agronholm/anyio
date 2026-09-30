@@ -49,6 +49,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``Lock.locked()`` (and ``Condition.locked()``) raising ``NoEventLoopError``
   when the lock was created outside a running event loop
   (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
+- Fixed documentation implying that ``use_uvloop=True`` falls back to the standard
+  event loop when uvloop (winloop on Windows) is not installed, and showed how to
+  skip the corresponding pytest backend variant when the dependency is missing
+  (`#645 <https://github.com/agronholm/anyio/issues/645>`_; PR by @GruffElixir)
 
 **4.15.1**
 
