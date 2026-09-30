@@ -440,11 +440,13 @@ class TestBlockingPortalProvider:
         ``BlockingPortalProvider`` must behave the same as using
         :func:`~anyio.from_thread.start_blocking_portal` directly.
         """
+        started = threading.Event()
         cancelled = False
         completed = False
 
         async def spin() -> None:
             nonlocal cancelled, completed
+            started.set()
             try:
                 for _ in range(1000):
                     await checkpoint()
@@ -467,6 +469,10 @@ class TestBlockingPortalProvider:
             with pytest.raises(RuntimeError, match="boom"):
                 with portal_context as portal:
                     portal.start_task_soon(spin)
+                    # Wait for the task to actually start: if the portal is told to
+                    # cancel before the task's first step, the task never runs and so
+                    # never observes the cancellation.
+                    assert started.wait(5), "the portal task never started"
                     raise RuntimeError("boom")
 
             assert cancelled, "the portal task should have been cancelled"
