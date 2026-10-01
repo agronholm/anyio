@@ -882,6 +882,13 @@ class CapacityLimiter(BaseCapacityLimiter):
 
     @total_tokens.setter
     def total_tokens(self, value: float) -> None:
+        # Mirror asyncio/adapter validation; bool is a subclass of int
+        if isinstance(value, bool) or (
+            not isinstance(value, int) and not math.isinf(value)
+        ):
+            raise TypeError("total_tokens must be an int or math.inf")
+        if value < 0:
+            raise ValueError("total_tokens must be >= 0")
         self.__original.total_tokens = value
 
     @property

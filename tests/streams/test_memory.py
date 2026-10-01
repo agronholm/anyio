@@ -38,6 +38,16 @@ def test_invalid_max_buffer() -> None:
     )
 
 
+def test_bool_rejected_as_max_buffer() -> None:
+    # bool is a subclass of int; reject so True does not become buffer size 1
+    pytest.raises(ValueError, create_memory_object_stream, True).match(
+        "max_buffer_size must be either an integer or math.inf"
+    )
+    pytest.raises(ValueError, create_memory_object_stream, False).match(
+        "max_buffer_size must be either an integer or math.inf"
+    )
+
+
 def test_negative_max_buffer() -> None:
     pytest.raises(ValueError, create_memory_object_stream, -1).match(
         "max_buffer_size cannot be negative"
