@@ -49,6 +49,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``Lock.locked()`` (and ``Condition.locked()``) raising ``NoEventLoopError``
   when the lock was created outside a running event loop
   (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
+- Fixed ``BlockingPortalProvider`` not passing the exception raised in its ``with``
+  body on to the ``start_blocking_portal()`` context manager it wraps, so the tasks
+  still running in the portal were drained to completion instead of being cancelled
+  (`#1366 <https://github.com/agronholm/anyio/pull/1366>`_; PR by @feiiiiii5)
 
 **4.15.1**
 

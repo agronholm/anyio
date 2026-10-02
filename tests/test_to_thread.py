@@ -7,6 +7,7 @@ import threading
 import time
 import weakref
 from concurrent.futures import Future, ThreadPoolExecutor
+from contextlib import AbstractContextManager
 from contextvars import ContextVar
 from functools import partial
 from typing import Any, NoReturn
@@ -20,11 +21,13 @@ from anyio import (
     Event,
     create_task_group,
     from_thread,
+    get_cancelled_exc_class,
+    sleep,
     to_thread,
     wait_all_tasks_blocked,
 )
 from anyio._core._eventloop import current_async_library
-from anyio.from_thread import BlockingPortalProvider
+from anyio.from_thread import BlockingPortalProvider, start_blocking_portal
 from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params, no_other_refs
@@ -425,6 +428,68 @@ class TestBlockingPortalProvider:
                 portal.call(event.set)
 
         assert len(threads) == 1
+
+    @pytest.mark.parametrize("use_provider", [True, False])
+    def test_body_error_cancels_portal_tasks(
+        self, provider: BlockingPortalProvider, use_provider: bool
+    ) -> None:
+        """
+        Check that an error raised in the ``with`` body is passed on to the wrapped
+        ``start_blocking_portal()`` context manager, which uses it to decide whether
+        the tasks still running in the portal should be cancelled.
+
+        ``BlockingPortalProvider`` must behave the same as using
+        :func:`~anyio.from_thread.start_blocking_portal` directly.
+        """
+        started = threading.Event()
+        release = threading.Event()
+        cancelled = False
+        completed = False
+
+        async def spin() -> None:
+            nonlocal cancelled, completed
+            started.set()
+            try:
+                # Wait to be released rather than counting checkpoints: a fixed
+                # count can run out before the main thread gets scheduled to
+                # raise, which would make this pass on a draining portal.
+                while not release.is_set():
+                    await checkpoint()
+            except get_cancelled_exc_class():
+                cancelled = True
+                raise
+
+            completed = True
+
+        async def release_later() -> None:
+            # Bound the draining case so the test fails instead of hanging.
+            await sleep(1)
+            release.set()
+
+        def run() -> None:
+            nonlocal cancelled, completed
+            cancelled = completed = False
+            if use_provider:
+                portal_context: AbstractContextManager[Any] = provider
+            else:
+                portal_context = start_blocking_portal(
+                    provider.backend, provider.backend_options
+                )
+
+            with pytest.raises(RuntimeError, match="boom"):
+                with portal_context as portal:
+                    portal.start_task_soon(spin)
+                    portal.start_task_soon(release_later)
+                    # Wait for the task to actually start: if the portal is told to
+                    # cancel before the task's first step, the task never runs and so
+                    # never observes the cancellation.
+                    assert started.wait(5), "the portal task never started"
+                    raise RuntimeError("boom")
+
+            assert cancelled, "the portal task should have been cancelled"
+            assert not completed, "the portal task should not have run to completion"
+
+        run()
 
 
 skipif_pypy_mark = pytest.mark.skipif(
