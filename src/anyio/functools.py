@@ -194,24 +194,38 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
                 return cast(T, cached_value)
 
         async with lock:
-            # Check if another task filled the cache while we acquired the lock
-            if (cached_value := cache_entry[key][0]) is initial_missing:
-                self._misses += 1
-                if self._maxsize is not None and self._currsize >= self._maxsize:
-                    cache_entry.popitem(last=False)
-                else:
-                    self._currsize += 1
-
-                value = await self.__wrapped__(*args, **kwargs)
-                expires_at = (
-                    current_time() + self._ttl if self._ttl is not None else None
-                )
-                cache_entry[key] = value, None, expires_at
-            else:
+            # Check if another task filled the cache while we acquired the lock (the
+            # entry may also have been evicted or removed in the meantime)
+            entry = cache_entry.get(key)
+            if entry is not None and entry[1] is None:
                 # Another task filled the cache while we were waiting for the lock
                 self._hits += 1
                 cache_entry.move_to_end(key)
-                value = cast(T, cached_value)
+                return cast(T, entry[0])
+
+            self._misses += 1
+            try:
+                value = await self.__wrapped__(*args, **kwargs)
+            except BaseException:
+                # Don't leave behind a placeholder for a call that failed
+                if (entry := cache_entry.get(key)) is not None and entry[1] is lock:
+                    del cache_entry[key]
+
+                raise
+
+            # Remove our own placeholder so that it is not the one to be evicted
+            cache_entry.pop(key, None)
+            if self._maxsize is not None and self._currsize >= self._maxsize:
+                # Evict the least recently used entry that holds an actual value
+                for old_key, (_, old_lock, _) in cache_entry.items():
+                    if old_lock is None:
+                        del cache_entry[old_key]
+                        break
+            else:
+                self._currsize += 1
+
+            expires_at = current_time() + self._ttl if self._ttl is not None else None
+            cache_entry[key] = value, None, expires_at
 
         return value
 

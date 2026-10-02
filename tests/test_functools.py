@@ -219,6 +219,62 @@ class TestAsyncLRUCache:
         assert statistics.hits == 1
         assert statistics.misses == 1
 
+    async def test_concurrent_access_entry_evicted(self) -> None:
+        """
+        Test that a task waiting for the lock of an entry does not crash if that entry
+        was evicted before the task could read it.
+
+        """
+
+        @lru_cache(maxsize=1)
+        async def func(x: int) -> int:
+            if x == 1:
+                await event.wait()
+
+            return x
+
+        async def evict() -> None:
+            await event.wait()
+            assert await func(2) == 2
+
+        event = Event()
+        results: list[int] = []
+
+        async def waiter() -> None:
+            results.append(await func(1))
+
+        async with create_task_group() as tg:
+            tg.start_soon(func, 1)
+            await wait_all_tasks_blocked()
+            tg.start_soon(waiter)
+            tg.start_soon(evict)
+            await wait_all_tasks_blocked()
+            event.set()
+
+        assert results == [1]
+        assert func.cache_info().currsize == 1
+
+    async def test_exception_not_counted(self) -> None:
+        @lru_cache(maxsize=2)
+        async def func(x: int, fail: bool = False) -> int:
+            await checkpoint()
+            if fail:
+                raise RuntimeError("failed")
+
+            return x
+
+        for _ in range(2):
+            with pytest.raises(RuntimeError, match="failed"):
+                await func(0, fail=True)
+
+        assert func.cache_info() == AsyncCacheInfo(0, 2, 2, 0, None)
+
+        # Both of these values should now fit in the cache
+        assert await func(1) == 1
+        assert await func(2) == 2
+        assert await func(1) == 1
+        assert func.cache_info() == AsyncCacheInfo(1, 4, 2, 2, None)
+
     async def test_args_kwargs_cache_key(self) -> None:
         counter = 0
 

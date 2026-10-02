@@ -49,6 +49,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``Lock.locked()`` (and ``Condition.locked()``) raising ``NoEventLoopError``
   when the lock was created outside a running event loop
   (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
+- Fixed ``lru_cache()`` raising ``KeyError`` in a task that was waiting for another
+  task to compute the same entry if the entry was evicted before the waiting task got
+  to read it, and fixed failed calls to the wrapped function being counted in
+  ``currsize``, which permanently reduced the number of values the cache could hold
+  (`#1368 <https://github.com/agronholm/anyio/pull/1368>`_; PR by @breken-ai)
 
 **4.15.1**
 
