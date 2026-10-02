@@ -49,6 +49,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``Lock.locked()`` (and ``Condition.locked()``) raising ``NoEventLoopError``
   when the lock was created outside a running event loop
   (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
+- Fixed ``TLSStream.wrap()`` failing with
+  ``ValueError: server_hostname can only be specified in client mode`` on Python
+  3.12.15+ when ``server_side=True`` and a ``hostname`` were both passed
+  (`#1374 <https://github.com/agronholm/anyio/pull/1374>`_; PR by @philiptaron)
 
 **4.15.1**
 

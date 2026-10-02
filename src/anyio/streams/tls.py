@@ -143,7 +143,9 @@ class TLSStream(ByteStream):
 
         # Resolve international host names using IDNA 2008.
         # Otherwise wrap_bio() would resolve them with IDNA 2003.
-        if hostname is not None:
+        # The server side never sends a host name, and newer Python versions refuse
+        # one there (https://github.com/python/cpython/issues/156793).
+        if hostname is not None and not server_side:
             from .._core._sockets import idna2008_resolve
 
             server_hostname: bytes | None = idna2008_resolve(hostname)
