@@ -8,6 +8,7 @@ from typing import IO, Any, TypeAlias, cast
 
 from ..abc import Process  # noqa: TC001
 from ._eventloop import get_async_backend
+from ._exceptions import BrokenResourceError
 from ._tasks import create_task_group
 
 StrOrBytesPath: TypeAlias = str | bytes | PathLike[str] | PathLike[bytes]
@@ -107,7 +108,13 @@ async def run_process(
                 tg.start_soon(drain_stream, process.stderr, 1)
 
             if process.stdin and input:
-                await process.stdin.send(input)
+                try:
+                    await process.stdin.send(input)
+                except BrokenResourceError:
+                    # The process exited or closed its standard input before reading
+                    # all of the input; like subprocess.run(), ignore this
+                    pass
+
                 await process.stdin.aclose()
 
             await process.wait()

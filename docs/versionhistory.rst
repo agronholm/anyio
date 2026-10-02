@@ -49,6 +49,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``Lock.locked()`` (and ``Condition.locked()``) raising ``NoEventLoopError``
   when the lock was created outside a running event loop
   (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
+- Fixed ``run_process()`` raising ``BrokenResourceError`` (wrapped in an exception
+  group) instead of returning the completed process (or raising
+  ``CalledProcessError``) when the process exited or closed its standard input before
+  reading all of the ``input``, unlike ``subprocess.run()``
+  (`#1369 <https://github.com/agronholm/anyio/pull/1369>`_; PR by @breken-ai)
 
 **4.15.1**
 
