@@ -15,6 +15,7 @@ from anyio import (
     SpooledTemporaryFile,
     TemporaryDirectory,
     TemporaryFile,
+    get_cancelled_exc_class,
     gettempdir,
     gettempdirb,
     mkdtemp,
@@ -174,6 +175,24 @@ class TestTemporaryDirectory:
                 td_path = pathlib.Path(td)
                 assert td_path.exists() and td_path.is_dir()
                 outer_scope.cancel()
+
+        assert not td_path.exists()
+
+    async def test_cleanup_method_with_cancellation(self) -> None:
+        """
+        Test that the ``cleanup()`` method removes the directory even if the host
+        task is already cancelled when it is called, and that the pending
+        cancellation is still delivered to the caller afterwards.
+        """
+        td = TemporaryDirectory()
+        td_str = await td.__aenter__()
+        td_path = pathlib.Path(td_str)
+        assert td_path.exists() and td_path.is_dir()
+
+        with CancelScope() as outer_scope:
+            outer_scope.cancel()
+            with pytest.raises(get_cancelled_exc_class()):
+                await td.cleanup()
 
         assert not td_path.exists()
 

@@ -513,7 +513,10 @@ class TemporaryDirectory(Generic[AnyStr]):
 
     async def cleanup(self) -> None:
         if self._tempdir is not None:
-            await to_thread.run_sync(self._tempdir.cleanup)
+            with CancelScope(shield=True):
+                await to_thread.run_sync(self._tempdir.cleanup)
+
+            await checkpoint_if_cancelled()
 
 
 @overload

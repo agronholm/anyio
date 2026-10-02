@@ -49,6 +49,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``Lock.locked()`` (and ``Condition.locked()``) raising ``NoEventLoopError``
   when the lock was created outside a running event loop
   (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
+- Fixed ``TemporaryDirectory.cleanup()`` reacting to cancellation prematurely when the host
+  task was already cancelled, causing the actual cleanup operation to be skipped
+  (`#1316 <https://github.com/agronholm/anyio/pull/1316>`_; PR by @Yasser-Ameur)
 
 **4.15.1**
 
