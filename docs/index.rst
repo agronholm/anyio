@@ -26,6 +26,7 @@ The manual
    testing
    api
    migration
+   porting_from_asyncio
    why
    faq
    support

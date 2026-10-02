@@ -5,6 +5,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 **UNRELEASED**
 
+- Added a guide for porting asyncio libraries to AnyIO
+  (`#255 <https://github.com/agronholm/anyio/issues/255>`_; PR by @GruffElixir)
 - Added SOCK_SEQPACKET support to ``connect_unix()`` and ``create_unix_listener()``
   (`#1349 <https://github.com/agronholm/anyio/issues/1349>`_; PR by @theunkn0wn1)
 - Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
