@@ -618,6 +618,15 @@ class UDPSocket(_TrioSocketMixin[IPSockAddrType], abc.UDPSocket):
         self._receive_guard = ResourceGuard("reading from")
         self._send_guard = ResourceGuard("writing to")
 
+    def _convert_socket_error(self, exc: BaseException) -> NoReturn:
+        if (
+            isinstance(exc, ConnectionResetError)
+            and getattr(exc, "winerror", None) == 10054
+        ):
+            raise exc
+
+        super()._convert_socket_error(exc)
+
     async def receive(self) -> tuple[bytes, IPSockAddrType]:
         with self._receive_guard:
             try:

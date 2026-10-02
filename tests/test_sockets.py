@@ -1914,6 +1914,39 @@ class TestUDPSocket:
             assert response == b"halb"
             assert addr == (host, port)
 
+    @pytest.mark.skipif(
+        sys.platform != "win32", reason="WSAECONNRESET is Windows specific"
+    )
+    @pytest.mark.parametrize("anyio_backend", ["trio"])
+    @pytest.mark.parametrize("family", [AddressFamily.AF_INET], indirect=True)
+    async def test_receive_after_unreachable_peer(
+        self, family: AnyIPAddressFamily
+    ) -> None:
+        """Regression test for #1239."""
+        async with await create_udp_socket(
+            family=AddressFamily.AF_INET, local_host="127.0.0.1"
+        ) as udp:
+            probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            probe.bind(("127.0.0.1", 0))
+            dead_host, dead_port = probe.getsockname()
+            probe.close()
+
+            await udp.sendto(b"ping", dead_host, dead_port)
+            with pytest.raises(ConnectionResetError) as exc_info:
+                await udp.receive()
+
+            assert exc_info.value.winerror == 10054
+            local_address = udp.extra(SocketAttribute.local_address)
+            server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                server.bind((dead_host, dead_port))
+                server.sendto(b"pong", local_address)
+            finally:
+                server.close()
+
+            with fail_after(1):
+                assert await udp.receive() == (b"pong", (dead_host, dead_port))
+
     async def test_iterate(self, family: AnyIPAddressFamily) -> None:
         async def serve() -> None:
             async for packet, addr in server:
