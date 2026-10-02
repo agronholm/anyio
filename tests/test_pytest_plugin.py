@@ -430,6 +430,27 @@ def test_hypothesis_function_mark(testdir: Pytester) -> None:
     )
 
 
+def test_hypothesis_multiple_backends(testdir: Pytester) -> None:
+    testdir.makepyfile(
+        """
+        import pytest
+        from hypothesis import given
+        from hypothesis.strategies import just
+
+        from anyio._core._eventloop import current_async_library
+
+
+        @pytest.mark.anyio
+        @given(x=just(1))
+        async def test_hypothesis_backends(x, anyio_backend):
+            assert current_async_library() == anyio_backend
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(passed=len(get_available_backends()))
+
+
 @pytest.mark.parametrize("anyio_backend_name", get_available_backends())
 def test_debugger_exit_in_taskgroup(testdir: Pytester, anyio_backend_name: str) -> None:
     testdir.makepyfile(
