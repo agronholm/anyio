@@ -566,6 +566,16 @@ async def create_connected_udp_socket(
     family = cast(AnyIPAddressFamily, gai_res[0][0])
     remote_address = gai_res[0][-1]
 
+    if local_address is None and local_port:
+        gai_res = await getaddrinfo(
+            None,
+            local_port,
+            family=family,
+            type=socket.SOCK_DGRAM,
+            flags=socket.AI_PASSIVE | socket.AI_ADDRCONFIG,
+        )
+        local_address = gai_res[0][-1]
+
     sock = await get_async_backend().create_udp_socket(
         family, local_address, remote_address, reuse_port
     )
