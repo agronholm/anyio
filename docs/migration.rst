@@ -12,11 +12,9 @@ group classes. This class has now been removed in favor of the built-in
 raising the old ``ExceptionGroup`` exception or catching it, you need to make the switch
 to these standard classes. Otherwise you can ignore this part.
 
-If you're targeting Python releases older than 3.11, you need to use the exceptiongroup_
-backport and import one of those classes from ``exceptiongroup``. The only difference
-between :exc:`BaseExceptionGroup` and :exc:`ExceptionGroup` is that the latter can
-only contain exceptions derived from :exc:`Exception`, and likewise can be caught with
-``except Exception:``.
+The only difference between :exc:`BaseExceptionGroup` and :exc:`ExceptionGroup` is that
+the latter can only contain exceptions derived from :exc:`Exception`, and likewise can
+be caught with ``except Exception:``.
 
 Task groups now wrap single exceptions in groups
 ------------------------------------------------
@@ -26,9 +24,8 @@ always raise exception groups when either the host task or any child tasks raise
 exception (other than a cancellation exception). Previously, an exception group was only
 raised when more than one exception needed to be raised from the task group. The
 practical consequence is that if your code previously expected to catch a specific kind
-of exception falling out of a task group, you now need to either switch to the
-``except*`` syntax (if you're fortunate enough to work solely with Python 3.11 or
-later), or use the ``catch()`` context manager from the exceptiongroup_ backport.
+of exception falling out of a task group, you now need to switch to the ``except*``
+syntax.
 
 So, if you had code like this::
 
@@ -37,24 +34,13 @@ So, if you had code like this::
     except ValueError as exc:
         ...
 
-The Python 3.11+ equivalent would look almost the same::
+The equivalent would look almost the same::
 
     try:
         await function_using_a_taskgroup()
     except* ValueError as excgrp:
         # Note: excgrp is an ExceptionGroup now!
         ...
-
-If you need to stay compatible with older Python releases, you need to use the
-backport::
-
-    from exceptiongroup import ExceptionGroup, catch
-
-    def handle_value_errors(excgrp: ExceptionGroup) -> None:
-        ...
-
-    with catch({ValueError: handle_value_errors}):
-        await function_using_a_taskgroup()
 
 This difference often comes up in test suites too. For example, if you had this before
 in a pytest-based test suite::
@@ -63,8 +49,6 @@ in a pytest-based test suite::
         await function_using_a_taskgroup()
 
 You now need to change it to::
-
-    from exceptiongroup import ExceptionGroup
 
     with pytest.raises(ExceptionGroup) as exc:
         await function_using_a_taskgroup()
@@ -109,7 +93,6 @@ should be converted into::
 
 Make sure not to actually call the factory function!
 
-.. _exceptiongroup: https://pypi.org/project/exceptiongroup/
 .. _uvloop: https://github.com/MagicStack/uvloop
 
 Migrating from AnyIO 2 to AnyIO 3

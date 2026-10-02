@@ -15,7 +15,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from functools import wraps
 from ssl import SSLContext
-from typing import Any, TypeAlias, TypeVar
+from typing import Any, TypeAlias, TypeVar, TypeVarTuple, Unpack
 
 from .. import (
     BrokenResourceError,
@@ -33,11 +33,6 @@ from ..abc import (
     Listener,
     TaskGroup,
 )
-
-if sys.version_info >= (3, 11):
-    from typing import TypeVarTuple, Unpack
-else:
-    from typing_extensions import TypeVarTuple, Unpack
 
 if sys.version_info >= (3, 12):
     from typing import override
@@ -193,7 +188,7 @@ class TLSStream(ByteStream):
                 raise
 
     async def _call_sslobject_method(
-        self, func: Callable[[Unpack[PosArgsT]], T_Retval], *args: Unpack[PosArgsT]
+        self, func: Callable[[Unpack[PosArgsT]], T_Retval], *args: *PosArgsT
     ) -> T_Retval:
         if self._broken:
             raise BrokenResourceError

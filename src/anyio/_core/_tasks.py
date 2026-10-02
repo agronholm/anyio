@@ -21,10 +21,7 @@ if sys.version_info >= (3, 13):
 else:
     from typing_extensions import TypeVar
 
-if sys.version_info >= (3, 11):
-    from typing import Never, Self, TypeVarTuple
-else:
-    from typing_extensions import Never, Self, TypeVarTuple
+from typing import Never, Self, TypeVarTuple
 
 T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
