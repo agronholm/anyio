@@ -176,9 +176,10 @@ class TestAsyncLRUCache:
             for i in range(10, 30):
                 await func(i)
 
-            _, _, maxsize, currsize, _ = func.cache_info()
+            info = func.cache_info()
+            assert info.maxsize is not None
             entries = lru_cache_items.get()[func]
-            assert len(entries) == currsize <= maxsize
+            assert len(entries) == info.currsize <= info.maxsize
 
         run(scenario, backend=anyio_backend_name, backend_options=anyio_backend_options)
 
