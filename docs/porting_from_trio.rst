@@ -1,130 +1,191 @@
 Porting a Trio library to AnyIO
 ========================================
 
-AnyIO uses Trio's structured concurrency and cancellation model, so a Trio library
-can often retain its task structure while replacing its I/O and synchronization
-primitives. Using AnyIO throughout the library lets callers run it on either the
-Trio or asyncio backend. Merely replacing ``trio.run()`` does not make calls to
-Trio-specific APIs work on asyncio.
+AnyIO uses Trio's structured concurrency and cancellation model. Most high-level
+Trio APIs have direct counterparts, but a library is backend-independent only
+when its dependencies and low-level integrations are backend-independent too.
+Start the port on Trio, then test it on asyncio to find remaining Trio-only calls.
 
-Start by running the port on the Trio backend, then test it on asyncio as well.
-Applications can select a backend with ``anyio.run(main, backend="trio")``.
-Libraries should expose async functions rather than choose an event loop for their
-callers. See :doc:`basics` for running asynchronous code.
-
-Task groups instead of nurseries
+API counterparts
 ----------------------------------------
 
-Replace ``trio.open_nursery()`` with :func:`anyio.create_task_group`. The task group
-has ``start_soon()``, ``start()`` and ``cancel_scope``, like a Trio nursery.
-Pass an async callable and its positional arguments to ``start_soon()`` or
-``start()``, not an already created coroutine object.
+The following table covers common APIs used by Trio libraries. Entries with
+different interfaces or semantics are discussed below, so these are not all
+drop-in replacements.
 
-For example, this Trio code::
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
 
-    import trio
+   * - Trio
+     - AnyIO
+   * - ``trio.run()``
+     - ``anyio.run(..., backend="trio")`` (asyncio is the default)
+   * - ``trio.open_nursery()`` / ``trio.Nursery``
+     - :func:`anyio.create_task_group` / :class:`anyio.abc.TaskGroup`
+   * - ``trio.TaskStatus`` / ``trio.TASK_STATUS_IGNORED``
+     - :class:`anyio.abc.TaskStatus` / ``anyio.TASK_STATUS_IGNORED``
+   * - ``trio.CancelScope`` / ``trio.Cancelled``
+     - :class:`anyio.CancelScope` / :func:`anyio.get_cancelled_exc_class`
+   * - ``trio.move_on_after()`` / ``trio.fail_after()``
+     - :func:`anyio.move_on_after` / :func:`anyio.fail_after`
+   * - ``trio.move_on_at()`` / ``trio.fail_at()``
+     - :func:`anyio.move_on_at` / :func:`anyio.fail_at`
+   * - ``trio.current_time()`` / ``trio.current_effective_deadline()``
+     - :func:`anyio.current_time` / :func:`anyio.current_effective_deadline`
+   * - ``trio.sleep()`` / ``trio.sleep_until()`` / ``trio.sleep_forever()``
+     - :func:`anyio.sleep` / :func:`anyio.sleep_until` / :func:`anyio.sleep_forever`
+   * - ``trio.Event`` / ``trio.Lock`` / ``trio.Condition``
+     - :class:`anyio.Event` / :class:`anyio.Lock` / :class:`anyio.Condition`
+   * - ``trio.Semaphore`` / ``trio.CapacityLimiter``
+     - :class:`anyio.Semaphore` / :class:`anyio.CapacityLimiter`
+   * - ``trio.open_memory_channel[T]()``
+     - ``anyio.create_memory_object_stream[T]()``
+   * - ``trio.MemorySendChannel`` / ``trio.MemoryReceiveChannel``
+     - :class:`anyio.streams.memory.MemoryObjectSendStream` /
+       :class:`anyio.streams.memory.MemoryObjectReceiveStream`
+   * - ``trio.abc.SendStream`` / ``trio.abc.ReceiveStream``
+     - :class:`anyio.abc.ByteSendStream` / :class:`anyio.abc.ByteReceiveStream`
+   * - ``trio.abc.Stream`` / ``trio.SocketStream``
+     - :class:`anyio.abc.ByteStream` / :class:`anyio.abc.SocketStream`
+   * - ``trio.open_tcp_stream()`` / ``trio.open_unix_socket()``
+     - :func:`anyio.connect_tcp` / :func:`anyio.connect_unix`
+   * - ``trio.open_tcp_listeners()`` / ``trio.serve_tcp()``
+     - :func:`anyio.create_tcp_listener` followed by ``listener.serve()``
+   * - ``trio.SSLStream`` / ``trio.open_ssl_over_tcp_stream()``
+     - :class:`anyio.streams.tls.TLSStream` / ``anyio.connect_tcp(..., tls=True)``
+   * - ``trio.open_file()`` / ``trio.Path``
+     - :func:`anyio.open_file` / :class:`anyio.Path`
+   * - ``trio.run_process()``
+     - :func:`anyio.run_process` (see :doc:`subprocesses` for process handles)
+   * - ``trio.open_signal_receiver()``
+     - :func:`anyio.open_signal_receiver`
+   * - ``trio.to_thread.run_sync()``
+     - :func:`anyio.to_thread.run_sync`
+   * - ``trio.from_thread.run()`` / ``trio.from_thread.run_sync()``
+     - :func:`anyio.from_thread.run` / :func:`anyio.from_thread.run_sync`
+   * - ``trio.lowlevel.checkpoint()`` / ``checkpoint_if_cancelled()`` /
+       ``cancel_shielded_checkpoint()``
+     - The corresponding functions in ``anyio.lowlevel``
+   * - ``trio.BrokenResourceError`` / ``trio.ClosedResourceError`` /
+       ``trio.WouldBlock``
+     - :exc:`anyio.BrokenResourceError` / :exc:`anyio.ClosedResourceError` /
+       :exc:`anyio.WouldBlock`
 
+Nurseries and memory channels retain their familiar context-manager and cloning
+patterns. Task groups have ``start_soon()``, ``start()`` and ``cancel_scope``, and
+memory object streams close their receive iteration after all send clones close.
+See :doc:`tasks`, :doc:`streams` and :doc:`cancellation` for details.
 
-    async def worker(results: list[int], value: int) -> None:
-        await trio.sleep(0)
-        results.append(value)
-
-
-    async def main() -> None:
-        results: list[int] = []
-        async with trio.open_nursery() as nursery:
-            nursery.start_soon(worker, results, 1)
-            nursery.start_soon(worker, results, 2)
-
-        assert sorted(results) == [1, 2]
-
-
-    trio.run(main)
-
-becomes::
-
-    import anyio
-
-
-    async def worker(results: list[int], value: int) -> None:
-        await anyio.sleep(0)
-        results.append(value)
-
-
-    async def main() -> None:
-        results: list[int] = []
-        async with anyio.create_task_group() as task_group:
-            task_group.start_soon(worker, results, 1)
-            task_group.start_soon(worker, results, 2)
-
-        assert sorted(results) == [1, 2]
-
-
-    anyio.run(main)
-
-When a child reports readiness to ``start()``, replace ``trio.TASK_STATUS_IGNORED``
-with ``anyio.TASK_STATUS_IGNORED`` and annotate the parameter with
-:class:`anyio.abc.TaskStatus`. Keep the call to ``task_status.started()``.
-See :doc:`tasks` for startup handshakes and handling exception groups.
-
-Channels and byte streams
+Byte stream semantics
 ----------------------------------------
 
-Replace ``trio.open_memory_channel[T](buffer_size)`` with
-``anyio.create_memory_object_stream[T](buffer_size)``. Both return separate send
-and receive objects. A zero-sized buffer waits for a receiver before sending.
-Keep the streams' context managers and close every send clone so receivers can
-finish iterating once the producers are done::
+Rename ``send_all()`` to ``send()`` and ``receive_some()`` to ``receive()``.
+The significant difference is EOF: Trio returns ``b""``, whereas AnyIO raises
+:exc:`anyio.EndOfStream`. Change loops which check for an empty read, or use async
+iteration to handle EOF automatically::
+
+    from anyio.abc import ByteReceiveStream
+
+
+    async def read_all(stream: ByteReceiveStream) -> bytes:
+        chunks = []
+        async for chunk in stream:
+            chunks.append(chunk)
+
+        return b"".join(chunks)
+
+An AnyIO listener is an object with ``serve()`` and ``aclose()``, not a list of
+Trio socket listeners. Acquire it with ``create_tcp_listener()`` and manage it
+with ``async with``. A stream's socket information is exposed through typed
+attributes, rather than Trio's ``stream.socket``. See :doc:`networking` and
+:doc:`typedattrs`.
+
+Function signatures can differ too. Compare keyword options for TLS, subprocess
+and thread calls instead of renaming them blindly. Calls from external threads
+need an AnyIO event-loop token, not a Trio token. See :doc:`threads` before
+porting those calls.
+
+Missing Trio functionality
+----------------------------------------
+
+AnyIO does not reproduce all of ``trio.socket``, ``trio.lowlevel`` or
+``trio.testing``. Choose a migration strategy for each dependency:
+
+* Replace direct ``trio.socket`` calls with AnyIO's socket factories and stream
+  interfaces. If an integration must retain a raw nonblocking socket, consider
+  :func:`anyio.wait_readable` and :func:`anyio.wait_writable`, and account for
+  platform limitations rather than assuming Trio's socket wrapper is portable.
+* Replace ``trio.lowlevel.spawn_system_task()`` with a task group owned by the
+  component using the background task. Pass that group in or keep it open for
+  the component's lifetime, and define how shutdown cancels its children.
+  There is no backend-independent system-task lifetime to substitute directly.
+* Keep guest-mode integration, Trio instruments and scheduler-specific code in
+  a Trio-only adapter when there is no AnyIO counterpart. Restrict callers to
+  the Trio backend until that adapter can be redesigned for other backends.
+* Replace Trio-specific test streams with a small implementation of the AnyIO
+  stream interfaces, or an in-process object stream when testing object-level
+  behavior. Do not assume a Trio test stream has AnyIO's byte-stream EOF API.
+
+Likewise, a dependency which still calls Trio directly remains Trio-only even
+when the surrounding code uses AnyIO. Make that backend restriction explicit.
+
+Migrating from pytest-trio
+----------------------------------------
+
+Replace ``pytest.mark.trio`` with ``pytest.mark.anyio``, or replace ``trio_mode``
+with ``anyio_mode = "auto"``. Do not let both plugins try to run the same test.
+The AnyIO plugin is bundled with AnyIO and defaults to parametrizing tests over
+asyncio and Trio. Install Trio when testing that backend. To keep a test suite
+Trio-only during the port, override ``anyio_backend`` to return ``"trio"``.
+See :doc:`backend configuration <testing>` for fixture configuration and options.
+
+The plugins also differ in fixture behavior:
+
+* pytest-trio runs independent async fixtures concurrently. AnyIO runs async
+  fixture setup, tests and teardown in the same task, serially. Do not rely on
+  independent fixtures making progress concurrently during setup. Instead,
+  start cooperating services in one task group and yield after they are ready.
+* That same-task execution means context variables set by an async fixture are
+  visible to the async test and teardown within the runner. It also allows an
+  AnyIO task group or cancel scope to span an async fixture's ``yield``.
+* pytest-trio's ``nursery`` fixture automatically cancels its children at
+  teardown. AnyIO supplies no equivalent fixture. Open your own task group and
+  explicitly cancel long-running children before leaving it.
+* pytest-trio supports only function-scoped async fixtures. AnyIO can use
+  higher-scoped async fixtures when their ``anyio_backend`` fixture has a
+  compatible scope. Such fixtures keep the test runner alive across tests, so
+  review shared state and context variables instead of assuming a fresh runner.
+
+For example, a replacement for a background nursery fixture can be written as::
 
     import anyio
+    import pytest
 
 
-    async def main() -> None:
-        send, receive = anyio.create_memory_object_stream[int](0)
-
-        async def produce() -> None:
-            async with send:
-                await send.send(1)
-                await send.send(2)
-
-        async with anyio.create_task_group() as task_group:
-            task_group.start_soon(produce)
-            async with receive:
-                values = [value async for value in receive]
-
-        assert values == [1, 2]
+    @pytest.fixture
+    async def background_group(anyio_backend):
+        async with anyio.create_task_group() as group:
+            yield group
+            group.cancel_scope.cancel()
 
 
-    anyio.run(main)
+    @pytest.mark.anyio
+    async def test_background_task(background_group):
+        started = anyio.Event()
 
-For byte streams, replace ``send_all()`` with ``send()`` and ``receive_some()``
-with ``receive()``. AnyIO byte streams raise :exc:`anyio.EndOfStream` at EOF
-instead of returning an empty byte string. Update read loops accordingly, or use
-async iteration over the receive stream. See :doc:`streams` and :doc:`networking`
-for the corresponding interfaces and socket factories.
+        async def worker():
+            started.set()
+            await anyio.sleep_forever()
 
-Cancellation and other backend-specific APIs
-------------------------------------------------------------
+        background_group.start_soon(worker)
+        await started.wait()
 
-Use :class:`anyio.CancelScope`, :func:`anyio.move_on_after` and
-:func:`anyio.fail_after` in place of their Trio equivalents. Cancel scopes remain
-synchronous context managers, even inside async functions. Replace catches of
-``trio.Cancelled`` with ``except anyio.get_cancelled_exc_class():`` and always
-re-raise the cancellation exception after cleanup. Awaited cleanup in a cancelled
-scope needs a shielded cancel scope. See :doc:`cancellation`.
-
-Replace Trio locks, events and semaphores with the corresponding AnyIO classes.
-Use :func:`anyio.to_thread.run_sync` for blocking calls and consult :doc:`threads`
-before porting calls back from worker threads. Arguments and keyword options are
-not necessarily identical between the libraries.
-
-Audit dependencies and uses of ``trio.lowlevel``, ``trio.socket`` and
-``trio.testing`` separately. AnyIO does not provide a replacement for every Trio
-API, and a dependency that calls Trio directly still requires the Trio backend.
-Do not treat changing imports alone as proof of backend independence.
-
-For the port's test suite, replace Trio-specific test markers with
-``pytest.mark.anyio`` and use the ``anyio_backend`` fixture to select the backends.
-Run the tests on both asyncio and Trio, including cancellation, stream closure and
-error handling. See :doc:`testing` for fixture configuration and the limitations
-of backend-specific testing utilities.
+Trio's ``mock_clock`` / ``autojump_clock`` and other pytest-trio utility fixtures
+are not provided by AnyIO. Keep tests requiring these utilities in a separate
+pytest-trio suite, or configure a Trio-only ``anyio_backend`` with a
+``trio.testing.MockClock`` in its ``clock`` option. For backend-independent tests,
+prefer explicit startup signals and events to assertions about scheduler timing.
+See :doc:`testing` for runner lifetime and context-variable propagation, and the
+`pytest-trio reference <https://pytest-trio.readthedocs.io/en/stable/reference.html>`_
+for the plugin being replaced.
