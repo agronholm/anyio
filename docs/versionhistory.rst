@@ -49,6 +49,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``Lock.locked()`` (and ``Condition.locked()``) raising ``NoEventLoopError``
   when the lock was created outside a running event loop
   (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
+- Fixed ``anyio.itertools.islice()`` not consuming the first ``start`` items when
+  ``stop <= start``
+  (`#1372 <https://github.com/agronholm/anyio/pull/1372>`_; PR by @Rodrigo-Palma)
 
 **4.15.1**
 

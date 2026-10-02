@@ -603,6 +603,12 @@ class TestIslice:
         assert await collect(islice(iterator, 2)) == [0, 1]
         assert next(iterator) == 2
 
+    async def test_consumes_start_items_when_stop_is_not_greater(self) -> None:
+        for args in [(3, 3), (3, 1), (3, 0)]:
+            iterator = iter([0, 1, 2, 3])
+            assert await collect(islice(iterator, *args)) == []
+            assert next(iterator) == 3
+
     async def test_invalid_argument_count(self) -> None:
         islice_any = cast(Any, islice)
 
