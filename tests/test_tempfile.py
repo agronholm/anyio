@@ -183,14 +183,6 @@ class TestTemporaryDirectory:
         Test that the ``cleanup()`` method removes the directory even if the host
         task is already cancelled when it is called, and that the pending
         cancellation is still delivered to the caller afterwards.
-
-        ``cleanup()`` runs the synchronous cleanup in a worker thread via
-        ``to_thread.run_sync``, which performs a cancellation checkpoint on entry.
-        Wrapping that call in a shielded cancel scope ensures that a pending
-        cancellation does not prevent the cleanup from running, matching
-        ``__aexit__``. A ``checkpoint_if_cancelled()`` call after the shielded
-        block then delivers the pending cancellation to the caller once the
-        directory is safely gone, instead of silently swallowing it.
         """
         td = TemporaryDirectory()
         td_str = await td.__aenter__()
