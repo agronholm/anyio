@@ -52,6 +52,13 @@ Both :meth:`~.abc.TaskGroup.start_soon` and :meth:`~.TaskGroup.create_task` retu
 #. Cancel the task
 #. Check the task's status
 
+Once a task has finished, its :attr:`~.TaskHandle.status`,
+:attr:`~.TaskHandle.return_value` and :attr:`~.TaskHandle.exception` can be inspected
+synchronously, including after its event loop has exited or from a different backend.
+The completed status reflects the outcome in the task's original backend.
+Awaiting the handle, calling :meth:`~.TaskHandle.wait`, and cancelling a running task
+still require the event loop in which the task was created.
+
 .. tabs::
 
    .. tab:: create_task()

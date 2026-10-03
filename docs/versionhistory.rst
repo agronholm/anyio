@@ -49,6 +49,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``Lock.locked()`` (and ``Condition.locked()``) raising ``NoEventLoopError``
   when the lock was created outside a running event loop
   (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
+- Fixed completed ``TaskHandle`` status, result and exception inspection raising
+  ``NoEventLoopError`` outside an event loop or misclassifying cancellation when
+  inspected from a different backend
 
 **4.15.1**
 

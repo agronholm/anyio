@@ -288,6 +288,7 @@ class TaskHandle(Generic[T_co, T_startval_co]):
     __slots__ = (
         "__weakref__",
         "_cancel_scope",
+        "_cancelled_exc_class",
         "_coro",
         "_exception",
         "_finished_event",
@@ -310,6 +311,7 @@ class TaskHandle(Generic[T_co, T_startval_co]):
         self._coro = coro
         self._cancel_scope = cancel_scope if cancel_scope is not None else CancelScope()
         self._finished_event = Event()
+        self._cancelled_exc_class = get_cancelled_exc_class()
         self._exception: BaseException | None = None
 
         if name is not None:
@@ -365,7 +367,7 @@ class TaskHandle(Generic[T_co, T_startval_co]):
         :attr:`~TaskHandle.Status.CANCELLING` state. When the task finishes, it will
         transition to one of the three final states (
         :attr:`~TaskHandle.Status.FINISHED`, :attr:`~TaskHandle.Status.FAILED`, or
-        :attr:`~TaskHandle.Status.CANCELLING`) depending on the exception the task
+        :attr:`~TaskHandle.Status.CANCELLED`) depending on the exception the task
         raised, if any. No other status transitions will happen.
         """
         if not self._finished_event.is_set():
@@ -374,7 +376,7 @@ class TaskHandle(Generic[T_co, T_startval_co]):
             else:
                 return TaskHandle.Status.PENDING
         elif self._exception is not None:
-            if isinstance(self._exception, get_cancelled_exc_class()):
+            if isinstance(self._exception, self._cancelled_exc_class):
                 return TaskHandle.Status.CANCELLED
             else:
                 return TaskHandle.Status.FAILED

@@ -40,6 +40,7 @@ from anyio import (
     sleep_forever,
     wait_all_tasks_blocked,
 )
+from anyio.from_thread import start_blocking_portal
 from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params, no_other_refs
@@ -2326,6 +2327,188 @@ async def test_asyncio_call_graph(native: bool) -> None:
         task_names.append(graph.future.get_name())
 
     assert task_names == ["depth-2", "depth-1", "root"]
+
+
+class TestCompletedTaskHandle:
+    @staticmethod
+    def assert_metadata(
+        handle: TaskHandle[int], outcome: str, exception: BaseException | None
+    ) -> None:
+        expected = {
+            "success": TaskHandle.Status.FINISHED,
+            "failure": TaskHandle.Status.FAILED,
+            "cancelled": TaskHandle.Status.CANCELLED,
+            "suppressed": TaskHandle.Status.FINISHED,
+        }[outcome]
+        original_exception_state = (
+            (exception.__cause__, exception.__context__, exception.__traceback__)
+            if exception is not None
+            else None
+        )
+        for _ in range(2):
+            assert handle.status is expected
+            assert repr(handle) == (
+                f"<TaskHandle {expected.name.lower()} "
+                f"name='completed task' coro={handle.coro!r}>"
+            )
+            if outcome == "cancelled":
+                with pytest.raises(TaskCancelled) as exc_info:
+                    handle.exception  # noqa: B018
+
+                assert exc_info.value.__cause__ is exception
+                with pytest.raises(TaskCancelled) as exc_info:
+                    handle.return_value  # noqa: B018
+
+                assert exc_info.value.__cause__ is exception
+            elif outcome == "failure":
+                assert handle.exception is exception
+                with pytest.raises(TaskFailed) as failure_info:
+                    handle.return_value  # noqa: B018
+
+                assert type(failure_info.value) is TaskFailed
+                assert failure_info.value.__cause__ is exception
+            else:
+                assert handle.exception is None
+                assert handle.return_value == 42
+
+        if exception is not None:
+            assert (
+                exception.__cause__,
+                exception.__context__,
+                exception.__traceback__,
+            ) == original_exception_state
+
+    @classmethod
+    async def create_handle(
+        cls, outcome: str, spawner: str
+    ) -> tuple[TaskHandle[int], BaseException | None]:
+        exception: BaseException | None = None
+        failure = ValueError("task failure")
+
+        async def taskfunc() -> int:
+            nonlocal exception
+            await checkpoint()
+            if outcome == "failure":
+                exception = failure
+                raise failure
+            elif outcome in ("cancelled", "suppressed"):
+                try:
+                    await sleep_forever()
+                except get_cancelled_exc_class() as exc:
+                    exception = exc
+                    if outcome == "cancelled":
+                        raise
+
+            return 42
+
+        try:
+            async with create_task_group() as tg:
+                if spawner == "create_task":
+                    coro = taskfunc()
+                    handle = tg.create_task(coro, name="completed task")
+                    assert handle.coro is coro
+                else:
+                    handle = tg.start_soon(taskfunc, name="completed task")
+
+                initial_status = handle.status
+                assert initial_status is TaskHandle.Status.PENDING
+                with pytest.raises(TaskNotFinished):
+                    handle.exception  # noqa: B018
+
+                with pytest.raises(TaskNotFinished):
+                    handle.return_value  # noqa: B018
+
+                if outcome in ("cancelled", "suppressed"):
+                    await wait_all_tasks_blocked()
+                    handle.cancel()
+                    assert handle.status is TaskHandle.Status.CANCELLING
+                    with pytest.raises(TaskCancelled) as exc_info:
+                        handle.exception  # noqa: B018
+
+                    assert exc_info.value.__cause__ is None
+        except ExceptionGroup as exc:
+            assert outcome == "failure"
+            assert exc.exceptions == (failure,)
+
+        if outcome in ("cancelled", "suppressed"):
+            assert isinstance(exception, get_cancelled_exc_class())
+
+        assert handle.name == "completed task"
+        assert getcoroutinestate(handle.coro) == CORO_CLOSED
+        cls.assert_metadata(handle, outcome, exception)
+        return handle, exception
+
+    @pytest.mark.parametrize(
+        "outcome", ["success", "failure", "cancelled", "suppressed"]
+    )
+    @pytest.mark.parametrize("spawner", ["create_task", "start_soon"])
+    @pytest.mark.parametrize("reader_backend", [None, "asyncio", "trio"])
+    def test_metadata_after_run(
+        self,
+        anyio_backend_name: str,
+        anyio_backend_options: dict[str, Any],
+        outcome: str,
+        spawner: str,
+        reader_backend: str | None,
+    ) -> None:
+        handle, exception = anyio.run(
+            self.create_handle,
+            outcome,
+            spawner,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
+        )
+        if reader_backend is None:
+            self.assert_metadata(handle, outcome, exception)
+        else:
+
+            async def inspect_handle() -> None:
+                self.assert_metadata(handle, outcome, exception)
+
+            anyio.run(inspect_handle, backend=reader_backend)
+
+    @pytest.mark.parametrize("backend", ["asyncio", "trio"])
+    @pytest.mark.parametrize(
+        "outcome", ["success", "failure", "cancelled", "suppressed"]
+    )
+    def test_metadata_from_portal(self, backend: str, outcome: str) -> None:
+        with start_blocking_portal(backend=backend) as portal:
+            handle, exception = portal.call(self.create_handle, outcome, "create_task")
+            self.assert_metadata(handle, outcome, exception)
+
+        self.assert_metadata(handle, outcome, exception)
+
+    def test_foreign_cancellation_is_failure(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        foreign_backend = "trio" if anyio_backend_name == "asyncio" else "asyncio"
+        _, exception = anyio.run(
+            self.create_handle, "cancelled", "create_task", backend=foreign_backend
+        )
+        assert exception is not None
+
+        async def taskfunc() -> NoReturn:
+            raise exception
+
+        async def main() -> TaskHandle[int]:
+            assert not isinstance(exception, get_cancelled_exc_class())
+            with pytest.RaisesGroup(type(exception)) as exc_info:
+                async with create_task_group() as tg:
+                    handle = tg.create_task(taskfunc(), name="completed task")
+
+            assert exc_info.value.exceptions == (exception,)
+            self.assert_metadata(handle, "failure", exception)
+            return handle
+
+        handle = anyio.run(
+            main, backend=anyio_backend_name, backend_options=anyio_backend_options
+        )
+        self.assert_metadata(handle, "failure", exception)
+
+        async def inspect_handle() -> None:
+            self.assert_metadata(handle, "failure", exception)
+
+        anyio.run(inspect_handle, backend=foreign_backend)
 
 
 class TestCreateTask:
