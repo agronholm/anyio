@@ -2916,10 +2916,14 @@ class AsyncIOBackend(AsyncBackend):
         return SocketStream(transport, protocol)
 
     @classmethod
-    async def connect_unix(cls, path: str | bytes) -> abc.UNIXSocketStream:
+    async def connect_unix(
+        cls,
+        path: str | bytes,
+        kind: Literal[SocketKind.SOCK_STREAM, SocketKind.SOCK_SEQPACKET],
+    ) -> abc.UNIXSocketStream:
         await cls.checkpoint()
         loop = get_running_loop()
-        raw_socket = socket.socket(socket.AF_UNIX)
+        raw_socket = socket.socket(socket.AF_UNIX, kind)
         raw_socket.setblocking(False)
         while True:
             try:
