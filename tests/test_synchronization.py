@@ -236,6 +236,7 @@ class TestLock:
                 pass
 
         lock = Lock()
+        assert not lock.locked()
         statistics = lock.statistics()
         assert not statistics.locked
         assert statistics.owner is None
@@ -503,6 +504,7 @@ class TestCondition:
                 pass
 
         condition = Condition()
+        assert not condition.locked()
         assert condition.statistics().tasks_waiting == 0
 
         run(
