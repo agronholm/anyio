@@ -367,7 +367,7 @@ class TaskHandle(Generic[T_co, T_startval_co]):
         :attr:`~TaskHandle.Status.CANCELLING` state. When the task finishes, it will
         transition to one of the three final states (
         :attr:`~TaskHandle.Status.FINISHED`, :attr:`~TaskHandle.Status.FAILED`, or
-        :attr:`~TaskHandle.Status.CANCELLED`) depending on the exception the task
+        :attr:`~TaskHandle.Status.CANCELLING`) depending on the exception the task
         raised, if any. No other status transitions will happen.
         """
         if not self._finished_event.is_set():
