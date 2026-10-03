@@ -52,7 +52,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 - Fixed ``BufferedByteReceiveStream.receive_exactly()`` and ``receive_until()``
   returning buffered data after explicit closure instead of raising
-  ``ClosedResourceError`` (PR by @kokotatan)
+  ``ClosedResourceError``
+  (`#1378 <https://github.com/agronholm/anyio/pull/1378>`_; PR by @kokotatan)
 
 **4.15.1**
 
