@@ -49,6 +49,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``Lock.locked()`` (and ``Condition.locked()``) raising ``NoEventLoopError``
   when the lock was created outside a running event loop
   (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
+- Fixed ``TypedAttributeSet`` refusing to load subclasses of an existing typed
+  attribute set, as the attributes inherited from the base class were reported as
+  missing their type annotations
+  (`#1358 <https://github.com/agronholm/anyio/pull/1358>`_; PR by @pasmud)
 
 **4.15.1**
 
