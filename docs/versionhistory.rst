@@ -49,6 +49,8 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``Lock.locked()`` (and ``Condition.locked()``) raising ``NoEventLoopError``
   when the lock was created outside a running event loop
   (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
+- Fixed ``open_signal_receiver()`` on the asyncio backend resetting previously installed
+  Python signal handlers to their defaults instead of restoring them on context exit
 
 **4.15.1**
 
