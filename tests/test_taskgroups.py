@@ -2332,6 +2332,9 @@ async def test_asyncio_call_graph(native: bool) -> None:
 class TestCompletedTaskHandle:
     @pytest.mark.parametrize("backend", ["asyncio", "trio"])
     def test_init_with_cancel_scope_outside_loop(self, backend: str) -> None:
+        if backend == "trio":
+            pytest.importorskip("trio", reason="trio is not available")
+
         async def make_scope() -> CancelScope:
             return CancelScope()
 
@@ -2484,6 +2487,9 @@ class TestCompletedTaskHandle:
         spawner: str,
         reader_backend: str | None,
     ) -> None:
+        if reader_backend == "trio":
+            pytest.importorskip("trio", reason="trio is not available")
+
         handle, exception = anyio.run(
             self.create_handle,
             outcome,
@@ -2543,6 +2549,9 @@ class TestCompletedTaskHandle:
         "outcome", ["success", "failure", "cancelled", "suppressed"]
     )
     def test_metadata_from_portal(self, backend: str, outcome: str) -> None:
+        if backend == "trio":
+            pytest.importorskip("trio", reason="trio is not available")
+
         with start_blocking_portal(backend=backend) as portal:
             handle, exception = portal.call(self.create_handle, outcome, "create_task")
             self.assert_metadata(handle, outcome, exception)
@@ -2552,6 +2561,7 @@ class TestCompletedTaskHandle:
     def test_foreign_cancellation_is_failure(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
+        pytest.importorskip("trio", reason="trio is not available")
         foreign_backend = "trio" if anyio_backend_name == "asyncio" else "asyncio"
         _, exception = anyio.run(
             self.create_handle, "cancelled", "create_task", backend=foreign_backend
