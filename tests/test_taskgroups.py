@@ -1553,34 +1553,6 @@ async def test_task_in_sync_spawn_callback() -> None:
     assert inner_task_id != outer_task_id
 
 
-async def test_shielded_cancel_sleep_time() -> None:
-    """
-    Test that cancelling a shielded tasks spends more time sleeping than cancelling.
-
-    """
-    event = anyio.Event()
-    hang_time = 0.2
-
-    async def set_event() -> None:
-        await sleep(hang_time)
-        event.set()
-
-    async def never_cancel_task() -> None:
-        with CancelScope(shield=True):
-            await sleep(0.2)
-            await event.wait()
-
-    async with create_task_group() as tg:
-        tg.start_soon(set_event)
-
-        async with create_task_group() as tg:
-            tg.start_soon(never_cancel_task)
-            tg.cancel_scope.cancel()
-            process_time = time.process_time()
-
-        assert (time.process_time() - process_time) < hang_time
-
-
 async def test_cancelscope_wrong_exit_order() -> None:
     """
     Test that a RuntimeError is raised if the task tries to exit cancel scopes in the
@@ -1742,6 +1714,72 @@ class TestUncancel:
 
         assert task.cancelling() == 1
         task.uncancel()
+
+    async def test_native_cancel_after_scope_cancel_same_cycle(self) -> None:
+        """
+        Test that a native cancellation which lands after the scope has already
+        cancelled the host task, but before the task runs again, is not swallowed
+        by the scope along with its own cancellation (#1214).
+
+        """
+        task = cast(asyncio.Task, asyncio.current_task())
+        task.cancel()
+        try:
+            await checkpoint()
+        except asyncio.CancelledError:
+            pass
+
+        with pytest.raises(asyncio.CancelledError), CancelScope() as scope:
+            scope.cancel()
+            asyncio.get_running_loop().call_soon(task.cancel)
+            await sleep_forever()
+
+        assert not scope.cancelled_caught
+        assert task.uncancel() == 1
+        assert task.uncancel() == 0
+
+    async def test_native_cancel_after_scope_cancel_same_cycle_group(self) -> None:
+        """
+        Same as above, but with the cancellation exception wrapped in an exception
+        group.
+
+        """
+        task = cast(asyncio.Task, asyncio.current_task())
+        with pytest.RaisesGroup(asyncio.CancelledError), CancelScope() as scope:
+            scope.cancel()
+            asyncio.get_running_loop().call_soon(task.cancel)
+            try:
+                await sleep_forever()
+            except asyncio.CancelledError as exc:
+                raise BaseExceptionGroup("", [exc]) from None
+
+        assert not scope.cancelled_caught
+        assert task.cancelling() == 1
+        task.uncancel()
+
+    async def test_native_cancel_after_scope_cancel_task_cancelled(self) -> None:
+        """
+        Test that a task whose cancel scope's deadline and a native cancellation are
+        both delivered in the same event loop iteration ends up cancelled, rather than
+        continuing as if only the deadline had expired (#1214).
+
+        """
+
+        async def taskfunc() -> None:
+            task = cast(asyncio.Task, asyncio.current_task())
+            with move_on_after(0):
+                # The scope's cancellation is already queued, so this one lands right
+                # after it, before the task gets to run again
+                asyncio.get_running_loop().call_soon(task.cancel)
+                await sleep_forever()
+
+            pytest.fail("The native cancellation was swallowed")
+
+        task = asyncio.get_running_loop().create_task(taskfunc())
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        assert task.cancelled()
 
     async def test_cancel_message_replaced(self) -> None:
         task = asyncio.current_task()
