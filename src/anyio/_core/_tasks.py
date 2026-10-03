@@ -311,7 +311,6 @@ class TaskHandle(Generic[T_co, T_startval_co]):
         self._coro = coro
         self._cancel_scope = cancel_scope if cancel_scope is not None else CancelScope()
         self._finished_event = Event()
-        self._cancelled_exc_class = get_cancelled_exc_class()
         self._exception: BaseException | None = None
 
         if name is not None:
@@ -323,6 +322,7 @@ class TaskHandle(Generic[T_co, T_startval_co]):
 
     async def _run_coro(self) -> None:
         __tracebackhide__ = True
+        self._cancelled_exc_class = get_cancelled_exc_class()
 
         with self._cancel_scope:
             try:

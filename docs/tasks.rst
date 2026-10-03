@@ -56,8 +56,13 @@ Once a task has finished, its :attr:`~.TaskHandle.status`,
 :attr:`~.TaskHandle.return_value` and :attr:`~.TaskHandle.exception` can be inspected
 synchronously, including after its event loop has exited or from a different backend.
 The completed status reflects the outcome in the task's original backend.
-Awaiting the handle, calling :meth:`~.TaskHandle.wait`, and cancelling a running task
-still require the event loop in which the task was created.
+Completed handles can also be awaited, or waited on with :meth:`~.TaskHandle.wait`,
+in a new event loop of the same backend. Calling :meth:`~.TaskHandle.cancel` on a
+completed handle has no effect.
+
+While the task is still running, wait for or cancel it in its original event loop.
+The synchronous inspection guarantee does not provide general cross-backend or
+cross-thread support for waiting or cancellation.
 
 .. tabs::
 

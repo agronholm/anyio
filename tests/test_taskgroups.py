@@ -2330,6 +2330,39 @@ async def test_asyncio_call_graph(native: bool) -> None:
 
 
 class TestCompletedTaskHandle:
+    @pytest.mark.parametrize("backend", ["asyncio", "trio"])
+    def test_init_with_cancel_scope_outside_loop(self, backend: str) -> None:
+        async def make_scope() -> CancelScope:
+            return CancelScope()
+
+        async def taskfunc() -> int:
+            return 42
+
+        scope = anyio.run(make_scope, backend=backend)
+        coro = taskfunc()
+        try:
+            handle = TaskHandle(coro, "prepared task", cancel_scope=scope)
+            assert handle.coro is coro
+            assert handle.name == "prepared task"
+            if backend == "asyncio":
+                assert handle.status is TaskHandle.Status.PENDING
+            else:
+                with pytest.raises(RuntimeError, match="async context"):
+                    handle.status  # noqa: B018
+        finally:
+            coro.close()
+
+    def test_init_without_cancel_scope_outside_loop(self) -> None:
+        async def taskfunc() -> int:
+            return 42
+
+        coro = taskfunc()
+        try:
+            with pytest.raises(anyio.NoEventLoopError):
+                TaskHandle(coro, "prepared task")
+        finally:
+            coro.close()
+
     @staticmethod
     def assert_metadata(
         handle: TaskHandle[int], outcome: str, exception: BaseException | None
@@ -2466,6 +2499,44 @@ class TestCompletedTaskHandle:
                 self.assert_metadata(handle, outcome, exception)
 
             anyio.run(inspect_handle, backend=reader_backend)
+
+    @pytest.mark.parametrize(
+        "outcome", ["success", "failure", "cancelled", "suppressed"]
+    )
+    @pytest.mark.parametrize("spawner", ["create_task", "start_soon"])
+    def test_wait_after_run(
+        self,
+        anyio_backend_name: str,
+        anyio_backend_options: dict[str, Any],
+        outcome: str,
+        spawner: str,
+    ) -> None:
+        handle, exception = anyio.run(
+            self.create_handle,
+            outcome,
+            spawner,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
+        )
+        handle.cancel()  # Cancelling a completed task is an off-loop no-op.
+
+        async def wait_for_handle() -> None:
+            await handle.wait()
+            if outcome in ("success", "suppressed"):
+                assert await handle == 42
+            else:
+                with pytest.raises(TaskFailed) as exc_info:
+                    await handle
+
+                expected = TaskCancelled if outcome == "cancelled" else TaskFailed
+                assert type(exc_info.value) is expected
+                assert exc_info.value.__cause__ is exception
+
+        anyio.run(
+            wait_for_handle,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
+        )
 
     @pytest.mark.parametrize("backend", ["asyncio", "trio"])
     @pytest.mark.parametrize(
