@@ -32,6 +32,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   from within ``from_thread.run_sync()``), where ``asyncio.current_task()`` is
   legitimately ``None``
   (`#773 <https://github.com/agronholm/anyio/issues/773>`_; PR by @AmirF194)
+- Fixed ``lru_cache().cache_clear()`` raising ``NoEventLoopError`` when called
+  outside a running event loop. Called from another thread while an event loop is
+  still running it is now a no-op rather than an error, and no longer zeroes the
+  hit/miss/size counters for entries that the owning loop still holds
+  (`#1347 <https://github.com/agronholm/anyio/pull/1347>`_; PR by @feiiiiii5)
 - Fixed ``CancelScope`` on the asyncio backend swallowing a native ``Task.cancel()``
   that was delivered in the same event loop iteration as the scope's own cancellation
   (such as a ``move_on_after()`` deadline expiring), which left the host task with a

@@ -14,7 +14,9 @@ from anyio import (
     fail_after,
     get_cancelled_exc_class,
     move_on_after,
+    run,
     sleep,
+    to_thread,
     wait_all_tasks_blocked,
 )
 from anyio.functools import (
@@ -23,6 +25,7 @@ from anyio.functools import (
     _LRUMethodWrapper,
     cache,
     lru_cache,
+    lru_cache_items,
     reduce,
 )
 from anyio.lowlevel import checkpoint
@@ -128,6 +131,57 @@ class TestAsyncLRUCache:
 
         func.cache_clear()
         assert func.cache_info() == (0, 0, 128, 0, None)
+
+    def test_cache_clear_outside_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        @lru_cache
+        async def func() -> int:
+            return 1
+
+        run(
+            func,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
+        )
+        assert func.cache_info() == AsyncCacheInfo(0, 1, 128, 1, None)
+
+        # Outside the event loop there is no cache to clear: the entries live in that
+        # loop's own RunVar. This must stay a no-op rather than becoming an error, and it
+        # must not zero the counters either -- they describe the entry still held by that
+        # loop, and zeroing currsize while it remains stops __call__ from evicting, so
+        # the cache would grow past maxsize.
+        func.cache_clear()
+        assert func.cache_info() == AsyncCacheInfo(0, 1, 128, 1, None)
+
+    def test_cache_clear_from_worker_thread_keeps_maxsize_bound(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        """A cache_clear() from another thread must not leave currsize lying about entries.
+
+        Zeroing the counters while the owning loop still holds entries stops the
+        maxsize check in __call__ from evicting, so the cache grows past maxsize.
+        """
+
+        @lru_cache(maxsize=2)
+        async def func(x: int) -> int:
+            return x
+
+        async def scenario() -> None:
+            for i in range(3):
+                await func(i)
+
+            await to_thread.run_sync(func.cache_clear)
+
+            for i in range(10, 30):
+                await func(i)
+
+            info = func.cache_info()
+            assert info.maxsize is not None
+            entries = lru_cache_items.get()[func]
+            assert len(entries) == info.currsize <= info.maxsize
+
+        run(scenario, backend=anyio_backend_name, backend_options=anyio_backend_options)
 
     async def test_untyped_caching(self) -> None:
         @lru_cache

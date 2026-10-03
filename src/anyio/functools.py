@@ -35,6 +35,7 @@ from typing import (
 from weakref import WeakKeyDictionary
 
 from ._core._eventloop import current_time
+from ._core._exceptions import NoEventLoopError
 from ._core._synchronization import Lock
 from .lowlevel import RunVar, checkpoint
 
@@ -130,7 +131,19 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
         }
 
     def cache_clear(self) -> None:
-        if cache := lru_cache_items.get(None):
+        try:
+            cache = lru_cache_items.get(None)
+        except NoEventLoopError:
+            # No event loop means no cache for this call to clear: the entries live in
+            # the loop's own WeakKeyDictionary, which a worker thread cannot reach. This
+            # is a no-op rather than an error so that calling it at interpreter shutdown
+            # does not raise. Resetting the counters here would be wrong, though: they
+            # describe that loop's entries, and zeroing them while the entries remain
+            # stops the maxsize check in __call__ from evicting, so the cache would grow
+            # past maxsize without bound.
+            return
+
+        if cache:
             cache.pop(self, None)
             self._hits = self._misses = self._currsize = 0
 
