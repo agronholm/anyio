@@ -2328,6 +2328,92 @@ async def test_asyncio_call_graph(native: bool) -> None:
     assert task_names == ["depth-2", "depth-1", "root"]
 
 
+class TestCompletedTaskHandle:
+    @pytest.mark.parametrize("outcome", ["finished", "failed", "cancelled"])
+    def test_inspect_after_run(
+        self,
+        anyio_backend_name: str,
+        anyio_backend_options: dict[str, Any],
+        outcome: str,
+    ) -> None:
+        failure = ValueError("task failure")
+        cancellation: BaseException | None = None
+
+        async def taskfunc() -> int:
+            nonlocal cancellation
+            if outcome == "failed":
+                raise failure
+            elif outcome == "cancelled":
+                try:
+                    await sleep_forever()
+                except get_cancelled_exc_class() as exc:
+                    cancellation = exc
+                    raise
+
+            return 42
+
+        async def main() -> TaskHandle[int]:
+            try:
+                async with create_task_group() as tg:
+                    handle = tg.create_task(taskfunc())
+                    if outcome == "cancelled":
+                        await wait_all_tasks_blocked()
+                        handle.cancel()
+            except ExceptionGroup as exc:
+                assert outcome == "failed"
+                assert exc.exceptions == (failure,)
+
+            return handle
+
+        handle = anyio.run(
+            main, backend=anyio_backend_name, backend_options=anyio_backend_options
+        )
+        assert handle.status.name.lower() == outcome
+        if outcome == "finished":
+            assert handle.return_value == 42
+            assert handle.exception is None
+        elif outcome == "failed":
+            assert handle.exception is failure
+            with pytest.raises(TaskFailed) as exc_info:
+                handle.return_value  # noqa: B018
+
+            assert type(exc_info.value) is TaskFailed
+            assert exc_info.value.__cause__ is failure
+        else:
+            assert cancellation is not None
+            with pytest.raises(TaskCancelled) as exc_info:
+                handle.return_value  # noqa: B018
+
+            assert exc_info.value.__cause__ is cancellation
+            with pytest.raises(TaskCancelled) as exc_info:
+                handle.exception  # noqa: B018
+
+            assert exc_info.value.__cause__ is cancellation
+
+    def test_cancelled_status_from_other_backend(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        pytest.importorskip("trio", reason="trio is not available")
+
+        async def main() -> TaskHandle[None]:
+            async with create_task_group() as tg:
+                handle = tg.start_soon(sleep_forever)
+                await wait_all_tasks_blocked()
+                handle.cancel()
+
+            return handle
+
+        handle = anyio.run(
+            main, backend=anyio_backend_name, backend_options=anyio_backend_options
+        )
+
+        async def inspect() -> None:
+            assert handle.status is TaskHandle.Status.CANCELLED
+
+        reader_backend = "trio" if anyio_backend_name == "asyncio" else "asyncio"
+        anyio.run(inspect, backend=reader_backend)
+
+
 class TestCreateTask:
     async def test_coro_attr(self) -> None:
         async def taskfunc() -> None:
