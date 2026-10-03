@@ -50,6 +50,11 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   when the lock was created outside a running event loop
   (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
 
+- Fixed ``BufferedByteReceiveStream.receive_exactly()`` and ``receive_until()``
+  returning buffered data after explicit closure instead of raising
+  ``ClosedResourceError``
+  (`#1378 <https://github.com/agronholm/anyio/pull/1378>`_; PR by @kokotatan)
+
 **4.15.1**
 
 - Implemented a compatibility fix for supporting direct access of ``anyio.*`` submodules

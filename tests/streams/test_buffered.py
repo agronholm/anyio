@@ -42,6 +42,28 @@ async def test_receive_exactly_incomplete() -> None:
     receive_stream.close()
 
 
+@pytest.mark.parametrize("stream_type", [BufferedByteReceiveStream, BufferedByteStream])
+@pytest.mark.parametrize("operation", ["receive", "receive_exactly", "receive_until"])
+async def test_receive_closed_with_buffer(
+    stream_type: type[BufferedByteReceiveStream], operation: str
+) -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
+    async with send_stream, receive_stream:
+        buffered_stream = stream_type(StapledObjectStream(send_stream, receive_stream))
+        buffered_stream.feed_data(b"abcd\n")
+        await buffered_stream.aclose()
+
+        with pytest.raises(ClosedResourceError):
+            if operation == "receive_until":
+                await buffered_stream.receive_until(b"\n", 10)
+            elif operation == "receive_exactly":
+                await buffered_stream.receive_exactly(2)
+            else:
+                await buffered_stream.receive(2)
+
+        assert buffered_stream.buffer == b"abcd\n"
+
+
 async def test_receive_until() -> None:
     send_stream, receive_stream = create_memory_object_stream[bytes](2)
     buffered_stream = BufferedByteReceiveStream(receive_stream)
