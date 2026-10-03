@@ -50,6 +50,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   when the lock was created outside a running event loop
   (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
 
+- Fixed ``run_process(input=b"")`` inheriting standard input instead of sending
+  end-of-file
+  (`#1338 <https://github.com/agronholm/anyio/pull/1338>`_; PR by @Aurelucien)
+
 **4.15.1**
 
 - Implemented a compatibility fix for supporting direct access of ``anyio.*`` submodules
