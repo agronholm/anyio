@@ -30,6 +30,7 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
+from anyio._core._eventloop import current_async_library
 from anyio.from_thread import BlockingPortal, start_blocking_portal
 from anyio.lowlevel import EventLoopToken, checkpoint, current_token
 
@@ -365,6 +366,78 @@ class TestBlockingPortal:
         async with BlockingPortal() as portal:
             result = await to_thread.run_sync(portal.call, async_add, 1, 2)
             assert result == 3
+
+    @pytest.mark.parametrize("target_backend", get_available_backends())
+    async def test_call_async_corofunc(self, target_backend: str) -> None:
+        async def get_backend_and_add(a: int, b: int) -> tuple[str, int]:
+            await checkpoint()
+            backend = current_async_library()
+            assert backend is not None
+            return backend, a + b
+
+        portal_cm = start_blocking_portal(backend=target_backend)
+        portal = await to_thread.run_sync(portal_cm.__enter__)
+        try:
+            result = await portal.call_async(get_backend_and_add, 1, 2)
+        finally:
+            await to_thread.run_sync(portal_cm.__exit__, None, None, None)
+
+        assert result == (target_backend, 3)
+
+    async def test_call_async_exception(self) -> None:
+        def raise_exception() -> NoReturn:
+            raise ValueError("test")
+
+        portal_cm = start_blocking_portal()
+        portal = await to_thread.run_sync(portal_cm.__enter__)
+        try:
+            with pytest.raises(ValueError, match="test"):
+                await portal.call_async(raise_exception)
+        finally:
+            await to_thread.run_sync(portal_cm.__exit__, None, None, None)
+
+    @pytest.mark.parametrize("target_backend", get_available_backends())
+    async def test_call_async_context_variable(self, target_backend: str) -> None:
+        var = ContextVar[str]("var")
+
+        async def read_var() -> str:
+            await checkpoint()
+            return var.get()
+
+        portal_cm = start_blocking_portal(backend=target_backend)
+        portal = await to_thread.run_sync(portal_cm.__enter__)
+        try:
+            var.set("value")
+            assert await portal.call_async(read_var) == "value"
+        finally:
+            await to_thread.run_sync(portal_cm.__exit__, None, None, None)
+
+    async def test_call_async_cancellation(self) -> None:
+        started = threading.Event()
+        finished = threading.Event()
+
+        async def wait_forever() -> None:
+            started.set()
+            try:
+                await sleep(math.inf)
+            finally:
+                finished.set()
+
+        async def cancel_when_started(scope: CancelScope) -> None:
+            await to_thread.run_sync(started.wait)
+            scope.cancel()
+
+        portal_cm = start_blocking_portal()
+        portal = await to_thread.run_sync(portal_cm.__enter__)
+        try:
+            with CancelScope() as scope:
+                async with create_task_group() as tg:
+                    tg.start_soon(cancel_when_started, scope)
+                    await portal.call_async(wait_forever)
+
+            assert await to_thread.run_sync(finished.wait, 1)
+        finally:
+            await to_thread.run_sync(portal_cm.__exit__, None, None, None)
 
     async def test_call_non_corofunc(self) -> None:
         async with BlockingPortal() as portal:
