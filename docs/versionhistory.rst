@@ -49,6 +49,9 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed ``Lock.locked()`` (and ``Condition.locked()``) raising ``NoEventLoopError``
   when the lock was created outside a running event loop
   (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
+- Fixed worker threads preventing interpreter shutdown when the asyncio event loop is managed
+  manually (i.e. ``loop.run_until_complete()`` instead of ``asyncio.run()`` or ``anyio.run()``)
+  (`#1344 <https://github.com/agronholm/anyio/issues/1344>`_)
 
 **4.15.1**
 
