@@ -2584,6 +2584,5 @@ async def test_nan_deadline_rejected() -> None:
 
 async def test_nan_deadline_setter_rejected() -> None:
     """Assigning a NaN deadline raises ValueError on all backends."""
-    scope = CancelScope()
     with pytest.raises(ValueError, match="deadline must not be NaN"):
-        scope.deadline = math.nan
+        CancelScope().deadline = math.nan
