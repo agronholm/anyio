@@ -1,0 +1,5 @@
+Fixed ``lru_cache().cache_clear()`` raising ``NoEventLoopError`` when called
+outside a running event loop. Called from another thread while an event loop is
+still running it is now a no-op rather than an error, and no longer zeroes the
+hit/miss/size counters for entries that the owning loop still holds
+PR by @feiiiiii5
