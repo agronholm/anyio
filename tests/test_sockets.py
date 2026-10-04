@@ -1274,6 +1274,31 @@ class TestUNIXStream:
 
         assert response == b"halb"
 
+    @pytest.mark.skipif(
+        platform.system() != "Linux",
+        reason="SOCK_SEQPACKET only supported for linux targets.",
+    )
+    async def test_send_receive_seqsocket(self, socket_path_or_str: Path | str) -> None:
+        """
+        Verifies the behavior of a SOCK_SEQPACKET socket, which is a connection-oriented
+        socket that preserves message boundaries.
+
+        """
+        async with (
+            await create_unix_listener(
+                socket_path_or_str, kind=socket.SOCK_SEQPACKET
+            ) as server,
+            await connect_unix(
+                socket_path_or_str, kind=socket.SOCK_SEQPACKET
+            ) as stream,
+            await server.accept() as client,
+        ):
+            with fail_after(1):
+                await stream.send(b"po")
+                await stream.send(b"tato")
+                assert await client.receive(1024) == b"po"
+                assert await client.receive(1024) == b"tato"
+
     @pytest.mark.parametrize("max_bytes", [0, -1])
     async def test_receive_invalid_max_bytes(
         self, server_sock: socket.socket, socket_path: Path, max_bytes: int
