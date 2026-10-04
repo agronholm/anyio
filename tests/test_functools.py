@@ -146,21 +146,19 @@ class TestAsyncLRUCache:
         )
         assert func.cache_info() == AsyncCacheInfo(0, 1, 128, 1, None)
 
-        # Outside the event loop there is no cache to clear: the entries live in that
-        # loop's own RunVar. This must stay a no-op rather than becoming an error, and it
-        # must not zero the counters either -- they describe the entry still held by that
-        # loop, and zeroing currsize while it remains stops __call__ from evicting, so
-        # the cache would grow past maxsize.
+        # Outside the event loop there is no cache this call can reach: the entries live
+        # in that loop's own RunVar. It must stay a no-op rather than becoming an error,
+        # and it must leave the counters alone.
         func.cache_clear()
         assert func.cache_info() == AsyncCacheInfo(0, 1, 128, 1, None)
 
-    def test_cache_clear_from_worker_thread_keeps_maxsize_bound(
+    def test_cache_clear_from_worker_thread_is_a_noop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
-        """A cache_clear() from another thread must not leave currsize lying about entries.
+        """A cache_clear() from a thread with no loop must not raise or disturb the cache.
 
-        Zeroing the counters while the owning loop still holds entries stops the
-        maxsize check in __call__ from evicting, so the cache grows past maxsize.
+        The worker thread cannot reach the owning loop's RunVar, so there is nothing for
+        it to clear; the entries the loop still holds must be left exactly as they were.
         """
 
         @lru_cache(maxsize=2)
@@ -171,8 +169,15 @@ class TestAsyncLRUCache:
             for i in range(3):
                 await func(i)
 
+            before = func.cache_info()
             await to_thread.run_sync(func.cache_clear)
 
+            assert func.cache_info() == before, (
+                "a no-op clear must not touch the counters"
+            )
+            assert len(lru_cache_items.get()[func]) == before.currsize
+
+            # The cache must still evict normally afterwards.
             for i in range(10, 30):
                 await func(i)
 

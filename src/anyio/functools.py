@@ -134,13 +134,11 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
         try:
             cache = lru_cache_items.get(None)
         except NoEventLoopError:
-            # No event loop means no cache for this call to clear: the entries live in
-            # the loop's own WeakKeyDictionary, which a worker thread cannot reach. This
-            # is a no-op rather than an error so that calling it at interpreter shutdown
-            # does not raise. Resetting the counters here would be wrong, though: they
-            # describe that loop's entries, and zeroing them while the entries remain
-            # stops the maxsize check in __call__ from evicting, so the cache would grow
-            # past maxsize without bound.
+            # Outside an event loop there is no cache for this call to reach: the
+            # entries live in the owning loop's RunVar, so the only correct action is
+            # to do nothing. Returning rather than raising keeps cache_clear() from
+            # being a crash source at interpreter shutdown or when a worker thread
+            # clears a cache the loop it belongs to is still holding.
             return
 
         if cache:
