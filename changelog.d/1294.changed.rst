@@ -1,3 +1,2 @@
 Changed UDP sockets on the asyncio backend to make ``send()`` wait until the
 datagram has been passed to the operating system
-PR by @graingert
