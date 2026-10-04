@@ -1,0 +1,2 @@
+Fixed concurrent ``aclose_forcefully()`` calls on asyncio socket streams returning
+before the underlying socket was closed

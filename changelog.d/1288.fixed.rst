@@ -1,0 +1,3 @@
+Fixed ``aclose()`` on sockets not checkpointing, and thus failing to raise a
+cancellation exception when called inside a cancelled scope (affected UNIX socket
+streams and UNIX datagram sockets on asyncio, and all sockets on Trio)
