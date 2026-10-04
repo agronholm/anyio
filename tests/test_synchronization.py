@@ -236,6 +236,7 @@ class TestLock:
                 pass
 
         lock = Lock()
+        assert not lock.locked()
         statistics = lock.statistics()
         assert not statistics.locked
         assert statistics.owner is None
@@ -439,6 +440,34 @@ class TestCondition:
         ):
             await condition.wait()
 
+    async def test_notify_with_shared_lock(self) -> None:
+        lock = Lock()
+        condition = Condition(lock)
+        async with lock:
+            condition.notify()
+            condition.notify_all()
+
+    async def test_notify_no_lock(self) -> None:
+        condition = Condition()
+        with pytest.raises(
+            RuntimeError, match="The current task is not holding the underlying lock"
+        ):
+            condition.notify()
+
+        with pytest.raises(
+            RuntimeError, match="The current task is not holding the underlying lock"
+        ):
+            condition.notify_all()
+
+    async def test_notify_after_release(self) -> None:
+        condition = Condition()
+        await condition.acquire()
+        condition.release()
+        with pytest.raises(
+            RuntimeError, match="The current task is not holding the underlying lock"
+        ):
+            condition.notify()
+
     async def test_statistics(self) -> None:
         async def waiter() -> None:
             async with condition:
@@ -475,6 +504,7 @@ class TestCondition:
                 pass
 
         condition = Condition()
+        assert not condition.locked()
         assert condition.statistics().tasks_waiting == 0
 
         run(
@@ -553,6 +583,28 @@ class TestSemaphore:
             tg.start_soon(other_task)
             async with semaphore:
                 assert not other_task_called
+
+    def test_fast_acquire_outside_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        semaphore = Semaphore(1, fast_acquire=True)
+        other_task_called = False
+
+        async def other_task() -> None:
+            nonlocal other_task_called
+            other_task_called = True
+
+        async def use_semaphore() -> None:
+            async with create_task_group() as tg:
+                tg.start_soon(other_task)
+                async with semaphore:
+                    assert not other_task_called
+
+        run(
+            use_semaphore,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
+        )
 
     async def test_acquire_nowait(self) -> None:
         semaphore = Semaphore(1)

@@ -254,6 +254,63 @@ class TestTCPStream:
             assert stream.extra(SocketAttribute.remote_address) == server_addr
             assert stream.extra(SocketAttribute.remote_port) == server_addr[1]
 
+    async def test_cancelled_send_does_not_send_the_next_one(
+        self, server_sock: socket.socket, server_addr: tuple[str, int]
+    ) -> None:
+        """
+        Handing data to a paused transport merely appends it to the write buffer, from
+        If a ``send()`` was cancelled after the data was written to the buffer, the
+        next call must ensure that the previous send completed one way or another
+        before attempting to send its own data.
+        """
+        payload = b"a" * 8 * 1024 * 1024
+        async with await connect_tcp(*server_addr) as stream:
+            client, _ = server_sock.accept()
+            with client:
+                client.setblocking(False)
+
+                async def send_and_cancel(item: bytes) -> None:
+                    async with create_task_group() as tg:
+                        tg.start_soon(stream.send, item)
+                        await wait_all_tasks_blocked()
+                        tg.cancel_scope.cancel()
+
+                # Back the connection up, and then soak up any room that the peer's
+                # acknowledgements may have reopened in the meantime, so that the OS
+                # cannot take another byte. Nothing is read from the peer until further
+                # down, so the connection stays that way.
+                await send_and_cancel(payload)
+                await send_and_cancel(payload)
+
+                # On Windows, a transport can be genuinely backed up without its
+                # pause_writing() having fired yet: that only happens as a side effect
+                # of the next write() call discovering it, by which point that call's
+                # own data is already appended to the write buffer. Spend that one on
+                # a throwaway payload so the transport is *known* paused going into
+                # the next send() below, before it ever calls write() again.
+                await send_and_cancel(b"r" * 64)
+
+                # Now that the transport is known paused, the OS still never accepted
+                # any of this, so none of it may reach the peer
+                await send_and_cancel(b"c" * 64)
+
+                # Drain the peer until a final, uncancelled send() has arrived; data
+                # that a cancelled send() wrongly handed over would arrive first
+                received = bytearray()
+                arrived = False
+                async with create_task_group() as tg:
+                    tg.start_soon(stream.send, b"z" * 64)
+                    while not arrived:
+                        try:
+                            data = client.recv(65536)
+                        except BlockingIOError:
+                            await wait_readable(client)
+                        else:
+                            received += data
+                            arrived = b"z" in data
+
+                assert b"c" not in received
+
     async def test_send_receive(
         self, server_sock: socket.socket, server_addr: tuple[str, int]
     ) -> None:
@@ -1256,6 +1313,31 @@ class TestUNIXStream:
 
         assert response == b"halb"
 
+    @pytest.mark.skipif(
+        platform.system() != "Linux",
+        reason="SOCK_SEQPACKET only supported for linux targets.",
+    )
+    async def test_send_receive_seqsocket(self, socket_path_or_str: Path | str) -> None:
+        """
+        Verifies the behavior of a SOCK_SEQPACKET socket, which is a connection-oriented
+        socket that preserves message boundaries.
+
+        """
+        async with (
+            await create_unix_listener(
+                socket_path_or_str, kind=socket.SOCK_SEQPACKET
+            ) as server,
+            await connect_unix(
+                socket_path_or_str, kind=socket.SOCK_SEQPACKET
+            ) as stream,
+            await server.accept() as client,
+        ):
+            with fail_after(1):
+                await stream.send(b"po")
+                await stream.send(b"tato")
+                assert await client.receive(1024) == b"po"
+                assert await client.receive(1024) == b"tato"
+
     @pytest.mark.parametrize("max_bytes", [0, -1])
     async def test_receive_invalid_max_bytes(
         self, server_sock: socket.socket, socket_path: Path, max_bytes: int
@@ -2046,6 +2128,20 @@ class TestUDPSocket:
                 IPSockAddrType, udp.extra(SocketAttribute.local_address)
             )
             assert local_address[1] > 0
+
+    async def test_create_socket_bound_to_port(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        """
+        Test that passing an explicit ``local_port`` to ``create_udp_socket()``
+        without a ``local_host`` parameter still honors that port when binding
+        to the "any" address.
+
+        """
+        async with await create_udp_socket(
+            family=family, local_port=free_udp_port
+        ) as udp:
+            assert udp.extra(SocketAttribute.local_port) == free_udp_port
 
     async def test_from_socket(
         self, family: AnyIPAddressFamily, sock_or_fd_factory: SockFdFactoryProtocol

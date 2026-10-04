@@ -72,11 +72,39 @@ doc = [
     "sphinx_rtd_theme >= 2.0.0",
     "sphinx-autodoc-typehints >= 1.2.0",
     "sphinx-tabs >= 3.3.1",
+    "towncrier >= 24.7",
 ]
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
 local_scheme = "dirty-tag"
+
+[tool.towncrier]
+directory = "changelog.d"
+filename = "docs/versionhistory.rst"
+start_string = ".. towncrier release notes start\n"
+template = "changelog.d/template.rst.j2"
+issue_format = "`#{issue} <https://github.com/agronholm/anyio/issues/{issue}>`_"
+
+[[tool.towncrier.type]]
+directory = "breaking"
+name = "Backwards incompatible changes"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "added"
+name = "New features"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "changed"
+name = "Other changes"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "fixed"
+name = "Bug fixes"
+showcontent = true
 
 [tool.ruff]
 src = ["src"]

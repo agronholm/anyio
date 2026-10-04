@@ -1268,8 +1268,12 @@ class TrioBackend(AsyncBackend):
         return SocketStream(trio_socket)
 
     @classmethod
-    async def connect_unix(cls, path: str | bytes) -> abc.UNIXSocketStream:
-        trio_socket = trio.socket.socket(socket.AF_UNIX)
+    async def connect_unix(
+        cls,
+        path: str | bytes,
+        kind: Literal[SocketKind.SOCK_STREAM, SocketKind.SOCK_SEQPACKET],
+    ) -> abc.UNIXSocketStream:
+        trio_socket = trio.socket.socket(socket.AF_UNIX, kind)
         try:
             await trio_socket.connect(path)
         except BaseException:

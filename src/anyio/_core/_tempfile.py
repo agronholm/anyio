@@ -17,6 +17,7 @@ from typing import (
 from .. import to_thread
 from .._core._fileio import AsyncFile
 from ..lowlevel import checkpoint_if_cancelled
+from ._tasks import CancelScope
 
 if TYPE_CHECKING:
     from _typeshed import OpenBinaryMode, OpenTextMode, ReadableBuffer, WriteableBuffer
@@ -409,7 +410,7 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
         If the file has not yet been rolled over, the data is written synchronously,
         and a rollover is triggered if the size exceeds the maximum size.
 
-        :param s: The data to write.
+        :param b: The data to write.
         :return: The number of bytes written.
         :raises RuntimeError: If the underlying file is not initialized.
 
@@ -505,9 +506,10 @@ class TemporaryDirectory(Generic[AnyStr]):
         traceback: TracebackType | None,
     ) -> None:
         if self._tempdir is not None:
-            await to_thread.run_sync(
-                self._tempdir.__exit__, exc_type, exc_value, traceback
-            )
+            with CancelScope(shield=True):
+                await to_thread.run_sync(
+                    self._tempdir.__exit__, exc_type, exc_value, traceback
+                )
 
     async def cleanup(self) -> None:
         if self._tempdir is not None:
