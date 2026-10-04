@@ -124,10 +124,6 @@ skip_unix_abstract_mark = pytest.mark.skipif(
     not sys.platform.startswith("linux"),
     reason="Abstract namespace sockets is a Linux only feature",
 )
-skip_no_dgram_backpressure_mark = pytest.mark.skipif(
-    not sys.platform.startswith("linux"),
-    reason="Datagram sockets are only known to refuse datagrams with EAGAIN on Linux",
-)
 
 
 @pytest.fixture
@@ -2236,7 +2232,10 @@ class TestConnectedUDPSocket:
             await ConnectedUDPSocket.from_socket(sock_or_fd)
 
 
-@skip_no_dgram_backpressure_mark
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="Datagram sockets are only known to refuse datagrams with EAGAIN on Linux",
+)
 class TestUDPSocketBackpressure:
     """
     Tests for ``send()`` on UDP sockets when the OS refuses to accept more datagrams.
