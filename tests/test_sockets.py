@@ -2077,6 +2077,39 @@ class TestConnectedUDPSocket:
         finally:
             peer.close()
 
+    async def test_create_connected_socket_bound_to_port(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        """
+        Test that passing an explicit ``local_port`` to
+        ``create_connected_udp_socket()`` without a ``local_host`` parameter
+        still honors that port when binding to the "any" address.
+
+        """
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        async with await create_connected_udp_socket(
+            host, 5000, family=family, local_port=free_udp_port
+        ) as udp:
+            assert udp.extra(SocketAttribute.local_port) == free_udp_port
+
+    async def test_create_connected_socket_bound_to_port_unspecified_family(
+        self, free_udp_port: int
+    ) -> None:
+        """
+        With no family and no local host, the wildcard must match the family the remote
+        resolved to rather than always being IPv4.
+
+        """
+        async with await create_connected_udp_socket(
+            "localhost", 5000, local_port=free_udp_port
+        ) as udp:
+            expected_family = udp.extra(SocketAttribute.family)
+            expected_host = "127.0.0.1" if expected_family == socket.AF_INET else "::1"
+            assert udp.extra(SocketAttribute.local_address) == (
+                expected_host,
+                free_udp_port,
+            )
+
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_connected_udp_socket(
             "localhost", 5000, family=family
