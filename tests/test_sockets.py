@@ -576,17 +576,23 @@ class TestTCPStream:
                     await stream.receive()
 
     async def test_close_during_send(self, server_addr: tuple[str, int]) -> None:
+        closed = False
+
         async def interrupt() -> None:
+            nonlocal closed
             await wait_all_tasks_blocked()
+            closed = True
             await stream.aclose()
 
         async with await connect_tcp(*server_addr) as stream:
             async with create_task_group() as tg:
                 tg.start_soon(interrupt)
                 with pytest.raises(ClosedResourceError):
-                    # Nothing reads from the server side, so this is more than the
-                    # socket buffers can hold and the send blocks until interrupted
-                    await stream.send(b"\0" * 32 * 1024 * 1024)
+                    # Nothing reads from the server side, so this blocks once the
+                    # socket buffers fill up (how much they take varies by platform)
+                    while True:
+                        await stream.send(b"\0" * 1024 * 1024)
+                        assert not closed, "send() returned normally after aclose()"
 
     async def test_aclose_forcefully(self, server_addr: tuple[str, int]) -> None:
         stream = await connect_tcp(*server_addr)
