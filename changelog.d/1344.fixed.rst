@@ -1,0 +1,2 @@
+Fixed worker threads preventing interpreter shutdown when the asyncio event loop is managed manually (i.e. ``loop.run_until_complete()`` instead of ``asyncio.run()`` or ``anyio.run()``)
+PR by @davidbrochart
