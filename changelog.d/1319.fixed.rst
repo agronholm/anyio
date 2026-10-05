@@ -1,0 +1,3 @@
+Fixed ``Condition.notify()`` and ``Condition.notify_all()`` failing when the
+underlying lock was acquired directly rather than through the condition
+PR by @GruffElixir
