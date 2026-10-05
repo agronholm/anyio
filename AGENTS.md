@@ -65,7 +65,7 @@ Name the fragment `changelog.d/<issue or PR number>.<type>.rst` (e.g. `changelog
 
 ### 5. Good and bad examples
 
-Here is a good example of a PR that adds a new feature: https://github.com/agronholm/anyio/pull/1100
+Here is a good example of a PR that fixes a bug: https://github.com/agronholm/anyio/pull/1365
 Here is a bad example of a PR that overwrites the PR template and lacks tests and a changelog entry: https://github.com/agronholm/anyio/pull/1112
 
 ## Repository Layout
