@@ -14,7 +14,14 @@ import tempfile
 import threading
 import time
 import warnings
-from collections.abc import Generator, Iterable, Iterator
+from collections.abc import (
+    AsyncIterator,
+    Callable,
+    Coroutine,
+    Generator,
+    Iterable,
+    Iterator,
+)
 from contextlib import suppress
 from ipaddress import IPv4Address, IPv6Address
 from pathlib import Path
@@ -2070,6 +2077,39 @@ class TestConnectedUDPSocket:
         finally:
             peer.close()
 
+    async def test_create_connected_socket_bound_to_port(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        """
+        Test that passing an explicit ``local_port`` to
+        ``create_connected_udp_socket()`` without a ``local_host`` parameter
+        still honors that port when binding to the "any" address.
+
+        """
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        async with await create_connected_udp_socket(
+            host, 5000, family=family, local_port=free_udp_port
+        ) as udp:
+            assert udp.extra(SocketAttribute.local_port) == free_udp_port
+
+    async def test_create_connected_socket_bound_to_port_unspecified_family(
+        self, free_udp_port: int
+    ) -> None:
+        """
+        With no family and no local host, the wildcard must match the family the remote
+        resolved to rather than always being IPv4.
+
+        """
+        async with await create_connected_udp_socket(
+            "localhost", 5000, local_port=free_udp_port
+        ) as udp:
+            expected_family = udp.extra(SocketAttribute.family)
+            expected_host = "127.0.0.1" if expected_family == socket.AF_INET else "::1"
+            assert udp.extra(SocketAttribute.local_address) == (
+                expected_host,
+                free_udp_port,
+            )
+
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_connected_udp_socket(
             "localhost", 5000, family=family
@@ -2223,6 +2263,154 @@ class TestConnectedUDPSocket:
         sock_or_fd = sock_or_fd_factory(socket.AF_INET, socket.SOCK_DGRAM, bound=True)
         with pytest.raises(ValueError, match="the socket must be connected"):
             await ConnectedUDPSocket.from_socket(sock_or_fd)
+
+
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="Datagram sockets are only known to refuse datagrams with EAGAIN on Linux",
+)
+class TestUDPSocketBackpressure:
+    """
+    Tests for ``send()`` on UDP sockets when the OS refuses to accept more datagrams.
+
+    UNIX datagram sockets are used because UDP sockets never exert back-pressure on the
+    loopback interface, but they take the same code path in both backends.
+
+    """
+
+    payload = b"\x00" * 64
+
+    @staticmethod
+    def drain(sock: socket.socket) -> None:
+        try:
+            while True:
+                sock.recv(65536)
+        except BlockingIOError:
+            pass
+
+    @staticmethod
+    async def receive_until(sock: socket.socket, sentinel: bytes) -> list[bytes]:
+        """Receive datagrams until ``sentinel`` arrives, and return all of them."""
+        received: list[bytes] = []
+        while not received or received[-1] != sentinel:
+            try:
+                received.append(sock.recv(65536))
+            except BlockingIOError:
+                await wait_readable(sock)
+
+        return received
+
+    @pytest.fixture
+    def peer_path(self, tmp_path: Path) -> str:
+        return str(tmp_path / "peer.sock")
+
+    @pytest.fixture
+    def peer(self, peer_path: str) -> Iterator[socket.socket]:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as peer:
+            peer.setblocking(False)
+            peer.bind(peer_path)
+            yield peer
+
+    @pytest.fixture(params=[False, True], ids=["unconnected", "connected"])
+    async def send(
+        self,
+        request: SubRequest,
+        tmp_path: Path,
+        peer: socket.socket,
+        peer_path: str,
+    ) -> AsyncIterator[Callable[[bytes], Coroutine[Any, Any, None]]]:
+        """
+        Yield a function that sends a datagram through a UDP socket whose send buffer
+        is full.
+
+        """
+        connect: bool = request.param
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        sock.bind(str(tmp_path / "local.sock"))
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024)
+        if connect:
+            sock.connect(peer_path)
+
+        sock.setblocking(False)
+
+        # Find out how many datagrams the OS accepts before it refuses any more, and
+        # then empty both buffers again
+        capacity = 0
+        try:
+            while True:
+                if connect:
+                    sock.send(self.payload)
+                else:
+                    sock.sendto(self.payload, peer_path)
+
+                capacity += 1
+        except BlockingIOError:
+            pass
+
+        assert capacity >= 2, f"the send buffer only fits {capacity} datagram(s)"
+        self.drain(peer)
+
+        send: Callable[[bytes], Coroutine[Any, Any, None]]
+        udp: UDPSocket | ConnectedUDPSocket
+        if connect:
+            udp = await ConnectedUDPSocket.from_socket(sock)
+            send = udp.send
+        else:
+            udp = unconnected = await UDPSocket.from_socket(sock)
+            addr = cast(IPSockAddrType, peer_path)
+
+            async def send(data: bytes) -> None:
+                await unconnected.send((data, addr))
+
+        async with udp:
+            # Fill up the send buffer again
+            for _ in range(capacity):
+                await send(self.payload)
+
+            yield send
+
+    async def test_send_waits_for_the_os_to_accept_the_datagram(
+        self, send: Callable[[bytes], Coroutine[Any, Any, None]], peer: socket.socket
+    ) -> None:
+        send_completed = False
+
+        async def send_one_more() -> None:
+            nonlocal send_completed
+            await send(self.payload)
+            send_completed = True
+
+        with fail_after(5):
+            async with create_task_group() as tg:
+                tg.start_soon(send_one_more)
+                await wait_all_tasks_blocked()
+                blocked = not send_completed
+
+                # Make room in the send buffer so the sender can continue
+                self.drain(peer)
+
+        assert blocked, "send() returned before the OS accepted the datagram"
+        assert send_completed
+
+    async def test_cancelled_send_does_not_buffer_the_next_datagram(
+        self, send: Callable[[bytes], Coroutine[Any, Any, None]], peer: socket.socket
+    ) -> None:
+        async def send_and_cancel(payload: bytes) -> None:
+            async with create_task_group() as tg:
+                tg.start_soon(send, payload)
+                await wait_all_tasks_blocked()
+                tg.cancel_scope.cancel()
+
+        with fail_after(5):
+            # The first cancelled send may leave its datagram in the asyncio
+            # transport's buffer, but the second one must never reach it
+            await send_and_cancel(b"one")
+            await send_and_cancel(b"two")
+
+            async with create_task_group() as tg:
+                tg.start_soon(send, b"three")
+                received = await self.receive_until(peer, b"three")
+
+        assert b"two" not in received
 
 
 @pytest.mark.skipif(
