@@ -44,6 +44,12 @@ from .lowlevel import cancel_shielded_checkpoint, checkpoint, checkpoint_if_canc
 
 if sys.version_info < (3, 15):
     from typing_extensions import sentinel
+else:
+    try:
+        from builtins import sentinel
+    except ImportError:
+        # 3.15 alphas before 3.15.0b1 have no PEP 661 builtin.
+        from typing_extensions import sentinel
 
 T = TypeVar("T")
 R = TypeVar("R")

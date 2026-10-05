@@ -1,0 +1,2 @@
+Fixed a ``NameError`` importing AnyIO on Python 3.15 alphas from before the
+``sentinel`` builtin was added in 3.15.0b1

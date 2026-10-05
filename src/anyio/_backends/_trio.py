@@ -93,6 +93,12 @@ if TYPE_CHECKING:
 
 if sys.version_info < (3, 15):
     from typing_extensions import sentinel
+else:
+    try:
+        from builtins import sentinel
+    except ImportError:
+        # 3.15 alphas before 3.15.0b1 have no PEP 661 builtin.
+        from typing_extensions import sentinel
 
 if sys.version_info >= (3, 11):
     from typing import Self, TypeVarTuple, Unpack
