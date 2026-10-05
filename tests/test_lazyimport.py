@@ -34,6 +34,7 @@ SUBMODULES = (
 )
 
 
+@pytest.mark.network
 @pytest.mark.timeout(60)
 def test_sourceless_install(tmp_path: Path) -> None:
     """

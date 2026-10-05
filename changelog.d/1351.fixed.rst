@@ -1,0 +1,4 @@
+Fixed ``create_udp_socket()`` silently ignoring the ``local_port`` argument when
+``local_host`` was omitted, making the socket bind to a random ephemeral port
+instead of the requested one
+PR by @januththedev

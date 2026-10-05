@@ -46,8 +46,7 @@ these situations, you will need to install a signal handler::
 
     import signal
 
-    from anyio import open_signal_receiver, create_task_group, run
-    from anyio.abc import CancelScope
+    from anyio import CancelScope, open_signal_receiver, create_task_group, run
 
 
     async def signal_handler(scope: CancelScope):
