@@ -1470,6 +1470,9 @@ class SocketStream(abc.SocketStream):
 
             if not self._protocol.write_event.is_set():
                 await self._protocol.write_event.wait()
+                if self._closed:
+                    # aclose() aborted the transport, discarding the unsent data
+                    raise ClosedResourceError
             elif not yielded:
                 await AsyncIOBackend.cancel_shielded_checkpoint()
 
@@ -1805,6 +1808,9 @@ class UDPSocket(abc.UDPSocket):
             # The high water mark is 0, so the event is clear if the OS refused it
             if not self._protocol.write_event.is_set():
                 await self._protocol.write_event.wait()
+                if self._closed:
+                    # aclose() aborted the transport, discarding the unsent data
+                    raise ClosedResourceError
             elif not yielded:
                 await AsyncIOBackend.cancel_shielded_checkpoint()
 
@@ -1867,6 +1873,9 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
             # The high water mark is 0, so the event is clear if the OS refused it
             if not self._protocol.write_event.is_set():
                 await self._protocol.write_event.wait()
+                if self._closed:
+                    # aclose() aborted the transport, discarding the unsent data
+                    raise ClosedResourceError
             elif not yielded:
                 await AsyncIOBackend.cancel_shielded_checkpoint()
 

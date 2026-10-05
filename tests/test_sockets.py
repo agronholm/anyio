@@ -575,6 +575,19 @@ class TestTCPStream:
                 with pytest.raises(ClosedResourceError):
                     await stream.receive()
 
+    async def test_close_during_send(self, server_addr: tuple[str, int]) -> None:
+        async def interrupt() -> None:
+            await wait_all_tasks_blocked()
+            await stream.aclose()
+
+        async with await connect_tcp(*server_addr) as stream:
+            async with create_task_group() as tg:
+                tg.start_soon(interrupt)
+                with pytest.raises(ClosedResourceError):
+                    # Nothing reads from the server side, so this is more than the
+                    # socket buffers can hold and the send blocks until interrupted
+                    await stream.send(b"\0" * 32 * 1024 * 1024)
+
     async def test_aclose_forcefully(self, server_addr: tuple[str, int]) -> None:
         stream = await connect_tcp(*server_addr)
         sock = stream.extra(SocketAttribute.raw_socket)
@@ -2474,19 +2487,29 @@ class TestUDPSocketBackpressure:
             peer.bind(peer_path)
             yield peer
 
+    @staticmethod
+    def make_send(
+        udp: UDPSocket | ConnectedUDPSocket, peer_path: str
+    ) -> Callable[[bytes], Coroutine[Any, Any, None]]:
+        if isinstance(udp, ConnectedUDPSocket):
+            return udp.send
+
+        addr = cast(IPSockAddrType, peer_path)
+
+        async def send(data: bytes) -> None:
+            await udp.send((data, addr))
+
+        return send
+
     @pytest.fixture(params=[False, True], ids=["unconnected", "connected"])
-    async def send(
+    async def udp(
         self,
         request: SubRequest,
         tmp_path: Path,
         peer: socket.socket,
         peer_path: str,
-    ) -> AsyncIterator[Callable[[bytes], Coroutine[Any, Any, None]]]:
-        """
-        Yield a function that sends a datagram through a UDP socket whose send buffer
-        is full.
-
-        """
+    ) -> AsyncIterator[UDPSocket | ConnectedUDPSocket]:
+        """Yield a UDP socket whose send buffer is full."""
         connect: bool = request.param
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
         sock.bind(str(tmp_path / "local.sock"))
@@ -2513,24 +2536,26 @@ class TestUDPSocketBackpressure:
         assert capacity >= 2, f"the send buffer only fits {capacity} datagram(s)"
         self.drain(peer)
 
-        send: Callable[[bytes], Coroutine[Any, Any, None]]
         udp: UDPSocket | ConnectedUDPSocket
         if connect:
             udp = await ConnectedUDPSocket.from_socket(sock)
-            send = udp.send
         else:
-            udp = unconnected = await UDPSocket.from_socket(sock)
-            addr = cast(IPSockAddrType, peer_path)
-
-            async def send(data: bytes) -> None:
-                await unconnected.send((data, addr))
+            udp = await UDPSocket.from_socket(sock)
 
         async with udp:
             # Fill up the send buffer again
+            send = self.make_send(udp, peer_path)
             for _ in range(capacity):
                 await send(self.payload)
 
-            yield send
+            yield udp
+
+    @pytest.fixture
+    def send(
+        self, udp: UDPSocket | ConnectedUDPSocket, peer_path: str
+    ) -> Callable[[bytes], Coroutine[Any, Any, None]]:
+        """Return a function that sends a datagram through ``udp``."""
+        return self.make_send(udp, peer_path)
 
     async def test_send_waits_for_the_os_to_accept_the_datagram(
         self, send: Callable[[bytes], Coroutine[Any, Any, None]], peer: socket.socket
@@ -2574,6 +2599,29 @@ class TestUDPSocketBackpressure:
                 received = await self.receive_until(peer, b"three")
 
         assert b"two" not in received
+
+    async def test_close_during_send(
+        self,
+        udp: UDPSocket | ConnectedUDPSocket,
+        send: Callable[[bytes], Coroutine[Any, Any, None]],
+        anyio_backend_options: dict[str, Any],
+    ) -> None:
+        loop_factory = anyio_backend_options.get("loop_factory")
+        if getattr(loop_factory, "__module__", None) == "uvloop":
+            pytest.xfail(
+                "uvloop reports a fatal write error when aborting a UDP transport "
+                "with a queued datagram"
+            )
+
+        async def interrupt() -> None:
+            await wait_all_tasks_blocked()
+            await udp.aclose()
+
+        with fail_after(5):
+            async with create_task_group() as tg:
+                tg.start_soon(interrupt)
+                with pytest.raises(ClosedResourceError):
+                    await send(self.payload)
 
 
 @pytest.mark.skipif(
