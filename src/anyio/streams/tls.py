@@ -19,6 +19,7 @@ from typing import Any, TypeAlias, TypeVar
 
 from .. import (
     BrokenResourceError,
+    CancelScope,
     EndOfStream,
     aclose_forcefully,
     get_cancelled_exc_class,
@@ -179,6 +180,17 @@ class TLSStream(ByteStream):
         await wrapper._call_sslobject_method(ssl_object.do_handshake)
         return wrapper
 
+    async def _flush_write_bio(self) -> None:
+        # SSLObject.write() has already encrypted these bytes and consumed the
+        # next TLS record number. The transport send checkpoints before it
+        # writes, so cancelling there drops the record and every later record
+        # fails the peer's MAC check. Deliver this record before honoring
+        # cancellation.
+        if self._write_bio.pending:
+            data = self._write_bio.read()
+            with CancelScope(shield=True):
+                await self.transport_stream.send(data)
+
     async def _call_sslobject_method(
         self, func: Callable[[Unpack[PosArgsT]], T_Retval], *args: Unpack[PosArgsT]
     ) -> T_Retval:
@@ -188,8 +200,7 @@ class TLSStream(ByteStream):
             except ssl.SSLWantReadError:
                 try:
                     # Flush any pending writes first
-                    if self._write_bio.pending:
-                        await self.transport_stream.send(self._write_bio.read())
+                    await self._flush_write_bio()
 
                     data = await self.transport_stream.receive()
                 except EndOfStream:
@@ -201,7 +212,7 @@ class TLSStream(ByteStream):
                 else:
                     self._read_bio.write(data)
             except ssl.SSLWantWriteError:
-                await self.transport_stream.send(self._write_bio.read())
+                await self._flush_write_bio()
             except ssl.SSLSyscallError as exc:
                 self._read_bio.write_eof()
                 self._write_bio.write_eof()
@@ -220,8 +231,7 @@ class TLSStream(ByteStream):
                 raise
             else:
                 # Flush any pending writes first
-                if self._write_bio.pending:
-                    await self.transport_stream.send(self._write_bio.read())
+                await self._flush_write_bio()
 
                 return result
 

@@ -12,12 +12,14 @@ from trustme import CA
 
 from anyio import (
     BrokenResourceError,
+    CancelScope,
     EndOfStream,
     Event,
     connect_tcp,
     create_memory_object_stream,
     create_task_group,
     create_tcp_listener,
+    fail_after,
     to_thread,
 )
 from anyio.abc import (
@@ -59,6 +61,53 @@ class TestTLSStream:
         server_thread.join()
         server_sock.close()
         assert response == b"olleh"
+
+    async def test_cancelled_send_keeps_later_records(
+        self, server_context: ssl.SSLContext, client_context: ssl.SSLContext
+    ) -> None:
+        # Regression test for #1385: cancelling send() after SSLObject.write()
+        # must not drop the encrypted record and desynchronize the stream.
+        received: list[bytes] = []
+        server_exc: BaseException | None = None
+
+        def serve_sync() -> None:
+            nonlocal server_exc
+            conn, _addr = server_sock.accept()
+            conn.settimeout(5)
+            try:
+                received.append(conn.recv(100))
+                received.append(conn.recv(100))
+                received.append(conn.recv(100))
+            except BaseException as exc:
+                server_exc = exc
+            finally:
+                conn.close()
+
+        server_sock = server_context.wrap_socket(
+            socket.socket(), server_side=True, suppress_ragged_eofs=False
+        )
+        server_sock.settimeout(5)
+        server_sock.bind(("127.0.0.1", 0))
+        server_sock.listen()
+        server_thread = Thread(target=serve_sync, daemon=True)
+        server_thread.start()
+
+        with fail_after(5):
+            async with await connect_tcp(*server_sock.getsockname()) as stream:
+                wrapper = await TLSStream.wrap(
+                    stream, hostname="localhost", ssl_context=client_context
+                )
+                await wrapper.send(b"first")
+                with CancelScope() as scope:
+                    scope.cancel()
+                    await wrapper.send(b"cancelled")
+
+                await wrapper.send(b"second")
+
+        server_thread.join(timeout=5)
+        server_sock.close()
+        assert server_exc is None
+        assert received == [b"first", b"cancelled", b"second"]
 
     async def test_unicode_hostname_idna2008(
         self, ca: CA, client_context: ssl.SSLContext

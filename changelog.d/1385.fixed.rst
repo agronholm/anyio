@@ -1,0 +1,1 @@
+Fixed TLS streams dropping an already-encrypted record when ``send()`` is cancelled
