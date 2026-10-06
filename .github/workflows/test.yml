@@ -126,11 +126,32 @@ jobs:
       run: |
         Add-Content -Path C:\Windows\System32\drivers\etc\hosts -Value "1.2.3.4 xn--fa-hia.de"
         Add-Content -Path C:\Windows\System32\drivers\etc\hosts -Value "5.6.7.8 fass.de"
+    - name: Enable core dumps
+      if: runner.os == 'Linux'
+      run: sudo sysctl -w kernel.core_pattern=/tmp/core.%e.%p
     - name: Test with pytest
-      run: coverage run -m pytest -v
+      run: |
+        ulimit -c unlimited
+        coverage run -m pytest -v
       timeout-minutes: 10
       env:
         PYTEST_DISABLE_PLUGIN_AUTOLOAD: 1
+        PYTHONFAULTHANDLER: 1
+    - name: Print backtraces from core dumps
+      if: failure() && runner.os == 'Linux'
+      run: |
+        compgen -G "/tmp/core.*" > /dev/null || exit 0
+        sudo apt-get install -y gdb
+        for core in /tmp/core.*; do
+          gdb -batch -ex "thread apply all bt" "$(which python)" "$core"
+        done
+    - name: Upload core dumps
+      if: failure() && runner.os == 'Linux'
+      uses: actions/upload-artifact@v7
+      with:
+        name: core-dumps-${{ matrix.os }}-${{ matrix.python-version }}-${{ strategy.job-index }}
+        path: /tmp/core.*
+        if-no-files-found: ignore
     - name: Generate coverage report
       run: coverage xml
     - name: Trust Coveralls Homebrew tap (Homebrew 6 requirement)
