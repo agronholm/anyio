@@ -130,6 +130,7 @@ jobs:
       if: runner.os == 'Linux'
       run: sudo sysctl -w kernel.core_pattern=/tmp/core.%e.%p
     - name: Test with pytest
+      shell: bash
       run: |
         ulimit -c unlimited
         coverage run -m pytest -v
