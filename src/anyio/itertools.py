@@ -362,13 +362,13 @@ async def groupby(
 
     async for element in iterator:
         next_key = element if key is None else await key(element)
-        if next_key != group_key:
+        if group_key is next_key or group_key == next_key:
+            values.append(element)
+        else:
             completed_group = group_key, values
             group_key = next_key
             values = [element]
             yield completed_group
-        else:
-            values.append(element)
 
     yield group_key, values
 

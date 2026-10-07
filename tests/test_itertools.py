@@ -7,6 +7,7 @@ from collections.abc import (
     Iterable,
     Iterator,
 )
+from itertools import groupby as stdlib_groupby
 from typing import Any, TypeVar, cast
 
 import pytest
@@ -539,6 +540,75 @@ class TestFilterfalse:
 
 
 class TestGroupby:
+    @pytest.mark.parametrize("async_input", [False, True])
+    @pytest.mark.parametrize("use_key", [False, True])
+    async def test_nonreflexive_keys(self, async_input: bool, use_key: bool) -> None:
+        shared_nan = float("nan")
+        distinct_nan = float("nan")
+        values = [shared_nan, shared_nan, distinct_nan, shared_nan, shared_nan]
+        expected = [(key, list(group)) for key, group in stdlib_groupby(values)]
+
+        async def identity(value: float) -> float:
+            await checkpoint()
+            return value
+
+        iterable = aiter_from(values) if async_input else values
+        result = await collect(
+            groupby(iterable, identity) if use_key else groupby(iterable)
+        )
+        assert result == expected
+        assert [len(group) for _, group in result] == [2, 1, 2]
+
+    @pytest.mark.parametrize("async_input", [False, True])
+    @pytest.mark.parametrize("use_key", [False, True])
+    async def test_equality_comparison(self, async_input: bool, use_key: bool) -> None:
+        class Key:
+            def __init__(self, value: int) -> None:
+                self.value = value
+
+            def __eq__(self, other: object) -> bool:
+                return isinstance(other, Key) and self.value == other.value
+
+            def __ne__(self, other: object) -> bool:
+                raise AssertionError("groupby must compare keys for equality")
+
+        values = [Key(1), Key(1), Key(2), Key(2)]
+        expected = [(key, list(group)) for key, group in stdlib_groupby(values)]
+
+        async def identity(value: Key) -> Key:
+            await checkpoint()
+            return value
+
+        iterable = aiter_from(values) if async_input else values
+        result = await collect(
+            groupby(iterable, identity) if use_key else groupby(iterable)
+        )
+        assert result == expected
+
+    @pytest.mark.parametrize("async_input", [False, True])
+    @pytest.mark.parametrize("use_key", [False, True])
+    async def test_comparison_order(self, async_input: bool, use_key: bool) -> None:
+        class Key:
+            def __init__(self, value: int) -> None:
+                self.value = value
+
+            def __eq__(self, other: object) -> bool:
+                return isinstance(other, Key) and self.value <= other.value
+
+        values = [Key(1), Key(2), Key(0)]
+        expected = [(key, list(group)) for key, group in stdlib_groupby(values)]
+
+        async def identity(value: Key) -> Key:
+            await checkpoint()
+            return value
+
+        iterable = aiter_from(values) if async_input else values
+        result = await collect(
+            groupby(iterable, identity) if use_key else groupby(iterable)
+        )
+        assert result == expected
+        assert [len(group) for _, group in result] == [2, 1]
+
     async def test_basic_cases(self) -> None:
         async def parity(value: int) -> int:
             await checkpoint()
