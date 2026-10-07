@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import gc
 import sys
 from collections.abc import AsyncIterator
 from decimal import Decimal
 from typing import Any, NoReturn
+from weakref import ref
 
 import pytest
 
@@ -14,9 +16,11 @@ from anyio import (
     fail_after,
     get_cancelled_exc_class,
     move_on_after,
+    run,
     sleep,
     wait_all_tasks_blocked,
 )
+from anyio.from_thread import start_blocking_portal
 from anyio.functools import (
     AsyncCacheInfo,
     AsyncLRUCacheWrapper,
@@ -63,6 +67,163 @@ class TestCache:
 
 
 class TestAsyncLRUCache:
+    @pytest.mark.parametrize("maxsize", [1, 2, 3])
+    @pytest.mark.parametrize("always_checkpoint", [False, True])
+    def test_capacity_is_local_to_each_event_loop(
+        self,
+        anyio_backend_name: str,
+        anyio_backend_options: dict[str, Any],
+        maxsize: int,
+        always_checkpoint: bool,
+    ) -> None:
+        calls = 0
+
+        @lru_cache(maxsize=maxsize, always_checkpoint=always_checkpoint)
+        async def func(key: int) -> int:
+            nonlocal calls
+            calls += 1
+            return key
+
+        async def exercise() -> None:
+            previous_calls = calls
+            for key in range(maxsize):
+                assert await func(key) == key
+
+            for key in range(maxsize):
+                assert await func(key) == key
+
+            assert calls - previous_calls == maxsize
+
+        for _ in range(3):
+            run(
+                exercise,
+                backend=anyio_backend_name,
+                backend_options=anyio_backend_options,
+            )
+
+    @pytest.mark.parametrize("maxsize", [0, 2, None])
+    def test_statistics_are_local_to_each_event_loop(
+        self,
+        anyio_backend_name: str,
+        anyio_backend_options: dict[str, Any],
+        maxsize: int | None,
+    ) -> None:
+        @lru_cache(maxsize=maxsize)
+        async def func(key: int) -> int:
+            return key
+
+        empty_info = AsyncCacheInfo(0, 0, maxsize, 0, None)
+        filled_info = AsyncCacheInfo(
+            0 if maxsize == 0 else 1,
+            2 if maxsize == 0 else 1,
+            maxsize,
+            0 if maxsize == 0 else 1,
+            None,
+        )
+
+        async def exercise() -> None:
+            assert func.cache_info() == empty_info
+            assert await func(1) == 1
+            assert await func(1) == 1
+            assert func.cache_info() == filled_info
+
+        assert func.cache_info() == empty_info
+        for _ in range(3):
+            run(
+                exercise,
+                backend=anyio_backend_name,
+                backend_options=anyio_backend_options,
+            )
+            assert func.cache_info() == filled_info
+
+    def test_statistics_do_not_retain_values_after_event_loop_finishes(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        class Value:
+            pass
+
+        @lru_cache(maxsize=2)
+        async def func() -> Value:
+            return Value()
+
+        async def exercise() -> ref[Value]:
+            value = await func()
+            assert await func() is value
+            return ref(value)
+
+        value_ref = run(
+            exercise,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
+        )
+        gc.collect()
+        assert value_ref() is None
+        assert func.cache_info() == AsyncCacheInfo(1, 1, 2, 1, None)
+
+    def test_cache_clear_does_not_affect_other_event_loops(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        @lru_cache(maxsize=2)
+        async def func(key: int) -> int:
+            return key
+
+        async def info() -> AsyncCacheInfo:
+            return func.cache_info()
+
+        async def clear() -> None:
+            func.cache_clear()
+
+        with (
+            start_blocking_portal(
+                backend=anyio_backend_name, backend_options=anyio_backend_options
+            ) as first,
+            start_blocking_portal(
+                backend=anyio_backend_name, backend_options=anyio_backend_options
+            ) as second,
+        ):
+            for portal in (first, second):
+                for key in (1, 2, 1):
+                    assert portal.call(func, key) == key
+
+                assert portal.call(info) == AsyncCacheInfo(1, 2, 2, 2, None)
+
+            first.call(clear)
+            assert first.call(info) == AsyncCacheInfo(0, 0, 2, 0, None)
+            assert second.call(info) == AsyncCacheInfo(1, 2, 2, 2, None)
+            assert second.call(func, 2) == 2
+            assert second.call(info) == AsyncCacheInfo(2, 2, 2, 2, None)
+
+    async def test_cache_clear_isolates_in_flight_statistics(self) -> None:
+        calls = 0
+        ready = Event()
+        results: list[int] = []
+
+        @lru_cache(maxsize=2)
+        async def func() -> int:
+            nonlocal calls
+            calls += 1
+            result = calls
+            if result == 1:
+                await ready.wait()
+
+            return result
+
+        async def call() -> None:
+            results.append(await func())
+
+        async with create_task_group() as tg:
+            tg.start_soon(call)
+            tg.start_soon(call)
+            await wait_all_tasks_blocked()
+            func.cache_clear()
+            assert await func() == 2
+            ready.set()
+
+        assert results == [1, 1]
+        assert func.cache_info() == AsyncCacheInfo(0, 1, 2, 1, None)
+        assert await func() == 2
+        assert func.cache_info() == AsyncCacheInfo(1, 1, 2, 1, None)
+
     def test_bad_func_argument(self) -> None:
         with pytest.raises(TypeError, match="the first argument must be callable"):
             lru_cache(10)  # type: ignore[call-overload]

@@ -19,6 +19,7 @@ from collections.abc import (
     Hashable,
     Iterable,
 )
+from dataclasses import dataclass, field
 from functools import update_wrapper
 from inspect import iscoroutinefunction
 from typing import (
@@ -35,6 +36,7 @@ from typing import (
 from weakref import WeakKeyDictionary
 
 from ._core._eventloop import current_time
+from ._core._exceptions import NoEventLoopError
 from ._core._synchronization import Lock
 from .lowlevel import RunVar, checkpoint
 
@@ -42,14 +44,7 @@ T = TypeVar("T")
 S = TypeVar("S")
 P = ParamSpec("P")
 lru_cache_items: RunVar[
-    WeakKeyDictionary[
-        AsyncLRUCacheWrapper[Any, Any],
-        OrderedDict[
-            Hashable,
-            tuple[_InitialMissingType, Lock, float | None]
-            | tuple[Any, None, float | None],
-        ],
-    ]
+    WeakKeyDictionary[AsyncLRUCacheWrapper[Any, Any], _LRUCacheState]
 ] = RunVar("lru_cache_items")
 
 
@@ -58,6 +53,22 @@ class _InitialMissingType:
 
 
 initial_missing: _InitialMissingType = _InitialMissingType()
+
+
+@dataclass(slots=True)
+class _LRUCacheStatistics:
+    hits: int = 0
+    misses: int = 0
+    currsize: int = 0
+
+
+@dataclass(slots=True)
+class _LRUCacheState:
+    entries: OrderedDict[
+        Hashable,
+        tuple[_InitialMissingType, Lock, float | None] | tuple[Any, None, float | None],
+    ] = field(default_factory=OrderedDict)
+    statistics: _LRUCacheStatistics = field(default_factory=_LRUCacheStatistics)
 
 
 class AsyncCacheInfo(NamedTuple):
@@ -107,18 +118,32 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
         ttl: int | None,
     ):
         self.__wrapped__ = func
-        self._hits: int = 0
-        self._misses: int = 0
         self._maxsize = max(maxsize, 0) if maxsize is not None else None
-        self._currsize: int = 0
         self._typed = typed
         self._always_checkpoint = always_checkpoint
         self._ttl = ttl
+        self._empty_cache_info = AsyncCacheInfo(0, 0, self._maxsize, 0, self._ttl)
+        self._last_cache_statistics = _LRUCacheStatistics()
         update_wrapper(self, func)
 
     def cache_info(self) -> AsyncCacheInfo:
+        try:
+            cache = lru_cache_items.get(None)
+        except NoEventLoopError:
+            return self._cache_info(self._last_cache_statistics)
+
+        if cache is not None and (state := cache.get(self)) is not None:
+            return self._cache_info(state.statistics)
+
+        return self._empty_cache_info
+
+    def _cache_info(self, statistics: _LRUCacheStatistics) -> AsyncCacheInfo:
         return AsyncCacheInfo(
-            self._hits, self._misses, self._maxsize, self._currsize, self._ttl
+            statistics.hits,
+            statistics.misses,
+            self._maxsize,
+            statistics.currsize,
+            self._ttl,
         )
 
     def cache_parameters(self) -> AsyncCacheParameters:
@@ -130,15 +155,30 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
         }
 
     def cache_clear(self) -> None:
-        if cache := lru_cache_items.get(None):
+        if (cache := lru_cache_items.get(None)) is not None:
             cache.pop(self, None)
-            self._hits = self._misses = self._currsize = 0
+
+        self._last_cache_statistics = _LRUCacheStatistics()
 
     async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> T:
+        try:
+            cache = lru_cache_items.get()
+        except LookupError:
+            cache = WeakKeyDictionary()
+            lru_cache_items.set(cache)
+
+        try:
+            state = cache[self]
+        except KeyError:
+            state = cache[self] = _LRUCacheState()
+
+        # Retain only counters for inspection outside an event loop, so that
+        # cached values and locks can be collected when their loop finishes.
+        statistics = self._last_cache_statistics = state.statistics
         # Easy case first: if maxsize == 0, no caching is done
         if self._maxsize == 0:
             value = await self.__wrapped__(*args, **kwargs)
-            self._misses += 1
+            statistics.misses += 1
             return value
 
         # The key is constructed as a flat tuple to avoid memory overhead
@@ -152,16 +192,7 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
             if kwargs:
                 key += (initial_missing,) + tuple(type(val) for val in kwargs.values())
 
-        try:
-            cache = lru_cache_items.get()
-        except LookupError:
-            cache = WeakKeyDictionary()
-            lru_cache_items.set(cache)
-
-        try:
-            cache_entry = cache[self]
-        except KeyError:
-            cache_entry = cache[self] = OrderedDict()
+        cache_entry = state.entries
 
         cached_value: T | _InitialMissingType
         try:
@@ -177,7 +208,7 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
 
         if lock is None:
             if expires_at is not None and current_time() >= expires_at:
-                self._currsize -= 1
+                statistics.currsize -= 1
                 cached_value, lock, expires_at = (
                     initial_missing,
                     Lock(fast_acquire=not self._always_checkpoint),
@@ -186,7 +217,7 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
                 cache_entry[key] = cached_value, lock, expires_at
             else:
                 # The value was already cached
-                self._hits += 1
+                statistics.hits += 1
                 cache_entry.move_to_end(key)
                 if self._always_checkpoint:
                     await checkpoint()
@@ -196,11 +227,11 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
         async with lock:
             # Check if another task filled the cache while we acquired the lock
             if (cached_value := cache_entry[key][0]) is initial_missing:
-                self._misses += 1
-                if self._maxsize is not None and self._currsize >= self._maxsize:
+                statistics.misses += 1
+                if self._maxsize is not None and statistics.currsize >= self._maxsize:
                     cache_entry.popitem(last=False)
                 else:
-                    self._currsize += 1
+                    statistics.currsize += 1
 
                 value = await self.__wrapped__(*args, **kwargs)
                 expires_at = (
@@ -209,7 +240,7 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
                 cache_entry[key] = value, None, expires_at
             else:
                 # Another task filled the cache while we were waiting for the lock
-                self._hits += 1
+                statistics.hits += 1
                 cache_entry.move_to_end(key)
                 value = cast(T, cached_value)
 
@@ -312,7 +343,11 @@ def lru_cache(
         guaranteed to yield control to the event loop at least once
     :param ttl: time in seconds after which to invalidate cache entries
 
-    .. note:: Caches and locks are managed on a per-event loop basis.
+    .. note:: Caches, locks and statistics are managed on a per-event loop basis.
+        ``cache_clear()`` clears only the current event loop's cache and statistics.
+        Calls already in progress may finish using the cleared cache, but will not
+        update the new cache or its statistics. Outside an event loop,
+        ``cache_info()`` reports the statistics of the most recently used cache.
 
     """
     if func is None:

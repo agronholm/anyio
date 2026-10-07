@@ -217,6 +217,12 @@ Operating system signals
 Asynchronous functools
 ----------------------
 
+The asynchronous cache wrappers keep separate caches and statistics for each event
+loop. Calling ``cache_clear()`` clears only the current loop's cache; calls already
+in progress can finish without updating the replacement cache's statistics.
+Outside an event loop, ``cache_info()`` reports statistics from the cache most
+recently used by the wrapper.
+
 .. autofunction:: anyio.functools.cache
 .. autofunction:: anyio.functools.lru_cache
 .. autofunction:: anyio.functools.reduce
