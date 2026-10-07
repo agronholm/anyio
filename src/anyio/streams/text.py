@@ -13,6 +13,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import InitVar, dataclass, field
 from typing import Any
 
+from .._core._exceptions import ClosedResourceError
 from ..abc import (
     AnyByteReceiveStream,
     AnyByteSendStream,
@@ -78,6 +79,9 @@ class TextSendStream(ObjectSendStream[str]):
     """
     Sends strings to the wrapped stream as bytes using the given encoding.
 
+    Encoding is done using :class:`~codecs.IncrementalEncoder` to preserve encoding
+    state between sends. Any final encoded bytes are sent when the stream is closed.
+
     :param AnyByteSendStream transport_stream: any bytes-based send stream
     :param str encoding: character encoding to use for encoding strings to bytes
         (defaults to ``utf-8``)
@@ -91,17 +95,37 @@ class TextSendStream(ObjectSendStream[str]):
     transport_stream: AnyByteSendStream
     encoding: InitVar[str] = "utf-8"
     errors: str = "strict"
-    _encoder: Callable[..., tuple[bytes, int]] = field(init=False)
+    _encoder: codecs.IncrementalEncoder = field(init=False)
+    _encoder_used: bool = field(init=False, default=False)
+    _encoder_finalized: bool = field(init=False, default=False)
 
     def __post_init__(self, encoding: str) -> None:
-        self._encoder = codecs.getencoder(encoding)
+        encoder_class = codecs.getincrementalencoder(encoding)
+        self._encoder = encoder_class(errors=self.errors)
 
     async def send(self, item: str) -> None:
-        encoded = self._encoder(item, self.errors)[0]
+        if self._encoder_finalized:
+            raise ClosedResourceError
+
+        self._encoder.errors = self.errors
+        encoded = self._encoder.encode(item)
+        self._encoder_used = True
         await self.transport_stream.send(encoded)
 
+    async def _finalize(self) -> None:
+        if not self._encoder_finalized:
+            self._encoder_finalized = True
+            if self._encoder_used:
+                self._encoder.errors = self.errors
+                encoded = self._encoder.encode("", final=True)
+                if encoded:
+                    await self.transport_stream.send(encoded)
+
     async def aclose(self) -> None:
-        await self.transport_stream.aclose()
+        try:
+            await self._finalize()
+        finally:
+            await self.transport_stream.aclose()
 
     @property
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
@@ -148,6 +172,7 @@ class TextStream(ObjectStream[str]):
         await self._send_stream.send(item)
 
     async def send_eof(self) -> None:
+        await self._send_stream._finalize()
         await self.transport_stream.send_eof()
 
     async def aclose(self) -> None:

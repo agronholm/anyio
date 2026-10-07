@@ -5,8 +5,13 @@ import sys
 
 import pytest
 
-from anyio import create_memory_object_stream
-from anyio.abc import ObjectStream, ObjectStreamConnectable
+from anyio import (
+    BrokenResourceError,
+    ClosedResourceError,
+    EndOfStream,
+    create_memory_object_stream,
+)
+from anyio.abc import ByteStream, ObjectStream, ObjectStreamConnectable
 from anyio.streams.stapled import StapledObjectStream
 from anyio.streams.text import (
     TextConnectable,
@@ -38,6 +43,109 @@ async def test_send() -> None:
 
     send_stream.close()
     receive_stream.close()
+
+
+@pytest.mark.parametrize("stream_class", [TextSendStream, TextStream])
+@pytest.mark.parametrize("encoding", ["utf-8-sig", "utf-16", "utf-32"])
+async def test_send_keeps_encoding_state(
+    stream_class: type[TextSendStream | TextStream], encoding: str
+) -> None:
+    send, receive = create_memory_object_stream[bytes](1)
+    transport = StapledObjectStream(send, receive)
+    stream = stream_class(transport, encoding=encoding)
+    reader = TextReceiveStream(receive, encoding=encoding)
+    async with stream:
+        for text in ("first", "second", "日本語"):
+            await stream.send(text)
+            assert await reader.receive() == text
+
+
+async def test_send_finalizes_encoding_on_close() -> None:
+    send, receive = create_memory_object_stream[bytes](3)
+    stream = TextSendStream(send, encoding="iso2022_jp")
+    async with stream, receive:
+        await stream.send("日本")
+        await stream.send("語")
+        await stream.aclose()
+        assert b"".join([chunk async for chunk in receive]) == "日本語".encode(
+            "iso2022_jp"
+        )
+        await stream.aclose()
+        with pytest.raises(ClosedResourceError):
+            await stream.send("closed")
+
+
+@pytest.mark.parametrize("encoding", ["utf-8-sig", "utf-16", "utf-32"])
+async def test_close_unused_send_stream(encoding: str) -> None:
+    send, receive = create_memory_object_stream[bytes](1)
+    stream = TextSendStream(send, encoding=encoding)
+    await stream.aclose()
+    with pytest.raises(EndOfStream):
+        await receive.receive()
+
+    await stream.aclose()
+    await receive.aclose()
+
+
+async def test_send_updates_error_handler() -> None:
+    send, receive = create_memory_object_stream[bytes](1)
+    stream = TextSendStream(send, encoding="ascii", errors="replace")
+    async with stream, receive:
+        await stream.send("€")
+        assert await receive.receive() == b"?"
+        stream.errors = "strict"
+        with pytest.raises(UnicodeEncodeError):
+            await stream.send("€")
+
+
+async def test_close_after_encoder_flush_fails() -> None:
+    send, receive = create_memory_object_stream[bytes](1)
+    stream = TextSendStream(send, encoding="iso2022_jp")
+    await stream.send("日本")
+    await receive.aclose()
+    with pytest.raises(BrokenResourceError):
+        await stream.aclose()
+
+    assert send.statistics().open_send_streams == 0
+    await stream.aclose()
+
+
+async def test_send_eof_finalizes_encoding() -> None:
+    class Transport(ByteStream):
+        chunks: list[bytes]
+        eof_sent = False
+        closed = False
+
+        def __init__(self) -> None:
+            self.chunks = []
+
+        async def send(self, item: bytes) -> None:
+            assert not self.eof_sent
+            self.chunks.append(item)
+
+        async def send_eof(self) -> None:
+            self.eof_sent = True
+
+        async def receive(self, max_bytes: int = 65536) -> bytes:
+            return "response".encode("iso2022_jp")
+
+        async def aclose(self) -> None:
+            self.closed = True
+
+    transport = Transport()
+    stream = TextStream(transport, encoding="iso2022_jp")
+    await stream.send("日本")
+    await stream.send("語")
+    await stream.send_eof()
+    assert b"".join(transport.chunks) == "日本語".encode("iso2022_jp")
+    assert transport.eof_sent
+    assert not transport.closed
+    assert await stream.receive() == "response"
+    with pytest.raises(ClosedResourceError):
+        await stream.send("closed")
+
+    await stream.aclose()
+    assert transport.closed
 
 
 @pytest.mark.xfail(
