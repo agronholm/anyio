@@ -19,12 +19,12 @@ from typing import Any, TypeAlias, TypeVar
 
 from .. import (
     BrokenResourceError,
-    CancelScope,
     EndOfStream,
     aclose_forcefully,
     get_cancelled_exc_class,
     to_thread,
 )
+from .._core._tasks import CancelScope
 from .._core._typedattr import TypedAttributeSet, typed_attribute
 from ..abc import (
     AnyByteStream,
