@@ -755,6 +755,39 @@ class TestPermutations:
 
 
 class TestProduct:
+    @pytest.mark.parametrize("async_iterable", [False, True])
+    async def test_zero_repeat_does_not_acquire_iterator(
+        self, async_iterable: bool
+    ) -> None:
+        class UnusedIterable:
+            def __iter__(self) -> Iterator[int]:
+                pytest.fail("product() acquired an unused input iterator")
+
+        class UnusedAsyncIterable:
+            def __aiter__(self) -> AsyncIterator[int]:
+                pytest.fail("product() acquired an unused async input iterator")
+
+        iterable = UnusedAsyncIterable() if async_iterable else UnusedIterable()
+        assert await collect(product(iterable, repeat=0)) == [()]
+
+    @pytest.mark.parametrize("async_iterable", [False, True])
+    async def test_zero_repeat_does_not_consume_iterator(
+        self, async_iterable: bool
+    ) -> None:
+        iterator = aiter_from([1, 2, 3]) if async_iterable else iter([1, 2, 3])
+        assert await collect(product(iterator, repeat=0)) == [()]
+        if isinstance(iterator, AsyncIterator):
+            assert await collect(iterator) == [1, 2, 3]
+        else:
+            assert list(iterator) == [1, 2, 3]
+
+    async def test_checkpoints_zero_repeat(self) -> None:
+        await assert_cancelled_on_first_next(product("AB", repeat=0))
+
+        iterator = product("AB", repeat=0)
+        assert await anext(iterator) == ()
+        await assert_cancelled_on_first_next(iterator)
+
     async def test_basic_cases(self) -> None:
         cases = [
             (product("AB", "xy"), [("A", "x"), ("A", "y"), ("B", "x"), ("B", "y")]),
