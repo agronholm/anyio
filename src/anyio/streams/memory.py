@@ -80,6 +80,7 @@ class _MemoryObjectStreamState(Generic[T_Item]):
 class MemoryObjectReceiveStream(ObjectReceiveStream[T_co], Generic[T_co]):
     _state: _MemoryObjectStreamState[T_co]
     _closed: bool = field(init=False, default=False)
+    _waiting_events: set[Event] = field(init=False, default_factory=set)
 
     def __post_init__(self) -> None:
         self._state.open_receive_channels += 1
@@ -121,11 +122,16 @@ class MemoryObjectReceiveStream(ObjectReceiveStream[T_co], Generic[T_co]):
             receive_event = Event()
             receiver = _MemoryObjectItemReceiver[T_co]()
             self._state.waiting_receivers[receive_event] = receiver
+            self._waiting_events.add(receive_event)
 
             try:
                 await receive_event.wait()
             finally:
                 self._state.waiting_receivers.pop(receive_event, None)
+                self._waiting_events.discard(receive_event)
+
+            if self._closed:
+                raise ClosedResourceError from None
 
             try:
                 return receiver.item
@@ -162,6 +168,9 @@ class MemoryObjectReceiveStream(ObjectReceiveStream[T_co], Generic[T_co]):
                 send_events = list(self._state.waiting_senders.keys())
                 for event in send_events:
                     event.set()
+
+            for event in self._waiting_events:
+                event.set()
 
     async def aclose(self) -> None:
         self.close()

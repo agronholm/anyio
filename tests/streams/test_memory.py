@@ -244,6 +244,42 @@ async def test_close_receive_while_sending() -> None:
     receive.close()
 
 
+async def test_close_receive_while_receiving() -> None:
+    # Regression test for #1391
+    send, receive = create_memory_object_stream[NoReturn](1)
+    with pytest.raises(ExceptionGroup) as exc:
+        async with create_task_group() as tg:
+            tg.start_soon(receive.receive)
+            await wait_all_tasks_blocked()
+            await receive.aclose()
+
+    assert len(exc.value.exceptions) == 1
+    assert isinstance(exc.value.exceptions[0], ClosedResourceError)
+
+    send.close()
+
+
+async def test_close_receive_clone_does_not_wake_blocked_receive() -> None:
+    # Closing one clone must not wake a receive() blocked on another clone
+    send, receive = create_memory_object_stream[str](1)
+    clone = receive.clone()
+    received: list[str] = []
+
+    async def receiver() -> None:
+        received.append(await receive.receive())
+
+    async with create_task_group() as tg:
+        tg.start_soon(receiver)
+        await wait_all_tasks_blocked()
+        await clone.aclose()
+        await send.send("hello")
+
+    assert received == ["hello"]
+
+    send.close()
+    receive.close()
+
+
 async def test_receive_after_send_closed() -> None:
     send, receive = create_memory_object_stream[str](1)
     await send.send("hello")
