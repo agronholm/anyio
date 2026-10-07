@@ -213,6 +213,222 @@ async def test_clone_closed() -> None:
     pytest.raises(ClosedResourceError, receive.clone)
 
 
+@pytest.mark.parametrize("async_close", [False, True])
+async def test_close_send_wakes_its_pending_operations(async_close: bool) -> None:
+    send, receive = create_memory_object_stream[str]()
+    completed = False
+
+    async def sender() -> None:
+        nonlocal completed
+        with pytest.raises(ClosedResourceError):
+            await send.send("value")
+
+        completed = True
+
+    with send, receive:
+        async with create_task_group() as tg:
+            tg.start_soon(sender)
+            await wait_all_tasks_blocked()
+            if async_close:
+                await send.aclose()
+            else:
+                send.close()
+
+            assert send.statistics().tasks_waiting_send == 0
+            await wait_all_tasks_blocked()
+            assert completed
+
+        with pytest.raises(EndOfStream):
+            receive.receive_nowait()
+
+
+@pytest.mark.parametrize("async_close", [False, True])
+async def test_close_receive_wakes_its_pending_operations(async_close: bool) -> None:
+    send, receive = create_memory_object_stream[str]()
+    completed = False
+
+    async def receiver() -> None:
+        nonlocal completed
+        with pytest.raises(ClosedResourceError):
+            await receive.receive()
+
+        completed = True
+
+    with send, receive:
+        async with create_task_group() as tg:
+            tg.start_soon(receiver)
+            await wait_all_tasks_blocked()
+            if async_close:
+                await receive.aclose()
+            else:
+                receive.close()
+
+            assert receive.statistics().tasks_waiting_receive == 0
+            await wait_all_tasks_blocked()
+            assert completed
+
+        with pytest.raises(BrokenResourceError):
+            send.send_nowait("value")
+
+
+@pytest.mark.parametrize("num_waiters", [1, 2])
+async def test_close_send_only_wakes_operations_on_that_clone(num_waiters: int) -> None:
+    send, receive = create_memory_object_stream[int]()
+    other_send = send.clone()
+    closed: list[int] = []
+    delivered: list[int] = []
+
+    async def sender(stream: MemoryObjectSendStream[int], value: int) -> None:
+        try:
+            await stream.send(value)
+        except ClosedResourceError:
+            closed.append(value)
+        else:
+            delivered.append(value)
+
+    with send, other_send, receive:
+        async with create_task_group() as tg:
+            for value in range(num_waiters):
+                tg.start_soon(sender, send, value)
+
+            tg.start_soon(sender, other_send, num_waiters)
+            await wait_all_tasks_blocked()
+            send.close()
+            send.close()
+            assert send.statistics().tasks_waiting_send == 1
+            assert await receive.receive() == num_waiters
+            await wait_all_tasks_blocked()
+            assert sorted(closed) == list(range(num_waiters))
+            assert delivered == [num_waiters]
+
+        assert send.statistics().open_send_streams == 1
+        assert send.statistics().tasks_waiting_send == 0
+
+
+@pytest.mark.parametrize("num_waiters", [1, 2])
+async def test_close_receive_only_wakes_operations_on_that_clone(
+    num_waiters: int,
+) -> None:
+    send, receive = create_memory_object_stream[str]()
+    other_receive = receive.clone()
+    closed: list[int] = []
+    delivered: list[str] = []
+
+    async def receiver(stream: MemoryObjectReceiveStream[str], index: int) -> None:
+        try:
+            value = await stream.receive()
+        except ClosedResourceError:
+            closed.append(index)
+        else:
+            delivered.append(value)
+
+    with send, receive, other_receive:
+        async with create_task_group() as tg:
+            for index in range(num_waiters):
+                tg.start_soon(receiver, receive, index)
+
+            tg.start_soon(receiver, other_receive, num_waiters)
+            await wait_all_tasks_blocked()
+            receive.close()
+            receive.close()
+            assert receive.statistics().tasks_waiting_receive == 1
+            await send.send("value")
+            await wait_all_tasks_blocked()
+            assert sorted(closed) == list(range(num_waiters))
+            assert delivered == ["value"]
+
+        assert receive.statistics().open_receive_streams == 1
+        assert receive.statistics().tasks_waiting_receive == 0
+
+
+async def test_close_send_preserves_an_item_already_received() -> None:
+    send, receive = create_memory_object_stream[str]()
+    completed = False
+
+    async def sender() -> None:
+        nonlocal completed
+        await send.send("value")
+        completed = True
+
+    with send, receive:
+        async with create_task_group() as tg:
+            tg.start_soon(sender)
+            await wait_all_tasks_blocked()
+            assert receive.receive_nowait() == "value"
+            send.close()
+            await wait_all_tasks_blocked()
+            assert completed
+
+
+async def test_close_receive_preserves_an_item_already_sent() -> None:
+    send, receive = create_memory_object_stream[str]()
+    delivered: list[str] = []
+
+    async def receiver() -> None:
+        delivered.append(await receive.receive())
+
+    with send, receive:
+        async with create_task_group() as tg:
+            tg.start_soon(receiver)
+            await wait_all_tasks_blocked()
+            send.send_nowait("value")
+            receive.close()
+            await wait_all_tasks_blocked()
+            assert delivered == ["value"]
+
+
+@pytest.mark.parametrize("own_close_first", [False, True])
+async def test_close_send_preserves_the_first_close_result(
+    own_close_first: bool,
+) -> None:
+    send, receive = create_memory_object_stream[str]()
+    completed = False
+    expected_error = ClosedResourceError if own_close_first else BrokenResourceError
+
+    async def sender() -> None:
+        nonlocal completed
+        with pytest.raises(expected_error):
+            await send.send("value")
+
+        completed = True
+
+    with send, receive:
+        async with create_task_group() as tg:
+            tg.start_soon(sender)
+            await wait_all_tasks_blocked()
+            first, second = (send, receive) if own_close_first else (receive, send)
+            first.close()
+            second.close()
+            await wait_all_tasks_blocked()
+            assert completed
+
+
+@pytest.mark.parametrize("own_close_first", [False, True])
+async def test_close_receive_preserves_the_first_close_result(
+    own_close_first: bool,
+) -> None:
+    send, receive = create_memory_object_stream[str]()
+    completed = False
+    expected_error = ClosedResourceError if own_close_first else EndOfStream
+
+    async def receiver() -> None:
+        nonlocal completed
+        with pytest.raises(expected_error):
+            await receive.receive()
+
+        completed = True
+
+    with send, receive:
+        async with create_task_group() as tg:
+            tg.start_soon(receiver)
+            await wait_all_tasks_blocked()
+            first, second = (receive, send) if own_close_first else (send, receive)
+            first.close()
+            second.close()
+            await wait_all_tasks_blocked()
+            assert completed
+
+
 async def test_close_send_while_receiving() -> None:
     send, receive = create_memory_object_stream[NoReturn](1)
     with pytest.raises(ExceptionGroup) as exc:

@@ -44,12 +44,19 @@ class MemoryObjectStreamStatistics(NamedTuple):
 class _MemoryObjectItemReceiver(Generic[T_Item]):
     task_info: TaskInfo = field(init=False, default_factory=get_current_task)
     item: T_Item = field(init=False)
+    closed: bool = field(init=False, default=False)
 
     def __repr__(self) -> str:
         # When item is not defined, we get following error with default __repr__:
         # AttributeError: 'MemoryObjectItemReceiver' object has no attribute 'item'
         item = getattr(self, "item", None)
         return f"{self.__class__.__name__}(task_info={self.task_info}, item={item!r})"
+
+
+@dataclass(eq=False)
+class _MemoryObjectItemSender(Generic[T_Item]):
+    item: T_Item
+    closed: bool = False
 
 
 @dataclass(eq=False)
@@ -61,7 +68,7 @@ class _MemoryObjectStreamState(Generic[T_Item]):
     waiting_receivers: OrderedDict[Event, _MemoryObjectItemReceiver[T_Item]] = field(
         init=False, default_factory=OrderedDict
     )
-    waiting_senders: OrderedDict[Event, T_Item] = field(
+    waiting_senders: OrderedDict[Event, _MemoryObjectItemSender[T_Item]] = field(
         init=False, default_factory=OrderedDict
     )
 
@@ -80,6 +87,7 @@ class _MemoryObjectStreamState(Generic[T_Item]):
 class MemoryObjectReceiveStream(ObjectReceiveStream[T_co], Generic[T_co]):
     _state: _MemoryObjectStreamState[T_co]
     _closed: bool = field(init=False, default=False)
+    _waiting_receivers: set[Event] = field(init=False, default_factory=set)
 
     def __post_init__(self) -> None:
         self._state.open_receive_channels += 1
@@ -101,8 +109,8 @@ class MemoryObjectReceiveStream(ObjectReceiveStream[T_co], Generic[T_co]):
 
         if self._state.waiting_senders:
             # Get the item from the next sender
-            send_event, item = self._state.waiting_senders.popitem(last=False)
-            self._state.buffer.append(item)
+            send_event, sender = self._state.waiting_senders.popitem(last=False)
+            self._state.buffer.append(sender.item)
             send_event.set()
 
         if self._state.buffer:
@@ -121,11 +129,16 @@ class MemoryObjectReceiveStream(ObjectReceiveStream[T_co], Generic[T_co]):
             receive_event = Event()
             receiver = _MemoryObjectItemReceiver[T_co]()
             self._state.waiting_receivers[receive_event] = receiver
+            self._waiting_receivers.add(receive_event)
 
             try:
                 await receive_event.wait()
             finally:
                 self._state.waiting_receivers.pop(receive_event, None)
+                self._waiting_receivers.discard(receive_event)
+
+            if receiver.closed:
+                raise ClosedResourceError from None
 
             try:
                 return receiver.item
@@ -154,9 +167,19 @@ class MemoryObjectReceiveStream(ObjectReceiveStream[T_co], Generic[T_co]):
         This works the exact same way as :meth:`aclose`, but is provided as a special
         case for the benefit of synchronous callbacks.
 
+        Pending receive operations on this stream raise :exc:`~anyio.ClosedResourceError`.
+        Operations on other clones are unaffected.
+
         """
         if not self._closed:
             self._closed = True
+            for event in self._waiting_receivers:
+                if not event.is_set():
+                    receiver = self._state.waiting_receivers.pop(event)
+                    receiver.closed = True
+                    event.set()
+
+            self._waiting_receivers.clear()
             self._state.open_receive_channels -= 1
             if self._state.open_receive_channels == 0:
                 send_events = list(self._state.waiting_senders.keys())
@@ -199,6 +222,7 @@ class MemoryObjectReceiveStream(ObjectReceiveStream[T_co], Generic[T_co]):
 class MemoryObjectSendStream(ObjectSendStream[T_contra], Generic[T_contra]):
     _state: _MemoryObjectStreamState[T_contra]
     _closed: bool = field(init=False, default=False)
+    _waiting_senders: set[Event] = field(init=False, default_factory=set)
 
     def __post_init__(self) -> None:
         self._state.open_send_channels += 1
@@ -251,12 +275,19 @@ class MemoryObjectSendStream(ObjectSendStream[T_contra], Generic[T_contra]):
         except WouldBlock:
             # Wait until there's someone on the receiving end
             send_event = Event()
-            self._state.waiting_senders[send_event] = item
+            sender = _MemoryObjectItemSender(item)
+            self._state.waiting_senders[send_event] = sender
+            self._waiting_senders.add(send_event)
             try:
                 await send_event.wait()
             except BaseException:
                 self._state.waiting_senders.pop(send_event, None)
                 raise
+            finally:
+                self._waiting_senders.discard(send_event)
+
+            if sender.closed:
+                raise ClosedResourceError from None
 
             if send_event in self._state.waiting_senders:
                 del self._state.waiting_senders[send_event]
@@ -284,9 +315,19 @@ class MemoryObjectSendStream(ObjectSendStream[T_contra], Generic[T_contra]):
         This works the exact same way as :meth:`aclose`, but is provided as a special
         case for the benefit of synchronous callbacks.
 
+        Pending send operations on this stream raise :exc:`~anyio.ClosedResourceError`.
+        Operations on other clones are unaffected.
+
         """
         if not self._closed:
             self._closed = True
+            for event in self._waiting_senders:
+                if not event.is_set():
+                    sender = self._state.waiting_senders.pop(event)
+                    sender.closed = True
+                    event.set()
+
+            self._waiting_senders.clear()
             self._state.open_send_channels -= 1
             if self._state.open_send_channels == 0:
                 receive_events = list(self._state.waiting_receivers.keys())
