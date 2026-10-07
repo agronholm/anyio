@@ -1,0 +1,3 @@
+Fixed ``SocketStream.send()`` on the asyncio backend handing its data to a paused
+transport after a previous ``send()`` was cancelled
+PR by @graingert
