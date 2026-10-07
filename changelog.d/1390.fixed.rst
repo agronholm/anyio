@@ -1,0 +1,2 @@
+Fixed asynchronous LRU cache capacity and statistics leaking between event loops
+and cache generations
