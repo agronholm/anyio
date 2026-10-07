@@ -156,7 +156,13 @@ class TestAsyncLRUCache:
             backend=anyio_backend_name,
             backend_options=anyio_backend_options,
         )
-        gc.collect()
+        # Weak-reference callbacks release the loop-local cache in stages on PyPy.
+        # Allow subsequent collections to reclaim values released by those callbacks.
+        for _ in range(10):
+            gc.collect()
+            if value_ref() is None:
+                break
+
         assert value_ref() is None
         assert func.cache_info() == AsyncCacheInfo(1, 1, 2, 1, None)
 
