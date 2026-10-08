@@ -1,0 +1,3 @@
+Fixed ``Lock.locked()`` (and ``Condition.locked()``) raising ``NoEventLoopError``
+when the lock was created outside a running event loop
+PR by @00200200
