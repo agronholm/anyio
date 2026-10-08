@@ -49,6 +49,8 @@ Spooled Temporary File
 ----------------------
 
 :class:`SpooledTemporaryFile` is useful when temporary data is small and should be kept in memory rather than written to disk.
+The default ``max_size=0`` keeps data in memory until :meth:`SpooledTemporaryFile.rollover`
+is called. Set a positive ``max_size`` to roll over automatically when that limit is exceeded.
 
 **Example:**
 
