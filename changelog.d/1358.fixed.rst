@@ -1,4 +1,3 @@
 Fixed ``TypedAttributeSet`` refusing to load subclasses of an existing typed
 attribute set, as the attributes inherited from the base class were reported as
 missing their type annotations
-PR by @pasmud
