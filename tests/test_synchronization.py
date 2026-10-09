@@ -1070,11 +1070,12 @@ class TestCapacityLimiter:
         borrower = object()
         limiter = CapacityLimiter(1)
 
-        # Let the task run until it parks at the cancel-shielded checkpoint (the
-        # token is already acquired for the borrower by then), then cancel it so
-        # the cancellation is delivered inside that checkpoint.
+        # Cancel the task once it has acquired the token and parked at its
+        # cancel-shielded checkpoint, so the cancellation is delivered there.
         task = asyncio.create_task(limiter.acquire_on_behalf_of(borrower))
-        await checkpoint()
+        if limiter.borrowed_tokens == 0:
+            await asyncio.sleep(0)
+
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
