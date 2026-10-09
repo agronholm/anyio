@@ -95,6 +95,29 @@ class TestSpooledTemporaryFile:
                 await stf.writelines([b"1234567890123456"])
                 assert rollover_called
 
+    @pytest.mark.parametrize("position", [0, 2, 12])
+    async def test_rollover_preserves_binary_position(self, position: int) -> None:
+        # 2026-10-09: Explicit rollover must preserve reads and seeks past EOF.
+        async with SpooledTemporaryFile[bytes](max_size=1024) as stf:
+            await stf.write(b"hello world")
+            await stf.seek(position)
+            await stf.rollover()
+            assert await stf.tell() == position
+            assert await stf.read() == b"hello world"[position:]
+
+    async def test_rollover_preserves_text_position(self) -> None:
+        # 2026-10-09: Keep the text stream's seek cookie across rollover.
+        async with SpooledTemporaryFile[str](
+            max_size=1024, mode="w+", encoding="utf-8"
+        ) as stf:
+            await stf.write("h\u00e9llo\nworld")
+            await stf.seek(0)
+            assert await stf.read(2) == "h\u00e9"
+            position = await stf.tell()
+            await stf.rollover()
+            assert await stf.tell() == position
+            assert await stf.read() == "llo\nworld"
+
     async def test_closed_state(self) -> None:
         async with SpooledTemporaryFile(max_size=10) as stf:
             assert not stf.closed
