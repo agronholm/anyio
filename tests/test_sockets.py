@@ -44,12 +44,14 @@ from pytest_mock.plugin import MockerFixture
 from anyio import (
     BrokenResourceError,
     BusyResourceError,
+    CancelScope,  # 2026-10-09
     ClosedResourceError,
     EndOfStream,
     Event,
     TCPConnectable,
     TypedAttributeLookupError,
     UNIXConnectable,
+    aclose_forcefully,  # 2026-10-09
     as_connectable,
     connect_tcp,
     connect_unix,
@@ -929,6 +931,49 @@ class TestTCPListener:
                 assert isinstance(listener, SocketListener)
                 with pytest.raises(ClosedResourceError):
                     await listener.accept()
+
+    # 2026-10-09: Forced close must release a listener even with a pending accept.
+    @pytest.mark.parametrize("close_mode", ["normal", "forceful", "cancelled"])
+    @pytest.mark.parametrize("pending_accept", [False, True], ids=["idle", "accepting"])
+    async def test_close_releases_socket(
+        self, close_mode: str, pending_accept: bool
+    ) -> None:
+        multi = await create_tcp_listener(local_host="127.0.0.1")
+        listener = multi.listeners[0]
+        assert isinstance(listener, SocketListener)
+        raw_socket = listener.extra(SocketAttribute.raw_socket)
+        address = listener.extra(SocketAttribute.local_address)
+
+        async def accept() -> None:
+            with pytest.raises(ClosedResourceError):
+                await listener.accept()
+
+        try:
+            async with create_task_group() as tg:
+                if pending_accept:
+                    tg.start_soon(accept)
+                    await wait_all_tasks_blocked()
+
+                if close_mode == "forceful":
+                    await aclose_forcefully(listener)
+                elif close_mode == "cancelled":
+                    with CancelScope() as scope:
+                        scope.cancel()
+                        await listener.aclose()
+                else:
+                    await listener.aclose()
+
+                fd_after_close = raw_socket.fileno()
+                await listener.aclose()
+                assert fd_after_close == -1
+                assert raw_socket.fileno() == -1
+                with socket.socket() as replacement:
+                    replacement.bind(address)
+
+                tg.cancel_scope.cancel()
+        finally:
+            raw_socket.close()
+            await multi.aclose()
 
     async def test_socket_options(self, family: AnyIPAddressFamily) -> None:
         async with await create_tcp_listener(
