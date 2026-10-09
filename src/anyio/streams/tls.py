@@ -12,7 +12,7 @@ import re
 import ssl
 import sys
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import wraps
 from ssl import SSLContext
 from typing import Any, TypeAlias, TypeVar
@@ -24,7 +24,6 @@ from .. import (
     get_cancelled_exc_class,
     to_thread,
 )
-from .._core._tasks import CancelScope
 from .._core._typedattr import TypedAttributeSet, typed_attribute
 from ..abc import (
     AnyByteStream,
@@ -96,6 +95,7 @@ class TLSStream(ByteStream):
     _ssl_object: ssl.SSLObject
     _read_bio: ssl.MemoryBIO
     _write_bio: ssl.MemoryBIO
+    _broken: bool = field(default=False, init=False)
 
     @classmethod
     async def wrap(
@@ -181,19 +181,23 @@ class TLSStream(ByteStream):
         return wrapper
 
     async def _flush_write_bio(self) -> None:
-        # SSLObject.write() has already encrypted these bytes and consumed the
-        # next TLS record number. The transport send checkpoints before it
-        # writes, so cancelling there drops the record and every later record
-        # fails the peer's MAC check. Deliver this record before honoring
-        # cancellation.
         if self._write_bio.pending:
             data = self._write_bio.read()
-            with CancelScope(shield=True):
+            try:
                 await self.transport_stream.send(data)
+            except BaseException:
+                # SSLObject.write() already consumed this record's sequence
+                # number, so once it is lost the peer can't decrypt anything
+                # sent after it. Like trio, treat the stream as broken.
+                self._broken = True
+                raise
 
     async def _call_sslobject_method(
         self, func: Callable[[Unpack[PosArgsT]], T_Retval], *args: Unpack[PosArgsT]
     ) -> T_Retval:
+        if self._broken:
+            raise BrokenResourceError
+
         while True:
             try:
                 result = func(*args)
@@ -248,7 +252,7 @@ class TLSStream(ByteStream):
         return self.transport_stream, self._read_bio.read()
 
     async def aclose(self) -> None:
-        if self.standard_compatible:
+        if self.standard_compatible and not self._broken:
             try:
                 await self.unwrap()
             except BaseException:

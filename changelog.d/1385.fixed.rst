@@ -1,1 +1,3 @@
-Fixed TLS streams dropping an already-encrypted record when ``send()`` is cancelled
+Fixed a TLS stream sending records the peer could no longer decrypt after a cancelled
+``send()`` lost an already-encrypted record; the stream now raises
+``BrokenResourceError`` on further use instead

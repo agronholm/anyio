@@ -62,24 +62,22 @@ class TestTLSStream:
         server_sock.close()
         assert response == b"olleh"
 
-    async def test_cancelled_send_keeps_later_records(
+    async def test_cancelled_send_breaks_stream(
         self, server_context: ssl.SSLContext, client_context: ssl.SSLContext
     ) -> None:
-        # Regression test for #1385: cancelling send() after SSLObject.write()
-        # must not drop the encrypted record and desynchronize the stream.
+        # Regression test for #1385: a send() cancelled after SSLObject.write()
+        # loses an encrypted record, so the stream must refuse further use
+        # instead of sending records the peer can no longer decrypt.
         received: list[bytes] = []
-        server_exc: BaseException | None = None
 
         def serve_sync() -> None:
-            nonlocal server_exc
             conn, _addr = server_sock.accept()
             conn.settimeout(5)
             try:
                 received.append(conn.recv(100))
-                received.append(conn.recv(100))
-                received.append(conn.recv(100))
-            except BaseException as exc:
-                server_exc = exc
+                conn.recv(100)
+            except (OSError, ssl.SSLError):
+                pass
             finally:
                 conn.close()
 
@@ -102,12 +100,18 @@ class TestTLSStream:
                     scope.cancel()
                     await wrapper.send(b"cancelled")
 
-                await wrapper.send(b"second")
+                assert scope.cancelled_caught
+                with pytest.raises(BrokenResourceError):
+                    await wrapper.send(b"second")
+
+                with pytest.raises(BrokenResourceError):
+                    await wrapper.receive()
+
+                await wrapper.aclose()
 
         server_thread.join(timeout=5)
         server_sock.close()
-        assert server_exc is None
-        assert received == [b"first", b"cancelled", b"second"]
+        assert received == [b"first"]
 
     async def test_unicode_hostname_idna2008(
         self, ca: CA, client_context: ssl.SSLContext
