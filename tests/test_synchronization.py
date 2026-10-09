@@ -1058,6 +1058,30 @@ class TestCapacityLimiter:
         with pytest.raises(WouldBlock):
             limiter.acquire_on_behalf_of_nowait(borrower2)
 
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_cancel_during_acquire_on_behalf_of(self) -> None:
+        """
+        Regression test: when acquire_on_behalf_of() acquires the limiter
+        without having to wait and is then cancelled during its
+        cancel-shielded checkpoint, it must release the borrower it acquired
+        for, not the current task.
+
+        """
+        borrower = object()
+        limiter = CapacityLimiter(1)
+
+        # Let the task run until it parks at the cancel-shielded checkpoint (the
+        # token is already acquired for the borrower by then), then cancel it so
+        # the cancellation is delivered inside that checkpoint.
+        task = asyncio.create_task(limiter.acquire_on_behalf_of(borrower))
+        await checkpoint()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        assert limiter.borrowed_tokens == 0
+        assert limiter.statistics().borrowers == ()
+
     async def test_nowait_acquire_after_release_does_not_oversubscribe(self) -> None:
         # Regression test for #1170: a non-blocking acquire issued in the window
         # between releasing a token (which notifies the next waiter) and that
