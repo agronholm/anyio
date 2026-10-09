@@ -44,6 +44,7 @@ from pytest_mock.plugin import MockerFixture
 from anyio import (
     BrokenResourceError,
     BusyResourceError,
+    CancelScope,
     ClosedResourceError,
     EndOfStream,
     Event,
@@ -61,6 +62,7 @@ from anyio import (
     create_unix_datagram_socket,
     create_unix_listener,
     fail_after,
+    get_cancelled_exc_class,
     getaddrinfo,
     getnameinfo,
     move_on_after,
@@ -1873,6 +1875,59 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
 @pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestUDPSocket:
+    @pytest.mark.parametrize("anyio_backend", ["trio"])
+    @pytest.mark.parametrize("connected", [False, True])
+    @pytest.mark.parametrize("failure", ["bind", "cancel"])
+    async def test_initialization_failure_closes_socket(
+        self,
+        family: AnyIPAddressFamily,
+        connected: bool,
+        failure: str,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        trio = pytest.importorskip("trio")
+        socket_factory = trio.socket.socket
+        created = []
+
+        def capture_socket(*args: Any, **kwargs: Any) -> Any:
+            sock = socket_factory(*args, **kwargs)
+            created.append(sock)
+            if failure == "cancel":
+                scope.cancel()
+
+            return sock
+
+        monkeypatch.setattr(trio.socket, "socket", capture_socket)
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        with socket.socket(family, socket.SOCK_DGRAM) as occupied:
+            occupied.bind((host, 0))
+            port = occupied.getsockname()[1]
+            try:
+                # Keep the exception alive: its traceback retains the failed socket.
+                with CancelScope() as scope:
+                    error_type = (
+                        OSError if failure == "bind" else get_cancelled_exc_class()
+                    )
+                    with pytest.raises(error_type) as exc_info:
+                        if connected:
+                            await create_connected_udp_socket(
+                                host, 9, family=family, local_host=host, local_port=port
+                            )
+                        else:
+                            await create_udp_socket(
+                                family=family, local_host=host, local_port=port
+                            )
+
+                if failure == "bind":
+                    assert isinstance(exc_info.value, OSError)
+                    assert exc_info.value.errno in (errno.EADDRINUSE, 10048)
+
+                assert len(created) == 1
+                assert created[0].fileno() == -1
+            finally:
+                for sock in created:
+                    sock.close()
+
     async def test_aclose_waits_for_fd_release(
         self, family: AnyIPAddressFamily, free_udp_port: int
     ) -> None:

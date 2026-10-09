@@ -1299,18 +1299,21 @@ class TrioBackend(AsyncBackend):
         reuse_port: bool,
     ) -> UDPSocket | ConnectedUDPSocket:
         trio_socket = trio.socket.socket(family=family, type=socket.SOCK_DGRAM)
+        try:
+            if reuse_port:
+                trio_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
 
-        if reuse_port:
-            trio_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            if local_address:
+                await trio_socket.bind(local_address)
 
-        if local_address:
-            await trio_socket.bind(local_address)
-
-        if remote_address:
-            await trio_socket.connect(remote_address)
-            return ConnectedUDPSocket(trio_socket)
-        else:
-            return UDPSocket(trio_socket)
+            if remote_address:
+                await trio_socket.connect(remote_address)
+                return ConnectedUDPSocket(trio_socket)
+            else:
+                return UDPSocket(trio_socket)
+        except BaseException:
+            trio_socket.close()
+            raise
 
     @classmethod
     @overload
