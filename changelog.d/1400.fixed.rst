@@ -1,0 +1,1 @@
+Fixed Trio UDP sockets remaining open when initialization failed or was cancelled.
