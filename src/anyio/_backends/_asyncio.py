@@ -1732,6 +1732,7 @@ class UNIXSocketListener(abc.SocketListener):
         self.__raw_socket = raw_socket
         self._loop = get_running_loop()
         self._accept_guard = ResourceGuard("accepting connections from")
+        self._accept_future: asyncio.Future[None] | None = None
         self._closed = False
 
     async def accept(self) -> abc.SocketStream:
@@ -1743,12 +1744,21 @@ class UNIXSocketListener(abc.SocketListener):
                     client_sock.setblocking(False)
                     return UNIXSocketStream(client_sock)
                 except BlockingIOError:
-                    f: asyncio.Future = asyncio.Future()
+                    f = self._accept_future = asyncio.Future()
                     self._loop.add_reader(self.__raw_socket, f.set_result, None)
-                    f.add_done_callback(
-                        lambda _: self._loop.remove_reader(self.__raw_socket)
-                    )
-                    await f
+
+                    def _remove_reader(_: asyncio.Future[None]) -> None:
+                        try:
+                            self._loop.remove_reader(self.__raw_socket)
+                        except (ValueError, NotImplementedError, OSError):
+                            pass
+
+                    f.add_done_callback(_remove_reader)
+                    try:
+                        await f
+                    finally:
+                        if self._accept_future is f:
+                            self._accept_future = None
                 except OSError as exc:
                     if self._closed:
                         raise ClosedResourceError from None
@@ -1757,6 +1767,17 @@ class UNIXSocketListener(abc.SocketListener):
 
     async def aclose(self) -> None:
         self._closed = True
+        if self._accept_future is not None and not self._accept_future.done():
+            try:
+                self._loop.remove_reader(self.__raw_socket)
+            except (ValueError, NotImplementedError, OSError):
+                pass
+
+            # Wake up the pending accept() so it can notice the listener was
+            # closed and raise ClosedResourceError, mirroring how closing the
+            # TCP listener cancels its pending accept
+            self._accept_future.set_result(None)
+
         self.__raw_socket.close()
 
     @property

@@ -1746,6 +1746,22 @@ class TestUNIXListener:
             client.close()
             await stream.aclose()
 
+    async def test_close_while_accept_blocked(self, socket_path: Path) -> None:
+        # Closing the listener must promptly finish an accept() that is
+        # already blocked waiting for a connection, not leave it hanging.
+        # The fail_after() bound only keeps a regression from hanging the
+        # test suite; the close itself is expected to end the wait.
+        listener = await create_unix_listener(socket_path)
+
+        async def close_listener() -> None:
+            await wait_all_tasks_blocked()
+            await listener.aclose()
+
+        async with create_task_group() as tg:
+            tg.start_soon(close_listener)
+            with fail_after(1), pytest.raises(ClosedResourceError):
+                await listener.accept()
+
     async def test_socket_options(self, socket_path: Path) -> None:
         async with await create_unix_listener(socket_path) as listener:
             listener_socket = listener.extra(SocketAttribute.raw_socket)
