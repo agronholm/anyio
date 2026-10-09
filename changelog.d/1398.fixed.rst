@@ -1,0 +1,4 @@
+Fixed the asyncio UNIX socket listener leaving a task blocked in ``accept()``
+waiting indefinitely when the listener was closed; the pending accept now ends
+with ``ClosedResourceError``, matching the Trio backend and the asyncio TCP
+listener
