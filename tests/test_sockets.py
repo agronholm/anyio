@@ -62,6 +62,7 @@ from anyio import (
     create_unix_datagram_socket,
     create_unix_listener,
     fail_after,
+    get_available_backends,
     get_cancelled_exc_class,
     getaddrinfo,
     getnameinfo,
@@ -1875,6 +1876,9 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
 @pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestUDPSocket:
+    @pytest.mark.skipif(
+        "trio" not in get_available_backends(), reason="trio is not available"
+    )
     @pytest.mark.parametrize("anyio_backend", ["trio"])
     @pytest.mark.parametrize("connected", [False, True])
     @pytest.mark.parametrize("failure", ["bind", "cancel"])
