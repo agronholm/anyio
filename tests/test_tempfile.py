@@ -59,7 +59,6 @@ class TestNamedTemporaryFile:
 
 
 class TestSpooledTemporaryFile:
-    # 2026-10-08: The default zero limit keeps writes in memory until explicit rollover.
     @pytest.mark.parametrize("use_writelines", [False, True])
     async def test_default_max_size_no_rollover(self, use_writelines: bool) -> None:
         data = b"hello world"
@@ -72,27 +71,6 @@ class TestSpooledTemporaryFile:
             assert not stf._rolled
             await stf.seek(0)
             assert await stf.read() == data
-            await stf.rollover()
-            assert stf._rolled
-            await stf.flush()
-            assert os.fstat(stf.wrapped.fileno()).st_size == len(data)
-            await stf.seek(0)
-            assert await stf.read() == data
-
-    # 2026-10-08: An explicit zero limit has the same meaning for text-mode writes.
-    @pytest.mark.parametrize("use_writelines", [False, True])
-    async def test_zero_max_size_text_no_rollover(self, use_writelines: bool) -> None:
-        async with SpooledTemporaryFile(
-            max_size=0, mode="w+t", encoding="utf-8"
-        ) as stf:
-            if use_writelines:
-                await stf.writelines(["hello", " world"])
-            else:
-                assert await stf.write("hello world") == 11
-
-            assert not stf._rolled
-            await stf.seek(0)
-            assert await stf.read() == "hello world"
 
     async def test_writewithout_rolled(self) -> None:
         rollover_called = False

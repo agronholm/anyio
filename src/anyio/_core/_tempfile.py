@@ -314,7 +314,6 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
         await super().aclose()
 
     async def _check(self) -> None:
-        # 2026-10-08: Zero disables automatic rollover, as in tempfile.
         if self._rolled or not self._max_size or self._fp.tell() <= self._max_size:
             return
 
