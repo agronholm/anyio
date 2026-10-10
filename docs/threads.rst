@@ -278,12 +278,25 @@ them will not propagate back to the calling asynchronous task.
 When calling asynchronous code from worker threads, context is again copied to the task
 that calls the target function in the event loop thread.
 
+Worker lifetime
+---------------
+
+On the asyncio backend, worker threads are shared across event loops in a process.
+Closing an event loop does not stop its workers: they can be reused by another loop
+and exit automatically after being idle for 10 seconds. Each call uses the context,
+cancellation scope and event loop of the task that submitted it.
+
+Worker threads are daemon threads, as on the Trio backend. They do not keep the Python
+process alive. If a call is abandoned on cancellation, keep the process alive until
+its work finishes if that work must complete.
+
 Adjusting the default maximum worker thread count
 -------------------------------------------------
 
 The default AnyIO worker thread limiter has a value of **40**, meaning that any calls
 to :func:`.to_thread.run_sync` without an explicit ``limiter`` argument will cause a
-maximum of 40 threads to be spawned. You can adjust this limit like this::
+maximum of 40 calls to run concurrently in each event loop. You can adjust this limit
+like this::
 
     from anyio import to_thread
 

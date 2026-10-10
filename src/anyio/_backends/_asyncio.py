@@ -42,7 +42,7 @@ from inspect import (
 )
 from io import IOBase
 from os import PathLike
-from queue import Queue
+from queue import Empty, Queue
 from signal import Signals
 from socket import AddressFamily, SocketKind
 from threading import Thread
@@ -1065,37 +1065,53 @@ class TaskGroup(abc.TaskGroup):
 _Retval_Queue_Type = tuple[T_Retval | None, BaseException | None]
 
 
+class WorkerThreadPool:
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.workers: set[WorkerThread] = set()
+        self.idle_workers: dict[WorkerThread, None] = {}
+
+    def submit(
+        self,
+        context: Context,
+        func: Callable,
+        args: tuple,
+        future: asyncio.Future,
+        cancel_scope: CancelScope,
+    ) -> None:
+        with self.lock:
+            if self.idle_workers:
+                worker, _ = self.idle_workers.popitem()
+            else:
+                worker = WorkerThread(self)
+                self.workers.add(worker)
+                try:
+                    worker.start()
+                except BaseException:
+                    self.workers.remove(worker)
+                    raise
+
+            worker.queue.put_nowait((context, func, args, future, cancel_scope))
+
+
 class WorkerThread(Thread):
     MAX_IDLE_TIME = 10  # seconds
 
-    def __init__(
-        self,
-        root_task: asyncio.Task,
-        workers: set[WorkerThread],
-        idle_workers: deque[WorkerThread],
-    ):
+    def __init__(self, pool: WorkerThreadPool):
         kwargs: dict[str, Any] = {}
         if sys.version_info >= (3, 14):
             kwargs["context"] = Context()
 
-        super().__init__(name="AnyIO worker thread", **kwargs)
-        self.root_task = root_task
-        self.workers = workers
-        self.idle_workers = idle_workers
-        self.loop = root_task._loop
+        super().__init__(name="AnyIO worker thread", daemon=True, **kwargs)
+        self.pool = pool
         self.queue: Queue[
-            tuple[Context, Callable, tuple, asyncio.Future, CancelScope] | None
-        ] = Queue(2)
-        self.idle_since = AsyncIOBackend.current_time()
-        self.stopping = False
+            tuple[Context, Callable, tuple, asyncio.Future, CancelScope]
+        ] = Queue(1)
 
+    @staticmethod
     def _report_result(
-        self, future: asyncio.Future, result: Any, exc: BaseException | None
+        future: asyncio.Future, result: Any, exc: BaseException | None
     ) -> None:
-        self.idle_since = AsyncIOBackend.current_time()
-        if not self.stopping:
-            self.idle_workers.append(self)
-
         if not future.cancelled():
             if exc is not None:
                 if isinstance(exc, StopIteration):
@@ -1107,54 +1123,70 @@ class WorkerThread(Thread):
             else:
                 future.set_result(result)
 
-    def run(self) -> None:
-        with claim_worker_thread(AsyncIOBackend, self.loop):
-            while True:
-                item = self.queue.get()
-                if item is None:
-                    # Shutdown command received
-                    return
-
-                context, func, args, future, cancel_scope = item
-                result = None
-                exception: BaseException | None = None
-                if not future.cancelled():
-                    threadlocals.current_cancel_scope = cancel_scope
-                    try:
-                        result = context.run(func, *args)
-                    except BaseException as exc:
-                        exception = exc
-                    finally:
-                        del threadlocals.current_cancel_scope
-
-                # Report the result even if the future was cancelled before the call
-                # was started, so that the worker is put back on the idle list
+    def _run_job(
+        self, item: tuple[Context, Callable, tuple, asyncio.Future, CancelScope]
+    ) -> None:
+        context, func, args, future, cancel_scope = item
+        loop = future.get_loop()
+        result = None
+        exception: BaseException | None = None
+        with claim_worker_thread(AsyncIOBackend, loop):
+            if not future.cancelled():
+                threadlocals.current_cancel_scope = cancel_scope
                 try:
-                    self.loop.call_soon_threadsafe(
-                        self._report_result, future, result, exception
-                    )
-                except RuntimeError:
-                    if not self.loop.is_closed():
-                        raise
+                    result = context.run(func, *args)
+                except BaseException as exc:
+                    exception = exc
+                finally:
+                    del threadlocals.current_cancel_scope
 
-                del result, exception
-                self.queue.task_done()
-                del item, context, func, args, future, cancel_scope
+        # Make the worker available before delivering the result, so sequential
+        # calls can reuse it even if the event loop receives the result immediately.
+        with self.pool.lock:
+            self.pool.idle_workers[self] = None
 
-    def stop(self, f: asyncio.Task | None = None) -> None:
-        self.stopping = True
-        self.queue.put_nowait(None)
-        self.workers.discard(self)
         try:
-            self.idle_workers.remove(self)
-        except ValueError:
-            pass
+            loop.call_soon_threadsafe(self._report_result, future, result, exception)
+        except RuntimeError:
+            if not loop.is_closed():
+                raise
+
+    def run(self) -> None:
+        try:
+            while True:
+                try:
+                    item = self.queue.get(timeout=self.MAX_IDLE_TIME)
+                except Empty:
+                    # Assignment and retirement use the same lock: if a submitter
+                    # already selected us, its queued job must still be processed.
+                    with self.pool.lock:
+                        if self in self.pool.idle_workers:
+                            del self.pool.idle_workers[self]
+                            return
+
+                    continue
+
+                try:
+                    self._run_job(item)
+                finally:
+                    del item
+                    self.queue.task_done()
+        finally:
+            with self.pool.lock:
+                self.pool.idle_workers.pop(self, None)
+                self.pool.workers.discard(self)
 
 
-_threadpool_idle_workers: RunVar[deque[WorkerThread]] = RunVar(
-    "_threadpool_idle_workers"
-)
-_threadpool_workers: RunVar[set[WorkerThread]] = RunVar("_threadpool_workers")
+_threadpool = WorkerThreadPool()
+
+
+def _reset_threadpool_after_fork() -> None:
+    global _threadpool
+    _threadpool = WorkerThreadPool()
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_reset_threadpool_after_fork)
 
 
 #
@@ -2714,45 +2746,9 @@ class AsyncIOBackend(AsyncBackend):
     ) -> T_Retval:
         await cls.checkpoint()
 
-        # If this is the first run in this event loop thread, set up the necessary
-        # variables
-        try:
-            idle_workers = _threadpool_idle_workers.get()
-            workers = _threadpool_workers.get()
-        except LookupError:
-            idle_workers = deque()
-            workers = set()
-            _threadpool_idle_workers.set(idle_workers)
-            _threadpool_workers.set(workers)
-
         async with limiter or cls.current_default_thread_limiter():
             with CancelScope(shield=not abandon_on_cancel) as scope:
                 future = asyncio.Future[T_Retval]()
-                root_task = find_root_task()
-                if not idle_workers:
-                    worker = WorkerThread(root_task, workers, idle_workers)
-                    worker.start()
-                    workers.add(worker)
-                    root_task.add_done_callback(worker.stop, context=Context())
-                else:
-                    worker = idle_workers.pop()
-
-                    # Prune any other workers that have been idle for MAX_IDLE_TIME
-                    # seconds or longer
-                    now = cls.current_time()
-                    while idle_workers:
-                        if (
-                            now - idle_workers[0].idle_since
-                            < WorkerThread.MAX_IDLE_TIME
-                        ):
-                            break
-
-                        expired_worker = idle_workers.popleft()
-                        expired_worker.root_task.remove_done_callback(
-                            expired_worker.stop
-                        )
-                        expired_worker.stop()
-
                 context = copy_context()
                 context.run(set_current_async_library, None)
                 if abandon_on_cancel or scope._parent_scope is None:
@@ -2760,7 +2756,7 @@ class AsyncIOBackend(AsyncBackend):
                 else:
                     worker_scope = scope._parent_scope
 
-                worker.queue.put_nowait((context, func, args, future, worker_scope))
+                _threadpool.submit(context, func, args, future, worker_scope)
                 return await future
 
     @classmethod

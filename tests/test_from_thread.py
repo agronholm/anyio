@@ -3,7 +3,6 @@ from __future__ import annotations
 import math
 import sys
 import threading
-import time
 from collections.abc import AsyncGenerator, Callable, Coroutine
 from concurrent import futures
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
@@ -192,27 +191,17 @@ class TestRunAsyncFromThread:
         assert result == 7
 
     def test_run_sync_from_thread_pooling(self) -> None:
-        async def main() -> None:
-            thread_ids = set()
-            for _ in range(5):
-                thread_ids.add(await to_thread.run_sync(threading.get_ident))
+        async def main() -> threading.Thread:
+            threads = [
+                await to_thread.run_sync(threading.current_thread) for _ in range(5)
+            ]
+            assert all(thread is threads[0] for thread in threads)
+            assert threads[0] is not threading.current_thread()
+            return threads[0]
 
-            # Expects that all the work has been done in the same worker thread
-            assert len(thread_ids) == 1
-            assert thread_ids.pop() != threading.get_ident()
-            assert threading.active_count() == initial_count + 1
-
-        # The thread should not exist after the event loop has been closed
-        initial_count = threading.active_count()
-        run(main, backend="asyncio")
-
-        for _ in range(10):
-            if threading.active_count() == initial_count:
-                return
-
-            time.sleep(0.1)
-
-        pytest.fail("Worker thread did not exit within 1 second")
+        # The global pool reuses workers across independent event loops.
+        worker = run(main, backend="asyncio")
+        assert run(main, backend="asyncio") is worker
 
     async def test_run_async_from_thread_exception(self) -> None:
         with pytest.raises(TypeError) as exc:
