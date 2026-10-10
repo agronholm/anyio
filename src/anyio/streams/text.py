@@ -13,6 +13,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import InitVar, dataclass, field
 from typing import Any
 
+from .._core._exceptions import EndOfStream
 from ..abc import (
     AnyByteReceiveStream,
     AnyByteSendStream,
@@ -59,8 +60,19 @@ class TextReceiveStream(ObjectReceiveStream[str]):
 
     async def receive(self) -> str:
         while True:
-            chunk = await self.transport_stream.receive()
-            decoded = self._decoder.decode(chunk)
+            try:
+                chunk = await self.transport_stream.receive()
+            except EndOfStream:
+                try:
+                    decoded = self._decoder.decode(b"", final=True)
+                finally:
+                    self._decoder.reset()
+
+                if not decoded:
+                    raise
+            else:
+                decoded = self._decoder.decode(chunk)
+
             if decoded:
                 return decoded
 
