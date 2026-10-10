@@ -1,4 +1,5 @@
 Fixed ``lru_cache()`` raising ``KeyError`` in a task that was waiting for another
 task to compute the same entry if the entry was evicted before the waiting task got
-to read it, and fixed failed calls to the wrapped function being counted in
-``currsize``, which permanently reduced the number of values the cache could hold
+to read it, and fixed ``currsize`` counting failed calls to the wrapped function and
+entries computed concurrently by two tasks, which permanently reduced the number of
+values the cache could hold

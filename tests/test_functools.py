@@ -233,47 +233,79 @@ class TestAsyncLRUCache:
 
             return x
 
-        async def evict() -> None:
-            await event.wait()
-            assert await func(2) == 2
+        async def compute_and_evict() -> None:
+            await func(1)
+            await func(2)
 
         event = Event()
-        results: list[int] = []
-
-        async def waiter() -> None:
-            results.append(await func(1))
-
         async with create_task_group() as tg:
-            tg.start_soon(func, 1)
+            tg.start_soon(compute_and_evict)
             await wait_all_tasks_blocked()
-            tg.start_soon(waiter)
-            tg.start_soon(evict)
+            tg.start_soon(func, 1)
             await wait_all_tasks_blocked()
             event.set()
 
-        assert results == [1]
-        assert func.cache_info().currsize == 1
+    async def test_concurrent_recompute_not_counted_twice(self) -> None:
+        """
+        Test that when two tasks end up computing the same entry concurrently, storing
+        the second value does not count the entry twice.
 
-    async def test_exception_not_counted(self) -> None:
+        """
+
         @lru_cache(maxsize=2)
-        async def func(x: int, fail: bool = False) -> int:
-            await checkpoint()
-            if fail:
-                raise RuntimeError("failed")
+        async def func(x: int) -> int:
+            if x == 1:
+                if first_call_done.is_set():
+                    await recompute_done.wait()
+                else:
+                    await first_call_done.wait()
 
             return x
 
-        for _ in range(2):
-            with pytest.raises(RuntimeError, match="failed"):
-                await func(0, fail=True)
+        async def compute_evict_and_recompute() -> None:
+            await func(1)
+            await func(2)
+            await func(3)
+            await func(1)
 
-        assert func.cache_info() == AsyncCacheInfo(0, 2, 2, 0, None)
+        first_call_done = Event()
+        recompute_done = Event()
+        async with create_task_group() as tg:
+            tg.start_soon(compute_evict_and_recompute)
+            await wait_all_tasks_blocked()
+            tg.start_soon(func, 1)
+            await wait_all_tasks_blocked()
+            first_call_done.set()
+            await wait_all_tasks_blocked()
+            recompute_done.set()
 
-        # Both of these values should now fit in the cache
-        assert await func(1) == 1
-        assert await func(2) == 2
-        assert await func(1) == 1
-        assert func.cache_info() == AsyncCacheInfo(1, 4, 2, 2, None)
+        # Both 3 and 1 should still be cached
+        assert await func(3) == 3
+        assert func.cache_info() == AsyncCacheInfo(1, 5, 2, 2, None)
+
+    async def test_exception_not_counted(self) -> None:
+        @lru_cache
+        async def func() -> None:
+            raise RuntimeError
+
+        with pytest.raises(RuntimeError):
+            await func()
+
+        assert func.cache_info().currsize == 0
+
+    async def test_cache_clear_during_call(self) -> None:
+        @lru_cache
+        async def func() -> None:
+            await event.wait()
+
+        event = Event()
+        async with create_task_group() as tg:
+            tg.start_soon(func)
+            await wait_all_tasks_blocked()
+            func.cache_clear()
+            event.set()
+
+        assert func.cache_info().currsize == 0
 
     async def test_args_kwargs_cache_key(self) -> None:
         counter = 0

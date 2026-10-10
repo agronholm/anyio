@@ -213,8 +213,15 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
 
                 raise
 
-            # Remove our own placeholder so that it is not the one to be evicted
-            cache_entry.pop(key, None)
+            if cache.get(self) is not cache_entry:
+                # The cache was cleared while the wrapped function was running
+                return value
+
+            # Remove any existing entry so that the new value becomes the most recently
+            # used one, uncounting it if it was a value stored by another task
+            if (entry := cache_entry.pop(key, None)) is not None and entry[1] is None:
+                self._currsize -= 1
+
             if self._maxsize is not None and self._currsize >= self._maxsize:
                 # Evict the least recently used entry that holds an actual value
                 for old_key, (_, old_lock, _) in cache_entry.items():
