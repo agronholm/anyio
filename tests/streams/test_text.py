@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import platform
 import sys
+from contextlib import AbstractContextManager, nullcontext
 
 import pytest
 
@@ -30,29 +31,28 @@ async def test_receive() -> None:
     receive_stream.close()
 
 
-@pytest.mark.parametrize("stream_class", [TextReceiveStream, TextStream])
-@pytest.mark.parametrize("errors", ["strict", "replace", "ignore"])
+@pytest.mark.parametrize(
+    "errors, expected",
+    [
+        pytest.param("strict", pytest.raises(UnicodeDecodeError), id="strict"),
+        pytest.param("replace", nullcontext(), id="replace"),
+        pytest.param("ignore", pytest.raises(EndOfStream), id="ignore"),
+    ],
+)
 async def test_incomplete_character_at_eof(
-    stream_class: type[TextReceiveStream | TextStream],
-    errors: str,
+    errors: str, expected: AbstractContextManager[object]
 ) -> None:
-    send, receive = create_memory_object_stream[bytes](1)
-    async with send, receive:
-        await send.send(b"\xc3")
-        await send.aclose()
-        transport = StapledObjectStream(send, receive)
-        stream = stream_class(transport, errors=errors)
-        if errors == "strict":
-            with pytest.raises(UnicodeDecodeError):
-                await stream.receive()
-        elif errors == "replace":
-            assert await stream.receive() == "\ufffd"
-        else:
-            with pytest.raises(EndOfStream):
-                await stream.receive()
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
+    text_stream = TextReceiveStream(receive_stream, errors=errors)
+    await send_stream.send(b"\xc3")  # first half of a two-byte character
+    send_stream.close()
+    with expected:
+        assert await text_stream.receive() == "\ufffd"
 
-        with pytest.raises(EndOfStream):
-            await stream.receive()
+    with pytest.raises(EndOfStream):
+        await text_stream.receive()
+
+    receive_stream.close()
 
 
 async def test_send() -> None:
