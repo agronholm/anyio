@@ -19,7 +19,6 @@ from anyio import (
     create_memory_object_stream,
     create_task_group,
     create_tcp_listener,
-    fail_after,
     to_thread,
 )
 from anyio.abc import (
@@ -68,50 +67,40 @@ class TestTLSStream:
         # Regression test for #1385: a send() cancelled after SSLObject.write()
         # loses an encrypted record, so the stream must refuse further use
         # instead of sending records the peer can no longer decrypt.
-        received: list[bytes] = []
+        server_send, server_receive = create_memory_object_stream[bytes](1)
+        client_send, client_receive = create_memory_object_stream[bytes](1)
+        client_stream = StapledObjectStream(client_send, server_receive)
+        server_stream = StapledObjectStream(server_send, client_receive)
 
-        def serve_sync() -> None:
-            conn, _addr = server_sock.accept()
-            conn.settimeout(5)
-            try:
-                received.append(conn.recv(100))
-                conn.recv(100)
-            except (OSError, ssl.SSLError):
-                pass
-            finally:
-                conn.close()
+        async def serve() -> None:
+            tls_stream = await TLSStream.wrap(
+                server_stream, server_side=True, ssl_context=server_context
+            )
+            assert await tls_stream.receive() == b"first"
 
-        server_sock = server_context.wrap_socket(
-            socket.socket(), server_side=True, suppress_ragged_eofs=False
-        )
-        server_sock.settimeout(5)
-        server_sock.bind(("127.0.0.1", 0))
-        server_sock.listen()
-        server_thread = Thread(target=serve_sync, daemon=True)
-        server_thread.start()
+        # Keep the server's transport open, so the client's failures can only come
+        # from the TLS layer
+        async with server_stream, create_task_group() as tg:
+            tg.start_soon(serve)
+            wrapper = await TLSStream.wrap(
+                client_stream, hostname="localhost", ssl_context=client_context
+            )
+            await wrapper.send(b"first")
+            # The memory stream's send() checkpoints before enqueuing, so the
+            # record encrypted by SSLObject.write() is lost here
+            with CancelScope() as scope:
+                scope.cancel()
+                await wrapper.send(b"cancelled")
 
-        with fail_after(5):
-            async with await connect_tcp(*server_sock.getsockname()) as stream:
-                wrapper = await TLSStream.wrap(
-                    stream, hostname="localhost", ssl_context=client_context
-                )
-                await wrapper.send(b"first")
-                with CancelScope() as scope:
-                    scope.cancel()
-                    await wrapper.send(b"cancelled")
+            assert scope.cancelled_caught
+            with pytest.raises(BrokenResourceError):
+                await wrapper.send(b"second")
 
-                assert scope.cancelled_caught
-                with pytest.raises(BrokenResourceError):
-                    await wrapper.send(b"second")
+            with pytest.raises(BrokenResourceError):
+                await wrapper.receive()
 
-                with pytest.raises(BrokenResourceError):
-                    await wrapper.receive()
-
-                await wrapper.aclose()
-
-        server_thread.join(timeout=5)
-        server_sock.close()
-        assert received == [b"first"]
+            # Must not attempt the closing handshake on a broken stream
+            await wrapper.aclose()
 
     async def test_unicode_hostname_idna2008(
         self, ca: CA, client_context: ssl.SSLContext
