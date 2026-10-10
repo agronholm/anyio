@@ -616,9 +616,16 @@ class CancelScope(BaseCancelScope):
             if task.done():
                 continue
 
-            should_retry = True
             if task._must_cancel:  # type: ignore[attr-defined]
+                waiter = task._fut_waiter  # type: ignore[attr-defined]
+                if isinstance(waiter, asyncio.Future):
+                    waiter.add_done_callback(origin._restart_cancellation)
+                else:
+                    should_retry = True
+
                 continue
+
+            should_retry = True
 
             # The task is eligible for cancellation if it has started
             if task is not current and (task is self._host_task or _task_started(task)):
@@ -647,6 +654,10 @@ class CancelScope(BaseCancelScope):
                 self._cancel_handle = None
 
         return should_retry
+
+    def _restart_cancellation(self, future: asyncio.Future[Any]) -> None:
+        if self._active and self._cancel_handle is None:
+            self._deliver_cancellation(self)
 
     def _restart_cancellation_in_parent(self) -> None:
         """
