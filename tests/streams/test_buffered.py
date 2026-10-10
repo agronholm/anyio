@@ -54,13 +54,12 @@ async def test_receive_closed_with_buffer(
     method: str, args: tuple[object, ...]
 ) -> None:
     send_stream, receive_stream = create_memory_object_stream[bytes](1)
-    buffered_stream = BufferedByteReceiveStream(receive_stream)
-    buffered_stream.feed_data(b"abcd\n")
-    await buffered_stream.aclose()
-    with pytest.raises(ClosedResourceError):
-        await getattr(buffered_stream, method)(*args)
-
-    send_stream.close()
+    with send_stream, receive_stream:
+        buffered_stream = BufferedByteReceiveStream(receive_stream)
+        buffered_stream.feed_data(b"abcd\n")
+        await buffered_stream.aclose()
+        with pytest.raises(ClosedResourceError):
+            await getattr(buffered_stream, method)(*args)
 
 
 async def test_receive_until() -> None:
