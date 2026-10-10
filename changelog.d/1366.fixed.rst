@@ -1,0 +1,2 @@
+Fixed ``BlockingPortalProvider`` not passing the exception raised in its ``with``
+block on to the ``start_blocking_portal()`` context manager it wraps
