@@ -1,0 +1,3 @@
+Changed ``lru_cache()`` to store a newly computed value as the most recently used one
+when the wrapped function returns, rather than in the position the entry had when the
+call started, matching the behavior of ``functools.lru_cache()``
