@@ -151,9 +151,6 @@ A buffered byte stream wraps an existing bytes-oriented receive stream and provi
 certain amenities that require buffering, such as receiving an exact number of bytes, or
 receiving until the given delimiter is found.
 
-Once the buffered stream has been explicitly closed, all receive methods raise
-:exc:`~anyio.ClosedResourceError`, even if unread data remains in the buffer.
-
 Example::
 
     from anyio import run, create_memory_object_stream
