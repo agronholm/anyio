@@ -2574,3 +2574,15 @@ async def test_task_from_asyncgen_asend(create_task: bool) -> None:
         assert handle.name == "async_generator.asend"
 
         assert await handle == 8
+
+
+async def test_nan_deadline_rejected() -> None:
+    """A NaN deadline raises ValueError on all backends."""
+    with pytest.raises(ValueError, match="deadline must not be NaN"):
+        CancelScope(deadline=math.nan)
+
+
+async def test_nan_deadline_setter_rejected() -> None:
+    """Assigning a NaN deadline raises ValueError on all backends."""
+    with pytest.raises(ValueError, match="deadline must not be NaN"):
+        CancelScope().deadline = math.nan
