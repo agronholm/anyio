@@ -71,15 +71,13 @@ async def test_send_bom_emitted_only_once(encoding: str) -> None:
     the peer receives spurious U+FEFF characters (or duplicate BOM bytes).
     """
     send_stream, receive_stream = create_memory_object_stream[bytes](8)
-    text_send = TextSendStream(send_stream, encoding=encoding)
-    text_receive = TextReceiveStream(receive_stream, encoding=encoding)
-    await text_send.send("hello")
-    await text_send.send("world")
-    assert await text_receive.receive() == "hello"
-    assert await text_receive.receive() == "world"
-
-    send_stream.close()
-    receive_stream.close()
+    with send_stream, receive_stream:
+        text_send = TextSendStream(send_stream, encoding=encoding)
+        text_receive = TextReceiveStream(receive_stream, encoding=encoding)
+        await text_send.send("hello")
+        await text_send.send("world")
+        assert await text_receive.receive() == "hello"
+        assert await text_receive.receive() == "world"
 
 
 async def test_bidirectional_stream() -> None:
