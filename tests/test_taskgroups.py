@@ -515,8 +515,11 @@ async def test_caught_native_cancellation_is_redelivered(wait_on_future: bool) -
             except asyncio.CancelledError:
                 caught_cancellation = True
 
-            await asyncio.sleep(0)
-            await loop.create_future()
+            with pytest.raises(asyncio.CancelledError) as exc:
+                await asyncio.sleep(0)
+                await loop.create_future()
+
+            assert _asyncio.is_anyio_cancellation(exc.value)
 
     task = asyncio.create_task(owner())
     scope = await started
@@ -526,8 +529,7 @@ async def test_caught_native_cancellation_is_redelivered(wait_on_future: bool) -
     task.cancel()
     assert task._must_cancel  # type: ignore[attr-defined]
     scope.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await asyncio.wait_for(task, 1)
+    await asyncio.wait_for(task, 1)
     assert caught_cancellation
 
 
