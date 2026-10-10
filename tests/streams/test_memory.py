@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import gc
 import sys
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn
 
 import pytest
 
@@ -17,7 +17,6 @@ from anyio import (
     fail_after,
     wait_all_tasks_blocked,
 )
-from anyio.abc import ObjectReceiveStream, ObjectSendStream, TaskStatus
 from anyio.streams.memory import (
     MemoryObjectReceiveStream,
     MemoryObjectSendStream,
@@ -25,6 +24,9 @@ from anyio.streams.memory import (
 )
 
 from ..conftest import asyncio_params
+
+if TYPE_CHECKING:
+    from anyio.abc import ObjectReceiveStream, ObjectSendStream, TaskStatus
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup

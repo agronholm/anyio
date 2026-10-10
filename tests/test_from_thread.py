@@ -9,7 +9,7 @@ from concurrent import futures
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
 from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
-from typing import Any, Literal, NoReturn, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, NoReturn, TypeVar
 
 import pytest
 from pytest import LogCaptureFixture
@@ -30,11 +30,13 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
-from anyio.abc import TaskStatus
 from anyio.from_thread import BlockingPortal, start_blocking_portal
 from anyio.lowlevel import EventLoopToken, checkpoint, current_token
 
 from .conftest import asyncio_params, return_non_coro_awaitable
+
+if TYPE_CHECKING:
+    from anyio.abc import TaskStatus
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -329,6 +331,21 @@ class TestRunSyncFromThread:
             return from_thread.run_sync(sniffio.current_async_library)
 
         assert await to_thread.run_sync(worker) == anyio_backend_name
+
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_get_current_task(self) -> None:
+        """
+        Regression test for #773: get_current_task() must raise a clear
+        RuntimeError, not an opaque weakref TypeError, when called from a
+        callback scheduled via loop.call_soon_threadsafe() (as from_thread.run_sync
+        does), where asyncio.current_task() is legitimately None.
+        """
+
+        def worker() -> None:
+            from_thread.run_sync(get_current_task)
+
+        with pytest.raises(RuntimeError, match="There is no task currently running"):
+            await to_thread.run_sync(worker)
 
 
 class TestBlockingPortal:

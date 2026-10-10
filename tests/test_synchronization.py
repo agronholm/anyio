@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import math
 from contextlib import AbstractContextManager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -22,10 +22,12 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
-from anyio.abc import TaskStatus
 from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params
+
+if TYPE_CHECKING:
+    from anyio.abc import TaskStatus
 
 
 class TestLock:
@@ -234,6 +236,7 @@ class TestLock:
                 pass
 
         lock = Lock()
+        assert not lock.locked()
         statistics = lock.statistics()
         assert not statistics.locked
         assert statistics.owner is None
@@ -437,6 +440,34 @@ class TestCondition:
         ):
             await condition.wait()
 
+    async def test_notify_with_shared_lock(self) -> None:
+        lock = Lock()
+        condition = Condition(lock)
+        async with lock:
+            condition.notify()
+            condition.notify_all()
+
+    async def test_notify_no_lock(self) -> None:
+        condition = Condition()
+        with pytest.raises(
+            RuntimeError, match="The current task is not holding the underlying lock"
+        ):
+            condition.notify()
+
+        with pytest.raises(
+            RuntimeError, match="The current task is not holding the underlying lock"
+        ):
+            condition.notify_all()
+
+    async def test_notify_after_release(self) -> None:
+        condition = Condition()
+        await condition.acquire()
+        condition.release()
+        with pytest.raises(
+            RuntimeError, match="The current task is not holding the underlying lock"
+        ):
+            condition.notify()
+
     async def test_statistics(self) -> None:
         async def waiter() -> None:
             async with condition:
@@ -473,6 +504,7 @@ class TestCondition:
                 pass
 
         condition = Condition()
+        assert not condition.locked()
         assert condition.statistics().tasks_waiting == 0
 
         run(
@@ -551,6 +583,28 @@ class TestSemaphore:
             tg.start_soon(other_task)
             async with semaphore:
                 assert not other_task_called
+
+    def test_fast_acquire_outside_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        semaphore = Semaphore(1, fast_acquire=True)
+        other_task_called = False
+
+        async def other_task() -> None:
+            nonlocal other_task_called
+            other_task_called = True
+
+        async def use_semaphore() -> None:
+            async with create_task_group() as tg:
+                tg.start_soon(other_task)
+                async with semaphore:
+                    assert not other_task_called
+
+        run(
+            use_semaphore,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
+        )
 
     async def test_acquire_nowait(self) -> None:
         semaphore = Semaphore(1)
@@ -877,6 +931,31 @@ class TestCapacityLimiter:
             # Allow all tasks to exit
             continue_event.set()
 
+    async def test_increase_tokens_does_not_oversubscribe(self) -> None:
+        """
+        Raising ``total_tokens`` must not grant more waiters than the spare
+        capacity, even when the limiter is over-subscribed because
+        ``total_tokens`` was previously lowered below the number of current
+        borrowers.
+        """
+        limiter = CapacityLimiter(2)
+        limiter.acquire_on_behalf_of_nowait("A")
+        limiter.acquire_on_behalf_of_nowait("B")
+
+        async with create_task_group() as tg:
+            tg.start_soon(limiter.acquire)
+            tg.start_soon(limiter.acquire)
+            await wait_all_tasks_blocked()
+            assert limiter.statistics().borrowed_tokens == 2
+            assert limiter.statistics().tasks_waiting == 2
+
+            limiter.total_tokens = 1
+            limiter.total_tokens = 2
+            await wait_all_tasks_blocked()
+            assert limiter.statistics().borrowed_tokens == 2
+            assert limiter.statistics().tasks_waiting == 2
+            tg.cancel()
+
     def test_instantiate_outside_event_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
@@ -978,6 +1057,31 @@ class TestCapacityLimiter:
         limiter.acquire_on_behalf_of_nowait(borrower1)
         with pytest.raises(WouldBlock):
             limiter.acquire_on_behalf_of_nowait(borrower2)
+
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_cancel_during_acquire_on_behalf_of(self) -> None:
+        """
+        Regression test: when acquire_on_behalf_of() acquires the limiter
+        without having to wait and is then cancelled during its
+        cancel-shielded checkpoint, it must release the borrower it acquired
+        for, not the current task.
+
+        """
+        borrower = object()
+        limiter = CapacityLimiter(1)
+
+        # Cancel the task once it has acquired the token and parked at its
+        # cancel-shielded checkpoint, so the cancellation is delivered there.
+        task = asyncio.create_task(limiter.acquire_on_behalf_of(borrower))
+        if limiter.borrowed_tokens == 0:
+            await asyncio.sleep(0)
+
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        assert limiter.borrowed_tokens == 0
+        assert limiter.statistics().borrowers == ()
 
     async def test_nowait_acquire_after_release_does_not_oversubscribe(self) -> None:
         # Regression test for #1170: a non-blocking acquire issued in the window
