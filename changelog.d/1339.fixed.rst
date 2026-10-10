@@ -1,0 +1,2 @@
+Fixed text receive streams silently discarding incomplete characters at end-of-file
+instead of applying the configured decoding error handler
