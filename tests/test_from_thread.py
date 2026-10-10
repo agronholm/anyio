@@ -825,7 +825,7 @@ class TestBlockingPortalProvider:
         provider = BlockingPortalProvider(anyio_backend_name, anyio_backend_options)
         with pytest.raises(RuntimeError, match="boom"):
             with provider as portal:
-                future = portal.start_task_soon(sleep, 1)
+                future = portal.start_task_soon(sleep, 10)
                 portal.call(wait_all_tasks_blocked)
                 raise RuntimeError("boom")
 
