@@ -498,7 +498,7 @@ class TemporaryDirectory(Generic[AnyStr]):
         self._tempdir = await to_thread.run_sync(
             lambda: tempfile.TemporaryDirectory(**params)
         )
-        return await to_thread.run_sync(self._tempdir.__enter__)
+        return self._tempdir.name
 
     async def __aexit__(
         self,
