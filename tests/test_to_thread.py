@@ -54,7 +54,6 @@ def test_asyncio_worker_pool_loop_closure(
     asyncio_worker_pool: Any, anyio_backend_options: dict[str, Any]
 ) -> None:
     workers = []
-    loops = []
     loop_factory = anyio_backend_options.get("loop_factory", asyncio.new_event_loop)
     for _ in range(3):
         loop = loop_factory()
@@ -67,12 +66,7 @@ def test_asyncio_worker_pool_loop_closure(
             # Deliberately skip shutdown_asyncgens() and any runner cleanup.
             loop.close()
 
-        loops.append(weakref.ref(loop))
-        del loop
-
     assert workers[0] is workers[1] is workers[2]
-    gc.collect()
-    assert all(loop_ref() is None for loop_ref in loops)
     workers[0].join()
     assert not asyncio_worker_pool.workers
     assert not asyncio_worker_pool.idle_workers
@@ -411,6 +405,7 @@ async def test_asyncio_cancel_native_task() -> None:
 
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_asyncio_worker_reused_after_cancelled_call(
+    asyncio_worker_pool: Any,
     mocker: MockerFixture,
 ) -> None:
     """
@@ -428,16 +423,16 @@ async def test_asyncio_worker_reused_after_cancelled_call(
         original_put_nowait(item)
 
     original_put_nowait = worker.queue.put_nowait
-    mocker.patch.object(worker.queue, "put_nowait", side_effect=put_cancelled_item)
+    queue_patch = mocker.patch.object(
+        worker.queue, "put_nowait", side_effect=put_cancelled_item
+    )
     with pytest.raises(asyncio.CancelledError):
         await to_thread.run_sync(int)
 
-    mocker.stopall()
+    mocker.stop(queue_patch)
 
-    # Wait for the worker thread to dequeue the item and to schedule a callback that
-    # returns it to the idle pool, then let the event loop run that callback
+    # Wait for the worker to finish the cancelled job and return to the idle pool.
     worker.queue.join()
-    await wait_all_tasks_blocked()
 
     # The next call should reuse that worker rather than start a new one
     assert await to_thread.run_sync(threading.current_thread) is worker
@@ -647,6 +642,30 @@ async def test_run_sync_worker_cyclic_references() -> None:
     assert gc.get_referrers(contextval) == no_other_refs()
     assert gc.get_referrers(foo) == no_other_refs()
     assert gc.get_referrers(arg) == no_other_refs()
+
+
+@skipif_pypy_mark
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+def test_asyncio_worker_pool_does_not_retain_closed_loops(
+    asyncio_worker_pool: Any, anyio_backend_options: dict[str, Any]
+) -> None:
+    loop_refs = []
+    loop_factory = anyio_backend_options.get("loop_factory", asyncio.new_event_loop)
+    for _ in range(3):
+        loop = loop_factory()
+        try:
+            worker: Any = loop.run_until_complete(
+                to_thread.run_sync(threading.current_thread)
+            )
+            worker.queue.join()
+        finally:
+            loop.close()
+
+        loop_refs.append(weakref.ref(loop))
+        del loop
+
+    gc.collect()
+    assert all(loop_ref() is None for loop_ref in loop_refs)
 
 
 @skipif_pypy_mark
