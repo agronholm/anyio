@@ -1715,17 +1715,19 @@ class TCPSocketListener(abc.SocketListener):
             return
 
         self._closed = True
-        if self._accept_scope:
-            # Workaround for https://bugs.python.org/issue41317
-            try:
-                self._loop.remove_reader(self._raw_socket)
-            except (ValueError, NotImplementedError):
-                pass
+        # 2026-10-09: Release the socket even if pending accept cleanup is cancelled.
+        try:
+            if self._accept_scope:
+                # Workaround for https://bugs.python.org/issue41317
+                try:
+                    self._loop.remove_reader(self._raw_socket)
+                except (ValueError, NotImplementedError):
+                    pass
 
-            self._accept_scope.cancel()
-            await sleep(0)
-
-        self._raw_socket.close()
+                self._accept_scope.cancel()
+                await sleep(0)
+        finally:
+            self._raw_socket.close()
 
 
 class UNIXSocketListener(abc.SocketListener):
