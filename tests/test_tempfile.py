@@ -4,7 +4,7 @@ import os
 import pathlib
 import shutil
 import tempfile
-from typing import AnyStr
+from typing import Any, AnyStr
 from unittest.mock import patch
 
 import pytest
@@ -15,11 +15,13 @@ from anyio import (
     SpooledTemporaryFile,
     TemporaryDirectory,
     TemporaryFile,
+    from_thread,
     gettempdir,
     gettempdirb,
     mkdtemp,
     mkstemp,
 )
+from anyio.lowlevel import checkpoint
 
 
 class TestTemporaryFile:
@@ -59,6 +61,19 @@ class TestNamedTemporaryFile:
 
 
 class TestSpooledTemporaryFile:
+    @pytest.mark.parametrize("use_writelines", [False, True])
+    async def test_default_max_size_no_rollover(self, use_writelines: bool) -> None:
+        data = b"hello world"
+        async with SpooledTemporaryFile() as stf:
+            if use_writelines:
+                await stf.writelines([b"hello", b" world"])
+            else:
+                assert await stf.write(data) == len(data)
+
+            assert not stf._rolled
+            await stf.seek(0)
+            assert await stf.read() == data
+
     async def test_writewithout_rolled(self) -> None:
         rollover_called = False
 
@@ -95,6 +110,15 @@ class TestSpooledTemporaryFile:
                 await stf.writelines([b"1234567890123456"])
                 assert rollover_called
 
+    async def test_rollover_preserves_position(self) -> None:
+        """Rollover preserves the position of a partially read file."""
+        async with SpooledTemporaryFile[bytes](max_size=1024) as stf:
+            await stf.write(b"hello world")
+            await stf.seek(2)
+            await stf.rollover()
+            assert await stf.tell() == 2
+            assert await stf.read() == b"llo world"
+
     async def test_closed_state(self) -> None:
         async with SpooledTemporaryFile(max_size=10) as stf:
             assert not stf.closed
@@ -127,6 +151,29 @@ class TestSpooledTemporaryFile:
 
 
 class TestTemporaryDirectory:
+    async def test_cancellation_during_creation(self) -> None:
+        original = tempfile.TemporaryDirectory
+        manager = TemporaryDirectory()
+        paths: list[pathlib.Path] = []
+
+        def create(**kwargs: Any) -> tempfile.TemporaryDirectory[str]:
+            directory = original(**kwargs)
+            paths.append(pathlib.Path(directory.name))
+            from_thread.run_sync(scope.cancel)
+            return directory
+
+        with CancelScope() as scope:
+            with patch("anyio._core._tempfile.tempfile.TemporaryDirectory", create):
+                async with manager:
+                    await checkpoint()
+
+        try:
+            assert scope.cancelled_caught
+            assert len(paths) == 1
+            assert not paths[0].exists()
+        finally:
+            await manager.cleanup()
+
     async def test_context_manager(self) -> None:
         async with TemporaryDirectory() as td:
             td_path = pathlib.Path(td)

@@ -258,7 +258,10 @@ class LockAdapter(Lock):
 
     def locked(self) -> bool:
         """Return True if the lock is currently held."""
-        return self._lock.locked()
+        if self._internal_lock is None:
+            return False
+
+        return self._internal_lock.locked()
 
     def statistics(self) -> LockStatistics:
         """
