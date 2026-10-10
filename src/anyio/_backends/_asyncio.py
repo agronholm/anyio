@@ -2837,6 +2837,21 @@ class AsyncIOBackend(AsyncBackend):
         return f.result()
 
     @classmethod
+    def run_sync_soon(
+        cls,
+        func: Callable[[Unpack[PosArgsT]], object],
+        args: tuple[Unpack[PosArgsT]],
+        token: object,
+    ) -> None:
+        loop = cast("AbstractEventLoop", token)
+        if loop.is_closed():
+            raise RunFinishedError
+
+        context = copy_context()
+        context.run(set_current_async_library, "asyncio")
+        loop.call_soon_threadsafe(context.run, func, *args)
+
+    @classmethod
     async def open_process(
         cls,
         command: StrOrBytesPath | Sequence[StrOrBytesPath],

@@ -1,0 +1,2 @@
+Added ``BlockingPortal.call_async()`` for asynchronously calling into an event loop
+PR by @davidbrochart
