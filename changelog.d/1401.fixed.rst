@@ -1,1 +1,1 @@
-Fixed SpooledTemporaryFile.rollover() moving the current file position to the end of the file.
+Fixed SpooledTemporaryFile.rollover() moving the current file position to the end of the file
