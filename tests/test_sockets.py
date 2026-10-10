@@ -476,6 +476,30 @@ class TestTCPStream:
         server_sock.close()
         assert client_addr[0] == expected_client_addr
 
+    async def test_connect_tcp_closes_winner_on_outer_cancellation(
+        self, server_addr: tuple[str, int], monkeypatch: MonkeyPatch
+    ) -> None:
+        """
+        A connected stream must be closed if the enclosing cancel scope is cancelled
+        before the connection attempt task group exits.
+        """
+        backend = get_async_backend()
+        original_connect_tcp = backend.connect_tcp
+        streams: list[SocketStream] = []
+
+        async def connect_and_cancel(*args: Any) -> SocketStream:
+            streams.append(await original_connect_tcp(*args))
+            scope.cancel()
+            return streams[-1]
+
+        monkeypatch.setattr(backend, "connect_tcp", connect_and_cancel)
+        with CancelScope() as scope:
+            await connect_tcp(*server_addr)
+
+        assert scope.cancelled_caught
+        with pytest.raises(ClosedResourceError):
+            await streams[0].send(b"x")
+
     async def test_connect_tcp_with_local_port(
         self,
         server_sock: socket.socket,

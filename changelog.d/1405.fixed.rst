@@ -1,0 +1,3 @@
+Fixed ``TextSendStream.send()`` re-emitting the byte order mark on every item with
+BOM-emitting encodings (``utf-16``, ``utf-32``, ``utf-8-sig``), which made the peer decode
+a stray ``\ufeff`` in front of every message after the first
