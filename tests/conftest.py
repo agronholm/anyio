@@ -169,6 +169,7 @@ def asyncio_event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 
     yield loop
 
+    loop.run_until_complete(loop.shutdown_asyncgens())
     loop.close()
 
 

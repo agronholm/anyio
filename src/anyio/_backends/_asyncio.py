@@ -1065,12 +1065,24 @@ class TaskGroup(abc.TaskGroup):
 _Retval_Queue_Type = tuple[T_Retval | None, BaseException | None]
 
 
+_all_worker_threads: set[WorkerThread] = set()
+
+
+def _shutdown_worker_threads() -> None:
+    # Normal atexit callbacks run too late: Python joins non-daemon threads first.
+    for worker in list(_all_worker_threads):
+        worker.stop()
+
+
+threading._register_atexit(_shutdown_worker_threads)  # type: ignore[attr-defined]
+
+
 class WorkerThread(Thread):
     MAX_IDLE_TIME = 10  # seconds
 
     def __init__(
         self,
-        root_task: asyncio.Task,
+        loop: AbstractEventLoop,
         workers: set[WorkerThread],
         idle_workers: deque[WorkerThread],
     ):
@@ -1079,15 +1091,15 @@ class WorkerThread(Thread):
             kwargs["context"] = Context()
 
         super().__init__(name="AnyIO worker thread", **kwargs)
-        self.root_task = root_task
         self.workers = workers
         self.idle_workers = idle_workers
-        self.loop = root_task._loop
+        self.loop = loop
         self.queue: Queue[
             tuple[Context, Callable, tuple, asyncio.Future, CancelScope] | None
         ] = Queue(2)
         self.idle_since = AsyncIOBackend.current_time()
         self.stopping = False
+        self._stop_lock = threading.Lock()
 
     def _report_result(
         self, future: asyncio.Future, result: Any, exc: BaseException | None
@@ -1108,42 +1120,52 @@ class WorkerThread(Thread):
                 future.set_result(result)
 
     def run(self) -> None:
-        with claim_worker_thread(AsyncIOBackend, self.loop):
-            while True:
-                item = self.queue.get()
-                if item is None:
-                    # Shutdown command received
-                    return
+        _all_worker_threads.add(self)
+        try:
+            with claim_worker_thread(AsyncIOBackend, self.loop):
+                while True:
+                    item = self.queue.get()
+                    if item is None:
+                        # Shutdown command received
+                        return
 
-                context, func, args, future, cancel_scope = item
-                result = None
-                exception: BaseException | None = None
-                if not future.cancelled():
-                    threadlocals.current_cancel_scope = cancel_scope
+                    context, func, args, future, cancel_scope = item
+                    result = None
+                    exception: BaseException | None = None
+                    if not future.cancelled():
+                        threadlocals.current_cancel_scope = cancel_scope
+                        try:
+                            result = context.run(func, *args)
+                        except BaseException as exc:
+                            exception = exc
+                        finally:
+                            del threadlocals.current_cancel_scope
+
+                    # Report the result even if the future was cancelled before the call
+                    # was started, so that the worker is put back on the idle list
                     try:
-                        result = context.run(func, *args)
-                    except BaseException as exc:
-                        exception = exc
-                    finally:
-                        del threadlocals.current_cancel_scope
+                        self.loop.call_soon_threadsafe(
+                            self._report_result, future, result, exception
+                        )
+                    except RuntimeError:
+                        if not self.loop.is_closed():
+                            raise
 
-                # Report the result even if the future was cancelled before the call
-                # was started, so that the worker is put back on the idle list
-                try:
-                    self.loop.call_soon_threadsafe(
-                        self._report_result, future, result, exception
-                    )
-                except RuntimeError:
-                    if not self.loop.is_closed():
-                        raise
+                    del result, exception
+                    self.queue.task_done()
+                    del item, context, func, args, future, cancel_scope
+        finally:
+            _all_worker_threads.discard(self)
 
-                del result, exception
-                self.queue.task_done()
-                del item, context, func, args, future, cancel_scope
+    def stop(self) -> None:
+        # Interpreter shutdown can race with async generator shutdown.
+        with self._stop_lock:
+            if self.stopping:
+                return
 
-    def stop(self, f: asyncio.Task | None = None) -> None:
-        self.stopping = True
-        self.queue.put_nowait(None)
+            self.stopping = True
+            self.queue.put_nowait(None)
+
         self.workers.discard(self)
         try:
             self.idle_workers.remove(self)
@@ -1155,6 +1177,25 @@ _threadpool_idle_workers: RunVar[deque[WorkerThread]] = RunVar(
     "_threadpool_idle_workers"
 )
 _threadpool_workers: RunVar[set[WorkerThread]] = RunVar("_threadpool_workers")
+_threadpool_shutdown: RunVar[AsyncGenerator[None, None]] = RunVar(
+    "_threadpool_shutdown"
+)
+
+
+async def _shutdown_workers_on_asyncgen_exit(
+    workers: set[WorkerThread],
+    loop: AbstractEventLoop,
+) -> AsyncGenerator[None, None]:
+    try:
+        yield
+    finally:
+        # Async generators retain the loop's finalizer hook even after closing.
+        # Drop our reference to avoid keeping the loop alive through its RunVars.
+        if run_vars := _run_vars.get(loop):
+            run_vars.pop(_threadpool_shutdown, None)
+
+        for worker in list(workers):
+            worker.stop()
 
 
 #
@@ -2724,16 +2765,19 @@ class AsyncIOBackend(AsyncBackend):
             workers = set()
             _threadpool_idle_workers.set(idle_workers)
             _threadpool_workers.set(workers)
+            # Prime an async generator so loop.shutdown_asyncgens() stops the pool.
+            # Keep it alive until then.
+            shutdown = _shutdown_workers_on_asyncgen_exit(workers, get_running_loop())
+            _threadpool_shutdown.set(shutdown)
+            await shutdown.asend(None)
 
         async with limiter or cls.current_default_thread_limiter():
             with CancelScope(shield=not abandon_on_cancel) as scope:
                 future = asyncio.Future[T_Retval]()
-                root_task = find_root_task()
                 if not idle_workers:
-                    worker = WorkerThread(root_task, workers, idle_workers)
+                    worker = WorkerThread(get_running_loop(), workers, idle_workers)
                     worker.start()
                     workers.add(worker)
-                    root_task.add_done_callback(worker.stop, context=Context())
                 else:
                     worker = idle_workers.pop()
 
@@ -2748,9 +2792,6 @@ class AsyncIOBackend(AsyncBackend):
                             break
 
                         expired_worker = idle_workers.popleft()
-                        expired_worker.root_task.remove_done_callback(
-                            expired_worker.stop
-                        )
                         expired_worker.stop()
 
                 context = copy_context()

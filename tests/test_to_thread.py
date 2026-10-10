@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import gc
+import subprocess
 import sys
 import threading
 import time
@@ -9,6 +10,7 @@ import weakref
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextvars import ContextVar
 from functools import partial
+from textwrap import dedent
 from typing import Any, NoReturn
 
 import pytest
@@ -133,6 +135,97 @@ async def test_cancel_worker_thread(
 
     await finish_event.wait()
     assert last_active == expected_last_active
+
+
+@pytest.mark.parametrize("close_loop", [False, True])
+@pytest.mark.parametrize("busy_worker", [False, True])
+def test_asyncio_worker_thread_interpreter_shutdown(
+    close_loop: bool,
+    busy_worker: bool,
+) -> None:
+    script = dedent(f"""
+        import asyncio
+        import threading
+
+        from anyio import to_thread
+
+        release_worker = threading.Event()
+
+        def worker():
+            if {busy_worker!r}:
+                loop.call_soon_threadsafe(loop.stop)
+                assert release_worker.wait(5)
+
+            print("worker finished", flush=True)
+
+        async def main():
+            await to_thread.run_sync(worker)
+            loop.stop()
+            await asyncio.Event().wait()
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        task = loop.create_task(main())
+        loop.run_forever()
+        assert not task.done()
+        if {close_loop!r}:
+            loop.close()
+
+        # Release a busy worker only once interpreter shutdown has started.
+        threading._register_atexit(release_worker.set)
+    """)
+    process = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=True,
+    )
+    assert process.stdout == "worker finished\n"
+    # The deliberately abandoned coroutine can report an unraisable exception
+    # during finalization because its cleanup requires a running event loop.
+    assert "Exception in thread" not in process.stderr
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+def test_asyncio_worker_thread_asyncgen_shutdown(
+    anyio_backend_options: dict[str, Any],
+) -> None:
+    from anyio._backends._asyncio import _all_worker_threads
+
+    async def main() -> None:
+        workers.append(await to_thread.run_sync(threading.current_thread))
+        loop.stop()
+        await asyncio.Event().wait()
+
+    loop_factory = anyio_backend_options.get("loop_factory", asyncio.new_event_loop)
+    for _ in range(3):
+        loop = loop_factory()
+        workers: list[threading.Thread] = []
+        task = loop.create_task(main())
+        try:
+            loop.run_forever()
+            assert not task.done()
+            assert workers[0].is_alive()
+            assert workers[0] in _all_worker_threads
+
+            # Stopping and restarting a loop must not shut down its thread pool.
+            loop.call_soon(loop.stop)
+            loop.run_forever()
+            assert workers[0].is_alive()
+
+            # Shut down async generators without first draining pending tasks.
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            workers[0].join(2)
+            assert not workers[0].is_alive()
+            assert workers[0] not in _all_worker_threads
+            assert not task.done()
+        finally:
+            task.cancel()
+            loop.run_until_complete(asyncio.gather(task, return_exceptions=True))
+            loop.close()
+            for worker in workers:
+                worker.join(2)
 
 
 def test_asyncio_worker_thread_loop_closed_during_result_report(
@@ -281,9 +374,8 @@ def test_asyncio_no_root_task(asyncio_event_loop: asyncio.AbstractEventLoop) -> 
     """
     Regression test for #264.
 
-    Ensures that to_thread.run_sync() does not raise an error when there is no root
-    task, but instead tries to find the top most parent task by traversing the cancel
-    scope tree, or failing that, uses the current task to set up a shutdown callback.
+    Ensures that to_thread.run_sync() works with a manually managed loop without a
+    root task.
 
     """
 
@@ -296,12 +388,6 @@ def test_asyncio_no_root_task(asyncio_event_loop: asyncio.AbstractEventLoop) -> 
     task = asyncio_event_loop.create_task(run_in_thread())
     asyncio_event_loop.run_forever()
     task.result()
-
-    # Wait for worker threads to exit
-    for t in threading.enumerate():
-        if t.name == "AnyIO worker thread":
-            t.join(2)
-            assert not t.is_alive()
 
 
 def test_asyncio_future_callback_partial(
@@ -343,14 +429,19 @@ def test_asyncio_run_sync_multiple(
     asyncio_event_loop: asyncio.AbstractEventLoop,
 ) -> None:
     """Regression test for #304."""
-    asyncio_event_loop.call_later(0.5, asyncio_event_loop.stop)
-    for _ in range(3):
-        asyncio_event_loop.run_until_complete(to_thread.run_sync(time.sleep, 0))
+    workers = [
+        asyncio_event_loop.run_until_complete(
+            to_thread.run_sync(threading.current_thread)
+        )
+        for _ in range(3)
+    ]
 
-    for t in threading.enumerate():
-        if t.name == "AnyIO worker thread":
-            t.join(2)
-            assert not t.is_alive()
+    # Completed root tasks no longer stop workers: subsequent runs reuse the pool.
+    assert workers[0] is workers[1] is workers[2]
+    assert workers[0].is_alive()
+    asyncio_event_loop.run_until_complete(asyncio_event_loop.shutdown_asyncgens())
+    workers[0].join(10)
+    assert not workers[0].is_alive()
 
 
 def test_asyncio_no_recycle_stopping_worker(
@@ -367,8 +458,7 @@ def test_asyncio_no_recycle_stopping_worker(
         await event1.wait()
         asyncio_event_loop.call_soon(event2.set)
         await anyio.to_thread.run_sync(time.sleep, 0)
-        # At this point, the worker would be stopped but still in the idle workers pool,
-        # so the following would hang prior to the fix
+        # Completing the other task must not prevent subsequent worker calls.
         await anyio.to_thread.run_sync(time.sleep, 0)
 
     event1 = asyncio.Event()
@@ -410,13 +500,12 @@ class TestBlockingPortalProvider:
             assert current_async_library() == anyio_backend_name
             threads.add(threading.current_thread())
 
-        active_threads_before = threading.active_count()
         for _ in range(3):
             with provider as portal:
                 portal.call(check_thread)
 
         assert len(threads) == 3
-        assert threading.active_count() == active_threads_before
+        assert all(not thread.is_alive() for thread in threads)
 
     def test_single_thread_overlapping(
         self, provider: BlockingPortalProvider, anyio_backend_name: str
@@ -498,15 +587,13 @@ def test_asyncio_run_does_not_leak_event_loop() -> None:
     """
     Regression test for #1203.
 
-    Ensure we don't leak the root task and event loop in when caching it in a RunVar.
+    Ensure the thread pool's RunVars do not keep the event loop alive after shutdown.
     """
 
     def thread_worker() -> None:
         pass
 
     async def main() -> weakref.ref[object]:
-        # Exercising to_thread.run_sync() triggers find_root_task(), which caches
-        # the root task (and thus the loop) in the run-vars mapping.
         await to_thread.run_sync(thread_worker)
         return weakref.ref(asyncio.get_running_loop())
 
