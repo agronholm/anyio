@@ -61,6 +61,48 @@ class TestNamedTemporaryFile:
 
 
 class TestSpooledTemporaryFile:
+    @pytest.mark.parametrize(
+        "mode, data", [("w+b", b"hello world"), ("w+", "hello world")]
+    )
+    async def test_cancellation_during_rollover(self, mode: str, data: AnyStr) -> None:
+        original = tempfile.TemporaryFile
+
+        def create(**kwargs: Any) -> Any:
+            file = original(**kwargs)
+            from_thread.run_sync(scope.cancel)
+            return file
+
+        async with SpooledTemporaryFile(mode=mode) as stf:
+            await stf.write(data)
+            buffer = stf.wrapped
+            try:
+                with CancelScope() as scope:
+                    with patch("anyio._core._tempfile.tempfile.TemporaryFile", create):
+                        await stf.rollover()
+                        await checkpoint()
+
+                assert scope.cancelled_caught
+                await stf.seek(0)
+                assert await stf.read() == data
+                assert buffer.closed
+            finally:
+                buffer.close()
+
+    async def test_cancelled_before_rollover(self) -> None:
+        async with SpooledTemporaryFile() as stf:
+            await stf.write(b"hello world")
+            buffer = stf.wrapped
+            with CancelScope() as scope:
+                scope.cancel()
+                await stf.rollover()
+
+            assert scope.cancelled_caught
+            assert not stf._rolled
+            assert stf.wrapped is buffer
+            assert await stf.tell() == len(b"hello world")
+            await stf.seek(0)
+            assert await stf.read() == b"hello world"
+
     @pytest.mark.parametrize("use_writelines", [False, True])
     async def test_default_max_size_no_rollover(self, use_writelines: bool) -> None:
         data = b"hello world"
