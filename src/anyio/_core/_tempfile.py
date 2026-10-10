@@ -324,7 +324,6 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
 
         self._rolled = True
         buffer = self._fp
-        # 2026-10-09: Preserve the caller's position when copying to disk.
         position = buffer.tell()
         buffer.seek(0)
         self._fp = await to_thread.run_sync(
