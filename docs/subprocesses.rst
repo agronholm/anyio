@@ -36,6 +36,10 @@ The snippet above runs the ``ps`` command within a shell. To run it directly::
 
     run(main)
 
+Pass ``input=b""`` to provide an empty standard input stream and immediately send
+end-of-file. Leaving ``input`` as ``None`` inherits standard input unless ``stdin``
+is specified. The ``input`` and ``stdin`` arguments cannot both be specified.
+
 Working with processes
 ----------------------
 

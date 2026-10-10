@@ -39,9 +39,10 @@ async def run_process(
 
     :param command: either a string to pass to the shell, or an iterable of strings
         containing the executable name or path and its arguments
-    :param input: bytes passed to the standard input of the subprocess
+    :param input: bytes passed to the standard input of the subprocess; an empty byte
+        string sends end-of-file without inheriting standard input
     :param stdin: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
-        a file-like object, or `None`; ``input`` overrides this
+        a file-like object, or `None`; cannot be combined with ``input``
     :param stdout: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
         a file-like object, or `None`
     :param stderr: one of :data:`subprocess.PIPE`, :data:`subprocess.DEVNULL`,
@@ -84,7 +85,7 @@ async def run_process(
 
     async with await open_process(
         command,
-        stdin=PIPE if input else stdin,
+        stdin=PIPE if input is not None else stdin,
         stdout=stdout,
         stderr=stderr,
         cwd=cwd,
@@ -106,7 +107,7 @@ async def run_process(
             if process.stderr:
                 tg.start_soon(drain_stream, process.stderr, 1)
 
-            if process.stdin and input:
+            if process.stdin and input is not None:
                 await process.stdin.send(input)
                 await process.stdin.aclose()
 
