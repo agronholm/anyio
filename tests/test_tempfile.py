@@ -59,6 +59,19 @@ class TestNamedTemporaryFile:
 
 
 class TestSpooledTemporaryFile:
+    @pytest.mark.parametrize("use_writelines", [False, True])
+    async def test_default_max_size_no_rollover(self, use_writelines: bool) -> None:
+        data = b"hello world"
+        async with SpooledTemporaryFile() as stf:
+            if use_writelines:
+                await stf.writelines([b"hello", b" world"])
+            else:
+                assert await stf.write(data) == len(data)
+
+            assert not stf._rolled
+            await stf.seek(0)
+            assert await stf.read() == data
+
     async def test_writewithout_rolled(self) -> None:
         rollover_called = False
 
