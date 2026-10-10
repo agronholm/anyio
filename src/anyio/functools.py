@@ -41,15 +41,22 @@ from .lowlevel import RunVar, checkpoint
 T = TypeVar("T")
 S = TypeVar("S")
 P = ParamSpec("P")
+
+
+class _LRUCacheState:
+    __slots__ = "hits", "misses", "pending", "values"
+
+    def __init__(self) -> None:
+        self.hits = 0
+        self.misses = 0
+        # Cached values and their expiration times, least recently used first
+        self.values: OrderedDict[Hashable, tuple[Any, float | None]] = OrderedDict()
+        # Locks of the calls whose values are still being computed
+        self.pending: dict[Hashable, Lock] = {}
+
+
 lru_cache_items: RunVar[
-    WeakKeyDictionary[
-        AsyncLRUCacheWrapper[Any, Any],
-        OrderedDict[
-            Hashable,
-            tuple[_InitialMissingType, Lock, float | None]
-            | tuple[Any, None, float | None],
-        ],
-    ]
+    WeakKeyDictionary[AsyncLRUCacheWrapper[Any, Any], _LRUCacheState]
 ] = RunVar("lru_cache_items")
 
 
@@ -107,18 +114,36 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
         ttl: int | None,
     ):
         self.__wrapped__ = func
-        self._hits: int = 0
-        self._misses: int = 0
         self._maxsize = max(maxsize, 0) if maxsize is not None else None
-        self._currsize: int = 0
         self._typed = typed
         self._always_checkpoint = always_checkpoint
         self._ttl = ttl
         update_wrapper(self, func)
 
+    def _state(self) -> _LRUCacheState:
+        try:
+            states = lru_cache_items.get()
+        except LookupError:
+            states = WeakKeyDictionary()
+            lru_cache_items.set(states)
+
+        try:
+            return states[self]
+        except KeyError:
+            state = states[self] = _LRUCacheState()
+            return state
+
     def cache_info(self) -> AsyncCacheInfo:
+        """
+        Return the cache statistics for the current event loop.
+
+        :raises NoEventLoopError: if no supported asynchronous event loop is running in
+            the current thread
+
+        """
+        state = self._state()
         return AsyncCacheInfo(
-            self._hits, self._misses, self._maxsize, self._currsize, self._ttl
+            state.hits, state.misses, self._maxsize, len(state.values), self._ttl
         )
 
     def cache_parameters(self) -> AsyncCacheParameters:
@@ -130,15 +155,24 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
         }
 
     def cache_clear(self) -> None:
-        if cache := lru_cache_items.get(None):
-            cache.pop(self, None)
-            self._hits = self._misses = self._currsize = 0
+        """
+        Clear the cache and the cache statistics for the current event loop.
+
+        :raises NoEventLoopError: if no supported asynchronous event loop is running in
+            the current thread
+
+        """
+        state = self._state()
+        state.values.clear()
+        state.hits = state.misses = 0
 
     async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> T:
+        state = self._state()
+
         # Easy case first: if maxsize == 0, no caching is done
         if self._maxsize == 0:
             value = await self.__wrapped__(*args, **kwargs)
-            self._misses += 1
+            state.misses += 1
             return value
 
         # The key is constructed as a flat tuple to avoid memory overhead
@@ -152,87 +186,45 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
             if kwargs:
                 key += (initial_missing,) + tuple(type(val) for val in kwargs.values())
 
-        try:
-            cache = lru_cache_items.get()
-        except LookupError:
-            cache = WeakKeyDictionary()
-            lru_cache_items.set(cache)
-
-        try:
-            cache_entry = cache[self]
-        except KeyError:
-            cache_entry = cache[self] = OrderedDict()
-
-        cached_value: T | _InitialMissingType
-        try:
-            cached_value, lock, expires_at = cache_entry[key]
-        except KeyError:
-            # We're the first task to call this function
-            cached_value, lock, expires_at = (
-                initial_missing,
-                Lock(fast_acquire=not self._always_checkpoint),
-                None,
-            )
-            cache_entry[key] = cached_value, lock, expires_at
-
-        if lock is None:
-            if expires_at is not None and current_time() >= expires_at:
-                self._currsize -= 1
-                cached_value, lock, expires_at = (
-                    initial_missing,
-                    Lock(fast_acquire=not self._always_checkpoint),
-                    None,
-                )
-                cache_entry[key] = cached_value, lock, expires_at
-            else:
+        if (entry := state.values.get(key)) is not None:
+            value, expires_at = entry
+            if expires_at is None or current_time() < expires_at:
                 # The value was already cached
-                self._hits += 1
-                cache_entry.move_to_end(key)
+                state.hits += 1
+                state.values.move_to_end(key)
                 if self._always_checkpoint:
                     await checkpoint()
 
-                return cast(T, cached_value)
+                return cast(T, value)
 
-        async with lock:
-            # Check if another task filled the cache while we acquired the lock (the
-            # entry may also have been evicted or removed in the meantime)
-            entry = cache_entry.get(key)
-            if entry is not None and entry[1] is None:
-                # Another task filled the cache while we were waiting for the lock
-                self._hits += 1
-                cache_entry.move_to_end(key)
-                return cast(T, entry[0])
+            del state.values[key]
 
-            self._misses += 1
-            try:
+        # Wait for any call that is already computing this value
+        if (lock := state.pending.get(key)) is None:
+            lock = Lock(fast_acquire=not self._always_checkpoint)
+            state.pending[key] = lock
+
+        try:
+            async with lock:
+                # Check if another task filled the cache while we were waiting
+                if (entry := state.values.get(key)) is not None:
+                    state.hits += 1
+                    state.values.move_to_end(key)
+                    return cast(T, entry[0])
+
+                state.misses += 1
                 value = await self.__wrapped__(*args, **kwargs)
-            except BaseException:
-                # Don't leave behind a placeholder for a call that failed
-                if (entry := cache_entry.get(key)) is not None and entry[1] is lock:
-                    del cache_entry[key]
+                if self._maxsize is not None and len(state.values) >= self._maxsize:
+                    state.values.popitem(last=False)
 
-                raise
-
-            if cache.get(self) is not cache_entry:
-                # The cache was cleared while the wrapped function was running
-                return value
-
-            # Remove any existing entry so that the new value becomes the most recently
-            # used one, uncounting it if it was a value stored by another task
-            if (entry := cache_entry.pop(key, None)) is not None and entry[1] is None:
-                self._currsize -= 1
-
-            if self._maxsize is not None and self._currsize >= self._maxsize:
-                # Evict the least recently used entry that holds an actual value
-                for old_key, (_, old_lock, _) in cache_entry.items():
-                    if old_lock is None:
-                        del cache_entry[old_key]
-                        break
-            else:
-                self._currsize += 1
-
-            expires_at = current_time() + self._ttl if self._ttl is not None else None
-            cache_entry[key] = value, None, expires_at
+                expires_at = (
+                    current_time() + self._ttl if self._ttl is not None else None
+                )
+                state.values[key] = value, expires_at
+        finally:
+            # Releasing the lock hands it over to the next waiting task, if any
+            if not lock.locked():
+                del state.pending[key]
 
         return value
 
@@ -333,7 +325,9 @@ def lru_cache(
         guaranteed to yield control to the event loop at least once
     :param ttl: time in seconds after which to invalidate cache entries
 
-    .. note:: Caches and locks are managed on a per-event loop basis.
+    .. note:: Caches, locks and cache statistics are managed on a per-event loop basis,
+        so ``cache_info()`` and ``cache_clear()`` raise :exc:`~anyio.NoEventLoopError` when
+        called outside of an event loop.
 
     """
     if func is None:
