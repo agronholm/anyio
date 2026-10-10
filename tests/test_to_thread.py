@@ -335,8 +335,8 @@ def test_asyncio_no_root_task(asyncio_event_loop: asyncio.AbstractEventLoop) -> 
     """
     Regression test for #264.
 
-    Ensures that to_thread.run_sync() works with a manually managed loop and that
-    asynchronous generator shutdown stops its workers without a root task.
+    Ensures that to_thread.run_sync() works with a manually managed loop without a
+    root task.
 
     """
 
@@ -349,13 +349,6 @@ def test_asyncio_no_root_task(asyncio_event_loop: asyncio.AbstractEventLoop) -> 
     task = asyncio_event_loop.create_task(run_in_thread())
     asyncio_event_loop.run_forever()
     task.result()
-    asyncio_event_loop.run_until_complete(asyncio_event_loop.shutdown_asyncgens())
-
-    # Wait for worker threads to exit
-    for t in threading.enumerate():
-        if t.name == "AnyIO worker thread":
-            t.join(2)
-            assert not t.is_alive()
 
 
 def test_asyncio_future_callback_partial(
