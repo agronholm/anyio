@@ -1,0 +1,1 @@
+Fixed a task blocked in ``MemoryObjectReceiveStream.receive()`` never waking up when that stream was closed
