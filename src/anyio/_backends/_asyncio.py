@@ -56,7 +56,7 @@ from typing import (
     TypeVar,
     cast,
 )
-from weakref import WeakKeyDictionary, WeakSet
+from weakref import WeakKeyDictionary
 
 from .. import (
     CapacityLimiterStatistics,
@@ -1065,7 +1065,7 @@ class TaskGroup(abc.TaskGroup):
 _Retval_Queue_Type = tuple[T_Retval | None, BaseException | None]
 
 
-_all_worker_threads: WeakSet[WorkerThread] = WeakSet()
+_all_worker_threads: set[WorkerThread] = set()
 
 
 def _shutdown_worker_threads() -> None:
@@ -1100,7 +1100,6 @@ class WorkerThread(Thread):
         self.idle_since = AsyncIOBackend.current_time()
         self.stopping = False
         self._stop_lock = threading.Lock()
-        _all_worker_threads.add(self)
 
     def _report_result(
         self, future: asyncio.Future, result: Any, exc: BaseException | None
@@ -1121,37 +1120,41 @@ class WorkerThread(Thread):
                 future.set_result(result)
 
     def run(self) -> None:
-        with claim_worker_thread(AsyncIOBackend, self.loop):
-            while True:
-                item = self.queue.get()
-                if item is None:
-                    # Shutdown command received
-                    return
+        _all_worker_threads.add(self)
+        try:
+            with claim_worker_thread(AsyncIOBackend, self.loop):
+                while True:
+                    item = self.queue.get()
+                    if item is None:
+                        # Shutdown command received
+                        return
 
-                context, func, args, future, cancel_scope = item
-                if not future.cancelled():
-                    result = None
-                    exception: BaseException | None = None
-                    threadlocals.current_cancel_scope = cancel_scope
-                    try:
-                        result = context.run(func, *args)
-                    except BaseException as exc:
-                        exception = exc
-                    finally:
-                        del threadlocals.current_cancel_scope
+                    context, func, args, future, cancel_scope = item
+                    if not future.cancelled():
+                        result = None
+                        exception: BaseException | None = None
+                        threadlocals.current_cancel_scope = cancel_scope
+                        try:
+                            result = context.run(func, *args)
+                        except BaseException as exc:
+                            exception = exc
+                        finally:
+                            del threadlocals.current_cancel_scope
 
-                    try:
-                        self.loop.call_soon_threadsafe(
-                            self._report_result, future, result, exception
-                        )
-                    except RuntimeError:
-                        if not self.loop.is_closed():
-                            raise
+                        try:
+                            self.loop.call_soon_threadsafe(
+                                self._report_result, future, result, exception
+                            )
+                        except RuntimeError:
+                            if not self.loop.is_closed():
+                                raise
 
-                    del result, exception
+                        del result, exception
 
-                self.queue.task_done()
-                del item, context, func, args, future, cancel_scope
+                    self.queue.task_done()
+                    del item, context, func, args, future, cancel_scope
+        finally:
+            _all_worker_threads.discard(self)
 
     def stop(self) -> None:
         # Interpreter shutdown can race with async generator shutdown.

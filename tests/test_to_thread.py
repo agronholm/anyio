@@ -191,6 +191,8 @@ def test_asyncio_worker_thread_interpreter_shutdown(
 def test_asyncio_worker_thread_asyncgen_shutdown(
     anyio_backend_options: dict[str, Any],
 ) -> None:
+    from anyio._backends._asyncio import _all_worker_threads
+
     async def main() -> None:
         workers.append(await to_thread.run_sync(threading.current_thread))
         loop.stop()
@@ -205,6 +207,7 @@ def test_asyncio_worker_thread_asyncgen_shutdown(
             loop.run_forever()
             assert not task.done()
             assert workers[0].is_alive()
+            assert workers[0] in _all_worker_threads
 
             # Stopping and restarting a loop must not shut down its thread pool.
             loop.call_soon(loop.stop)
@@ -215,6 +218,7 @@ def test_asyncio_worker_thread_asyncgen_shutdown(
             loop.run_until_complete(loop.shutdown_asyncgens())
             workers[0].join(2)
             assert not workers[0].is_alive()
+            assert workers[0] not in _all_worker_threads
             assert not task.done()
         finally:
             task.cancel()
