@@ -403,6 +403,9 @@ class CancelScope(BaseCancelScope):
         return object.__new__(cls)
 
     def __init__(self, deadline: float = math.inf, shield: bool = False):
+        if math.isnan(deadline):
+            raise ValueError("deadline must not be NaN")
+
         self._deadline = deadline
         self._shield = shield
         self._parent_scope: CancelScope | None = None
@@ -707,7 +710,11 @@ class CancelScope(BaseCancelScope):
 
     @deadline.setter
     def deadline(self, value: float) -> None:
-        self._deadline = float(value)
+        value = float(value)
+        if math.isnan(value):
+            raise ValueError("deadline must not be NaN")
+
+        self._deadline = value
         if self._timeout_handle is not None:
             self._timeout_handle.cancel()
             self._timeout_handle = None
@@ -2257,7 +2264,7 @@ class CapacityLimiter(BaseCapacityLimiter):
             try:
                 await AsyncIOBackend.cancel_shielded_checkpoint()
             except BaseException:
-                self.release()
+                self.release_on_behalf_of(borrower)
                 raise
 
     def release(self) -> None:
