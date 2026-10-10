@@ -73,13 +73,27 @@ in your top level ``conftest.py``::
 If you want to specify different options for the selected backend, you can do so by
 passing a tuple of (backend name, options dict)::
 
+    import sys
+
+    import pytest
+
+
     @pytest.fixture(params=[
         pytest.param(('asyncio', {'use_uvloop': True}), id='asyncio+uvloop'),
         pytest.param(('asyncio', {'use_uvloop': False}), id='asyncio'),
         pytest.param(('trio', {'restrict_keyboard_interrupt_to_checkpoints': True}), id='trio')
     ])
     def anyio_backend(request):
+        backend, options = request.param
+        if backend == 'asyncio' and options.get('use_uvloop'):
+            pytest.importorskip('winloop' if sys.platform == 'win32' else 'uvloop')
+
         return request.param
+
+The ``use_uvloop=True`` variant requires uvloop (winloop on Windows) to be installed.
+The ``importorskip()`` call skips only this variant if the optional dependency is
+missing, while the standard asyncio and Trio variants still run. Remove that call
+if a missing dependency should fail the tests instead.
 
 If you need to run a single test on a specific backend, you can use
 ``@pytest.mark.parametrize`` (remember to add the ``anyio_backend`` parameter to the

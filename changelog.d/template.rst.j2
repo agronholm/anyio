@@ -1,0 +1,21 @@
+**{{ versiondata.version }}**
+
+{% for section, categories in sections.items() %}
+{% for category, definition in definitions.items() if category in categories %}
+*{{ definition.name }}*
+
+{% for text, issues in categories[category].items() %}
+{# The release workflow appends a "PR by @user" line to contributed fragments #}
+{% set lines = text.split("\n") %}
+{% set author = lines[-1].strip() if lines[-1].strip().startswith("PR by @") else "" %}
+- {{ (lines[:-1] if author else lines)|join("\n") }}
+{% if issues or author %}
+  ({{ issues|join(",\n  ") }}{% if issues and author %}; {% endif %}{{ author }})
+{% endif %}
+{% endfor %}
+
+{% else %}
+No significant changes.
+
+{% endfor %}
+{% endfor %}
