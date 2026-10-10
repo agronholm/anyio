@@ -266,6 +266,7 @@ async def connect_tcp(
     except BaseException:
         if connected_stream is not None:
             await aclose_forcefully(connected_stream)
+
         raise
     finally:
         oserrors.clear()
