@@ -10,7 +10,7 @@ import time
 import weakref
 from collections.abc import Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
-from contextvars import ContextVar
+from contextvars import Context, ContextVar
 from functools import partial
 from textwrap import dedent
 from typing import Any, NoReturn
@@ -40,10 +40,23 @@ def asyncio_worker_pool(mocker: MockerFixture) -> Iterator[Any]:
 
     pool = _asyncio.WorkerThreadPool()
     mocker.patch.object(_asyncio, "_threadpool", pool)
-    mocker.patch.object(_asyncio.WorkerThread, "MAX_IDLE_TIME", 0.1)
+    # Reuse tests must not race an artificially short idle deadline.
+    mocker.patch.object(_asyncio.WorkerThread, "MAX_IDLE_TIME", 60)
     yield pool
+    loop = asyncio.new_event_loop()
+    future = loop.create_future()
+    future.cancel()
+    loop.close()
     with pool.lock:
         workers = list(pool.workers)
+        for worker in workers:
+            mocker.patch.object(worker, "MAX_IDLE_TIME", 0.1)
+            if worker in pool.idle_workers:
+                del pool.idle_workers[worker]
+                # Wake an idle worker so its next wait uses the cleanup timeout.
+                worker.queue.put_nowait(
+                    (Context(), int, (), future, _asyncio.CancelScope())
+                )
 
     for worker in workers:
         worker.join()
@@ -53,11 +66,16 @@ def asyncio_worker_pool(mocker: MockerFixture) -> Iterator[Any]:
 def test_asyncio_worker_pool_loop_closure(
     asyncio_worker_pool: Any, anyio_backend_options: dict[str, Any]
 ) -> None:
-    workers = []
+    workers: list[Any] = []
     loop_factory = anyio_backend_options.get("loop_factory", asyncio.new_event_loop)
-    for _ in range(3):
+    for iteration in range(3):
         loop = loop_factory()
         try:
+            if iteration == 2:
+                # Wake the reused worker with one final job before checking that
+                # it retires without further submissions or loop cleanup.
+                workers[0].MAX_IDLE_TIME = 0.1
+
             workers.append(
                 loop.run_until_complete(to_thread.run_sync(threading.current_thread))
             )
@@ -121,6 +139,7 @@ async def test_asyncio_worker_pool_assignment_during_retirement(
 
     mocker.patch.object(worker.queue, "get", side_effect=get)
     try:
+        worker.MAX_IDLE_TIME = 0.1
         # The current queue.get() may already be waiting; run a job so that the
         # next idle wait uses the patched method.
         assert await to_thread.run_sync(threading.current_thread) is worker
@@ -416,6 +435,8 @@ async def test_asyncio_worker_reused_after_cancelled_call(
     later calls, and retire automatically when idle for too long.
     """
     worker: Any = await to_thread.run_sync(threading.current_thread)
+    # Simulate a scheduling delay longer than the retirement tests' timeout.
+    await asyncio.sleep(0.2)
 
     def put_cancelled_item(item: tuple[Any, ...]) -> None:
         # Cancel the future before the worker thread gets a chance to dequeue the item
