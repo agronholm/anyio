@@ -30,7 +30,11 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
-from anyio.from_thread import BlockingPortal, start_blocking_portal
+from anyio.from_thread import (
+    BlockingPortal,
+    BlockingPortalProvider,
+    start_blocking_portal,
+)
 from anyio.lowlevel import EventLoopToken, checkpoint, current_token
 
 from .conftest import asyncio_params, return_non_coro_awaitable
@@ -812,3 +816,17 @@ class TestBlockingPortal:
                 # Ensure thread has time to start the task
                 await event.wait()
                 await portal.stop(cancel_remaining=True)
+
+
+class TestBlockingPortalProvider:
+    def test_exception_cancels_tasks(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        provider = BlockingPortalProvider(anyio_backend_name, anyio_backend_options)
+        with pytest.raises(RuntimeError, match="boom"):
+            with provider as portal:
+                future = portal.start_task_soon(sleep, 1)
+                portal.call(wait_all_tasks_blocked)
+                raise RuntimeError("boom")
+
+        assert future.cancelled()
