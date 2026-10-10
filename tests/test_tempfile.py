@@ -4,7 +4,7 @@ import os
 import pathlib
 import shutil
 import tempfile
-from typing import AnyStr
+from typing import Any, AnyStr
 from unittest.mock import patch
 
 import pytest
@@ -15,11 +15,13 @@ from anyio import (
     SpooledTemporaryFile,
     TemporaryDirectory,
     TemporaryFile,
+    from_thread,
     gettempdir,
     gettempdirb,
     mkdtemp,
     mkstemp,
 )
+from anyio.lowlevel import checkpoint
 
 
 class TestTemporaryFile:
@@ -140,6 +142,29 @@ class TestSpooledTemporaryFile:
 
 
 class TestTemporaryDirectory:
+    async def test_cancellation_during_creation(self) -> None:
+        original = tempfile.TemporaryDirectory
+        manager = TemporaryDirectory()
+        paths: list[pathlib.Path] = []
+
+        def create(**kwargs: Any) -> tempfile.TemporaryDirectory[str]:
+            directory = original(**kwargs)
+            paths.append(pathlib.Path(directory.name))
+            from_thread.run_sync(scope.cancel)
+            return directory
+
+        with CancelScope() as scope:
+            with patch("anyio._core._tempfile.tempfile.TemporaryDirectory", create):
+                async with manager:
+                    await checkpoint()
+
+        try:
+            assert scope.cancelled_caught
+            assert len(paths) == 1
+            assert not paths[0].exists()
+        finally:
+            await manager.cleanup()
+
     async def test_context_manager(self) -> None:
         async with TemporaryDirectory() as td:
             td_path = pathlib.Path(td)
