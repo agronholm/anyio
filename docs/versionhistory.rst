@@ -3,55 +3,7 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
-
-- Added SOCK_SEQPACKET support to ``connect_unix()`` and ``create_unix_listener()``
-  (`#1349 <https://github.com/agronholm/anyio/issues/1349>`_; PR by @theunkn0wn1)
-- Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
-  across backends (asyncio returned immediately; Trio raised ``ValueError``) by
-  raising ``ValueError`` on all backends
-  (`#1306 <https://github.com/agronholm/anyio/issues/1306>`_; PR by @BetterAndBetterII)
-- Fixed ``create_tcp_listener()`` occasionally failing with a message like
-  ``Could not create 2 listeners with a consistent port`` when an ephemeral port is
-  requested and IPv6 is enabled and the dual-stack path is not available or a specific
-  local host name was given
-- Fixed ``AsyncFile`` not shielding against cancellation while closing
-  (`#1314 <https://github.com/agronholm/anyio/pull/1314>`_)
-- Fixed ``Condition.notify()`` and ``Condition.notify_all()`` failing when the
-  underlying lock was acquired directly rather than through the condition
-  (`#1319 <https://github.com/agronholm/anyio/issues/1319>`_; PR by @GruffElixir)
-- Fixed importing AnyIO with loaders that do not provide ``__file__``, such as
-  PyOxidizer, raising ``TypeError`` instead of falling back to eager imports
-  (`#1322 <https://github.com/agronholm/anyio/issues/1322>`_; PR by @skulitom)
-- Fixed ``SocketStream.send()`` on the asyncio backend handing its data to a paused
-  transport after a previous ``send()`` was cancelled
-  (`#1299 <https://github.com/agronholm/anyio/pull/1299>`_; PR by @graingert)
-- Fixed ``get_current_task()`` on the asyncio backend raising an opaque
-  ``TypeError: cannot create weak reference to 'NoneType' object`` instead of a clear
-  error when called from a callback scheduled via ``loop.call_soon_threadsafe()`` (e.g.
-  from within ``from_thread.run_sync()``), where ``asyncio.current_task()`` is
-  legitimately ``None``
-  (`#773 <https://github.com/agronholm/anyio/issues/773>`_; PR by @AmirF194)
-- Fixed ``CancelScope`` on the asyncio backend swallowing a native ``Task.cancel()``
-  that was delivered in the same event loop iteration as the scope's own cancellation
-  (such as a ``move_on_after()`` deadline expiring), which left the host task with a
-  pending cancellation request that never raised ``CancelledError``
-  (`#1214 <https://github.com/agronholm/anyio/issues/1214>`_)
-- Fixed ``Semaphore(fast_acquire=True)`` losing its fast-acquire behavior when
-  instantiated outside a running event loop
-  (`#1348 <https://github.com/agronholm/anyio/pull/1348>`_; PR by @feiiiiii5)
-- Fixed ``FileReadStream`` and ``FileWriteStream`` leaving files open when cancelled
-  during context manager exit, including unflushed writes
-  (`#1318 <https://github.com/agronholm/anyio/pull/1318>`_; PR by @Kuang-xianxin)
-- Fixed ``create_udp_socket()`` silently ignoring the ``local_port`` argument when
-  ``local_host`` was omitted, making the socket bind to a random ephemeral port
-  instead of the requested one
-- Fixed ``Lock.locked()`` (and ``Condition.locked()``) raising ``NoEventLoopError``
-  when the lock was created outside a running event loop
-  (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
-- Fixed ``connect_tcp()`` leaking a connected socket when an enclosing cancel scope
-  was cancelled before the connection attempt task group exited
-  (`#1364 <https://github.com/agronholm/anyio/issues/1364>`_; PR by @charan-rathore)
+.. towncrier release notes start
 
 **4.15.1**
 

@@ -91,13 +91,14 @@ class TextSendStream(ObjectSendStream[str]):
     transport_stream: AnyByteSendStream
     encoding: InitVar[str] = "utf-8"
     errors: str = "strict"
-    _encoder: Callable[..., tuple[bytes, int]] = field(init=False)
+    _encoder: codecs.IncrementalEncoder = field(init=False)
 
     def __post_init__(self, encoding: str) -> None:
-        self._encoder = codecs.getencoder(encoding)
+        encoder_class = codecs.getincrementalencoder(encoding)
+        self._encoder = encoder_class(errors=self.errors)
 
     async def send(self, item: str) -> None:
-        encoded = self._encoder(item, self.errors)[0]
+        encoded = self._encoder.encode(item)
         await self.transport_stream.send(encoded)
 
     async def aclose(self) -> None:
