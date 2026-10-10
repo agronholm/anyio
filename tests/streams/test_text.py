@@ -64,6 +64,24 @@ async def test_send_encoding_error() -> None:
     receive_stream.close()
 
 
+@pytest.mark.parametrize("encoding", ["utf-16", "utf-32", "utf-8-sig"])
+async def test_send_bom_emitted_only_once(encoding: str) -> None:
+    """
+    Encodings that emit a byte order mark must not repeat it on every send, otherwise
+    the peer receives spurious U+FEFF characters (or duplicate BOM bytes).
+    """
+    send_stream, receive_stream = create_memory_object_stream[bytes](8)
+    text_send = TextSendStream(send_stream, encoding=encoding)
+    text_receive = TextReceiveStream(receive_stream, encoding=encoding)
+    await text_send.send("hello")
+    await text_send.send("world")
+    assert await text_receive.receive() == "hello"
+    assert await text_receive.receive() == "world"
+
+    send_stream.close()
+    receive_stream.close()
+
+
 async def test_bidirectional_stream() -> None:
     send_stream, receive_stream = create_memory_object_stream[bytes](1)
     stapled_stream = StapledObjectStream(send_stream, receive_stream)
