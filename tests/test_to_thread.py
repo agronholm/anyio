@@ -251,7 +251,8 @@ async def test_asyncio_worker_reused_after_cancelled_call(
     it had been queued for the worker, but before the worker thread dequeued it.
 
     Such a worker must be returned to the idle worker pool so that it gets reused by
-    later calls (and pruned when idle for too long) instead of staying alive forever.
+    later calls (and pruned when idle for too long) instead of staying alive until the
+    root task finishes.
     """
     worker: Any = await to_thread.run_sync(threading.current_thread)
 
