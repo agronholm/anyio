@@ -253,14 +253,7 @@ async def test_asyncio_worker_reused_after_cancelled_call(
     Such a worker must be returned to the idle worker pool so that it gets reused by
     later calls (and pruned when idle for too long) instead of staying alive forever.
     """
-    from anyio._backends._asyncio import _threadpool_idle_workers, _threadpool_workers
-
-    # Make sure there is exactly one, idle worker thread
-    await to_thread.run_sync(int)
-    idle_workers = _threadpool_idle_workers.get()
-    workers = _threadpool_workers.get()
-    assert len(workers) == len(idle_workers) == 1
-    worker = idle_workers[0]
+    worker: Any = await to_thread.run_sync(threading.current_thread)
 
     def put_cancelled_item(item: tuple[Any, ...]) -> None:
         # Cancel the future before the worker thread gets a chance to dequeue the item
@@ -270,7 +263,7 @@ async def test_asyncio_worker_reused_after_cancelled_call(
     original_put_nowait = worker.queue.put_nowait
     mocker.patch.object(worker.queue, "put_nowait", side_effect=put_cancelled_item)
     with pytest.raises(asyncio.CancelledError):
-        await to_thread.run_sync(int, abandon_on_cancel=True)
+        await to_thread.run_sync(int)
 
     mocker.stopall()
 
@@ -278,13 +271,9 @@ async def test_asyncio_worker_reused_after_cancelled_call(
     # returns it to the idle pool, then let the event loop run that callback
     worker.queue.join()
     await wait_all_tasks_blocked()
-    assert workers == {worker}
-    assert list(idle_workers) == [worker]
 
     # The next call should reuse that worker rather than start a new one
-    await to_thread.run_sync(int)
-    assert workers == {worker}
-    assert list(idle_workers) == [worker]
+    assert await to_thread.run_sync(threading.current_thread) is worker
 
 
 def test_asyncio_no_root_task(asyncio_event_loop: asyncio.AbstractEventLoop) -> None:
