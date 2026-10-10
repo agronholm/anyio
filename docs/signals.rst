@@ -25,6 +25,9 @@ AnyIO provides a simple mechanism for you to receive the signals you're interest
 
     run(main)
 
+When the context manager exits, it restores any Python signal handlers previously
+installed with :func:`signal.signal`.
+
 .. note:: Signal handlers can only be installed in the main thread, so they will not
    work when the event loop is being run through :class:`~.from_thread.BlockingPortal`,
    for instance.

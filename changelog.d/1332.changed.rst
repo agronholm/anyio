@@ -1,0 +1,2 @@
+Changed ``open_signal_receiver()`` on the asyncio backend to restore previously installed Python signal handlers on context exit
+PR by @davidbrochart
