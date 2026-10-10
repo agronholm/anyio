@@ -1,0 +1,3 @@
+Fixed ``send()`` on asyncio TCP and UDP sockets returning normally, despite the data
+being discarded, when the socket was closed by another task while ``send()`` was
+waiting for the operating system to accept the data

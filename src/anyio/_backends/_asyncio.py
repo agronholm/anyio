@@ -1375,21 +1375,18 @@ class DatagramProtocol(asyncio.DatagramProtocol):
     read_queue: deque[tuple[bytes, IPSockAddrType]]
     read_event: asyncio.Event
     write_event: asyncio.Event
-    closed_event: asyncio.Event
     exception: Exception | None = None
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.read_queue = deque(maxlen=100)  # arbitrary value
         self.read_event = asyncio.Event()
         self.write_event = asyncio.Event()
-        self.closed_event = asyncio.Event()
         self.write_event.set()
         cast(asyncio.WriteTransport, transport).set_write_buffer_limits(0)
 
     def connection_lost(self, exc: Exception | None) -> None:
         self.read_event.set()
         self.write_event.set()
-        self.closed_event.set()
 
     def datagram_received(self, data: bytes, addr: IPSockAddrType) -> None:
         addr = convert_ipv6_sockaddr(addr)
@@ -1480,6 +1477,9 @@ class SocketStream(abc.SocketStream):
 
             if not self._protocol.write_event.is_set():
                 await self._protocol.write_event.wait()
+                if self._closed:
+                    # aclose() aborted the transport, discarding the unsent data
+                    raise ClosedResourceError
             elif not yielded:
                 await AsyncIOBackend.cancel_shielded_checkpoint()
 
@@ -1491,15 +1491,8 @@ class SocketStream(abc.SocketStream):
 
     async def aclose(self) -> None:
         self._closed = True
-        if not self._transport.is_closing():
-            try:
-                self._transport.write_eof()
-            except OSError:
-                pass
-
-            self._transport.close()
-            await sleep(0)
-            self._transport.abort()
+        self._transport.abort()
+        await AsyncIOBackend.checkpoint()
 
 
 class _RawSocketMixin:
@@ -1537,15 +1530,16 @@ class _RawSocketMixin:
         return f
 
     async def aclose(self) -> None:
-        if not self._closing:
-            self._closing = True
-            if self.__raw_socket.fileno() != -1:
-                self.__raw_socket.close()
-
+        closing = self._closing
+        self._closing = True
+        self.__raw_socket.close()
+        if not closing:
             if self._receive_future and not self._receive_future.done():
                 self._receive_future.set_result(None)
             if self._send_future and not self._send_future.done():
                 self._send_future.set_result(None)
+
+        await AsyncIOBackend.checkpoint()
 
 
 class UNIXSocketStream(_RawSocketMixin, abc.UNIXSocketStream):
@@ -1758,6 +1752,7 @@ class UNIXSocketListener(abc.SocketListener):
     async def aclose(self) -> None:
         self._closed = True
         self.__raw_socket.close()
+        await AsyncIOBackend.checkpoint()
 
     @property
     def _raw_socket(self) -> socket.socket:
@@ -1780,10 +1775,8 @@ class UDPSocket(abc.UDPSocket):
 
     async def aclose(self) -> None:
         self._closed = True
-        if not self._transport.is_closing():
-            self._transport.close()
-
-        await self._protocol.closed_event.wait()
+        self._transport.abort()
+        await AsyncIOBackend.checkpoint()
 
     async def receive(self) -> tuple[bytes, IPSockAddrType]:
         with self._receive_guard:
@@ -1822,6 +1815,9 @@ class UDPSocket(abc.UDPSocket):
             # The high water mark is 0, so the event is clear if the OS refused it
             if not self._protocol.write_event.is_set():
                 await self._protocol.write_event.wait()
+                if self._closed:
+                    # aclose() aborted the transport, discarding the unsent data
+                    raise ClosedResourceError
             elif not yielded:
                 await AsyncIOBackend.cancel_shielded_checkpoint()
 
@@ -1842,10 +1838,8 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
 
     async def aclose(self) -> None:
         self._closed = True
-        if not self._transport.is_closing():
-            self._transport.close()
-
-        await self._protocol.closed_event.wait()
+        self._transport.abort()
+        await AsyncIOBackend.checkpoint()
 
     async def receive(self) -> bytes:
         with self._receive_guard:
@@ -1886,6 +1880,9 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
             # The high water mark is 0, so the event is clear if the OS refused it
             if not self._protocol.write_event.is_set():
                 await self._protocol.write_event.wait()
+                if self._closed:
+                    # aclose() aborted the transport, discarding the unsent data
+                    raise ClosedResourceError
             elif not yielded:
                 await AsyncIOBackend.cancel_shielded_checkpoint()
 
