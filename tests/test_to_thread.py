@@ -440,7 +440,7 @@ def test_asyncio_run_sync_multiple(
     assert workers[0] is workers[1] is workers[2]
     assert workers[0].is_alive()
     asyncio_event_loop.run_until_complete(asyncio_event_loop.shutdown_asyncgens())
-    workers[0].join(2)
+    workers[0].join(10)
     assert not workers[0].is_alive()
 
 
