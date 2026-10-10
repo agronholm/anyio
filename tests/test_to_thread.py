@@ -500,13 +500,12 @@ class TestBlockingPortalProvider:
             assert current_async_library() == anyio_backend_name
             threads.add(threading.current_thread())
 
-        active_threads_before = threading.active_count()
         for _ in range(3):
             with provider as portal:
                 portal.call(check_thread)
 
         assert len(threads) == 3
-        assert threading.active_count() == active_threads_before
+        assert all(not thread.is_alive() for thread in threads)
 
     def test_single_thread_overlapping(
         self, provider: BlockingPortalProvider, anyio_backend_name: str
