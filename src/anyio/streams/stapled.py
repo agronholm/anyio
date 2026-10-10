@@ -87,11 +87,13 @@ class StapledObjectStream(ObjectStream[T_Item], Generic[T_Item]):
 
     def send_nowait(self, item: T_Item) -> None:
         try:
-            self.send_stream.send_nowait(item)  # type: ignore[attr-defined]
+            send_nowait = self.send_stream.send_nowait  # type: ignore[attr-defined]
         except AttributeError as exc:
             raise NotImplementedError(
                 f"'send_nowait' method not implemented in {type(self.send_stream)}"
             ) from exc
+
+        send_nowait(item)
 
     async def send_eof(self) -> None:
         await self.send_stream.aclose()

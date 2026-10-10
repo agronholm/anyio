@@ -42,9 +42,12 @@ from ._core._synchronization import Lock
 from ._core._tasks import CancelScope
 from .lowlevel import cancel_shielded_checkpoint, checkpoint, checkpoint_if_cancelled
 
+if sys.version_info < (3, 15):
+    from typing_extensions import sentinel
+
 T = TypeVar("T")
 R = TypeVar("R")
-_tee_end = object()
+_tee_end = sentinel("_tee_end")
 
 
 @dataclass(eq=False)
@@ -435,9 +438,9 @@ async def islice(
     if step <= 0:
         raise ValueError(step_message)
 
-    if stop == 0 or start == stop:
-        await checkpoint()
-        return
+    # Like itertools.islice(), skip the first "start" items even if "stop" is lower
+    if stop is not None:
+        stop = max(start, stop)
 
     iterator = _iterate(iterable)
     index = 0
@@ -506,6 +509,9 @@ async def product(
     repeat = operator.index(repeat)
     if repeat < 0:
         raise ValueError("repeat argument cannot be negative")
+
+    if repeat == 0:
+        iterables = ()
 
     pools: list[tuple[T, ...]] = []
     for iterable in iterables:

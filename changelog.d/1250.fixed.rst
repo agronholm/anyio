@@ -1,0 +1,2 @@
+Fixed closing an asyncio socket stream raising an exception when its transport had
+already reported that the connection was lost.

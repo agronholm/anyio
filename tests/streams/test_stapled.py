@@ -150,6 +150,11 @@ class DummyObjectSendStreamWithSendNowait(DummyObjectSendStream[T_Item]):
         self.buffer.append(item)
 
 
+class DummyObjectSendStreamWithBrokenSendNowait(DummyObjectSendStream[T_Item]):
+    def send_nowait(self, item: T_Item) -> None:
+        raise AttributeError("no attribute 'nonexistent'")
+
+
 class TestStapledObjectStream:
     @pytest.fixture
     def receive_stream(self) -> DummyObjectReceiveStream[str]:
@@ -208,6 +213,15 @@ class TestStapledObjectStream:
             match="'send_nowait' method not implemented in "
             "<class 'tests.streams.test_stapled.DummyObjectSendStream'>",
         ):
+            stapled.send_nowait("hello")
+
+    def test_send_nowait_does_not_mask_attribute_error(
+        self, receive_stream: DummyObjectReceiveStream[str]
+    ) -> None:
+        stapled = StapledObjectStream(
+            DummyObjectSendStreamWithBrokenSendNowait[str](), receive_stream
+        )
+        with pytest.raises(AttributeError, match="no attribute 'nonexistent'"):
             stapled.send_nowait("hello")
 
     async def test_send_eof(self, stapled: StapledObjectStream[str]) -> None:

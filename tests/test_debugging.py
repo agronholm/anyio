@@ -4,7 +4,7 @@ import asyncio
 import sys
 from collections.abc import AsyncGenerator, Generator
 from types import CoroutineType, GeneratorType
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
@@ -18,9 +18,11 @@ from anyio import (
     move_on_after,
     wait_all_tasks_blocked,
 )
-from anyio.abc import TaskStatus
 
 from .conftest import asyncio_params
+
+if TYPE_CHECKING:
+    from anyio.abc import TaskStatus
 
 get_coro = asyncio.Task.get_coro
 

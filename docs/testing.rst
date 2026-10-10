@@ -14,7 +14,8 @@ Pytest does not natively support running asynchronous test functions, so they ha
 marked for the AnyIO pytest plugin to pick them up. This can be done in one of three
 ways:
 
-#. Setting the ``anyio_mode = "auto"`` option in the pytest configuration
+#. Setting the ``anyio_mode = "auto"`` option in the pytest configuration, or passing
+   the ``--anyio-mode=auto`` command-line flag
 #. Using the ``pytest.mark.anyio`` marker
 #. Using the ``anyio_backend`` fixture, either directly or via another fixture
 
@@ -72,13 +73,27 @@ in your top level ``conftest.py``::
 If you want to specify different options for the selected backend, you can do so by
 passing a tuple of (backend name, options dict)::
 
+    import sys
+
+    import pytest
+
+
     @pytest.fixture(params=[
         pytest.param(('asyncio', {'use_uvloop': True}), id='asyncio+uvloop'),
         pytest.param(('asyncio', {'use_uvloop': False}), id='asyncio'),
         pytest.param(('trio', {'restrict_keyboard_interrupt_to_checkpoints': True}), id='trio')
     ])
     def anyio_backend(request):
+        backend, options = request.param
+        if backend == 'asyncio' and options.get('use_uvloop'):
+            pytest.importorskip('winloop' if sys.platform == 'win32' else 'uvloop')
+
         return request.param
+
+The ``use_uvloop=True`` variant requires uvloop (winloop on Windows) to be installed.
+The ``importorskip()`` call skips only this variant if the optional dependency is
+missing, while the standard asyncio and Trio variants still run. Remove that call
+if a missing dependency should fail the tests instead.
 
 If you need to run a single test on a specific backend, you can use
 ``@pytest.mark.parametrize`` (remember to add the ``anyio_backend`` parameter to the
