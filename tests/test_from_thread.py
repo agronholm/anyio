@@ -819,7 +819,7 @@ class TestBlockingPortal:
 
 
 class TestBlockingPortalProvider:
-    def test_exception_cancels_tasks(
+    def test_exception_passed_to_portal_cm(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         provider = BlockingPortalProvider(anyio_backend_name, anyio_backend_options)
