@@ -290,6 +290,10 @@ On the asyncio backend, workers are non-daemon threads. At interpreter shutdown,
 workers are signaled to exit immediately and busy workers finish their submitted work
 before exiting. This also applies to calls abandoned on cancellation.
 
+On the Trio backend, workers are daemon threads and do not keep the Python process
+alive. If a call is abandoned on cancellation, interpreter shutdown can terminate its
+work before it finishes.
+
 Adjusting the default maximum worker thread count
 -------------------------------------------------
 
