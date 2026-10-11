@@ -1,0 +1,1 @@
+Fixed memory object streams leaving their pending operations blocked after closing

@@ -45,6 +45,11 @@ clones have been closed. For example, if you have two clones of the receive stre
 send stream will start raising :exc:`~BrokenResourceError` only when both receive
 streams have been closed.
 
+Closing a stream also wakes operations still waiting on that specific stream object
+with :exc:`~ClosedResourceError`. Operations waiting on other clones continue normally.
+An item already handed to a receiver is still delivered, even if its stream is closed
+before the waiting task resumes.
+
 Multiple tasks can send and receive on the same memory object stream (or its clones) but
 each sent item is only ever delivered to a single recipient.
 
