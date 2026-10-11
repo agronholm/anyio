@@ -96,8 +96,12 @@ class BufferedByteReceiveStream(ByteReceiveStream):
         :return: the bytes read
         :raises ~anyio.IncompleteRead: if the stream was closed before the requested
             amount of bytes could be read from the stream
+        :raises ~anyio.ClosedResourceError: if this stream has been explicitly closed
 
         """
+        if self._closed:
+            raise ClosedResourceError
+
         while True:
             remaining = nbytes - len(self._buffer)
             if remaining <= 0:
@@ -127,8 +131,12 @@ class BufferedByteReceiveStream(ByteReceiveStream):
             was found
         :raises ~anyio.DelimiterNotFound: if the delimiter is not found within the
             bytes read up to the maximum allowed
+        :raises ~anyio.ClosedResourceError: if this stream has been explicitly closed
 
         """
+        if self._closed:
+            raise ClosedResourceError
+
         delimiter_size = len(delimiter)
         offset = 0
         while True:

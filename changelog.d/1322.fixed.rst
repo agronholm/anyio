@@ -1,0 +1,3 @@
+Fixed importing AnyIO with loaders that do not provide ``__file__``, such as
+PyOxidizer, raising ``TypeError`` instead of falling back to eager imports
+PR by @skulitom
