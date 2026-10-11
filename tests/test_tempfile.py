@@ -74,6 +74,7 @@ class TestSpooledTemporaryFile:
 
         async with SpooledTemporaryFile(mode=mode) as stf:
             await stf.write(data)
+            await stf.seek(5)
             buffer = stf.wrapped
             try:
                 with CancelScope() as scope:
@@ -82,6 +83,7 @@ class TestSpooledTemporaryFile:
                         await checkpoint()
 
                 assert scope.cancelled_caught
+                assert await stf.tell() == 5
                 await stf.seek(0)
                 assert await stf.read() == data
                 assert buffer.closed
@@ -151,6 +153,15 @@ class TestSpooledTemporaryFile:
                 assert await stf.read() == b"helloworld"
                 await stf.writelines([b"1234567890123456"])
                 assert rollover_called
+
+    async def test_rollover_preserves_position(self) -> None:
+        """Rollover preserves the position of a partially read file."""
+        async with SpooledTemporaryFile[bytes](max_size=1024) as stf:
+            await stf.write(b"hello world")
+            await stf.seek(2)
+            await stf.rollover()
+            assert await stf.tell() == 2
+            assert await stf.read() == b"llo world"
 
     async def test_closed_state(self) -> None:
         async with SpooledTemporaryFile(max_size=10) as stf:
