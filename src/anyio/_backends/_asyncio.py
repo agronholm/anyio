@@ -1076,11 +1076,11 @@ class WorkerThreadPool:
     def submit(
         self,
         context: Context,
-        func: Callable,
-        args: tuple,
-        future: asyncio.Future,
+        func: Callable[[Unpack[PosArgsT]], T_Retval],
+        args: tuple[Unpack[PosArgsT]],
         cancel_scope: CancelScope,
-    ) -> None:
+    ) -> asyncio.Future[T_Retval]:
+        future = asyncio.Future[T_Retval]()
         with self.lock:
             if self.stopping:
                 raise RuntimeError("The worker thread pool is shutting down")
@@ -1097,6 +1097,8 @@ class WorkerThreadPool:
                     raise
 
             worker.queue.put_nowait((context, func, args, future, cancel_scope))
+
+        return future
 
     def shutdown(self) -> None:
         with self.lock:
@@ -2775,7 +2777,6 @@ class AsyncIOBackend(AsyncBackend):
 
         async with limiter or cls.current_default_thread_limiter():
             with CancelScope(shield=not abandon_on_cancel) as scope:
-                future = asyncio.Future[T_Retval]()
                 context = copy_context()
                 context.run(set_current_async_library, None)
                 if abandon_on_cancel or scope._parent_scope is None:
@@ -2783,8 +2784,7 @@ class AsyncIOBackend(AsyncBackend):
                 else:
                     worker_scope = scope._parent_scope
 
-                _threadpool.submit(context, func, args, future, worker_scope)
-                return await future
+                return await _threadpool.submit(context, func, args, worker_scope)
 
     @classmethod
     def check_cancelled(cls) -> None:
