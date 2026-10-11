@@ -1,0 +1,2 @@
+Fixed ``anyio.itertools.islice()`` not consuming the first ``start`` items when
+``stop <= start``

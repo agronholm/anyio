@@ -12,6 +12,7 @@ from trustme import CA
 
 from anyio import (
     BrokenResourceError,
+    CancelScope,
     EndOfStream,
     Event,
     connect_tcp,
@@ -59,6 +60,47 @@ class TestTLSStream:
         server_thread.join()
         server_sock.close()
         assert response == b"olleh"
+
+    async def test_cancelled_send_breaks_stream(
+        self, server_context: ssl.SSLContext, client_context: ssl.SSLContext
+    ) -> None:
+        # Regression test for #1385: a send() cancelled after SSLObject.write()
+        # loses an encrypted record, so the stream must refuse further use
+        # instead of sending records the peer can no longer decrypt.
+        server_send, server_receive = create_memory_object_stream[bytes](1)
+        client_send, client_receive = create_memory_object_stream[bytes](1)
+        client_stream = StapledObjectStream(client_send, server_receive)
+        server_stream = StapledObjectStream(server_send, client_receive)
+
+        async def serve() -> None:
+            tls_stream = await TLSStream.wrap(
+                server_stream, server_side=True, ssl_context=server_context
+            )
+            assert await tls_stream.receive() == b"first"
+
+        # Keep the server's transport open, so the client's failures can only come
+        # from the TLS layer
+        async with server_stream, create_task_group() as tg:
+            tg.start_soon(serve)
+            wrapper = await TLSStream.wrap(
+                client_stream, hostname="localhost", ssl_context=client_context
+            )
+            await wrapper.send(b"first")
+            # The memory stream's send() checkpoints before enqueuing, so the
+            # record encrypted by SSLObject.write() is lost here
+            with CancelScope() as scope:
+                scope.cancel()
+                await wrapper.send(b"cancelled")
+
+            assert scope.cancelled_caught
+            with pytest.raises(BrokenResourceError):
+                await wrapper.send(b"second")
+
+            with pytest.raises(BrokenResourceError):
+                await wrapper.receive()
+
+            # Must not attempt the closing handshake on a broken stream
+            await wrapper.aclose()
 
     async def test_unicode_hostname_idna2008(
         self, ca: CA, client_context: ssl.SSLContext

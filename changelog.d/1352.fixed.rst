@@ -1,0 +1,3 @@
+Fixed worker threads on the asyncio backend never returning to the idle pool (and
+thus never being reused or pruned) when a ``to_thread.run_sync()`` call was cancelled
+after it had been queued for the worker but before the worker thread had picked it up
