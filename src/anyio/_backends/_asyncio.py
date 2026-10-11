@@ -1201,12 +1201,8 @@ class WorkerThread(Thread):
 _threadpool = WorkerThreadPool()
 
 
-def _shutdown_threadpool() -> None:
-    _threadpool.shutdown()
-
-
 # Regular atexit callbacks run after Python joins non-daemon threads.
-threading._register_atexit(_shutdown_threadpool)  # type: ignore[attr-defined]
+threading._register_atexit(lambda: _threadpool.shutdown())  # type: ignore[attr-defined]
 
 
 def _reset_threadpool_after_fork() -> None:
