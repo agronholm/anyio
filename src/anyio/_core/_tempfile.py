@@ -397,7 +397,10 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
     async def truncate(self, size: int | None = None) -> int:
         if not self._rolled:
             await checkpoint_if_cancelled()
-            return self._fp.truncate(size)
+            if size is not None and size > self._max_size:
+                await self.rollover()
+            else:
+                return self._fp.truncate(size)
 
         return await super().truncate(size)
 
