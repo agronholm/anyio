@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import platform
 import sys
+from contextlib import AbstractContextManager, nullcontext
 
 import pytest
 
-from anyio import create_memory_object_stream
+from anyio import EndOfStream, create_memory_object_stream
 from anyio.abc import ObjectStream, ObjectStreamConnectable
 from anyio.streams.stapled import StapledObjectStream
 from anyio.streams.text import (
@@ -27,6 +28,30 @@ async def test_receive() -> None:
     assert await text_stream.receive() == "ö"
 
     send_stream.close()
+    receive_stream.close()
+
+
+@pytest.mark.parametrize(
+    "errors, expected",
+    [
+        pytest.param("strict", pytest.raises(UnicodeDecodeError), id="strict"),
+        pytest.param("replace", nullcontext(), id="replace"),
+        pytest.param("ignore", pytest.raises(EndOfStream), id="ignore"),
+    ],
+)
+async def test_incomplete_character_at_eof(
+    errors: str, expected: AbstractContextManager[object]
+) -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
+    text_stream = TextReceiveStream(receive_stream, errors=errors)
+    await send_stream.send(b"\xc3")  # first half of a two-byte character
+    send_stream.close()
+    with expected:
+        assert await text_stream.receive() == "\ufffd"
+
+    with pytest.raises(EndOfStream):
+        await text_stream.receive()
+
     receive_stream.close()
 
 

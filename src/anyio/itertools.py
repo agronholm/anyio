@@ -510,6 +510,9 @@ async def product(
     if repeat < 0:
         raise ValueError("repeat argument cannot be negative")
 
+    if repeat == 0:
+        iterables = ()
+
     pools: list[tuple[T, ...]] = []
     for iterable in iterables:
         pool: list[T] = [element async for element in _iterate(iterable)]

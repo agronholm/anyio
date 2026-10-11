@@ -761,6 +761,11 @@ class TestPermutations:
 
 
 class TestProduct:
+    async def test_zero_repeat_does_not_consume_iterables(self) -> None:
+        iterator = iter("AB")
+        assert await collect(product(iterator, repeat=0)) == [()]
+        assert next(iterator) == "A"
+
     async def test_basic_cases(self) -> None:
         cases = [
             (product("AB", "xy"), [("A", "x"), ("A", "y"), ("B", "x"), ("B", "y")]),
