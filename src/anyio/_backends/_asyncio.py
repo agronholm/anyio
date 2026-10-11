@@ -1102,15 +1102,21 @@ class WorkerThreadPool:
 
     def shutdown(self) -> None:
         with self.lock:
-            if self.stopping:
-                return
+            if threading.current_thread() in self.workers:
+                raise RuntimeError("Cannot shut down the pool from a worker thread")
 
-            self.stopping = True
-            self.idle_workers.clear()
-            for worker in self.workers:
-                # A job may still be queued. Leave room for the shutdown command
-                # behind it so submitted work can finish before the worker exits.
-                worker.queue.put_nowait(None)
+            workers = list(self.workers)
+            if not self.stopping:
+                self.stopping = True
+                self.idle_workers.clear()
+                for worker in workers:
+                    # A job may still be queued. Leave room for the shutdown command
+                    # behind it so submitted work can finish before the worker exits.
+                    worker.queue.put_nowait(None)
+
+        # Workers acquire the pool lock when removing themselves on exit.
+        for worker in workers:
+            worker.join()
 
 
 class WorkerThread(Thread):

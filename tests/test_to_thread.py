@@ -42,11 +42,6 @@ def asyncio_worker_pool(mocker: MockerFixture) -> Iterator[Any]:
     mocker.patch.object(_asyncio, "_threadpool", pool)
     yield pool
     pool.shutdown()
-    with pool.lock:
-        workers = list(pool.workers)
-
-    for worker in workers:
-        worker.join()
 
 
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
@@ -259,22 +254,41 @@ async def test_asyncio_worker_pool_shutdown(
         return threading.current_thread()
 
     task = asyncio.create_task(to_thread.run_sync(worker))
-    try:
-        while not started.is_set():
-            await checkpoint()
+    with ThreadPoolExecutor(2) as executor:
+        try:
+            while not started.is_set():
+                await checkpoint()
 
-        asyncio_worker_pool.shutdown()
-        asyncio_worker_pool.shutdown()
-        with pytest.raises(RuntimeError, match="shutting down"):
-            await to_thread.run_sync(int)
-    finally:
-        release.set()
+            shutdowns = [
+                executor.submit(asyncio_worker_pool.shutdown) for _ in range(2)
+            ]
+            while not asyncio_worker_pool.stopping:
+                await checkpoint()
+
+            assert all(not future.done() for future in shutdowns)
+            with pytest.raises(RuntimeError, match="shutting down"):
+                await to_thread.run_sync(int)
+        finally:
+            release.set()
+
+        for future in shutdowns:
+            future.result(5)
 
     thread = await task
-    thread.join()
     assert not thread.is_alive()
     assert not asyncio_worker_pool.workers
     assert not asyncio_worker_pool.idle_workers
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_asyncio_worker_pool_shutdown_from_worker(
+    asyncio_worker_pool: Any,
+) -> None:
+    with pytest.raises(RuntimeError, match="from a worker thread"):
+        await to_thread.run_sync(asyncio_worker_pool.shutdown)
+
+    assert not asyncio_worker_pool.stopping
+    assert await to_thread.run_sync(int) == 0
 
 
 async def test_run_in_thread_cancelled() -> None:
