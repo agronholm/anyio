@@ -1,0 +1,2 @@
+Fixed cancelling a future while a ``BlockingPortal`` callable completes raising
+``InvalidStateError`` and cancelling the portal's task group.
