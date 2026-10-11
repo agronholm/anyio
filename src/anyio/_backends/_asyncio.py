@@ -1070,6 +1070,7 @@ class WorkerThreadPool:
         self.lock = threading.Lock()
         self.workers: set[WorkerThread] = set()
         self.idle_workers: dict[WorkerThread, None] = {}
+        self.stopping = False
 
     def submit(
         self,
@@ -1080,6 +1081,9 @@ class WorkerThreadPool:
         cancel_scope: CancelScope,
     ) -> None:
         with self.lock:
+            if self.stopping:
+                raise RuntimeError("The worker thread pool is shutting down")
+
             if self.idle_workers:
                 worker, _ = self.idle_workers.popitem()
             else:
@@ -1093,6 +1097,18 @@ class WorkerThreadPool:
 
             worker.queue.put_nowait((context, func, args, future, cancel_scope))
 
+    def shutdown(self) -> None:
+        with self.lock:
+            if self.stopping:
+                return
+
+            self.stopping = True
+            self.idle_workers.clear()
+            for worker in self.workers:
+                # A job may still be queued. Leave room for the shutdown command
+                # behind it so submitted work can finish before the worker exits.
+                worker.queue.put_nowait(None)
+
 
 class WorkerThread(Thread):
     MAX_IDLE_TIME = 10  # seconds
@@ -1102,11 +1118,11 @@ class WorkerThread(Thread):
         if sys.version_info >= (3, 14):
             kwargs["context"] = Context()
 
-        super().__init__(name="AnyIO worker thread", daemon=True, **kwargs)
+        super().__init__(name="AnyIO worker thread", daemon=False, **kwargs)
         self.pool = pool
         self.queue: Queue[
-            tuple[Context, Callable, tuple, asyncio.Future, CancelScope]
-        ] = Queue(1)
+            tuple[Context, Callable, tuple, asyncio.Future, CancelScope] | None
+        ] = Queue(2)
 
     @staticmethod
     def _report_result(
@@ -1143,7 +1159,8 @@ class WorkerThread(Thread):
         # Make the worker available before delivering the result, so sequential
         # calls can reuse it even if the event loop receives the result immediately.
         with self.pool.lock:
-            self.pool.idle_workers[self] = None
+            if not self.pool.stopping:
+                self.pool.idle_workers[self] = None
 
         try:
             loop.call_soon_threadsafe(self._report_result, future, result, exception)
@@ -1167,6 +1184,9 @@ class WorkerThread(Thread):
                     continue
 
                 try:
+                    if item is None:
+                        return
+
                     self._run_job(item)
                 finally:
                     del item
@@ -1178,6 +1198,14 @@ class WorkerThread(Thread):
 
 
 _threadpool = WorkerThreadPool()
+
+
+def _shutdown_threadpool() -> None:
+    _threadpool.shutdown()
+
+
+# Regular atexit callbacks run after Python joins non-daemon threads.
+threading._register_atexit(_shutdown_threadpool)  # type: ignore[attr-defined]
 
 
 def _reset_threadpool_after_fork() -> None:

@@ -286,9 +286,9 @@ Closing an event loop does not stop its workers: they can be reused by another l
 and exit automatically after being idle for 10 seconds. Each call uses the context,
 cancellation scope and event loop of the task that submitted it.
 
-Worker threads are daemon threads, as on the Trio backend. They do not keep the Python
-process alive. If a call is abandoned on cancellation, keep the process alive until
-its work finishes if that work must complete.
+On the asyncio backend, workers are non-daemon threads. At interpreter shutdown, idle
+workers are signaled to exit immediately and busy workers finish their submitted work
+before exiting. This also applies to calls abandoned on cancellation.
 
 Adjusting the default maximum worker thread count
 -------------------------------------------------

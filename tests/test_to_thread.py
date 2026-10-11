@@ -10,7 +10,7 @@ import time
 import weakref
 from collections.abc import Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
-from contextvars import Context, ContextVar
+from contextvars import ContextVar
 from functools import partial
 from textwrap import dedent
 from typing import Any, NoReturn
@@ -43,20 +43,9 @@ def asyncio_worker_pool(mocker: MockerFixture) -> Iterator[Any]:
     # Reuse tests must not race an artificially short idle deadline.
     mocker.patch.object(_asyncio.WorkerThread, "MAX_IDLE_TIME", 60)
     yield pool
-    loop = asyncio.new_event_loop()
-    future = loop.create_future()
-    future.cancel()
-    loop.close()
+    pool.shutdown()
     with pool.lock:
         workers = list(pool.workers)
-        for worker in workers:
-            mocker.patch.object(worker, "MAX_IDLE_TIME", 0.1)
-            if worker in pool.idle_workers:
-                del pool.idle_workers[worker]
-                # Wake an idle worker so its next wait uses the cleanup timeout.
-                worker.queue.put_nowait(
-                    (Context(), int, (), future, _asyncio.CancelScope())
-                )
 
     for worker in workers:
         worker.join()
@@ -196,18 +185,98 @@ def test_asyncio_worker_pool_after_fork() -> None:
     subprocess.run([sys.executable, "-c", script], check=True, timeout=10)
 
 
-def test_asyncio_worker_pool_interpreter_shutdown() -> None:
-    script = dedent("""
+@pytest.mark.parametrize("close_loop", [False, True])
+@pytest.mark.parametrize("busy_worker", [False, True])
+def test_asyncio_worker_pool_interpreter_shutdown(
+    close_loop: bool, busy_worker: bool
+) -> None:
+    script = dedent(f"""
+        import asyncio
         import threading
-        import anyio
+        from anyio import to_thread
         from anyio._backends._asyncio import WorkerThread
 
         WorkerThread.MAX_IDLE_TIME = 60
-        worker = anyio.run(anyio.to_thread.run_sync, threading.current_thread)
-        assert worker.daemon
-        assert worker.is_alive()
+        release_worker = threading.Event()
+
+        def worker():
+            assert not threading.current_thread().daemon
+            if {busy_worker!r}:
+                loop.call_soon_threadsafe(loop.stop)
+                assert release_worker.wait(5)
+            print("worker finished", flush=True)
+
+        async def main():
+            await to_thread.run_sync(worker)
+            loop.stop()
+            await asyncio.Event().wait()
+
+        loop = asyncio.new_event_loop()
+        task = loop.create_task(main())
+        loop.run_forever()
+        assert not task.done()
+        if {close_loop!r}:
+            loop.close()
+
+        # This runs before AnyIO's shutdown callback, releasing a busy job only
+        # once interpreter shutdown has started.
+        threading._register_atexit(release_worker.set)
     """)
-    subprocess.run([sys.executable, "-c", script], check=True, timeout=5)
+    process = subprocess.run(
+        [sys.executable, "-c", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert process.stdout == "worker finished\n"
+    assert "Exception in thread" not in process.stderr
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+@pytest.mark.parametrize("queued_job", [False, True], ids=["running", "queued"])
+async def test_asyncio_worker_pool_shutdown(
+    asyncio_worker_pool: Any, mocker: MockerFixture, queued_job: bool
+) -> None:
+    from anyio._backends._asyncio import WorkerThread
+
+    started = threading.Event()
+    release = threading.Event()
+
+    if queued_job:
+        original_run = WorkerThread.run
+
+        def delayed_run(thread: WorkerThread) -> None:
+            started.set()
+            assert release.wait(5)
+            original_run(thread)
+
+        mocker.patch.object(WorkerThread, "run", delayed_run)
+
+    def worker() -> threading.Thread:
+        if not queued_job:
+            started.set()
+            assert release.wait(5)
+
+        return threading.current_thread()
+
+    task = asyncio.create_task(to_thread.run_sync(worker))
+    try:
+        while not started.is_set():
+            await checkpoint()
+
+        asyncio_worker_pool.shutdown()
+        asyncio_worker_pool.shutdown()
+        with pytest.raises(RuntimeError, match="shutting down"):
+            await to_thread.run_sync(int)
+    finally:
+        release.set()
+
+    thread = await task
+    thread.join()
+    assert not thread.is_alive()
+    assert not asyncio_worker_pool.workers
+    assert not asyncio_worker_pool.idle_workers
 
 
 async def test_run_in_thread_cancelled() -> None:
