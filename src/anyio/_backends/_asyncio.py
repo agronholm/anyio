@@ -403,6 +403,9 @@ class CancelScope(BaseCancelScope):
         return object.__new__(cls)
 
     def __init__(self, deadline: float = math.inf, shield: bool = False):
+        if math.isnan(deadline):
+            raise ValueError("deadline must not be NaN")
+
         self._deadline = deadline
         self._shield = shield
         self._parent_scope: CancelScope | None = None
@@ -707,7 +710,11 @@ class CancelScope(BaseCancelScope):
 
     @deadline.setter
     def deadline(self, value: float) -> None:
-        self._deadline = float(value)
+        value = float(value)
+        if math.isnan(value):
+            raise ValueError("deadline must not be NaN")
+
+        self._deadline = value
         if self._timeout_handle is not None:
             self._timeout_handle.cancel()
             self._timeout_handle = None
@@ -1109,9 +1116,9 @@ class WorkerThread(Thread):
                     return
 
                 context, func, args, future, cancel_scope = item
+                result = None
+                exception: BaseException | None = None
                 if not future.cancelled():
-                    result = None
-                    exception: BaseException | None = None
                     threadlocals.current_cancel_scope = cancel_scope
                     try:
                         result = context.run(func, *args)
@@ -1120,16 +1127,17 @@ class WorkerThread(Thread):
                     finally:
                         del threadlocals.current_cancel_scope
 
-                    try:
-                        self.loop.call_soon_threadsafe(
-                            self._report_result, future, result, exception
-                        )
-                    except RuntimeError:
-                        if not self.loop.is_closed():
-                            raise
+                # Report the result even if the future was cancelled before the call
+                # was started, so that the worker is put back on the idle list
+                try:
+                    self.loop.call_soon_threadsafe(
+                        self._report_result, future, result, exception
+                    )
+                except RuntimeError:
+                    if not self.loop.is_closed():
+                        raise
 
-                    del result, exception
-
+                del result, exception
                 self.queue.task_done()
                 del item, context, func, args, future, cancel_scope
 
@@ -2254,7 +2262,7 @@ class CapacityLimiter(BaseCapacityLimiter):
             try:
                 await AsyncIOBackend.cancel_shielded_checkpoint()
             except BaseException:
-                self.release()
+                self.release_on_behalf_of(borrower)
                 raise
 
     def release(self) -> None:

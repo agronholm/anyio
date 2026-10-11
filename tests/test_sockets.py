@@ -63,6 +63,7 @@ from anyio import (
     create_unix_datagram_socket,
     create_unix_listener,
     fail_after,
+    get_available_backends,
     get_cancelled_exc_class,
     getaddrinfo,
     getnameinfo,
@@ -265,7 +266,7 @@ class TestTCPStream:
         self, server_sock: socket.socket, server_addr: tuple[str, int]
     ) -> None:
         """
-        Handing data to a paused transport merely appends it to the write buffer, from
+        Handing data to a paused transport merely appends it to the write buffer.
         If a ``send()`` was cancelled after the data was written to the buffer, the
         next call must ensure that the previous send completed one way or another
         before attempting to send its own data.
@@ -276,30 +277,50 @@ class TestTCPStream:
             with client:
                 client.setblocking(False)
 
-                async def send_and_cancel(item: bytes) -> None:
+                async def send_and_cancel(item: bytes) -> bool:
+                    """Return ``True`` if the send was cancelled before completing."""
+                    completed = False
+
+                    async def send() -> None:
+                        nonlocal completed
+                        await stream.send(item)
+                        completed = True
+
                     async with create_task_group() as tg:
-                        tg.start_soon(stream.send, item)
+                        tg.start_soon(send)
                         await wait_all_tasks_blocked()
                         tg.cancel_scope.cancel()
 
-                # Back the connection up, and then soak up any room that the peer's
-                # acknowledgements may have reopened in the meantime, so that the OS
-                # cannot take another byte. Nothing is read from the peer until further
+                    return not completed
+
+                # Back the connection up. Nothing is read from the peer until further
                 # down, so the connection stays that way.
                 await send_and_cancel(payload)
-                await send_and_cancel(payload)
 
-                # On Windows, a transport can be genuinely backed up without its
-                # pause_writing() having fired yet: that only happens as a side effect
-                # of the next write() call discovering it, by which point that call's
-                # own data is already appended to the write buffer. Spend that one on
-                # a throwaway payload so the transport is *known* paused going into
-                # the next send() below, before it ever calls write() again.
-                await send_and_cancel(b"r" * 64)
+                # The OS may still reopen some room (from the peer's acknowledgements or
+                # buffer autotuning), in which case a send() legitimately completes
+                # before it can be cancelled. Keep trying with a fresh marker until one
+                # is genuinely cancelled.
+                for marker in (bytes([char]) for char in b"cdefghij"):
+                    # Soak up any room that has been reopened in the meantime, so that
+                    # the OS cannot take another byte
+                    await send_and_cancel(payload)
 
-                # Now that the transport is known paused, the OS still never accepted
-                # any of this, so none of it may reach the peer
-                await send_and_cancel(b"c" * 64)
+                    # On Windows, a transport can be genuinely backed up without its
+                    # pause_writing() having fired yet: that only happens as a side
+                    # effect of the next write() call discovering it, by which point
+                    # that call's own data is already appended to the write buffer.
+                    # Spend that one on a throwaway payload so the transport is *known*
+                    # paused going into the next send() below, before it ever calls
+                    # write() again.
+                    await send_and_cancel(b"r" * 64)
+
+                    # Now that the transport is known paused, the OS never accepted any
+                    # of a cancelled send's data, so none of it may reach the peer
+                    if await send_and_cancel(marker * 64):
+                        break
+                else:
+                    pytest.fail("Could not get a send() cancelled before it completed")
 
                 # Drain the peer until a final, uncancelled send() has arrived; data
                 # that a cancelled send() wrongly handed over would arrive first
@@ -316,7 +337,7 @@ class TestTCPStream:
                             received += data
                             arrived = b"z" in data
 
-                assert b"c" not in received
+                assert marker not in received
 
     async def test_send_receive(
         self, server_sock: socket.socket, server_addr: tuple[str, int]
@@ -456,6 +477,30 @@ class TestTCPStream:
         thread.join()
         server_sock.close()
         assert client_addr[0] == expected_client_addr
+
+    async def test_connect_tcp_closes_winner_on_outer_cancellation(
+        self, server_addr: tuple[str, int], monkeypatch: MonkeyPatch
+    ) -> None:
+        """
+        A connected stream must be closed if the enclosing cancel scope is cancelled
+        before the connection attempt task group exits.
+        """
+        backend = get_async_backend()
+        original_connect_tcp = backend.connect_tcp
+        streams: list[SocketStream] = []
+
+        async def connect_and_cancel(*args: Any) -> SocketStream:
+            streams.append(await original_connect_tcp(*args))
+            scope.cancel()
+            return streams[-1]
+
+        monkeypatch.setattr(backend, "connect_tcp", connect_and_cancel)
+        with CancelScope() as scope:
+            await connect_tcp(*server_addr)
+
+        assert scope.cancelled_caught
+        with pytest.raises(ClosedResourceError):
+            await streams[0].send(b"x")
 
     async def test_connect_tcp_with_local_port(
         self,
@@ -1948,6 +1993,32 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
 @pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestUDPSocket:
+    @pytest.mark.skipif(
+        "trio" not in get_available_backends(), reason="trio is not available"
+    )
+    @pytest.mark.parametrize("anyio_backend", ["trio"])
+    async def test_bind_failure_closes_socket(
+        self, family: AnyIPAddressFamily, monkeypatch: MonkeyPatch
+    ) -> None:
+        import trio
+
+        real_socket = trio.socket.socket
+        created: list[trio.socket.SocketType] = []
+
+        def capture_socket(*args: Any, **kwargs: Any) -> trio.socket.SocketType:
+            created.append(real_socket(*args, **kwargs))
+            return created[-1]
+
+        monkeypatch.setattr(trio.socket, "socket", capture_socket)
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        with socket.socket(family, socket.SOCK_DGRAM) as occupied:
+            occupied.bind((host, 0))
+            port = occupied.getsockname()[1]
+            with pytest.raises(OSError):
+                await create_udp_socket(family=family, local_host=host, local_port=port)
+
+        assert created[0].fileno() == -1
+
     async def test_aclose_waits_for_fd_release(
         self, family: AnyIPAddressFamily, free_udp_port: int
     ) -> None:
