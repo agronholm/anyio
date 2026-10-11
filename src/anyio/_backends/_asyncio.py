@@ -1066,7 +1066,8 @@ _Retval_Queue_Type = tuple[T_Retval | None, BaseException | None]
 
 
 class WorkerThreadPool:
-    def __init__(self) -> None:
+    def __init__(self, max_idle_time: float = 10) -> None:
+        self.max_idle_time = max_idle_time
         self.lock = threading.Lock()
         self.workers: set[WorkerThread] = set()
         self.idle_workers: dict[WorkerThread, None] = {}
@@ -1111,8 +1112,6 @@ class WorkerThreadPool:
 
 
 class WorkerThread(Thread):
-    MAX_IDLE_TIME = 10  # seconds
-
     def __init__(self, pool: WorkerThreadPool):
         kwargs: dict[str, Any] = {}
         if sys.version_info >= (3, 14):
@@ -1172,7 +1171,7 @@ class WorkerThread(Thread):
         try:
             while True:
                 try:
-                    item = self.queue.get(timeout=self.MAX_IDLE_TIME)
+                    item = self.queue.get(timeout=self.pool.max_idle_time)
                 except Empty:
                     # Assignment and retirement use the same lock: if a submitter
                     # already selected us, its queued job must still be processed.
