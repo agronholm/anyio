@@ -461,6 +461,17 @@ class TestBlockingPortalProvider:
 
         assert len(threads) == 1
 
+    def test_retry_after_failed_enter(
+        self, provider: BlockingPortalProvider, anyio_backend_name: str
+    ) -> None:
+        provider.backend = "nonexistent"
+        with pytest.raises(LookupError):
+            provider.__enter__()
+
+        provider.backend = anyio_backend_name
+        with provider as portal:
+            assert portal.call(current_async_library) == anyio_backend_name
+
 
 skipif_pypy_mark = pytest.mark.skipif(
     sys.implementation.name == "pypy",

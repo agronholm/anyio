@@ -474,10 +474,10 @@ class BlockingPortalProvider:
     def __enter__(self) -> BlockingPortal:
         with self._lock:
             if self._portal_cm is None:
-                self._portal_cm = start_blocking_portal(
-                    self.backend, self.backend_options
-                )
-                self._portal = self._portal_cm.__enter__()
+                portal_cm = start_blocking_portal(self.backend, self.backend_options)
+                portal = portal_cm.__enter__()
+                self._portal_cm = portal_cm
+                self._portal = portal
 
             self._leases += 1
             return self._portal

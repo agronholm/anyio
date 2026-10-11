@@ -1,0 +1,2 @@
+Fixed ``BlockingPortalProvider`` permanently failing with an ``AttributeError`` on
+every subsequent use if the first attempt to start its blocking portal failed
