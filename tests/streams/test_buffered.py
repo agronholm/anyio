@@ -18,10 +18,10 @@ from anyio.streams.stapled import StapledObjectStream
 
 
 async def test_receive_skips_empty_messages() -> None:
-    send_stream, receive_stream = create_memory_object_stream[bytes](5)
+    send_stream, receive_stream = create_memory_object_stream[bytes](6)
     with send_stream, receive_stream:
         stream = BufferedByteReceiveStream(receive_stream)
-        for chunk in (b"", b"", b"abcd", b"", b"ef"):
+        for chunk in (b"", b"", b"abcd", b"", b"ef", b""):
             send_stream.send_nowait(chunk)
 
         send_stream.close()
@@ -31,17 +31,6 @@ async def test_receive_skips_empty_messages() -> None:
         assert await stream.receive(2) == b"ef"
         with pytest.raises(EndOfStream):
             await stream.receive(2)
-
-
-async def test_receive_empty_messages_before_eof() -> None:
-    send_stream, receive_stream = create_memory_object_stream[bytes](2)
-    with send_stream, receive_stream:
-        stream = BufferedByteReceiveStream(receive_stream)
-        send_stream.send_nowait(b"")
-        send_stream.send_nowait(b"")
-        send_stream.close()
-        with pytest.raises(EndOfStream):
-            await stream.receive()
 
 
 async def test_receive_exactly() -> None:
