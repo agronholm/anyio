@@ -17,6 +17,43 @@ from anyio.streams.buffered import (
 from anyio.streams.stapled import StapledObjectStream
 
 
+@pytest.mark.parametrize(
+    "stream_class", [BufferedByteReceiveStream, BufferedByteStream]
+)
+async def test_receive_skips_empty_messages(
+    stream_class: type[BufferedByteReceiveStream],
+) -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](5)
+    with send_stream, receive_stream:
+        stream = stream_class(StapledObjectStream(send_stream, receive_stream))
+        for chunk in (b"", b"", b"abcd", b"", b"ef"):
+            send_stream.send_nowait(chunk)
+
+        send_stream.close()
+        assert await stream.receive(2) == b"ab"
+        assert stream.buffer == b"cd"
+        assert await stream.receive(2) == b"cd"
+        assert await stream.receive(2) == b"ef"
+        with pytest.raises(EndOfStream):
+            await stream.receive(2)
+
+
+@pytest.mark.parametrize(
+    "stream_class", [BufferedByteReceiveStream, BufferedByteStream]
+)
+async def test_receive_empty_messages_before_eof(
+    stream_class: type[BufferedByteReceiveStream],
+) -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](2)
+    with send_stream, receive_stream:
+        stream = stream_class(StapledObjectStream(send_stream, receive_stream))
+        send_stream.send_nowait(b"")
+        send_stream.send_nowait(b"")
+        send_stream.close()
+        with pytest.raises(EndOfStream):
+            await stream.receive()
+
+
 async def test_receive_exactly() -> None:
     send_stream, receive_stream = create_memory_object_stream[bytes](2)
     buffered_stream = BufferedByteReceiveStream(receive_stream)

@@ -32,6 +32,8 @@ class BufferedByteReceiveStream(ByteReceiveStream):
     """
     Wraps any bytes-based receive stream and uses a buffer to provide sophisticated
     receiving capabilities in the form of a byte stream.
+
+    Empty messages from bytes-oriented object streams are ignored.
     """
 
     receive_stream: AnyByteReceiveStream
@@ -80,7 +82,11 @@ class BufferedByteReceiveStream(ByteReceiveStream):
         else:
             # With a bytes-oriented object stream, we need to handle any surplus bytes
             # we get from the receive() call
-            chunk = await self.receive_stream.receive()
+            while True:
+                chunk = await self.receive_stream.receive()
+                if chunk:
+                    break
+
             if len(chunk) > max_bytes:
                 # Save the surplus bytes in the buffer
                 self._buffer.extend(chunk[max_bytes:])
