@@ -403,6 +403,9 @@ class CancelScope(BaseCancelScope):
         return object.__new__(cls)
 
     def __init__(self, deadline: float = math.inf, shield: bool = False):
+        if math.isnan(deadline):
+            raise ValueError("deadline must not be NaN")
+
         self._deadline = deadline
         self._shield = shield
         self._parent_scope: CancelScope | None = None
@@ -707,7 +710,11 @@ class CancelScope(BaseCancelScope):
 
     @deadline.setter
     def deadline(self, value: float) -> None:
-        self._deadline = float(value)
+        value = float(value)
+        if math.isnan(value):
+            raise ValueError("deadline must not be NaN")
+
+        self._deadline = value
         if self._timeout_handle is not None:
             self._timeout_handle.cancel()
             self._timeout_handle = None
@@ -1109,9 +1116,9 @@ class WorkerThread(Thread):
                     return
 
                 context, func, args, future, cancel_scope = item
+                result = None
+                exception: BaseException | None = None
                 if not future.cancelled():
-                    result = None
-                    exception: BaseException | None = None
                     threadlocals.current_cancel_scope = cancel_scope
                     try:
                         result = context.run(func, *args)
@@ -1120,16 +1127,17 @@ class WorkerThread(Thread):
                     finally:
                         del threadlocals.current_cancel_scope
 
-                    try:
-                        self.loop.call_soon_threadsafe(
-                            self._report_result, future, result, exception
-                        )
-                    except RuntimeError:
-                        if not self.loop.is_closed():
-                            raise
+                # Report the result even if the future was cancelled before the call
+                # was started, so that the worker is put back on the idle list
+                try:
+                    self.loop.call_soon_threadsafe(
+                        self._report_result, future, result, exception
+                    )
+                except RuntimeError:
+                    if not self.loop.is_closed():
+                        raise
 
-                    del result, exception
-
+                del result, exception
                 self.queue.task_done()
                 del item, context, func, args, future, cancel_scope
 
@@ -1377,6 +1385,7 @@ class DatagramProtocol(asyncio.DatagramProtocol):
         self.write_event = asyncio.Event()
         self.closed_event = asyncio.Event()
         self.write_event.set()
+        cast(asyncio.WriteTransport, transport).set_write_buffer_limits(0)
 
     def connection_lost(self, exc: Exception | None) -> None:
         self.read_event.set()
@@ -1796,14 +1805,26 @@ class UDPSocket(abc.UDPSocket):
 
     async def send(self, item: UDPPacketType) -> None:
         with self._send_guard:
-            await AsyncIOBackend.checkpoint()
-            await self._protocol.write_event.wait()
+            await AsyncIOBackend.checkpoint_if_cancelled()
+            yielded = False
+
+            # Wait out any datagram the transport had to buffer
+            if not self._protocol.write_event.is_set():
+                yielded = True
+                await self._protocol.write_event.wait()
+
             if self._closed:
                 raise ClosedResourceError
             elif self._transport.is_closing():
                 raise BrokenResourceError
-            else:
-                self._transport.sendto(*item)
+
+            self._transport.sendto(*item)
+
+            # The high water mark is 0, so the event is clear if the OS refused it
+            if not self._protocol.write_event.is_set():
+                await self._protocol.write_event.wait()
+            elif not yielded:
+                await AsyncIOBackend.cancel_shielded_checkpoint()
 
 
 class ConnectedUDPSocket(abc.ConnectedUDPSocket):
@@ -1848,14 +1869,26 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
 
     async def send(self, item: bytes) -> None:
         with self._send_guard:
-            await AsyncIOBackend.checkpoint()
-            await self._protocol.write_event.wait()
+            await AsyncIOBackend.checkpoint_if_cancelled()
+            yielded = False
+
+            # Wait out any datagram the transport had to buffer
+            if not self._protocol.write_event.is_set():
+                yielded = True
+                await self._protocol.write_event.wait()
+
             if self._closed:
                 raise ClosedResourceError
             elif self._transport.is_closing():
                 raise BrokenResourceError
-            else:
-                self._transport.sendto(item)
+
+            self._transport.sendto(item)
+
+            # The high water mark is 0, so the event is clear if the OS refused it
+            if not self._protocol.write_event.is_set():
+                await self._protocol.write_event.wait()
+            elif not yielded:
+                await AsyncIOBackend.cancel_shielded_checkpoint()
 
 
 class UNIXDatagramSocket(_RawSocketMixin, abc.UNIXDatagramSocket):
@@ -2232,7 +2265,7 @@ class CapacityLimiter(BaseCapacityLimiter):
             try:
                 await AsyncIOBackend.cancel_shielded_checkpoint()
             except BaseException:
-                self.release()
+                self.release_on_behalf_of(borrower)
                 raise
 
     def release(self) -> None:
@@ -2878,10 +2911,14 @@ class AsyncIOBackend(AsyncBackend):
         return SocketStream(transport, protocol)
 
     @classmethod
-    async def connect_unix(cls, path: str | bytes) -> abc.UNIXSocketStream:
+    async def connect_unix(
+        cls,
+        path: str | bytes,
+        kind: Literal[SocketKind.SOCK_STREAM, SocketKind.SOCK_SEQPACKET],
+    ) -> abc.UNIXSocketStream:
         await cls.checkpoint()
         loop = get_running_loop()
-        raw_socket = socket.socket(socket.AF_UNIX)
+        raw_socket = socket.socket(socket.AF_UNIX, kind)
         raw_socket.setblocking(False)
         while True:
             try:

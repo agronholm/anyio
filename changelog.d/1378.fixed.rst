@@ -1,0 +1,1 @@
+Fixed ``BufferedByteReceiveStream.receive_exactly()`` and ``receive_until()`` returning buffered data after explicit closure instead of raising ``ClosedResourceError``
