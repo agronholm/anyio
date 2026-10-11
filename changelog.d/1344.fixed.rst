@@ -1,0 +1,2 @@
+Fixed asyncio worker threads leaking when manually managed event loops are closed by
+sharing workers across event loops and automatically retiring idle workers
