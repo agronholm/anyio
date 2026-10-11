@@ -276,11 +276,15 @@ def pytest_pyfunc_call(pyfuncitem: Any) -> bool | None:
         backend_name, backend_options = extract_backend_and_options(backend)
 
         if hasattr(pyfuncitem.obj, "hypothesis"):
-            # Wrap the inner test function unless it's already wrapped
-            original_func = pyfuncitem.obj.hypothesis.inner_test
-            if original_func.__qualname__ != run_with_hypothesis.__qualname__:
-                if iscoroutinefunction(original_func):
-                    pyfuncitem.obj.hypothesis.inner_test = run_with_hypothesis
+            # Wrap the inner test function
+            original_func = getattr(
+                pyfuncitem.obj,
+                "_anyio_hypothesis_original_inner_test",
+                pyfuncitem.obj.hypothesis.inner_test,
+            )
+            if iscoroutinefunction(original_func):
+                pyfuncitem.obj._anyio_hypothesis_original_inner_test = original_func
+                pyfuncitem.obj.hypothesis.inner_test = run_with_hypothesis
 
             return None
 
