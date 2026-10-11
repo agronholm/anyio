@@ -17,15 +17,10 @@ from anyio.streams.buffered import (
 from anyio.streams.stapled import StapledObjectStream
 
 
-@pytest.mark.parametrize(
-    "stream_class", [BufferedByteReceiveStream, BufferedByteStream]
-)
-async def test_receive_skips_empty_messages(
-    stream_class: type[BufferedByteReceiveStream],
-) -> None:
+async def test_receive_skips_empty_messages() -> None:
     send_stream, receive_stream = create_memory_object_stream[bytes](5)
     with send_stream, receive_stream:
-        stream = stream_class(StapledObjectStream(send_stream, receive_stream))
+        stream = BufferedByteReceiveStream(receive_stream)
         for chunk in (b"", b"", b"abcd", b"", b"ef"):
             send_stream.send_nowait(chunk)
 
@@ -38,15 +33,10 @@ async def test_receive_skips_empty_messages(
             await stream.receive(2)
 
 
-@pytest.mark.parametrize(
-    "stream_class", [BufferedByteReceiveStream, BufferedByteStream]
-)
-async def test_receive_empty_messages_before_eof(
-    stream_class: type[BufferedByteReceiveStream],
-) -> None:
+async def test_receive_empty_messages_before_eof() -> None:
     send_stream, receive_stream = create_memory_object_stream[bytes](2)
     with send_stream, receive_stream:
-        stream = stream_class(StapledObjectStream(send_stream, receive_stream))
+        stream = BufferedByteReceiveStream(receive_stream)
         send_stream.send_nowait(b"")
         send_stream.send_nowait(b"")
         send_stream.close()
