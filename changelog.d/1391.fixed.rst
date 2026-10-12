@@ -1,0 +1,6 @@
+Fixed ``MemoryObjectReceiveStream.close()``/``aclose()`` not waking tasks blocked in
+``receive()`` on the same clone (they would hang until cancelled), and
+``MemoryObjectSendStream.close()``/``aclose()`` not waking tasks blocked in ``send()``
+on the same clone (their pending items could even be delivered after the close). Closing
+a clone now wakes only the waiters belonging to that clone, raising
+``ClosedResourceError``, while already-committed transfers are still delivered.

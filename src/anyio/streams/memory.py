@@ -53,6 +53,12 @@ class _MemoryObjectItemReceiver(Generic[T_Item]):
 
 
 @dataclass(eq=False)
+class _MemoryObjectItemSender(Generic[T_Item]):
+    item: T_Item
+    closed: bool = False
+
+
+@dataclass(eq=False)
 class _MemoryObjectStreamState(Generic[T_Item]):
     max_buffer_size: float = field()
     buffer: deque[T_Item] = field(init=False, default_factory=deque)
@@ -61,7 +67,7 @@ class _MemoryObjectStreamState(Generic[T_Item]):
     waiting_receivers: OrderedDict[Event, _MemoryObjectItemReceiver[T_Item]] = field(
         init=False, default_factory=OrderedDict
     )
-    waiting_senders: OrderedDict[Event, T_Item] = field(
+    waiting_senders: OrderedDict[Event, _MemoryObjectItemSender[T_Item]] = field(
         init=False, default_factory=OrderedDict
     )
 
@@ -80,6 +86,7 @@ class _MemoryObjectStreamState(Generic[T_Item]):
 class MemoryObjectReceiveStream(ObjectReceiveStream[T_co], Generic[T_co]):
     _state: _MemoryObjectStreamState[T_co]
     _closed: bool = field(init=False, default=False)
+    _waiting_receivers: set[Event] = field(init=False, default_factory=set)
 
     def __post_init__(self) -> None:
         self._state.open_receive_channels += 1
@@ -101,8 +108,8 @@ class MemoryObjectReceiveStream(ObjectReceiveStream[T_co], Generic[T_co]):
 
         if self._state.waiting_senders:
             # Get the item from the next sender
-            send_event, item = self._state.waiting_senders.popitem(last=False)
-            self._state.buffer.append(item)
+            send_event, record = self._state.waiting_senders.popitem(last=False)
+            self._state.buffer.append(record.item)
             send_event.set()
 
         if self._state.buffer:
@@ -121,15 +128,19 @@ class MemoryObjectReceiveStream(ObjectReceiveStream[T_co], Generic[T_co]):
             receive_event = Event()
             receiver = _MemoryObjectItemReceiver[T_co]()
             self._state.waiting_receivers[receive_event] = receiver
+            self._waiting_receivers.add(receive_event)
 
             try:
                 await receive_event.wait()
             finally:
                 self._state.waiting_receivers.pop(receive_event, None)
+                self._waiting_receivers.discard(receive_event)
 
             try:
                 return receiver.item
             except AttributeError:
+                if self._closed:
+                    raise ClosedResourceError from None
                 raise EndOfStream from None
 
     def clone(self) -> MemoryObjectReceiveStream[T_co]:
@@ -158,6 +169,13 @@ class MemoryObjectReceiveStream(ObjectReceiveStream[T_co], Generic[T_co]):
         if not self._closed:
             self._closed = True
             self._state.open_receive_channels -= 1
+            # Wake any tasks blocked in receive() on THIS clone so that they do
+            # not hang, and remove them from the shared state so that no delivery
+            # can land after this clone has been closed.
+            for receive_event in self._waiting_receivers:
+                self._state.waiting_receivers.pop(receive_event, None)
+                receive_event.set()
+            self._waiting_receivers.clear()
             if self._state.open_receive_channels == 0:
                 send_events = list(self._state.waiting_senders.keys())
                 for event in send_events:
@@ -199,6 +217,7 @@ class MemoryObjectReceiveStream(ObjectReceiveStream[T_co], Generic[T_co]):
 class MemoryObjectSendStream(ObjectSendStream[T_contra], Generic[T_contra]):
     _state: _MemoryObjectStreamState[T_contra]
     _closed: bool = field(init=False, default=False)
+    _waiting_senders: set[Event] = field(init=False, default_factory=set)
 
     def __post_init__(self) -> None:
         self._state.open_send_channels += 1
@@ -251,16 +270,27 @@ class MemoryObjectSendStream(ObjectSendStream[T_contra], Generic[T_contra]):
         except WouldBlock:
             # Wait until there's someone on the receiving end
             send_event = Event()
-            self._state.waiting_senders[send_event] = item
+            record = _MemoryObjectItemSender[T_contra](item)
+            self._state.waiting_senders[send_event] = record
+            self._waiting_senders.add(send_event)
             try:
                 await send_event.wait()
             except BaseException:
                 self._state.waiting_senders.pop(send_event, None)
+                self._waiting_senders.discard(send_event)
                 raise
 
+            if record.closed:
+                # This clone was closed while we were waiting; the item was
+                # discarded and never delivered.
+                raise ClosedResourceError from None
             if send_event in self._state.waiting_senders:
+                # All the receiving ends have been closed; the item was not
+                # delivered.
                 del self._state.waiting_senders[send_event]
+                self._waiting_senders.discard(send_event)
                 raise BrokenResourceError from None
+            self._waiting_senders.discard(send_event)
 
     def clone(self) -> MemoryObjectSendStream[T_contra]:
         """
@@ -288,6 +318,15 @@ class MemoryObjectSendStream(ObjectSendStream[T_contra], Generic[T_contra]):
         if not self._closed:
             self._closed = True
             self._state.open_send_channels -= 1
+            # Discard any items still pending on THIS clone and wake their
+            # senders, so that a blocked send() does not hang and the item is
+            # never delivered after this clone has been closed.
+            for send_event in self._waiting_senders:
+                record = self._state.waiting_senders.pop(send_event, None)
+                if record is not None:
+                    record.closed = True
+                send_event.set()
+            self._waiting_senders.clear()
             if self._state.open_send_channels == 0:
                 receive_events = list(self._state.waiting_receivers.keys())
                 self._state.waiting_receivers.clear()

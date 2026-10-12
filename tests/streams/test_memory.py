@@ -244,6 +244,67 @@ async def test_close_receive_while_sending() -> None:
     receive.close()
 
 
+async def test_close_receive_while_receiving() -> None:
+    # Regression test for #1391: closing a receive stream clone must wake a task
+    # blocked in receive() on that same clone, raising ClosedResourceError.
+    send, receive = create_memory_object_stream[NoReturn](0)
+    with pytest.raises(ExceptionGroup) as exc:
+        async with create_task_group() as tg:
+            tg.start_soon(receive.receive)
+            await wait_all_tasks_blocked()
+            await receive.aclose()
+
+    assert len(exc.value.exceptions) == 1
+    assert isinstance(exc.value.exceptions[0], ClosedResourceError)
+
+    send.close()
+    receive.close()
+
+
+async def test_close_send_while_sending() -> None:
+    # Regression test for #1391: closing a send stream clone must wake a task
+    # blocked in send() on that same clone, raising ClosedResourceError, and the
+    # pending item must not be delivered after the close.
+    send, receive = create_memory_object_stream[str](0)
+    with pytest.raises(ExceptionGroup) as exc:
+        async with create_task_group() as tg:
+            tg.start_soon(send.send, "item")
+            await wait_all_tasks_blocked()
+            await send.aclose()
+
+    assert len(exc.value.exceptions) == 1
+    assert isinstance(exc.value.exceptions[0], ClosedResourceError)
+
+    # The pending item was discarded by the close and must not be delivered.
+    with pytest.raises(EndOfStream):
+        await receive.receive()
+
+    send.close()
+    receive.close()
+
+
+async def test_close_one_receive_clone_leaves_other_blocked() -> None:
+    # Regression test for #1391: closing one receive clone must not wake a task
+    # blocked in receive() on a different clone of the same stream.
+    received: list[str] = []
+
+    async def recv() -> None:
+        received.append(await receive.receive())
+
+    send, receive = create_memory_object_stream[str](0)
+    other = receive.clone()
+    async with create_task_group() as tg:
+        tg.start_soon(recv)
+        await wait_all_tasks_blocked()
+        other.close()  # must not wake `receive`'s waiter
+        send.send_nowait("hello")
+
+    assert received == ["hello"]
+
+    send.close()
+    receive.close()
+
+
 async def test_receive_after_send_closed() -> None:
     send, receive = create_memory_object_stream[str](1)
     await send.send("hello")
