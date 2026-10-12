@@ -178,6 +178,34 @@ def test_asyncio_worker_pool_after_fork() -> None:
     subprocess.run([sys.executable, "-c", script], check=True, timeout=10)
 
 
+def test_asyncio_worker_pool_after_main_thread_exits() -> None:
+    script = dedent("""
+        import threading
+        import anyio
+
+        main_thread = threading.main_thread()
+
+        def background():
+            main_thread.join()
+            result = anyio.run(anyio.to_thread.run_sync, int)
+            print(result, flush=True)
+
+        # Initialize the pool before the main thread exits.
+        assert anyio.run(anyio.to_thread.run_sync, int) == 0
+        threading.Thread(target=background, daemon=False).start()
+    """)
+    process = subprocess.run(
+        [sys.executable, "-c", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    # An uncaught exception in a background thread does not affect the exit code.
+    assert process.stderr == ""
+    assert process.stdout == "0\n"
+
+
 @pytest.mark.parametrize("close_loop", [False, True])
 @pytest.mark.parametrize("busy_worker", [False, True])
 def test_asyncio_worker_pool_interpreter_shutdown(
