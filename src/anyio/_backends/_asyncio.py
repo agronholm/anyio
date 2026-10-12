@@ -1072,6 +1072,7 @@ class WorkerThreadPool:
         self.workers: set[WorkerThread] = set()
         self.idle_workers: dict[WorkerThread, None] = {}
         self.stopping = False
+        self.draining = False
 
     def submit(
         self,
@@ -1118,6 +1119,14 @@ class WorkerThreadPool:
         for worker in workers:
             worker.join()
 
+    def drain(self) -> None:
+        with self.lock:
+            self.draining = True
+            for worker in self.idle_workers:
+                worker.queue.put_nowait(None)
+
+            self.idle_workers.clear()
+
 
 class WorkerThread(Thread):
     def __init__(self, pool: WorkerThreadPool):
@@ -1148,7 +1157,7 @@ class WorkerThread(Thread):
 
     def _run_job(
         self, item: tuple[Context, Callable, tuple, asyncio.Future, CancelScope]
-    ) -> None:
+    ) -> bool:
         context, func, args, future, cancel_scope = item
         loop = future.get_loop()
         result = None
@@ -1166,7 +1175,8 @@ class WorkerThread(Thread):
         # Make the worker available before delivering the result, so sequential
         # calls can reuse it even if the event loop receives the result immediately.
         with self.pool.lock:
-            if not self.pool.stopping:
+            retire = self.pool.stopping or self.pool.draining
+            if not retire:
                 self.pool.idle_workers[self] = None
 
         try:
@@ -1174,6 +1184,8 @@ class WorkerThread(Thread):
         except RuntimeError:
             if not loop.is_closed():
                 raise
+
+        return retire
 
     def run(self) -> None:
         try:
@@ -1194,7 +1206,8 @@ class WorkerThread(Thread):
                     if item is None:
                         return
 
-                    self._run_job(item)
+                    if self._run_job(item):
+                        return
                 finally:
                     del item
                     self.queue.task_done()
@@ -1208,7 +1221,11 @@ _threadpool = WorkerThreadPool()
 
 
 # Regular atexit callbacks run after Python joins non-daemon threads.
-threading._register_atexit(lambda: _threadpool.shutdown())  # type: ignore[attr-defined]
+try:
+    threading._register_atexit(lambda: _threadpool.drain())  # type: ignore[attr-defined]
+except RuntimeError:
+    # The main thread has already finished
+    _threadpool.draining = True
 
 
 def _reset_threadpool_after_fork() -> None:
