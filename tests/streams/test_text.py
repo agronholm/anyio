@@ -3,11 +3,12 @@ from __future__ import annotations
 import platform
 import sys
 from contextlib import AbstractContextManager, nullcontext
+from unittest.mock import AsyncMock
 
 import pytest
 
-from anyio import EndOfStream, create_memory_object_stream
-from anyio.abc import ObjectStream, ObjectStreamConnectable
+from anyio import BrokenResourceError, EndOfStream, create_memory_object_stream
+from anyio.abc import ObjectSendStream, ObjectStream, ObjectStreamConnectable
 from anyio.streams.stapled import StapledObjectStream
 from anyio.streams.text import (
     TextConnectable,
@@ -63,6 +64,70 @@ async def test_send() -> None:
 
     send_stream.close()
     receive_stream.close()
+
+
+@pytest.mark.parametrize("encoding", ["iso2022_jp", "idna", "utf-8"])
+@pytest.mark.parametrize("wrapper", ["send", "bidirectional"])
+async def test_send_close_finalizes_encoder(encoding: str, wrapper: str) -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](4)
+    incoming_send, incoming_receive = create_memory_object_stream[bytes](1)
+    with receive_stream, incoming_send, incoming_receive:
+        if wrapper == "send":
+            text_stream: TextSendStream | TextStream = TextSendStream(
+                send_stream, encoding=encoding
+            )
+        else:
+            text_stream = TextStream(
+                StapledObjectStream(send_stream, incoming_receive), encoding=encoding
+            )
+
+        await text_stream.send("日本")
+        await text_stream.aclose()
+        await text_stream.aclose()
+        assert b"".join([chunk async for chunk in receive_stream]) == "日本".encode(
+            encoding
+        )
+
+
+@pytest.mark.parametrize("encoding", ["iso2022_jp", "idna", "utf-8"])
+async def test_send_eof_finalizes_encoder(encoding: str) -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](4)
+    incoming_send, incoming_receive = create_memory_object_stream[bytes](1)
+    with receive_stream, incoming_send:
+        text_stream = TextStream(
+            StapledObjectStream(send_stream, incoming_receive), encoding=encoding
+        )
+        await text_stream.send("日本")
+        await text_stream.send_eof()
+        assert b"".join([chunk async for chunk in receive_stream]) == "日本".encode(
+            encoding
+        )
+        await incoming_send.send(b"reply")
+        incoming_send.close()
+        assert await text_stream.receive() == "reply"
+        await text_stream.aclose()
+
+
+@pytest.mark.parametrize("encoding", ["utf-16", "utf-32", "utf-8-sig"])
+async def test_close_unused_send_stream(encoding: str) -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
+    with receive_stream:
+        text_stream = TextSendStream(send_stream, encoding=encoding)
+        await text_stream.aclose()
+        await text_stream.aclose()
+        with pytest.raises(EndOfStream):
+            await receive_stream.receive()
+
+
+async def test_send_close_when_finalization_fails() -> None:
+    transport = AsyncMock(spec=ObjectSendStream)
+    transport.send.side_effect = [None, BrokenResourceError]
+    text_stream = TextSendStream(transport, encoding="iso2022_jp")
+    await text_stream.send("日本")
+    with pytest.raises(BrokenResourceError):
+        await text_stream.aclose()
+
+    transport.aclose.assert_awaited_once()
 
 
 @pytest.mark.xfail(

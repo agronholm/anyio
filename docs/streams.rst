@@ -185,6 +185,10 @@ Text streams
 Text streams wrap existing receive/send streams and encode/decode strings to bytes and
 vice versa.
 
+Text send streams preserve encoder state between sends. Closing a text send stream,
+or calling ``TextStream.send_eof()``, flushes any buffered text and encoding terminators
+before closing the underlying send stream.
+
 Example::
 
     from anyio import run, create_memory_object_stream
