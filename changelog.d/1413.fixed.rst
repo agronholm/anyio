@@ -1,0 +1,1 @@
+Fixed text send streams dropping buffered output and encoding terminators when closed or half-closed.
