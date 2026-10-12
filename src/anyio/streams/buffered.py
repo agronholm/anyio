@@ -32,8 +32,6 @@ class BufferedByteReceiveStream(ByteReceiveStream):
     """
     Wraps any bytes-based receive stream and uses a buffer to provide sophisticated
     receiving capabilities in the form of a byte stream.
-
-    Empty messages from bytes-oriented object streams are ignored.
     """
 
     receive_stream: AnyByteReceiveStream
