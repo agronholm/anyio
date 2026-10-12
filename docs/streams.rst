@@ -219,6 +219,10 @@ File streams read from or write to files on the file system. They can be useful 
 substituting a file for another source of data, or writing output to a file for logging
 or debugging purposes.
 
+When wrapping an existing binary file object, path metadata is available only if its
+name represents a path. Files opened from a numeric file descriptor do not provide
+``FileStreamAttribute.path``. Byte filenames are decoded using the filesystem encoding.
+
 Example::
 
     from anyio import run
