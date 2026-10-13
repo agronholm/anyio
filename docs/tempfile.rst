@@ -50,6 +50,11 @@ Spooled Temporary File
 
 :class:`SpooledTemporaryFile` is useful when temporary data is small and should be kept in memory rather than written to disk.
 
+Like :class:`tempfile.SpooledTemporaryFile`, an explicit ``truncate(size)`` call
+rolls the file over to disk when ``size`` exceeds ``max_size``, including when
+``max_size`` is zero. Calling ``truncate()`` without a size does not trigger a
+rollover.
+
 **Example:**
 
 .. code-block:: python

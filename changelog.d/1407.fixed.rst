@@ -1,0 +1,1 @@
+Fixed ``SpooledTemporaryFile.truncate()`` failing to roll over when an explicit size exceeds ``max_size``

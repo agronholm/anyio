@@ -61,6 +61,59 @@ class TestNamedTemporaryFile:
 
 
 class TestSpooledTemporaryFile:
+    @pytest.mark.parametrize("max_size", [0, 10])
+    @pytest.mark.parametrize("size", [None, 0, 3, 10, 11])
+    async def test_truncate(self, max_size: int, size: int | None) -> None:
+        with tempfile.SpooledTemporaryFile(max_size=max_size) as reference:
+            reference.write(b"hello")
+            reference.seek(2)
+            expected_size = reference.truncate(size)
+            expected_position = reference.tell()
+            expected_rolled = reference._rolled  # type: ignore[attr-defined]
+            reference.seek(0)
+            expected_data = reference.read()
+
+        async with SpooledTemporaryFile[bytes](max_size=max_size) as stf:
+            await stf.write(b"hello")
+            await stf.seek(2)
+            assert await stf.truncate(size) == expected_size
+            assert await stf.tell() == expected_position
+            await stf.seek(0)
+            assert await stf.read() == expected_data
+            assert stf._rolled == expected_rolled
+
+    async def test_truncate_text_rollover(self) -> None:
+        async with SpooledTemporaryFile[str](max_size=10, mode="w+") as stf:
+            await stf.write("hello")
+            await stf.seek(2)
+            assert await stf.truncate(11) == 11
+            assert await stf.tell() == 2
+            assert stf._rolled
+            await stf.seek(0)
+            assert await stf.read() == "hello" + "\0" * 6
+
+    async def test_truncate_after_rollover(self) -> None:
+        async with SpooledTemporaryFile[bytes](max_size=10) as stf:
+            await stf.write(b"hello world")
+            assert stf._rolled
+            await stf.seek(2)
+            assert await stf.truncate(5) == 5
+            assert await stf.tell() == 2
+            await stf.seek(0)
+            assert await stf.read() == b"hello"
+
+    async def test_truncate_cancelled(self) -> None:
+        async with SpooledTemporaryFile[bytes](max_size=10) as stf:
+            await stf.write(b"hello")
+            with CancelScope() as scope:
+                scope.cancel()
+                await stf.truncate(11)
+
+            assert scope.cancelled_caught
+            assert not stf._rolled
+            await stf.seek(0)
+            assert await stf.read() == b"hello"
+
     @pytest.mark.parametrize("use_writelines", [False, True])
     async def test_default_max_size_no_rollover(self, use_writelines: bool) -> None:
         data = b"hello world"
