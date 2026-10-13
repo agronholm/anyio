@@ -1,0 +1,2 @@
+Fixed cancellation during temporary directory creation leaving the directory behind
+while its context manager is retained

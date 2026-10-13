@@ -44,6 +44,7 @@ from pytest_mock.plugin import MockerFixture
 from anyio import (
     BrokenResourceError,
     BusyResourceError,
+    CancelScope,
     ClosedResourceError,
     EndOfStream,
     Event,
@@ -61,6 +62,7 @@ from anyio import (
     create_unix_datagram_socket,
     create_unix_listener,
     fail_after,
+    get_available_backends,
     getaddrinfo,
     getnameinfo,
     move_on_after,
@@ -473,6 +475,30 @@ class TestTCPStream:
         thread.join()
         server_sock.close()
         assert client_addr[0] == expected_client_addr
+
+    async def test_connect_tcp_closes_winner_on_outer_cancellation(
+        self, server_addr: tuple[str, int], monkeypatch: MonkeyPatch
+    ) -> None:
+        """
+        A connected stream must be closed if the enclosing cancel scope is cancelled
+        before the connection attempt task group exits.
+        """
+        backend = get_async_backend()
+        original_connect_tcp = backend.connect_tcp
+        streams: list[SocketStream] = []
+
+        async def connect_and_cancel(*args: Any) -> SocketStream:
+            streams.append(await original_connect_tcp(*args))
+            scope.cancel()
+            return streams[-1]
+
+        monkeypatch.setattr(backend, "connect_tcp", connect_and_cancel)
+        with CancelScope() as scope:
+            await connect_tcp(*server_addr)
+
+        assert scope.cancelled_caught
+        with pytest.raises(ClosedResourceError):
+            await streams[0].send(b"x")
 
     async def test_connect_tcp_with_local_port(
         self,
@@ -1873,6 +1899,32 @@ async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
 @pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestUDPSocket:
+    @pytest.mark.skipif(
+        "trio" not in get_available_backends(), reason="trio is not available"
+    )
+    @pytest.mark.parametrize("anyio_backend", ["trio"])
+    async def test_bind_failure_closes_socket(
+        self, family: AnyIPAddressFamily, monkeypatch: MonkeyPatch
+    ) -> None:
+        import trio
+
+        real_socket = trio.socket.socket
+        created: list[trio.socket.SocketType] = []
+
+        def capture_socket(*args: Any, **kwargs: Any) -> trio.socket.SocketType:
+            created.append(real_socket(*args, **kwargs))
+            return created[-1]
+
+        monkeypatch.setattr(trio.socket, "socket", capture_socket)
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        with socket.socket(family, socket.SOCK_DGRAM) as occupied:
+            occupied.bind((host, 0))
+            port = occupied.getsockname()[1]
+            with pytest.raises(OSError):
+                await create_udp_socket(family=family, local_host=host, local_port=port)
+
+        assert created[0].fileno() == -1
+
     async def test_aclose_waits_for_fd_release(
         self, family: AnyIPAddressFamily, free_udp_port: int
     ) -> None:
