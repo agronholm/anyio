@@ -1099,13 +1099,14 @@ class TestTCPListener:
     async def test_aclose_in_cancelled_scope_raises_cancelled_exc(
         self, family: AnyIPAddressFamily, accepting: bool
     ) -> None:
+        multi = await create_tcp_listener(local_host="localhost", family=family)
+        listener = multi.listeners[0]
+        assert isinstance(listener, SocketListener)
+
         async def accept() -> None:
             with pytest.raises(ClosedResourceError):
                 await listener.accept()
 
-        multi = await create_tcp_listener(local_host="localhost", family=family)
-        listener = multi.listeners[0]
-        assert isinstance(listener, SocketListener)
         exc = None
         async with multi, create_task_group() as tg:
             if accepting:
