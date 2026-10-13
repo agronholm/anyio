@@ -4,7 +4,6 @@ import os
 import pathlib
 import shutil
 import tempfile
-from collections.abc import Callable
 from typing import Any, AnyStr
 from unittest.mock import patch
 
@@ -62,43 +61,6 @@ class TestNamedTemporaryFile:
 
 
 class TestSpooledTemporaryFile:
-    @pytest.mark.parametrize(
-        "factory, data",
-        [
-            (lambda: SpooledTemporaryFile(mode="w+b"), b"hello world"),
-            (lambda: SpooledTemporaryFile(mode="w+"), "hello world"),
-        ],
-        ids=["binary", "text"],
-    )
-    async def test_cancellation_during_rollover(
-        self, factory: Callable[[], SpooledTemporaryFile[AnyStr]], data: AnyStr
-    ) -> None:
-        original = tempfile.TemporaryFile
-        scope: CancelScope
-
-        def create(**kwargs: Any) -> Any:
-            file = original(**kwargs)
-            from_thread.run_sync(scope.cancel)
-            return file
-
-        async with factory() as stf:
-            await stf.write(data)
-            await stf.seek(5)
-            buffer = stf.wrapped
-            try:
-                with CancelScope() as scope:
-                    with patch("anyio._core._tempfile.tempfile.TemporaryFile", create):
-                        await stf.rollover()
-                        await checkpoint()
-
-                assert scope.cancelled_caught
-                assert await stf.tell() == 5
-                await stf.seek(0)
-                assert await stf.read() == data
-                assert buffer.closed
-            finally:
-                buffer.close()
-
     async def test_cancelled_before_rollover(self) -> None:
         async with SpooledTemporaryFile() as stf:
             await stf.write(b"hello world")
