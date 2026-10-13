@@ -544,8 +544,7 @@ async def test_asyncio_worker_reused_after_cancelled_call(
     later calls, and retire automatically when idle for too long.
     """
     worker: Any = await to_thread.run_sync(threading.current_thread)
-    # Simulate a scheduling delay longer than the retirement tests' timeout.
-    await asyncio.sleep(0.2)
+    worker.queue.join()
 
     def put_cancelled_item(item: tuple[Any, ...]) -> None:
         # Cancel the future before the worker thread gets a chance to dequeue the item
