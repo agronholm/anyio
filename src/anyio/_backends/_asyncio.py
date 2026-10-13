@@ -1340,6 +1340,7 @@ class StreamProtocol(asyncio.Protocol):
     write_event: asyncio.Event
     exception: Exception | None = None
     is_at_eof: bool = False
+    is_connection_lost: bool = False
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.read_queue = deque()
@@ -1349,6 +1350,7 @@ class StreamProtocol(asyncio.Protocol):
         cast(asyncio.Transport, transport).set_write_buffer_limits(0)
 
     def connection_lost(self, exc: Exception | None) -> None:
+        self.is_connection_lost = True
         if exc:
             self.exception = exc
 
@@ -1500,7 +1502,8 @@ class SocketStream(abc.SocketStream):
 
             self._transport.close()
             await sleep(0)
-            self._transport.abort()
+            if not self._protocol.is_connection_lost:
+                self._transport.abort()
 
 
 class _RawSocketMixin:
