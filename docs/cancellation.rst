@@ -135,7 +135,22 @@ To accomplish this, open a new cancel scope with the ``shield=True`` argument::
     run(main)
 
 The shielded block will be exempt from cancellation except when the shielded block
-itself is being cancelled. Shielding a cancel scope is often best combined with
+itself is being cancelled.
+
+.. figure:: diagrams/cancellation-shielding.png
+   :alt: An outer cancel scope contains a shielded inner scope. Outer cancellation
+         reaches an unshielded await but does not enter the shield. Cancellation
+         initiated by the shielded scope itself still applies inside it.
+   :width: 560px
+
+   Boxes show scope nesting; the arrow shows where outer cancellation is delivered.
+   After leaving the shield, an await in the cancelled outer scope is cancelled again.
+   The shield's own cancellation or deadline can still cancel an await inside it.
+   This illustrates the host task's awaits, not the scopes inherited by sibling tasks.
+   :download:`Download SVG <diagrams/cancellation-shielding.svg>` ·
+   `Edit diagram <https://svgdiagram.ai/diagram-sources/anyio-cancellation-shielding?version=1>`__.
+
+Shielding a cancel scope is often best combined with
 :func:`~move_on_after` or :func:`~fail_after`, both of which also accept
 ``shield=True``::
 
