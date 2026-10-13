@@ -1705,25 +1705,21 @@ class TCPSocketListener(abc.SocketListener):
         return SocketStream(transport, protocol)
 
     async def aclose(self) -> None:
-        if not self._closed:
-            self._closed = True
-            if self._accept_scope:
-                # Workaround for https://bugs.python.org/issue41317
-                try:
-                    self._loop.remove_reader(self._raw_socket)
-                except (ValueError, NotImplementedError):
-                    pass
+        self._closed = True
+        if self._accept_scope:
+            # Workaround for https://bugs.python.org/issue41317
+            try:
+                self._loop.remove_reader(self._raw_socket)
+            except (ValueError, NotImplementedError):
+                pass
 
-                self._accept_scope.cancel()
-                try:
-                    await sleep(0)
-                finally:
-                    # Close the socket even if aclose() itself is cancelled here
-                    self._raw_socket.close()
-            else:
-                self._raw_socket.close()
+            self._accept_scope.cancel()
 
-        await AsyncIOBackend.checkpoint()
+        try:
+            # Lets a cancelled accept() unwind before the socket is closed
+            await AsyncIOBackend.checkpoint()
+        finally:
+            self._raw_socket.close()
 
 
 class UNIXSocketListener(abc.SocketListener):
