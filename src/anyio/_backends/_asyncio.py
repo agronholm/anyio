@@ -1723,6 +1723,8 @@ class TCPSocketListener(abc.SocketListener):
 
 
 class UNIXSocketListener(abc.SocketListener):
+    _accept_future: asyncio.Future | None = None
+
     def __init__(self, raw_socket: socket.socket):
         self.__raw_socket = raw_socket
         self._loop = get_running_loop()
@@ -1738,12 +1740,14 @@ class UNIXSocketListener(abc.SocketListener):
                     client_sock.setblocking(False)
                     return UNIXSocketStream(client_sock)
                 except BlockingIOError:
-                    f: asyncio.Future = asyncio.Future()
+                    f = self._accept_future = self._loop.create_future()
                     self._loop.add_reader(self.__raw_socket, f.set_result, None)
-                    f.add_done_callback(
-                        lambda _: self._loop.remove_reader(self.__raw_socket)
-                    )
-                    await f
+                    try:
+                        await f
+                    finally:
+                        if self._accept_future is f:
+                            self._accept_future = None
+                            self._loop.remove_reader(self.__raw_socket)
                 except OSError as exc:
                     if self._closed:
                         raise ClosedResourceError from None
@@ -1752,6 +1756,15 @@ class UNIXSocketListener(abc.SocketListener):
 
     async def aclose(self) -> None:
         self._closed = True
+        if f := self._accept_future:
+            # Deregister the reader before closing the socket so the selector isn't
+            # left holding a closed fd, then wake accept() so it raises
+            # ClosedResourceError
+            self._accept_future = None
+            self._loop.remove_reader(self.__raw_socket)
+            if not f.done():
+                f.set_result(None)
+
         self.__raw_socket.close()
         await AsyncIOBackend.checkpoint()
 

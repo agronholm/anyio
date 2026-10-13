@@ -1943,6 +1943,36 @@ class TestUNIXListener:
                 async with await listener.accept() as stream:
                     assert stream.extra(SocketAttribute.family) == socket.AF_UNIX
 
+    async def test_close_during_accept(self, socket_path: Path) -> None:
+        async def accept() -> None:
+            with pytest.raises(ClosedResourceError):
+                await listener.accept()
+
+        listener = await create_unix_listener(socket_path)
+        with fail_after(1):
+            async with create_task_group() as tg:
+                tg.start_soon(accept)
+                await wait_all_tasks_blocked()
+                await listener.aclose()
+
+        assert listener.extra(SocketAttribute.raw_socket).fileno() == -1
+
+    async def test_aclose_in_cancelled_scope_raises_cancelled_exc(
+        self, socket_path: Path
+    ) -> None:
+        exc = None
+        listener = await create_unix_listener(socket_path)
+        with CancelScope() as scope:
+            scope.cancel()
+            try:
+                await listener.aclose()
+            except get_cancelled_exc_class() as e:
+                exc = e
+                raise
+
+        assert exc is not None
+        assert listener.extra(SocketAttribute.raw_socket).fileno() == -1
+
 
 async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
     async def handle(stream: SocketStream) -> None:
