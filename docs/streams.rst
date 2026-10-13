@@ -219,6 +219,10 @@ File streams read from or write to files on the file system. They can be useful 
 substituting a file for another source of data, or writing output to a file for logging
 or debugging purposes.
 
+:meth:`~anyio.streams.file.FileWriteStream.send` writes all of the supplied bytes,
+retrying when the wrapped file performs a partial write. If the file cannot make
+progress, it raises :exc:`~anyio.BrokenResourceError` instead of returning successfully.
+
 Example::
 
     from anyio import run
