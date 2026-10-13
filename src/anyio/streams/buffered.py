@@ -80,7 +80,10 @@ class BufferedByteReceiveStream(ByteReceiveStream):
         else:
             # With a bytes-oriented object stream, we need to handle any surplus bytes
             # we get from the receive() call
-            chunk = await self.receive_stream.receive()
+            while True:
+                if chunk := await self.receive_stream.receive():
+                    break
+
             if len(chunk) > max_bytes:
                 # Save the surplus bytes in the buffer
                 self._buffer.extend(chunk[max_bytes:])
