@@ -1095,6 +1095,33 @@ class TestTCPListener:
         assert len(nested_grp.exceptions) == 1
         assert isinstance(nested_grp.exceptions[0], ExceptionGroup)
 
+    @pytest.mark.parametrize("accepting", [False, True], ids=["idle", "accepting"])
+    async def test_aclose_in_cancelled_scope_raises_cancelled_exc(
+        self, family: AnyIPAddressFamily, accepting: bool
+    ) -> None:
+        async def accept() -> None:
+            with pytest.raises(ClosedResourceError):
+                await listener.accept()
+
+        multi = await create_tcp_listener(local_host="localhost", family=family)
+        listener = multi.listeners[0]
+        exc = None
+        async with multi, create_task_group() as tg:
+            if accepting:
+                tg.start_soon(accept)
+                await wait_all_tasks_blocked()
+
+            with CancelScope() as scope:
+                scope.cancel()
+                try:
+                    await listener.aclose()
+                except get_cancelled_exc_class() as e:
+                    exc = e
+                    raise
+
+        assert exc is not None
+        assert listener.extra(SocketAttribute.raw_socket).fileno() == -1
+
     async def test_send_after_eof(self, family: AnyIPAddressFamily) -> None:
         async def handle(stream: SocketStream) -> None:
             async with stream:
