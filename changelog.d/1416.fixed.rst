@@ -1,0 +1,1 @@
+Fixed FileWriteStream.send silently discarding unwritten bytes after a partial file write
