@@ -1105,6 +1105,7 @@ class TestTCPListener:
 
         multi = await create_tcp_listener(local_host="localhost", family=family)
         listener = multi.listeners[0]
+        assert isinstance(listener, SocketListener)
         exc = None
         async with multi, create_task_group() as tg:
             if accepting:
