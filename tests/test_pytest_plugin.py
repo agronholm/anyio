@@ -12,6 +12,8 @@ from _pytest.pytester import Pytester
 from anyio import get_available_backends
 
 if TYPE_CHECKING:
+    from unittest.mock import MagicMock
+
     from pytest_mock import MockerFixture
 
     from anyio.pytest_plugin import FreePortFactory
@@ -797,7 +799,7 @@ class TestFreePortFactory:
 
         error = OSError(error_code, "cannot bind loopback")
         original_socket = socket.socket
-        sockets = []
+        sockets: list[MagicMock] = []
         attempts = 0
 
         def bind(address: tuple[str, int]) -> None:
@@ -811,7 +813,7 @@ class TestFreePortFactory:
 
             raise error
 
-        def make_socket(*args: object) -> object:
+        def make_socket(*args: object) -> MagicMock:
             sock = mocker.MagicMock(spec=original_socket)
             sock.__enter__.return_value = sock
             sock.__exit__.return_value = False
