@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import socket
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -11,6 +12,8 @@ from _pytest.pytester import Pytester
 from anyio import get_available_backends
 
 if TYPE_CHECKING:
+    from pytest_mock import MockerFixture
+
     from anyio.pytest_plugin import FreePortFactory
 
 pytestmark = [
@@ -780,6 +783,96 @@ def test_auto_mode_conflict_warning(testdir: Pytester) -> None:
 
 
 class TestFreePortFactory:
+    @pytest.mark.parametrize("kind", [socket.SOCK_STREAM, socket.SOCK_DGRAM])
+    @pytest.mark.parametrize("family", [socket.AF_INET, socket.AF_INET6, None])
+    @pytest.mark.parametrize("error_code", [errno.EACCES, errno.EADDRNOTAVAIL, None])
+    def test_permanent_bind_error(
+        self,
+        mocker: MockerFixture,
+        kind: socket.SocketKind,
+        family: socket.AddressFamily | None,
+        error_code: int | None,
+    ) -> None:
+        from anyio.pytest_plugin import FreePortFactory
+
+        error = OSError(error_code, "cannot bind loopback")
+        original_socket = socket.socket
+        sockets = []
+        attempts = 0
+
+        def bind(address: tuple[str, int]) -> None:
+            nonlocal attempts
+            if family is None and address[0] == "127.0.0.1":
+                return
+
+            attempts += 1
+            if attempts > 1:
+                raise AssertionError("permanent bind error was retried")
+
+            raise error
+
+        def make_socket(*args: object) -> object:
+            sock = mocker.MagicMock(spec=original_socket)
+            sock.__enter__.return_value = sock
+            sock.__exit__.return_value = False
+            sock.bind.side_effect = bind
+            sock.getsockname.return_value = ("127.0.0.1", 12345)
+            sockets.append(sock)
+            return sock
+
+        mocker.patch.object(socket, "has_ipv6", True)
+        mocker.patch.object(socket, "socket", side_effect=make_socket)
+        with pytest.raises(OSError) as exc_info:
+            FreePortFactory(kind)(family)
+
+        assert exc_info.value is error
+        assert attempts == 1
+        assert len(sockets) == (2 if family is None else 1)
+        assert all(sock.__exit__.call_count == 1 for sock in sockets)
+
+    @pytest.mark.parametrize("kind", [socket.SOCK_STREAM, socket.SOCK_DGRAM])
+    def test_ephemeral_port_allocation_error(
+        self, mocker: MockerFixture, kind: socket.SocketKind
+    ) -> None:
+        from anyio.pytest_plugin import FreePortFactory
+
+        error = OSError(errno.EADDRINUSE, "no ephemeral port available")
+        sock = mocker.MagicMock(spec=socket.socket)
+        sock.__enter__.return_value = sock
+        sock.__exit__.return_value = False
+        sock.bind.side_effect = [error, AssertionError("allocation error was retried")]
+        constructor = mocker.patch.object(socket, "socket", return_value=sock)
+        with pytest.raises(OSError) as exc_info:
+            FreePortFactory(kind)(socket.AF_INET)
+
+        assert exc_info.value is error
+        constructor.assert_called_once_with(socket.AF_INET, kind)
+        sock.__exit__.assert_called_once()
+
+    @pytest.mark.parametrize("kind", [socket.SOCK_STREAM, socket.SOCK_DGRAM])
+    def test_cross_family_port_collision(
+        self, mocker: MockerFixture, kind: socket.SocketKind
+    ) -> None:
+        from anyio.pytest_plugin import FreePortFactory
+
+        sockets = [mocker.MagicMock(spec=socket.socket) for _ in range(4)]
+        for index, sock in enumerate(sockets):
+            sock.__enter__.return_value = sock
+            sock.__exit__.return_value = False
+            sock.getsockname.return_value = ("127.0.0.1", 12345 + index // 2)
+
+        sockets[1].bind.side_effect = OSError(errno.EADDRINUSE, "port in use")
+        mocker.patch.object(socket, "has_ipv6", True)
+        constructor = mocker.patch.object(socket, "socket", side_effect=sockets)
+        assert FreePortFactory(kind)() == 12346
+        assert constructor.call_args_list == [
+            mocker.call(socket.AF_INET, kind),
+            mocker.call(socket.AF_INET6, kind),
+            mocker.call(socket.AF_INET, kind),
+            mocker.call(socket.AF_INET6, kind),
+        ]
+        assert all(sock.__exit__.call_count == 1 for sock in sockets)
+
     @pytest.fixture(scope="class")
     @classmethod
     def families(cls) -> Sequence[tuple[socket.AddressFamily, str]]:
