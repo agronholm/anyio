@@ -1,1 +1,1 @@
-Fixed UDP socket closing hanging on Windows if a datagram send was still in flight
+Fixed UDP socket closing hanging if a datagram send was still in flight

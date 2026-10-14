@@ -1473,6 +1473,8 @@ class SocketStream(abc.SocketStream):
                 if self._closed:
                     # aclose() aborted the transport, discarding the unsent data
                     raise ClosedResourceError
+                elif self._protocol.exception is not None:
+                    raise BrokenResourceError from self._protocol.exception
             elif not yielded:
                 await AsyncIOBackend.cancel_shielded_checkpoint()
 

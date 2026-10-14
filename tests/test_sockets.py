@@ -585,6 +585,7 @@ class TestTCPStream:
             await stream.aclose()
 
         async with await connect_tcp(*server_addr) as stream:
+            raw_socket = stream.extra(SocketAttribute.raw_socket)
             async with create_task_group() as tg:
                 tg.start_soon(interrupt)
                 with pytest.raises(ClosedResourceError):
@@ -594,6 +595,39 @@ class TestTCPStream:
                         await stream.send(b"\0" * 1024 * 1024)
                         assert not closed, "send() returned normally after aclose()"
 
+            assert raw_socket.fileno() == -1
+
+    async def test_reset_during_send(
+        self, family: AnyIPAddressFamily, request: FixtureRequest
+    ) -> None:
+        server_sock = socket.create_server(("localhost", 0), family=family)
+        request.addfinalizer(server_sock.close)
+        server_addr = server_sock.getsockname()[:2]
+        reset = False
+
+        async def interrupt() -> None:
+            nonlocal reset
+            await wait_all_tasks_blocked()
+            reset = True
+            client_sock.setsockopt(
+                socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
+            )
+            client_sock.close()
+
+        async with await connect_tcp(*server_addr) as stream:
+            client_sock, _ = server_sock.accept()
+            with fail_after(5):
+                async with create_task_group() as tg:
+                    tg.start_soon(interrupt)
+                    with pytest.raises(BrokenResourceError) as exc_info:
+                        # Nothing reads from the peer, so this blocks once the socket
+                        # buffers fill up (how much they take varies by platform)
+                        while True:
+                            await stream.send(b"\0" * 1024 * 1024)
+                            assert not reset, "send() returned normally after reset"
+
+            assert exc_info.value.__cause__ is not None
+
     async def test_aclose_forcefully(self, server_addr: tuple[str, int]) -> None:
         stream = await connect_tcp(*server_addr)
         sock = stream.extra(SocketAttribute.raw_socket)
@@ -601,7 +635,7 @@ class TestTCPStream:
         await aclose_forcefully(stream)
         assert sock.fileno() == -1
 
-    async def test_concurrent_aclose_forcefully_returns_before_socket_closes(
+    async def test_concurrent_aclose_forcefully_closes_socket(
         self, server_addr: tuple[str, int]
     ) -> None:
         stream = await connect_tcp(*server_addr)
@@ -623,6 +657,7 @@ class TestTCPStream:
     ) -> None:
         exc = None
         stream = await connect_tcp(*server_addr)
+        raw_socket = stream.extra(SocketAttribute.raw_socket)
 
         with CancelScope() as scope:
             scope.cancel()
@@ -633,6 +668,7 @@ class TestTCPStream:
                 raise
 
         assert exc is not None
+        assert raw_socket.fileno() == -1
 
     async def test_receive_after_close(self, server_addr: tuple[str, int]) -> None:
         stream = await connect_tcp(*server_addr)
@@ -1650,7 +1686,7 @@ class TestUNIXStream:
             if client is not None:
                 await client.aclose()
 
-    async def test_concurrent_aclose_forcefully_returns_before_socket_closes(
+    async def test_concurrent_aclose_forcefully_closes_socket(
         self, server_sock: socket.socket, socket_path: Path
     ) -> None:
         stream = await connect_unix(socket_path)
@@ -1672,6 +1708,7 @@ class TestUNIXStream:
     ) -> None:
         exc = None
         stream = await connect_unix(socket_path)
+        raw_socket = stream.extra(SocketAttribute.raw_socket)
 
         with CancelScope() as scope:
             scope.cancel()
@@ -1682,6 +1719,7 @@ class TestUNIXStream:
                 raise
 
         assert exc is not None
+        assert raw_socket.fileno() == -1
 
     async def test_receive_after_close(
         self, server_sock: socket.socket, socket_path: Path
@@ -2095,7 +2133,7 @@ class TestUDPSocket:
             with pytest.raises(ClosedResourceError):
                 await udp.receive()
 
-    async def test_concurrent_aclose_forcefully_returns_before_socket_closes(
+    async def test_concurrent_aclose_forcefully_closes_socket(
         self,
     ) -> None:
         udp = await create_udp_socket(
@@ -2119,6 +2157,7 @@ class TestUDPSocket:
         udp = await create_udp_socket(
             family=AddressFamily.AF_INET, local_host="localhost"
         )
+        raw_socket = udp.extra(SocketAttribute.raw_socket)
 
         with CancelScope() as scope:
             scope.cancel()
@@ -2129,6 +2168,7 @@ class TestUDPSocket:
                 raise
 
         assert exc is not None
+        assert raw_socket.fileno() == -1
 
     async def test_receive_after_close(self) -> None:
         udp = await create_udp_socket(
@@ -2366,7 +2406,7 @@ class TestConnectedUDPSocket:
             with pytest.raises(ClosedResourceError):
                 await udp.receive()
 
-    async def test_concurrent_aclose_forcefully_returns_before_socket_closes(
+    async def test_concurrent_aclose_forcefully_closes_socket(
         self, family: AnyIPAddressFamily
     ) -> None:
         udp = await create_connected_udp_socket(
@@ -2392,6 +2432,7 @@ class TestConnectedUDPSocket:
         udp = await create_connected_udp_socket(
             "localhost", 5000, local_host="localhost", family=family
         )
+        raw_socket = udp.extra(SocketAttribute.raw_socket)
 
         with CancelScope() as scope:
             scope.cancel()
@@ -2402,6 +2443,7 @@ class TestConnectedUDPSocket:
                 raise
 
         assert exc is not None
+        assert raw_socket.fileno() == -1
 
     async def test_receive_after_close(self, family: AnyIPAddressFamily) -> None:
         udp = await create_connected_udp_socket(
@@ -2619,6 +2661,8 @@ class TestUDPSocketBackpressure:
                 "with a queued datagram"
             )
 
+        raw_socket = udp.extra(SocketAttribute.raw_socket)
+
         async def interrupt() -> None:
             await wait_all_tasks_blocked()
             await udp.aclose()
@@ -2628,6 +2672,8 @@ class TestUDPSocketBackpressure:
                 tg.start_soon(interrupt)
                 with pytest.raises(ClosedResourceError):
                     await send(self.payload)
+
+        assert raw_socket.fileno() == -1
 
 
 @pytest.mark.skipif(
@@ -2744,7 +2790,7 @@ class TestUNIXDatagramSocket:
                 with pytest.raises(ClosedResourceError):
                     await unix_dg.receive()
 
-    async def test_concurrent_aclose_forcefully_returns_before_socket_closes(
+    async def test_concurrent_aclose_forcefully_closes_socket(
         self,
     ) -> None:
         unix_dg = await create_unix_datagram_socket()
@@ -2766,6 +2812,7 @@ class TestUNIXDatagramSocket:
     ) -> None:
         exc = None
         unix_dg = await create_unix_datagram_socket()
+        raw_socket = unix_dg.extra(SocketAttribute.raw_socket)
 
         with CancelScope() as scope:
             scope.cancel()
@@ -2776,6 +2823,7 @@ class TestUNIXDatagramSocket:
                 raise
 
         assert exc is not None
+        assert raw_socket.fileno() == -1
 
     async def test_receive_after_close(self) -> None:
         unix_dg = await create_unix_datagram_socket()
@@ -2981,7 +3029,7 @@ class TestConnectedUNIXDatagramSocket:
             with pytest.raises(ClosedResourceError):
                 await udp.receive()
 
-    async def test_concurrent_aclose_forcefully_returns_before_socket_closes(
+    async def test_concurrent_aclose_forcefully_closes_socket(
         self, peer_socket_path_or_str: Path | str, peer_sock: socket.socket
     ) -> None:
         udp = await create_connected_unix_datagram_socket(peer_socket_path_or_str)
@@ -3003,6 +3051,7 @@ class TestConnectedUNIXDatagramSocket:
     ) -> None:
         exc = None
         udp = await create_connected_unix_datagram_socket(peer_socket_path_or_str)
+        raw_socket = udp.extra(SocketAttribute.raw_socket)
 
         with CancelScope() as scope:
             scope.cancel()
@@ -3013,6 +3062,7 @@ class TestConnectedUNIXDatagramSocket:
                 raise
 
         assert exc is not None
+        assert raw_socket.fileno() == -1
 
     async def test_receive_after_close(
         self, peer_socket_path_or_str: Path | str, peer_sock: socket.socket
