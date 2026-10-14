@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import platform
 import sys
+from contextlib import AbstractContextManager, nullcontext
 
 import pytest
 
-from anyio import create_memory_object_stream
+from anyio import EndOfStream, create_memory_object_stream
 from anyio.abc import ObjectStream, ObjectStreamConnectable
 from anyio.streams.stapled import StapledObjectStream
 from anyio.streams.text import (
@@ -27,6 +28,30 @@ async def test_receive() -> None:
     assert await text_stream.receive() == "ö"
 
     send_stream.close()
+    receive_stream.close()
+
+
+@pytest.mark.parametrize(
+    "errors, expected",
+    [
+        pytest.param("strict", pytest.raises(UnicodeDecodeError), id="strict"),
+        pytest.param("replace", nullcontext(), id="replace"),
+        pytest.param("ignore", pytest.raises(EndOfStream), id="ignore"),
+    ],
+)
+async def test_incomplete_character_at_eof(
+    errors: str, expected: AbstractContextManager[object]
+) -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
+    text_stream = TextReceiveStream(receive_stream, errors=errors)
+    await send_stream.send(b"\xc3")  # first half of a two-byte character
+    send_stream.close()
+    with expected:
+        assert await text_stream.receive() == "\ufffd"
+
+    with pytest.raises(EndOfStream):
+        await text_stream.receive()
+
     receive_stream.close()
 
 
@@ -62,6 +87,22 @@ async def test_send_encoding_error() -> None:
 
     send_stream.close()
     receive_stream.close()
+
+
+@pytest.mark.parametrize("encoding", ["utf-16", "utf-32", "utf-8-sig"])
+async def test_send_bom_emitted_only_once(encoding: str) -> None:
+    """
+    Encodings that emit a byte order mark must not repeat it on every send, otherwise
+    the peer receives spurious U+FEFF characters (or duplicate BOM bytes).
+    """
+    send_stream, receive_stream = create_memory_object_stream[bytes](8)
+    with send_stream, receive_stream:
+        text_send = TextSendStream(send_stream, encoding=encoding)
+        text_receive = TextReceiveStream(receive_stream, encoding=encoding)
+        await text_send.send("hello")
+        await text_send.send("world")
+        assert await text_receive.receive() == "hello"
+        assert await text_receive.receive() == "world"
 
 
 async def test_bidirectional_stream() -> None:

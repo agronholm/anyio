@@ -80,10 +80,17 @@ Here is the list of supported options for each backend:
 
 * options covered in the documentation of :class:`asyncio.Runner`
 * ``use_uvloop`` (``bool``, default=False): Use the faster uvloop_ event loop
-  implementation, if available (this is a shorthand for passing
+  implementation (this is a shorthand for passing
   ``loop_factory=uvloop.new_event_loop``, or ``loop_factory=winloop.new_event_loop`` if
   using Windows, and is ignored if ``loop_factory`` is passed a value other than
   ``None``)
+
+Setting ``use_uvloop=True`` requires uvloop_ to be installed, or winloop_ on Windows.
+These are optional dependencies and are not installed with AnyIO. Install the
+appropriate package with ``pip install uvloop`` or ``pip install winloop``. If it
+is missing, starting the event loop raises :exc:`ModuleNotFoundError` rather than
+falling back to the standard asyncio event loop. Leave ``use_uvloop`` at its default
+of ``False`` to use the standard event loop.
 
 **Trio**: options covered in the
 `official documentation
@@ -95,6 +102,7 @@ Here is the list of supported options for each backend:
     The ``policy`` option was replaced with ``loop_factory``.
 
 .. _uvloop: https://pypi.org/project/uvloop/
+.. _winloop: https://pypi.org/project/winloop/
 
 Using native async libraries
 ----------------------------

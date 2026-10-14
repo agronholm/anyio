@@ -227,6 +227,7 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
     write operations and provides a method to force a rollover to disk.
 
     :param max_size: Maximum size in bytes before the file is rolled over to disk.
+        A value of 0 (the default) disables automatic rollover.
     :param mode: The mode in which the file is opened. Defaults to "w+b".
     :param buffering: The buffering policy (-1 means the default buffering).
     :param encoding: The encoding used to decode or encode the file (text mode only).
@@ -313,7 +314,7 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
         await super().aclose()
 
     async def _check(self) -> None:
-        if self._rolled or self._fp.tell() <= self._max_size:
+        if self._rolled or not self._max_size or self._fp.tell() <= self._max_size:
             return
 
         await self.rollover()
@@ -324,11 +325,13 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
 
         self._rolled = True
         buffer = self._fp
+        position = buffer.tell()
         buffer.seek(0)
         self._fp = await to_thread.run_sync(
             lambda: tempfile.TemporaryFile(**self._tempfile_params)
         )
         await self.write(buffer.read())
+        await self.seek(position)
         buffer.close()
 
     @property
@@ -497,7 +500,7 @@ class TemporaryDirectory(Generic[AnyStr]):
         self._tempdir = await to_thread.run_sync(
             lambda: tempfile.TemporaryDirectory(**params)
         )
-        return await to_thread.run_sync(self._tempdir.__enter__)
+        return self._tempdir.name
 
     async def __aexit__(
         self,
