@@ -61,6 +61,25 @@ class TestNamedTemporaryFile:
 
 
 class TestSpooledTemporaryFile:
+    async def test_cancelled_during_rollover(self) -> None:
+        original = tempfile.TemporaryFile
+
+        def create(**kwargs: Any) -> Any:
+            from_thread.run_sync(scope.cancel)
+            return original(**kwargs)
+
+        async with SpooledTemporaryFile() as stf:
+            await stf.write(b"hello world")
+            await stf.seek(5)
+            with CancelScope() as scope:
+                with patch("anyio._core._tempfile.tempfile.TemporaryFile", create):
+                    await stf.rollover()
+
+            assert stf._rolled
+            assert await stf.tell() == 5
+            await stf.seek(0)
+            assert await stf.read() == b"hello world"
+
     @pytest.mark.parametrize("use_writelines", [False, True])
     async def test_default_max_size_no_rollover(self, use_writelines: bool) -> None:
         data = b"hello world"
