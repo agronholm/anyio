@@ -1,0 +1,3 @@
+Fixed ``create_connected_udp_socket()`` silently ignoring ``local_port`` when
+``local_host`` was not given: the local address was left unset, so the OS picked
+an ephemeral port instead of the requested one

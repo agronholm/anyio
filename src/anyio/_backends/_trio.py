@@ -1268,8 +1268,12 @@ class TrioBackend(AsyncBackend):
         return SocketStream(trio_socket)
 
     @classmethod
-    async def connect_unix(cls, path: str | bytes) -> abc.UNIXSocketStream:
-        trio_socket = trio.socket.socket(socket.AF_UNIX)
+    async def connect_unix(
+        cls,
+        path: str | bytes,
+        kind: Literal[SocketKind.SOCK_STREAM, SocketKind.SOCK_SEQPACKET],
+    ) -> abc.UNIXSocketStream:
+        trio_socket = trio.socket.socket(socket.AF_UNIX, kind)
         try:
             await trio_socket.connect(path)
         except BaseException:
@@ -1295,18 +1299,21 @@ class TrioBackend(AsyncBackend):
         reuse_port: bool,
     ) -> UDPSocket | ConnectedUDPSocket:
         trio_socket = trio.socket.socket(family=family, type=socket.SOCK_DGRAM)
+        try:
+            if reuse_port:
+                trio_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
 
-        if reuse_port:
-            trio_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            if local_address:
+                await trio_socket.bind(local_address)
 
-        if local_address:
-            await trio_socket.bind(local_address)
-
-        if remote_address:
-            await trio_socket.connect(remote_address)
-            return ConnectedUDPSocket(trio_socket)
-        else:
-            return UDPSocket(trio_socket)
+            if remote_address:
+                await trio_socket.connect(remote_address)
+                return ConnectedUDPSocket(trio_socket)
+            else:
+                return UDPSocket(trio_socket)
+        except BaseException:
+            trio_socket.close()
+            raise
 
     @classmethod
     @overload

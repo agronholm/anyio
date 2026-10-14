@@ -1,0 +1,3 @@
+Fixed ``TaskGroup.start()`` on asyncio backend silently discarding an exception raised by the
+child task while it was being cancelled before calling ``task_status.started()``,
+instead of raising it from ``start()`` like on the Trio backend

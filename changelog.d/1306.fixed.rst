@@ -1,0 +1,4 @@
+Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
+across backends (asyncio returned immediately; Trio raised ``ValueError``) by
+raising ``ValueError`` on all backends
+PR by @BetterAndBetterII
