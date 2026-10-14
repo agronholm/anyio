@@ -1,0 +1,1 @@
+Fixed the free port fixtures retrying permanent loopback binding errors indefinitely
