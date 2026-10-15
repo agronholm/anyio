@@ -334,6 +334,30 @@ async def test_start_cancelled_child_raises() -> None:
     assert not tg.cancel_scope.cancel_called
 
 
+async def test_start_cancelled_child_calls_started_twice() -> None:
+    """
+    Test that calling ``task_status.started()`` twice raises :exc:`RuntimeError` from
+    ``start()`` even when the caller of ``start()`` was cancelled.
+
+    """
+
+    async def taskfunc(*, task_status: TaskStatus) -> None:
+        task_status.started()
+        task_status.started()
+
+    async with create_task_group() as tg:
+        with CancelScope() as scope:
+            scope.cancel()
+            # Catch BaseException so a cancellation exception doesn't get swallowed by
+            # the cancelled scope
+            with pytest.raises(BaseException) as exc:
+                await tg.start(taskfunc)
+
+    assert isinstance(exc.value, RuntimeError)
+    assert str(exc.value) == "called 'started' twice on the same task status"
+    assert not tg.cancel_scope.cancel_called
+
+
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_start_native_host_cancelled() -> None:
     started = finished = False

@@ -783,16 +783,20 @@ class _AsyncioTaskStatus(abc.TaskStatus[T_contra]):
         self._target_scope = target_scope
         # The task's own cancel scope, also held by its TaskHandle
         self._spawn_scope = spawn_scope
+        self._started_called = False
 
     def started(self, value: T_contra | None = None) -> None:
+        # Tracked separately from the future, which is already done (cancelled) when
+        # the caller of start() was cancelled before the first call
+        if self._started_called:
+            raise RuntimeError("called 'started' twice on the same task status")
+
+        self._started_called = True
         task = cast(asyncio.Task, current_task())
         _task_states[task].parent_id = self._parent_id
         if self._future.done():
-            if not self._future.cancelled():
-                raise RuntimeError("called 'started' twice on the same task status")
-            else:
-                # Caller of start() was cancelled, nothing to reparent
-                return
+            # Caller of start() was cancelled, nothing to reparent
+            return
 
         self._future.set_result(value)
         self._spawn_scope._reparent(self._target_scope)
