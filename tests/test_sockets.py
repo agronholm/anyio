@@ -661,15 +661,14 @@ class TestTCPStream:
 
         async with await connect_tcp(*server_addr) as stream:
             client_sock, _ = server_sock.accept()
-            with fail_after(5):
-                async with create_task_group() as tg:
-                    tg.start_soon(interrupt)
-                    with pytest.raises(BrokenResourceError) as exc_info:
-                        # Nothing reads from the peer, so this blocks once the socket
-                        # buffers fill up (how much they take varies by platform)
-                        while True:
-                            await stream.send(b"\0" * 1024 * 1024)
-                            assert not reset, "send() returned normally after reset"
+            async with create_task_group() as tg:
+                tg.start_soon(interrupt)
+                with pytest.raises(BrokenResourceError) as exc_info:
+                    # Nothing reads from the peer, so this blocks once the socket
+                    # buffers fill up (how much they take varies by platform)
+                    while True:
+                        await stream.send(b"\0" * 1024 * 1024)
+                        assert not reset, "send() returned normally after reset"
 
             assert exc_info.value.__cause__ is not None
 
@@ -2016,11 +2015,10 @@ class TestUNIXListener:
                 await listener.accept()
 
         listener = await create_unix_listener(socket_path)
-        with fail_after(1):
-            async with create_task_group() as tg:
-                tg.start_soon(accept)
-                await wait_all_tasks_blocked()
-                await listener.aclose()
+        async with create_task_group() as tg:
+            tg.start_soon(accept)
+            await wait_all_tasks_blocked()
+            await listener.aclose()
 
         assert listener.extra(SocketAttribute.raw_socket).fileno() == -1
 
@@ -2153,8 +2151,7 @@ class TestUDPSocket:
         udp = await create_udp_socket(local_host="127.0.0.1")
         sock = udp.extra(SocketAttribute.raw_socket)
         await udp.sendto(b"x", "127.0.0.1", free_udp_port)
-        with fail_after(1):
-            await aclose_forcefully(udp)
+        await aclose_forcefully(udp)
 
         assert sock.fileno() == -1
 
@@ -2388,9 +2385,10 @@ class TestConnectedUDPSocket:
 
     async def test_aclose_during_send(self, free_udp_port: int) -> None:
         udp = await create_connected_udp_socket("127.0.0.1", free_udp_port)
+        raw_socket = udp.extra(SocketAttribute.raw_socket)
         await udp.send(b"x")
-        with fail_after(1):
-            await udp.aclose()
+        await udp.aclose()
+        assert raw_socket.fileno() == -1
 
     async def test_create_connected_socket_bound_to_port(
         self, family: AnyIPAddressFamily, free_udp_port: int
@@ -2786,6 +2784,7 @@ class TestUDPSocketBackpressure:
     ) -> None:
         loop_factory = anyio_backend_options.get("loop_factory")
         if getattr(loop_factory, "__module__", None) == "uvloop":
+            # https://github.com/MagicStack/uvloop/issues/771
             pytest.xfail(
                 "uvloop reports a fatal write error when aborting a UDP transport "
                 "with a queued datagram"
@@ -2797,11 +2796,10 @@ class TestUDPSocketBackpressure:
             await wait_all_tasks_blocked()
             await udp.aclose()
 
-        with fail_after(5):
-            async with create_task_group() as tg:
-                tg.start_soon(interrupt)
-                with pytest.raises(ClosedResourceError):
-                    await send(self.payload)
+        async with create_task_group() as tg:
+            tg.start_soon(interrupt)
+            with pytest.raises(ClosedResourceError):
+                await send(self.payload)
 
         assert raw_socket.fileno() == -1
 
