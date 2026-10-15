@@ -6,6 +6,7 @@ import math
 import re
 import sys
 import time
+import weakref
 from asyncio import CancelledError
 from collections.abc import AsyncGenerator, Coroutine, Generator
 from contextlib import aclosing
@@ -2039,6 +2040,10 @@ async def test_start_return_handle_cancel() -> None:
         assert handle.start_value == 3
 
 
+class Sentinel:
+    """A weakly referenceable object, used to check that a frame was freed."""
+
+
 @pytest.mark.skipif(
     sys.implementation.name == "pypy",
     reason=(
@@ -2144,6 +2149,65 @@ class TestRefcycles:
 
         assert isinstance(exc, MyKeyboardInterrupt)
         assert gc.get_referrers(exc) == no_other_refs()
+
+    @pytest.fixture
+    def disable_gc(self) -> Generator[None]:
+        # Keep the cyclic garbage collector from hiding a reference cycle
+        was_enabled = gc.isenabled()
+        gc.disable()
+        yield
+        if was_enabled:
+            gc.enable()
+
+    @pytest.mark.usefixtures("disable_gc")
+    async def test_cancelled_child_task_refcycles(self) -> None:
+        """
+        Test that a cancelled child task doesn't leave behind a reference cycle that
+        keeps the objects referenced by its frames alive until the cyclic garbage
+        collector runs.
+
+        """
+
+        async def child() -> None:
+            sentinel = Sentinel()
+            sentinel_refs.append(weakref.ref(sentinel))
+            await sleep_forever()
+
+        sentinel_refs: list[weakref.ref[Sentinel]] = []
+        async with create_task_group() as tg:
+            tg.start_soon(child)
+            await wait_all_tasks_blocked()
+            tg.cancel_scope.cancel()
+
+        assert len(sentinel_refs) == 1
+        assert sentinel_refs[0]() is None
+
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    @pytest.mark.usefixtures("disable_gc")
+    async def test_cancelled_start_refcycles(self) -> None:
+        """
+        Test that a child task cancelled before calling ``task_status.started()``
+        doesn't leave behind a reference cycle.
+
+        """
+
+        async def child(*, task_status: TaskStatus[None]) -> None:
+            sentinel = Sentinel()
+            sentinel_refs.append(weakref.ref(sentinel))
+            await sleep_forever()
+
+        async def cancel_when_blocked(scope: CancelScope) -> None:
+            await wait_all_tasks_blocked()
+            scope.cancel()
+
+        sentinel_refs: list[weakref.ref[Sentinel]] = []
+        async with create_task_group() as tg:
+            with CancelScope() as scope:
+                tg.start_soon(cancel_when_blocked, scope)
+                await tg.start(child)
+
+        assert len(sentinel_refs) == 1
+        assert sentinel_refs[0]() is None
 
 
 class TestTaskStatusTyping:

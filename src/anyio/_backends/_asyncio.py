@@ -923,6 +923,7 @@ class TaskGroup(abc.TaskGroup):
                 # cancelled, so return immediately instead of adding one more
                 # CancelledError to the exceptions list
                 if task_status_future is not None and task_status_future.cancelled():
+                    del exc
                     return
 
                 if task_status_future is None or task_status_future.done():
@@ -937,6 +938,11 @@ class TaskGroup(abc.TaskGroup):
                 task_status_future.set_exception(
                     RuntimeError("Child exited without calling task_status.started()")
                 )
+
+            # On Python 3.11+, Task.exception() raises the task's own CancelledError,
+            # adding this frame to its traceback, so keeping exc would create a
+            # reference cycle
+            del exc
 
         if task_status_future is not None:
             parent_id = id(current_task())
