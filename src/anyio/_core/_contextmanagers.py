@@ -67,9 +67,12 @@ class ContextManagerMixin:
                 f"'yield' statement?"
             )
 
-        value = cm.__enter__()
         self.__cm = cm
-        return value
+        try:
+            return cm.__enter__()
+        except BaseException:
+            del self.__cm
+            raise
 
     @final
     def __exit__(
@@ -85,11 +88,12 @@ class ContextManagerMixin:
                 f"this {self.__class__.__qualname__} has not been entered yet"
             )
 
-        # Prevent circular references
         cm = self.__cm
-        del self.__cm
-
-        return cast(_ExitT_co, cm.__exit__(exc_type, exc_val, exc_tb))
+        try:
+            return cast(_ExitT_co, cm.__exit__(exc_type, exc_val, exc_tb))
+        finally:
+            # Prevent circular references
+            del self.__cm
 
     @abstractmethod
     def __contextmanager__(self) -> AbstractContextManager[object, bool | None]:
@@ -160,9 +164,12 @@ class AsyncContextManagerMixin:
                 f"'yield' statement?"
             )
 
-        value = await cm.__aenter__()
         self.__cm = cm
-        return value
+        try:
+            return await cm.__aenter__()
+        except BaseException:
+            del self.__cm
+            raise
 
     @final
     async def __aexit__(
@@ -177,11 +184,12 @@ class AsyncContextManagerMixin:
                 f"this {self.__class__.__qualname__} has not been entered yet"
             )
 
-        # Prevent circular references
         cm = self.__cm
-        del self.__cm
-
-        return cast(_ExitT_co, await cm.__aexit__(exc_type, exc_val, exc_tb))
+        try:
+            return cast(_ExitT_co, await cm.__aexit__(exc_type, exc_val, exc_tb))
+        finally:
+            # Prevent circular references
+            del self.__cm
 
     @abstractmethod
     def __asynccontextmanager__(
