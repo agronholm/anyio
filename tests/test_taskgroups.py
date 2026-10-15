@@ -2159,8 +2159,9 @@ class TestRefcycles:
         if was_enabled:
             gc.enable()
 
+    @pytest.mark.parametrize("use_start", [False, True], ids=["start_soon", "start"])
     @pytest.mark.usefixtures("disable_gc")
-    async def test_cancelled_child_task_refcycles(self) -> None:
+    async def test_cancelled_child_task_refcycles(self, use_start: bool) -> None:
         """
         Test that a cancelled child task doesn't leave behind a reference cycle that
         keeps the objects referenced by its frames alive until the cyclic garbage
@@ -2168,28 +2169,62 @@ class TestRefcycles:
 
         """
 
-        async def child() -> None:
+        async def child(*, task_status: TaskStatus[None] = TASK_STATUS_IGNORED) -> None:
             sentinel = Sentinel()
             sentinel_refs.append(weakref.ref(sentinel))
+            task_status.started()
             await sleep_forever()
 
         sentinel_refs: list[weakref.ref[Sentinel]] = []
         async with create_task_group() as tg:
-            tg.start_soon(child)
+            if use_start:
+                await tg.start(child)
+            else:
+                tg.start_soon(child)
+
             await wait_all_tasks_blocked()
             tg.cancel_scope.cancel()
 
         assert len(sentinel_refs) == 1
         assert sentinel_refs[0]() is None
 
-    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     @pytest.mark.usefixtures("disable_gc")
-    async def test_cancelled_start_refcycles(self) -> None:
+    async def test_failed_start_refcycles(self) -> None:
+        """
+        Test that a child task that raises an exception after calling
+        ``task_status.started()`` doesn't leave behind a reference cycle.
+
+        """
+
+        async def child(*, task_status: TaskStatus[None]) -> None:
+            sentinel = Sentinel()
+            sentinel_refs.append(weakref.ref(sentinel))
+            task_status.started()
+            raise Exception("foo")
+
+        sentinel_refs: list[weakref.ref[Sentinel]] = []
+        with pytest.raises(ExceptionGroup):
+            async with create_task_group() as tg:
+                await tg.start(child)
+
+        assert len(sentinel_refs) == 1
+        assert sentinel_refs[0]() is None
+
+    @pytest.mark.usefixtures("disable_gc")
+    async def test_cancelled_start_refcycles(self, anyio_backend_name: str) -> None:
         """
         Test that a child task cancelled before calling ``task_status.started()``
         doesn't leave behind a reference cycle.
 
         """
+        if anyio_backend_name == "trio":
+            import trio
+
+            if tuple(map(int, trio.__version__.split(".")[:2])) < (0, 34):
+                pytest.skip(
+                    "Nursery.start() in Trio before 0.34 leaves behind a reference "
+                    "cycle of its own"
+                )
 
         async def child(*, task_status: TaskStatus[None]) -> None:
             sentinel = Sentinel()
