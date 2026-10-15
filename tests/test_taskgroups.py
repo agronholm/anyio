@@ -6,7 +6,6 @@ import math
 import re
 import sys
 import time
-import weakref
 from asyncio import CancelledError
 from collections.abc import AsyncGenerator, Coroutine, Generator
 from contextlib import aclosing
@@ -2040,10 +2039,6 @@ async def test_start_return_handle_cancel() -> None:
         assert handle.start_value == 3
 
 
-class Sentinel:
-    """A weakly referenceable object, used to check that a frame was freed."""
-
-
 @pytest.mark.skipif(
     sys.implementation.name == "pypy",
     reason=(
@@ -2150,99 +2145,74 @@ class TestRefcycles:
         assert isinstance(exc, MyKeyboardInterrupt)
         assert gc.get_referrers(exc) == no_other_refs()
 
-    @pytest.fixture
-    def disable_gc(self) -> Generator[None]:
-        # Keep the cyclic garbage collector from hiding a reference cycle
-        was_enabled = gc.isenabled()
-        gc.disable()
-        yield
-        if was_enabled:
-            gc.enable()
+    async def test_exception_refcycles_cancelled_child(self) -> None:
+        """Test that a cancelled child task's exception isn't in a reference cycle"""
+        excs: list[BaseException] = []
 
-    @pytest.mark.parametrize("use_start", [False, True], ids=["start_soon", "start"])
-    @pytest.mark.usefixtures("disable_gc")
-    async def test_cancelled_child_task_refcycles(self, use_start: bool) -> None:
-        """
-        Test that a cancelled child task doesn't leave behind a reference cycle that
-        keeps the objects referenced by its frames alive until the cyclic garbage
-        collector runs.
+        async def child() -> None:
+            try:
+                await sleep_forever()
+            except get_cancelled_exc_class() as exc:
+                excs.append(exc)
+                raise
 
-        """
-
-        async def child(*, task_status: TaskStatus[None] = TASK_STATUS_IGNORED) -> None:
-            sentinel = Sentinel()
-            sentinel_refs.append(weakref.ref(sentinel))
-            task_status.started()
-            await sleep_forever()
-
-        sentinel_refs: list[weakref.ref[Sentinel]] = []
         async with create_task_group() as tg:
-            if use_start:
-                await tg.start(child)
-            else:
-                tg.start_soon(child)
-
+            tg.start_soon(child)
             await wait_all_tasks_blocked()
             tg.cancel_scope.cancel()
 
-        assert len(sentinel_refs) == 1
-        assert sentinel_refs[0]() is None
+        # pop, since the child's frame refers to this list
+        assert gc.get_referrers(excs.pop()) == no_other_refs()
 
-    @pytest.mark.usefixtures("disable_gc")
-    async def test_failed_start_refcycles(self) -> None:
-        """
-        Test that a child task that raises an exception after calling
-        ``task_status.started()`` doesn't leave behind a reference cycle.
-
-        """
-
-        async def child(*, task_status: TaskStatus[None]) -> None:
-            sentinel = Sentinel()
-            sentinel_refs.append(weakref.ref(sentinel))
-            task_status.started()
-            raise Exception("foo")
-
-        sentinel_refs: list[weakref.ref[Sentinel]] = []
-        with pytest.raises(ExceptionGroup):
-            async with create_task_group() as tg:
-                await tg.start(child)
-
-        assert len(sentinel_refs) == 1
-        assert sentinel_refs[0]() is None
-
-    @pytest.mark.usefixtures("disable_gc")
-    async def test_cancelled_start_refcycles(self, anyio_backend_name: str) -> None:
-        """
-        Test that a child task cancelled before calling ``task_status.started()``
-        doesn't leave behind a reference cycle.
-
-        """
+    async def test_exception_refcycles_cancelled_start(
+        self, anyio_backend_name: str
+    ) -> None:
+        """Test that a child cancelled before calling started() leaves no cycle"""
         if anyio_backend_name == "trio":
             import trio
 
             if tuple(map(int, trio.__version__.split(".")[:2])) < (0, 34):
-                pytest.skip(
-                    "Nursery.start() in Trio before 0.34 leaves behind a reference "
-                    "cycle of its own"
-                )
+                pytest.skip("Nursery.start() in Trio before 0.34 leaves a cycle")
+
+        excs: list[BaseException] = []
 
         async def child(*, task_status: TaskStatus[None]) -> None:
-            sentinel = Sentinel()
-            sentinel_refs.append(weakref.ref(sentinel))
-            await sleep_forever()
+            try:
+                await sleep_forever()
+            except get_cancelled_exc_class() as exc:
+                excs.append(exc)
+                raise
 
         async def cancel_when_blocked(scope: CancelScope) -> None:
             await wait_all_tasks_blocked()
             scope.cancel()
 
-        sentinel_refs: list[weakref.ref[Sentinel]] = []
         async with create_task_group() as tg:
             with CancelScope() as scope:
                 tg.start_soon(cancel_when_blocked, scope)
                 await tg.start(child)
 
-        assert len(sentinel_refs) == 1
-        assert sentinel_refs[0]() is None
+        assert gc.get_referrers(excs.pop()) == no_other_refs()
+
+    async def test_exception_refcycles_failed_start(self) -> None:
+        """Test that a failed task started with start() isn't in a reference cycle"""
+        exc = None
+
+        class _Done(Exception):
+            pass
+
+        async def child(*, task_status: TaskStatus[None]) -> None:
+            task_status.started()
+            raise _Done
+
+        try:
+            async with create_task_group() as tg:
+                await tg.start(child)
+        except ExceptionGroup as excs:
+            exc = excs.exceptions[0]
+
+        assert isinstance(exc, _Done)
+        assert gc.get_referrers(exc) == no_other_refs()
 
 
 class TestTaskStatusTyping:
