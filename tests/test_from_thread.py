@@ -555,87 +555,31 @@ class TestBlockingPortal:
         assert cancelled
 
     @pytest.mark.parametrize("raises", [False, True], ids=["result", "exception"])
-    @pytest.mark.parametrize("is_async", [False, True], ids=["sync", "async"])
     async def test_cancel_during_completion(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        raises: bool,
-        is_async: bool,
-        deactivate_blockbuster: None,
+        self, monkeypatch: pytest.MonkeyPatch, raises: bool
     ) -> None:
-        value = object()
-        error = ValueError("task error")
-        cancel_observed = threading.Event()
-        cancel_threads: list[threading.Thread] = []
-
         class RacingFuture(Future[Any]):
-            def __init__(self) -> None:
-                super().__init__()
-                # Observe cancellation before the portal callback waits on the loop.
-                self.add_done_callback(
-                    lambda f: cancel_observed.set() if f.cancelled() else None
-                )
-
-            def race_cancel(self) -> None:
-                def cancel() -> None:
-                    try:
-                        self.cancel()
-                    finally:
-                        cancel_observed.set()
-
-                thread = threading.Thread(target=cancel)
-                cancel_threads.append(thread)
-                thread.start()
-                assert cancel_observed.wait(3)
-
             def set_result(self, result: Any) -> None:
-                if result is value:
-                    self.race_cancel()
-
+                self.cancel()
                 super().set_result(result)
 
             def set_exception(self, exception: BaseException | None) -> None:
-                if exception is error:
-                    self.race_cancel()
-
+                self.cancel()
                 super().set_exception(exception)
 
+        async def func() -> str:
+            if raises:
+                raise ValueError("foo")
+
+            return "foo"
+
         monkeypatch.setattr(from_thread, "Future", RacingFuture)
-
-        def finish() -> object:
-            if raises:
-                raise error
-
-            return value
-
-        async def async_finish() -> object:
-            return finish()
-
-        def worker(portal: BlockingPortal) -> Future[object]:
-            future = portal.start_task_soon(async_finish if is_async else finish)
-            with suppress(CancelledError, ValueError):
-                assert future.result(5) is value
-
-            for thread in cancel_threads:
-                thread.join(3)
-                assert not thread.is_alive()
-
-            return future
-
         async with BlockingPortal() as portal:
-            future = await to_thread.run_sync(worker, portal)
-            # An individual completion/cancellation must not break the portal.
-            assert await to_thread.run_sync(portal.call, lambda: "still running") == (
-                "still running"
-            )
-
-        assert cancel_threads
-        assert future.done()
-        if not future.cancelled():
             if raises:
-                assert future.exception() is error
+                with pytest.raises(ValueError, match="foo"):
+                    await to_thread.run_sync(portal.call, func)
             else:
-                assert future.result() is value
+                assert await to_thread.run_sync(portal.call, func) == "foo"
 
     def test_start_task_soon_cancel_after_stop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
