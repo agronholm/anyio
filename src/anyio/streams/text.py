@@ -104,6 +104,7 @@ class TextSendStream(ObjectSendStream[str]):
     encoding: InitVar[str] = "utf-8"
     errors: str = "strict"
     _encoder: codecs.IncrementalEncoder = field(init=False)
+    _encoder_started: bool = field(init=False, default=False)
 
     def __post_init__(self, encoding: str) -> None:
         encoder_class = codecs.getincrementalencoder(encoding)
@@ -111,10 +112,21 @@ class TextSendStream(ObjectSendStream[str]):
 
     async def send(self, item: str) -> None:
         encoded = self._encoder.encode(item)
+        self._encoder_started = True
         await self.transport_stream.send(encoded)
 
+    async def _finalize(self) -> None:
+        if self._encoder_started:
+            self._encoder_started = False
+            encoded = self._encoder.encode("", final=True)
+            if encoded:
+                await self.transport_stream.send(encoded)
+
     async def aclose(self) -> None:
-        await self.transport_stream.aclose()
+        try:
+            await self._finalize()
+        finally:
+            await self.transport_stream.aclose()
 
     @property
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
@@ -161,6 +173,7 @@ class TextStream(ObjectStream[str]):
         await self._send_stream.send(item)
 
     async def send_eof(self) -> None:
+        await self._send_stream._finalize()
         await self.transport_stream.send_eof()
 
     async def aclose(self) -> None:
