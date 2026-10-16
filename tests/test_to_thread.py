@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import gc
+import os
+import subprocess
 import sys
 import threading
 import time
 import weakref
+from collections.abc import Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextvars import ContextVar
 from functools import partial
+from textwrap import dedent
 from typing import Any, NoReturn
 
 import pytest
@@ -28,6 +32,291 @@ from anyio.from_thread import BlockingPortalProvider
 from anyio.lowlevel import checkpoint
 
 from .conftest import asyncio_params, no_other_refs
+
+
+@pytest.fixture
+def asyncio_worker_pool(mocker: MockerFixture) -> Iterator[Any]:
+    from anyio._backends import _asyncio
+
+    pool = _asyncio.WorkerThreadPool(max_idle_time=60)
+    mocker.patch.object(_asyncio, "_threadpool", pool)
+    yield pool
+    pool.shutdown()
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+def test_asyncio_worker_pool_loop_closure(
+    asyncio_worker_pool: Any, anyio_backend_options: dict[str, Any]
+) -> None:
+    workers: list[Any] = []
+    loop_factory = anyio_backend_options.get("loop_factory", asyncio.new_event_loop)
+    for iteration in range(3):
+        loop = loop_factory()
+        try:
+            if iteration == 2:
+                # Wake the reused worker with one final job before checking that
+                # it retires without further submissions or loop cleanup.
+                asyncio_worker_pool.max_idle_time = 0.1
+
+            workers.append(
+                loop.run_until_complete(to_thread.run_sync(threading.current_thread))
+            )
+            workers[-1].queue.join()
+        finally:
+            # Deliberately skip shutdown_asyncgens() and any runner cleanup.
+            loop.close()
+
+    assert workers[0] is workers[1] is workers[2]
+    workers[0].join()
+    assert not asyncio_worker_pool.workers
+    assert not asyncio_worker_pool.idle_workers
+
+    replacement = anyio.run(to_thread.run_sync, threading.current_thread)
+    assert replacement is not workers[0]
+
+
+def test_asyncio_worker_pool_concurrent_loops(asyncio_worker_pool: Any) -> None:
+    barrier = threading.Barrier(3)
+    value = ContextVar("value", default=-1)
+
+    def worker(expected: int, loop: asyncio.AbstractEventLoop) -> threading.Thread:
+        barrier.wait(5)
+        assert value.get() == expected
+        assert from_thread.run_sync(asyncio.get_running_loop) is loop
+        value.set(-2)
+        return threading.current_thread()
+
+    async def main(expected: int) -> threading.Thread:
+        value.set(expected)
+        result = await to_thread.run_sync(worker, expected, asyncio.get_running_loop())
+        assert value.get() == expected
+        return result
+
+    with ThreadPoolExecutor(3) as executor:
+        futures = [executor.submit(anyio.run, main, n) for n in range(3)]
+        workers = [future.result(5) for future in futures]
+
+    assert len(set(workers)) == 3
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_asyncio_worker_pool_assignment_during_retirement(
+    asyncio_worker_pool: Any, mocker: MockerFixture
+) -> None:
+    from queue import Empty
+
+    worker: Any = await to_thread.run_sync(threading.current_thread)
+    worker.queue.join()
+    timed_out = threading.Event()
+    release_timeout = threading.Event()
+    original_get = worker.queue.get
+
+    def get(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return original_get(*args, **kwargs)
+        except Empty:
+            timed_out.set()
+            assert release_timeout.wait(5)
+            raise
+
+    mocker.patch.object(worker.queue, "get", side_effect=get)
+    try:
+        asyncio_worker_pool.max_idle_time = 0.1
+        # The current queue.get() may already be waiting; run a job so that the
+        # next idle wait uses the patched method.
+        assert await to_thread.run_sync(threading.current_thread) is worker
+        while not timed_out.is_set():
+            await checkpoint()
+
+        task = asyncio.create_task(to_thread.run_sync(threading.current_thread))
+        await wait_all_tasks_blocked()
+        release_timeout.set()
+        assert await task is worker
+    finally:
+        release_timeout.set()
+
+
+def test_asyncio_worker_pool_start_failure(
+    asyncio_worker_pool: Any, mocker: MockerFixture
+) -> None:
+    from anyio._backends._asyncio import WorkerThread
+
+    mocker.patch.object(WorkerThread, "start", side_effect=RuntimeError("cannot start"))
+
+    async def main() -> None:
+        await to_thread.run_sync(int)
+
+    with pytest.raises(RuntimeError, match="cannot start"):
+        anyio.run(main)
+
+    assert not asyncio_worker_pool.workers
+    assert not asyncio_worker_pool.idle_workers
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+def test_asyncio_worker_pool_after_fork() -> None:
+    script = dedent("""
+        import os
+        import threading
+        import anyio
+        from anyio._backends._asyncio import _threadpool
+
+        worker = anyio.run(anyio.to_thread.run_sync, threading.current_thread)
+        # A child must replace even a locked inherited pool.
+        with _threadpool.lock:
+            pid = os.fork()
+            if pid == 0:
+                try:
+                    new_worker = anyio.run(anyio.to_thread.run_sync, threading.current_thread)
+                    assert new_worker is not worker
+                except BaseException:
+                    os._exit(1)
+                os._exit(0)
+
+        assert os.waitpid(pid, 0)[1] == 0
+    """)
+    subprocess.run([sys.executable, "-c", script], check=True, timeout=10)
+
+
+def test_asyncio_worker_pool_after_main_thread_exits() -> None:
+    script = dedent("""
+        import threading
+        import anyio
+
+        main_thread = threading.main_thread()
+
+        def background():
+            main_thread.join()
+            result = anyio.run(anyio.to_thread.run_sync, int)
+            print(result, flush=True)
+
+        # Initialize the pool before the main thread exits.
+        assert anyio.run(anyio.to_thread.run_sync, int) == 0
+        threading.Thread(target=background, daemon=False).start()
+    """)
+    process = subprocess.run(
+        [sys.executable, "-c", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    # An uncaught exception in a background thread does not affect the exit code.
+    assert process.stderr == ""
+    assert process.stdout == "0\n"
+
+
+@pytest.mark.parametrize("close_loop", [False, True])
+@pytest.mark.parametrize("busy_worker", [False, True])
+def test_asyncio_worker_pool_interpreter_shutdown(
+    close_loop: bool, busy_worker: bool
+) -> None:
+    script = dedent(f"""
+        import asyncio
+        import threading
+        from anyio import to_thread
+        from anyio._backends import _asyncio
+
+        _asyncio._threadpool = _asyncio.WorkerThreadPool(max_idle_time=60)
+        release_worker = threading.Event()
+
+        def worker():
+            assert not threading.current_thread().daemon
+            if {busy_worker!r}:
+                loop.call_soon_threadsafe(loop.stop)
+                assert release_worker.wait(5)
+            print("worker finished", flush=True)
+
+        async def main():
+            await to_thread.run_sync(worker)
+            loop.stop()
+            await asyncio.Event().wait()
+
+        loop = asyncio.new_event_loop()
+        task = loop.create_task(main())
+        loop.run_forever()
+        assert not task.done()
+        if {close_loop!r}:
+            loop.close()
+
+        # This runs before AnyIO's shutdown callback, releasing a busy job only
+        # once interpreter shutdown has started.
+        threading._register_atexit(release_worker.set)
+    """)
+    process = subprocess.run(
+        [sys.executable, "-c", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert process.stdout == "worker finished\n"
+    assert "Exception in thread" not in process.stderr
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+@pytest.mark.parametrize("queued_job", [False, True], ids=["running", "queued"])
+async def test_asyncio_worker_pool_shutdown(
+    asyncio_worker_pool: Any, mocker: MockerFixture, queued_job: bool
+) -> None:
+    from anyio._backends._asyncio import WorkerThread
+
+    started = threading.Event()
+    release = threading.Event()
+
+    if queued_job:
+        original_run = WorkerThread.run
+
+        def delayed_run(thread: WorkerThread) -> None:
+            started.set()
+            assert release.wait(5)
+            original_run(thread)
+
+        mocker.patch.object(WorkerThread, "run", delayed_run)
+
+    def worker() -> threading.Thread:
+        if not queued_job:
+            started.set()
+            assert release.wait(5)
+
+        return threading.current_thread()
+
+    task = asyncio.create_task(to_thread.run_sync(worker))
+    with ThreadPoolExecutor(2) as executor:
+        try:
+            while not started.is_set():
+                await checkpoint()
+
+            shutdowns = [
+                executor.submit(asyncio_worker_pool.shutdown) for _ in range(2)
+            ]
+            while not asyncio_worker_pool.stopping:
+                await checkpoint()
+
+            assert all(not future.done() for future in shutdowns)
+            with pytest.raises(RuntimeError, match="shutting down"):
+                await to_thread.run_sync(int)
+        finally:
+            release.set()
+
+        for future in shutdowns:
+            future.result(5)
+
+    thread = await task
+    assert not thread.is_alive()
+    assert not asyncio_worker_pool.workers
+    assert not asyncio_worker_pool.idle_workers
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_asyncio_worker_pool_shutdown_from_worker(
+    asyncio_worker_pool: Any,
+) -> None:
+    with pytest.raises(RuntimeError, match="from a worker thread"):
+        await to_thread.run_sync(asyncio_worker_pool.shutdown)
+
+    assert not asyncio_worker_pool.stopping
+    assert await to_thread.run_sync(int) == 0
 
 
 async def test_run_in_thread_cancelled() -> None:
@@ -191,8 +480,8 @@ def test_asyncio_worker_thread_loop_closed_during_result_report(
         release_worker.set()
         release_result_report.set()
 
-    worker_threads[0].join(5)
-    assert not worker_threads[0].is_alive()
+    worker_threads[0].queue.join()  # type: ignore[attr-defined]
+    assert anyio.run(to_thread.run_sync, threading.current_thread) is worker_threads[0]
 
 
 async def test_cancel_wait_on_thread() -> None:
@@ -244,6 +533,7 @@ async def test_asyncio_cancel_native_task() -> None:
 
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_asyncio_worker_reused_after_cancelled_call(
+    asyncio_worker_pool: Any,
     mocker: MockerFixture,
 ) -> None:
     """
@@ -251,10 +541,10 @@ async def test_asyncio_worker_reused_after_cancelled_call(
     it had been queued for the worker, but before the worker thread dequeued it.
 
     Such a worker must be returned to the idle worker pool so that it gets reused by
-    later calls (and pruned when idle for too long) instead of staying alive until the
-    root task finishes.
+    later calls, and retire automatically when idle for too long.
     """
     worker: Any = await to_thread.run_sync(threading.current_thread)
+    worker.queue.join()
 
     def put_cancelled_item(item: tuple[Any, ...]) -> None:
         # Cancel the future before the worker thread gets a chance to dequeue the item
@@ -262,16 +552,16 @@ async def test_asyncio_worker_reused_after_cancelled_call(
         original_put_nowait(item)
 
     original_put_nowait = worker.queue.put_nowait
-    mocker.patch.object(worker.queue, "put_nowait", side_effect=put_cancelled_item)
+    queue_patch = mocker.patch.object(
+        worker.queue, "put_nowait", side_effect=put_cancelled_item
+    )
     with pytest.raises(asyncio.CancelledError):
         await to_thread.run_sync(int)
 
-    mocker.stopall()
+    mocker.stop(queue_patch)
 
-    # Wait for the worker thread to dequeue the item and to schedule a callback that
-    # returns it to the idle pool, then let the event loop run that callback
+    # Wait for the worker to finish the cancelled job and return to the idle pool.
     worker.queue.join()
-    await wait_all_tasks_blocked()
 
     # The next call should reuse that worker rather than start a new one
     assert await to_thread.run_sync(threading.current_thread) is worker
@@ -281,9 +571,8 @@ def test_asyncio_no_root_task(asyncio_event_loop: asyncio.AbstractEventLoop) -> 
     """
     Regression test for #264.
 
-    Ensures that to_thread.run_sync() does not raise an error when there is no root
-    task, but instead tries to find the top most parent task by traversing the cancel
-    scope tree, or failing that, uses the current task to set up a shutdown callback.
+    Ensures that to_thread.run_sync() works with a manually managed loop without a
+    root task.
 
     """
 
@@ -296,12 +585,6 @@ def test_asyncio_no_root_task(asyncio_event_loop: asyncio.AbstractEventLoop) -> 
     task = asyncio_event_loop.create_task(run_in_thread())
     asyncio_event_loop.run_forever()
     task.result()
-
-    # Wait for worker threads to exit
-    for t in threading.enumerate():
-        if t.name == "AnyIO worker thread":
-            t.join(2)
-            assert not t.is_alive()
 
 
 def test_asyncio_future_callback_partial(
@@ -343,14 +626,13 @@ def test_asyncio_run_sync_multiple(
     asyncio_event_loop: asyncio.AbstractEventLoop,
 ) -> None:
     """Regression test for #304."""
-    asyncio_event_loop.call_later(0.5, asyncio_event_loop.stop)
-    for _ in range(3):
-        asyncio_event_loop.run_until_complete(to_thread.run_sync(time.sleep, 0))
-
-    for t in threading.enumerate():
-        if t.name == "AnyIO worker thread":
-            t.join(2)
-            assert not t.is_alive()
+    workers = [
+        asyncio_event_loop.run_until_complete(
+            to_thread.run_sync(threading.current_thread)
+        )
+        for _ in range(3)
+    ]
+    assert workers[0] is workers[1] is workers[2]
 
 
 def test_asyncio_no_recycle_stopping_worker(
@@ -367,8 +649,7 @@ def test_asyncio_no_recycle_stopping_worker(
         await event1.wait()
         asyncio_event_loop.call_soon(event2.set)
         await anyio.to_thread.run_sync(time.sleep, 0)
-        # At this point, the worker would be stopped but still in the idle workers pool,
-        # so the following would hang prior to the fix
+        # Completing the other task must not prevent subsequent worker calls.
         await anyio.to_thread.run_sync(time.sleep, 0)
 
     event1 = asyncio.Event()
@@ -410,13 +691,12 @@ class TestBlockingPortalProvider:
             assert current_async_library() == anyio_backend_name
             threads.add(threading.current_thread())
 
-        active_threads_before = threading.active_count()
         for _ in range(3):
             with provider as portal:
                 portal.call(check_thread)
 
         assert len(threads) == 3
-        assert threading.active_count() == active_threads_before
+        assert all(not thread.is_alive() for thread in threads)
 
     def test_single_thread_overlapping(
         self, provider: BlockingPortalProvider, anyio_backend_name: str
@@ -505,19 +785,41 @@ async def test_run_sync_worker_cyclic_references() -> None:
 
 
 @skipif_pypy_mark
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+def test_asyncio_worker_pool_does_not_retain_closed_loops(
+    asyncio_worker_pool: Any, anyio_backend_options: dict[str, Any]
+) -> None:
+    loop_refs = []
+    loop_factory = anyio_backend_options.get("loop_factory", asyncio.new_event_loop)
+    for _ in range(3):
+        loop = loop_factory()
+        try:
+            worker: Any = loop.run_until_complete(
+                to_thread.run_sync(threading.current_thread)
+            )
+            worker.queue.join()
+        finally:
+            loop.close()
+
+        loop_refs.append(weakref.ref(loop))
+        del loop
+
+    gc.collect()
+    assert all(loop_ref() is None for loop_ref in loop_refs)
+
+
+@skipif_pypy_mark
 def test_asyncio_run_does_not_leak_event_loop() -> None:
     """
     Regression test for #1203.
 
-    Ensure we don't leak the root task and event loop in when caching it in a RunVar.
+    Ensure worker pool use does not keep the event loop alive.
     """
 
     def thread_worker() -> None:
         pass
 
     async def main() -> weakref.ref[object]:
-        # Exercising to_thread.run_sync() triggers find_root_task(), which caches
-        # the root task (and thus the loop) in the run-vars mapping.
         await to_thread.run_sync(thread_worker)
         return weakref.ref(asyncio.get_running_loop())
 
