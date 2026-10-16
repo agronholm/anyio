@@ -192,6 +192,11 @@ to a port already being allocated. In particular, they are a must for running mu
 instances of the same test suite concurrently, either via ``pytest-xdist`` or ``tox`` or
 similar tools which can run the test suite in multiple interpreters in parallel.
 
+By default, the factories check both IPv4 and IPv6 when Python supports IPv6. They retry
+port conflicts between the two address families, but propagate other binding errors.
+If IPv6 loopback is unavailable, request an IPv4 port explicitly with
+``free_tcp_port_factory(socket.AF_INET)`` or ``free_udp_port_factory(socket.AF_INET)``.
+
 For example, you could set up a network listener in an ephemeral port and then connect
 to it::
 
