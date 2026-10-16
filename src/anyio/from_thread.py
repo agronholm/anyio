@@ -269,14 +269,15 @@ class BlockingPortal:
             future.cancel()
             future.set_running_or_notify_cancel()
         except BaseException as exc:
-            if not future.cancelled():
+            if future.set_running_or_notify_cancel():
                 future.set_exception(exc)
 
             # Let base exceptions fall through
             if not isinstance(exc, Exception):
                 raise
         else:
-            if not future.cancelled():
+            # Atomically decide between cancellation and completion before writing.
+            if future.set_running_or_notify_cancel():
                 future.set_result(retval)
         finally:
             scope = None  # type: ignore[assignment]

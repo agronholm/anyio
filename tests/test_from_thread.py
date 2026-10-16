@@ -554,6 +554,33 @@ class TestBlockingPortal:
 
         assert cancelled
 
+    @pytest.mark.parametrize("raises", [False, True], ids=["result", "exception"])
+    async def test_cancel_during_completion(
+        self, monkeypatch: pytest.MonkeyPatch, raises: bool
+    ) -> None:
+        class RacingFuture(Future[Any]):
+            def set_result(self, result: Any) -> None:
+                self.cancel()
+                super().set_result(result)
+
+            def set_exception(self, exception: BaseException | None) -> None:
+                self.cancel()
+                super().set_exception(exception)
+
+        async def func() -> str:
+            if raises:
+                raise ValueError("foo")
+
+            return "foo"
+
+        monkeypatch.setattr(from_thread, "Future", RacingFuture)
+        async with BlockingPortal() as portal:
+            if raises:
+                with pytest.raises(ValueError, match="foo"):
+                    await to_thread.run_sync(portal.call, func)
+            else:
+                assert await to_thread.run_sync(portal.call, func) == "foo"
+
     def test_start_task_soon_cancel_after_stop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
