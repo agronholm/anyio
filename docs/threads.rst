@@ -168,6 +168,31 @@ event loop in its own dedicated thread::
 
 .. note:: The event loop is shut down as soon as you exit the context manager.
 
+Calling between event loops
++++++++++++++++++++++++++++
+
+When a blocking portal belongs to an event loop running in another thread, code in an
+event loop can use :meth:`~.BlockingPortal.call_async` to call into it without blocking
+the calling thread::
+
+    from anyio import run
+    from anyio.from_thread import start_blocking_portal
+
+
+    async def async_func() -> str:
+        return "result from the portal's event loop"
+
+
+    async def main(portal) -> None:
+        result = await portal.call_async(async_func)
+        print(result)
+
+
+    with start_blocking_portal() as portal:
+        run(main, portal)
+
+Cancelling the calling task also cancels the task running in the portal.
+
 Spawning tasks
 ++++++++++++++
 
