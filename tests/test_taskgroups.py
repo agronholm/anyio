@@ -308,6 +308,22 @@ async def test_start_cancelled() -> None:
     assert not finished
 
 
+async def test_start_cancelled_child_raises() -> None:
+    """Regression test for #1356."""
+
+    async def taskfunc(*, task_status: TaskStatus) -> None:
+        try:
+            await sleep_forever()
+        finally:
+            raise RuntimeError("cleanup failed")
+
+    async with create_task_group() as tg:
+        with CancelScope() as scope:
+            scope.cancel()
+            with pytest.raises(RuntimeError, match="cleanup failed"):
+                await tg.start(taskfunc)
+
+
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_start_native_host_cancelled() -> None:
     started = finished = False

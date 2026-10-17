@@ -1040,6 +1040,7 @@ class TaskGroup(abc.TaskGroup):
         # point between, the task group is cancelled and this method never proceeds to
         # process the completed future. That's why we have to have a shielded cancel
         # scope here.
+        exc_to_raise: BaseException | None = None
         try:
             await future
         except BaseException:
@@ -1049,7 +1050,13 @@ class TaskGroup(abc.TaskGroup):
                 with CancelScope(shield=True):
                     await handle.wait()
 
-            raise
+            if handle.status is TaskHandle.Status.FAILED:
+                exc_to_raise = handle._exception
+            else:
+                raise
+
+        if exc_to_raise is not None:
+            raise exc_to_raise
 
         if return_handle:
             handle._start_value = future.result()
