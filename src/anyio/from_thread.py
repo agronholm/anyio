@@ -276,7 +276,6 @@ class BlockingPortal:
             if not isinstance(exc, Exception):
                 raise
         else:
-            # Atomically decide between cancellation and completion before writing.
             if future.set_running_or_notify_cancel():
                 future.set_result(retval)
         finally:
