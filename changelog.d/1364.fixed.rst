@@ -1,0 +1,2 @@
+Fixed ``connect_tcp()`` leaking a connected socket when an enclosing cancel scope
+was cancelled before the connection attempt task group exited

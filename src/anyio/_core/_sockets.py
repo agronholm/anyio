@@ -263,6 +263,11 @@ async def connect_tcp(
                 else ExceptionGroup("multiple connection attempts failed", oserrors)
             )
             raise OSError("All connection attempts failed") from cause
+    except BaseException:
+        if connected_stream is not None:
+            await aclose_forcefully(connected_stream)
+
+        raise
     finally:
         oserrors.clear()
 
@@ -565,6 +570,12 @@ async def create_connected_udp_socket(
     )
     family = cast(AnyIPAddressFamily, gai_res[0][0])
     remote_address = gai_res[0][-1]
+
+    if local_address is None and local_port:
+        if family is AddressFamily.AF_INET6:
+            local_address = ("::", local_port)
+        else:
+            local_address = ("0.0.0.0", local_port)
 
     sock = await get_async_backend().create_udp_socket(
         family, local_address, remote_address, reuse_port
