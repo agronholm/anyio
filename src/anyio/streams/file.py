@@ -154,8 +154,17 @@ class FileWriteStream(_BaseFileStream, ByteSendStream):
         return cls(file)
 
     async def send(self, item: bytes) -> None:
+        remaining = item
         try:
-            await to_thread.run_sync(self._file.write, item)
+            while True:
+                written = await to_thread.run_sync(self._file.write, remaining)
+                if written == len(remaining):
+                    return
+
+                if not written:
+                    raise BrokenResourceError("File write made no progress")
+
+                remaining = remaining[written:]
         except ValueError:
             raise ClosedResourceError from None
         except OSError as exc:
