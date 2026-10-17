@@ -251,7 +251,7 @@ class TestTemporaryDirectory:
         cancellation is still delivered to the caller afterwards.
         """
         td = TemporaryDirectory()
-        async with TemporaryDirectory() as td_str:
+        async with td as td_str:
             td_path = pathlib.Path(td_str)
             assert td_path.exists() and td_path.is_dir()
             with CancelScope() as outer_scope:
