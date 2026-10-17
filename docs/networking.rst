@@ -115,10 +115,6 @@ UNIX sockets can be used to pass open file descriptors (sockets and files) to an
 process. The receiving end can then use either :func:`os.fdopen` or
 :class:`socket.socket` to get a usable file or socket object, respectively.
 
-The entire message passed to :meth:`~anyio.abc.UNIXSocketStream.send_fds` is sent,
-but it may be received in multiple chunks. The file descriptors are sent only once,
-along with the first part of the message.
-
 The following is an example where a client connects to a UNIX socket server and receives
 the descriptor of a file opened on the server, reads the contents of the file and then
 prints them on standard output.
