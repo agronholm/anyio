@@ -251,16 +251,15 @@ class TestTemporaryDirectory:
         cancellation is still delivered to the caller afterwards.
         """
         td = TemporaryDirectory()
-        td_str = await td.__aenter__()
-        td_path = pathlib.Path(td_str)
-        assert td_path.exists() and td_path.is_dir()
+        async with TemporaryDirectory() as td_str:
+            td_path = pathlib.Path(td_str)
+            assert td_path.exists() and td_path.is_dir()
+            with CancelScope() as outer_scope:
+                outer_scope.cancel()
+                with pytest.raises(get_cancelled_exc_class()):
+                    await td.cleanup()
 
-        with CancelScope() as outer_scope:
-            outer_scope.cancel()
-            with pytest.raises(get_cancelled_exc_class()):
-                await td.cleanup()
-
-        assert not td_path.exists()
+            assert not td_path.exists()
 
 
 @pytest.mark.parametrize(
