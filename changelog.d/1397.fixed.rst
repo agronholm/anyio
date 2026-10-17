@@ -1,0 +1,1 @@
+Fixed ``SpooledTemporaryFile`` rolling over to disk on writes when ``max_size`` is zero (the default)
