@@ -289,12 +289,16 @@ class TaskGroup(abc.TaskGroup):
         name: object = None,
         return_handle: Literal[False, True] = False,
     ) -> Any:
-        handle: TaskHandle[T_co]
+        # The handle refers to the exception raised by the task, whose traceback
+        # includes the frame of run_coro_with_task_status(), so that frame must not
+        # keep the handle alive. The handle is passed to start() through this list
+        # instead, which start() empties when it's done, as the frame still refers to
+        # the list
+        handles: list[TaskHandle[T_co]] = []
 
         async def run_coro_with_task_status(
             *, task_status: trio.TaskStatus[Any]
         ) -> None:
-            nonlocal handle
             wrapper_task_status = _TrioTaskStatus()
             coro = call_for_coroutine(func, args, task_status=wrapper_task_status)
             if wrapper_task_status.early_start_value is not empty_start_value:
@@ -302,19 +306,23 @@ class TaskGroup(abc.TaskGroup):
             else:
                 wrapper_task_status.real_task_status = task_status
 
-            handle = TaskHandle(coro, final_name)
-            await handle._run_coro()
+            handles.append(TaskHandle(coro, final_name))
+            await handles[0]._run_coro()
 
         self._check_active()
         final_name = get_callable_name(func, name)
-        start_value = await self._nursery.start(
-            run_coro_with_task_status, name=final_name
-        )
-        if return_handle:
-            handle._start_value = start_value
-            return handle
-        else:
-            return start_value
+        try:
+            start_value = await self._nursery.start(
+                run_coro_with_task_status, name=final_name
+            )
+            if return_handle:
+                handle = handles[0]
+                handle._start_value = start_value
+                return handle
+            else:
+                return start_value
+        finally:
+            handles.clear()
 
 
 #
