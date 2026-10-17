@@ -1427,8 +1427,10 @@ class SocketStream(abc.SocketStream):
                 and not self._protocol.is_at_eof
             ):
                 self._transport.resume_reading()
-                await self._protocol.read_event.wait()
-                self._transport.pause_reading()
+                try:
+                    await self._protocol.read_event.wait()
+                finally:
+                    self._transport.pause_reading()
             else:
                 await AsyncIOBackend.checkpoint()
 
