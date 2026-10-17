@@ -95,6 +95,22 @@ class TestStapledByteStream:
         with pytest.raises(ClosedResourceError):
             await stapled.send(b"")
 
+    async def test_aclose_sender_error_closes_receiver(
+        self, stapled: StapledByteStream, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        error = RuntimeError("sender close failed")
+
+        async def close_sender() -> None:
+            raise error
+
+        monkeypatch.setattr(stapled.send_stream, "aclose", close_sender)
+        with pytest.raises(RuntimeError) as exc:
+            await stapled.aclose()
+
+        assert exc.value is error
+        with pytest.raises(ClosedResourceError):
+            await stapled.receive()
+
     @pytest.mark.parametrize("max_bytes", [0, -1])
     async def test_receive_invalid_max_bytes(
         self, stapled: StapledByteStream, max_bytes: int
@@ -239,3 +255,19 @@ class TestStapledObjectStream:
             await stapled.receive()
         with pytest.raises(ClosedResourceError):
             await stapled.send(b"")  # type: ignore[arg-type]
+
+    async def test_aclose_sender_error_closes_receiver(
+        self, stapled: StapledObjectStream[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        error = RuntimeError("sender close failed")
+
+        async def close_sender() -> None:
+            raise error
+
+        monkeypatch.setattr(stapled.send_stream, "aclose", close_sender)
+        with pytest.raises(RuntimeError) as exc:
+            await stapled.aclose()
+
+        assert exc.value is error
+        with pytest.raises(ClosedResourceError):
+            await stapled.receive()

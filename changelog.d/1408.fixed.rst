@@ -1,0 +1,1 @@
+Fixed receiving streams staying open when closing a stapled stream's sending side fails.
