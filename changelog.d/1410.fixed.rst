@@ -1,2 +1,2 @@
-Fixed cancelling a future while a ``BlockingPortal`` callable completes raising
-``InvalidStateError`` and cancelling the portal's task group.
+Fixed ``BlockingPortal`` crashing with ``InvalidStateError`` when a future it
+returned was cancelled just as the callable was completing
