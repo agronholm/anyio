@@ -1,0 +1,3 @@
+Fixed ``TaskGroup.start()`` on the asyncio backend discarding a non-cancellation
+exception raised by the child task during cleanup when ``start()`` was cancelled
+before ``task_status.started()`` was called
