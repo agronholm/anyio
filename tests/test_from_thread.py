@@ -554,7 +554,7 @@ class TestBlockingPortal:
 
         assert cancelled
 
-    @pytest.mark.parametrize("raises", [False, True], ids=["result", "exception"])
+    @pytest.mark.parametrize("raises", [pytest.param(False, id="result"), pytest.param(True, id="exception")])
     async def test_cancel_during_completion(
         self, monkeypatch: pytest.MonkeyPatch, raises: bool
     ) -> None:
