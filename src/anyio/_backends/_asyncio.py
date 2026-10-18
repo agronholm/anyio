@@ -1647,16 +1647,13 @@ class UNIXSocketStream(_RawSocketMixin, abc.UNIXSocketStream):
                 filenos.append(fd.fileno())
 
         fdarray = array.array("i", filenos)
+        ancdata = [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)]
+        view = memoryview(message)
         await AsyncIOBackend.checkpoint()
         with self._send_guard:
-            while True:
+            while view:
                 try:
-                    # The ignore can be removed after mypy picks up
-                    # https://github.com/python/typeshed/pull/5545
-                    self._raw_socket.sendmsg(
-                        [message], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)]
-                    )
-                    break
+                    bytes_sent = self._raw_socket.sendmsg([view], ancdata)
                 except BlockingIOError:
                     await self._wait_until_writable(loop)
                 except OSError as exc:
@@ -1664,6 +1661,10 @@ class UNIXSocketStream(_RawSocketMixin, abc.UNIXSocketStream):
                         raise ClosedResourceError from None
                     else:
                         raise BrokenResourceError from exc
+                else:
+                    view = view[bytes_sent:]
+                    # The descriptors were sent with the first successful write.
+                    ancdata = []
 
 
 class TCPSocketListener(abc.SocketListener):

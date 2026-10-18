@@ -75,6 +75,7 @@ from anyio import (
     wait_socket_readable,
     wait_socket_writable,
     wait_writable,
+    wrap_file,
 )
 from anyio._core._eventloop import get_async_backend
 from anyio.abc import (
@@ -1623,6 +1624,40 @@ class TestUNIXStream:
                 thread.start()
                 await stream.send_fds(b"test", [file1, file2])
                 thread.join()
+
+    async def test_send_fds_large_message(self, tmp_path: Path) -> None:
+        message = b"\xff" * 512 * 1024 + b"\x00" * 512 * 1024
+        received = bytearray()
+        received_files: list[bytes] = []
+        path = tmp_path / "file"
+        path.write_bytes(b"passed descriptor")
+
+        async def receive() -> None:
+            while True:
+                try:
+                    chunk, fds = await receiver.receive_fds(65536, 10)
+                except EndOfStream:
+                    return
+
+                received.extend(chunk)
+                for fd in fds:
+                    async with wrap_file(os.fdopen(fd, "rb")) as file:
+                        received_files.append(await file.read())
+
+        send_sock, receive_sock = socket.socketpair()
+        with send_sock, receive_sock, path.open("rb") as file:
+            send_sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
+            async with (
+                await UNIXSocketStream.from_socket(send_sock) as sender,
+                await UNIXSocketStream.from_socket(receive_sock) as receiver,
+                create_task_group() as tg,
+            ):
+                tg.start_soon(receive)
+                await sender.send_fds(message, [file])
+                await sender.send_eof()
+
+        assert received == message
+        assert received_files == [b"passed descriptor"]
 
     async def test_send_eof(
         self, server_sock: socket.socket, socket_path: Path
