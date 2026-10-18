@@ -268,6 +268,17 @@ class TestTCPStream:
             assert stream.extra(SocketAttribute.remote_address) == server_addr
             assert stream.extra(SocketAttribute.remote_port) == server_addr[1]
 
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_cancelled_receive_pauses_reading(
+        self, server_addr: tuple[str, int]
+    ) -> None:
+        async with await connect_tcp(*server_addr) as stream:
+            with CancelScope() as scope:
+                scope.cancel()
+                await stream.receive()
+
+            assert not stream._transport.is_reading()  # type: ignore[attr-defined]
+
     async def test_cancelled_send_does_not_send_the_next_one(
         self, server_sock: socket.socket, server_addr: tuple[str, int]
     ) -> None:
