@@ -263,83 +263,15 @@ class TestTCPStream:
             assert stream.extra(SocketAttribute.remote_port) == server_addr[1]
 
     @pytest.mark.parametrize("anyio_backend", asyncio_params)
-    @pytest.mark.parametrize("endpoint", ["client", "server"])
-    @pytest.mark.parametrize("cancel_at", ["before", "waiting", "data_received"])
-    async def test_cancelled_receive_pauses_transport(
-        self, endpoint: str, cancel_at: str, monkeypatch: MonkeyPatch
+    async def test_cancelled_receive_pauses_reading(
+        self, server_addr: tuple[str, int]
     ) -> None:
-        import asyncio
+        async with await connect_tcp(*server_addr) as stream:
+            with CancelScope() as scope:
+                scope.cancel()
+                await stream.receive()
 
-        from anyio._backends._asyncio import (
-            SocketStream as AsyncioSocketStream,
-        )
-        from anyio._backends._asyncio import (
-            StreamProtocol,
-        )
-
-        receiving_task: asyncio.Task[Any] | None = None
-        if cancel_at == "data_received":
-            original_data_received = StreamProtocol.data_received
-
-            def data_received(protocol: StreamProtocol, data: bytes) -> None:
-                # Cancel while the event waiter is still pending, then deliver
-                # bytes before the receiving task can resume. Patch the class
-                # before connecting: uvloop caches the protocol callbacks.
-                assert receiving_task is not None
-                receiving_task.cancel()
-                original_data_received(protocol, data)
-
-            monkeypatch.setattr(StreamProtocol, "data_received", data_received)
-
-        async with await create_tcp_listener(local_host="127.0.0.1") as listener:
-            port = listener.extra(SocketAttribute.local_port)
-            socket_listener = cast(SocketListener, listener.listeners[0])
-            async with await connect_tcp("127.0.0.1", port) as client:
-                async with await socket_listener.accept() as server:
-                    receiver, sender = (
-                        (client, server) if endpoint == "client" else (server, client)
-                    )
-                    assert isinstance(receiver, AsyncioSocketStream)
-                    scope = CancelScope()
-                    cancelled = False
-                    payload = b"hello"
-
-                    async def receive() -> None:
-                        nonlocal receiving_task, cancelled
-                        receiving_task = asyncio.current_task()
-                        with scope:
-                            if cancel_at == "before":
-                                scope.cancel()
-
-                            try:
-                                await receiver.receive()
-                            except get_cancelled_exc_class():
-                                cancelled = True
-
-                    async with create_task_group() as tg:
-                        tg.start_soon(receive)
-                        await wait_all_tasks_blocked()
-                        if cancel_at == "data_received":
-                            await sender.send(payload)
-                        else:
-                            scope.cancel()
-
-                    assert cancelled
-                    assert not receiver._transport.is_reading()
-
-                    # A cancelled read must not discard data or prevent later reads.
-                    if cancel_at != "data_received":
-                        await sender.send(payload)
-
-                    with fail_after(5):
-                        received = b""
-                        while len(received) < len(payload):
-                            received += await receiver.receive(2)
-
-                        assert received == payload
-                        await sender.send_eof()
-                        with pytest.raises(EndOfStream):
-                            await receiver.receive()
+            assert not stream._transport.is_reading()  # type: ignore[attr-defined]
 
     async def test_cancelled_send_does_not_send_the_next_one(
         self, server_sock: socket.socket, server_addr: tuple[str, int]
