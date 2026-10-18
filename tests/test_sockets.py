@@ -2318,14 +2318,13 @@ class TestUDPSocket:
                     await udp.send((DGRAM_BACKPRESSURE_PAYLOAD, addr))
                     send_completed = True
 
-                with fail_after(5):
-                    async with create_task_group() as tg:
-                        tg.start_soon(send_one_more)
-                        await wait_all_tasks_blocked()
-                        blocked = not send_completed
+                async with create_task_group() as tg:
+                    tg.start_soon(send_one_more)
+                    await wait_all_tasks_blocked()
+                    blocked = not send_completed
 
-                        # Make room in the send buffer so the sender can continue
-                        drain_datagram_socket(peer)
+                    # Make room in the send buffer so the sender can continue
+                    drain_datagram_socket(peer)
 
                 assert blocked, "send() returned before the OS accepted the datagram"
                 assert send_completed
@@ -2337,7 +2336,7 @@ class TestUDPSocket:
         # oversized datagram is used to elicit an error from the OS instead
         host = "127.0.0.1" if family == socket.AF_INET else "::1"
         async with await create_udp_socket(family=family, local_host=host) as udp:
-            with fail_after(5), pytest.raises(BrokenResourceError) as exc_info:
+            with pytest.raises(BrokenResourceError) as exc_info:
                 while True:
                     await udp.sendto(b"\x00" * 70000, host, free_udp_port)
                     await sleep(0.01)
@@ -2364,18 +2363,17 @@ class TestUDPSocket:
                 packet, _addr = await udp.receive()
                 assert packet == b"hello"
 
-            with fail_after(5):
-                async with create_task_group() as tg:
-                    tg.start_soon(receive)
-                    await wait_all_tasks_blocked()
-                    with pytest.raises(BrokenResourceError) as exc_info:
-                        await udp.sendto(b"\x00" * 70000, host, free_udp_port)
+            async with create_task_group() as tg:
+                tg.start_soon(receive)
+                await wait_all_tasks_blocked()
+                with pytest.raises(BrokenResourceError) as exc_info:
+                    await udp.sendto(b"\x00" * 70000, host, free_udp_port)
 
-                    assert isinstance(exc_info.value.__cause__, OSError)
+                assert isinstance(exc_info.value.__cause__, OSError)
 
-                    # The receiver must still be waiting for a real datagram
-                    await wait_all_tasks_blocked()
-                    await udp.sendto(b"hello", local_host, local_port)
+                # The receiver must still be waiting for a real datagram
+                await wait_all_tasks_blocked()
+                await udp.sendto(b"hello", local_host, local_port)
 
     async def test_socket_usable_after_error(
         self, family: AnyIPAddressFamily, free_udp_port: int
@@ -2384,7 +2382,7 @@ class TestUDPSocket:
         # be raised once
         host = "127.0.0.1" if family == socket.AF_INET else "::1"
         async with await create_udp_socket(family=family, local_host=host) as udp:
-            with fail_after(5), pytest.raises(BrokenResourceError) as exc_info:
+            with pytest.raises(BrokenResourceError) as exc_info:
                 while True:
                     await udp.sendto(b"\x00" * 70000, host, free_udp_port)
                     await sleep(0.01)
@@ -2395,9 +2393,8 @@ class TestUDPSocket:
             async with await create_udp_socket(
                 family=family, local_host=host, local_port=free_udp_port
             ) as peer:
-                with fail_after(5):
-                    await udp.sendto(b"hello", host, free_udp_port)
-                    packet, addr = await peer.receive()
+                await udp.sendto(b"hello", host, free_udp_port)
+                packet, addr = await peer.receive()
 
                 assert packet == b"hello"
                 assert addr == udp.extra(SocketAttribute.local_address)
@@ -2422,15 +2419,14 @@ class TestUDPSocket:
                         await wait_all_tasks_blocked()
                         tg.cancel_scope.cancel()
 
-                with fail_after(5):
-                    # The first cancelled send may leave its datagram in the asyncio
-                    # transport's buffer, but the second one must never reach it
-                    await send_and_cancel(b"one")
-                    await send_and_cancel(b"two")
+                # The first cancelled send may leave its datagram in the asyncio
+                # transport's buffer, but the second one must never reach it
+                await send_and_cancel(b"one")
+                await send_and_cancel(b"two")
 
-                    async with create_task_group() as tg:
-                        tg.start_soon(udp.send, (b"three", addr))
-                        received = await receive_datagrams_until(peer, b"three")
+                async with create_task_group() as tg:
+                    tg.start_soon(udp.send, (b"three", addr))
+                    received = await receive_datagrams_until(peer, b"three")
 
                 assert b"two" not in received
 
@@ -2466,22 +2462,21 @@ class TestUDPSocket:
                 buffered = transport.get_write_buffer_size()
                 assert buffered > 0
 
-                with fail_after(5):
-                    async with create_task_group() as tg:
-                        tg.start_soon(udp.send, (b"two", addr))
-                        await wait_all_tasks_blocked()
+                async with create_task_group() as tg:
+                    tg.start_soon(udp.send, (b"two", addr))
+                    await wait_all_tasks_blocked()
 
-                        # The OS reports an error, waking the blocked sender, but a
-                        # receiver claims it before the sender gets to run
-                        protocol.error_received(OSError(errno.ECONNREFUSED, "nope"))
-                        assert protocol.take_exception() is not None
+                    # The OS reports an error, waking the blocked sender, but a
+                    # receiver claims it before the sender gets to run
+                    protocol.error_received(OSError(errno.ECONNREFUSED, "nope"))
+                    assert protocol.take_exception() is not None
 
-                        await wait_all_tasks_blocked()
-                        size_while_paused = transport.get_write_buffer_size()
+                    await wait_all_tasks_blocked()
+                    size_while_paused = transport.get_write_buffer_size()
 
-                        # Let the sender finish, so that the transport's buffer is
-                        # empty by the time the socket is closed
-                        received = await receive_datagrams_until(peer, b"two")
+                    # Let the sender finish, so that the transport's buffer is
+                    # empty by the time the socket is closed
+                    received = await receive_datagrams_until(peer, b"two")
 
                 assert size_while_paused == buffered, (
                     "send() handed its datagram to a still-paused transport"
@@ -2778,14 +2773,13 @@ class TestConnectedUDPSocket:
                     await udp.send(DGRAM_BACKPRESSURE_PAYLOAD)
                     send_completed = True
 
-                with fail_after(5):
-                    async with create_task_group() as tg:
-                        tg.start_soon(send_one_more)
-                        await wait_all_tasks_blocked()
-                        blocked = not send_completed
+                async with create_task_group() as tg:
+                    tg.start_soon(send_one_more)
+                    await wait_all_tasks_blocked()
+                    blocked = not send_completed
 
-                        # Make room in the send buffer so the sender can continue
-                        drain_datagram_socket(peer)
+                    # Make room in the send buffer so the sender can continue
+                    drain_datagram_socket(peer)
 
                 assert blocked, "send() returned before the OS accepted the datagram"
                 assert send_completed
@@ -2808,11 +2802,10 @@ class TestConnectedUDPSocket:
                 # ERROR_PORT_UNREACHABLE, depending on the backend
                 assert isinstance(exc_info.value.__cause__, OSError)
 
-            with fail_after(5):
-                async with create_task_group() as tg:
-                    tg.start_soon(receive)
-                    await wait_all_tasks_blocked()
-                    await udp.send(b"blah")
+            async with create_task_group() as tg:
+                tg.start_soon(receive)
+                await wait_all_tasks_blocked()
+                await udp.send(b"blah")
 
     @pytest.mark.skipif(
         sys.platform == "win32",
@@ -2825,7 +2818,7 @@ class TestConnectedUDPSocket:
         async with await create_connected_udp_socket(
             host, free_udp_port, family=family
         ) as udp:
-            with fail_after(5), pytest.raises(BrokenResourceError) as exc_info:
+            with pytest.raises(BrokenResourceError) as exc_info:
                 while True:
                     await udp.send(b"blah")
                     await sleep(0.01)
@@ -2861,19 +2854,18 @@ class TestConnectedUDPSocket:
                 async def receive() -> None:
                     assert await udp.receive() == b"hello"
 
-                with fail_after(5):
-                    async with create_task_group() as tg:
-                        tg.start_soon(receive)
-                        await wait_all_tasks_blocked()
-                        with pytest.raises(BrokenResourceError) as exc_info:
-                            await udp.send(b"\x00" * 70000)
+                async with create_task_group() as tg:
+                    tg.start_soon(receive)
+                    await wait_all_tasks_blocked()
+                    with pytest.raises(BrokenResourceError) as exc_info:
+                        await udp.send(b"\x00" * 70000)
 
-                        # EMSGSIZE on POSIX; WSAEMSGSIZE on Windows
-                        assert isinstance(exc_info.value.__cause__, OSError)
+                    # EMSGSIZE on POSIX; WSAEMSGSIZE on Windows
+                    assert isinstance(exc_info.value.__cause__, OSError)
 
-                        # The receiver must still be waiting for a real datagram
-                        await wait_all_tasks_blocked()
-                        await peer.sendto(b"hello", local_host, local_port)
+                    # The receiver must still be waiting for a real datagram
+                    await wait_all_tasks_blocked()
+                    await peer.sendto(b"hello", local_host, local_port)
 
     @pytest.mark.usefixtures("check_libuv_udp_error_bug")
     async def test_socket_usable_after_error(
@@ -2887,7 +2879,7 @@ class TestConnectedUDPSocket:
         ) as udp:
             # Elicit an ICMP port unreachable message and let it be reported
             await udp.send(b"blah")
-            with fail_after(5), pytest.raises(BrokenResourceError) as exc_info:
+            with pytest.raises(BrokenResourceError) as exc_info:
                 await udp.receive()
 
             # ConnectionRefusedError on POSIX; on Windows either
@@ -2899,9 +2891,8 @@ class TestConnectedUDPSocket:
             async with await create_udp_socket(
                 family=family, local_host=host, local_port=free_udp_port
             ) as peer:
-                with fail_after(5):
-                    await udp.send(b"hello")
-                    packet, _addr = await peer.receive()
+                await udp.send(b"hello")
+                packet, _addr = await peer.receive()
 
                 assert packet == b"hello"
 
@@ -2924,15 +2915,14 @@ class TestConnectedUDPSocket:
                         await wait_all_tasks_blocked()
                         tg.cancel_scope.cancel()
 
-                with fail_after(5):
-                    # The first cancelled send may leave its datagram in the asyncio
-                    # transport's buffer, but the second one must never reach it
-                    await send_and_cancel(b"one")
-                    await send_and_cancel(b"two")
+                # The first cancelled send may leave its datagram in the asyncio
+                # transport's buffer, but the second one must never reach it
+                await send_and_cancel(b"one")
+                await send_and_cancel(b"two")
 
-                    async with create_task_group() as tg:
-                        tg.start_soon(udp.send, b"three")
-                        received = await receive_datagrams_until(peer, b"three")
+                async with create_task_group() as tg:
+                    tg.start_soon(udp.send, b"three")
+                    received = await receive_datagrams_until(peer, b"three")
 
                 assert b"two" not in received
 
@@ -2967,22 +2957,21 @@ class TestConnectedUDPSocket:
                 buffered = transport.get_write_buffer_size()
                 assert buffered > 0
 
-                with fail_after(5):
-                    async with create_task_group() as tg:
-                        tg.start_soon(udp.send, b"two")
-                        await wait_all_tasks_blocked()
+                async with create_task_group() as tg:
+                    tg.start_soon(udp.send, b"two")
+                    await wait_all_tasks_blocked()
 
-                        # The OS reports an error, waking the blocked sender, but a
-                        # receiver claims it before the sender gets to run
-                        protocol.error_received(OSError(errno.ECONNREFUSED, "nope"))
-                        assert protocol.take_exception() is not None
+                    # The OS reports an error, waking the blocked sender, but a
+                    # receiver claims it before the sender gets to run
+                    protocol.error_received(OSError(errno.ECONNREFUSED, "nope"))
+                    assert protocol.take_exception() is not None
 
-                        await wait_all_tasks_blocked()
-                        size_while_paused = transport.get_write_buffer_size()
+                    await wait_all_tasks_blocked()
+                    size_while_paused = transport.get_write_buffer_size()
 
-                        # Let the sender finish, so that the transport's buffer is
-                        # empty by the time the socket is closed
-                        received = await receive_datagrams_until(peer, b"two")
+                    # Let the sender finish, so that the transport's buffer is
+                    # empty by the time the socket is closed
+                    received = await receive_datagrams_until(peer, b"two")
 
                 assert size_while_paused == buffered, (
                     "send() handed its datagram to a still-paused transport"
