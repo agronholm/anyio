@@ -1,0 +1,3 @@
+Fixed documentation implying that ``use_uvloop=True`` falls back to the standard
+event loop when uvloop (winloop on Windows) is not installed, and showed how to
+skip the corresponding pytest backend variant when the dependency is missing

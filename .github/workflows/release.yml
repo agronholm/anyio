@@ -1,0 +1,108 @@
+# Generates the changelog from the news fragments, then commits and tags the release.
+# The tag push then triggers the "Publish packages to PyPI" workflow.
+#
+# Usage: gh workflow run release.yml [-f version=X.Y.Z]
+#
+# Without an explicit version, the latest final release is bumped based on the news
+# fragment types: major if there are breaking changes, minor if there are new features,
+# patch otherwise.
+#
+# Requires a GitHub App (contents: write, pull requests: read) that is installed on the
+# repository and allowed to bypass the default branch protection. Its client ID must be
+# set as the RELEASE_APP_CLIENT_ID variable and its private key as the
+# RELEASE_APP_PRIVATE_KEY secret in the "release" environment.
+name: Release a new version
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release (e.g. 4.16.0; derived from news fragments if empty)
+        required: false
+
+concurrency: release
+
+permissions: {}
+
+jobs:
+  release:
+    name: Generate the changelog and tag the release
+    runs-on: ubuntu-latest
+    environment: release
+    env:
+      REQUESTED_VERSION: ${{ inputs.version }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: read
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+      - name: Determine the version
+        run: |
+          VERSION=$REQUESTED_VERSION
+          if [ -z "$VERSION" ]; then
+            latest=$(git tag --list | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+            IFS=. read -r major minor patch <<< "$latest"
+            fragments=$(ls changelog.d)
+            if grep -qE '\.breaking(\.[0-9]+)?\.rst$' <<< "$fragments"; then
+              VERSION="$((major + 1)).0.0"
+            elif grep -qE '\.added(\.[0-9]+)?\.rst$' <<< "$fragments"; then
+              VERSION="$major.$((minor + 1)).0"
+            else
+              VERSION="$major.$minor.$((patch + 1))"
+            fi
+          fi
+
+          # Must match the tag patterns in publish.yml, or publishing won't be triggered
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.post[0-9]+|[ab][0-9]+|rc[0-9]+)?$ ]]; then
+            echo "::error::Invalid version: $VERSION"
+            exit 1
+          fi
+
+          if git rev-parse -q --verify "refs/tags/$VERSION" > /dev/null; then
+            echo "::error::Version $VERSION has already been tagged"
+            exit 1
+          fi
+
+          echo "::notice::Releasing version $VERSION"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+      - name: Credit the authors of the pull requests that added news fragments
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          shopt -s nullglob
+          for fragment in changelog.d/*.rst; do
+            if tail -n 1 "$fragment" | grep -q "^PR by @"; then continue; fi
+            sha=$(git log --follow --diff-filter=A --format=%H -1 -- "$fragment")
+            if [ -z "$sha" ]; then continue; fi
+            author=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/pulls" --jq '.[0].user.login // empty')
+            if [ -n "$author" ] && [ "$author" != "$GITHUB_REPOSITORY_OWNER" ]; then
+              echo "PR by @$author" >> "$fragment"
+            fi
+          done
+      - name: Generate the changelog from news fragments
+        run: |
+          # Keep the fragments on pre-releases so that the final release lists them too
+          if [[ "$VERSION" =~ (a|b|rc)[0-9]+$ ]]; then
+            pipx run towncrier build --keep --version "$VERSION"
+          else
+            pipx run towncrier build --yes --version "$VERSION"
+          fi
+      - name: Commit, tag and push the release
+        env:
+          ACTOR: ${{ github.actor }}
+          ACTOR_ID: ${{ github.actor_id }}
+        run: |
+          git config user.name "$ACTOR"
+          git config user.email "$ACTOR_ID+$ACTOR@users.noreply.github.com"
+          git commit -m "Released version $VERSION"
+          git tag "$VERSION"
+          git push --atomic origin "HEAD:refs/heads/$DEFAULT_BRANCH" "refs/tags/$VERSION"

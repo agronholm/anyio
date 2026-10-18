@@ -7,7 +7,7 @@ import pytest
 from _pytest.fixtures import SubRequest
 from _pytest.tmpdir import TempPathFactory
 
-from anyio import ClosedResourceError, EndOfStream
+from anyio import CancelScope, ClosedResourceError, EndOfStream, get_cancelled_exc_class
 from anyio.streams.file import FileReadStream, FileStreamAttribute, FileWriteStream
 
 if TYPE_CHECKING:
@@ -47,6 +47,19 @@ class TestFileReadStream:
 
         with pytest.raises(ClosedResourceError):
             await stream.receive()
+
+    async def test_close_on_cancel(self, file_path: Path) -> None:
+        stream = await FileReadStream.from_path(file_path)
+        file = stream.extra(FileStreamAttribute.file)
+        try:
+            with CancelScope() as scope:
+                with pytest.raises(get_cancelled_exc_class()):
+                    async with stream:
+                        scope.cancel()
+
+            assert file.closed
+        finally:
+            file.close()
 
     @pytest.mark.parametrize("max_bytes", [0, -1])
     async def test_receive_invalid_max_bytes(
@@ -104,6 +117,19 @@ class TestFileWriteStream:
 
         with pytest.raises(ClosedResourceError):
             await stream.send(b"foo")
+
+    async def test_close_on_cancel(self, file_path: Path) -> None:
+        stream = await FileWriteStream.from_path(file_path)
+        file = stream.extra(FileStreamAttribute.file)
+        try:
+            with CancelScope() as scope:
+                with pytest.raises(get_cancelled_exc_class()):
+                    async with stream:
+                        scope.cancel()
+
+            assert file.closed
+        finally:
+            file.close()
 
     async def test_extra_attributes(self, file_path: Path) -> None:
         async with await FileWriteStream.from_path(file_path) as stream:

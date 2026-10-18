@@ -30,7 +30,11 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
-from anyio.from_thread import BlockingPortal, start_blocking_portal
+from anyio.from_thread import (
+    BlockingPortal,
+    BlockingPortalProvider,
+    start_blocking_portal,
+)
 from anyio.lowlevel import EventLoopToken, checkpoint, current_token
 
 from .conftest import asyncio_params, return_non_coro_awaitable
@@ -331,6 +335,21 @@ class TestRunSyncFromThread:
             return from_thread.run_sync(sniffio.current_async_library)
 
         assert await to_thread.run_sync(worker) == anyio_backend_name
+
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_get_current_task(self) -> None:
+        """
+        Regression test for #773: get_current_task() must raise a clear
+        RuntimeError, not an opaque weakref TypeError, when called from a
+        callback scheduled via loop.call_soon_threadsafe() (as from_thread.run_sync
+        does), where asyncio.current_task() is legitimately None.
+        """
+
+        def worker() -> None:
+            from_thread.run_sync(get_current_task)
+
+        with pytest.raises(RuntimeError, match="There is no task currently running"):
+            await to_thread.run_sync(worker)
 
 
 class TestBlockingPortal:
@@ -797,3 +816,17 @@ class TestBlockingPortal:
                 # Ensure thread has time to start the task
                 await event.wait()
                 await portal.stop(cancel_remaining=True)
+
+
+class TestBlockingPortalProvider:
+    def test_exception_passed_to_portal_cm(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        provider = BlockingPortalProvider(anyio_backend_name, anyio_backend_options)
+        with pytest.raises(RuntimeError, match="boom"):
+            with provider as portal:
+                future = portal.start_task_soon(sleep, 10)
+                portal.call(wait_all_tasks_blocked)
+                raise RuntimeError("boom")
+
+        assert future.cancelled()

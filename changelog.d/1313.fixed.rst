@@ -1,0 +1,4 @@
+Fixed ``create_tcp_listener()`` occasionally failing with a message like
+``Could not create 2 listeners with a consistent port`` when an ephemeral port is
+requested and IPv6 is enabled and the dual-stack path is not available or a specific
+local host name was given

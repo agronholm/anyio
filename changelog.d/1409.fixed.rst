@@ -1,0 +1,2 @@
+Fixed buffered byte streams returning empty bytes when a wrapped object stream received
+empty messages instead of waiting for data or raising ``EndOfStream``
