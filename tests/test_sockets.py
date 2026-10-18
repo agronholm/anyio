@@ -14,7 +14,14 @@ import tempfile
 import threading
 import time
 import warnings
-from collections.abc import Generator, Iterable, Iterator
+from collections.abc import (
+    AsyncIterator,
+    Callable,
+    Coroutine,
+    Generator,
+    Iterable,
+    Iterator,
+)
 from contextlib import suppress
 from ipaddress import IPv4Address, IPv6Address
 from pathlib import Path
@@ -37,12 +44,14 @@ from pytest_mock.plugin import MockerFixture
 from anyio import (
     BrokenResourceError,
     BusyResourceError,
+    CancelScope,
     ClosedResourceError,
     EndOfStream,
     Event,
     TCPConnectable,
     TypedAttributeLookupError,
     UNIXConnectable,
+    aclose_forcefully,
     as_connectable,
     connect_tcp,
     connect_unix,
@@ -54,6 +63,8 @@ from anyio import (
     create_unix_datagram_socket,
     create_unix_listener,
     fail_after,
+    get_available_backends,
+    get_cancelled_exc_class,
     getaddrinfo,
     getnameinfo,
     move_on_after,
@@ -65,6 +76,7 @@ from anyio import (
     wait_socket_readable,
     wait_socket_writable,
     wait_writable,
+    wrap_file,
 )
 from anyio._core._eventloop import get_async_backend
 from anyio.abc import (
@@ -256,6 +268,83 @@ class TestTCPStream:
             assert stream.extra(SocketAttribute.remote_address) == server_addr
             assert stream.extra(SocketAttribute.remote_port) == server_addr[1]
 
+    async def test_cancelled_send_does_not_send_the_next_one(
+        self, server_sock: socket.socket, server_addr: tuple[str, int]
+    ) -> None:
+        """
+        Handing data to a paused transport merely appends it to the write buffer.
+        If a ``send()`` was cancelled after the data was written to the buffer, the
+        next call must ensure that the previous send completed one way or another
+        before attempting to send its own data.
+        """
+        payload = b"a" * 8 * 1024 * 1024
+        async with await connect_tcp(*server_addr) as stream:
+            client, _ = server_sock.accept()
+            with client:
+                client.setblocking(False)
+
+                async def send_and_cancel(item: bytes) -> bool:
+                    """Return ``True`` if the send was cancelled before completing."""
+                    completed = False
+
+                    async def send() -> None:
+                        nonlocal completed
+                        await stream.send(item)
+                        completed = True
+
+                    async with create_task_group() as tg:
+                        tg.start_soon(send)
+                        await wait_all_tasks_blocked()
+                        tg.cancel_scope.cancel()
+
+                    return not completed
+
+                # Back the connection up. Nothing is read from the peer until further
+                # down, so the connection stays that way.
+                await send_and_cancel(payload)
+
+                # The OS may still reopen some room (from the peer's acknowledgements or
+                # buffer autotuning), in which case a send() legitimately completes
+                # before it can be cancelled. Keep trying with a fresh marker until one
+                # is genuinely cancelled.
+                for marker in (bytes([char]) for char in b"cdefghij"):
+                    # Soak up any room that has been reopened in the meantime, so that
+                    # the OS cannot take another byte
+                    await send_and_cancel(payload)
+
+                    # On Windows, a transport can be genuinely backed up without its
+                    # pause_writing() having fired yet: that only happens as a side
+                    # effect of the next write() call discovering it, by which point
+                    # that call's own data is already appended to the write buffer.
+                    # Spend that one on a throwaway payload so the transport is *known*
+                    # paused going into the next send() below, before it ever calls
+                    # write() again.
+                    await send_and_cancel(b"r" * 64)
+
+                    # Now that the transport is known paused, the OS never accepted any
+                    # of a cancelled send's data, so none of it may reach the peer
+                    if await send_and_cancel(marker * 64):
+                        break
+                else:
+                    pytest.fail("Could not get a send() cancelled before it completed")
+
+                # Drain the peer until a final, uncancelled send() has arrived; data
+                # that a cancelled send() wrongly handed over would arrive first
+                received = bytearray()
+                arrived = False
+                async with create_task_group() as tg:
+                    tg.start_soon(stream.send, b"z" * 64)
+                    while not arrived:
+                        try:
+                            data = client.recv(65536)
+                        except BlockingIOError:
+                            await wait_readable(client)
+                        else:
+                            received += data
+                            arrived = b"z" in data
+
+                assert marker not in received
+
     async def test_send_receive(
         self, server_sock: socket.socket, server_addr: tuple[str, int]
     ) -> None:
@@ -395,6 +484,30 @@ class TestTCPStream:
         server_sock.close()
         assert client_addr[0] == expected_client_addr
 
+    async def test_connect_tcp_closes_winner_on_outer_cancellation(
+        self, server_addr: tuple[str, int], monkeypatch: MonkeyPatch
+    ) -> None:
+        """
+        A connected stream must be closed if the enclosing cancel scope is cancelled
+        before the connection attempt task group exits.
+        """
+        backend = get_async_backend()
+        original_connect_tcp = backend.connect_tcp
+        streams: list[SocketStream] = []
+
+        async def connect_and_cancel(*args: Any) -> SocketStream:
+            streams.append(await original_connect_tcp(*args))
+            scope.cancel()
+            return streams[-1]
+
+        monkeypatch.setattr(backend, "connect_tcp", connect_and_cancel)
+        with CancelScope() as scope:
+            await connect_tcp(*server_addr)
+
+        assert scope.cancelled_caught
+        with pytest.raises(ClosedResourceError):
+            await streams[0].send(b"x")
+
     async def test_connect_tcp_with_local_port(
         self,
         server_sock: socket.socket,
@@ -512,6 +625,100 @@ class TestTCPStream:
                 tg.start_soon(interrupt)
                 with pytest.raises(ClosedResourceError):
                     await stream.receive()
+
+    async def test_close_during_send(self, server_addr: tuple[str, int]) -> None:
+        closed = False
+
+        async def interrupt() -> None:
+            nonlocal closed
+            await wait_all_tasks_blocked()
+            closed = True
+            await stream.aclose()
+
+        async with await connect_tcp(*server_addr) as stream:
+            raw_socket = stream.extra(SocketAttribute.raw_socket)
+            async with create_task_group() as tg:
+                tg.start_soon(interrupt)
+                with pytest.raises(ClosedResourceError):
+                    # Nothing reads from the server side, so this blocks once the
+                    # socket buffers fill up (how much they take varies by platform)
+                    while True:
+                        await stream.send(b"\0" * 1024 * 1024)
+                        assert not closed, "send() returned normally after aclose()"
+
+            assert raw_socket.fileno() == -1
+
+    async def test_reset_during_send(
+        self, family: AnyIPAddressFamily, request: FixtureRequest
+    ) -> None:
+        server_sock = socket.create_server(("localhost", 0), family=family)
+        request.addfinalizer(server_sock.close)
+        server_addr = server_sock.getsockname()[:2]
+        reset = False
+
+        async def interrupt() -> None:
+            nonlocal reset
+            await wait_all_tasks_blocked()
+            reset = True
+            client_sock.setsockopt(
+                socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
+            )
+            client_sock.close()
+
+        async with await connect_tcp(*server_addr) as stream:
+            client_sock, _ = server_sock.accept()
+            async with create_task_group() as tg:
+                tg.start_soon(interrupt)
+                with pytest.raises(BrokenResourceError) as exc_info:
+                    # Nothing reads from the peer, so this blocks once the socket
+                    # buffers fill up (how much they take varies by platform)
+                    while True:
+                        await stream.send(b"\0" * 1024 * 1024)
+                        assert not reset, "send() returned normally after reset"
+
+            assert exc_info.value.__cause__ is not None
+
+    async def test_aclose_forcefully(self, server_addr: tuple[str, int]) -> None:
+        stream = await connect_tcp(*server_addr)
+        sock = stream.extra(SocketAttribute.raw_socket)
+        await stream.send(b"x")
+        await aclose_forcefully(stream)
+        assert sock.fileno() == -1
+
+    async def test_concurrent_aclose_forcefully_closes_socket(
+        self, server_addr: tuple[str, int]
+    ) -> None:
+        stream = await connect_tcp(*server_addr)
+        raw_socket = stream.extra(SocketAttribute.raw_socket)
+        fds: list[int] = []
+
+        async def do_aclose() -> None:
+            await aclose_forcefully(stream)
+            fds.append(raw_socket.fileno())
+
+        async with create_task_group() as tg:
+            tg.start_soon(do_aclose)
+            tg.start_soon(do_aclose)
+
+        assert fds == [-1, -1]
+
+    async def test_aclose_in_cancelled_scope_raises_cancelled_exc(
+        self, server_addr: tuple[str, int]
+    ) -> None:
+        exc = None
+        stream = await connect_tcp(*server_addr)
+        raw_socket = stream.extra(SocketAttribute.raw_socket)
+
+        with CancelScope() as scope:
+            scope.cancel()
+            try:
+                await stream.aclose()
+            except get_cancelled_exc_class() as e:
+                exc = e
+                raise
+
+        assert exc is not None
+        assert raw_socket.fileno() == -1
 
     async def test_receive_after_close(self, server_addr: tuple[str, int]) -> None:
         stream = await connect_tcp(*server_addr)
@@ -929,6 +1136,35 @@ class TestTCPListener:
         assert len(nested_grp.exceptions) == 1
         assert isinstance(nested_grp.exceptions[0], ExceptionGroup)
 
+    @pytest.mark.parametrize("accepting", [False, True], ids=["idle", "accepting"])
+    async def test_aclose_in_cancelled_scope_raises_cancelled_exc(
+        self, family: AnyIPAddressFamily, accepting: bool
+    ) -> None:
+        multi = await create_tcp_listener(local_host="localhost", family=family)
+        listener = multi.listeners[0]
+        assert isinstance(listener, SocketListener)
+
+        async def accept() -> None:
+            with pytest.raises(ClosedResourceError):
+                await listener.accept()
+
+        exc = None
+        async with multi, create_task_group() as tg:
+            if accepting:
+                tg.start_soon(accept)
+                await wait_all_tasks_blocked()
+
+            with CancelScope() as scope:
+                scope.cancel()
+                try:
+                    await listener.aclose()
+                except get_cancelled_exc_class() as e:
+                    exc = e
+                    raise
+
+        assert exc is not None
+        assert listener.extra(SocketAttribute.raw_socket).fileno() == -1
+
     async def test_send_after_eof(self, family: AnyIPAddressFamily) -> None:
         async def handle(stream: SocketStream) -> None:
             async with stream:
@@ -1218,6 +1454,31 @@ class TestUNIXStream:
 
         assert response == b"halb"
 
+    @pytest.mark.skipif(
+        platform.system() != "Linux",
+        reason="SOCK_SEQPACKET only supported for linux targets.",
+    )
+    async def test_send_receive_seqsocket(self, socket_path_or_str: Path | str) -> None:
+        """
+        Verifies the behavior of a SOCK_SEQPACKET socket, which is a connection-oriented
+        socket that preserves message boundaries.
+
+        """
+        async with (
+            await create_unix_listener(
+                socket_path_or_str, kind=socket.SOCK_SEQPACKET
+            ) as server,
+            await connect_unix(
+                socket_path_or_str, kind=socket.SOCK_SEQPACKET
+            ) as stream,
+            await server.accept() as client,
+        ):
+            with fail_after(1):
+                await stream.send(b"po")
+                await stream.send(b"tato")
+                assert await client.receive(1024) == b"po"
+                assert await client.receive(1024) == b"tato"
+
     @pytest.mark.parametrize("max_bytes", [0, -1])
     async def test_receive_invalid_max_bytes(
         self, server_sock: socket.socket, socket_path: Path, max_bytes: int
@@ -1357,6 +1618,40 @@ class TestUNIXStream:
                 thread.start()
                 await stream.send_fds(b"test", [file1, file2])
                 thread.join()
+
+    async def test_send_fds_large_message(self, tmp_path: Path) -> None:
+        message = b"\xff" * 512 * 1024 + b"\x00" * 512 * 1024
+        received = bytearray()
+        received_files: list[bytes] = []
+        path = tmp_path / "file"
+        path.write_bytes(b"passed descriptor")
+
+        async def receive() -> None:
+            while True:
+                try:
+                    chunk, fds = await receiver.receive_fds(65536, 10)
+                except EndOfStream:
+                    return
+
+                received.extend(chunk)
+                for fd in fds:
+                    async with wrap_file(os.fdopen(fd, "rb")) as file:
+                        received_files.append(await file.read())
+
+        send_sock, receive_sock = socket.socketpair()
+        with send_sock, receive_sock, path.open("rb") as file:
+            send_sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
+            async with (
+                await UNIXSocketStream.from_socket(send_sock) as sender,
+                await UNIXSocketStream.from_socket(receive_sock) as receiver,
+                create_task_group() as tg,
+            ):
+                tg.start_soon(receive)
+                await sender.send_fds(message, [file])
+                await sender.send_eof()
+
+        assert received == message
+        assert received_files == [b"passed descriptor"]
 
     async def test_send_eof(
         self, server_sock: socket.socket, socket_path: Path
@@ -1503,6 +1798,41 @@ class TestUNIXStream:
         finally:
             if client is not None:
                 await client.aclose()
+
+    async def test_concurrent_aclose_forcefully_closes_socket(
+        self, server_sock: socket.socket, socket_path: Path
+    ) -> None:
+        stream = await connect_unix(socket_path)
+        raw_socket = stream.extra(SocketAttribute.raw_socket)
+        fds: list[int] = []
+
+        async def do_aclose() -> None:
+            await aclose_forcefully(stream)
+            fds.append(raw_socket.fileno())
+
+        async with create_task_group() as tg:
+            tg.start_soon(do_aclose)
+            tg.start_soon(do_aclose)
+
+        assert fds == [-1, -1]
+
+    async def test_aclose_in_cancelled_scope_raises_cancelled_exc(
+        self, server_sock: socket.socket, socket_path: Path
+    ) -> None:
+        exc = None
+        stream = await connect_unix(socket_path)
+        raw_socket = stream.extra(SocketAttribute.raw_socket)
+
+        with CancelScope() as scope:
+            scope.cancel()
+            try:
+                await stream.aclose()
+            except get_cancelled_exc_class() as e:
+                exc = e
+                raise
+
+        assert exc is not None
+        assert raw_socket.fileno() == -1
 
     async def test_receive_after_close(
         self, server_sock: socket.socket, socket_path: Path
@@ -1719,6 +2049,35 @@ class TestUNIXListener:
                 async with await listener.accept() as stream:
                     assert stream.extra(SocketAttribute.family) == socket.AF_UNIX
 
+    async def test_close_during_accept(self, socket_path: Path) -> None:
+        async def accept() -> None:
+            with pytest.raises(ClosedResourceError):
+                await listener.accept()
+
+        listener = await create_unix_listener(socket_path)
+        async with create_task_group() as tg:
+            tg.start_soon(accept)
+            await wait_all_tasks_blocked()
+            await listener.aclose()
+
+        assert listener.extra(SocketAttribute.raw_socket).fileno() == -1
+
+    async def test_aclose_in_cancelled_scope_raises_cancelled_exc(
+        self, socket_path: Path
+    ) -> None:
+        exc = None
+        listener = await create_unix_listener(socket_path)
+        with CancelScope() as scope:
+            scope.cancel()
+            try:
+                await listener.aclose()
+            except get_cancelled_exc_class() as e:
+                exc = e
+                raise
+
+        assert exc is not None
+        assert listener.extra(SocketAttribute.raw_socket).fileno() == -1
+
 
 async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
     async def handle(stream: SocketStream) -> None:
@@ -1836,6 +2195,32 @@ def make_backpressured_pair(
 @pytest.mark.network
 @pytest.mark.usefixtures("check_asyncio_bug")
 class TestUDPSocket:
+    @pytest.mark.skipif(
+        "trio" not in get_available_backends(), reason="trio is not available"
+    )
+    @pytest.mark.parametrize("anyio_backend", ["trio"])
+    async def test_bind_failure_closes_socket(
+        self, family: AnyIPAddressFamily, monkeypatch: MonkeyPatch
+    ) -> None:
+        import trio
+
+        real_socket = trio.socket.socket
+        created: list[trio.socket.SocketType] = []
+
+        def capture_socket(*args: Any, **kwargs: Any) -> trio.socket.SocketType:
+            created.append(real_socket(*args, **kwargs))
+            return created[-1]
+
+        monkeypatch.setattr(trio.socket, "socket", capture_socket)
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        with socket.socket(family, socket.SOCK_DGRAM) as occupied:
+            occupied.bind((host, 0))
+            port = occupied.getsockname()[1]
+            with pytest.raises(OSError):
+                await create_udp_socket(family=family, local_host=host, local_port=port)
+
+        assert created[0].fileno() == -1
+
     async def test_aclose_waits_for_fd_release(
         self, family: AnyIPAddressFamily, free_udp_port: int
     ) -> None:
@@ -1868,6 +2253,14 @@ class TestUDPSocket:
             sock.setblocking(False)
             udp = await UDPSocket.from_socket(sock)
             await udp.aclose()
+
+    async def test_aclose_during_send(self, free_udp_port: int) -> None:
+        udp = await create_udp_socket(local_host="127.0.0.1")
+        sock = udp.extra(SocketAttribute.raw_socket)
+        await udp.sendto(b"x", "127.0.0.1", free_udp_port)
+        await aclose_forcefully(udp)
+
+        assert sock.fileno() == -1
 
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_udp_socket(
@@ -2165,6 +2558,43 @@ class TestUDPSocket:
             with pytest.raises(ClosedResourceError):
                 await udp.receive()
 
+    async def test_concurrent_aclose_forcefully_closes_socket(
+        self,
+    ) -> None:
+        udp = await create_udp_socket(
+            family=AddressFamily.AF_INET, local_host="localhost"
+        )
+        raw_socket = udp.extra(SocketAttribute.raw_socket)
+        fds: list[int] = []
+
+        async def do_aclose() -> None:
+            await aclose_forcefully(udp)
+            fds.append(raw_socket.fileno())
+
+        async with create_task_group() as tg:
+            tg.start_soon(do_aclose)
+            tg.start_soon(do_aclose)
+
+        assert fds == [-1, -1]
+
+    async def test_aclose_in_cancelled_scope_raises_cancelled_exc(self) -> None:
+        exc = None
+        udp = await create_udp_socket(
+            family=AddressFamily.AF_INET, local_host="localhost"
+        )
+        raw_socket = udp.extra(SocketAttribute.raw_socket)
+
+        with CancelScope() as scope:
+            scope.cancel()
+            try:
+                await udp.aclose()
+            except get_cancelled_exc_class() as e:
+                exc = e
+                raise
+
+        assert exc is not None
+        assert raw_socket.fileno() == -1
+
     async def test_receive_after_close(self) -> None:
         udp = await create_udp_socket(
             family=AddressFamily.AF_INET, local_host="localhost"
@@ -2189,6 +2619,20 @@ class TestUDPSocket:
                 IPSockAddrType, udp.extra(SocketAttribute.local_address)
             )
             assert local_address[1] > 0
+
+    async def test_create_socket_bound_to_port(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        """
+        Test that passing an explicit ``local_port`` to ``create_udp_socket()``
+        without a ``local_host`` parameter still honors that port when binding
+        to the "any" address.
+
+        """
+        async with await create_udp_socket(
+            family=family, local_port=free_udp_port
+        ) as udp:
+            assert udp.extra(SocketAttribute.local_port) == free_udp_port
 
     async def test_from_socket(
         self, family: AnyIPAddressFamily, sock_or_fd_factory: SockFdFactoryProtocol
@@ -2236,6 +2680,46 @@ class TestConnectedUDPSocket:
                 await udp.aclose()
         finally:
             peer.close()
+
+    async def test_aclose_during_send(self, free_udp_port: int) -> None:
+        udp = await create_connected_udp_socket("127.0.0.1", free_udp_port)
+        raw_socket = udp.extra(SocketAttribute.raw_socket)
+        await udp.send(b"x")
+        await udp.aclose()
+        assert raw_socket.fileno() == -1
+
+    async def test_create_connected_socket_bound_to_port(
+        self, family: AnyIPAddressFamily, free_udp_port: int
+    ) -> None:
+        """
+        Test that passing an explicit ``local_port`` to
+        ``create_connected_udp_socket()`` without a ``local_host`` parameter
+        still honors that port when binding to the "any" address.
+
+        """
+        host = "127.0.0.1" if family == socket.AF_INET else "::1"
+        async with await create_connected_udp_socket(
+            host, 5000, family=family, local_port=free_udp_port
+        ) as udp:
+            assert udp.extra(SocketAttribute.local_port) == free_udp_port
+
+    async def test_create_connected_socket_bound_to_port_unspecified_family(
+        self, free_udp_port: int
+    ) -> None:
+        """
+        With no family and no local host, the wildcard must match the family the remote
+        resolved to rather than always being IPv4.
+
+        """
+        async with await create_connected_udp_socket(
+            "localhost", 5000, local_port=free_udp_port
+        ) as udp:
+            expected_family = udp.extra(SocketAttribute.family)
+            expected_host = "127.0.0.1" if expected_family == socket.AF_INET else "::1"
+            assert udp.extra(SocketAttribute.local_address) == (
+                expected_host,
+                free_udp_port,
+            )
 
     async def test_extra_attributes(self, family: AnyIPAddressFamily) -> None:
         async with await create_connected_udp_socket(
@@ -2579,6 +3063,45 @@ class TestConnectedUDPSocket:
             with pytest.raises(ClosedResourceError):
                 await udp.receive()
 
+    async def test_concurrent_aclose_forcefully_closes_socket(
+        self, family: AnyIPAddressFamily
+    ) -> None:
+        udp = await create_connected_udp_socket(
+            "localhost", 5000, local_host="localhost", family=family
+        )
+        raw_socket = udp.extra(SocketAttribute.raw_socket)
+        fds: list[int] = []
+
+        async def do_aclose() -> None:
+            await aclose_forcefully(udp)
+            fds.append(raw_socket.fileno())
+
+        async with create_task_group() as tg:
+            tg.start_soon(do_aclose)
+            tg.start_soon(do_aclose)
+
+        assert fds == [-1, -1]
+
+    async def test_aclose_in_cancelled_scope_raises_cancelled_exc(
+        self, family: AnyIPAddressFamily
+    ) -> None:
+        exc = None
+        udp = await create_connected_udp_socket(
+            "localhost", 5000, local_host="localhost", family=family
+        )
+        raw_socket = udp.extra(SocketAttribute.raw_socket)
+
+        with CancelScope() as scope:
+            scope.cancel()
+            try:
+                await udp.aclose()
+            except get_cancelled_exc_class() as e:
+                exc = e
+                raise
+
+        assert exc is not None
+        assert raw_socket.fileno() == -1
+
     async def test_receive_after_close(self, family: AnyIPAddressFamily) -> None:
         udp = await create_connected_udp_socket(
             "localhost", 5000, local_host="localhost", family=family
@@ -2653,6 +3176,193 @@ async def test_datagram_protocol_restores_back_pressure() -> None:
 
     protocol.resume_writing()
     assert protocol.write_event.is_set()
+
+
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="Datagram sockets are only known to refuse datagrams with EAGAIN on Linux",
+)
+class TestUDPSocketBackpressure:
+    """
+    Tests for ``send()`` on UDP sockets when the OS refuses to accept more datagrams.
+
+    UNIX datagram sockets are used because UDP sockets never exert back-pressure on the
+    loopback interface, but they take the same code path in both backends.
+
+    """
+
+    payload = b"\x00" * 64
+
+    @staticmethod
+    def drain(sock: socket.socket) -> None:
+        try:
+            while True:
+                sock.recv(65536)
+        except BlockingIOError:
+            pass
+
+    @staticmethod
+    async def receive_until(sock: socket.socket, sentinel: bytes) -> list[bytes]:
+        """Receive datagrams until ``sentinel`` arrives, and return all of them."""
+        received: list[bytes] = []
+        while not received or received[-1] != sentinel:
+            try:
+                received.append(sock.recv(65536))
+            except BlockingIOError:
+                await wait_readable(sock)
+
+        return received
+
+    @pytest.fixture
+    def peer_path(self, tmp_path: Path) -> str:
+        return str(tmp_path / "peer.sock")
+
+    @pytest.fixture
+    def peer(self, peer_path: str) -> Iterator[socket.socket]:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as peer:
+            peer.setblocking(False)
+            peer.bind(peer_path)
+            yield peer
+
+    @staticmethod
+    def make_send(
+        udp: UDPSocket | ConnectedUDPSocket, peer_path: str
+    ) -> Callable[[bytes], Coroutine[Any, Any, None]]:
+        if isinstance(udp, ConnectedUDPSocket):
+            return udp.send
+
+        addr = cast(IPSockAddrType, peer_path)
+
+        async def send(data: bytes) -> None:
+            await udp.send((data, addr))
+
+        return send
+
+    @pytest.fixture(params=[False, True], ids=["unconnected", "connected"])
+    async def udp(
+        self,
+        request: SubRequest,
+        tmp_path: Path,
+        peer: socket.socket,
+        peer_path: str,
+    ) -> AsyncIterator[UDPSocket | ConnectedUDPSocket]:
+        """Yield a UDP socket whose send buffer is full."""
+        connect: bool = request.param
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        sock.bind(str(tmp_path / "local.sock"))
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024)
+        if connect:
+            sock.connect(peer_path)
+
+        sock.setblocking(False)
+
+        # Find out how many datagrams the OS accepts before it refuses any more, and
+        # then empty both buffers again
+        capacity = 0
+        try:
+            while True:
+                if connect:
+                    sock.send(self.payload)
+                else:
+                    sock.sendto(self.payload, peer_path)
+
+                capacity += 1
+        except BlockingIOError:
+            pass
+
+        assert capacity >= 2, f"the send buffer only fits {capacity} datagram(s)"
+        self.drain(peer)
+
+        udp: UDPSocket | ConnectedUDPSocket
+        if connect:
+            udp = await ConnectedUDPSocket.from_socket(sock)
+        else:
+            udp = await UDPSocket.from_socket(sock)
+
+        async with udp:
+            # Fill up the send buffer again
+            send = self.make_send(udp, peer_path)
+            for _ in range(capacity):
+                await send(self.payload)
+
+            yield udp
+
+    @pytest.fixture
+    def send(
+        self, udp: UDPSocket | ConnectedUDPSocket, peer_path: str
+    ) -> Callable[[bytes], Coroutine[Any, Any, None]]:
+        """Return a function that sends a datagram through ``udp``."""
+        return self.make_send(udp, peer_path)
+
+    async def test_send_waits_for_the_os_to_accept_the_datagram(
+        self, send: Callable[[bytes], Coroutine[Any, Any, None]], peer: socket.socket
+    ) -> None:
+        send_completed = False
+
+        async def send_one_more() -> None:
+            nonlocal send_completed
+            await send(self.payload)
+            send_completed = True
+
+        with fail_after(5):
+            async with create_task_group() as tg:
+                tg.start_soon(send_one_more)
+                await wait_all_tasks_blocked()
+                blocked = not send_completed
+
+                # Make room in the send buffer so the sender can continue
+                self.drain(peer)
+
+        assert blocked, "send() returned before the OS accepted the datagram"
+        assert send_completed
+
+    async def test_cancelled_send_does_not_buffer_the_next_datagram(
+        self, send: Callable[[bytes], Coroutine[Any, Any, None]], peer: socket.socket
+    ) -> None:
+        async def send_and_cancel(payload: bytes) -> None:
+            async with create_task_group() as tg:
+                tg.start_soon(send, payload)
+                await wait_all_tasks_blocked()
+                tg.cancel_scope.cancel()
+
+        with fail_after(5):
+            # The first cancelled send may leave its datagram in the asyncio
+            # transport's buffer, but the second one must never reach it
+            await send_and_cancel(b"one")
+            await send_and_cancel(b"two")
+
+            async with create_task_group() as tg:
+                tg.start_soon(send, b"three")
+                received = await self.receive_until(peer, b"three")
+
+        assert b"two" not in received
+
+    async def test_close_during_send(
+        self,
+        udp: UDPSocket | ConnectedUDPSocket,
+        send: Callable[[bytes], Coroutine[Any, Any, None]],
+        anyio_backend_options: dict[str, Any],
+    ) -> None:
+        loop_factory = anyio_backend_options.get("loop_factory")
+        if getattr(loop_factory, "__module__", None) == "uvloop":
+            # https://github.com/MagicStack/uvloop/issues/771
+            pytest.xfail(
+                "uvloop reports a fatal write error when aborting a UDP transport "
+                "with a queued datagram"
+            )
+
+        raw_socket = udp.extra(SocketAttribute.raw_socket)
+
+        async def interrupt() -> None:
+            await wait_all_tasks_blocked()
+            await udp.aclose()
+
+        async with create_task_group() as tg:
+            tg.start_soon(interrupt)
+            with pytest.raises(ClosedResourceError):
+                await send(self.payload)
+
+        assert raw_socket.fileno() == -1
 
 
 @pytest.mark.skipif(
@@ -2768,6 +3478,41 @@ class TestUNIXDatagramSocket:
                 tg.start_soon(close_when_blocked)
                 with pytest.raises(ClosedResourceError):
                     await unix_dg.receive()
+
+    async def test_concurrent_aclose_forcefully_closes_socket(
+        self,
+    ) -> None:
+        unix_dg = await create_unix_datagram_socket()
+        raw_socket = unix_dg.extra(SocketAttribute.raw_socket)
+        fds: list[int] = []
+
+        async def do_aclose() -> None:
+            await aclose_forcefully(unix_dg)
+            fds.append(raw_socket.fileno())
+
+        async with create_task_group() as tg:
+            tg.start_soon(do_aclose)
+            tg.start_soon(do_aclose)
+
+        assert fds == [-1, -1]
+
+    async def test_aclose_in_cancelled_scope_raises_cancelled_exc(
+        self,
+    ) -> None:
+        exc = None
+        unix_dg = await create_unix_datagram_socket()
+        raw_socket = unix_dg.extra(SocketAttribute.raw_socket)
+
+        with CancelScope() as scope:
+            scope.cancel()
+            try:
+                await unix_dg.aclose()
+            except get_cancelled_exc_class() as e:
+                exc = e
+                raise
+
+        assert exc is not None
+        assert raw_socket.fileno() == -1
 
     async def test_receive_after_close(self) -> None:
         unix_dg = await create_unix_datagram_socket()
@@ -2972,6 +3717,41 @@ class TestConnectedUNIXDatagramSocket:
             tg.start_soon(close_when_blocked)
             with pytest.raises(ClosedResourceError):
                 await udp.receive()
+
+    async def test_concurrent_aclose_forcefully_closes_socket(
+        self, peer_socket_path_or_str: Path | str, peer_sock: socket.socket
+    ) -> None:
+        udp = await create_connected_unix_datagram_socket(peer_socket_path_or_str)
+        raw_socket = udp.extra(SocketAttribute.raw_socket)
+        fds: list[int] = []
+
+        async def do_aclose() -> None:
+            await aclose_forcefully(udp)
+            fds.append(raw_socket.fileno())
+
+        async with create_task_group() as tg:
+            tg.start_soon(do_aclose)
+            tg.start_soon(do_aclose)
+
+        assert fds == [-1, -1]
+
+    async def test_aclose_in_cancelled_scope_raises_cancelled_exc(
+        self, peer_socket_path_or_str: Path | str, peer_sock: socket.socket
+    ) -> None:
+        exc = None
+        udp = await create_connected_unix_datagram_socket(peer_socket_path_or_str)
+        raw_socket = udp.extra(SocketAttribute.raw_socket)
+
+        with CancelScope() as scope:
+            scope.cancel()
+            try:
+                await udp.aclose()
+            except get_cancelled_exc_class() as e:
+                exc = e
+                raise
+
+        assert exc is not None
+        assert raw_socket.fileno() == -1
 
     async def test_receive_after_close(
         self, peer_socket_path_or_str: Path | str, peer_sock: socket.socket

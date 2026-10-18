@@ -1,0 +1,1 @@
+Fixed ``AsyncFile`` not shielding against cancellation while closing

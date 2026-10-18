@@ -1,0 +1,3 @@
+Fixed ``accept()`` on asyncio UNIX socket listeners hanging forever, and leaving the
+listening socket registered with the event loop, when the listener was closed by
+another task

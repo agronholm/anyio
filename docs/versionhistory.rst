@@ -3,7 +3,15 @@ Version history
 
 This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
-**UNRELEASED**
+.. towncrier release notes start
+
+**4.15.1**
+
+- Implemented a compatibility fix for supporting direct access of ``anyio.*`` submodules
+  from the main package even when those submodules were not directly imported first
+  (`#1311 <https://github.com/agronholm/anyio/issues/1311>`)
+
+**4.15.0**
 
 - Added support for the newer keyword-only arguments on ``anyio.Path`` methods to match
   the standard library ``pathlib.Path``:
@@ -46,15 +54,6 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   building a lookup table from the ``if TYPE_CHECKING:`` block. A fallback mode has been
   provided for installations where the source code is unavailable (e.g. PyInstaller).
   (`#1169 <https://github.com/agronholm/anyio/pull/1169>`_)
-- Changed UDP sockets on the asyncio backend to make ``send()`` wait until the
-  datagram has been passed to the operating system
-  (`#1294 <https://github.com/agronholm/anyio/pull/1294>`_; PR by @graingert)
-- Fixed UDP sockets on the asyncio backend silently discarding errors reported by the
-  OS (such as an ICMP port unreachable). A task blocked in ``receive()`` or ``send()``
-  is now woken up by such an error, and both raise ``BrokenResourceError``, chained to
-  the original error, as they already did on the Trio backend. As on the Trio backend,
-  the error is only reported once, leaving the socket usable afterwards
-  (`#1294 <https://github.com/agronholm/anyio/pull/1294>`_; PR by @graingert)
 - Fixed free-threading compatibility issues arising from the fact that on Python 3.14
   free-threading builds, newly created threads inherit the current context by default,
   causing AnyIO to behave erroneously in relation to ``start_blocking_portal()`` and
@@ -93,6 +92,20 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 - Fixed asyncio task groups leaking unawaited coroutines when a custom task constructor
   fails; default task creation is unaffected
   (`#1274 <https://github.com/agronholm/anyio/issues/1274>`_; PR by @dsfaccini)
+- Fixed inconsistencies between Trio and asyncio when target ``TaskGroup`` is
+  cancelled before a task created with ``.start()`` calls ``TaskStatus.started()``
+
+  * The started task shouldn't get a ``CancelledError`` until the first
+    checkpoint after the ``started()`` call.
+  * A value passed to ``started()`` should be available on the ``TaskHandle``
+    and correctly passed back to the caller of start even if cancelled.
+  * The CancelledError shouldn't leak out of the ``TaskGroup.start()`` call to the calling
+    task.
+
+  (`#1197 <https://github.com/agronholm/anyio/issues/1197>`_; PR by @tapetersen)
+- Fixed ``TemporaryDirectory`` not cleaning up when the host task was cancelled while
+  exiting the context manager, as the cleanup now runs in a shielded cancel scope
+  (`#1304 <https://github.com/agronholm/anyio/pull/1304>`_; PR by @smurfix)
 
 **4.14.2**
 

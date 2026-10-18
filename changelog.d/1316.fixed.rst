@@ -1,0 +1,2 @@
+Fixed ``TemporaryDirectory.cleanup()`` reacting to cancellation prematurely when the host
+task was already cancelled, causing the actual cleanup operation to be skipped
