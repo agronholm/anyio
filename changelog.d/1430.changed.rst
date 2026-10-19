@@ -1,0 +1,1 @@
+Changed the minimum required ``idna`` version to 3.5 to use the Unicode 15.1 mapping for capital sharp S in hostnames.
