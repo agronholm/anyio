@@ -102,8 +102,19 @@ class TestTLSStream:
             # Must not attempt the closing handshake on a broken stream
             await wrapper.aclose()
 
+    @pytest.mark.parametrize(
+        ("hostname", "encoded_hostname"),
+        [
+            pytest.param("faß.de", "xn--fa-hia.de", id="sharp-s"),
+            pytest.param("ẞ.example", "xn--zca.example", id="capital-sharp-s"),
+        ],
+    )
     async def test_unicode_hostname_idna2008(
-        self, ca: CA, client_context: ssl.SSLContext
+        self,
+        ca: CA,
+        client_context: ssl.SSLContext,
+        hostname: str,
+        encoded_hostname: str,
     ) -> None:
         """
         Test that a unicode host name is encoded to ASCII using IDNA 2008 rather
@@ -111,13 +122,11 @@ class TestTLSStream:
         peer certificate.
 
         """
-        # "faß.de" encodes to "xn--fa-hia.de" under IDNA 2008, but to the
-        # entirely different (and wrong) "fass.de" under IDNA 2003
         server_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         if hasattr(ssl, "OP_IGNORE_UNEXPECTED_EOF"):
             server_context.options &= ~ssl.OP_IGNORE_UNEXPECTED_EOF
 
-        ca.issue_cert("xn--fa-hia.de").configure_cert(server_context)
+        ca.issue_cert(encoded_hostname).configure_cert(server_context)
 
         server_send, server_receive = create_memory_object_stream[bytes](1)
         client_send, client_receive = create_memory_object_stream[bytes](1)
@@ -133,10 +142,8 @@ class TestTLSStream:
 
         async with create_task_group() as tg:
             tg.start_soon(serve)
-            # This would raise an SSLCertVerificationError if the host name were
-            # encoded using IDNA 2003 (yielding "fass.de")
             async with await TLSStream.wrap(
-                client_stream, hostname="faß.de", ssl_context=client_context
+                client_stream, hostname=hostname, ssl_context=client_context
             ) as wrapper:
                 await wrapper.send(b"hello")
                 response = await wrapper.receive()
