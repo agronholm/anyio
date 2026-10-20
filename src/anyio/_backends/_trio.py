@@ -562,23 +562,19 @@ class UNIXSocketStream(SocketStream, abc.UNIXSocketStream):
                 filenos.append(fd.fileno())
 
         fdarray = array.array("i", filenos)
+        ancdata = [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)]
+        view = memoryview(message)
         await trio.lowlevel.checkpoint()
         with self._send_guard:
-            while True:
+            while view:
                 try:
-                    await self._trio_socket.sendmsg(
-                        [message],
-                        [
-                            (
-                                socket.SOL_SOCKET,
-                                socket.SCM_RIGHTS,
-                                fdarray,
-                            )
-                        ],
-                    )
-                    break
+                    bytes_sent = await self._trio_socket.sendmsg([view], ancdata)
                 except BaseException as exc:
                     self._convert_socket_error(exc)
+                else:
+                    view = view[bytes_sent:]
+                    # The descriptors were sent with the first successful write.
+                    ancdata = []
 
 
 class TCPSocketListener(_TrioSocketMixin, abc.SocketListener):
