@@ -441,6 +441,7 @@ class TLSConnectable(ByteStreamConnectable):
         try:
             return await TLSStream.wrap(
                 stream,
+                server_side=False,
                 hostname=self.hostname,
                 ssl_context=self.ssl_context,
                 standard_compatible=self.standard_compatible,
