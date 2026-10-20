@@ -7,7 +7,7 @@ from warnings import warn
 from ..streams.memory import (
     MemoryObjectReceiveStream,
     MemoryObjectSendStream,
-    _MemoryObjectStreamState,
+    MemoryObjectStreamState,
 )
 
 T_Item = TypeVar("T_Item")
@@ -48,5 +48,5 @@ class create_memory_object_stream(
                 stacklevel=2,
             )
 
-        state = _MemoryObjectStreamState[T_Item](max_buffer_size)
+        state = MemoryObjectStreamState[T_Item](max_buffer_size)
         return (MemoryObjectSendStream(state), MemoryObjectReceiveStream(state))

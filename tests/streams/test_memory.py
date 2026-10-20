@@ -20,6 +20,7 @@ from anyio import (
 from anyio.streams.memory import (
     MemoryObjectReceiveStream,
     MemoryObjectSendStream,
+    MemoryObjectStreamState,
     _MemoryObjectItemReceiver,
 )
 
@@ -524,3 +525,30 @@ async def test_memory_object_item_receiver_repr() -> None:
     receiver.item = "test_item"
     receiver_repr = repr(receiver)
     assert "item='test_item'" in receiver_repr
+
+
+def test_public_stream_state() -> None:
+    state = MemoryObjectStreamState[str](max_buffer_size=1)
+    with MemoryObjectSendStream(state=state) as send:
+        with MemoryObjectReceiveStream(state=state) as receive:
+            with send.clone() as send_clone, receive.clone() as receive_clone:
+                assert send.state is receive.state is state
+                assert send_clone.state is receive_clone.state is state
+                assert not send.closed
+                assert not receive.closed
+                assert not send_clone.closed
+                assert not receive_clone.closed
+                assert send.statistics().open_send_streams == 2
+                assert receive.statistics().open_receive_streams == 2
+                send_clone.send_nowait("hello")
+                assert receive_clone.receive_nowait() == "hello"
+
+            assert send_clone.closed
+            assert receive_clone.closed
+            assert not send.closed
+            assert not receive.closed
+
+    assert send.closed
+    assert receive.closed
+    assert state.statistics().open_send_streams == 0
+    assert state.statistics().open_receive_streams == 0

@@ -141,6 +141,7 @@ Streams and stream wrappers
 .. autoclass:: anyio.streams.file.FileWriteStream
 .. autoclass:: anyio.streams.memory.MemoryObjectReceiveStream
 .. autoclass:: anyio.streams.memory.MemoryObjectSendStream
+.. autoclass:: anyio.streams.memory.MemoryObjectStreamState
 .. autoclass:: anyio.streams.memory.MemoryObjectStreamStatistics
 .. autoclass:: anyio.streams.stapled.MultiListener
 .. autoclass:: anyio.streams.stapled.StapledByteStream
