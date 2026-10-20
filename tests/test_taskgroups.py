@@ -2214,8 +2214,16 @@ class TestRefcycles:
         assert isinstance(exc, _Done)
         assert gc.get_referrers(exc) == no_other_refs()
 
-    async def test_exception_refcycles_failed_before_started(self) -> None:
+    async def test_exception_refcycles_failed_before_started(
+        self, anyio_backend_name: str
+    ) -> None:
         """Test that a task failing before started() isn't in a reference cycle"""
+        if anyio_backend_name == "trio":
+            import trio
+
+            if tuple(map(int, trio.__version__.split(".")[:2])) < (0, 34):
+                pytest.skip("Nursery.start() in Trio before 0.34 leaves a cycle")
+
         exc = None
 
         class _Done(Exception):
