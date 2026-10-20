@@ -2214,6 +2214,45 @@ class TestRefcycles:
         assert isinstance(exc, _Done)
         assert gc.get_referrers(exc) == no_other_refs()
 
+    async def test_exception_refcycles_failed_before_started(self) -> None:
+        """Test that a task failing before started() isn't in a reference cycle"""
+        exc = None
+
+        class _Done(Exception):
+            pass
+
+        async def child(*, task_status: TaskStatus[None]) -> None:
+            raise _Done
+
+        try:
+            async with create_task_group() as tg:
+                await tg.start(child)
+        except ExceptionGroup as excs:
+            exc = excs.exceptions[0]
+        except _Done as e:
+            exc = e
+
+        assert isinstance(exc, _Done)
+        assert gc.get_referrers(exc) == no_other_refs()
+
+    async def test_exception_refcycles_exited_before_started(self) -> None:
+        """Test that a task exiting before started() leaves no reference cycle"""
+        exc = None
+
+        async def child(*, task_status: TaskStatus[None]) -> None:
+            pass
+
+        try:
+            async with create_task_group() as tg:
+                await tg.start(child)
+        except ExceptionGroup as excs:
+            exc = excs.exceptions[0]
+        except RuntimeError as e:
+            exc = e
+
+        assert isinstance(exc, RuntimeError)
+        assert gc.get_referrers(exc) == no_other_refs()
+
 
 class TestTaskStatusTyping:
     """

@@ -1055,6 +1055,11 @@ class TaskGroup(abc.TaskGroup):
                 with CancelScope(shield=True):
                     await handle.wait()
 
+            # The exception's traceback includes this frame, whose locals refer to the
+            # future that holds it, and the frame of the task, which refers to the
+            # future through the task status
+            task_status._future = None  # type: ignore[assignment]
+            del future, handle, task_status, coro
             raise
 
         if return_handle:
