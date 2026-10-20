@@ -1,2 +1,2 @@
-Fixed ``AttributeError`` when subclassing ``TypedAttributeSet`` and the
-subclass contains type annotations
+Fixed ``TypeError`` when subclassing an existing``TypedAttributeSet``
+subclass, and this subclass contains type annotations
