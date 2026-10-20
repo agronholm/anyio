@@ -1,0 +1,2 @@
+Added public access to memory object stream state and closed status to support
+subclassing.
