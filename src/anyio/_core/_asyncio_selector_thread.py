@@ -105,6 +105,9 @@ class Selector:
         except KeyError:
             return False
 
+        if not key.events & EVENT_READ:
+            return False
+
         if new_events := key.events ^ EVENT_READ:
             del key.data[EVENT_READ]
             self._selector.modify(fd, new_events, key.data)
@@ -117,6 +120,9 @@ class Selector:
         try:
             key = self._selector.get_key(fd)
         except KeyError:
+            return False
+
+        if not key.events & EVENT_WRITE:
             return False
 
         if new_events := key.events ^ EVENT_WRITE:
