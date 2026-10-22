@@ -913,6 +913,12 @@ class TaskGroup(abc.TaskGroup):
             try:
                 exc = _task.exception()
             except CancelledError as e:
+                # Clear the traceback of the raised exception to break the
+                # reference cycle it would otherwise form (task -> exception ->
+                # traceback -> this frame -> task), which would keep the task
+                # and its context alive until the cyclic garbage collector
+                # runs. The innermost exception below retains its traceback.
+                e.__traceback__ = None
                 while isinstance(e.__context__, CancelledError):
                     e = e.__context__
 

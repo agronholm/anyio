@@ -6,6 +6,7 @@ import math
 import re
 import sys
 import time
+import weakref
 from asyncio import CancelledError
 from collections.abc import AsyncGenerator, Coroutine, Generator
 from contextlib import aclosing
@@ -545,6 +546,27 @@ async def test_cancel() -> None:
         tg.cancel()
 
     assert started
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_cancelled_child_task_is_freed_without_gc() -> None:
+    """Regression test for #1435."""
+    child_task_ref: weakref.ReferenceType[asyncio.Task[Any]] | None = None
+
+    async def child() -> None:
+        nonlocal child_task_ref
+        child_task_ref = weakref.ref(cast(asyncio.Task[Any], asyncio.current_task()))
+        await sleep_forever()
+
+    async with create_task_group() as tg:
+        tg.start_soon(child)
+        await wait_all_tasks_blocked()
+        tg.cancel_scope.cancel()
+
+    # The cancelled child task must have been freed by reference counting alone,
+    # without the cyclic garbage collector having to run
+    assert child_task_ref is not None
+    assert child_task_ref() is None
 
 
 async def test_cancel_with_reason() -> None:

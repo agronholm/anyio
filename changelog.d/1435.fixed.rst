@@ -1,0 +1,3 @@
+Fixed cancelled child tasks in a task group on the asyncio backend staying
+alive until the cyclic garbage collector ran, due to a reference cycle formed
+via the traceback of the ``CancelledError`` raised by ``Task.exception()``
