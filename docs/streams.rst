@@ -151,6 +151,11 @@ A buffered byte stream wraps an existing bytes-oriented receive stream and provi
 certain amenities that require buffering, such as receiving an exact number of bytes, or
 receiving until the given delimiter is found.
 
+The byte count passed to
+:meth:`~.streams.buffered.BufferedByteReceiveStream.receive_exactly` must be non-negative.
+Passing zero returns ``b''`` without consuming any data; a negative count raises
+:exc:`ValueError` without consuming any data.
+
 Example::
 
     from anyio import run, create_memory_object_stream
