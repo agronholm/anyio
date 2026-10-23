@@ -1,0 +1,1 @@
+Fixed ``TLSConnectable`` performing the TLS handshake as the server side (failing with ``SSLError``) when no ``hostname`` was given
