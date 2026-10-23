@@ -81,6 +81,25 @@ class TestSpooledTemporaryFile:
             await stf.seek(0)
             assert await stf.read() == b"hello world"
 
+    async def test_failed_rollover_preserves_data(self) -> None:
+        # Regression test for #1438: if TemporaryFile() raises during
+        # rollover, the spooled file must keep the buffered data and retry
+        # the rollover on the next write instead of overwriting the buffer.
+        missing_dir = os.path.join(tempfile.mkdtemp(), "missing")
+        async with SpooledTemporaryFile(max_size=8, dir=missing_dir) as stf:
+            await stf.write(b"aaaa")
+            with pytest.raises(FileNotFoundError):
+                await stf.write(b"bbbbbbbb")  # 12 > max_size: rollover fails
+
+            assert not stf._rolled
+
+            os.mkdir(missing_dir)  # the cause of the failure goes away
+            await stf.write(b"cc")
+
+            assert stf._rolled
+            await stf.seek(0)
+            assert await stf.read() == b"aaaabbbbbbbbcc"
+
     @pytest.mark.parametrize("use_writelines", [False, True])
     async def test_default_max_size_no_rollover(self, use_writelines: bool) -> None:
         data = b"hello world"
