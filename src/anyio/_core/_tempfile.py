@@ -325,15 +325,25 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
 
         await checkpoint_if_cancelled()
         with CancelScope(shield=True):
-            self._rolled = True
             buffer = self._fp
-            position = buffer.tell()
-            buffer.seek(0)
-            self._fp = await to_thread.run_sync(
-                lambda: tempfile.TemporaryFile(**self._tempfile_params)
-            )
-            await self.write(buffer.read())
-            await self.seek(position)
+
+            def _perform_rollover() -> Any:
+                newfile = tempfile.TemporaryFile(**self._tempfile_params)
+                pos = buffer.tell()
+                try:
+                    if hasattr(newfile, "buffer"):
+                        newfile.buffer.write(buffer.buffer.getvalue())
+                    else:
+                        newfile.write(buffer.getvalue())
+                    newfile.seek(pos, 0)
+                except BaseException:
+                    newfile.close()
+                    raise
+
+                return newfile
+
+            self._fp = await to_thread.run_sync(_perform_rollover)
+            self._rolled = True
             buffer.close()
 
     @property

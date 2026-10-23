@@ -81,6 +81,21 @@ class TestSpooledTemporaryFile:
             await stf.seek(0)
             assert await stf.read() == b"hello world"
 
+    async def test_rollover_failure_retains_data(self, tmp_path: pathlib.Path) -> None:
+        missing_dir = tmp_path / "missing"
+        async with SpooledTemporaryFile[bytes](max_size=8, dir=str(missing_dir)) as stf:
+            await stf.write(b"aaaa")
+            with pytest.raises(OSError):
+                await stf.write(b"bbbbbbbb")
+
+            assert not stf._rolled
+            assert await stf.tell() == 12
+            missing_dir.mkdir()
+            await stf.write(b"cc")
+            assert stf._rolled
+            await stf.seek(0)
+            assert await stf.read() == b"aaaabbbbbbbbcc"
+
     @pytest.mark.parametrize("use_writelines", [False, True])
     async def test_default_max_size_no_rollover(self, use_writelines: bool) -> None:
         data = b"hello world"

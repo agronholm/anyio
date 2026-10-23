@@ -1,0 +1,1 @@
+Fixed ``SpooledTemporaryFile`` state corruption and data overwrite after a failed rollover()
