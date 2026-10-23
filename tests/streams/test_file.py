@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -141,3 +142,26 @@ class TestFileWriteStream:
 
             file = stream.extra(FileStreamAttribute.file)
             assert file.fileno() == fileno
+
+
+@pytest.mark.parametrize("stream_class", [FileReadStream, FileWriteStream])
+def test_extra_attributes_for_file_descriptor(
+    tmp_path: Path, stream_class: type[FileReadStream | FileWriteStream]
+) -> None:
+    file_path = tmp_path / "data"
+    fd = os.open(file_path, os.O_RDWR | os.O_CREAT)
+    with os.fdopen(fd, "r+b") as file:
+        stream = stream_class(file)
+        assert stream.extra(FileStreamAttribute.path, None) is None
+        assert stream.extra(FileStreamAttribute.file) is file
+        assert stream.extra(FileStreamAttribute.fileno) == fd
+
+
+@pytest.mark.parametrize("stream_class", [FileReadStream, FileWriteStream])
+def test_extra_attributes_for_bytes_path(
+    tmp_path: Path, stream_class: type[FileReadStream | FileWriteStream]
+) -> None:
+    file_path = tmp_path / "name-\u2603"
+    with open(os.fsencode(file_path), "w+b") as file:
+        stream = stream_class(file)
+        assert stream.extra(FileStreamAttribute.path) == file_path
