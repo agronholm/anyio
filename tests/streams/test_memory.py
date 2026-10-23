@@ -137,6 +137,21 @@ async def test_receive_send_closed_receive_stream() -> None:
             await send.send(None)
 
 
+async def test_close_receive_clone_while_receiving() -> None:
+    send, receive1 = create_memory_object_stream[str](1)
+    receive2 = receive1.clone()
+    with send, receive2:
+        with pytest.RaisesGroup(ClosedResourceError):
+            async with create_task_group() as tg:
+                tg.start_soon(receive1.receive)
+                await wait_all_tasks_blocked()
+                # Send before the woken receiver task gets a chance to run
+                receive1.close()
+                send.send_nowait("hello")
+
+        assert receive2.receive_nowait() == "hello"
+
+
 async def test_cancel_receive() -> None:
     send, receive = create_memory_object_stream[str]()
     with send, receive:
@@ -189,6 +204,25 @@ async def test_close_send_while_receiving() -> None:
             await send.aclose()
 
 
+async def test_close_send_while_sending() -> None:
+    send, receive = create_memory_object_stream[None]()
+    with receive, pytest.RaisesGroup(ClosedResourceError, EndOfStream):
+        async with create_task_group() as tg:
+            tg.start_soon(send.send, None)
+            await wait_all_tasks_blocked()
+            send.close()
+            receive.receive_nowait()
+
+
+async def test_close_receive_while_receiving() -> None:
+    send, receive = create_memory_object_stream[NoReturn](1)
+    with send, pytest.RaisesGroup(ClosedResourceError):
+        async with create_task_group() as tg:
+            tg.start_soon(receive.receive)
+            await wait_all_tasks_blocked()
+            await receive.aclose()
+
+
 async def test_close_receive_while_sending() -> None:
     # We send None here as a regression test for #731
     send, receive = create_memory_object_stream[None](0)
@@ -197,6 +231,35 @@ async def test_close_receive_while_sending() -> None:
             tg.start_soon(send.send, None)
             await wait_all_tasks_blocked()
             await receive.aclose()
+
+
+async def test_close_send_after_item_received() -> None:
+    send, receive = create_memory_object_stream[None]()
+    with receive:
+        async with create_task_group() as tg:
+            tg.start_soon(send.send, None)
+            await wait_all_tasks_blocked()
+            # Close before the woken sender task gets a chance to run
+            assert receive.receive_nowait() is None
+            send.close()
+
+
+async def test_close_receive_after_item_sent() -> None:
+    received: list[str] = []
+
+    async def receiver() -> None:
+        received.append(await receive.receive())
+
+    send, receive = create_memory_object_stream[str]()
+    with send:
+        async with create_task_group() as tg:
+            tg.start_soon(receiver)
+            await wait_all_tasks_blocked()
+            # Close before the woken receiver task gets a chance to run
+            send.send_nowait("hello")
+            receive.close()
+
+    assert received == ["hello"]
 
 
 async def test_receive_after_send_closed() -> None:
