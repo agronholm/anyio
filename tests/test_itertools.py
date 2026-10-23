@@ -149,6 +149,25 @@ class TestAccumulate:
 
 
 class TestBatched:
+    @pytest.mark.parametrize("async_input", [False, True])
+    @pytest.mark.parametrize("length", [0, 4])
+    @pytest.mark.parametrize("strict", [False, True])
+    async def test_indexable_size(
+        self, async_input: bool, length: int, strict: bool
+    ) -> None:
+        class BatchSize:
+            calls = 0
+
+            def __index__(self) -> int:
+                self.calls += 1
+                return 2 if self.calls == 1 else 3
+
+        size = BatchSize()
+        iterable = aiter_from(range(length)) if async_input else range(length)
+        result = await collect(batched(iterable, cast(Any, size), strict=strict))
+        assert result == ([(0, 1), (2, 3)] if length else [])
+        assert size.calls == 1
+
     async def test_basic_cases(self) -> None:
         for iterator in (
             batched([1, 2, 3, 4, 5], 2),

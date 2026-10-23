@@ -228,6 +228,10 @@ Asynchronous itertools
 
 .. autofunction:: anyio.itertools.accumulate
 .. autofunction:: anyio.itertools.batched
+
+``batched()`` accepts integer-like batch sizes, including objects defining
+``__index__()``.
+
 .. autodata:: anyio.itertools.chain
 .. autoclass:: anyio.itertools.Chain
 .. autofunction:: anyio.itertools.combinations
