@@ -1,0 +1,2 @@
+Fixed ``anyio.itertools.batched()`` rejecting integer-like batch sizes implementing
+``__index__()``
