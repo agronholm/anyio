@@ -173,23 +173,29 @@ Calling between event loops
 
 When a blocking portal belongs to an event loop running in another thread, code in an
 event loop can use :meth:`~.BlockingPortal.call_async` to call into it without blocking
-the calling thread::
+the calling thread. For example, a server can expose a portal in its existing event
+loop so that user code running in a separate event loop can call back into the server::
 
-    from anyio import run
-    from anyio.from_thread import start_blocking_portal
-
-
-    async def async_func() -> str:
-        return "result from the portal's event loop"
+    from anyio import run, to_thread
+    from anyio.from_thread import BlockingPortal
 
 
-    async def main(portal) -> None:
-        result = await portal.call_async(async_func)
+    async def server_operation() -> str:
+        return "result from the server's event loop"
+
+
+    async def user_code(portal: BlockingPortal) -> None:
+        result = await portal.call_async(server_operation)
         print(result)
 
 
-    with start_blocking_portal() as portal:
-        run(main, portal)
+    async def main() -> None:
+        async with BlockingPortal() as portal:
+            # Run the user-code event loop in a separate thread
+            await to_thread.run_sync(run, user_code, portal)
+
+
+    run(main)
 
 Cancelling the calling task also cancels the task running in the portal.
 
