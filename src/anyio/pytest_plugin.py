@@ -207,11 +207,28 @@ def pytest_pycollect_makeitem(
                 pytest.mark.usefixtures("anyio_backend")(obj)
 
 
+def _uses_async_fixture(item: pytest.Function) -> bool:
+    """Return True if the item depends on an async fixture, directly or indirectly."""
+    fixtureinfo = getattr(item, "_fixtureinfo", None)
+    if fixtureinfo is None:
+        return False
+
+    for fixturedefs in fixtureinfo.name2fixturedefs.values():
+        for fixturedef in fixturedefs:
+            func = getattr(fixturedef, "func", None)
+            if func is not None and (
+                iscoroutinefunction(func) or isasyncgenfunction(func)
+            ):
+                return True
+
+    return False
+
+
 def pytest_collection_finish(session: pytest.Session) -> None:
     for i, item in reversed(list(enumerate(session.items))):
         if (
             isinstance(item, pytest.Function)
-            and iscoroutinefunction(item.function)
+            and (iscoroutinefunction(item.function) or _uses_async_fixture(item))
             and item.get_closest_marker("anyio") is not None
             and "anyio_backend" not in item.fixturenames
         ):
