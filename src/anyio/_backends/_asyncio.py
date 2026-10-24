@@ -2860,12 +2860,15 @@ class AsyncIOBackend(AsyncBackend):
         token: object,
     ) -> None:
         loop = cast("AbstractEventLoop", token)
-        if loop.is_closed():
-            raise RunFinishedError
-
         context = copy_context()
         context.run(set_current_async_library, "asyncio")
-        loop.call_soon_threadsafe(context.run, func, *args)
+        try:
+            loop.call_soon_threadsafe(context.run, func, *args)
+        except RuntimeError:
+            if loop.is_closed():
+                raise RunFinishedError from None
+
+            raise
 
     @classmethod
     async def open_process(

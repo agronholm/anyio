@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import math
 import sys
 import threading
@@ -10,6 +11,7 @@ from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
 from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Literal, NoReturn, TypeVar
+from unittest.mock import Mock
 
 import pytest
 from pytest import LogCaptureFixture
@@ -351,6 +353,34 @@ class TestRunSyncFromThread:
 
         with pytest.raises(RuntimeError, match="There is no task currently running"):
             await to_thread.run_sync(worker)
+
+
+@pytest.mark.parametrize("close_during_schedule", [False, True])
+def test_run_sync_soon_closed_event_loop(close_during_schedule: bool) -> None:
+    from anyio._backends._asyncio import AsyncIOBackend
+
+    loop = asyncio.new_event_loop()
+    callback = Mock()
+    original_call_soon_threadsafe = loop.call_soon_threadsafe
+
+    def call_soon_threadsafe(*args: Any) -> None:
+        loop.close()
+        original_call_soon_threadsafe(*args)
+
+    if close_during_schedule:
+        loop.call_soon_threadsafe = Mock(  # type: ignore[method-assign]
+            side_effect=call_soon_threadsafe
+        )
+    else:
+        loop.close()
+
+    try:
+        with pytest.raises(RunFinishedError):
+            AsyncIOBackend.run_sync_soon(callback, (), loop)
+    finally:
+        loop.close()
+
+    callback.assert_not_called()
 
 
 class TestBlockingPortal:
