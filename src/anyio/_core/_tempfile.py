@@ -336,15 +336,19 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
                 # missing) leaves the spooled file intact and the rollover is
                 # retried on the next write.
                 new_file: IO[Any] = tempfile.TemporaryFile(**self._tempfile_params)
-                if isinstance(buffer, TextIOWrapper):
-                    # Copy the raw encoded bytes, like the stdlib's rollover
-                    # does, so that newline translation cannot corrupt the
-                    # buffered data or the saved position.
-                    data = buffer.buffer.getvalue()
-                    new_file.buffer.write(data)  # type: ignore[attr-defined]
-                else:
-                    new_file.write(buffer.getvalue())
-                new_file.seek(position)
+                try:
+                    if isinstance(buffer, TextIOWrapper):
+                        # Copy the raw encoded bytes, like the stdlib's
+                        # rollover does, so that newline translation cannot
+                        # corrupt the buffered data or the saved position.
+                        data = buffer.buffer.getvalue()
+                        new_file.buffer.write(data)  # type: ignore[attr-defined]
+                    else:
+                        new_file.write(buffer.getvalue())
+                    new_file.seek(position)
+                except BaseException:
+                    new_file.close()
+                    raise
                 buffer.close()
                 return new_file
 
