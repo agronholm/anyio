@@ -349,17 +349,22 @@ class BlockingPortal:
         self,
         func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
         *args: Unpack[PosArgsT],
+        abandon_on_cancel: bool = False,
     ) -> T_Retval: ...
 
     @overload
     async def call_async(
-        self, func: Callable[[Unpack[PosArgsT]], T_Retval], *args: Unpack[PosArgsT]
+        self,
+        func: Callable[[Unpack[PosArgsT]], T_Retval],
+        *args: Unpack[PosArgsT],
+        abandon_on_cancel: bool = False,
     ) -> T_Retval: ...
 
     async def call_async(
         self,
         func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
         *args: Unpack[PosArgsT],
+        abandon_on_cancel: bool = False,
     ) -> T_Retval:
         """
         Call the given function in the portal's event loop from another event loop.
@@ -368,6 +373,10 @@ class BlockingPortal:
         task cancels the task running in the portal.
 
         :param func: any callable
+        :param abandon_on_cancel: if ``False``, wait for the cancelled task to finish
+            and propagate any exception raised during cleanup, or otherwise re-raise
+            the caller's cancellation; if ``True``, stop waiting immediately and ignore
+            the task's subsequent return value or exception
         :raises RuntimeError: if the portal is not running or if this method is called
             from within the portal's event loop thread
 
@@ -377,6 +386,23 @@ class BlockingPortal:
         source_token = current_token()
         event = Event()
         future: Future[T_Retval] = Future()
+        cancellation: Future[None] = Future()
+
+        async def run_call() -> None:
+            with CancelScope() as scope:
+
+                def cancel_target(_: Future[None]) -> None:
+                    try:
+                        self._token.backend_class.run_sync_soon(
+                            scope.cancel,
+                            ("the calling task was cancelled",),
+                            self._token.native_token,
+                        )
+                    except RunFinishedError:
+                        pass
+
+                cancellation.add_done_callback(cancel_target)
+                await self._call_func(func, args, {}, future)
 
         def notify_source(_: Future[T_Retval]) -> None:
             try:
@@ -388,7 +414,7 @@ class BlockingPortal:
 
         def spawn_task() -> None:
             try:
-                self._task_group.start_soon(self._call_func, func, args, {}, future)
+                self._task_group.start_soon(run_call)
             except BaseException as exc:
                 if not future.done():
                     future.set_exception(exc)
@@ -399,8 +425,15 @@ class BlockingPortal:
         )
         try:
             await event.wait()
-        except BaseException:
-            future.cancel()
+        except get_cancelled_exc_class():
+            cancellation.cancel()
+            if not abandon_on_cancel:
+                with CancelScope(shield=True):
+                    await event.wait()
+
+                if not future.cancelled():
+                    future.result()
+
             raise
 
         return future.result()

@@ -446,7 +446,8 @@ class TestBlockingPortal:
         finally:
             await to_thread.run_sync(portal_cm.__exit__, None, None, None)
 
-    async def test_call_async_cancellation(self) -> None:
+    @pytest.mark.parametrize("target_backend", get_available_backends())
+    async def test_call_async_cancellation(self, target_backend: str) -> None:
         started = threading.Event()
         finished = threading.Event()
 
@@ -461,7 +462,7 @@ class TestBlockingPortal:
             await to_thread.run_sync(started.wait)
             scope.cancel()
 
-        portal_cm = start_blocking_portal()
+        portal_cm = start_blocking_portal(backend=target_backend)
         portal = await to_thread.run_sync(portal_cm.__enter__)
         try:
             with CancelScope() as scope:
@@ -471,6 +472,67 @@ class TestBlockingPortal:
 
             assert await to_thread.run_sync(finished.wait, 1)
         finally:
+            await to_thread.run_sync(portal_cm.__exit__, None, None, None)
+
+    @pytest.mark.parametrize("target_backend", get_available_backends())
+    @pytest.mark.parametrize("abandon_on_cancel", [False, True])
+    @pytest.mark.parametrize("cleanup_raises", [False, True])
+    async def test_call_async_cancellation_cleanup(
+        self, target_backend: str, abandon_on_cancel: bool, cleanup_raises: bool
+    ) -> None:
+        started = threading.Event()
+        cleanup_started = threading.Event()
+        release = threading.Event()
+        finished = threading.Event()
+        returned = Event()
+        errors: list[ValueError] = []
+
+        async def target() -> None:
+            started.set()
+            try:
+                await sleep(math.inf)
+            finally:
+                cleanup_started.set()
+                with CancelScope(shield=True):
+                    assert await to_thread.run_sync(release.wait, 5)
+
+                finished.set()
+                if cleanup_raises:
+                    raise ValueError("cleanup failed")
+
+        async def caller(*, task_status: TaskStatus[CancelScope]) -> None:
+            try:
+                with CancelScope() as scope:
+                    task_status.started(scope)
+                    await portal.call_async(target, abandon_on_cancel=abandon_on_cancel)
+
+                assert scope.cancelled_caught
+            except ValueError as exc:
+                errors.append(exc)
+            finally:
+                returned.set()
+
+        portal_cm = start_blocking_portal(backend=target_backend)
+        portal = await to_thread.run_sync(portal_cm.__enter__)
+        try:
+            async with create_task_group() as tg:
+                scope = await tg.start(caller)
+                try:
+                    assert await to_thread.run_sync(started.wait, 5)
+                    scope.cancel()
+                    assert await to_thread.run_sync(cleanup_started.wait, 5)
+                    await wait_all_tasks_blocked()
+                    assert returned.is_set() == abandon_on_cancel
+                finally:
+                    release.set()
+
+            assert await to_thread.run_sync(finished.wait, 5)
+            assert [str(exc) for exc in errors] == (
+                ["cleanup failed"] if cleanup_raises and not abandon_on_cancel else []
+            )
+            assert await portal.call_async(lambda: "still running") == "still running"
+        finally:
+            release.set()
             await to_thread.run_sync(portal_cm.__exit__, None, None, None)
 
     @pytest.mark.parametrize("target_backend", get_available_backends())
@@ -498,7 +560,7 @@ class TestBlockingPortal:
             with CancelScope() as scope:
                 async with create_task_group() as tg:
                     tg.start_soon(cancel_when_started, scope)
-                    await portal.call_async(block_event_loop)
+                    await portal.call_async(block_event_loop, abandon_on_cancel=True)
         finally:
             release.set()
             await to_thread.run_sync(portal_cm.__exit__, None, None, None)
