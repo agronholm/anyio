@@ -17,7 +17,14 @@ else:
 
 import pytest
 
-from anyio import AsyncContextManagerMixin, ContextManagerMixin
+from anyio import (
+    AsyncContextManagerMixin,
+    CancelScope,
+    ContextManagerMixin,
+    Event,
+    create_task_group,
+)
+from anyio.lowlevel import checkpoint
 
 
 class DummyContextManager(ContextManagerMixin):
@@ -120,6 +127,64 @@ class TestContextManagerMixin:
             RuntimeError, match="^this DummyContextManager has not been entered yet$"
         ):
             cm.__exit__(None, None, None)
+
+    @pytest.mark.parametrize("when", ["enter", "exit"])
+    def test_reenter_during_transition(self, when: str) -> None:
+        reenter = True
+
+        class ReentrantContextManager(ContextManagerMixin):
+            @contextmanager
+            def __contextmanager__(self) -> Generator[None]:
+                nonlocal reenter
+                if not reenter:
+                    yield
+                    return
+
+                reenter = False
+                if when == "enter":
+                    with pytest.raises(RuntimeError, match="has already been entered"):
+                        with self:
+                            pass
+
+                yield
+
+                if when == "exit":
+                    with pytest.raises(RuntimeError, match="has already been entered"):
+                        with self:
+                            pass
+
+        cm = ReentrantContextManager()
+        with cm:
+            pass
+
+        with cm:
+            pass
+
+    @pytest.mark.parametrize("when", ["enter", "exit"])
+    def test_reuse_after_transition_error(self, when: str) -> None:
+        error = BaseException("transition failed")
+        fail = True
+
+        class FailingContextManager(ContextManagerMixin):
+            @contextmanager
+            def __contextmanager__(self) -> Generator[None]:
+                if fail and when == "enter":
+                    raise error
+
+                yield
+
+                if fail and when == "exit":
+                    raise error
+
+        cm = FailingContextManager()
+        with pytest.raises(BaseException) as exc:
+            with cm:
+                pass
+
+        assert exc.value is error
+        fail = False
+        with cm:
+            pass
 
     def test_call_superclass_method(self) -> None:
         class InheritedContextManager(DummyContextManager):
@@ -224,6 +289,101 @@ class TestAsyncContextManagerMixin:
             match="^this DummyAsyncContextManager has not been entered yet$",
         ):
             await cm.__aexit__(None, None, None)
+
+    @pytest.mark.parametrize("when", ["enter", "exit"])
+    async def test_concurrent_entry_during_transition(self, when: str) -> None:
+        started = Event()
+        resume = Event()
+        pause = True
+
+        class SlowAsyncContextManager(AsyncContextManagerMixin):
+            @asynccontextmanager
+            async def __asynccontextmanager__(self) -> AsyncGenerator[None]:
+                nonlocal pause
+                if not pause:
+                    yield
+                    return
+
+                pause = False
+                if when == "enter":
+                    started.set()
+                    await resume.wait()
+
+                yield
+
+                if when == "exit":
+                    started.set()
+                    await resume.wait()
+
+        cm = SlowAsyncContextManager()
+
+        async def use_context_manager() -> None:
+            async with cm:
+                pass
+
+        async with create_task_group() as tg:
+            tg.start_soon(use_context_manager)
+            await started.wait()
+            try:
+                with pytest.raises(RuntimeError, match="has already been entered"):
+                    async with cm:
+                        pass
+            finally:
+                resume.set()
+
+        async with cm:
+            pass
+
+    @pytest.mark.parametrize("when", ["enter", "exit"])
+    async def test_reuse_after_transition_error(self, when: str) -> None:
+        error = BaseException("transition failed")
+        fail = True
+
+        class FailingAsyncContextManager(AsyncContextManagerMixin):
+            @asynccontextmanager
+            async def __asynccontextmanager__(self) -> AsyncGenerator[None]:
+                if fail and when == "enter":
+                    raise error
+
+                yield
+
+                if fail and when == "exit":
+                    raise error
+
+        cm = FailingAsyncContextManager()
+        with pytest.raises(BaseException) as exc:
+            async with cm:
+                pass
+
+        assert exc.value is error
+        fail = False
+        async with cm:
+            pass
+
+    @pytest.mark.parametrize("when", ["enter", "exit"])
+    async def test_reuse_after_transition_cancelled(self, when: str) -> None:
+        class CancelledAsyncContextManager(AsyncContextManagerMixin):
+            @asynccontextmanager
+            async def __asynccontextmanager__(self) -> AsyncGenerator[None]:
+                if when == "enter":
+                    await checkpoint()
+
+                yield
+
+                if when == "exit":
+                    await checkpoint()
+
+        cm = CancelledAsyncContextManager()
+        with CancelScope() as scope:
+            if when == "enter":
+                scope.cancel()
+
+            async with cm:
+                scope.cancel()
+
+        assert scope.cancelled_caught
+        async with cm:
+            pass
 
     async def test_call_superclass_method(self) -> None:
         class InheritedAsyncContextManager(DummyAsyncContextManager):
