@@ -315,23 +315,6 @@ class BlockingPortal:
             token=self._token,
         )
 
-    def _spawn_task_from_event_loop(
-        self,
-        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
-        args: tuple[Unpack[PosArgsT]],
-        future: Future[T_Retval],
-    ) -> None:
-        def spawn_task() -> None:
-            try:
-                self._task_group.start_soon(self._call_func, func, args, {}, future)
-            except BaseException as exc:
-                if not future.done():
-                    future.set_exception(exc)
-
-        self._token.backend_class.run_sync_soon(
-            spawn_task, (), self._token.native_token
-        )
-
     @overload
     def call(
         self,
@@ -403,8 +386,17 @@ class BlockingPortal:
             except RunFinishedError:
                 pass
 
+        def spawn_task() -> None:
+            try:
+                self._task_group.start_soon(self._call_func, func, args, {}, future)
+            except BaseException as exc:
+                if not future.done():
+                    future.set_exception(exc)
+
         future.add_done_callback(notify_source)
-        self._spawn_task_from_event_loop(func, args, future)
+        self._token.backend_class.run_sync_soon(
+            spawn_task, (), self._token.native_token
+        )
         try:
             await event.wait()
         except BaseException:
