@@ -1110,3 +1110,29 @@ class TestCapacityLimiter:
         assert limiter.available_tokens >= 0
         assert limiter.statistics().borrowers == ("B",)
         limiter.release_on_behalf_of("B")
+
+    async def test_acquire_on_behalf_of_same_borrower_from_multiple_tasks(self) -> None:
+        # Regression test: each task waiting for a token on behalf of the same
+        # borrower must get its own place in the wait queue, so that all of them are
+        # woken up when tokens become available. The asyncio backend used to key its
+        # wait queue by borrower, which silently replaced the earlier waiter, leaving
+        # it waiting forever and under-reporting ``tasks_waiting``.
+        limiter = CapacityLimiter(0)
+        borrower = object()
+        acquired: list[str] = []
+
+        async def waiter(name: str) -> None:
+            await limiter.acquire_on_behalf_of(borrower)
+            acquired.append(name)
+
+        async with create_task_group() as tg:
+            tg.start_soon(waiter, "first")
+            await wait_all_tasks_blocked()
+            tg.start_soon(waiter, "second")
+            await wait_all_tasks_blocked()
+            assert limiter.statistics().tasks_waiting == 2
+
+            limiter.total_tokens = 2
+            await wait_all_tasks_blocked()
+
+        assert sorted(acquired) == ["first", "second"]

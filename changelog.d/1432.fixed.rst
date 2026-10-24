@@ -1,0 +1,3 @@
+Fixed ``CapacityLimiter.acquire_on_behalf_of()`` on asyncio silently replacing an
+earlier waiter when several tasks waited for a token on behalf of the same borrower,
+leaving the replaced task waiting forever

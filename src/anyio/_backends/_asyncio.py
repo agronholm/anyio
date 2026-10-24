@@ -2193,7 +2193,11 @@ class CapacityLimiter(BaseCapacityLimiter):
     def __init__(self, total_tokens: float):
         self._total_tokens: float = 0
         self._borrowers: set[Any] = set()
-        self._wait_queue: OrderedDict[Any, asyncio.Event] = OrderedDict()
+        # Maps each waiting task to the borrower it is acquiring a token on behalf of
+        # and the event that is set once the task has been granted its token
+        self._wait_queue: OrderedDict[asyncio.Task, tuple[Any, asyncio.Event]] = (
+            OrderedDict()
+        )
         self.total_tokens = total_tokens
 
     async def __aenter__(self) -> None:
@@ -2224,7 +2228,7 @@ class CapacityLimiter(BaseCapacityLimiter):
         # Notify waiting tasks that they have acquired the limiter while
         # there is spare capacity.
         while self._wait_queue and len(self._borrowers) < self._total_tokens:
-            borrower, event = self._wait_queue.popitem(last=False)
+            _, (borrower, event) = self._wait_queue.popitem(last=False)
             self._borrowers.add(borrower)
             event.set()
 
@@ -2239,7 +2243,7 @@ class CapacityLimiter(BaseCapacityLimiter):
     def _notify_next_waiter(self) -> None:
         """Hand a free token to the next task in line, if any."""
         if self._wait_queue and len(self._borrowers) < self._total_tokens:
-            borrower, event = self._wait_queue.popitem(last=False)
+            _, (borrower, event) = self._wait_queue.popitem(last=False)
             self._borrowers.add(borrower)
             event.set()
 
@@ -2266,11 +2270,12 @@ class CapacityLimiter(BaseCapacityLimiter):
             self.acquire_on_behalf_of_nowait(borrower)
         except WouldBlock:
             event = asyncio.Event()
-            self._wait_queue[borrower] = event
+            task = cast(asyncio.Task, current_task())
+            self._wait_queue[task] = borrower, event
             try:
                 await event.wait()
             except BaseException:
-                self._wait_queue.pop(borrower, None)
+                self._wait_queue.pop(task, None)
                 if event.is_set():
                     self._borrowers.discard(borrower)
                     self._notify_next_waiter()
