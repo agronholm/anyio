@@ -443,6 +443,39 @@ class TestBlockingPortal:
         finally:
             await to_thread.run_sync(portal_cm.__exit__, None, None, None)
 
+    @pytest.mark.parametrize("target_backend", get_available_backends())
+    @pytest.mark.usefixtures("deactivate_blockbuster")
+    async def test_call_async_cancellation_does_not_block(
+        self, target_backend: str
+    ) -> None:
+        started = threading.Event()
+        release = threading.Event()
+        released_by_caller = False
+
+        async def block_event_loop() -> None:
+            nonlocal released_by_caller
+            started.set()
+            released_by_caller = release.wait(2)
+            await checkpoint()
+
+        async def cancel_when_started(scope: CancelScope) -> None:
+            await to_thread.run_sync(started.wait)
+            scope.cancel()
+
+        portal_cm = start_blocking_portal(backend=target_backend)
+        portal = await to_thread.run_sync(portal_cm.__enter__)
+        try:
+            with CancelScope() as scope:
+                async with create_task_group() as tg:
+                    tg.start_soon(cancel_when_started, scope)
+                    await portal.call_async(block_event_loop)
+        finally:
+            release.set()
+            await to_thread.run_sync(portal_cm.__exit__, None, None, None)
+
+        assert scope.cancelled_caught
+        assert released_by_caller
+
     async def test_call_non_corofunc(self) -> None:
         async with BlockingPortal() as portal:
             result = await to_thread.run_sync(
