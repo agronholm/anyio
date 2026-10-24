@@ -624,8 +624,11 @@ def test_asyncio_run_sync_no_asyncio_run(
 
 def test_asyncio_run_sync_multiple(
     asyncio_event_loop: asyncio.AbstractEventLoop,
+    asyncio_worker_pool: Any,
 ) -> None:
     """Regression test for #304."""
+    # Other tests may leave jobs running in the shared pool. Use an isolated pool
+    # so a previously busy worker cannot become idle between these calls.
     workers = [
         asyncio_event_loop.run_until_complete(
             to_thread.run_sync(threading.current_thread)
