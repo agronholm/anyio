@@ -1,0 +1,1 @@
+Fixed ``SpooledTemporaryFile`` losing buffered data when a rollover failed

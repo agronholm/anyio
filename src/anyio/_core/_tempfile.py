@@ -7,6 +7,7 @@ from collections.abc import Iterable
 from io import BytesIO, TextIOWrapper
 from types import TracebackType
 from typing import (
+    IO,
     TYPE_CHECKING,
     Any,
     AnyStr,
@@ -325,16 +326,34 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
 
         await checkpoint_if_cancelled()
         with CancelScope(shield=True):
-            self._rolled = True
             buffer = self._fp
             position = buffer.tell()
-            buffer.seek(0)
-            self._fp = await to_thread.run_sync(
-                lambda: tempfile.TemporaryFile(**self._tempfile_params)
-            )
-            await self.write(buffer.read())
-            await self.seek(position)
-            buffer.close()
+
+            def _rollover() -> IO[Any]:
+                # Create the new file and copy the buffered data into it
+                # before mutating any state, so that a failure here (such as
+                # TemporaryFile() raising because the target directory is
+                # missing) leaves the spooled file intact and the rollover is
+                # retried on the next write.
+                new_file: IO[Any] = tempfile.TemporaryFile(**self._tempfile_params)
+                try:
+                    if isinstance(buffer, TextIOWrapper):
+                        # Copy the raw encoded bytes, like the stdlib's
+                        # rollover does, so that newline translation cannot
+                        # corrupt the buffered data or the saved position.
+                        data = buffer.buffer.getvalue()
+                        new_file.buffer.write(data)  # type: ignore[attr-defined]
+                    else:
+                        new_file.write(buffer.getvalue())
+                    new_file.seek(position)
+                except BaseException:
+                    new_file.close()
+                    raise
+                buffer.close()
+                return new_file
+
+            self._fp = await to_thread.run_sync(_rollover)
+            self._rolled = True
 
     @property
     def closed(self) -> bool:
