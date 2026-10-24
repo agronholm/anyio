@@ -92,6 +92,7 @@ class TestSpooledTemporaryFile:
                 await stf.write(b"bbbbbbbb")  # 12 > max_size: rollover fails
 
             assert not stf._rolled
+            assert await stf.tell() == 12  # position and data are preserved
 
             os.mkdir(missing_dir)  # the cause of the failure goes away
             await stf.write(b"cc")
