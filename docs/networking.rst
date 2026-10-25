@@ -268,16 +268,22 @@ For example, you could create a network client class like this::
     from os import PathLike
     from ssl import SSLContext
 
-    from anyio.abc import ByteStreamConnectable, as_connectable
+    from anyio import as_connectable
+    from anyio.abc import ByteStreamConnectable
 
 
     class MyNetworkClient:
         def __init__(
             self,
-            connectable: ByteStreamConnectable | tuple[str, int] | str | PathLike[str],
-            tls: bool | SSLContext = False
+            connectable: (
+                ByteStreamConnectable | tuple[str, int] | str | bytes | PathLike[str]
+            ),
+            tls: bool = False,
+            ssl_context: SSLContext | None = None,
         ):
-            self.connectable = as_connectable(connectable, tls)
+            self.connectable = as_connectable(
+                connectable, tls=tls, ssl_context=ssl_context
+            )
 
         async def __aenter__(self):
             # Connect to the remote and enter the stream's context manager
