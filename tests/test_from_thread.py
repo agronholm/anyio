@@ -568,6 +568,35 @@ class TestBlockingPortal:
         assert scope.cancelled_caught
         assert released_by_caller
 
+    @pytest.mark.parametrize("target_backend", get_available_backends())
+    @pytest.mark.usefixtures("deactivate_blockbuster")
+    async def test_future_cancellation_does_not_block(
+        self, target_backend: str
+    ) -> None:
+        started = threading.Event()
+        release = threading.Event()
+        released_by_caller = False
+
+        async def block_event_loop() -> None:
+            nonlocal released_by_caller
+            started.set()
+            released_by_caller = release.wait(2)
+            await sleep(math.inf)
+
+        portal_cm = start_blocking_portal(backend=target_backend)
+        portal = await to_thread.run_sync(portal_cm.__enter__)
+        try:
+            future = await to_thread.run_sync(portal.start_task_soon, block_event_loop)
+            await to_thread.run_sync(started.wait)
+            # Future callbacks run synchronously in the thread calling cancel().
+            # The portal cannot process cancellation until this loop releases it.
+            assert future.cancel()
+        finally:
+            release.set()
+            await to_thread.run_sync(portal_cm.__exit__, None, None, None)
+
+        assert released_by_caller
+
     async def test_call_non_corofunc(self) -> None:
         async with BlockingPortal() as portal:
             result = await to_thread.run_sync(
