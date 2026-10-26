@@ -335,7 +335,8 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
                         newfile.buffer.write(buffer.buffer.getvalue())
                     else:
                         newfile.write(buffer.getvalue())
-                    newfile.seek(pos, 0)
+
+                    newfile.seek(pos)
                 except BaseException:
                     newfile.close()
                     raise
