@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import gc
 import sys
+import weakref
 from collections.abc import AsyncIterator
 from decimal import Decimal
 from typing import Any, NoReturn
@@ -10,10 +12,12 @@ import pytest
 from anyio import (
     CancelScope,
     Event,
+    NoEventLoopError,
     create_task_group,
     fail_after,
     get_cancelled_exc_class,
     move_on_after,
+    run,
     sleep,
     wait_all_tasks_blocked,
 )
@@ -218,6 +222,156 @@ class TestAsyncLRUCache:
         statistics = func.cache_info()
         assert statistics.hits == 1
         assert statistics.misses == 1
+
+    async def test_concurrent_access_entry_evicted(self) -> None:
+        """
+        Test that a task waiting for the lock of an entry computes the value again if
+        that entry was evicted before the task could read it, and that other callers
+        wait for it instead of computing the same value concurrently.
+
+        """
+        calls: list[int] = []
+
+        @lru_cache(maxsize=1)
+        async def func(x: int) -> int:
+            calls.append(x)
+            if x == 1:
+                await event.wait()
+
+            return x
+
+        async def compute_evict_and_recompute() -> None:
+            await func(1)
+            await func(2)
+            await func(1)
+
+        event = Event()
+        async with create_task_group() as tg:
+            tg.start_soon(compute_evict_and_recompute)
+            await wait_all_tasks_blocked()
+            tg.start_soon(func, 1)
+            await wait_all_tasks_blocked()
+            event.set()
+
+        assert calls == [1, 2, 1]
+
+    async def test_in_flight_entry_not_evicted(self) -> None:
+        """
+        Test that making room for a new value does not evict an entry whose value is
+        still being computed.
+
+        """
+        calls: list[int] = []
+
+        @lru_cache(maxsize=1)
+        async def func(x: int) -> int:
+            calls.append(x)
+            if x == 1:
+                await event.wait()
+
+            return x
+
+        event = Event()
+        async with create_task_group() as tg:
+            tg.start_soon(func, 1)
+            await wait_all_tasks_blocked()
+            await func(2)
+            await func(3)
+            # This should wait for the first call instead of calling the function again
+            tg.start_soon(func, 1)
+            await wait_all_tasks_blocked()
+            event.set()
+
+        assert calls == [1, 2, 3]
+
+    async def test_slow_call_stored_as_most_recently_used(self) -> None:
+        """
+        Test that a value is stored as the most recently used one when its call
+        completes, even if other values were stored while the call was running.
+
+        """
+
+        @lru_cache(maxsize=2)
+        async def func(x: int) -> int:
+            if x == 1:
+                await event.wait()
+
+            return x
+
+        event = Event()
+        async with create_task_group() as tg:
+            tg.start_soon(func, 1)
+            await wait_all_tasks_blocked()
+            await func(2)
+            event.set()
+
+        # This should evict 2, not 1
+        await func(3)
+        await func(1)
+        assert func.cache_info() == AsyncCacheInfo(1, 3, 2, 2, None)
+
+    async def test_failed_call_not_cached(self) -> None:
+        class Key:
+            pass
+
+        @lru_cache
+        async def func(key: Key) -> None:
+            raise RuntimeError
+
+        key = Key()
+        key_ref = weakref.ref(key)
+        with pytest.raises(RuntimeError):
+            await func(key)
+
+        del key
+        gc.collect()
+        assert key_ref() is None
+        assert func.cache_info().currsize == 0
+
+    async def test_cache_clear_during_call(self) -> None:
+        @lru_cache
+        async def func() -> None:
+            await event.wait()
+
+        event = Event()
+        async with create_task_group() as tg:
+            tg.start_soon(func)
+            await wait_all_tasks_blocked()
+            func.cache_clear()
+            event.set()
+
+        # Like with functools.lru_cache(), the value is stored in the cleared cache
+        assert func.cache_info() == AsyncCacheInfo(0, 0, 128, 1, None)
+
+    def test_statistics_per_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        @lru_cache(maxsize=2)
+        async def func(x: int) -> int:
+            return x
+
+        async def main() -> AsyncCacheInfo:
+            await func(1)
+            await func(2)
+            await func(1)
+            return func.cache_info()
+
+        for _ in range(2):
+            statistics = run(
+                main, backend=anyio_backend_name, backend_options=anyio_backend_options
+            )
+            assert statistics == AsyncCacheInfo(1, 2, 2, 2, None)
+
+    def test_no_event_loop(self) -> None:
+        @lru_cache
+        async def func() -> None:
+            pass
+
+        with pytest.raises(NoEventLoopError):
+            func.cache_info()
+
+        with pytest.raises(NoEventLoopError):
+            func.cache_clear()
 
     async def test_args_kwargs_cache_key(self) -> None:
         counter = 0

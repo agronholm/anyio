@@ -1,0 +1,5 @@
+The ``cache_info()`` and ``cache_clear()`` methods of coroutine functions wrapped with
+``lru_cache()`` now only report and clear the statistics of the current event loop
+(previously, the statistics were shared between event loops even though the cached
+values were not), and ``cache_info()`` now raises ``NoEventLoopError`` when called
+outside of an event loop, like ``cache_clear()`` already did

@@ -1,0 +1,5 @@
+Fixed ``lru_cache()`` raising ``KeyError`` in a task that was waiting for another
+task to compute the same entry if the entry was evicted before the waiting task got
+to read it, and fixed ``currsize`` drifting from the actual number of cached values
+(for example after failed calls), which permanently reduced the number of values the
+cache could hold
