@@ -137,6 +137,9 @@ class AsyncLRUCacheWrapper(Generic[P, T]):
     async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> T:
         # Easy case first: if maxsize == 0, no caching is done
         if self._maxsize == 0:
+            if self._always_checkpoint:
+                await checkpoint()
+
             value = await self.__wrapped__(*args, **kwargs)
             self._misses += 1
             return value

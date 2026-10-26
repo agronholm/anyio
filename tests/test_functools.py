@@ -269,15 +269,14 @@ class TestAsyncLRUCache:
                 tg.start_soon(func, False)
                 tg.start_soon(func, True)
 
-    async def test_always_checkpoint(self) -> None:
-        @lru_cache(always_checkpoint=True)
+    @pytest.mark.parametrize("maxsize", [-1, 0, 128, None])
+    async def test_always_checkpoint(self, maxsize: int | None) -> None:
+        @lru_cache(maxsize=maxsize, always_checkpoint=True)
         async def func(x: int) -> int:
             return x
 
-        # With always_checkpoint=1, calling the function in a cancelled cancel scope
-        # when the cache has been filled will raise a cancellation exception due to the
-        # forced checkpoint
-        await func(1)
+        # The forced checkpoint must also apply when caching is disabled.
+        assert await func(1) == 1
         with CancelScope() as scope, pytest.raises(get_cancelled_exc_class()):
             scope.cancel()
             await func(1)
