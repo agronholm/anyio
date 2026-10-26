@@ -233,6 +233,51 @@ def test_autouse_async_fixture(testdir: Pytester) -> None:
     result.assert_outcomes(passed=len(get_available_backends()))
 
 
+def test_sync_test_with_async_fixture(testdir: Pytester) -> None:
+    # Regression test for #803: a synchronous test marked with anyio that uses an
+    # async fixture (without requesting anyio_backend itself) must have the fixture
+    # evaluated on each available backend, while a synchronous test that uses no
+    # async fixture must still run only once
+    testdir.makepyfile(
+        """
+        import pytest
+
+        from anyio import sleep
+
+
+        @pytest.fixture
+        async def async_fixture():
+            await sleep(0)
+            return True
+
+
+        @pytest.fixture(scope="module")
+        async def module_async_fixture():
+            await sleep(0)
+            return True
+
+
+        @pytest.mark.anyio
+        def test_sync_test_with_async_fixture(async_fixture):
+            assert async_fixture is True
+
+
+        @pytest.mark.anyio
+        @pytest.mark.usefixtures("module_async_fixture")
+        def test_sync_test_with_usefixtures():
+            pass
+
+
+        @pytest.mark.anyio
+        def test_sync_test_without_async_fixture():
+            pass
+        """
+    )
+
+    result = testdir.runpytest_subprocess(*pytest_args)
+    result.assert_outcomes(passed=1 + 2 * len(get_available_backends()))
+
+
 def test_cancel_scope_in_asyncgen_fixture(testdir: Pytester) -> None:
     testdir.makepyfile(
         """
