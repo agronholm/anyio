@@ -91,7 +91,7 @@ class TestSpooledTemporaryFile:
     async def test_rollover_failure_retains_data(
         self,
         tmp_path: pathlib.Path,
-        mode: str,
+        mode: Any,
         sample1: Any,
         sample2: Any,
         sample3: Any,
@@ -121,7 +121,7 @@ class TestSpooledTemporaryFile:
         ],
     )
     async def test_rollover_failure_closes_tempfile(
-        self, mode: str, sample1: Any, sample2: Any
+        self, mode: Any, sample1: Any, sample2: Any
     ) -> None:
         created_file: Any = None
         original = tempfile.TemporaryFile
