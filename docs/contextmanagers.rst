@@ -16,6 +16,11 @@ another way to implement context managers similar to
 :func:`@asynccontextmanager <contextlib.asynccontextmanager>` - a generator-based
 approach where the ``yield`` statement signals that the context has been entered.
 
+Instances of these mix-in classes are reusable, but not reentrant. Attempting to enter
+the same instance again before the previous entry and exit have completed raises
+:exc:`RuntimeError`, including while its setup or cleanup code is still running. The
+instance can be used again after exiting, or after an error while entering or exiting.
+
 Here's a trivial example of how to use the mix-in classes:
 
 .. tabs::
