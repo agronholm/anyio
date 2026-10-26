@@ -1,0 +1,5 @@
+Fixed UDP sockets on the asyncio backend silently discarding errors reported by the
+OS (such as an ICMP port unreachable). A task blocked in ``receive()`` or ``send()``
+is now woken up by such an error, and both raise ``BrokenResourceError``, chained to
+the original error, as they already did on the Trio backend. As on the Trio backend,
+the error is only reported once, leaving the socket usable afterwards
