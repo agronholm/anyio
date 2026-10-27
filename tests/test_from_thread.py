@@ -30,7 +30,11 @@ from anyio import (
     to_thread,
     wait_all_tasks_blocked,
 )
-from anyio.from_thread import BlockingPortal, start_blocking_portal
+from anyio.from_thread import (
+    BlockingPortal,
+    BlockingPortalProvider,
+    start_blocking_portal,
+)
 from anyio.lowlevel import EventLoopToken, checkpoint, current_token
 
 from .conftest import asyncio_params, return_non_coro_awaitable
@@ -550,6 +554,35 @@ class TestBlockingPortal:
 
         assert cancelled
 
+    @pytest.mark.parametrize(
+        "raises", [pytest.param(False, id="result"), pytest.param(True, id="exception")]
+    )
+    async def test_cancel_during_completion(
+        self, monkeypatch: pytest.MonkeyPatch, raises: bool
+    ) -> None:
+        class RacingFuture(Future[Any]):
+            def set_result(self, result: Any) -> None:
+                self.cancel()
+                super().set_result(result)
+
+            def set_exception(self, exception: BaseException | None) -> None:
+                self.cancel()
+                super().set_exception(exception)
+
+        async def func() -> str:
+            if raises:
+                raise ValueError("foo")
+
+            return "foo"
+
+        monkeypatch.setattr(from_thread, "Future", RacingFuture)
+        async with BlockingPortal() as portal:
+            if raises:
+                with pytest.raises(ValueError, match="foo"):
+                    await to_thread.run_sync(portal.call, func)
+            else:
+                assert await to_thread.run_sync(portal.call, func) == "foo"
+
     def test_start_task_soon_cancel_after_stop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
@@ -812,3 +845,17 @@ class TestBlockingPortal:
                 # Ensure thread has time to start the task
                 await event.wait()
                 await portal.stop(cancel_remaining=True)
+
+
+class TestBlockingPortalProvider:
+    def test_exception_passed_to_portal_cm(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        provider = BlockingPortalProvider(anyio_backend_name, anyio_backend_options)
+        with pytest.raises(RuntimeError, match="boom"):
+            with provider as portal:
+                future = portal.start_task_soon(sleep, 10)
+                portal.call(wait_all_tasks_blocked)
+                raise RuntimeError("boom")
+
+        assert future.cancelled()
