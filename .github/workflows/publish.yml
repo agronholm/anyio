@@ -7,6 +7,8 @@ on:
       - "[0-9]+.[0-9]+.[0-9]+.post[0-9]+"
       - "[0-9]+.[0-9]+.[0-9]+[a-b][0-9]+"
       - "[0-9]+.[0-9]+.[0-9]+rc[0-9]+"
+  # Allows retrying a release with: gh workflow run publish.yml --ref X.Y.Z
+  workflow_dispatch:
 
 jobs:
   build:
@@ -15,6 +17,12 @@ jobs:
     environment: release
     steps:
       - uses: actions/checkout@v7
+      - name: Check that the changelog has an entry for this version
+        run: |
+          if ! grep -qxF "**$GITHUB_REF_NAME**" docs/versionhistory.rst; then
+            echo "::error::No changelog entry for $GITHUB_REF_NAME (use the release workflow)"
+            exit 1
+          fi
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
@@ -44,6 +52,8 @@ jobs:
           path: dist
       - name: Upload packages
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
 
   release:
     name: Create a GitHub release
@@ -60,3 +70,4 @@ jobs:
       - uses: ncipollo/release-action@v1
         with:
           body: ${{ steps.changelog.outputs.changelog }}
+          allowUpdates: true
