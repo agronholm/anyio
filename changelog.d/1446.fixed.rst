@@ -1,0 +1,2 @@
+Fixed ``anyio.functools.lru_cache(None)`` silently creating a cache with the default
+maximum size instead of raising ``TypeError``
