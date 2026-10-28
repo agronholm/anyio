@@ -170,10 +170,19 @@ async def run_sync(  # type: ignore[return]
                     protocol=pickle.HIGHEST_PROTOCOL,
                 )
                 await send_raw_command(pickled)
-            except (BrokenWorkerProcess, get_cancelled_exc_class()):
-                raise
             except BaseException as exc:
-                process.kill()
+                with CancelScope(shield=True):
+                    if process.returncode is None:
+                        try:
+                            process.kill()
+                        except ProcessLookupError:
+                            pass
+
+                    await process.aclose()
+
+                if isinstance(exc, (BrokenWorkerProcess, get_cancelled_exc_class())):
+                    raise
+
                 raise BrokenWorkerProcess(
                     "Error during worker process initialization"
                 ) from exc
