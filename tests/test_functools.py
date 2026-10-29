@@ -325,7 +325,7 @@ class TestAsyncLRUCache:
             assert await Foo.cls_method(1) == 1
             assert await Foo.cls_method(2) == 2
 
-        await self._do_cache_asserts(Foo.cls_method)
+        await self._do_cache_asserts(Foo.cls_method)  # type: ignore[arg-type]
 
     async def test_cached_instance_method(self) -> None:
         class Foo:

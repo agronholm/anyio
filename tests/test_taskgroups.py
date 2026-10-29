@@ -111,7 +111,7 @@ async def test_start_soon_while_running() -> None:
 async def test_start_soon_after_error() -> None:
     with pytest.raises(ExceptionGroup):
         async with create_task_group() as tg:
-            a = 1 / 0  # noqa: F841
+            a = 1 / 0  # noqa: F841  # type: ignore[misc]
 
     with pytest.raises(RuntimeError) as exc:
         tg.start_soon(sleep, 0)
@@ -1513,7 +1513,7 @@ async def test_cancel_native_future_tasks_cancel_scope() -> None:
 async def test_cancel_completed_task() -> None:
     loop = asyncio.get_running_loop()
     old_exception_handler = loop.get_exception_handler()
-    exceptions = []
+    exceptions: list[Any] = []
 
     def exception_handler(*args: object, **kwargs: object) -> None:
         exceptions.append((args, kwargs))
@@ -2153,31 +2153,32 @@ class TestTaskStatusTyping:
     intended.
     """
 
-    async def typetest_None(*, task_status: TaskStatus[None]) -> None:
+    async def typetest_None(self, *, task_status: TaskStatus[None]) -> None:
         task_status.started()
         task_status.started(None)
 
-    async def typetest_None_Union(*, task_status: TaskStatus[int | None]) -> None:
+    async def typetest_None_Union(self, *, task_status: TaskStatus[int | None]) -> None:
         task_status.started()
         task_status.started(None)
 
-    async def typetest_non_None(*, task_status: TaskStatus[int]) -> None:
+    async def typetest_non_None(self, *, task_status: TaskStatus[int]) -> None:
         # We use `type: ignore` and `--warn-unused-ignores` to get type checking errors
         # if these ever stop failing.
         task_status.started()  # type: ignore[call-arg]
         task_status.started(None)  # type: ignore[arg-type]
 
-    async def typetest_variance_good(*, task_status: TaskStatus[float]) -> None:
+    async def typetest_variance_good(self, *, task_status: TaskStatus[float]) -> None:
         task_status2: TaskStatus[int] = task_status
         task_status2.started(0)
 
-    async def typetest_variance_bad(*, task_status: TaskStatus[int]) -> None:
+    async def typetest_variance_bad(self, *, task_status: TaskStatus[int]) -> None:
         # We use `type: ignore` and `--warn-unused-ignores` to get type checking errors
         # if these ever stop failing.
         task_status2: TaskStatus[float] = task_status  # type: ignore[assignment]
         task_status2.started(0.0)
 
     async def typetest_optional_status(
+        self,
         *,
         task_status: TaskStatus[int] = TASK_STATUS_IGNORED,
     ) -> None:
@@ -2235,9 +2236,7 @@ async def test_patched_asyncio_task(monkeypatch: MonkeyPatch) -> None:
 
 
 async def test_exception_groups_suppresses_exc_context() -> None:
-    with pytest.raises(
-        cast(type[ExceptionGroup[Exception]], ExceptionGroup)
-    ) as exc_info:
+    with pytest.raises(ExceptionGroup) as exc_info:
         async with create_task_group():
             raise Exception("Error")
 
