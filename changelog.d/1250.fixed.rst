@@ -1,0 +1,1 @@
+Fixed race condition in asyncio ``SocketStream.aclose()`` where ``transport.abort()`` crashed if the connection was already lost
