@@ -884,7 +884,7 @@ class TestCapacityLimiter:
 
     async def test_ordered_queue(self) -> None:
         limiter = CapacityLimiter(1)
-        results = []
+        results: list[int] = []
         event = Event()
 
         async def append(x: int, task_status: TaskStatus) -> None:

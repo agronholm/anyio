@@ -78,7 +78,8 @@ pyright = [
     "pyright >= 1.1.411",
 ]
 zuban = [
-    "zuban >= 0.10.1",
+    "zuban >= 0.10.2",
+    "types-psutil",
 ]
 
 [tool.setuptools_scm]
@@ -154,6 +155,10 @@ warn_unreachable = false
 disallow_any_generics = false
 warn_return_any = false
 files = ["src"]
+
+[[tool.zuban.overrides]]
+module = "tests.conftest"
+ignore_missing_imports = true
 
 [tool.pytest]
 addopts = [

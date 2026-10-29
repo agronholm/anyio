@@ -173,7 +173,7 @@ class TestSpooledTemporaryFile:
 class TestTemporaryDirectory:
     async def test_cancellation_during_creation(self) -> None:
         original = tempfile.TemporaryDirectory
-        manager = TemporaryDirectory()
+        manager = TemporaryDirectory[str]()
         paths: list[pathlib.Path] = []
 
         def create(**kwargs: Any) -> tempfile.TemporaryDirectory[str]:
@@ -206,7 +206,7 @@ class TestTemporaryDirectory:
         assert not td_path.exists()
 
     async def test_cleanup_method(self) -> None:
-        td = TemporaryDirectory()
+        td = TemporaryDirectory[str]()
         td_str = await td.__aenter__()
         td_path = pathlib.Path(td_str)
 
@@ -250,7 +250,7 @@ class TestTemporaryDirectory:
         task is already cancelled when it is called, and that the pending
         cancellation is still delivered to the caller afterwards.
         """
-        td = TemporaryDirectory()
+        td = TemporaryDirectory[str]()
         async with td as td_str:
             td_path = pathlib.Path(td_str)
             assert td_path.exists() and td_path.is_dir()

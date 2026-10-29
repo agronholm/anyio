@@ -542,6 +542,7 @@ class TestTLSListener:
                 ]
                 assert len(records) == 1
                 logged_exc_info = records[0].exc_info
+                assert isinstance(logged_exc_info, tuple)
                 logged_exc = logged_exc_info[1] if logged_exc_info is not None else None
                 assert logged_exc is exc
 
