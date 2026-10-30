@@ -103,12 +103,15 @@ async def test_inherit_stderr_print_and_logging_arrive_before_release(
         tg.start_soon(invoke)
         for _ in range(500):
             await anyio.sleep(0.01)
+            # Reading capture truncates its files, so wait for both writes to finish.
+            if not gate.with_suffix(".ready").exists():
+                continue
+
             out, err = capfd.readouterr()
             captured_out += out
             captured_err += err
             if (
-                gate.with_suffix(".ready").exists()
-                and f"{MARKER}:print" in captured_err
+                f"{MARKER}:print" in captured_err
                 and f"{MARKER}:logging" in captured_err
             ):
                 assert not done.is_set()
