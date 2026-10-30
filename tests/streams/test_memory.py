@@ -152,6 +152,23 @@ async def test_close_receive_clone_while_receiving() -> None:
         assert receive2.receive_nowait() == "hello"
 
 
+async def test_close_send_clone_while_sending() -> None:
+    send1, receive = create_memory_object_stream[str]()
+    send2 = send1.clone()
+    with send1, send2, receive:
+        with pytest.RaisesGroup(ClosedResourceError):
+            async with create_task_group() as tg:
+                tg.start_soon(send1.send, "withdrawn")
+                await wait_all_tasks_blocked()
+                send1.close()
+                with pytest.raises(WouldBlock):
+                    receive.receive_nowait()
+
+        async with create_task_group() as tg:
+            tg.start_soon(send2.send, "hello")
+            assert await receive.receive() == "hello"
+
+
 async def test_cancel_receive() -> None:
     send, receive = create_memory_object_stream[str]()
     with send, receive:
