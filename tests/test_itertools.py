@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import itertools
+import math
 from collections.abc import (
     AsyncGenerator,
     AsyncIterable,
@@ -560,6 +562,14 @@ class TestGroupby:
         iterator: AsyncIterator[tuple[int, list[int]]]
         for iterator in (groupby([]), groupby(aiter_from([]))):
             assert await collect(iterator) == []
+
+    async def test_identical_keys_not_equal_to_themselves(self) -> None:
+        # itertools.groupby() checks identity before equality, so the same NaN
+        # object is a single group
+        data = [math.nan, math.nan, 1.0]
+        expected = [(k, list(g)) for k, g in itertools.groupby(data)]
+        assert expected == [(math.nan, [math.nan, math.nan]), (1.0, [1.0])]
+        assert await collect(groupby(data)) == expected
 
     async def test_checkpoints_empty_inputs(self) -> None:
         iterator: AsyncIterator[tuple[int, list[int]]]
