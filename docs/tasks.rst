@@ -18,25 +18,9 @@ exited. If a child task, or the code in the enclosed context block raises an exc
 all child tasks are cancelled. Otherwise the context manager just waits until all child
 tasks have exited before proceeding.
 
-Here's a demonstration::
+Here's a demonstration:
 
-    from anyio import sleep, create_task_group, run
-
-
-    async def sometask(num: int) -> None:
-        print('Task', num, 'running')
-        await sleep(1)
-        print('Task', num, 'finished')
-
-
-    async def main() -> None:
-        async with create_task_group() as tg:
-            for num in range(5):
-                tg.start_soon(sometask, num)
-
-        print('All tasks finished!')
-
-    run(main)
+.. literalinclude:: snippets/tasks/task_group.py
 
 .. _Trio: https://trio.readthedocs.io/en/latest/reference-core.html
    #tasks-let-you-do-multiple-things-at-once
@@ -56,69 +40,11 @@ Both :meth:`~.abc.TaskGroup.start_soon` and :meth:`~.TaskGroup.create_task` retu
 
    .. tab:: create_task()
 
-      ::
-
-          from anyio import TaskHandle, create_task_group, run, sleep
-
-
-          async def sometask(num: int) -> str:
-              await sleep(1)
-              return str(num)
-
-
-          async def main() -> None:
-              async with create_task_group() as tg:
-                  handles = [
-                      tg.create_task(sometask(num)) for num in range(5)
-                  ]
-                  handles[1].cancel()
-                  print(await handles[2])
-
-              print(
-                  'Tasks finished:',
-                  ', '.join(
-                      handle.return_value for handle in handles
-                      if handle.status is TaskHandle.Status.FINISHED
-                  )
-              )
-              # Should print:
-              #   2
-              #   Tasks finished: 0, 2, 3, 4
-
-          run(main)
+      .. literalinclude:: snippets/tasks/create_task.py
 
    .. tab:: start_soon()
 
-      ::
-
-          from anyio import TaskHandle, create_task_group, run, sleep
-
-
-          async def sometask(num: int) -> str:
-              await sleep(1)
-              return str(num)
-
-
-          async def main() -> None:
-              async with create_task_group() as tg:
-                  handles = [
-                      tg.start_soon(sometask, num) for num in range(5)
-                  ]
-                  handles[1].cancel()
-                  print(await handles[2])
-
-              print(
-                  'Tasks finished:',
-                  ', '.join(
-                      handle.return_value for handle in handles
-                      if handle.status is TaskHandle.Status.FINISHED
-                  )
-              )
-              # Should print:
-              #   2
-              #   Tasks finished: 0, 2, 3, 4
-
-          run(main)
+      .. literalinclude:: snippets/tasks/start_soon.py
 
 .. versionchanged:: 4.14.0
     :meth:`~.abc.TaskGroup.start_soon` now returns a :class:`~.TaskHandle`.
@@ -135,40 +61,9 @@ can now start another task that depends on that service being up and running. Al
 the socket bind fails or something else goes wrong during initialization, the exception
 will be propagated to the caller which can then catch and handle it.
 
-This can be done with :meth:`TaskGroup.start() <.abc.TaskGroup.start>`::
+This can be done with :meth:`TaskGroup.start() <.abc.TaskGroup.start>`:
 
-    from anyio import (
-        TASK_STATUS_IGNORED,
-        create_task_group,
-        connect_tcp,
-        create_tcp_listener,
-        run,
-    )
-    from anyio.abc import TaskStatus
-
-
-    async def handler(stream):
-        ...
-
-
-    async def start_some_service(
-        port: int, *, task_status: TaskStatus[None] = TASK_STATUS_IGNORED
-    ):
-        async with await create_tcp_listener(
-            local_host="127.0.0.1", local_port=port
-        ) as listener:
-            task_status.started()
-            await listener.serve(handler)
-
-
-    async def main():
-        async with create_task_group() as tg:
-            await tg.start(start_some_service, 5000)
-            async with await connect_tcp("127.0.0.1", 5000) as stream:
-                ...
-
-
-    run(main)
+.. literalinclude:: snippets/tasks/start.py
 
 The target coroutine function **must** call ``task_status.started()`` because the task
 that is calling with :meth:`TaskGroup.start() <.abc.TaskGroup.start>` will be blocked
@@ -185,28 +80,9 @@ By default, :meth:`TaskGroup.start() <.abc.TaskGroup.start>` returns the value p
 ``task_status.started()``. If you also need a :class:`~.TaskHandle` for the started task
 (e.g. to cancel it or await its return value), pass ``return_handle=True``. In this
 mode, the method returns a :class:`~.TaskHandle` whose :attr:`~.TaskHandle.start_value`
-property contains the value passed to ``task_status.started()``::
+property contains the value passed to ``task_status.started()``:
 
-    from anyio import TASK_STATUS_IGNORED, create_task_group, run, sleep
-    from anyio.abc import TaskStatus
-
-
-    async def start_some_service(
-        port: int, *, task_status: TaskStatus[int] = TASK_STATUS_IGNORED
-    ) -> int:
-        task_status.started(port)
-        await sleep(10)
-        return 42
-
-
-    async def main() -> None:
-        async with create_task_group() as tg:
-            handle = await tg.start(start_some_service, 5000, return_handle=True)
-            print(f"Service started on port {handle.start_value}")
-            handle.cancel()
-            await handle.wait()
-
-    run(main)
+.. literalinclude:: snippets/tasks/start_task_handle.py
 
 .. versionadded:: 4.14.0
     The ``return_handle`` parameter was added to
@@ -331,22 +207,9 @@ Python 3.14 added support for `call graph introspection`_ on asyncio which lets 
 tools display the tree of Tasks or Futures that are waiting for a specific Future. AnyIO
 supports this mechanism in its own task groups by adding and removing the task's
 "waiter" as appropriate, just like asyncio's own task group class does. Here's a small
-demonstration::
+demonstration:
 
-    import asyncio
-
-    from anyio import create_task_group
-
-
-    async def foo(level=0):
-        if level == 3:
-            asyncio.print_call_graph(asyncio.current_task())
-            return
-
-        async with create_task_group() as tg:
-            tg.start_soon(foo, level + 1, name=f"Nesting level {level + 1}")
-
-    asyncio.run(foo())
+.. literalinclude:: snippets/tasks/call_graph.py
 
 This results in an output like:
 
