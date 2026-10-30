@@ -919,20 +919,26 @@ class TaskGroup(abc.TaskGroup):
                 exc = e
 
             if exc is not None:
-                # The future can only be in the cancelled state if the host task was
-                # cancelled, so return immediately instead of adding one more
-                # CancelledError to the exceptions list
-                if task_status_future is not None and task_status_future.cancelled():
-                    return
+                try:
+                    # The future can only be in the cancelled state if the host task was
+                    # cancelled, so return immediately instead of adding one more
+                    # CancelledError to the exceptions list
+                    if (
+                        task_status_future is not None
+                        and task_status_future.cancelled()
+                    ):
+                        return
 
-                if task_status_future is None or task_status_future.done():
-                    if not isinstance(exc, CancelledError):
-                        self._exceptions.append(exc)
+                    if task_status_future is None or task_status_future.done():
+                        if not isinstance(exc, CancelledError):
+                            self._exceptions.append(exc)
 
-                    if not self.cancel_scope._effectively_cancelled:
-                        self.cancel_scope.cancel()
-                else:
-                    task_status_future.set_exception(exc)
+                        if not self.cancel_scope._effectively_cancelled:
+                            self.cancel_scope.cancel()
+                    else:
+                        task_status_future.set_exception(exc)
+                finally:
+                    del exc
             elif task_status_future is not None and not task_status_future.done():
                 task_status_future.set_exception(
                     RuntimeError("Child exited without calling task_status.started()")
