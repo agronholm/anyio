@@ -14,44 +14,21 @@ and the rest are arguments passed to it.
 Running one-shot commands
 -------------------------
 
-To run an external command with one call, use :func:`~run_process`::
+To run an external command with one call, use :func:`~run_process`:
 
-    from anyio import run_process, run
+.. literalinclude:: snippets/subprocesses/run_process.py
 
+The snippet above runs the ``ps`` command within a shell. To run it directly:
 
-    async def main():
-        result = await run_process('ps')
-        print(result.stdout.decode())
-
-    run(main)
-
-The snippet above runs the ``ps`` command within a shell. To run it directly::
-
-    from anyio import run_process, run
-
-
-    async def main():
-        result = await run_process(['ps'])
-        print(result.stdout.decode())
-
-    run(main)
+.. literalinclude:: snippets/subprocesses/run_process_shell.py
 
 Working with processes
 ----------------------
 
 When you have more complex requirements for your interaction with subprocesses, you can
-launch one with :func:`~open_process`::
+launch one with :func:`~open_process`:
 
-    from anyio import open_process, run
-    from anyio.streams.text import TextReceiveStream
-
-
-    async def main():
-        async with await open_process(['ps']) as process:
-            async for text in TextReceiveStream(process.stdout):
-                print(text)
-
-    run(main)
+.. literalinclude:: snippets/subprocesses/open_process.py
 
 See the API documentation of :class:`~.abc.Process` for more information.
 
@@ -74,24 +51,9 @@ Exceptions to this rule are:
 
 If the code you wish to run does not belong in this category, it's best to use worker
 processes instead in order to take advantage of multiple CPU cores.
-This is done by using :func:`.to_process.run_sync`::
+This is done by using :func:`.to_process.run_sync`:
 
-    import time
-
-    from anyio import run, to_process
-
-
-    def cpu_intensive_function(arg1, arg2):
-        time.sleep(1)
-        return arg1 + arg2
-
-    async def main():
-        result = await to_process.run_sync(cpu_intensive_function, 'Hello, ', 'world!')
-        print(result)
-
-    # This check is important when the application uses to_process.run_sync()
-    if __name__ == '__main__':
-        run(main)
+.. literalinclude:: snippets/subprocesses/run_in_worker_process.py
 
 Technical details
 *****************
