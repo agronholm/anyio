@@ -1,0 +1,1 @@
+Fixed ``UNIXSocketStream.send_fds()`` silently truncating messages on short socket writes

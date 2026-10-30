@@ -1,0 +1,1 @@
+Fixed cancellation during ``SpooledTemporaryFile.rollover()`` losing buffered contents

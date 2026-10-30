@@ -15,34 +15,9 @@ If the task is just starting, it will run until it first tries to run an operati
 requiring waiting, such as :func:`~sleep`.
 
 A task group contains its own cancel scope. The entire task group can be cancelled by
-cancelling this scope::
+cancelling this scope:
 
-    from anyio import create_task_group, get_cancelled_exc_class, sleep, run
-
-
-    async def waiter(index: int):
-        try:
-            await sleep(1)
-        except get_cancelled_exc_class():
-            print(f"Waiter {index} cancelled")
-            raise
-
-
-    async def taskfunc():
-        async with create_task_group() as tg:
-            # Start a couple tasks and wait until they are blocked
-            tg.start_soon(waiter, 1)
-            tg.start_soon(waiter, 2)
-            await sleep(0.1)
-
-            # Cancel the scope and exit the task group
-            tg.cancel_scope.cancel()
-
-    run(taskfunc)
-
-    # Output:
-    # Waiter 1 cancelled
-    # Waiter 2 cancelled
+.. literalinclude:: snippets/cancellation/cancel_task_group.py
 
 .. _Trio: https://trio.readthedocs.io/en/latest/reference-core.html
    #cancellation-and-timeouts
@@ -84,22 +59,9 @@ Both methods create a new cancel scope, and you can check the deadline by access
 may have an earlier deadline than your current cancel scope. To check the actual
 deadline, you can use the :func:`~current_effective_deadline` function.
 
-Here's how you typically use timeouts::
+Here's how you typically use timeouts:
 
-    from anyio import create_task_group, move_on_after, sleep, run
-
-
-    async def main():
-        async with create_task_group() as tg:
-            with move_on_after(1) as scope:
-                print('Starting sleep')
-                await sleep(2)
-                print('This should never be printed')
-
-            # The cancelled_caught property will be True if timeout was reached
-            print('Exited cancel scope, cancelled =', scope.cancelled_caught)
-
-    run(main)
+.. literalinclude:: snippets/cancellation/move_on_after.py
 
 .. note:: It's recommended not to directly cancel a scope from :func:`~fail_after`, as
     that may currently result in :exc:`TimeoutError` being erroneously raised if exiting
@@ -112,46 +74,16 @@ There are cases where you want to shield your task from cancellation, at least
 temporarily. The most important such use case is performing shutdown procedures on
 asynchronous resources.
 
-To accomplish this, open a new cancel scope with the ``shield=True`` argument::
+To accomplish this, open a new cancel scope with the ``shield=True`` argument:
 
-    from anyio import CancelScope, create_task_group, sleep, run
-
-
-    async def external_task():
-        print('Started sleeping in the external task')
-        await sleep(1)
-        print('This line should never be seen')
-
-
-    async def main():
-        async with create_task_group() as tg:
-            with CancelScope(shield=True) as scope:
-                tg.start_soon(external_task)
-                tg.cancel_scope.cancel()
-                print('Started sleeping in the host task')
-                await sleep(1)
-                print('Finished sleeping in the host task')
-
-    run(main)
+.. literalinclude:: snippets/cancellation/shielding.py
 
 The shielded block will be exempt from cancellation except when the shielded block
 itself is being cancelled. Shielding a cancel scope is often best combined with
 :func:`~move_on_after` or :func:`~fail_after`, both of which also accept
-``shield=True``::
+``shield=True``:
 
-    async def do_something(resource):
-        try:
-            ...
-        except BaseException:
-            # Here we wait 10 seconds for resource.aclose() to complete,
-            # but if the operation doesn't complete within that period, we move on
-            # and re-raise the caught exception anyway
-            with move_on_after(10, shield=True):
-                await resource.aclose()
-
-            raise
-
-    run(main)
+.. literalinclude:: snippets/cancellation/shielded_cleanup.py
 
 .. _finalization:
 
@@ -204,18 +136,9 @@ Specifying the reason for cancellation
 --------------------------------------
 
 To help with debugging, it is possible to specify a reason why you're cancelling a
-cancel scope::
+cancel scope:
 
-    async def do_something():
-        with CancelScope() as scope:
-            scope.cancel("Testing cancellation")
-            try:
-                await sleep(1)
-            except get_cancelled_exc_class() as exc:
-                print(exc)  # Print the cancellation message
-                raise  # Always re-raise cancellation exceptions!
-
-        raise
+.. literalinclude:: snippets/cancellation/cancel_reason.py
 
 While the exact resulting message from the cancellation exception varies by the event
 loop implementation, it will contain at least the following pieces of information:
@@ -285,21 +208,8 @@ safely straddle the ``yield``.
 When you're implementing the async context manager protocol manually and your async
 context manager needs to use other context managers, you may find it convenient to use
 :class:`AsyncContextManagerMixin` in order to avoid cumbersome code that calls
-``__aenter__()`` and ``__aexit__()`` directly::
+``__aenter__()`` and ``__aexit__()`` directly:
 
-    from __future__ import annotations
-
-    from collections.abc import AsyncGenerator
-    from typing import Self
-
-    from anyio import AsyncContextManagerMixin, create_task_group
-
-
-    class MyAsyncContextManager(AsyncContextManagerMixin):
-        @asynccontextmanager
-        async def __asynccontextmanager__(self) -> AsyncGenerator[Self]:
-            async with create_task_group() as tg:
-                ...  # launch tasks
-                yield self
+.. literalinclude:: snippets/cancellation/task_group_in_context_manager.py
 
 .. seealso:: :doc:`contextmanagers`

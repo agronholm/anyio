@@ -463,9 +463,9 @@ class _TrioSocketMixin(Generic[T_SockAddr]):
         return self._trio_socket._sock  # type: ignore[attr-defined]
 
     async def aclose(self) -> None:
-        if self._trio_socket.fileno() >= 0:
-            self._closed = True
-            self._trio_socket.close()
+        self._closed = True
+        self._trio_socket.close()
+        await trio.lowlevel.checkpoint()
 
     def _convert_socket_error(self, exc: BaseException) -> NoReturn:
         if isinstance(exc, trio.ClosedResourceError):
@@ -562,23 +562,19 @@ class UNIXSocketStream(SocketStream, abc.UNIXSocketStream):
                 filenos.append(fd.fileno())
 
         fdarray = array.array("i", filenos)
+        ancdata = [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)]
+        view = memoryview(message)
         await trio.lowlevel.checkpoint()
         with self._send_guard:
-            while True:
+            while view:
                 try:
-                    await self._trio_socket.sendmsg(
-                        [message],
-                        [
-                            (
-                                socket.SOL_SOCKET,
-                                socket.SCM_RIGHTS,
-                                fdarray,
-                            )
-                        ],
-                    )
-                    break
+                    bytes_sent = await self._trio_socket.sendmsg([view], ancdata)
                 except BaseException as exc:
                     self._convert_socket_error(exc)
+                else:
+                    view = view[bytes_sent:]
+                    # The descriptors were sent with the first successful write.
+                    ancdata = []
 
 
 class TCPSocketListener(_TrioSocketMixin, abc.SocketListener):
