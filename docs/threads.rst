@@ -125,7 +125,7 @@ Cancelling the calling task also cancels the task running in the portal.
 By default, the caller waits for the task to finish cleaning up. Any exception raised
 during cleanup is propagated to the caller; otherwise, the caller's cancellation is
 re-raised. Pass ``abandon_on_cancel=True`` to stop waiting immediately after requesting
-cancellation and ignore the task's subsequent return value or exception.
+cancellation and ignore the task's subsequent return value or any raised exception.
 
 Spawning tasks
 ++++++++++++++
