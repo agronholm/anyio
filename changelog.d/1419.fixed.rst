@@ -1,0 +1,6 @@
+Fixed reference cycles that kept the frames of a child task alive until the cyclic
+garbage collector ran, when the task was cancelled on the asyncio backend (Python 3.11
+and later), when it was started with ``TaskGroup.start()`` on the asyncio backend and
+then raised an exception or returned before calling ``task_status.started()``, or when
+it was started with ``TaskGroup.start()`` on the Trio backend and then raised an
+exception or was cancelled by a cancel scope
