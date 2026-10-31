@@ -1,0 +1,2 @@
+Fixed ``close()`` on memory object streams not waking up tasks blocked in ``send()``
+or ``receive()`` on the same stream

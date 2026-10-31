@@ -13,17 +13,7 @@ Temporary File
 
 **Example:**
 
-.. code-block:: python
-
-    from anyio import TemporaryFile, run
-
-    async def main():
-        async with TemporaryFile(mode="w+") as f:
-            await f.write("Temporary file content")
-            await f.seek(0)
-            print(await f.read())  # Output: Temporary file content
-
-    run(main)
+.. literalinclude:: snippets/tempfile/temporary_file.py
 
 Named Temporary File
 --------------------
@@ -32,18 +22,7 @@ Named Temporary File
 
 **Example:**
 
-.. code-block:: python
-
-    from anyio import NamedTemporaryFile, run
-
-    async def main():
-        async with NamedTemporaryFile(mode="w+", delete=True) as f:
-            print(f"Temporary file name: {f.name}")
-            await f.write("Named temp file content")
-            await f.seek(0)
-            print(await f.read())
-
-    run(main)
+.. literalinclude:: snippets/tempfile/named_temporary_file.py
 
 Spooled Temporary File
 ----------------------
@@ -52,17 +31,7 @@ Spooled Temporary File
 
 **Example:**
 
-.. code-block:: python
-
-    from anyio import SpooledTemporaryFile, run
-
-    async def main():
-        async with SpooledTemporaryFile(max_size=1024, mode="w+") as f:
-            await f.write("Spooled temp file content")
-            await f.seek(0)
-            print(await f.read())
-
-    run(main)
+.. literalinclude:: snippets/tempfile/spooled_temporary_file.py
 
 Temporary Directory
 -------------------
@@ -71,15 +40,7 @@ The :class:`TemporaryDirectory` provides an asynchronous way to create temporary
 
 **Example:**
 
-.. code-block:: python
-
-    from anyio import TemporaryDirectory, run
-
-    async def main():
-        async with TemporaryDirectory() as temp_dir:
-            print(f"Temporary directory path: {temp_dir}")
-
-    run(main)
+.. literalinclude:: snippets/tempfile/temporary_directory.py
 
 Low-Level Temporary File and Directory Creation
 -----------------------------------------------
@@ -93,23 +54,7 @@ For more control, the module provides lower-level functions:
 
 **Example:**
 
-.. code-block:: python
-
-    from anyio import mkstemp, mkdtemp, gettempdir, run
-    import os
-
-    async def main():
-        fd, path = await mkstemp(suffix=".txt", prefix="mkstemp_", text=True)
-        print(f"Created temp file: {path}")
-
-        temp_dir = await mkdtemp(prefix="mkdtemp_")
-        print(f"Created temp dir: {temp_dir}")
-
-        print(f"Default temp dir: {await gettempdir()}")
-
-        os.remove(path)
-
-    run(main)
+.. literalinclude:: snippets/tempfile/mkstemp_mkdtemp.py
 
 .. note::
     Using these functions requires manual cleanup of the created files and directories.
