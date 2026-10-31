@@ -92,6 +92,22 @@ event loop in its own dedicated thread:
 
 .. note:: The event loop is shut down as soon as you exit the context manager.
 
+Calling between event loops
++++++++++++++++++++++++++++
+
+When a blocking portal belongs to an event loop running in another thread, code in an
+event loop can use :meth:`~.BlockingPortal.call_async` to call into it without blocking
+the calling thread. For example, a server can expose a portal in its existing event
+loop so that user code running in a separate event loop can call back into the server:
+
+.. literalinclude:: snippets/threads/blocking_portal_call_async.py
+
+Cancelling the calling task also cancels the task running in the portal.
+By default, the caller waits for the task to finish cleaning up. Any exception raised
+during cleanup is propagated to the caller; otherwise, the caller's cancellation is
+re-raised. Pass ``abandon_on_cancel=True`` to stop waiting immediately after requesting
+cancellation and ignore the task's subsequent return value or any raised exception.
+
 Spawning tasks
 ++++++++++++++
 
