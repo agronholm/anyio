@@ -39,6 +39,9 @@ _process_pool_workers: RunVar[set[Process]] = RunVar("_process_pool_workers")
 _process_pool_idle_workers: RunVar[deque[tuple[Process, float]]] = RunVar(
     "_process_pool_idle_workers"
 )
+_process_pool_stderr_idle_workers: RunVar[deque[tuple[Process, float]]] = RunVar(
+    "_process_pool_stderr_idle_workers"
+)
 _default_process_limiter: RunVar[CapacityLimiter] = RunVar("_default_process_limiter")
 
 
@@ -47,6 +50,7 @@ async def run_sync(  # type: ignore[return]
     *args: Unpack[PosArgsT],
     cancellable: bool = False,
     limiter: CapacityLimiter | None = None,
+    inherit_stderr: bool = False,
 ) -> T_Retval:
     """
     Call the given function with the given arguments in a worker process.
@@ -61,6 +65,8 @@ async def run_sync(  # type: ignore[return]
         running
     :param limiter: capacity limiter to use to limit the total amount of processes
         running (if omitted, the default limiter is used)
+    :param inherit_stderr: if ``True``, inherit the parent process's standard error
+        stream
     :raises NoEventLoopError: if no supported asynchronous event loop is running in the
         current thread
     :return: an awaitable that yields the return value of the function.
@@ -68,6 +74,9 @@ async def run_sync(  # type: ignore[return]
     """
 
     async def send_raw_command(pickled_cmd: bytes) -> object:
+        if process is None:
+            raise RuntimeError("Worker process was not initialized")
+
         try:
             await stdin.send(pickled_cmd)
             response = await buffered.receive_until(b"\n", 50)
@@ -107,17 +116,21 @@ async def run_sync(  # type: ignore[return]
     try:
         workers = _process_pool_workers.get()
         idle_workers = _process_pool_idle_workers.get()
+        stderr_idle_workers = _process_pool_stderr_idle_workers.get()
     except LookupError:
         workers = set()
         idle_workers = deque()
+        stderr_idle_workers = deque()
         _process_pool_workers.set(workers)
         _process_pool_idle_workers.set(idle_workers)
+        _process_pool_stderr_idle_workers.set(stderr_idle_workers)
         get_async_backend().setup_process_pool_exit_at_shutdown(workers)
 
+    idle_workers = stderr_idle_workers if inherit_stderr else idle_workers
+
     async with limiter or current_default_process_limiter():
-        # Pop processes from the pool (starting from the most recently used) until we
-        # find one that hasn't exited yet
-        process: Process
+        # Pop the most recently used worker for this stderr mode.
+        process: Process | None = None
         while idle_workers:
             process, _idle_since = idle_workers.pop()
             if process.returncode is None:
@@ -146,10 +159,17 @@ async def run_sync(  # type: ignore[return]
                 break
 
             workers.remove(process)
-        else:
+            process = None
+
+        if process is None:
             command = [sys.executable, "-u", "-m", __name__]
+            if inherit_stderr:
+                command.append("--_anyio_inherit_stderr")
             process = await open_process(
-                command, stdin=subprocess.PIPE, stdout=subprocess.PIPE
+                command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=None if inherit_stderr else subprocess.PIPE,
             )
             try:
                 stdin = cast(ByteSendStream, process.stdin)
@@ -180,6 +200,7 @@ async def run_sync(  # type: ignore[return]
 
             workers.add(process)
 
+        assert process is not None
         with CancelScope(shield=not cancellable):
             try:
                 return cast(T_Retval, await send_raw_command(request))
@@ -205,13 +226,18 @@ def current_default_process_limiter() -> CapacityLimiter:
 
 
 def process_worker() -> None:
+    inherit_stderr = "--_anyio_inherit_stderr" in sys.argv
+    if inherit_stderr:
+        sys.argv.remove("--_anyio_inherit_stderr")
+
     # Redirect standard streams to os.devnull so that user code won't interfere with the
-    # parent-worker communication
+    # parent-worker communication. Keep the original stderr only for the opt-in mode.
     stdin = sys.stdin
     stdout = sys.stdout
+    stderr = sys.stderr
     sys.stdin = open(os.devnull)
     sys.stdout = open(os.devnull, "w")
-    sys.stderr = open(os.devnull, "w")
+    sys.stderr = stderr if inherit_stderr else open(os.devnull, "w")
 
     stdout.buffer.write(b"READY\n")
     while True:
