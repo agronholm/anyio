@@ -93,6 +93,70 @@ async def test_run_in_custom_limiter() -> None:
     assert max_active_threads == 3
 
 
+async def test_limiter_token_held_until_abandoned_thread_finishes() -> None:
+    """
+    The capacity limiter token must not be released before the worker thread has
+    actually finished running the function, even if the task waiting for the result
+    was cancelled in the meantime.
+
+    """
+    limiter = CapacityLimiter(1)
+    active_threads = 0
+    max_active_threads = 0
+    first_thread_started = threading.Event()
+    release_first_thread = threading.Event()
+    second_thread_started = threading.Event()
+
+    def first_worker() -> None:
+        nonlocal active_threads, max_active_threads
+        active_threads += 1
+        max_active_threads = max(max_active_threads, active_threads)
+        first_thread_started.set()
+        release_first_thread.wait(10)
+        active_threads -= 1
+
+    def second_worker() -> None:
+        nonlocal active_threads, max_active_threads
+        active_threads += 1
+        max_active_threads = max(max_active_threads, active_threads)
+        second_thread_started.set()
+        active_threads -= 1
+
+    async def task_worker() -> None:
+        await to_thread.run_sync(first_worker, abandon_on_cancel=True, limiter=limiter)
+
+    async with create_task_group() as tg:
+        tg.start_soon(task_worker)
+        while not first_thread_started.is_set():
+            await checkpoint()
+
+        tg.cancel_scope.cancel()
+
+    # The worker thread was abandoned, but it is still running, so the limiter must
+    # still be fully occupied
+    assert limiter.borrowed_tokens == 1
+    assert max_active_threads == 1
+
+    # Therefore, a second call must not be able to acquire the limiter until the
+    # abandoned thread has finished
+    async with create_task_group() as tg:
+        tg.start_soon(partial(to_thread.run_sync, second_worker, limiter=limiter))
+        for _ in range(100):
+            if limiter.statistics().tasks_waiting:
+                break
+
+            await checkpoint()
+        else:
+            pytest.fail("the second call did not wait for the capacity limiter")
+
+        assert not second_thread_started.is_set()
+        release_first_thread.set()
+        while not second_thread_started.is_set():
+            await checkpoint()
+
+    assert max_active_threads == 1
+
+
 @pytest.mark.parametrize(
     "abandon_on_cancel, expected_last_active",
     [
