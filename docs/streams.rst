@@ -88,6 +88,9 @@ It comes in two variants:
 * :class:`~.streams.stapled.StapledObjectStream` (combines an
   :class:`~.abc.ObjectReceiveStream` with a compatible :class:`~.abc.ObjectSendStream`)
 
+Closing a stapled stream attempts to close both underlying streams, even if closing
+the send stream raises an exception.
+
 Buffered byte streams
 ---------------------
 
