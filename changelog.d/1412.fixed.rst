@@ -1,0 +1,1 @@
+Fixed file stream path metadata for files opened from numeric descriptors or byte filenames.
