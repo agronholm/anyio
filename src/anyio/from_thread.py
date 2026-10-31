@@ -260,6 +260,8 @@ class BlockingPortal:
                             self._token.native_token,
                         )
                     except RunFinishedError:
+                        # The target event loop is gone, so there's nothing left to
+                        # cancel or notify
                         pass
 
         try:
