@@ -95,8 +95,9 @@ class BufferedByteReceiveStream(ByteReceiveStream):
         """
         Read exactly the given amount of bytes from the stream.
 
-        :param nbytes: the number of bytes to read
+        :param nbytes: the non-negative number of bytes to read (zero returns ``b""``)
         :return: the bytes read
+        :raises ValueError: if ``nbytes`` is negative
         :raises ~anyio.IncompleteRead: if the stream was closed before the requested
             amount of bytes could be read from the stream
         :raises ~anyio.ClosedResourceError: if this stream has been explicitly closed
@@ -104,6 +105,9 @@ class BufferedByteReceiveStream(ByteReceiveStream):
         """
         if self._closed:
             raise ClosedResourceError
+
+        if nbytes < 0:
+            raise ValueError("nbytes must be a non-negative integer")
 
         while True:
             remaining = nbytes - len(self._buffer)

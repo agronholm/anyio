@@ -1,0 +1,2 @@
+Fixed ``BufferedByteReceiveStream.receive_exactly()`` silently consuming buffered data
+when passed a negative byte count
