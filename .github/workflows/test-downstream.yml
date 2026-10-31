@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.14"]
+        python-version: ["3.11", "3.15"]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -35,7 +35,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.14"]
+        python-version: ["3.10", "3.15"]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -53,13 +53,36 @@ jobs:
       - name: Enforce coverage
         run: scripts/coverage
 
+  httpcore2:
+    name: "Httpcore2 on Python ${{ matrix.python-version }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.15"]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: pydantic/httpx2
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - name: Install dependencies
+        run: |
+          scripts/install
+          uv pip install anyio[trio]@git+https://github.com/agronholm/anyio.git@${{ github.ref_name }}
+      - name: Run tests
+        run: uv run --no-sync pytest tests/httpcore2
+
   fastapi:
     name: "FastAPI on Python ${{ matrix.python-version }}"
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.14"]
+        python-version: ["3.10", "3.15"]
     env:
       UV_SYSTEM_PYTHON: 1
     steps:
@@ -119,7 +142,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.14"]
+        python-version: ["3.11", "3.14"]
         dep-resolution: ["lowest-direct", "highest"]
     steps:
       - uses: actions/checkout@v7

@@ -18,7 +18,7 @@ from collections.abc import (
     Sequence,
 )
 from contextlib import AbstractContextManager
-from contextvars import Context
+from contextvars import Context, copy_context
 from dataclasses import dataclass
 from functools import partial, wraps
 from io import IOBase
@@ -463,9 +463,9 @@ class _TrioSocketMixin(Generic[T_SockAddr]):
         return self._trio_socket._sock  # type: ignore[attr-defined]
 
     async def aclose(self) -> None:
-        if self._trio_socket.fileno() >= 0:
-            self._closed = True
-            self._trio_socket.close()
+        self._closed = True
+        self._trio_socket.close()
+        await trio.lowlevel.checkpoint()
 
     def _convert_socket_error(self, exc: BaseException) -> NoReturn:
         if isinstance(exc, trio.ClosedResourceError):
@@ -562,23 +562,19 @@ class UNIXSocketStream(SocketStream, abc.UNIXSocketStream):
                 filenos.append(fd.fileno())
 
         fdarray = array.array("i", filenos)
+        ancdata = [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)]
+        view = memoryview(message)
         await trio.lowlevel.checkpoint()
         with self._send_guard:
-            while True:
+            while view:
                 try:
-                    await self._trio_socket.sendmsg(
-                        [message],
-                        [
-                            (
-                                socket.SOL_SOCKET,
-                                socket.SCM_RIGHTS,
-                                fdarray,
-                            )
-                        ],
-                    )
-                    break
+                    bytes_sent = await self._trio_socket.sendmsg([view], ancdata)
                 except BaseException as exc:
                     self._convert_socket_error(exc)
+                else:
+                    view = view[bytes_sent:]
+                    # The descriptors were sent with the first successful write.
+                    ancdata = []
 
 
 class TCPSocketListener(_TrioSocketMixin, abc.SocketListener):
@@ -1201,6 +1197,19 @@ class TrioBackend(AsyncBackend):
         trio_token = cast("trio.lowlevel.TrioToken | None", token)
         try:
             return trio.from_thread.run_sync(func, *args, trio_token=trio_token)
+        except trio.RunFinishedError:
+            raise RunFinishedError from None
+
+    @classmethod
+    def run_sync_soon(
+        cls,
+        func: Callable[[Unpack[PosArgsT]], object],
+        args: tuple[Unpack[PosArgsT]],
+        token: object,
+    ) -> None:
+        trio_token = cast("trio.lowlevel.TrioToken", token)
+        try:
+            trio_token.run_sync_soon(copy_context().run, func, *args)
         except trio.RunFinishedError:
             raise RunFinishedError from None
 

@@ -1,0 +1,2 @@
+Fixed ``aclose()`` on asyncio TCP socket listeners not checkpointing, and leaking the
+listening socket if cancelled while another task was waiting in ``accept()``
