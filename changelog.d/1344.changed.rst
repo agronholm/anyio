@@ -1,0 +1,6 @@
+Changed asyncio worker threads to use a shared pool across event loops. Workers now
+remain available after an event loop closes and retire after 10 seconds of inactivity,
+also fixing worker leaks with manually managed event loops. At interpreter shutdown,
+idle workers exit immediately and busy workers finish their submitted work before
+exiting. Other application threads can continue submitting work after the main thread
+exits.
