@@ -48,7 +48,7 @@ pytest11 = {anyio = "anyio.pytest_plugin"}
 
 [dependency-groups]
 test = [
-    "blockbuster >= 1.5.23; python_version < '3.15'",
+    "blockbuster >= 1.5.29",
     "coverage[toml] >= 7",
     "hypothesis >= 4.18.2",
     "psutil >= 5.9",
@@ -59,7 +59,7 @@ test = [
     "truststore >= 0.9.1",
     """\
     uvloop >= 0.22.1; platform_python_implementation == 'CPython' \
-    and platform_system != 'Windows' and python_version < '3.15' \
+    and platform_system != 'Windows' \
     """,
     """
     winloop >= 0.2.3; platform_python_implementation == 'CPython' \
@@ -109,6 +109,9 @@ showcontent = true
 [tool.ruff]
 src = ["src"]
 
+[tool.ruff.per-file-target-version]
+"docs/snippets/**/*.py" = "py311"
+
 [tool.ruff.lint]
 extend-select = [
     "ASYNC",        # flake8-async
@@ -140,13 +143,31 @@ extend-safe-fixes = ["TC001"]
 [tool.ruff.lint.per-file-ignores]
 "tests/test_tempfile.py" = ["ASYNC230"]
 "tests/*.py" = ["ASYNC240"]
+"docs/snippets/**/*.py" = ["F841", "PIE790", "T201", "TC001"]
+"docs/snippets/fileio/wrap_file.py" = ["ASYNC230"]
+"docs/snippets/migration/collapse_excgroups.py" = ["TRY201", "UP036"]
+"docs/snippets/networking/fds_server.py" = ["ASYNC230"]
+"docs/snippets/why/*.py" = ["S110"]
 
 [tool.mypy]
 python_version = "3.14"
 strict = true
 disallow_any_generics = false
 warn_return_any = false
-files = ["src", "tests"]
+files = ["src", "tests", "docs/snippets"]
+
+[[tool.mypy.overrides]]
+# These snippets demonstrate a deliberately broken start_soon() call
+module = [
+    "snippets.contextmanagers.better_context_manager",
+    "snippets.contextmanagers.broken_context_manager",
+]
+disable_error_code = ["arg-type"]
+
+[[tool.mypy.overrides]]
+# Placeholder module used in the subinterpreter docs
+module = "yourothermodule"
+ignore_missing_imports = true
 
 [tool.pytest]
 addopts = [

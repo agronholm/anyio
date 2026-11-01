@@ -73,30 +73,9 @@ You now need to change it to::
     assert isinstance(exc.value.exceptions[0], ValueError)
 
 If you need to stay compatible with both AnyIO 3 and 4, you can use the following
-compatibility code to "collapse" single-exception groups by unwrapping them::
+compatibility code to "collapse" single-exception groups by unwrapping them:
 
-    import sys
-    from contextlib import contextmanager
-    from typing import Generator
-
-    has_exceptiongroups = True
-    if sys.version_info < (3, 11):
-        try:
-            from exceptiongroup import BaseExceptionGroup
-        except ImportError:
-            has_exceptiongroups = False
-
-
-    @contextmanager
-    def collapse_excgroups() -> Generator[None, None, None]:
-        try:
-            yield
-        except BaseException as exc:
-            if has_exceptiongroups:
-                while isinstance(exc, BaseExceptionGroup) and len(exc.exceptions) == 1:
-                    exc = exc.exceptions[0]
-
-            raise exc
+.. literalinclude:: snippets/migration/collapse_excgroups.py
 
 Syntax for type annotated memory object streams has changed
 -----------------------------------------------------------
@@ -239,13 +218,9 @@ Blocking portal changes
 -----------------------
 
 AnyIO now **requires** :func:`.from_thread.start_blocking_portal` to be used as a
-context manager::
+context manager:
 
-    from anyio import sleep
-    from anyio.from_thread import start_blocking_portal
-
-    with start_blocking_portal() as portal:
-        portal.call(sleep, 1)
+.. literalinclude:: snippets/migration/blocking_portal_context_manager.py
 
 As with ``TaskGroup.spawn()``, the ``BlockingPortal.spawn_task()`` method has also been
 renamed to :meth:`~from_thread.BlockingPortal.start_task_soon`, so as to be consistent
@@ -268,12 +243,9 @@ of instantiating the classes directly. So convert code like this::
     async def main():
         event = create_event()
 
-into this::
+into this:
 
-    from anyio import Event
-
-    async def main():
-        event = Event()
+.. literalinclude:: snippets/migration/instantiate_event.py
 
 or, if you need to work with both AnyIO 2 and 3::
 
