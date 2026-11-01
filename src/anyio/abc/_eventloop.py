@@ -237,6 +237,16 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
+    def run_sync_soon(
+        cls,
+        func: Callable[[Unpack[PosArgsT]], object],
+        args: tuple[Unpack[PosArgsT]],
+        token: object,
+    ) -> None:
+        """Schedule a synchronous callable in an event loop without waiting."""
+
+    @classmethod
+    @abstractmethod
     async def open_process(
         cls,
         command: StrOrBytesPath | Sequence[StrOrBytesPath],

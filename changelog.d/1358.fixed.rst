@@ -1,2 +1,0 @@
-Fixed ``TypeError`` when subclassing an existing ``TypedAttributeSet``
-subclass, and this subclass contains type annotations

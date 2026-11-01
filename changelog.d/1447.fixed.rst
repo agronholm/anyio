@@ -1,0 +1,3 @@
+Fixed ``anyio.itertools.groupby()`` putting identical keys that don't compare equal to
+themselves (such as ``math.nan``) in separate groups, and comparing keys in a different
+order than ``itertools.groupby()``
