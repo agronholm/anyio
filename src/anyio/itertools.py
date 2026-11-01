@@ -175,6 +175,7 @@ async def accumulate(
 async def batched(
     iterable: Iterable[T] | AsyncIterable[T], n: int, *, strict: bool = False
 ) -> AsyncGenerator[tuple[T, ...], None]:
+    n = operator.index(n)
     if n < 1:
         raise ValueError("n must be at least one")
 
