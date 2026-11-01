@@ -1002,7 +1002,7 @@ def as_connectable(
         a secure default will be created)
     :param tls_hostname: if ``tls=True``, host name of the server to use for checking
         the server certificate (defaults to the host portion of the address for TCP
-        connectables)
+        connectables; required for UNIX socket paths)
     :param tls_standard_compatible: if ``False`` and ``tls=True``, makes the TLS stream
         skip the closing handshake when closing the connection, so it won't raise an
         exception if the server does the same
@@ -1019,7 +1019,13 @@ def as_connectable(
         raise TypeError(f"cannot convert {remote!r} to a connectable")
 
     if tls:
-        if not tls_hostname and isinstance(connectable, TCPConnectable):
+        if not tls_hostname:
+            if not isinstance(connectable, TCPConnectable):
+                raise ValueError(
+                    "tls_hostname is required when tls=True and remote is a UNIX "
+                    "socket path"
+                )
+
             tls_hostname = str(connectable.host)
 
         connectable = TLSConnectable(

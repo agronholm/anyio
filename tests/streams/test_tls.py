@@ -664,40 +664,17 @@ async def test_tls_connectable(
             assert await client_tls_stream.receive() == b"hello, world"
 
 
-async def test_tls_connectable_without_hostname(ca: CA) -> None:
+@pytest.mark.parametrize("hostname", [None, ""], ids=["none", "empty"])
+def test_tls_connectable_requires_hostname(hostname: str | None) -> None:
     """
-    Test that TLSConnectable does the handshake as the client even if no host name
-    was given.
+    Test that TLSConnectable refuses to be created without a host name to verify the
+    server certificate against.
 
     """
-    server_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    ca.issue_cert("localhost").configure_cert(server_context)
-    client_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-    client_context.check_hostname = False
-    ca.configure_trust(client_context)
 
-    server_send, server_receive = create_memory_object_stream[bytes](1)
-    client_send, client_receive = create_memory_object_stream[bytes](1)
-    client_stream = StapledObjectStream(client_send, server_receive)
-    server_stream = StapledObjectStream(server_send, client_receive)
-
-    async def server() -> None:
-        async with await TLSStream.wrap(
-            server_stream,
-            server_side=True,
-            ssl_context=server_context,
-        ) as server_tls_stream:
-            message = await server_tls_stream.receive()
-            await server_tls_stream.send(b"hello, " + message)
-
-    class MemoryConnectable(ObjectStreamConnectable[bytes]):
+    class DummyConnectable(ObjectStreamConnectable[bytes]):
         async def connect(self) -> ObjectStream[bytes]:
-            return client_stream
+            raise AssertionError("should not be called")
 
-    async with create_task_group() as tg:
-        tg.start_soon(server)
-        connectable = TLSConnectable(MemoryConnectable(), ssl_context=client_context)
-        async with await connectable.connect() as client_tls_stream:
-            assert not client_tls_stream.extra(TLSAttribute.server_side)
-            await client_tls_stream.send(b"world")
-            assert await client_tls_stream.receive() == b"hello, world"
+    with pytest.raises(ValueError, match="host name is required"):
+        TLSConnectable(DummyConnectable(), hostname=hostname)  # type: ignore[arg-type]

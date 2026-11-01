@@ -1,1 +1,1 @@
-Fixed ``TLSConnectable`` performing the TLS handshake as the server side (failing with ``SSLError``) when no ``hostname`` was given
+Fixed ``TLSConnectable`` performing the TLS handshake as the server side when no host name was given; a host name is now required, and ``as_connectable()`` raises ``ValueError`` for a UNIX socket path with ``tls=True`` but no ``tls_hostname``
