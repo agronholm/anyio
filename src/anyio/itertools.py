@@ -363,8 +363,9 @@ async def groupby(
     async for element in iterator:
         next_key = element if key is None else await key(element)
         # Like itertools.groupby(), treat identical keys as equal even if they don't
-        # compare equal to themselves (such as math.nan)
-        if next_key is group_key or next_key == group_key:
+        # compare equal to themselves (such as math.nan), and compare the group's key
+        # against the new key in the same order
+        if group_key is next_key or group_key == next_key:
             values.append(element)
         else:
             completed_group = group_key, values

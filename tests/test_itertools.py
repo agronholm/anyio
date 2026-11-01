@@ -591,6 +591,25 @@ class TestGroupby:
         for iterator in (groupby(data), groupby(aiter_from(data))):
             assert [(k, len(g)) for k, g in await collect(iterator)] == expected
 
+    async def test_group_key_on_the_left_of_the_comparison(self) -> None:
+        # itertools.groupby() evaluates group_key == next_key, so an asymmetric
+        # __eq__ must be called on the group's key
+        class Key:
+            def __init__(self, n: int) -> None:
+                self.n = n
+
+            def __eq__(self, other: object) -> bool:
+                assert isinstance(other, Key)
+                return self.n <= other.n
+
+            __hash__ = object.__hash__
+
+        data = [Key(1), Key(2), Key(3)]
+        expected = [(data[0], 3)]
+        assert [(k, len(list(g))) for k, g in itertools.groupby(data)] == expected
+        for iterator in (groupby(data), groupby(aiter_from(data))):
+            assert [(k, len(g)) for k, g in await collect(iterator)] == expected
+
     async def test_checkpoints_empty_inputs(self) -> None:
         iterator: AsyncIterator[tuple[int, list[int]]]
         for iterator in (groupby([]), groupby(aiter_from([]))):
