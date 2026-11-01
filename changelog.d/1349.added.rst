@@ -1,2 +1,0 @@
-Added SOCK_SEQPACKET support to ``connect_unix()`` and ``create_unix_listener()``
-PR by @theunkn0wn1
