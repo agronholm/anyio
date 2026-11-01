@@ -5,11 +5,176 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
 
 .. towncrier release notes start
 
+**4.16.0**
+
+*New features*
+
+- Added ``BlockingPortal.call_async()`` for asynchronously calling into an event loop
+  with optional abandonment on cancellation
+  (`#1342 <https://github.com/agronholm/anyio/issues/1342>`_; PR by @davidbrochart)
+- Added SOCK_SEQPACKET support to ``connect_unix()`` and ``create_unix_listener()``
+  (`#1349 <https://github.com/agronholm/anyio/issues/1349>`_; PR by @theunkn0wn1)
+
+*Other changes*
+
+- Changed UDP sockets on the asyncio backend to make ``send()`` wait until the
+  datagram has been passed to the operating system
+  (`#1294 <https://github.com/agronholm/anyio/issues/1294>`_; PR by @graingert)
+
+*Bug fixes*
+
+- Fixed documentation implying that ``use_uvloop=True`` falls back to the standard
+  event loop when uvloop (winloop on Windows) is not installed, and showed how to
+  skip the corresponding pytest backend variant when the dependency is missing
+  (`#645 <https://github.com/agronholm/anyio/issues/645>`_; PR by @GruffElixir)
+- Fixed ``get_current_task()`` on the asyncio backend raising an opaque
+  ``TypeError: cannot create weak reference to 'NoneType' object`` instead of a clear
+  error when called from a callback scheduled via ``loop.call_soon_threadsafe()`` (e.g.
+  from within ``from_thread.run_sync()``), where ``asyncio.current_task()`` is
+  legitimately ``None``
+  (`#773 <https://github.com/agronholm/anyio/issues/773>`_; PR by @AmirF194)
+- Fixed ``CancelScope`` on the asyncio backend swallowing a native ``Task.cancel()``
+  that was delivered in the same event loop iteration as the scope's own cancellation
+  (such as a ``move_on_after()`` deadline expiring), which left the host task with a
+  pending cancellation request that never raised ``CancelledError``
+  (`#1214 <https://github.com/agronholm/anyio/issues/1214>`_)
+- Fixed UDP socket closing hanging if a datagram send was still in flight
+  (`#1237 <https://github.com/agronholm/anyio/issues/1237>`_; PR by @graingert)
+- Fixed concurrent ``aclose_forcefully()`` calls on asyncio socket streams returning
+  before the underlying socket was closed
+  (`#1273 <https://github.com/agronholm/anyio/issues/1273>`_; PR by @graingert)
+- Fixed ``aclose()`` on sockets not checkpointing, and thus failing to raise a
+  cancellation exception when called inside a cancelled scope (affected UNIX socket
+  streams and UNIX datagram sockets on asyncio, and all sockets on Trio)
+  (`#1288 <https://github.com/agronholm/anyio/issues/1288>`_; PR by @graingert)
+- Fixed ``aclose()`` on asyncio TCP socket listeners not checkpointing, and leaking the
+  listening socket if cancelled while another task was waiting in ``accept()``
+  (`#1289 <https://github.com/agronholm/anyio/issues/1289>`_; PR by @graingert)
+- Fixed ``accept()`` on asyncio UNIX socket listeners hanging forever, and leaving the
+  listening socket registered with the event loop, when the listener was closed by
+  another task
+  (`#1289 <https://github.com/agronholm/anyio/issues/1289>`_; PR by @graingert)
+- Fixed ``send()`` on asyncio TCP and UDP sockets returning normally, despite the data
+  being discarded, when the socket was closed by another task (or, for TCP, the
+  connection was lost) while ``send()`` was waiting for the operating system to accept
+  the data
+  (`#1289 <https://github.com/agronholm/anyio/issues/1289>`_; PR by @graingert)
+- Fixed ``SocketStream.send()`` on the asyncio backend handing its data to a paused
+  transport after a previous ``send()`` was cancelled
+  (`#1299 <https://github.com/agronholm/anyio/issues/1299>`_; PR by @graingert)
+- Fixed ``sleep()`` treating a negative delay (including ``-inf``) inconsistently
+  across backends (asyncio returned immediately; Trio raised ``ValueError``) by
+  raising ``ValueError`` on all backends
+  (`#1306 <https://github.com/agronholm/anyio/issues/1306>`_; PR by @BetterAndBetterII)
+- Fixed ``create_tcp_listener()`` occasionally failing with a message like
+  ``Could not create 2 listeners with a consistent port`` when an ephemeral port is
+  requested and IPv6 is enabled and the dual-stack path is not available or a specific
+  local host name was given
+  (`#1313 <https://github.com/agronholm/anyio/issues/1313>`_)
+- Fixed ``AsyncFile`` not shielding against cancellation while closing
+  (`#1314 <https://github.com/agronholm/anyio/issues/1314>`_)
+- Fixed ``TemporaryDirectory.cleanup()`` reacting to cancellation prematurely when the host
+  task was already cancelled, causing the actual cleanup operation to be skipped
+  (`#1316 <https://github.com/agronholm/anyio/issues/1316>`_; PR by @Yasser-Ameur)
+- Fixed a NaN deadline being accepted on asyncio while Trio raised ``ValueError``,
+  which silently disabled the timeout (``fail_after(math.nan)`` returned instead of
+  raising ``TimeoutError``); ``CancelScope`` now rejects it on both backends
+  (`#1317 <https://github.com/agronholm/anyio/issues/1317>`_; PR by @dylanpulver)
+- Fixed ``FileReadStream`` and ``FileWriteStream`` leaving files open when cancelled
+  during context manager exit, including unflushed writes
+  (`#1318 <https://github.com/agronholm/anyio/issues/1318>`_; PR by @Kuang-xianxin)
+- Fixed ``Condition.notify()`` and ``Condition.notify_all()`` failing when the
+  underlying lock was acquired directly rather than through the condition
+  (`#1319 <https://github.com/agronholm/anyio/issues/1319>`_; PR by @GruffElixir)
+- Fixed importing AnyIO with loaders that do not provide ``__file__``, such as
+  PyOxidizer, raising ``TypeError`` instead of falling back to eager imports
+  (`#1322 <https://github.com/agronholm/anyio/issues/1322>`_; PR by @skulitom)
+- Fixed text receive streams silently discarding incomplete characters at end-of-file
+  instead of applying the configured decoding error handler
+  (`#1339 <https://github.com/agronholm/anyio/issues/1339>`_; PR by @Aurelucien)
+- Fixed ``Semaphore(fast_acquire=True)`` losing its fast-acquire behavior when
+  instantiated outside a running event loop
+  (`#1348 <https://github.com/agronholm/anyio/issues/1348>`_; PR by @feiiiiii5)
+- Fixed ``BlockingPortalProvider`` permanently failing with an ``AttributeError`` on
+  every subsequent use if the first attempt to start its blocking portal failed
+  (`#1350 <https://github.com/agronholm/anyio/issues/1350>`_; PR by @Yasser-Ameur)
+- Fixed ``create_udp_socket()`` silently ignoring the ``local_port`` argument when
+  ``local_host`` was omitted, making the socket bind to a random ephemeral port
+  instead of the requested one
+  (`#1351 <https://github.com/agronholm/anyio/issues/1351>`_; PR by @januththedev)
+- Fixed worker threads on the asyncio backend never returning to the idle pool (and
+  thus never being reused or pruned) when a ``to_thread.run_sync()`` call was cancelled
+  after it had been queued for the worker but before the worker thread had picked it up
+  (`#1352 <https://github.com/agronholm/anyio/issues/1352>`_; PR by @Zac-HD)
+- Fixed pytest plugin running Hypothesis async tests only on the first parametrized
+  backend instead of each backend
+  (`#1353 <https://github.com/agronholm/anyio/issues/1353>`_; PR by @DYNOSuprovo)
+- Fixed ``TypeError`` when subclassing an existing ``TypedAttributeSet``
+  subclass, and this subclass contains type annotations
+  (`#1358 <https://github.com/agronholm/anyio/issues/1358>`_; PR by @pasmud)
+- Fixed ``Lock.locked()`` (and ``Condition.locked()``) raising ``NoEventLoopError``
+  when the lock was created outside a running event loop
+  (`#1362 <https://github.com/agronholm/anyio/issues/1362>`_; PR by @00200200)
+- Fixed ``connect_tcp()`` leaking a connected socket when an enclosing cancel scope
+  was cancelled before the connection attempt task group exited
+  (`#1364 <https://github.com/agronholm/anyio/issues/1364>`_; PR by @charan-rathore)
+- Fixed ``create_connected_udp_socket()`` silently ignoring ``local_port`` when
+  ``local_host`` was not given: the local address was left unset, so the OS picked
+  an ephemeral port instead of the requested one
+  (`#1365 <https://github.com/agronholm/anyio/issues/1365>`_; PR by @feiiiiii5)
+- Fixed ``BlockingPortalProvider`` not passing the exception raised in its ``with``
+  block on to the ``start_blocking_portal()`` context manager it wraps
+  (`#1366 <https://github.com/agronholm/anyio/issues/1366>`_; PR by @feiiiiii5)
+- Fixed ``anyio.itertools.islice()`` not consuming the first ``start`` items when
+  ``stop <= start``
+  (`#1372 <https://github.com/agronholm/anyio/issues/1372>`_; PR by @Rodrigo-Palma)
+- Fixed ``BufferedByteReceiveStream.receive_exactly()`` and ``receive_until()`` returning buffered data after explicit closure instead of raising ``ClosedResourceError``
+  (`#1378 <https://github.com/agronholm/anyio/issues/1378>`_; PR by @kokotatan)
+- Fixed a TLS stream sending records the peer could no longer decrypt after a cancelled
+  ``send()`` lost an already-encrypted record; the stream now raises
+  ``BrokenResourceError`` on further use instead
+  (`#1385 <https://github.com/agronholm/anyio/issues/1385>`_; PR by @Kayvan-Zahiri)
+- Fixed ``close()`` on memory object streams not waking up tasks blocked in ``send()``
+  or ``receive()`` on the same stream
+  (`#1391 <https://github.com/agronholm/anyio/issues/1391>`_)
+- Fixed ``anyio.itertools.product()`` acquiring and consuming unused input iterables when
+  ``repeat=0``
+  (`#1394 <https://github.com/agronholm/anyio/issues/1394>`_; PR by @sricharanreddycheruku)
+- Fixed ``SpooledTemporaryFile`` rolling over to disk on writes when ``max_size`` is zero (the default)
+  (`#1397 <https://github.com/agronholm/anyio/issues/1397>`_; PR by @fhgffy)
+- Fixed Trio UDP sockets remaining open when initialization failed or was cancelled
+  (`#1400 <https://github.com/agronholm/anyio/issues/1400>`_; PR by @adenzhou1350)
+- Fixed SpooledTemporaryFile.rollover() moving the current file position to the end of the file
+  (`#1401 <https://github.com/agronholm/anyio/issues/1401>`_; PR by @fhgffy)
+- Fixed cancellation during temporary directory creation leaving the directory behind
+  while its context manager is retained
+  (`#1403 <https://github.com/agronholm/anyio/issues/1403>`_; PR by @adenzhou1350)
+- Fixed cancellation during ``SpooledTemporaryFile.rollover()`` losing buffered contents
+  (`#1404 <https://github.com/agronholm/anyio/issues/1404>`_; PR by @adenzhou1350)
+- Fixed ``TextSendStream.send()`` re-emitting the byte order mark on every item with
+  BOM-emitting encodings (``utf-16``, ``utf-32``, ``utf-8-sig``), which made the peer decode
+  a stray ``\ufeff`` in front of every message after the first
+  (`#1405 <https://github.com/agronholm/anyio/issues/1405>`_; PR by @feiiiiii5)
+- Fixed buffered byte streams returning empty bytes when a wrapped object stream received
+  empty messages instead of waiting for data or raising ``EndOfStream``
+  (`#1409 <https://github.com/agronholm/anyio/issues/1409>`_; PR by @00200200)
+- Fixed ``BlockingPortal`` crashing with ``InvalidStateError`` when a future it
+  returned was cancelled just as the callable was completing
+  (`#1410 <https://github.com/agronholm/anyio/issues/1410>`_; PR by @adenzhou1350)
+- Fixed ``UNIXSocketStream.send_fds()`` silently truncating messages on short socket writes
+  (`#1422 <https://github.com/agronholm/anyio/issues/1422>`_; PR by @AryanRG)
+- Fixed cancelled TCP receives on the asyncio backend leaving transport reads enabled,
+  allowing incoming data to accumulate while the application was not receiving.
+  (`#1423 <https://github.com/agronholm/anyio/issues/1423>`_; PR by @Master-Norna)
+- Fixed ``CapacityLimiter.acquire_on_behalf_of()`` on asyncio releasing the wrong
+  borrower when the acquiring task was cancelled during the cancel-shielded
+  checkpoint that runs after a non-blocking acquisition
+
 **4.15.1**
 
 - Implemented a compatibility fix for supporting direct access of ``anyio.*`` submodules
   from the main package even when those submodules were not directly imported first
-  (`#1311 <https://github.com/agronholm/anyio/issues/1311>`)
+  (`#1311 <https://github.com/agronholm/anyio/issues/1311>`_)
 
 **4.15.0**
 
