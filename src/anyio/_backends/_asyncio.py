@@ -1084,13 +1084,25 @@ class WorkerThread(Thread):
         self.idle_workers = idle_workers
         self.loop = root_task._loop
         self.queue: Queue[
-            tuple[Context, Callable, tuple, asyncio.Future, CancelScope] | None
+            tuple[
+                Context,
+                Callable,
+                tuple,
+                asyncio.Future,
+                CancelScope,
+                Callable[[], None],
+            ]
+            | None
         ] = Queue(2)
         self.idle_since = AsyncIOBackend.current_time()
         self.stopping = False
 
     def _report_result(
-        self, future: asyncio.Future, result: Any, exc: BaseException | None
+        self,
+        future: asyncio.Future,
+        result: Any,
+        exc: BaseException | None,
+        release: Callable[[], None],
     ) -> None:
         self.idle_since = AsyncIOBackend.current_time()
         if not self.stopping:
@@ -1107,6 +1119,10 @@ class WorkerThread(Thread):
             else:
                 future.set_result(result)
 
+        # The worker thread is now done with the work item, so any resources
+        # reserved for it (such as a capacity limiter token) can be released
+        release()
+
     def run(self) -> None:
         with claim_worker_thread(AsyncIOBackend, self.loop):
             while True:
@@ -1115,7 +1131,7 @@ class WorkerThread(Thread):
                     # Shutdown command received
                     return
 
-                context, func, args, future, cancel_scope = item
+                context, func, args, future, cancel_scope, release = item
                 result = None
                 exception: BaseException | None = None
                 if not future.cancelled():
@@ -1131,7 +1147,7 @@ class WorkerThread(Thread):
                 # was started, so that the worker is put back on the idle list
                 try:
                     self.loop.call_soon_threadsafe(
-                        self._report_result, future, result, exception
+                        self._report_result, future, result, exception, release
                     )
                 except RuntimeError:
                     if not self.loop.is_closed():
@@ -1139,7 +1155,7 @@ class WorkerThread(Thread):
 
                 del result, exception
                 self.queue.task_done()
-                del item, context, func, args, future, cancel_scope
+                del item, context, func, args, future, cancel_scope, release
 
     def stop(self, f: asyncio.Task | None = None) -> None:
         self.stopping = True
@@ -2740,7 +2756,19 @@ class AsyncIOBackend(AsyncBackend):
             _threadpool_idle_workers.set(idle_workers)
             _threadpool_workers.set(workers)
 
-        async with limiter or cls.current_default_thread_limiter():
+        limiter = limiter or cls.current_default_thread_limiter()
+        borrower = current_task()
+        await limiter.acquire_on_behalf_of(borrower)
+        released = False
+
+        def release_limiter() -> None:
+            nonlocal released
+            if not released:
+                released = True
+                limiter.release_on_behalf_of(borrower)
+
+        queued = False
+        try:
             with CancelScope(shield=not abandon_on_cancel) as scope:
                 future = asyncio.Future[T_Retval]()
                 root_task = find_root_task()
@@ -2775,8 +2803,20 @@ class AsyncIOBackend(AsyncBackend):
                 else:
                     worker_scope = scope._parent_scope
 
-                worker.queue.put_nowait((context, func, args, future, worker_scope))
+                worker.queue.put_nowait(
+                    (context, func, args, future, worker_scope, release_limiter)
+                )
+                queued = True
                 return await future
+        except BaseException:
+            # If the work item was never handed over to a worker thread, the token has
+            # to be released here. Otherwise the worker thread releases it as soon as
+            # it is done running the function, which may well be after the awaiting
+            # task has been cancelled.
+            if not queued:
+                release_limiter()
+
+            raise
 
     @classmethod
     def check_cancelled(cls) -> None:

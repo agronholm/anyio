@@ -1,0 +1,2 @@
+Fixed the capacity limiter token being released before an abandoned worker thread
+had finished running its function on the asyncio backend
