@@ -41,6 +41,7 @@ async def streams(
             server, _ = listener.accept()
 
         server.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
         sender = await SocketStream.from_socket(server)
     else:
         if not hasattr(socket, "AF_UNIX"):
@@ -49,10 +50,10 @@ async def streams(
         server, client = socket.socketpair(socket.AF_UNIX)
         server.setblocking(False)
         client.setblocking(False)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
         sender = await UNIXSocketStream.from_socket(server)
         receiver = await UNIXSocketStream.from_socket(client)
 
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
     async with sender, receiver:
         yield sender, receiver
 

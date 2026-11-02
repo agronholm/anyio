@@ -1418,7 +1418,7 @@ class SocketStream(abc.SocketStream):
                     try:
                         # Drain preceding transport writes before transferring the file.
                         return await get_running_loop().sendfile(
-                            self._transport, file, offset, count, fallback=False
+                            self._transport, file, offset, count
                         )
                     except (NotImplementedError, asyncio.SendfileNotAvailableError):
                         return await sendfile_fallback(file, offset, count, self._send)
