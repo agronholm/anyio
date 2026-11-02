@@ -12,7 +12,7 @@ import re
 import ssl
 import sys
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import wraps
 from ssl import SSLContext
 from typing import Any, TypeAlias, TypeVar
@@ -95,6 +95,7 @@ class TLSStream(ByteStream):
     _ssl_object: ssl.SSLObject
     _read_bio: ssl.MemoryBIO
     _write_bio: ssl.MemoryBIO
+    _broken: bool = field(default=False, init=False)
 
     @classmethod
     async def wrap(
@@ -179,17 +180,31 @@ class TLSStream(ByteStream):
         await wrapper._call_sslobject_method(ssl_object.do_handshake)
         return wrapper
 
+    async def _flush_write_bio(self) -> None:
+        if self._write_bio.pending:
+            data = self._write_bio.read()
+            try:
+                await self.transport_stream.send(data)
+            except BaseException:
+                # SSLObject.write() already consumed this record's sequence
+                # number, so once it is lost the peer can't decrypt anything
+                # sent after it. Like trio, treat the stream as broken.
+                self._broken = True
+                raise
+
     async def _call_sslobject_method(
         self, func: Callable[[Unpack[PosArgsT]], T_Retval], *args: Unpack[PosArgsT]
     ) -> T_Retval:
+        if self._broken:
+            raise BrokenResourceError
+
         while True:
             try:
                 result = func(*args)
             except ssl.SSLWantReadError:
                 try:
                     # Flush any pending writes first
-                    if self._write_bio.pending:
-                        await self.transport_stream.send(self._write_bio.read())
+                    await self._flush_write_bio()
 
                     data = await self.transport_stream.receive()
                 except EndOfStream:
@@ -201,7 +216,7 @@ class TLSStream(ByteStream):
                 else:
                     self._read_bio.write(data)
             except ssl.SSLWantWriteError:
-                await self.transport_stream.send(self._write_bio.read())
+                await self._flush_write_bio()
             except ssl.SSLSyscallError as exc:
                 self._read_bio.write_eof()
                 self._write_bio.write_eof()
@@ -220,8 +235,7 @@ class TLSStream(ByteStream):
                 raise
             else:
                 # Flush any pending writes first
-                if self._write_bio.pending:
-                    await self.transport_stream.send(self._write_bio.read())
+                await self._flush_write_bio()
 
                 return result
 
@@ -238,7 +252,7 @@ class TLSStream(ByteStream):
         return self.transport_stream, self._read_bio.read()
 
     async def aclose(self) -> None:
-        if self.standard_compatible:
+        if self.standard_compatible and not self._broken:
             try:
                 await self.unwrap()
             except BaseException:

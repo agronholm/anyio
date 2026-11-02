@@ -205,7 +205,7 @@ class SocketStream(ByteStream, _SocketProvider):
         """
         Send the contents of the binary file to the peer.
 
-        .. versionadded:: 4.15.0
+        .. versionadded:: 4.17.0
 
         :param file: a file object opened in binary mode, providing working
             ``fileno()`` and ``seek()`` methods

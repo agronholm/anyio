@@ -18,7 +18,7 @@ from collections.abc import (
     Sequence,
 )
 from contextlib import AbstractContextManager
-from contextvars import Context
+from contextvars import Context, copy_context
 from dataclasses import dataclass
 from functools import partial, wraps
 from io import IOBase
@@ -94,6 +94,9 @@ if TYPE_CHECKING:
     from _typeshed import FileDescriptorLike
 
     from ..streams.memory import MemoryObjectSendStream
+
+if sys.version_info < (3, 15):
+    from typing_extensions import sentinel
 
 if sys.version_info >= (3, 11):
     from typing import Self, TypeVarTuple, Unpack
@@ -200,7 +203,7 @@ class CancelScope(BaseCancelScope):
 # Task groups
 #
 
-empty_start_value = object()
+empty_start_value = sentinel("empty_start_value")
 
 
 class _TrioTaskStatus(abc.TaskStatus[T_contra], Generic[T_contra]):
@@ -464,9 +467,9 @@ class _TrioSocketMixin(Generic[T_SockAddr]):
         return self._trio_socket._sock  # type: ignore[attr-defined]
 
     async def aclose(self) -> None:
-        if self._trio_socket.fileno() >= 0:
-            self._closed = True
-            self._trio_socket.close()
+        self._closed = True
+        self._trio_socket.close()
+        await trio.lowlevel.checkpoint()
 
     def _convert_socket_error(self, exc: BaseException) -> NoReturn:
         if isinstance(exc, trio.ClosedResourceError):
@@ -583,23 +586,19 @@ class UNIXSocketStream(SocketStream, abc.UNIXSocketStream):
                 filenos.append(fd.fileno())
 
         fdarray = array.array("i", filenos)
+        ancdata = [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fdarray)]
+        view = memoryview(message)
         await trio.lowlevel.checkpoint()
         with self._send_guard:
-            while True:
+            while view:
                 try:
-                    await self._trio_socket.sendmsg(
-                        [message],
-                        [
-                            (
-                                socket.SOL_SOCKET,
-                                socket.SCM_RIGHTS,
-                                fdarray,
-                            )
-                        ],
-                    )
-                    break
+                    bytes_sent = await self._trio_socket.sendmsg([view], ancdata)
                 except BaseException as exc:
                     self._convert_socket_error(exc)
+                else:
+                    view = view[bytes_sent:]
+                    # The descriptors were sent with the first successful write.
+                    ancdata = []
 
 
 class TCPSocketListener(_TrioSocketMixin, abc.SocketListener):
@@ -1226,6 +1225,19 @@ class TrioBackend(AsyncBackend):
             raise RunFinishedError from None
 
     @classmethod
+    def run_sync_soon(
+        cls,
+        func: Callable[[Unpack[PosArgsT]], object],
+        args: tuple[Unpack[PosArgsT]],
+        token: object,
+    ) -> None:
+        trio_token = cast("trio.lowlevel.TrioToken", token)
+        try:
+            trio_token.run_sync_soon(copy_context().run, func, *args)
+        except trio.RunFinishedError:
+            raise RunFinishedError from None
+
+    @classmethod
     async def open_process(
         cls,
         command: StrOrBytesPath | Sequence[StrOrBytesPath],
@@ -1289,8 +1301,12 @@ class TrioBackend(AsyncBackend):
         return SocketStream(trio_socket)
 
     @classmethod
-    async def connect_unix(cls, path: str | bytes) -> abc.UNIXSocketStream:
-        trio_socket = trio.socket.socket(socket.AF_UNIX)
+    async def connect_unix(
+        cls,
+        path: str | bytes,
+        kind: Literal[SocketKind.SOCK_STREAM, SocketKind.SOCK_SEQPACKET],
+    ) -> abc.UNIXSocketStream:
+        trio_socket = trio.socket.socket(socket.AF_UNIX, kind)
         try:
             await trio_socket.connect(path)
         except BaseException:
@@ -1316,18 +1332,21 @@ class TrioBackend(AsyncBackend):
         reuse_port: bool,
     ) -> UDPSocket | ConnectedUDPSocket:
         trio_socket = trio.socket.socket(family=family, type=socket.SOCK_DGRAM)
+        try:
+            if reuse_port:
+                trio_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
 
-        if reuse_port:
-            trio_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            if local_address:
+                await trio_socket.bind(local_address)
 
-        if local_address:
-            await trio_socket.bind(local_address)
-
-        if remote_address:
-            await trio_socket.connect(remote_address)
-            return ConnectedUDPSocket(trio_socket)
-        else:
-            return UDPSocket(trio_socket)
+            if remote_address:
+                await trio_socket.connect(remote_address)
+                return ConnectedUDPSocket(trio_socket)
+            else:
+                return UDPSocket(trio_socket)
+        except BaseException:
+            trio_socket.close()
+            raise
 
     @classmethod
     @overload
