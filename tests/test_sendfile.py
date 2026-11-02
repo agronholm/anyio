@@ -15,6 +15,7 @@ from anyio import (
     BusyResourceError,
     CancelScope,
     ClosedResourceError,
+    EndOfStream,
     connect_tcp,
     create_task_group,
     wait_all_tasks_blocked,
@@ -136,7 +137,7 @@ async def test_backpressure_and_ordering(
 async def test_cancel_blocked_transfer(
     streams: tuple[SocketStream, SocketStream], tmp_path: Path, copying: bool
 ) -> None:
-    sender, _ = streams
+    sender, receiver = streams
     path = tmp_path / "payload"
     path.write_bytes(b"x" * 4_000_000)
     scope = CancelScope()
@@ -159,6 +160,15 @@ async def test_cancel_blocked_transfer(
             assert not os.get_blocking(
                 sender.extra(SocketAttribute.raw_socket).fileno()
             )
+
+    # Drain bytes queued before cancellation. Closing with unread data can reset
+    # the peer and make ProactorEventLoop's connection-lost callback fail on Windows.
+    await sender.send_eof()
+    while True:
+        try:
+            await receiver.receive()
+        except EndOfStream:
+            break
 
 
 async def test_close_blocked_transfer(
