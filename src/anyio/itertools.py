@@ -42,9 +42,12 @@ from ._core._synchronization import Lock
 from ._core._tasks import CancelScope
 from .lowlevel import cancel_shielded_checkpoint, checkpoint, checkpoint_if_cancelled
 
+if sys.version_info < (3, 15):
+    from typing_extensions import sentinel
+
 T = TypeVar("T")
 R = TypeVar("R")
-_tee_end = object()
+_tee_end = sentinel("_tee_end")
 
 
 @dataclass(eq=False)
@@ -359,13 +362,16 @@ async def groupby(
 
     async for element in iterator:
         next_key = element if key is None else await key(element)
-        if next_key != group_key:
+        # Like itertools.groupby(), treat identical keys as equal even if they don't
+        # compare equal to themselves (such as math.nan), and compare the group's key
+        # against the new key in the same order
+        if group_key is next_key or group_key == next_key:
+            values.append(element)
+        else:
             completed_group = group_key, values
             group_key = next_key
             values = [element]
             yield completed_group
-        else:
-            values.append(element)
 
     yield group_key, values
 
@@ -435,9 +441,9 @@ async def islice(
     if step <= 0:
         raise ValueError(step_message)
 
-    if stop == 0 or start == stop:
-        await checkpoint()
-        return
+    # Like itertools.islice(), skip the first "start" items even if "stop" is lower
+    if stop is not None:
+        stop = max(start, stop)
 
     iterator = _iterate(iterable)
     index = 0
@@ -506,6 +512,9 @@ async def product(
     repeat = operator.index(repeat)
     if repeat < 0:
         raise ValueError("repeat argument cannot be negative")
+
+    if repeat == 0:
+        iterables = ()
 
     pools: list[tuple[T, ...]] = []
     for iterable in iterables:

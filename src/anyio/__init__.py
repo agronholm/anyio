@@ -9,6 +9,9 @@ from ._lazyimport import (
 )
 
 if TYPE_CHECKING or not install_lazy_importer():
+    from ._core._concurrency_utils import amap as amap
+    from ._core._concurrency_utils import as_completed as as_completed
+    from ._core._concurrency_utils import gather as gather
     from ._core._contextmanagers import (
         AsyncContextManagerMixin as AsyncContextManagerMixin,
     )
@@ -116,6 +119,32 @@ if TYPE_CHECKING or not install_lazy_importer():
     from ._core._typedattr import TypedAttributeProvider as TypedAttributeProvider
     from ._core._typedattr import TypedAttributeSet as TypedAttributeSet
     from ._core._typedattr import typed_attribute as typed_attribute
+
+    # ruff: isort: off
+    from . import (
+        abc as abc,
+    )
+    from . import (
+        from_thread as from_thread,
+    )
+    from . import (
+        functools as functools,
+    )
+    from . import (
+        itertools as itertools,
+    )
+    from . import (
+        lowlevel as lowlevel,
+    )
+    from . import (
+        to_interpreter as to_interpreter,
+    )
+    from . import (
+        to_process as to_process,
+    )
+    from . import (
+        to_thread as to_thread,
+    )
 
     fix_package_names()
     set_deprecated_aliases(

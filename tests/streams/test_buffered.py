@@ -17,6 +17,22 @@ from anyio.streams.buffered import (
 from anyio.streams.stapled import StapledObjectStream
 
 
+async def test_receive_skips_empty_messages() -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](6)
+    with send_stream, receive_stream:
+        stream = BufferedByteReceiveStream(receive_stream)
+        for chunk in (b"", b"", b"abcd", b"", b"ef", b""):
+            send_stream.send_nowait(chunk)
+
+        send_stream.close()
+        assert await stream.receive(2) == b"ab"
+        assert stream.buffer == b"cd"
+        assert await stream.receive(2) == b"cd"
+        assert await stream.receive(2) == b"ef"
+        with pytest.raises(EndOfStream):
+            await stream.receive(2)
+
+
 async def test_receive_exactly() -> None:
     send_stream, receive_stream = create_memory_object_stream[bytes](2)
     buffered_stream = BufferedByteReceiveStream(receive_stream)
@@ -40,6 +56,26 @@ async def test_receive_exactly_incomplete() -> None:
 
     send_stream.close()
     receive_stream.close()
+
+
+@pytest.mark.parametrize(
+    "method, args",
+    [
+        pytest.param("receive", (2,), id="receive"),
+        pytest.param("receive_exactly", (2,), id="receive_exactly"),
+        pytest.param("receive_until", (b"\n", 10), id="receive_until"),
+    ],
+)
+async def test_receive_closed_with_buffer(
+    method: str, args: tuple[object, ...]
+) -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
+    with send_stream, receive_stream:
+        buffered_stream = BufferedByteReceiveStream(receive_stream)
+        buffered_stream.feed_data(b"abcd\n")
+        await buffered_stream.aclose()
+        with pytest.raises(ClosedResourceError):
+            await getattr(buffered_stream, method)(*args)
 
 
 async def test_receive_until() -> None:

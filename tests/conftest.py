@@ -45,12 +45,6 @@ else:
             )
         )
 
-
-try:
-    import rsloop
-except ImportError:
-    rsloop = None
-
 pytest_plugins = ["pytester"]
 
 asyncio_params = [
@@ -62,17 +56,6 @@ asyncio_params = [
         ),
         marks=uvloop_marks,
         id=f"asyncio+{uvloop_name}",
-    ),
-    pytest.param(
-        (
-            "asyncio",
-            {"debug": True, "loop_factory": rsloop.new_event_loop if rsloop else None},
-        ),
-        marks=[
-            pytest.mark.skipif(rsloop is None, reason="rsloop is unavailable"),
-            pytest.mark.rsloop,
-        ],
-        id="asyncio+rsloop",
     ),
 ]
 if sys.version_info >= (3, 12):
@@ -136,6 +119,11 @@ def blockbuster() -> Iterator[BlockBuster | None]:
         for func in ["os.stat", "os.unlink"]:
             bb.functions[func].can_block_in(
                 "anyio/_core/_sockets.py", "setup_unix_local_socket"
+            )
+
+        if "os.sendfile" in bb.functions:
+            bb.functions["os.sendfile"].can_block_in(
+                "anyio/_core/_sockets.py", "sendfile_native"
             )
 
         yield bb

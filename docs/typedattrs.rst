@@ -18,15 +18,9 @@ the stream may be either :class:`~.abc.SocketStream` or
 :class:`~.streams.tls.TLSStream`. To get the remote address, you would call the stream's
 :meth:`~TypedAttributeProvider.extra` method and pass
 :attr:`SocketAttribute.remote_address <.abc.SocketAttribute.remote_address>` as the
-argument::
+argument:
 
-    from anyio import connect_tcp
-    from anyio.abc import SocketAttribute
-
-
-    async def connect(host, port, tls: bool):
-        stream = await connect_tcp(host, port, tls=tls)
-        print('Connected to', stream.extra(SocketAttribute.remote_address))
+.. literalinclude:: snippets/typedattrs/connect.py
 
 Each typed attribute provider class should document the set of attributes it provides on
 its own.
@@ -35,26 +29,22 @@ Defining your own typed attributes
 ----------------------------------
 
 By convention, typed attributes are stored together in a container class with other
-attributes of the same category::
+attributes of the same category:
 
-    from anyio import TypedAttributeSet, typed_attribute
-
-
-    class MyTypedAttribute(TypedAttributeSet):
-        string_valued_attribute: str = typed_attribute()
-        some_float_attribute: float = typed_attribute()
+.. literalinclude:: snippets/typedattrs/define_attributes.py
 
 To provide values for these attributes, implement the
 :meth:`~.TypedAttributeProvider.extra_attributes` property in your class::
 
     from collections.abc import Callable, Mapping
+    from typing import Any
 
     from anyio import TypedAttributeProvider
 
 
     class MyAttributeProvider(TypedAttributeProvider):
         @property
-        def extra_attributes() -> Mapping[Any, Callable[[], Any]]:
+        def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
             return {
                 MyTypedAttribute.string_valued_attribute: lambda: 'my attribute value',
                 MyTypedAttribute.some_float_attribute: lambda: 6.492
@@ -65,7 +55,7 @@ attributes in the return value::
 
     class AnotherAttributeProvider(MyAttributeProvider):
         @property
-        def extra_attributes() -> Mapping[Any, Callable[[], Any]]:
+        def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
             return {
                 **super().extra_attributes,
                 MyTypedAttribute.string_valued_attribute: lambda: 'overridden attribute value'
