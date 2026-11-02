@@ -163,11 +163,12 @@ async def test_cancel_blocked_transfer(
 
     # Drain bytes queued before cancellation. Closing with unread data can reset
     # the peer and make ProactorEventLoop's connection-lost callback fail on Windows.
+    # Windows' native transfer can itself reset the connection on cancellation.
     await sender.send_eof()
     while True:
         try:
             await receiver.receive()
-        except EndOfStream:
+        except (EndOfStream, BrokenResourceError):
             break
 
 
