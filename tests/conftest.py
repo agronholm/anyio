@@ -138,6 +138,11 @@ def blockbuster() -> Iterator[BlockBuster | None]:
                 "anyio/_core/_sockets.py", "setup_unix_local_socket"
             )
 
+        if "os.sendfile" in bb.functions:
+            bb.functions["os.sendfile"].can_block_in(
+                "anyio/_core/_sockets.py", "sendfile_native"
+            )
+
         yield bb
 
 

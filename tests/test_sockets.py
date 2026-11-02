@@ -37,7 +37,6 @@ from pytest_mock.plugin import MockerFixture
 from anyio import (
     BrokenResourceError,
     BusyResourceError,
-    CancelScope,
     ClosedResourceError,
     EndOfStream,
     Event,
@@ -60,7 +59,6 @@ from anyio import (
     move_on_after,
     notify_closing,
     sleep_forever,
-    to_thread,
     wait_all_tasks_blocked,
     wait_readable,
     wait_socket_readable,
@@ -68,7 +66,6 @@ from anyio import (
     wait_writable,
 )
 from anyio._core._eventloop import get_async_backend
-from anyio._core._sockets import sendfile_blocking
 from anyio.abc import (
     AnyByteStream,
     ConnectedUDPSocket,
@@ -402,53 +399,6 @@ class TestTCPStream:
         async with await connect_tcp(*server_addr) as stream:
             with pytest.raises(TypeError, match="working fileno\\(\\) method"):
                 await stream.sendfile(io.BytesIO(b"some data"))
-
-    async def test_sendfile_cancellation(
-        self,
-        server_sock: socket.socket,
-        server_addr: tuple[str, int],
-        tmp_path: Path,
-    ) -> None:
-        # The file is large and the peer paces itself (1 ms per chunk), guaranteeing
-        # the transfer is still in progress when the cancellation arrives
-        buffer = os.urandom(8_000_000)
-        file_path = tmp_path / "testfile"
-        file_path.write_bytes(buffer)
-        received = 0
-        started = threading.Event()
-
-        def serve() -> None:
-            nonlocal received
-            client, _ = server_sock.accept()
-            with client:
-                while chunk := client.recv(65536):
-                    received += len(chunk)
-                    started.set()
-                    time.sleep(0.001)
-
-        thread = Thread(target=serve, daemon=True)
-        thread.start()
-        raw_sock = socket.create_connection(server_addr)
-        scope = CancelScope()
-
-        async def canceller() -> None:
-            assert await to_thread.run_sync(started.wait, 5)
-            scope.cancel()
-
-        try:
-            async with create_task_group() as tg:
-                tg.start_soon(canceller)
-                with scope:
-                    with file_path.open("rb") as file:
-                        await to_thread.run_sync(
-                            sendfile_blocking, raw_sock, file, 0, None
-                        )
-        finally:
-            raw_sock.close()
-
-        thread.join(timeout=5)
-        assert scope.cancelled_caught
-        assert 0 < received < len(buffer)
 
     async def test_iterate(
         self, server_sock: socket.socket, server_addr: tuple[str, int]

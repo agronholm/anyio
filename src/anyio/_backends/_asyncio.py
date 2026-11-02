@@ -64,7 +64,6 @@ from .. import (
     LockStatistics,
     TaskInfo,
     abc,
-    to_thread,
 )
 from .._core._eventloop import (
     claim_worker_thread,
@@ -81,7 +80,8 @@ from .._core._exceptions import (
 )
 from .._core._sockets import (
     convert_ipv6_sockaddr,
-    sendfile_blocking,
+    sendfile_fallback,
+    sendfile_native,
     validate_sendfile_args,
 )
 from .._core._streams import create_memory_object_stream
@@ -1329,6 +1329,7 @@ class SocketStream(abc.SocketStream):
         self._receive_guard = ResourceGuard("reading from")
         self._send_guard = ResourceGuard("writing to")
         self._closed = False
+        self._sendfile_scope: CancelScope | None = None
 
     @property
     def _raw_socket(self) -> socket.socket:
@@ -1374,48 +1375,64 @@ class SocketStream(abc.SocketStream):
 
     async def send(self, item: bytes) -> None:
         with self._send_guard:
-            await AsyncIOBackend.checkpoint()
+            await self._send(item)
 
-            if self._closed:
-                raise ClosedResourceError
-            elif self._protocol.exception is not None:
-                raise BrokenResourceError from self._protocol.exception
+    async def _send(self, item: bytes) -> None:
+        await AsyncIOBackend.checkpoint()
 
-            try:
-                self._transport.write(item)
-            except RuntimeError as exc:
-                if self._transport.is_closing():
-                    raise BrokenResourceError from exc
-                else:
-                    raise
+        if self._closed:
+            raise ClosedResourceError
+        elif self._protocol.exception is not None:
+            raise BrokenResourceError from self._protocol.exception
 
-            await self._protocol.write_event.wait()
+        try:
+            self._transport.write(item)
+        except RuntimeError as exc:
+            if self._transport.is_closing():
+                raise BrokenResourceError from exc
+            else:
+                raise
+
+        await self._protocol.write_event.wait()
+        if self._closed:
+            raise ClosedResourceError
+        elif self._protocol.exception is not None:
+            raise BrokenResourceError from self._protocol.exception
 
     async def sendfile(
         self, file: IO[bytes], offset: int = 0, count: int | None = None
     ) -> int:
         validate_sendfile_args(file, offset, count)
         with self._send_guard:
+            await AsyncIOBackend.checkpoint()
             if self._closed:
                 raise ClosedResourceError
             elif self._protocol.exception is not None:
                 raise BrokenResourceError from self._protocol.exception
 
             try:
-                return await get_running_loop().sendfile(
-                    self._transport, file, offset, count
-                )
-            except NotImplementedError:
-                # The event loop does not implement the (deprecated) sendfile()
-                # method (e.g. uvloop), so fall back to manual file copying
-                return await to_thread.run_sync(
-                    sendfile_blocking, self._raw_socket, file, offset, count
-                )
-            except RuntimeError as exc:
-                if self._transport.is_closing():
+                # Closing a transport does not wake loop.sendfile()'s raw socket
+                # waiter. Give aclose() a scope with which to interrupt the transfer.
+                with CancelScope() as scope:
+                    self._sendfile_scope = scope
+                    try:
+                        # Drain preceding transport writes before transferring the file.
+                        return await get_running_loop().sendfile(
+                            self._transport, file, offset, count, fallback=False
+                        )
+                    except (NotImplementedError, asyncio.SendfileNotAvailableError):
+                        return await sendfile_fallback(file, offset, count, self._send)
+
+                raise ClosedResourceError
+            except (OSError, RuntimeError) as exc:
+                if self._closed:
+                    raise ClosedResourceError from exc
+                elif isinstance(exc, OSError) or self._transport.is_closing():
                     raise BrokenResourceError from exc
                 else:
                     raise
+            finally:
+                self._sendfile_scope = None
 
     async def send_eof(self) -> None:
         try:
@@ -1425,6 +1442,9 @@ class SocketStream(abc.SocketStream):
 
     async def aclose(self) -> None:
         self._closed = True
+        if self._sendfile_scope is not None:
+            self._sendfile_scope.cancel()
+
         if not self._transport.is_closing():
             try:
                 self._transport.write_eof()
@@ -1511,22 +1531,49 @@ class UNIXSocketStream(_RawSocketMixin, abc.UNIXSocketStream):
                     return data
 
     async def send(self, item: bytes) -> None:
+        with self._send_guard:
+            await self._send(item)
+
+    async def _send(self, item: bytes) -> None:
         loop = get_running_loop()
         await AsyncIOBackend.checkpoint()
-        with self._send_guard:
-            view = memoryview(item)
-            while view:
-                try:
-                    bytes_sent = self._raw_socket.send(view)
-                except BlockingIOError:
-                    await self._wait_until_writable(loop)
-                except OSError as exc:
-                    if self._closing:
-                        raise ClosedResourceError from None
-                    else:
-                        raise BrokenResourceError from exc
+        view = memoryview(item)
+        while view:
+            try:
+                bytes_sent = self._raw_socket.send(view)
+            except BlockingIOError:
+                await self._wait_until_writable(loop)
+            except OSError as exc:
+                if self._closing:
+                    raise ClosedResourceError from None
                 else:
-                    view = view[bytes_sent:]
+                    raise BrokenResourceError from exc
+            else:
+                view = view[bytes_sent:]
+
+    async def sendfile(
+        self, file: IO[bytes], offset: int = 0, count: int | None = None
+    ) -> int:
+        validate_sendfile_args(file, offset, count)
+        with self._send_guard:
+            await AsyncIOBackend.checkpoint()
+            if self._closing:
+                raise ClosedResourceError
+
+            try:
+                return await sendfile_native(
+                    self._raw_socket,
+                    file,
+                    offset,
+                    count,
+                    self._send,
+                    lambda: self._wait_until_writable(get_running_loop()),
+                )
+            except (BrokenResourceError, ClosedResourceError) as exc:
+                if self._closing:
+                    raise ClosedResourceError from exc
+
+                raise
 
     async def receive_fds(self, msglen: int, maxfds: int) -> tuple[bytes, list[int]]:
         if not isinstance(msglen, int) or msglen < 0:

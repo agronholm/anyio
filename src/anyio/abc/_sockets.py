@@ -19,7 +19,6 @@ from .._core._typedattr import (
 from ._streams import ByteStream, Listener, UnreliableObjectStream
 
 if TYPE_CHECKING:
-    from .._core._synchronization import ResourceGuard
     from ._tasks import TaskGroup
 
 IPAddressType: TypeAlias = str | IPv4Address | IPv6Address
@@ -185,8 +184,6 @@ class SocketStream(ByteStream, _SocketProvider):
     Supports all relevant extra attributes from :class:`~SocketAttribute`.
     """
 
-    _send_guard: ResourceGuard
-
     @classmethod
     async def from_socket(cls, sock_or_fd: socket.socket | int) -> SocketStream:
         """
@@ -219,20 +216,24 @@ class SocketStream(ByteStream, _SocketProvider):
         :raises TypeError: if the file lacks a working ``fileno()`` or ``seek()``
             method, or if the offset or count is not an integer
         :raises ValueError: if the offset or count is negative (or the count is zero)
-        :raises OSError: if the socket is closed or the connection is broken (the
-            exact exception may vary depending on the backend)
+        :raises ~anyio.ClosedResourceError: if the stream has been closed
+        :raises ~anyio.BrokenResourceError: if the connection is broken
+
+        Native zero-copy transfer is used where supported. Otherwise, the file is read
+        in a worker thread and its contents sent through the stream. The socket remains
+        nonblocking throughout the transfer.
 
         The transfer is interrupted when the surrounding cancel scope is cancelled.
+        The file position is updated to the offset plus the number of bytes sent,
+        including after an interrupted transfer. In the copying fallback, only fully
+        sent chunks are counted; the last chunk may have been partially transmitted.
+        Do not access the file concurrently with this operation.
 
         """
-        from .. import to_thread
-        from .._core._sockets import sendfile_blocking, validate_sendfile_args
+        from .._core._sockets import sendfile_fallback, validate_sendfile_args
 
         validate_sendfile_args(file, offset, count)
-        with self._send_guard:
-            return await to_thread.run_sync(
-                sendfile_blocking, self._raw_socket, file, offset, count
-            )
+        return await sendfile_fallback(file, offset, count, self.send)
 
 
 class UNIXSocketStream(SocketStream):

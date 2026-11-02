@@ -68,7 +68,11 @@ from .._core._exceptions import (
     ClosedResourceError,
     EndOfStream,
 )
-from .._core._sockets import convert_ipv6_sockaddr
+from .._core._sockets import (
+    convert_ipv6_sockaddr,
+    sendfile_native,
+    validate_sendfile_args,
+)
 from .._core._streams import create_memory_object_stream
 from .._core._synchronization import (
     CapacityLimiter as BaseCapacityLimiter,
@@ -498,14 +502,34 @@ class SocketStream(_TrioSocketMixin, abc.SocketStream):
 
     async def send(self, item: bytes) -> None:
         with self._send_guard:
-            view = memoryview(item)
-            while view:
-                try:
-                    bytes_sent = await self._trio_socket.send(view)
-                except BaseException as exc:
-                    self._convert_socket_error(exc)
+            await self._send(item)
 
-                view = view[bytes_sent:]
+    async def _send(self, item: bytes) -> None:
+        view = memoryview(item)
+        while view:
+            try:
+                bytes_sent = await self._trio_socket.send(view)
+            except BaseException as exc:
+                self._convert_socket_error(exc)
+
+            view = view[bytes_sent:]
+
+    async def sendfile(
+        self, file: IO[bytes], offset: int = 0, count: int | None = None
+    ) -> int:
+        validate_sendfile_args(file, offset, count)
+        with self._send_guard:
+            await trio.lowlevel.checkpoint()
+            self._check_closed()
+            try:
+                return await sendfile_native(
+                    self._raw_socket, file, offset, count, self._send
+                )
+            except (BrokenResourceError, trio.ClosedResourceError) as exc:
+                if self._closed:
+                    raise ClosedResourceError from exc
+
+                self._convert_socket_error(exc)
 
     async def send_eof(self) -> None:
         self._trio_socket.shutdown(socket.SHUT_WR)
