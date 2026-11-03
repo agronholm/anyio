@@ -3483,3 +3483,31 @@ async def test_interrupted_by_close(socket_type: str) -> None:
             await wait_all_tasks_blocked()
             notify_closing(a_sock)
             a_sock.close()
+
+
+@pytest.mark.parametrize("anyio_backend", [("asyncio", {})])
+async def test_aclose_after_transport_connection_lost() -> None:
+    async with await create_tcp_listener(local_host="127.0.0.1") as listener:
+        port = listener.extra(SocketAttribute.local_port)
+        client = await connect_tcp("127.0.0.1", port)
+        transport = getattr(client, "_transport", None)
+        assert transport is not None
+        read_fut = getattr(transport, "_read_fut", None)
+        if read_fut is not None:
+            read_fut.cancel()
+        transport._call_connection_lost(ConnectionResetError("Connection reset"))
+        await client.aclose()
+
+
+@pytest.mark.parametrize("anyio_backend", [("asyncio", {})])
+async def test_connected_udp_aclose_after_transport_connection_lost() -> None:
+    client = await create_connected_udp_socket(
+        remote_host="127.0.0.1", remote_port=9999
+    )
+    transport = getattr(client, "_transport", None)
+    assert transport is not None
+    read_fut = getattr(transport, "_read_fut", None)
+    if read_fut is not None:
+        read_fut.cancel()
+    transport._call_connection_lost(None)
+    await client.aclose()
