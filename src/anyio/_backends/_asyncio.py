@@ -1184,6 +1184,9 @@ class WorkerThread(Thread):
         except RuntimeError:
             if not loop.is_closed():
                 raise
+        finally:
+            # Prevent reference cycles
+            del item, future, exception
 
         return retire
 

@@ -789,6 +789,23 @@ async def test_run_sync_worker_cyclic_references() -> None:
 
 @skipif_pypy_mark
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_run_sync_worker_exception_cyclic_references() -> None:
+    def raise_error() -> NoReturn:
+        raise ValueError("foo")
+
+    exc = None
+    try:
+        await to_thread.run_sync(raise_error)
+    except ValueError as e:
+        exc = e
+
+    await checkpoint()
+    assert isinstance(exc, ValueError)
+    assert gc.get_referrers(exc) == no_other_refs()
+
+
+@skipif_pypy_mark
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 def test_asyncio_worker_pool_does_not_retain_closed_loops(
     asyncio_worker_pool: Any, anyio_backend_options: dict[str, Any]
 ) -> None:
