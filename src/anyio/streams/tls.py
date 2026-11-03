@@ -408,7 +408,7 @@ class TLSConnectable(ByteStreamConnectable):
     Wraps another connectable and does TLS negotiation after a successful connection.
 
     :param connectable: the connectable to wrap
-    :param hostname: host name of the server (if host name checking is desired)
+    :param hostname: host name of the server, used to verify its certificate
     :param ssl_context: the SSLContext object to use (if not provided, a secure default
         will be created)
     :param standard_compatible: if ``False``, skip the closing handshake when closing
@@ -419,10 +419,13 @@ class TLSConnectable(ByteStreamConnectable):
         self,
         connectable: AnyByteStreamConnectable,
         *,
-        hostname: str | None = None,
+        hostname: str,
         ssl_context: ssl.SSLContext | None = None,
         standard_compatible: bool = True,
     ) -> None:
+        if not hostname:
+            raise ValueError("a host name is required to verify the server certificate")
+
         self.connectable = connectable
         self.ssl_context: SSLContext = ssl_context or ssl.create_default_context(
             ssl.Purpose.SERVER_AUTH
@@ -441,6 +444,7 @@ class TLSConnectable(ByteStreamConnectable):
         try:
             return await TLSStream.wrap(
                 stream,
+                server_side=False,
                 hostname=self.hostname,
                 ssl_context=self.ssl_context,
                 standard_compatible=self.standard_compatible,

@@ -662,3 +662,19 @@ async def test_tls_connectable(
         async with await connectable.connect() as client_tls_stream:
             await client_tls_stream.send(b"world")
             assert await client_tls_stream.receive() == b"hello, world"
+
+
+@pytest.mark.parametrize("hostname", [None, ""], ids=["none", "empty"])
+def test_tls_connectable_requires_hostname(hostname: str | None) -> None:
+    """
+    Test that TLSConnectable refuses to be created without a host name to verify the
+    server certificate against.
+
+    """
+
+    class DummyConnectable(ObjectStreamConnectable[bytes]):
+        async def connect(self) -> ObjectStream[bytes]:
+            raise AssertionError("should not be called")
+
+    with pytest.raises(ValueError, match="host name is required"):
+        TLSConnectable(DummyConnectable(), hostname=hostname)  # type: ignore[arg-type]
