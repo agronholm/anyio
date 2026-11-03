@@ -2145,6 +2145,122 @@ class TestRefcycles:
         assert isinstance(exc, MyKeyboardInterrupt)
         assert gc.get_referrers(exc) == no_other_refs()
 
+    async def test_exception_refcycles_cancelled_child(self) -> None:
+        """Test that a cancelled child task's exception isn't in a reference cycle"""
+        excs: list[BaseException] = []
+
+        async def child() -> None:
+            try:
+                await sleep_forever()
+            except get_cancelled_exc_class() as exc:
+                excs.append(exc)
+                raise
+
+        async with create_task_group() as tg:
+            tg.start_soon(child)
+            await wait_all_tasks_blocked()
+            tg.cancel_scope.cancel()
+
+        # pop, since the child's frame refers to this list
+        assert gc.get_referrers(excs.pop()) == no_other_refs()
+
+    async def test_exception_refcycles_cancelled_start(
+        self, anyio_backend_name: str
+    ) -> None:
+        """Test that a child cancelled before calling started() leaves no cycle"""
+        if anyio_backend_name == "trio":
+            import trio
+
+            if tuple(map(int, trio.__version__.split(".")[:2])) < (0, 34):
+                pytest.skip("Nursery.start() in Trio before 0.34 leaves a cycle")
+
+        excs: list[BaseException] = []
+
+        async def child(*, task_status: TaskStatus[None]) -> None:
+            try:
+                await sleep_forever()
+            except get_cancelled_exc_class() as exc:
+                excs.append(exc)
+                raise
+
+        async def cancel_when_blocked(scope: CancelScope) -> None:
+            await wait_all_tasks_blocked()
+            scope.cancel()
+
+        async with create_task_group() as tg:
+            with CancelScope() as scope:
+                tg.start_soon(cancel_when_blocked, scope)
+                await tg.start(child)
+
+        assert gc.get_referrers(excs.pop()) == no_other_refs()
+
+    async def test_exception_refcycles_failed_start(self) -> None:
+        """Test that a failed task started with start() isn't in a reference cycle"""
+        exc = None
+
+        class _Done(Exception):
+            pass
+
+        async def child(*, task_status: TaskStatus[None]) -> None:
+            task_status.started()
+            raise _Done
+
+        try:
+            async with create_task_group() as tg:
+                await tg.start(child)
+        except ExceptionGroup as excs:
+            exc = excs.exceptions[0]
+
+        assert isinstance(exc, _Done)
+        assert gc.get_referrers(exc) == no_other_refs()
+
+    async def test_exception_refcycles_failed_before_started(
+        self, anyio_backend_name: str
+    ) -> None:
+        """Test that a task failing before started() isn't in a reference cycle"""
+        if anyio_backend_name == "trio":
+            import trio
+
+            if tuple(map(int, trio.__version__.split(".")[:2])) < (0, 34):
+                pytest.skip("Nursery.start() in Trio before 0.34 leaves a cycle")
+
+        exc = None
+
+        class _Done(Exception):
+            pass
+
+        async def child(*, task_status: TaskStatus[None]) -> None:
+            raise _Done
+
+        try:
+            async with create_task_group() as tg:
+                await tg.start(child)
+        except ExceptionGroup as excs:
+            exc = excs.exceptions[0]
+        except _Done as e:
+            exc = e
+
+        assert isinstance(exc, _Done)
+        assert gc.get_referrers(exc) == no_other_refs()
+
+    async def test_exception_refcycles_exited_before_started(self) -> None:
+        """Test that a task exiting before started() leaves no reference cycle"""
+        exc = None
+
+        async def child(*, task_status: TaskStatus[None]) -> None:
+            pass
+
+        try:
+            async with create_task_group() as tg:
+                await tg.start(child)
+        except ExceptionGroup as excs:
+            exc = excs.exceptions[0]
+        except RuntimeError as e:
+            exc = e
+
+        assert isinstance(exc, RuntimeError)
+        assert gc.get_referrers(exc) == no_other_refs()
+
 
 class TestTaskStatusTyping:
     """
