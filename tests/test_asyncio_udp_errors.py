@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import errno
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 import pytest
 from _pytest.fixtures import SubRequest
@@ -30,7 +30,7 @@ DatagramSocket = AsyncUDPSocket | AsyncConnectedUDPSocket
 @pytest.fixture(params=[False, True], ids=["unconnected", "connected"])
 async def udp_pair(
     request: SubRequest,
-) -> AsyncIterator[tuple[DatagramSocket, UDPSocket]]:
+) -> AsyncGenerator[tuple[DatagramSocket, UDPSocket]]:
     async with await create_udp_socket(local_host="127.0.0.1") as peer:
         udp: UDPSocket | ConnectedUDPSocket
         if request.param:
@@ -210,6 +210,7 @@ async def test_closed_socket_takes_precedence_over_pending_error(
     udp, peer = udp_pair
     udp._protocol.error_received(OSError(errno.ECONNREFUSED, "Connection refused"))
     await udp.aclose()
+    assert udp._protocol.pending_error is None
 
     with pytest.raises(ClosedResourceError):
         await udp.receive()

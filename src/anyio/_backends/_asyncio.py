@@ -1454,14 +1454,14 @@ class StreamProtocol(asyncio.Protocol):
 
 class DatagramProtocol(asyncio.DatagramProtocol):
     read_queue: deque[tuple[bytes, IPSockAddrType]]
-    error_queue: deque[Exception]
+    pending_error: Exception | None
     read_event: asyncio.Event
     write_event: asyncio.Event
     write_paused: bool
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.read_queue = deque(maxlen=100)  # arbitrary value
-        self.error_queue = deque(maxlen=1)
+        self.pending_error = None
         self.read_event = asyncio.Event()
         self.write_event = asyncio.Event()
         self.write_event.set()
@@ -1469,6 +1469,7 @@ class DatagramProtocol(asyncio.DatagramProtocol):
         cast(asyncio.WriteTransport, transport).set_write_buffer_limits(0)
 
     def connection_lost(self, exc: Exception | None) -> None:
+        self.pending_error = None
         self.read_event.set()
         self.write_event.set()
 
@@ -1478,7 +1479,7 @@ class DatagramProtocol(asyncio.DatagramProtocol):
         self.read_event.set()
 
     def error_received(self, exc: Exception) -> None:
-        self.error_queue.append(exc)
+        self.pending_error = exc
         self.read_event.set()
         self.write_event.set()
 
@@ -1891,14 +1892,16 @@ class UDPSocket(abc.UDPSocket):
             # If the buffer is empty, ask for more data
             while (
                 not self._protocol.read_queue
-                and not self._protocol.error_queue
+                and self._protocol.pending_error is None
                 and not self._transport.is_closing()
             ):
                 self._protocol.read_event.clear()
                 await self._protocol.read_event.wait()
 
-            if self._protocol.error_queue and not self._closed:
-                raise BrokenResourceError from self._protocol.error_queue.popleft()
+            if self._protocol.pending_error is not None and not self._closed:
+                error = self._protocol.pending_error
+                self._protocol.pending_error = None
+                raise BrokenResourceError from error
 
             try:
                 return self._protocol.read_queue.popleft()
@@ -1916,7 +1919,7 @@ class UDPSocket(abc.UDPSocket):
             # Wait out any datagram the transport had to buffer
             while (
                 self._protocol.write_paused
-                and not self._protocol.error_queue
+                and self._protocol.pending_error is None
                 and not self._transport.is_closing()
             ):
                 yielded = True
@@ -1927,18 +1930,22 @@ class UDPSocket(abc.UDPSocket):
                 raise ClosedResourceError
             elif self._transport.is_closing():
                 raise BrokenResourceError
-            elif self._protocol.error_queue:
-                raise BrokenResourceError from self._protocol.error_queue.popleft()
+            elif self._protocol.pending_error is not None:
+                error = self._protocol.pending_error
+                self._protocol.pending_error = None
+                raise BrokenResourceError from error
 
             self._transport.sendto(*item)
-            if self._protocol.error_queue:
-                raise BrokenResourceError from self._protocol.error_queue.popleft()
+            if self._protocol.pending_error is not None:
+                error = self._protocol.pending_error
+                self._protocol.pending_error = None
+                raise BrokenResourceError from error
 
             # Errors can wake write_event while the transport is still paused.
             if self._protocol.write_paused:
                 while (
                     self._protocol.write_paused
-                    and not self._protocol.error_queue
+                    and self._protocol.pending_error is None
                     and not self._transport.is_closing()
                 ):
                     self._protocol.write_event.clear()
@@ -1949,8 +1956,10 @@ class UDPSocket(abc.UDPSocket):
                     raise ClosedResourceError
                 elif self._transport.is_closing():
                     raise BrokenResourceError
-                elif self._protocol.error_queue:
-                    raise BrokenResourceError from self._protocol.error_queue.popleft()
+                elif self._protocol.pending_error is not None:
+                    error = self._protocol.pending_error
+                    self._protocol.pending_error = None
+                    raise BrokenResourceError from error
             elif not yielded:
                 await AsyncIOBackend.cancel_shielded_checkpoint()
 
@@ -1981,14 +1990,16 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
             # If the buffer is empty, ask for more data
             while (
                 not self._protocol.read_queue
-                and not self._protocol.error_queue
+                and self._protocol.pending_error is None
                 and not self._transport.is_closing()
             ):
                 self._protocol.read_event.clear()
                 await self._protocol.read_event.wait()
 
-            if self._protocol.error_queue and not self._closed:
-                raise BrokenResourceError from self._protocol.error_queue.popleft()
+            if self._protocol.pending_error is not None and not self._closed:
+                error = self._protocol.pending_error
+                self._protocol.pending_error = None
+                raise BrokenResourceError from error
 
             try:
                 packet = self._protocol.read_queue.popleft()
@@ -2008,7 +2019,7 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
             # Wait out any datagram the transport had to buffer
             while (
                 self._protocol.write_paused
-                and not self._protocol.error_queue
+                and self._protocol.pending_error is None
                 and not self._transport.is_closing()
             ):
                 yielded = True
@@ -2019,18 +2030,22 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
                 raise ClosedResourceError
             elif self._transport.is_closing():
                 raise BrokenResourceError
-            elif self._protocol.error_queue:
-                raise BrokenResourceError from self._protocol.error_queue.popleft()
+            elif self._protocol.pending_error is not None:
+                error = self._protocol.pending_error
+                self._protocol.pending_error = None
+                raise BrokenResourceError from error
 
             self._transport.sendto(item)
-            if self._protocol.error_queue:
-                raise BrokenResourceError from self._protocol.error_queue.popleft()
+            if self._protocol.pending_error is not None:
+                error = self._protocol.pending_error
+                self._protocol.pending_error = None
+                raise BrokenResourceError from error
 
             # Errors can wake write_event while the transport is still paused.
             if self._protocol.write_paused:
                 while (
                     self._protocol.write_paused
-                    and not self._protocol.error_queue
+                    and self._protocol.pending_error is None
                     and not self._transport.is_closing()
                 ):
                     self._protocol.write_event.clear()
@@ -2041,8 +2056,10 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
                     raise ClosedResourceError
                 elif self._transport.is_closing():
                     raise BrokenResourceError
-                elif self._protocol.error_queue:
-                    raise BrokenResourceError from self._protocol.error_queue.popleft()
+                elif self._protocol.pending_error is not None:
+                    error = self._protocol.pending_error
+                    self._protocol.pending_error = None
+                    raise BrokenResourceError from error
             elif not yielded:
                 await AsyncIOBackend.cancel_shielded_checkpoint()
 
@@ -3093,9 +3110,11 @@ class AsyncIOBackend(AsyncBackend):
             family=family,
             reuse_port=reuse_port,
         )
-        if protocol.error_queue:
+        if protocol.pending_error is not None:
+            error = protocol.pending_error
+            protocol.pending_error = None
             transport.close()
-            raise protocol.error_queue.popleft()
+            raise error
 
         if not remote_address:
             return UDPSocket(transport, protocol)
