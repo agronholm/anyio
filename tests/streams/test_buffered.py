@@ -58,6 +58,37 @@ async def test_receive_exactly_incomplete() -> None:
     receive_stream.close()
 
 
+@pytest.mark.parametrize("nbytes", [-1, -4, -5])
+@pytest.mark.parametrize("buffer", [b"", b"abcd"])
+async def test_receive_exactly_negative(nbytes: int, buffer: bytes) -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
+    with send_stream, receive_stream:
+        buffered_stream = BufferedByteReceiveStream(receive_stream)
+        buffered_stream.feed_data(buffer)
+        send_stream.send_nowait(b"efgh")
+        with pytest.raises(ValueError, match="nbytes must be a non-negative integer"):
+            await buffered_stream.receive_exactly(nbytes)
+
+        assert buffered_stream.buffer == buffer
+        assert (
+            await buffered_stream.receive_exactly(len(buffer) + 4) == buffer + b"efgh"
+        )
+
+
+@pytest.mark.parametrize("buffer", [b"", b"abcd"])
+async def test_receive_exactly_zero(buffer: bytes) -> None:
+    send_stream, receive_stream = create_memory_object_stream[bytes](1)
+    with send_stream, receive_stream:
+        buffered_stream = BufferedByteReceiveStream(receive_stream)
+        buffered_stream.feed_data(buffer)
+        send_stream.send_nowait(b"efgh")
+        assert await buffered_stream.receive_exactly(0) == b""
+        assert buffered_stream.buffer == buffer
+        assert (
+            await buffered_stream.receive_exactly(len(buffer) + 4) == buffer + b"efgh"
+        )
+
+
 @pytest.mark.parametrize(
     "method, args",
     [
