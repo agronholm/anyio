@@ -105,6 +105,12 @@ address and port every time you send data to the peer:
 
 .. literalinclude:: snippets/networking/udp_client.py
 
+Errors reported by the operating system, such as an ICMP port-unreachable error, are
+raised as :exc:`~BrokenResourceError` from the next send or receive operation. The
+original error is available as the exception's cause. Only the latest pending error is
+retained and it is reported once. Whether these errors are reported depends on the
+operating system.
+
 Working with UNIX datagram sockets
 ----------------------------------
 
