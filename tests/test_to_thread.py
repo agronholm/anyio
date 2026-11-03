@@ -790,28 +790,18 @@ async def test_run_sync_worker_cyclic_references() -> None:
 @skipif_pypy_mark
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_run_sync_worker_exception_cyclic_references() -> None:
-    class Foo:
-        pass
-
-    foo_ref: weakref.ref[Foo] | None = None
-
-    def raise_with_local() -> NoReturn:
-        nonlocal foo_ref
-        local = Foo()
-        foo_ref = weakref.ref(local)
+    def raise_error() -> NoReturn:
         raise ValueError("foo")
 
-    gc.collect()
-    gc.disable()
+    exc = None
     try:
-        with pytest.raises(ValueError, match="^foo$"):
-            await to_thread.run_sync(raise_with_local)
+        await to_thread.run_sync(raise_error)
+    except ValueError as e:
+        exc = e
 
-        await checkpoint()
-        assert foo_ref is not None
-        assert foo_ref() is None
-    finally:
-        gc.enable()
+    await checkpoint()
+    assert isinstance(exc, ValueError)
+    assert gc.get_referrers(exc) == no_other_refs()
 
 
 @skipif_pypy_mark

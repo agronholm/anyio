@@ -1185,9 +1185,7 @@ class WorkerThread(Thread):
             if not loop.is_closed():
                 raise
         finally:
-            # The exception's traceback includes this frame, whose locals refer to the
-            # exception and to the future that holds it, so keeping them would create a
-            # reference cycle
+            # Prevent reference cycles
             del item, future, exception
 
         return retire
