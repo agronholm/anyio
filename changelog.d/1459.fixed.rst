@@ -1,0 +1,3 @@
+Fixed ``to_thread.run_sync()`` on asyncio leaving a reference cycle when the function
+raises, which kept the function's locals and its callers' frames alive until the
+cyclic garbage collector ran

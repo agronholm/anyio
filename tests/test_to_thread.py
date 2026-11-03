@@ -789,6 +789,33 @@ async def test_run_sync_worker_cyclic_references() -> None:
 
 @skipif_pypy_mark
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_run_sync_worker_exception_cyclic_references() -> None:
+    class Foo:
+        pass
+
+    foo_ref: weakref.ref[Foo] | None = None
+
+    def raise_with_local() -> NoReturn:
+        nonlocal foo_ref
+        local = Foo()
+        foo_ref = weakref.ref(local)
+        raise ValueError("foo")
+
+    gc.collect()
+    gc.disable()
+    try:
+        with pytest.raises(ValueError, match="^foo$"):
+            await to_thread.run_sync(raise_with_local)
+
+        await checkpoint()
+        assert foo_ref is not None
+        assert foo_ref() is None
+    finally:
+        gc.enable()
+
+
+@skipif_pypy_mark
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 def test_asyncio_worker_pool_does_not_retain_closed_loops(
     asyncio_worker_pool: Any, anyio_backend_options: dict[str, Any]
 ) -> None:
