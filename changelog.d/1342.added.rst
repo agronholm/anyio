@@ -1,2 +1,0 @@
-Added ``BlockingPortal.call_async()`` for asynchronously calling into an event loop
-with optional abandonment on cancellation
