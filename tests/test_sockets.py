@@ -2345,6 +2345,7 @@ class TestUDPSocket:
 
     @pytest.mark.parametrize("buffered_packets", [0, 1, 3])
     async def test_receive_after_close(self, buffered_packets: int) -> None:
+        # Zero packets preserves the original empty-socket close test.
         async with await create_udp_socket(
             family=AddressFamily.AF_INET, local_host="localhost"
         ) as udp:
@@ -2354,6 +2355,7 @@ class TestUDPSocket:
 
             await wait_all_tasks_blocked()
             await udp.aclose()
+            # Reject all would-be buffered reads and one read beyond the old queue.
             for _ in range(buffered_packets + 1):
                 with pytest.raises(ClosedResourceError):
                     await udp.receive()
@@ -2630,6 +2632,7 @@ class TestConnectedUDPSocket:
     async def test_receive_after_close(
         self, family: AnyIPAddressFamily, buffered_packets: int
     ) -> None:
+        # Zero packets preserves the original empty-socket close test.
         async with await create_udp_socket(
             family=family, local_host="localhost"
         ) as peer:
@@ -2645,6 +2648,7 @@ class TestConnectedUDPSocket:
 
                 await wait_all_tasks_blocked()
                 await udp.aclose()
+                # Reject all would-be buffered reads and one read beyond the old queue.
                 for _ in range(buffered_packets + 1):
                     with pytest.raises(ClosedResourceError):
                         await udp.receive()
