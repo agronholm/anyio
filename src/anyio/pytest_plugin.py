@@ -5,6 +5,7 @@ import socket
 import sys
 from collections.abc import Callable, Generator, Iterator
 from contextlib import ExitStack, contextmanager
+from errno import EADDRINUSE
 from inspect import isasyncgenfunction, iscoroutinefunction, ismethod
 from typing import TYPE_CHECKING, Any, cast
 
@@ -360,6 +361,8 @@ class FreePortFactory:
 
         :param family: if omitted, both IPv4 and IPv6 addresses will be tried
         :return: a port number
+        :raises OSError: if ephemeral port allocation fails, or a loopback bind fails
+            for a reason other than an IPv4/IPv6 port collision
 
         """
         if family is not None:
@@ -377,7 +380,10 @@ class FreePortFactory:
                     addr = "::1" if fam == socket.AF_INET6 else "127.0.0.1"
                     try:
                         sock.bind((addr, port))
-                    except OSError:
+                    except OSError as exc:
+                        if not port or exc.errno != EADDRINUSE:
+                            raise
+
                         break
 
                     if not port:
