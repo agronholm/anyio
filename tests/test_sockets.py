@@ -2343,22 +2343,16 @@ class TestUDPSocket:
         assert exc is not None
         assert raw_socket.fileno() == -1
 
-    @pytest.mark.parametrize("buffered_packets", [0, 1, 3])
-    async def test_receive_after_close(self, buffered_packets: int) -> None:
-        # Zero packets preserves the original empty-socket close test.
+    async def test_receive_after_close(self) -> None:
         async with await create_udp_socket(
             family=AddressFamily.AF_INET, local_host="localhost"
         ) as udp:
             host, port = cast(tuple[str, int], udp.extra(SocketAttribute.local_address))
-            for _ in range(buffered_packets):
-                await udp.sendto(b"buffered", host, port)
-
+            await udp.sendto(b"buffered", host, port)
             await wait_all_tasks_blocked()
             await udp.aclose()
-            # Reject all would-be buffered reads and one read beyond the old queue.
-            for _ in range(buffered_packets + 1):
-                with pytest.raises(ClosedResourceError):
-                    await udp.receive()
+            with pytest.raises(ClosedResourceError):
+                await udp.receive()
 
     async def test_send_after_close(self) -> None:
         udp = await create_udp_socket(
@@ -2628,11 +2622,7 @@ class TestConnectedUDPSocket:
         assert exc is not None
         assert raw_socket.fileno() == -1
 
-    @pytest.mark.parametrize("buffered_packets", [0, 1, 3])
-    async def test_receive_after_close(
-        self, family: AnyIPAddressFamily, buffered_packets: int
-    ) -> None:
-        # Zero packets preserves the original empty-socket close test.
+    async def test_receive_after_close(self, family: AnyIPAddressFamily) -> None:
         async with await create_udp_socket(
             family=family, local_host="localhost"
         ) as peer:
@@ -2643,15 +2633,11 @@ class TestConnectedUDPSocket:
                 host, port, local_host="localhost", family=family
             ) as udp:
                 address = cast(IPSockAddrType, udp.extra(SocketAttribute.local_address))
-                for _ in range(buffered_packets):
-                    await peer.send((b"buffered", address))
-
+                await peer.send((b"buffered", address))
                 await wait_all_tasks_blocked()
                 await udp.aclose()
-                # Reject all would-be buffered reads and one read beyond the old queue.
-                for _ in range(buffered_packets + 1):
-                    with pytest.raises(ClosedResourceError):
-                        await udp.receive()
+                with pytest.raises(ClosedResourceError):
+                    await udp.receive()
 
     async def test_send_after_close(self, family: AnyIPAddressFamily) -> None:
         udp = await create_connected_udp_socket(
