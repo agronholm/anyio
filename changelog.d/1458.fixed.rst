@@ -1,0 +1,2 @@
+Fixed asyncio task groups leaking a child coroutine and hanging when that
+child was cancelled before its first step

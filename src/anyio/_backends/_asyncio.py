@@ -918,6 +918,11 @@ class TaskGroup(abc.TaskGroup):
 
                 exc = e
 
+            if not handle._finished_event.is_set():
+                # Cancelled before its first step: asyncio threw CancelledError
+                # into the wrapper before TaskHandle._run_coro() could run.
+                handle._finish_without_running(exc)
+
             if exc is not None:
                 # The future can only be in the cancelled state if the host task was
                 # cancelled, so return immediately instead of adding one more

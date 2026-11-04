@@ -6,7 +6,7 @@ from collections.abc import (
     Coroutine,
     Generator,
 )
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from enum import Enum, auto
 from inspect import iscoroutine
 from types import TracebackType
@@ -333,6 +333,17 @@ class TaskHandle(Generic[T_co, T_startval_co]):
             finally:
                 self._finished_event.set()
                 del self  # Break the reference cycle
+
+    def _finish_without_running(self, exc: BaseException | None) -> None:
+        # The backend calls this when the task finished without ever entering
+        # _run_coro(), for example because asyncio cancelled it before its first
+        # step. Closing the coroutine here avoids the "never awaited" warning,
+        # and setting the event lets waiters observe the cancellation.
+        with suppress(BaseException):
+            self._coro.close()
+
+        self._exception = exc
+        self._finished_event.set()
 
     def cancel(self) -> None:
         """
