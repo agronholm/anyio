@@ -63,9 +63,12 @@ class TestCache:
 
 
 class TestAsyncLRUCache:
-    def test_bad_func_argument(self) -> None:
+    @pytest.mark.parametrize("argument", [10, None])
+    def test_bad_func_argument(self, argument: int | None) -> None:
+        # functools.lru_cache(None) means an unbounded cache, so None must not be
+        # mistaken for "no function given" and silently get the default maxsize
         with pytest.raises(TypeError, match="the first argument must be callable"):
-            lru_cache(10)  # type: ignore[call-overload]
+            lru_cache(argument)  # type: ignore[call-overload]
 
     def test_cache_parameters(self) -> None:
         @lru_cache(maxsize=10, typed=True, ttl=3)
