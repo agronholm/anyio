@@ -22,6 +22,42 @@ The snippet above runs the ``ps`` command within a shell. To run it directly:
 
 .. literalinclude:: snippets/subprocesses/run_process_shell.py
 
+Running a process in a task group
+---------------------------------
+
+Use :meth:`~.abc.TaskGroup.start` with :func:`run_process` to run a subprocess in the
+background. It returns a :class:`~.abc.Process` once the process has been spawned and its
+pipes have been set up. This does not mean that the program has finished initializing.
+The task group waits for the subprocess to finish, and cancelling the task group stops
+the subprocess and waits for it to exit.
+
+.. literalinclude:: snippets/subprocesses/start_process.py
+
+The ``input``, ``stdout``, ``stderr`` and ``check`` arguments behave the same as with a
+direct call to :func:`run_process`. Standard output and error are captured by default;
+the caller must not read those pipes itself. Use ``stdout=None`` and ``stderr=None`` to
+inherit the parent's output streams. With ``check=True``, a nonzero exit status raises
+:exc:`~subprocess.CalledProcessError` in the task group, including the captured output.
+With ``stdin=subprocess.PIPE`` and no ``input`` argument, the caller can write to
+:attr:`~.abc.Process.stdin` as shown above.
+
+Customizing process cancellation
+--------------------------------
+
+By default, cancelling :func:`run_process` kills the subprocess immediately. To allow
+the child to clean up first, pass an async callable as ``deliver_cancel``. It receives
+the :class:`~.abc.Process` and runs shielded from external cancellation. It can send a
+signal or a shutdown request using the child's own protocol. For example, this callback
+allows up to five seconds after :meth:`~.abc.Process.terminate` before killing the child:
+
+.. literalinclude:: snippets/subprocesses/deliver_cancel.py
+
+The callback must arrange for the subprocess to exit. Returning from the callback does
+not end the wait for the subprocess. Once the subprocess exits, the callback is cancelled
+if it is still running. Standard output and error continue to be drained during shutdown
+so the child can flush them. If the callback raises an exception, the subprocess is
+killed and waited for, and the exception is propagated.
+
 Working with processes
 ----------------------
 
