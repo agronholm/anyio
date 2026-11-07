@@ -1,0 +1,1 @@
+Fixed ``MemoryObjectReceiveStream.receive_nowait()`` consuming the item of a waiting sender whose task has a pending cancellation, which made ``send()`` raise a cancellation even though the item had been delivered
