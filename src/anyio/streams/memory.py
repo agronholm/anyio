@@ -61,7 +61,7 @@ class _MemoryObjectStreamState(Generic[T_Item]):
     waiting_receivers: OrderedDict[Event, _MemoryObjectItemReceiver[T_Item]] = field(
         init=False, default_factory=OrderedDict
     )
-    waiting_senders: OrderedDict[Event, T_Item] = field(
+    waiting_senders: OrderedDict[Event, tuple[TaskInfo, T_Item]] = field(
         init=False, default_factory=OrderedDict
     )
 
@@ -100,11 +100,15 @@ class MemoryObjectReceiveStream(ObjectReceiveStream[T_co], Generic[T_co]):
         if self._closed:
             raise ClosedResourceError
 
-        if self._state.waiting_senders:
-            # Get the item from the next sender
-            send_event, item = self._state.waiting_senders.popitem(last=False)
-            self._state.buffer.append(item)
-            send_event.set()
+        while self._state.waiting_senders:
+            # Get the item from the next sender, skipping senders that are about to
+            # be cancelled so that an item is never consumed from a task that will
+            # report it as not sent
+            send_event, (sender, item) = self._state.waiting_senders.popitem(last=False)
+            if not sender.has_pending_cancellation():
+                self._state.buffer.append(item)
+                send_event.set()
+                break
 
         if self._state.buffer:
             return self._state.buffer.popleft()
@@ -273,7 +277,7 @@ class MemoryObjectSendStream(ObjectSendStream[T_contra], Generic[T_contra]):
             # Wait until there's someone on the receiving end
             send_event = Event()
             self._waiters.add(send_event)
-            self._state.waiting_senders[send_event] = item
+            self._state.waiting_senders[send_event] = (get_current_task(), item)
             try:
                 await send_event.wait()
             finally:

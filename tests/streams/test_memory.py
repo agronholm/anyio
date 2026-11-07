@@ -13,6 +13,7 @@ from anyio import (
     WouldBlock,
     create_memory_object_stream,
     create_task_group,
+    get_cancelled_exc_class,
     wait_all_tasks_blocked,
 )
 from anyio.streams.memory import (
@@ -380,6 +381,105 @@ async def test_cancel_during_receive_buffered() -> None:
 
         # Since the item was not sent to the cancelled task, it should be available here
         assert receive.receive_nowait() == "item"
+
+
+async def test_cancel_during_send() -> None:
+    """
+    Test that receiving from a memory object stream when the sender that is next in
+    line has been cancelled does not consume the item of that sender.
+
+    """
+
+    async def scoped_sender(task_status: TaskStatus[CancelScope]) -> None:
+        with CancelScope() as cancel_scope:
+            task_status.started(cancel_scope)
+            await send.send("item")
+
+        assert cancel_scope.cancel_called
+
+    send, receive = create_memory_object_stream[str]()
+    with send, receive:
+        async with create_task_group() as tg:
+            sender_scope = await tg.start(scoped_sender)
+            await wait_all_tasks_blocked()
+            sender_scope.cancel()
+            with pytest.raises(WouldBlock):
+                receive.receive_nowait()
+
+
+async def test_cancel_during_send_buffered() -> None:
+    """
+    Test that receiving from a full memory object stream when the sender that is next
+    in line has been cancelled does not move the item of that sender to the buffer.
+
+    """
+
+    async def scoped_sender(task_status: TaskStatus[CancelScope]) -> None:
+        with CancelScope() as cancel_scope:
+            task_status.started(cancel_scope)
+            await send.send("cancelled")
+
+    send, receive = create_memory_object_stream[str](1)
+    with send, receive:
+        send.send_nowait("first")
+        async with create_task_group() as tg:
+            sender_scope = await tg.start(scoped_sender)
+            await wait_all_tasks_blocked()
+            sender_scope.cancel()
+            assert receive.receive_nowait() == "first"
+
+        with pytest.raises(WouldBlock):
+            receive.receive_nowait()
+
+
+@pytest.mark.parametrize("max_buffer_size", [0, 1])
+async def test_cancel_during_send_live_sender_behind(max_buffer_size: int) -> None:
+    """
+    Test that receiving skips a cancelled sender but still takes the item of a live
+    sender queued behind it, exactly once.
+
+    """
+
+    async def scoped_sender(task_status: TaskStatus[CancelScope]) -> None:
+        with CancelScope() as cancel_scope:
+            task_status.started(cancel_scope)
+            try:
+                await send.send("cancelled")
+            except get_cancelled_exc_class():
+                cancelled.append(True)
+                raise
+
+    async def live_sender() -> None:
+        await send.send("live")
+        sent.append(True)
+
+    cancelled: list[bool] = []
+    sent: list[bool] = []
+    received: list[str] = []
+    send, receive = create_memory_object_stream[str](max_buffer_size)
+    with send, receive:
+        if max_buffer_size:
+            send.send_nowait("first")
+
+        async with create_task_group() as tg:
+            sender_scope = await tg.start(scoped_sender)
+            tg.start_soon(live_sender)
+            await wait_all_tasks_blocked()
+            assert send.statistics().tasks_waiting_send == 2
+            sender_scope.cancel()
+            received.append(receive.receive_nowait())
+            if max_buffer_size:
+                received.append(receive.receive_nowait())
+
+            # Checked inside the task group so that a wrong pick fails here instead
+            # of leaving the live sender waiting forever
+            assert received == (["first", "live"] if max_buffer_size else ["live"])
+
+        assert cancelled == [True]
+        assert sent == [True]
+        assert send.statistics().tasks_waiting_send == 0
+        with pytest.raises(WouldBlock):
+            receive.receive_nowait()
 
 
 async def test_close_receive_after_send() -> None:
