@@ -17,26 +17,9 @@ Events (:class:`Event`) are used to notify tasks that something they've been wai
 happen has happened. An event object can have multiple listeners and they are all
 notified when the event is triggered.
 
-Example::
+Example:
 
-    from anyio import Event, create_task_group, run
-
-
-    async def notify(event):
-        event.set()
-
-
-    async def main():
-        event = Event()
-        async with create_task_group() as tg:
-            tg.start_soon(notify, event)
-            await event.wait()
-            print('Received notification!')
-
-    run(main)
-
-    # Output:
-    # Received notification!
+.. literalinclude:: snippets/synchronization/event.py
 
 .. note:: Unlike standard library Events, AnyIO events cannot be reused, and must be
    replaced instead. This practice prevents a class of race conditions, and matches the
@@ -50,36 +33,9 @@ semaphore starts with a maximum value, which is decremented each time the semaph
 acquired by a task and incremented when it is released. If the value drops to zero, any
 attempt to acquire the semaphore will block until another task frees it.
 
-Example::
+Example:
 
-    from anyio import Semaphore, create_task_group, sleep, run
-
-
-    async def use_resource(tasknum, semaphore):
-        async with semaphore:
-            print(f"Task number {tasknum} is now working with the shared resource")
-            await sleep(1)
-
-
-    async def main():
-        semaphore = Semaphore(2)
-        async with create_task_group() as tg:
-            for num in range(10):
-                tg.start_soon(use_resource, num, semaphore)
-
-    run(main)
-
-    # Output:
-    # Task number 0 is now working with the shared resource
-    # Task number 1 is now working with the shared resource
-    # Task number 2 is now working with the shared resource
-    # Task number 3 is now working with the shared resource
-    # Task number 4 is now working with the shared resource
-    # Task number 5 is now working with the shared resource
-    # Task number 6 is now working with the shared resource
-    # Task number 7 is now working with the shared resource
-    # Task number 8 is now working with the shared resource
-    # Task number 9 is now working with the shared resource
+.. literalinclude:: snippets/synchronization/semaphore.py
 
 .. tip:: If the performance of semaphores is critical for you, you could pass
    ``fast_acquire=True`` to :class:`Semaphore`. This has the effect of skipping the
@@ -95,30 +51,9 @@ Locks (:class:`Lock`) are used to guard shared resources to ensure sole access t
 single task at once. They function much like semaphores with a maximum value of 1,
 except that only the task that acquired the lock is allowed to release it.
 
-Example::
+Example:
 
-    from anyio import Lock, create_task_group, sleep, run
-
-
-    async def use_resource(tasknum, lock):
-        async with lock:
-            print('Task number', tasknum, 'is now working with the shared resource')
-            await sleep(1)
-
-
-    async def main():
-        lock = Lock()
-        async with create_task_group() as tg:
-            for num in range(4):
-                tg.start_soon(use_resource, num, lock)
-
-    run(main)
-
-    # Output:
-    # Task number 0 is now working with the shared resource
-    # Task number 1 is now working with the shared resource
-    # Task number 2 is now working with the shared resource
-    # Task number 3 is now working with the shared resource
+.. literalinclude:: snippets/synchronization/lock.py
 
 .. tip:: If the performance of locks is critical for you, you could pass
    ``fast_acquire=True`` to :class:`Lock`. This has the effect of skipping the
@@ -138,44 +73,9 @@ than one listener at once, or even all of them.
 Like :class:`Lock`, :class:`Condition` also requires that the task which locked it also
 the one to release it.
 
-Example::
+Example:
 
-    from anyio import Condition, create_task_group, sleep, run
-
-
-    async def listen(tasknum, condition):
-        async with condition:
-            await condition.wait()
-            print('Woke up task number', tasknum)
-
-
-    async def main():
-        condition = Condition()
-        async with create_task_group() as tg:
-            for tasknum in range(6):
-                tg.start_soon(listen, tasknum, condition)
-
-            await sleep(1)
-            async with condition:
-                condition.notify(1)
-
-            await sleep(1)
-            async with condition:
-                condition.notify(2)
-
-            await sleep(1)
-            async with condition:
-                condition.notify_all()
-
-    run(main)
-
-    # Output:
-    # Woke up task number 0
-    # Woke up task number 1
-    # Woke up task number 2
-    # Woke up task number 3
-    # Woke up task number 4
-    # Woke up task number 5
+.. literalinclude:: snippets/synchronization/condition.py
 
 .. _capacity-limiters:
 
@@ -195,51 +95,18 @@ The number of total tokens available for tasks to acquire can be adjusted by ass
 the desired value to the ``total_tokens`` property. If the value is higher than the
 previous one, it will automatically wake up the appropriate number of waiting tasks.
 
-Example::
+Example:
 
-    from anyio import CapacityLimiter, create_task_group, sleep, run
-
-
-    async def use_resource(tasknum, limiter):
-        async with limiter:
-            print(f"Task number {tasknum} is now working with the shared resource")
-            await sleep(1)
-
-
-    async def main():
-        limiter = CapacityLimiter(2)
-        async with create_task_group() as tg:
-            for num in range(10):
-                tg.start_soon(use_resource, num, limiter)
-
-    run(main)
-
-    # Output:
-    # Task number 0 is now working with the shared resource
-    # Task number 1 is now working with the shared resource
-    # Task number 2 is now working with the shared resource
-    # Task number 3 is now working with the shared resource
-    # Task number 4 is now working with the shared resource
-    # Task number 5 is now working with the shared resource
-    # Task number 6 is now working with the shared resource
-    # Task number 7 is now working with the shared resource
-    # Task number 8 is now working with the shared resource
-    # Task number 9 is now working with the shared resource
+.. literalinclude:: snippets/synchronization/capacity_limiter.py
 
 Resource guards
 ---------------
 
 Some resources, such as sockets, are very sensitive about concurrent use and should not
 allow even attempts to be used concurrently. For such cases, :class:`ResourceGuard` is
-the appropriate solution::
+the appropriate solution:
 
-    class Resource:
-        def __init__(self):
-            self._guard = ResourceGuard()
-
-        async def do_something() -> None:
-            with self._guard:
-                ...
+.. literalinclude:: snippets/synchronization/resource_guard.py
 
 Now, if another task tries calling the ``do_something()`` method on the same
 ``Resource`` instance before the first call has finished, that will raise a
@@ -258,27 +125,9 @@ Futures (:class:`Future`) are used to hand a result, an exception, or a cancella
 one task to another. Once a future object is resolved, awaiting it again immediately returns or
 raises the same outcome.
 
-Example::
+Example:
 
-    from anyio import Future, create_task_group, run
-
-
-    async def task(future: Future[int], value: int):
-        future.return_value = value
-
-
-    async def main():
-        future = Future()
-        async with create_task_group() as tg:
-            tg.start_soon(task, future, 5)
-            result = await future
-
-            print(f"Returned: {result}")
-
-    run(main)
-
-    # Output:
-    # Returned: 5
+.. literalinclude:: snippets/synchronization/future.py
 
 A future can also finish with an exception instead of a value, or be cancelled before
 it finishes at all. Assigning an exception to :attr:`~Future.exception` puts the future into the
@@ -286,39 +135,9 @@ it finishes at all. Assigning an exception to :attr:`~Future.exception` puts the
 the original exception attached as ``__cause__``. Calling :meth:`~Future.cancel` puts it
 into the :attr:`~Future.Status.CANCELLED` state instead, and awaiting it raises :exc:`FutureCancelled`.
 To check which of these states a future ended up in without triggering either exception,
-use :meth:`~Future.wait` and inspect :attr:`~Future.status`::
+use :meth:`~Future.wait` and inspect :attr:`~Future.status`:
 
-    from anyio import Future, FutureFailed, create_task_group, run
-
-
-    async def task1(future: Future[int]):
-        future.exception = ValueError("Something went wrong!")
-
-
-    async def task2(future: Future[int]):
-        future.cancel()
-
-
-    async def main():
-        fut1, fut2 = Future(), Future()
-        async with create_task_group() as tg:
-            tg.start_soon(task1, fut1)
-            tg.start_soon(task2, fut2)
-
-            try:
-                await fut1
-            except FutureFailed as exc:
-                print(f"Caught: {exc.__cause__!r}")
-
-            await fut2.wait()
-            assert fut2.status is Future.Status.CANCELLED
-            print(f"Status: {fut2.status.name}")
-
-    run(main)
-
-    # Output:
-    # Caught: ValueError('Something went wrong!')
-    # Status: CANCELLED
+.. literalinclude:: snippets/synchronization/future_exception.py
 
 .. note:: If you're coming from :mod:`asyncio`, :class:`Future` differs from
    :class:`asyncio.Future` in a few ways:

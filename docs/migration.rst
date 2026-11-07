@@ -12,11 +12,9 @@ group classes. This class has now been removed in favor of the built-in
 raising the old ``ExceptionGroup`` exception or catching it, you need to make the switch
 to these standard classes. Otherwise you can ignore this part.
 
-If you're targeting Python releases older than 3.11, you need to use the exceptiongroup_
-backport and import one of those classes from ``exceptiongroup``. The only difference
-between :exc:`BaseExceptionGroup` and :exc:`ExceptionGroup` is that the latter can
-only contain exceptions derived from :exc:`Exception`, and likewise can be caught with
-``except Exception:``.
+The only difference between :exc:`BaseExceptionGroup` and :exc:`ExceptionGroup` is that
+the latter can only contain exceptions derived from :exc:`Exception`, and likewise can
+be caught with ``except Exception:``.
 
 Task groups now wrap single exceptions in groups
 ------------------------------------------------
@@ -26,9 +24,8 @@ always raise exception groups when either the host task or any child tasks raise
 exception (other than a cancellation exception). Previously, an exception group was only
 raised when more than one exception needed to be raised from the task group. The
 practical consequence is that if your code previously expected to catch a specific kind
-of exception falling out of a task group, you now need to either switch to the
-``except*`` syntax (if you're fortunate enough to work solely with Python 3.11 or
-later), or use the ``catch()`` context manager from the exceptiongroup_ backport.
+of exception falling out of a task group, you now need to switch to the ``except*``
+syntax.
 
 So, if you had code like this::
 
@@ -37,24 +34,13 @@ So, if you had code like this::
     except ValueError as exc:
         ...
 
-The Python 3.11+ equivalent would look almost the same::
+The equivalent would look almost the same::
 
     try:
         await function_using_a_taskgroup()
     except* ValueError as excgrp:
         # Note: excgrp is an ExceptionGroup now!
         ...
-
-If you need to stay compatible with older Python releases, you need to use the
-backport::
-
-    from exceptiongroup import ExceptionGroup, catch
-
-    def handle_value_errors(excgrp: ExceptionGroup) -> None:
-        ...
-
-    with catch({ValueError: handle_value_errors}):
-        await function_using_a_taskgroup()
 
 This difference often comes up in test suites too. For example, if you had this before
 in a pytest-based test suite::
@@ -64,8 +50,6 @@ in a pytest-based test suite::
 
 You now need to change it to::
 
-    from exceptiongroup import ExceptionGroup
-
     with pytest.raises(ExceptionGroup) as exc:
         await function_using_a_taskgroup()
 
@@ -73,30 +57,9 @@ You now need to change it to::
     assert isinstance(exc.value.exceptions[0], ValueError)
 
 If you need to stay compatible with both AnyIO 3 and 4, you can use the following
-compatibility code to "collapse" single-exception groups by unwrapping them::
+compatibility code to "collapse" single-exception groups by unwrapping them:
 
-    import sys
-    from contextlib import contextmanager
-    from typing import Generator
-
-    has_exceptiongroups = True
-    if sys.version_info < (3, 11):
-        try:
-            from exceptiongroup import BaseExceptionGroup
-        except ImportError:
-            has_exceptiongroups = False
-
-
-    @contextmanager
-    def collapse_excgroups() -> Generator[None, None, None]:
-        try:
-            yield
-        except BaseException as exc:
-            if has_exceptiongroups:
-                while isinstance(exc, BaseExceptionGroup) and len(exc.exceptions) == 1:
-                    exc = exc.exceptions[0]
-
-            raise exc
+.. literalinclude:: snippets/migration/collapse_excgroups.py
 
 Syntax for type annotated memory object streams has changed
 -----------------------------------------------------------
@@ -130,7 +93,6 @@ should be converted into::
 
 Make sure not to actually call the factory function!
 
-.. _exceptiongroup: https://pypi.org/project/exceptiongroup/
 .. _uvloop: https://github.com/MagicStack/uvloop
 
 Migrating from AnyIO 2 to AnyIO 3
@@ -239,13 +201,9 @@ Blocking portal changes
 -----------------------
 
 AnyIO now **requires** :func:`.from_thread.start_blocking_portal` to be used as a
-context manager::
+context manager:
 
-    from anyio import sleep
-    from anyio.from_thread import start_blocking_portal
-
-    with start_blocking_portal() as portal:
-        portal.call(sleep, 1)
+.. literalinclude:: snippets/migration/blocking_portal_context_manager.py
 
 As with ``TaskGroup.spawn()``, the ``BlockingPortal.spawn_task()`` method has also been
 renamed to :meth:`~from_thread.BlockingPortal.start_task_soon`, so as to be consistent
@@ -268,12 +226,9 @@ of instantiating the classes directly. So convert code like this::
     async def main():
         event = create_event()
 
-into this::
+into this:
 
-    from anyio import Event
-
-    async def main():
-        event = Event()
+.. literalinclude:: snippets/migration/instantiate_event.py
 
 or, if you need to work with both AnyIO 2 and 3::
 

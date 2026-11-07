@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-import sys
-from collections.abc import AsyncGenerator, Generator
-from types import CoroutineType, GeneratorType
+from collections.abc import AsyncGenerator
+from types import CoroutineType
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
@@ -23,8 +22,6 @@ from .conftest import asyncio_params
 
 if TYPE_CHECKING:
     from anyio.abc import TaskStatus
-
-get_coro = asyncio.Task.get_coro
 
 
 def test_main_task_name(
@@ -99,34 +96,6 @@ async def test_get_running_tasks() -> None:
         assert task.parent_id == host_task.id
         assert task.name == expected_name
         assert repr(task).endswith(f"TaskInfo(id={task.id}, name={expected_name!r})")
-
-
-@pytest.mark.skipif(
-    sys.version_info >= (3, 11),
-    reason="Generator based coroutines have been removed in Python 3.11",
-)
-@pytest.mark.filterwarnings(
-    'ignore:"@coroutine" decorator is deprecated:DeprecationWarning'
-)
-def test_wait_generator_based_task_blocked(
-    asyncio_event_loop: asyncio.AbstractEventLoop,
-) -> None:
-    async def native_coro_part() -> None:
-        await wait_all_tasks_blocked()
-        gen = cast(GeneratorType, get_coro(gen_task))
-        assert not gen.gi_running
-        coro = cast(CoroutineType, gen.gi_yieldfrom)
-        assert coro.cr_code.co_name == "wait"
-
-        event.set()
-
-    @asyncio.coroutine  # type: ignore[attr-defined, untyped-decorator]
-    def generator_part() -> Generator[object, BaseException, None]:
-        yield from event.wait()  # type: ignore[misc]
-
-    event = asyncio.Event()
-    gen_task: asyncio.Task[None] = asyncio_event_loop.create_task(generator_part())
-    asyncio_event_loop.run_until_complete(native_coro_part())
 
 
 @pytest.mark.parametrize("anyio_backend", asyncio_params)

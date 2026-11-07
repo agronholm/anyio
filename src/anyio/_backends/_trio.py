@@ -18,7 +18,7 @@ from collections.abc import (
     Sequence,
 )
 from contextlib import AbstractContextManager
-from contextvars import Context
+from contextvars import Context, copy_context
 from dataclasses import dataclass
 from functools import partial, wraps
 from io import IOBase
@@ -94,11 +94,7 @@ if TYPE_CHECKING:
 if sys.version_info < (3, 15):
     from typing_extensions import sentinel
 
-if sys.version_info >= (3, 11):
-    from typing import Self, TypeVarTuple, Unpack
-else:
-    from exceptiongroup import BaseExceptionGroup
-    from typing_extensions import Self, TypeVarTuple, Unpack
+from typing import Self, TypeVarTuple, Unpack
 
 T = TypeVar("T")
 T_Retval = TypeVar("T_Retval")
@@ -285,7 +281,7 @@ class TaskGroup(abc.TaskGroup):
     async def start(
         self,
         func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
-        *args: Unpack[PosArgsT],
+        *args: *PosArgsT,
         name: object = None,
         return_handle: Literal[False, True] = False,
     ) -> Any:
@@ -1080,7 +1076,7 @@ class TrioBackend(AsyncBackend):
     def run(
         cls,
         func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
-        args: tuple[Unpack[PosArgsT]],
+        args: tuple[*PosArgsT],
         kwargs: dict[str, Any],
         options: dict[str, Any],
     ) -> T_Retval:
@@ -1155,7 +1151,7 @@ class TrioBackend(AsyncBackend):
     async def run_sync_in_worker_thread(
         cls,
         func: Callable[[Unpack[PosArgsT]], T_Retval],
-        args: tuple[Unpack[PosArgsT]],
+        args: tuple[*PosArgsT],
         abandon_on_cancel: bool = False,
         limiter: BaseCapacityLimiter | None = None,
     ) -> T_Retval:
@@ -1178,7 +1174,7 @@ class TrioBackend(AsyncBackend):
     def run_async_from_thread(
         cls,
         func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
-        args: tuple[Unpack[PosArgsT]],
+        args: tuple[*PosArgsT],
         token: object,
     ) -> T_co:
         trio_token = cast("trio.lowlevel.TrioToken | None", token)
@@ -1191,12 +1187,25 @@ class TrioBackend(AsyncBackend):
     def run_sync_from_thread(
         cls,
         func: Callable[[Unpack[PosArgsT]], T_Retval],
-        args: tuple[Unpack[PosArgsT]],
+        args: tuple[*PosArgsT],
         token: object,
     ) -> T_Retval:
         trio_token = cast("trio.lowlevel.TrioToken | None", token)
         try:
             return trio.from_thread.run_sync(func, *args, trio_token=trio_token)
+        except trio.RunFinishedError:
+            raise RunFinishedError from None
+
+    @classmethod
+    def run_sync_soon(
+        cls,
+        func: Callable[[Unpack[PosArgsT]], object],
+        args: tuple[*PosArgsT],
+        token: object,
+    ) -> None:
+        trio_token = cast("trio.lowlevel.TrioToken", token)
+        try:
+            trio_token.run_sync_soon(copy_context().run, func, *args)
         except trio.RunFinishedError:
             raise RunFinishedError from None
 

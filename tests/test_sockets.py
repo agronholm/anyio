@@ -97,9 +97,6 @@ from anyio.streams.tls import TLSConnectable, TLSStream
 
 from .conftest import asyncio_params, no_other_refs
 
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
-
 if TYPE_CHECKING:
     from _typeshed import FileDescriptorLike
 
