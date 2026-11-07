@@ -454,6 +454,85 @@ async def test_no_spin_on_done_task_in_cancel_scope(mocker: MockerFixture) -> No
     spy.assert_called_once()
 
 
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_no_retry_for_task_with_pending_cancellation(
+    mocker: MockerFixture,
+) -> None:
+    """Regression test for #1258."""
+    from anyio._backends import _asyncio
+
+    # To allow the mocker to override a @final class
+    class EditableCancelScope(_asyncio.CancelScope):
+        pass
+
+    async def owner(
+        started: asyncio.Future[EditableCancelScope], blocker: asyncio.Future[None]
+    ) -> None:
+        scope = EditableCancelScope().__enter__()
+        started.set_result(scope)
+        await blocker
+
+    loop = asyncio.get_running_loop()
+    started: asyncio.Future[EditableCancelScope] = loop.create_future()
+    blocker: asyncio.Future[None] = loop.create_future()
+    task = asyncio.create_task(owner(started, blocker))
+    scope = await started
+    spy = mocker.spy(scope, "_deliver_cancellation")
+
+    # Make the waiter done before cancelling the task so asyncio marks the task
+    # itself for cancellation instead of forwarding cancellation to the waiter.
+    blocker.set_result(None)
+    task.cancel()
+    assert task._must_cancel  # type: ignore[attr-defined]
+
+    scope.cancel()
+    assert scope._cancel_handle is None
+    spy.assert_called_once()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+@pytest.mark.parametrize("wait_on_future", [False, True])
+async def test_caught_native_cancellation_is_redelivered(wait_on_future: bool) -> None:
+    from anyio._backends import _asyncio
+
+    loop = asyncio.get_running_loop()
+    started: asyncio.Future[_asyncio.CancelScope] = loop.create_future()
+    blocker: asyncio.Future[None] = loop.create_future()
+    caught_cancellation = False
+
+    async def owner() -> None:
+        nonlocal caught_cancellation
+        with _asyncio.CancelScope() as scope:
+            started.set_result(scope)
+            try:
+                if wait_on_future:
+                    await blocker
+                else:
+                    await asyncio.sleep(0)
+            except asyncio.CancelledError:
+                caught_cancellation = True
+
+            with pytest.raises(asyncio.CancelledError) as exc:
+                await asyncio.sleep(0)
+                await loop.create_future()
+
+            assert _asyncio.is_anyio_cancellation(exc.value)
+
+    task = asyncio.create_task(owner())
+    scope = await started
+    if wait_on_future:
+        blocker.set_result(None)
+
+    task.cancel()
+    assert task._must_cancel  # type: ignore[attr-defined]
+    scope.cancel()
+    await asyncio.wait_for(task, 1)
+    assert caught_cancellation
+
+
 @pytest.mark.parametrize("return_handle", [False, True])
 async def test_start_exception_delivery(return_handle: bool) -> None:
     def task_fn(*, task_status: TaskStatus[str] = TASK_STATUS_IGNORED) -> None:
