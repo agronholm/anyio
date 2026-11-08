@@ -1,0 +1,2 @@
+Fixed blocking portal calls and ``from_thread.run_sync()`` failing when called
+from a Trio event loop targeting a different Trio event loop in another thread

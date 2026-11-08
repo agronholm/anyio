@@ -272,6 +272,74 @@ class TestRunAsyncFromThread:
 
 
 class TestRunSyncFromThread:
+    @pytest.mark.parametrize("worker_backend", get_available_backends())
+    @pytest.mark.parametrize("explicit_token", [False, True])
+    @pytest.mark.usefixtures("deactivate_blockbuster")
+    async def test_from_async_worker(
+        self, anyio_backend_name: str, worker_backend: str, explicit_token: bool
+    ) -> None:
+        var = ContextVar("var", default=1)
+        token = current_token()
+        target_thread_id = threading.get_ident()
+        error = ValueError("callback failed")
+
+        def callback(value: int) -> int:
+            assert threading.get_ident() == target_thread_id
+            assert current_async_library() == anyio_backend_name
+            assert var.get() == 6
+            return value + 1
+
+        def raise_error() -> NoReturn:
+            raise error
+
+        async def worker() -> None:
+            var.set(6)
+            target_token = token if explicit_token else None
+            assert from_thread.run_sync(callback, 41, token=target_token) == 42
+            with pytest.raises(ValueError) as exc:
+                from_thread.run_sync(raise_error, token=target_token)
+
+            assert exc.value is error
+            assert var.get() == 6
+            assert current_async_library() == worker_backend
+
+        await to_thread.run_sync(lambda: run(worker, backend=worker_backend))
+        assert var.get() == 1
+
+    @pytest.mark.parametrize("anyio_backend", ["trio"])
+    @pytest.mark.usefixtures("deactivate_blockbuster")
+    async def test_async_callable_from_async_worker(self) -> None:
+        token = current_token()
+
+        async def callback() -> None:
+            pass
+
+        async def worker() -> None:
+            with pytest.raises(TypeError, match="expected a synchronous function"):
+                _ = from_thread.run_sync(callback, token=token)
+
+        await to_thread.run_sync(lambda: run(worker, backend="trio"))
+
+    @pytest.mark.parametrize("anyio_backend", ["trio"])
+    async def test_from_same_event_loop(self) -> None:
+        callback = Mock()
+        with pytest.raises(RuntimeError, match="call it from a thread"):
+            from_thread.run_sync(callback, token=current_token())
+
+        callback.assert_not_called()
+
+    @pytest.mark.usefixtures("deactivate_blockbuster")
+    async def test_closed_event_loop_from_async(self) -> None:
+        async def get_token() -> EventLoopToken:
+            return current_token()
+
+        token = await to_thread.run_sync(lambda: run(get_token, backend="trio"))
+        callback = Mock()
+        with pytest.raises(RunFinishedError):
+            from_thread.run_sync(callback, token=token)
+
+        callback.assert_not_called()
+
     async def test_run_sync_from_unclaimed_thread(self) -> None:
         def external_thread() -> int:
             from_thread.run_sync(event.set, token=token)
@@ -1034,9 +1102,6 @@ class TestBlockingPortal:
         https://github.com/agronholm/anyio/pull/524#discussion_r1183080886.
 
         """
-        if anyio_backend_name == "trio" and portal_backend_name == "trio":
-            pytest.xfail("known bug (#525)")
-
         with start_blocking_portal(portal_backend_name) as portal:
             portal.call(checkpoint)
 
