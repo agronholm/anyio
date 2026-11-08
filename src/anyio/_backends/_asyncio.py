@@ -1325,12 +1325,13 @@ class SocketStream(abc.SocketStream):
             else:
                 await AsyncIOBackend.checkpoint()
 
+            if self._closed:
+                raise ClosedResourceError
+
             try:
                 chunk = self._protocol.read_queue.popleft()
             except IndexError:
-                if self._closed:
-                    raise ClosedResourceError from None
-                elif self._protocol.exception:
+                if self._protocol.exception:
                     raise BrokenResourceError from self._protocol.exception
                 else:
                     raise EndOfStream from None
@@ -1387,6 +1388,7 @@ class SocketStream(abc.SocketStream):
 
     async def aclose(self) -> None:
         self._closed = True
+        self._protocol.read_queue.clear()
         self._transport.abort()
         await AsyncIOBackend.checkpoint()
 
