@@ -306,6 +306,9 @@ class TestRunSyncFromThread:
         await to_thread.run_sync(lambda: run(worker, backend=worker_backend))
         assert var.get() == 1
 
+    @pytest.mark.skipif(
+        "trio" not in get_available_backends(), reason="Trio is not installed"
+    )
     @pytest.mark.parametrize("anyio_backend", ["trio"])
     @pytest.mark.usefixtures("deactivate_blockbuster")
     async def test_async_callable_from_async_worker(self) -> None:
@@ -320,6 +323,9 @@ class TestRunSyncFromThread:
 
         await to_thread.run_sync(lambda: run(worker, backend="trio"))
 
+    @pytest.mark.skipif(
+        "trio" not in get_available_backends(), reason="Trio is not installed"
+    )
     @pytest.mark.parametrize("anyio_backend", ["trio"])
     async def test_from_same_event_loop(self) -> None:
         callback = Mock()
@@ -328,6 +334,9 @@ class TestRunSyncFromThread:
 
         callback.assert_not_called()
 
+    @pytest.mark.skipif(
+        "trio" not in get_available_backends(), reason="Trio is not installed"
+    )
     @pytest.mark.usefixtures("deactivate_blockbuster")
     async def test_closed_event_loop_from_async(self) -> None:
         async def get_token() -> EventLoopToken:
