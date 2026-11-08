@@ -1,1 +1,2 @@
-Fixed inspecting a task handle after its task finished outside an event loop, or from a different backend, raising `NoEventLoopError` or reporting a cancellation as failure.
+Fixed inspecting a task handle after its task finished outside an event loop, or from a
+different backend, raising ``NoEventLoopError`` or reporting a cancellation as failure.
