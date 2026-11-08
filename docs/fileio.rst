@@ -39,9 +39,6 @@ with the original in a number of ways:
 * Methods and properties from the Python 3.10 API are available on all versions
 * Use as a context manager is not supported, as it is deprecated in pathlib
 
-On Python 3.12 and later, :meth:`Path.match` accepts the ``case_sensitive`` keyword
-argument to override the platform's default case sensitivity.
-
 For example, to create a file with binary content:
 
 .. literalinclude:: snippets/fileio/path_write_bytes.py
