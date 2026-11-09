@@ -182,6 +182,16 @@ def test_dir() -> None:
     assert "AsyncBackend" in dir(anyio.abc)
 
 
+def test_dir_includes_lazy_submodules_and_deprecated_aliases() -> None:
+    # __getattr__ resolves these, so dir() must list them too
+    for name in SUBMODULES:
+        assert name in dir(anyio)
+
+    for old_name in DEPRECATIONS:
+        module_name, attrname = old_name.rsplit(".", 1)
+        assert attrname in dir(sys.modules[module_name])
+
+
 def test_deprecations() -> None:
     for old_name, new_name in DEPRECATIONS.items():
         module_name, attrname = old_name.rsplit(".", 1)
