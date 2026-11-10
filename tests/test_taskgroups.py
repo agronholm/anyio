@@ -2383,12 +2383,9 @@ class TestCreateTask:
                 pytest.RaisesExc(RuntimeError, match="dummy error")
             ):
                 async with create_task_group() as tg:
+                    cancelled = tg.start_soon(sleep_forever)
+                    await wait_all_tasks_blocked()
                     failed = tg.create_task(taskfunc())
-
-            async with create_task_group() as tg:
-                cancelled = tg.start_soon(sleep_forever)
-                await wait_all_tasks_blocked()
-                tg.cancel_scope.cancel()
 
         anyio.run(
             main, backend=anyio_backend_name, backend_options=anyio_backend_options
