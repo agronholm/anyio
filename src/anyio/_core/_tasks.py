@@ -285,6 +285,7 @@ class TaskHandle(Generic[T_co, T_startval_co]):
     __slots__ = (
         "__weakref__",
         "_cancel_scope",
+        "_cancelled_exc_class",
         "_coro",
         "_exception",
         "_finished_event",
@@ -318,6 +319,7 @@ class TaskHandle(Generic[T_co, T_startval_co]):
 
     async def _run_coro(self) -> None:
         __tracebackhide__ = True
+        self._cancelled_exc_class = get_cancelled_exc_class()
 
         with self._cancel_scope:
             try:
@@ -371,7 +373,7 @@ class TaskHandle(Generic[T_co, T_startval_co]):
             else:
                 return TaskHandle.Status.PENDING
         elif self._exception is not None:
-            if isinstance(self._exception, get_cancelled_exc_class()):
+            if isinstance(self._exception, self._cancelled_exc_class):
                 return TaskHandle.Status.CANCELLED
             else:
                 return TaskHandle.Status.FAILED

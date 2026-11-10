@@ -2368,6 +2368,35 @@ class TestCreateTask:
                 main, backend=anyio_backend_name, backend_options=anyio_backend_options
             )
 
+    def test_inspect_finished_handles_outside_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        failed: TaskHandle[Any] | None = None
+        cancelled: TaskHandle[Any] | None = None
+
+        async def taskfunc() -> NoReturn:
+            raise RuntimeError("dummy error")
+
+        async def main() -> None:
+            nonlocal failed, cancelled
+            with pytest.RaisesGroup(
+                pytest.RaisesExc(RuntimeError, match="dummy error")
+            ):
+                async with create_task_group() as tg:
+                    cancelled = tg.start_soon(sleep_forever)
+                    await wait_all_tasks_blocked()
+                    failed = tg.create_task(taskfunc())
+
+        anyio.run(
+            main, backend=anyio_backend_name, backend_options=anyio_backend_options
+        )
+
+        assert failed is not None
+        assert failed.status is TaskHandle.Status.FAILED
+        assert isinstance(failed.exception, RuntimeError)
+        assert cancelled is not None
+        assert cancelled.status is TaskHandle.Status.CANCELLED
+
     @pytest.mark.parametrize("wait_until_running", [True, False])
     async def test_cancel(self, wait_until_running: bool) -> None:
         """
