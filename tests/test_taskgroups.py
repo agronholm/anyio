@@ -32,7 +32,6 @@ from anyio import (
     current_time,
     fail_after,
     fail_at,
-    get_available_backends,
     get_cancelled_exc_class,
     get_current_task,
     move_on_after,
@@ -2369,58 +2368,37 @@ class TestCreateTask:
                 main, backend=anyio_backend_name, backend_options=anyio_backend_options
             )
 
-    def test_inspect_failed_handle_outside_event_loop(
+    def test_inspect_finished_handles_outside_event_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
-        handle: TaskHandle[Any] | None = None
+        failed: TaskHandle[Any] | None = None
+        cancelled: TaskHandle[Any] | None = None
 
         async def taskfunc() -> NoReturn:
             raise RuntimeError("dummy error")
 
         async def main() -> None:
-            nonlocal handle
+            nonlocal failed, cancelled
             with pytest.RaisesGroup(
                 pytest.RaisesExc(RuntimeError, match="dummy error")
             ):
                 async with create_task_group() as tg:
-                    handle = tg.create_task(taskfunc())
+                    failed = tg.create_task(taskfunc())
+
+            async with create_task_group() as tg:
+                cancelled = tg.start_soon(sleep_forever)
+                await wait_all_tasks_blocked()
+                tg.cancel_scope.cancel()
 
         anyio.run(
             main, backend=anyio_backend_name, backend_options=anyio_backend_options
         )
 
-        assert handle is not None
-        assert handle.status is TaskHandle.Status.FAILED
-        assert isinstance(handle.exception, RuntimeError)
-
-    def test_inspect_cancelled_handle_from_other_backend(
-        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
-    ) -> None:
-        pytest.importorskip("trio", reason="trio is not available")
-
-        async def main() -> TaskHandle[None]:
-            async with create_task_group() as tg:
-                handle = tg.start_soon(sleep_forever)
-                await wait_all_tasks_blocked()
-                tg.cancel_scope.cancel()
-
-            return handle
-
-        handle = anyio.run(
-            main, backend=anyio_backend_name, backend_options=anyio_backend_options
-        )
-        reader_backends = [
-            backend
-            for backend in get_available_backends()
-            if backend != anyio_backend_name
-        ]
-        if not reader_backends:
-            pytest.skip("no other backend is available")
-
-        async def inspect() -> None:
-            assert handle.status is TaskHandle.Status.CANCELLED
-
-        anyio.run(inspect, backend=reader_backends[0])
+        assert failed is not None
+        assert failed.status is TaskHandle.Status.FAILED
+        assert isinstance(failed.exception, RuntimeError)
+        assert cancelled is not None
+        assert cancelled.status is TaskHandle.Status.CANCELLED
 
     @pytest.mark.parametrize("wait_until_running", [True, False])
     async def test_cancel(self, wait_until_running: bool) -> None:
