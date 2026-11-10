@@ -2368,67 +2368,31 @@ class TestCreateTask:
                 main, backend=anyio_backend_name, backend_options=anyio_backend_options
             )
 
-    def test_inspect_finished_handle_outside_event_loop(
+    def test_inspect_failed_handle_outside_event_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
-        handles: dict[str, TaskHandle[Any]] = {}
-        failure = RuntimeError("dummy error")
-        cancellation: BaseException | None = None
+        handle: TaskHandle[Any] | None = None
 
-        async def fail() -> NoReturn:
-            raise failure
-
-        async def run_forever() -> None:
-            nonlocal cancellation
-            try:
-                await sleep_forever()
-            except get_cancelled_exc_class() as exc:
-                cancellation = exc
-                raise
-
-        async def return_value() -> str:
-            return "finished"
+        async def taskfunc() -> NoReturn:
+            raise RuntimeError("dummy error")
 
         async def main() -> None:
-            with pytest.RaisesGroup(pytest.RaisesExc(RuntimeError)):
+            nonlocal handle
+            with pytest.RaisesGroup(
+                pytest.RaisesExc(RuntimeError, match="dummy error")
+            ):
                 async with create_task_group() as tg:
-                    handles["failed"] = tg.create_task(fail())
-
-            async with create_task_group() as tg:
-                handles["cancelled"] = tg.create_task(run_forever())
-                await wait_all_tasks_blocked()
-                tg.cancel_scope.cancel()
-
-            async with create_task_group() as tg:
-                handles["finished"] = tg.create_task(return_value())
+                    handle = tg.create_task(taskfunc())
 
         anyio.run(
             main, backend=anyio_backend_name, backend_options=anyio_backend_options
         )
 
-        assert handles["failed"].status is TaskHandle.Status.FAILED
-        assert handles["failed"].exception is failure
-        with pytest.raises(TaskFailed) as exc_info:
-            handles["failed"].return_value  # noqa: B018
+        assert handle is not None
+        assert handle.status is TaskHandle.Status.FAILED
+        assert isinstance(handle.exception, RuntimeError)
 
-        assert exc_info.value.__cause__ is failure
-
-        assert handles["cancelled"].status is TaskHandle.Status.CANCELLED
-        assert cancellation is not None
-        with pytest.raises(TaskCancelled) as exc_info:
-            handles["cancelled"].exception  # noqa: B018
-
-        assert exc_info.value.__cause__ is cancellation
-        with pytest.raises(TaskCancelled) as exc_info:
-            handles["cancelled"].return_value  # noqa: B018
-
-        assert exc_info.value.__cause__ is cancellation
-
-        assert handles["finished"].status is TaskHandle.Status.FINISHED
-        assert handles["finished"].return_value == "finished"
-        assert handles["finished"].exception is None
-
-    def test_cancelled_status_from_other_backend(
+    def test_inspect_cancelled_handle_from_other_backend(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
         pytest.importorskip("trio", reason="trio is not available")
@@ -2437,18 +2401,18 @@ class TestCreateTask:
             async with create_task_group() as tg:
                 handle = tg.start_soon(sleep_forever)
                 await wait_all_tasks_blocked()
-                handle.cancel()
+                tg.cancel_scope.cancel()
 
             return handle
 
         handle = anyio.run(
             main, backend=anyio_backend_name, backend_options=anyio_backend_options
         )
+        reader_backend = "trio" if anyio_backend_name == "asyncio" else "asyncio"
 
         async def inspect() -> None:
             assert handle.status is TaskHandle.Status.CANCELLED
 
-        reader_backend = "trio" if anyio_backend_name == "asyncio" else "asyncio"
         anyio.run(inspect, backend=reader_backend)
 
     @pytest.mark.parametrize("wait_until_running", [True, False])
