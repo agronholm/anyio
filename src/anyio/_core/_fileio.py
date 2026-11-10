@@ -21,6 +21,7 @@ from typing import (
     ClassVar,
     Final,
     Generic,
+    Self,
     TypeVar,
     overload,
 )
@@ -29,11 +30,6 @@ from .. import to_thread
 from ..abc import AsyncResource
 from ._synchronization import CapacityLimiter
 from ._tasks import CancelScope
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
 
 if sys.version_info >= (3, 14):
     from pathlib.types import PathInfo

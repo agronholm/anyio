@@ -26,7 +26,10 @@ from types import TracebackType
 from typing import (
     Any,
     Generic,
+    Self,
     TypeVar,
+    TypeVarTuple,
+    Unpack,
     cast,
     overload,
 )
@@ -41,11 +44,6 @@ from ._core._synchronization import Event
 from ._core._tasks import CancelScope, create_task_group
 from .abc._tasks import TaskStatus
 from .lowlevel import EventLoopToken, current_token
-
-if sys.version_info >= (3, 11):
-    from typing import Self, TypeVarTuple, Unpack
-else:
-    from typing_extensions import Self, TypeVarTuple, Unpack
 
 T_Retval = TypeVar("T_Retval")
 T_co = TypeVar("T_co", covariant=True)
@@ -67,7 +65,7 @@ def _token_or_error(token: EventLoopToken | None) -> EventLoopToken:
 
 def run(
     func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
-    *args: Unpack[PosArgsT],
+    *args: *PosArgsT,
     token: EventLoopToken | None = None,
 ) -> T_co:
     """
@@ -95,7 +93,7 @@ def run(
 
 def run_sync(
     func: Callable[[Unpack[PosArgsT]], T_Retval],
-    *args: Unpack[PosArgsT],
+    *args: *PosArgsT,
     token: EventLoopToken | None = None,
 ) -> T_Retval:
     """
@@ -242,7 +240,7 @@ class BlockingPortal:
     async def _call_func(
         self,
         func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
-        args: tuple[Unpack[PosArgsT]],
+        args: tuple[*PosArgsT],
         kwargs: dict[str, Any],
         future: Future[T_Retval],
     ) -> None:
@@ -291,7 +289,7 @@ class BlockingPortal:
     def _spawn_task_from_thread(
         self,
         func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
-        args: tuple[Unpack[PosArgsT]],
+        args: tuple[*PosArgsT],
         kwargs: dict[str, Any],
         name: object,
         future: Future[T_Retval],
@@ -321,18 +319,18 @@ class BlockingPortal:
     def call(
         self,
         func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
-        *args: Unpack[PosArgsT],
+        *args: *PosArgsT,
     ) -> T_Retval: ...
 
     @overload
     def call(
-        self, func: Callable[[Unpack[PosArgsT]], T_Retval], *args: Unpack[PosArgsT]
+        self, func: Callable[[Unpack[PosArgsT]], T_Retval], *args: *PosArgsT
     ) -> T_Retval: ...
 
     def call(
         self,
         func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
-        *args: Unpack[PosArgsT],
+        *args: *PosArgsT,
     ) -> T_Retval:
         """
         Call the given function in the event loop thread.
@@ -350,7 +348,7 @@ class BlockingPortal:
     async def call_async(
         self,
         func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
-        *args: Unpack[PosArgsT],
+        *args: *PosArgsT,
         abandon_on_cancel: bool = False,
     ) -> T_Retval: ...
 
@@ -358,14 +356,14 @@ class BlockingPortal:
     async def call_async(
         self,
         func: Callable[[Unpack[PosArgsT]], T_Retval],
-        *args: Unpack[PosArgsT],
+        *args: *PosArgsT,
         abandon_on_cancel: bool = False,
     ) -> T_Retval: ...
 
     async def call_async(
         self,
         func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
-        *args: Unpack[PosArgsT],
+        *args: *PosArgsT,
         abandon_on_cancel: bool = False,
     ) -> T_Retval:
         """
@@ -444,7 +442,7 @@ class BlockingPortal:
     def start_task_soon(
         self,
         func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
-        *args: Unpack[PosArgsT],
+        *args: *PosArgsT,
         name: object = None,
     ) -> Future[T_Retval]: ...
 
@@ -452,14 +450,14 @@ class BlockingPortal:
     def start_task_soon(
         self,
         func: Callable[[Unpack[PosArgsT]], T_Retval],
-        *args: Unpack[PosArgsT],
+        *args: *PosArgsT,
         name: object = None,
     ) -> Future[T_Retval]: ...
 
     def start_task_soon(
         self,
         func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
-        *args: Unpack[PosArgsT],
+        *args: *PosArgsT,
         name: object = None,
     ) -> Future[T_Retval]:
         """

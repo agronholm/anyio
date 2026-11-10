@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-import sys
 from collections.abc import Generator
 from textwrap import dedent
 from typing import Any
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import BaseExceptionGroup
 
 
 class BrokenResourceError(Exception):
