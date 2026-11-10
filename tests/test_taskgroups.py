@@ -32,6 +32,7 @@ from anyio import (
     current_time,
     fail_after,
     fail_at,
+    get_available_backends,
     get_cancelled_exc_class,
     get_current_task,
     move_on_after,
@@ -2408,12 +2409,18 @@ class TestCreateTask:
         handle = anyio.run(
             main, backend=anyio_backend_name, backend_options=anyio_backend_options
         )
-        reader_backend = "trio" if anyio_backend_name == "asyncio" else "asyncio"
+        reader_backends = [
+            backend
+            for backend in get_available_backends()
+            if backend != anyio_backend_name
+        ]
+        if not reader_backends:
+            pytest.skip("no other backend is available")
 
         async def inspect() -> None:
             assert handle.status is TaskHandle.Status.CANCELLED
 
-        anyio.run(inspect, backend=reader_backend)
+        anyio.run(inspect, backend=reader_backends[0])
 
     @pytest.mark.parametrize("wait_until_running", [True, False])
     async def test_cancel(self, wait_until_running: bool) -> None:
