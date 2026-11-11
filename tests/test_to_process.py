@@ -6,6 +6,7 @@ import sys
 import time
 from functools import partial
 from pathlib import Path
+from traceback import format_exception
 from typing import NoReturn
 from unittest.mock import Mock
 
@@ -22,11 +23,6 @@ from anyio import (
     wait_all_tasks_blocked,
 )
 from anyio.abc import Process
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup, format_exception
-else:
-    from traceback import format_exception
 
 
 def raise_worker_error(mode: str) -> None:

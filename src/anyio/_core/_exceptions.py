@@ -1,14 +1,9 @@
 from __future__ import annotations
 
-import sys
 from collections.abc import Callable, Generator
 from textwrap import dedent
+from traceback import format_exception
 from typing import Any
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import BaseExceptionGroup, format_exception
-else:
-    from traceback import format_exception
 
 
 class _RemoteTraceback(Exception):

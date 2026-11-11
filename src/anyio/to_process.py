@@ -14,7 +14,7 @@ import sys
 from collections import deque
 from collections.abc import Callable
 from types import ModuleType
-from typing import TypeVar, cast
+from typing import TypeVar, TypeVarTuple, Unpack, cast
 
 from ._core._eventloop import current_time, get_async_backend, get_cancelled_exc_class
 from ._core._exceptions import BrokenWorkerProcess, _ExceptionWithTraceback
@@ -24,11 +24,6 @@ from ._core._tasks import CancelScope, fail_after
 from .abc import ByteReceiveStream, ByteSendStream, Process
 from .lowlevel import RunVar, checkpoint_if_cancelled
 from .streams.buffered import BufferedByteReceiveStream
-
-if sys.version_info >= (3, 11):
-    from typing import TypeVarTuple, Unpack
-else:
-    from typing_extensions import TypeVarTuple, Unpack
 
 WORKER_MAX_IDLE_TIME = 300  # 5 minutes
 
@@ -44,7 +39,7 @@ _default_process_limiter: RunVar[CapacityLimiter] = RunVar("_default_process_lim
 
 async def run_sync(  # type: ignore[return]
     func: Callable[[Unpack[PosArgsT]], T_Retval],
-    *args: Unpack[PosArgsT],
+    *args: *PosArgsT,
     cancellable: bool = False,
     limiter: CapacityLimiter | None = None,
 ) -> T_Retval:

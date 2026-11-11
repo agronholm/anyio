@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 from importlib.metadata import version as get_version
+from pathlib import Path
 
 from packaging.version import parse
+from sphinx.application import Sphinx
 
 extensions = [
     "sphinx.ext.autodoc",
@@ -47,3 +51,27 @@ html_theme = "sphinx_rtd_theme"
 htmlhelp_basename = "anyiodoc"
 
 intersphinx_mapping = {"python": ("https://docs.python.org/3/", None)}
+
+project_root = Path(__file__).parent.parent
+towncrier_marker = ".. towncrier release notes start\n"
+
+
+def insert_unreleased_changes(app: Sphinx, docname: str, source: list[str]) -> None:
+    # Render the pending news fragments into the version history as a draft
+    if docname == "versionhistory" and any(
+        path.name != "template.rst.j2"
+        for path in project_root.joinpath("changelog.d").iterdir()
+    ):
+        draft = subprocess.run(
+            [sys.executable, "-m", "towncrier", "build", "--draft"]
+            + ["--version", "UNRELEASED"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        source[0] = source[0].replace(towncrier_marker, f"{draft}\n")
+
+
+def setup(app: Sphinx) -> None:
+    app.connect("source-read", insert_unreleased_changes)

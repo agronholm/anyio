@@ -5,7 +5,6 @@ __all__ = (
     "run_sync",
 )
 
-import sys
 from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeVar
 from warnings import warn
@@ -15,10 +14,7 @@ from ._core._eventloop import get_async_backend
 if TYPE_CHECKING:
     from ._core._synchronization import CapacityLimiter
 
-if sys.version_info >= (3, 11):
-    from typing import TypeVarTuple, Unpack
-else:
-    from typing_extensions import TypeVarTuple, Unpack
+from typing import TypeVarTuple, Unpack
 
 T_Retval = TypeVar("T_Retval")
 PosArgsT = TypeVarTuple("PosArgsT")
@@ -26,7 +22,7 @@ PosArgsT = TypeVarTuple("PosArgsT")
 
 async def run_sync(
     func: Callable[[Unpack[PosArgsT]], T_Retval],
-    *args: Unpack[PosArgsT],
+    *args: *PosArgsT,
     abandon_on_cancel: bool = False,
     cancellable: bool | None = None,
     limiter: CapacityLimiter | None = None,

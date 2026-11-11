@@ -7,7 +7,7 @@ import re
 import sys
 import time
 from asyncio import CancelledError
-from collections.abc import AsyncGenerator, Coroutine, Generator
+from collections.abc import AsyncGenerator, Coroutine
 from contextlib import aclosing
 from contextvars import ContextVar, copy_context
 from inspect import CORO_CLOSED, getcoroutinestate
@@ -46,9 +46,6 @@ from .conftest import asyncio_params, no_other_refs
 
 if TYPE_CHECKING:
     from anyio.abc import TaskGroup, TaskStatus
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import BaseExceptionGroup, ExceptionGroup
 
 
 async def async_error(text: str, delay: float = 0.1) -> NoReturn:
@@ -1435,57 +1432,6 @@ async def test_escaping_cancelled_error_from_cancelled_task() -> None:
         scope.cancel()
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 11),
-    reason="Generator based coroutines have been removed in Python 3.11",
-)
-@pytest.mark.filterwarnings(
-    'ignore:"@coroutine" decorator is deprecated:DeprecationWarning'
-)
-def test_cancel_generator_based_task() -> None:
-    async def native_coro_part() -> None:
-        with CancelScope() as scope:
-            asyncio.get_running_loop().call_soon(scope.cancel)
-            await asyncio.sleep(1)
-            pytest.fail("Execution should not have reached this line")
-
-    @asyncio.coroutine  # type: ignore[attr-defined, untyped-decorator]
-    def generator_part() -> Generator[object, BaseException, None]:
-        yield from native_coro_part()  # type: ignore[misc]
-
-    anyio.run(generator_part, backend="asyncio")
-
-
-@pytest.mark.skipif(
-    sys.version_info >= (3, 11),
-    reason="Generator based coroutines have been removed in Python 3.11",
-)
-@pytest.mark.filterwarnings(
-    'ignore:"@coroutine" decorator is deprecated:DeprecationWarning'
-)
-@pytest.mark.parametrize("anyio_backend", asyncio_params)
-async def test_schedule_old_style_coroutine_func() -> None:
-    """
-    Test that we give a sensible error when a user tries to spawn a task from a
-    generator-style coroutine function.
-    """
-
-    @asyncio.coroutine  # type: ignore[attr-defined, untyped-decorator]
-    def corofunc() -> Generator[Any, Any, None]:
-        yield from asyncio.sleep(1)  # type: ignore[misc]
-
-    async with create_task_group() as tg:
-        funcname = (
-            f"{__name__}.test_schedule_old_style_coroutine_func.<locals>.corofunc"
-        )
-        with pytest.raises(
-            TypeError,
-            match=f"Expected {funcname}\\(\\) to return a coroutine, but the return "
-            f"value \\(<generator .+>\\) is not a coroutine object",
-        ):
-            tg.start_soon(corofunc)
-
-
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
 async def test_cancel_native_future_tasks() -> None:
     async def wait_native_future() -> None:
@@ -1682,10 +1628,6 @@ async def test_start_parent_id() -> None:
     assert permanent_parent_id == root_task_id
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 11),
-    reason="Task uncancelling is only supported on Python 3.11",
-)
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
 class TestUncancel:
     async def test_uncancel_after_native_cancel(self) -> None:
@@ -1714,6 +1656,72 @@ class TestUncancel:
 
         assert task.cancelling() == 1
         task.uncancel()
+
+    async def test_native_cancel_after_scope_cancel_same_cycle(self) -> None:
+        """
+        Test that a native cancellation which lands after the scope has already
+        cancelled the host task, but before the task runs again, is not swallowed
+        by the scope along with its own cancellation (#1214).
+
+        """
+        task = cast(asyncio.Task, asyncio.current_task())
+        task.cancel()
+        try:
+            await checkpoint()
+        except asyncio.CancelledError:
+            pass
+
+        with pytest.raises(asyncio.CancelledError), CancelScope() as scope:
+            scope.cancel()
+            asyncio.get_running_loop().call_soon(task.cancel)
+            await sleep_forever()
+
+        assert not scope.cancelled_caught
+        assert task.uncancel() == 1
+        assert task.uncancel() == 0
+
+    async def test_native_cancel_after_scope_cancel_same_cycle_group(self) -> None:
+        """
+        Same as above, but with the cancellation exception wrapped in an exception
+        group.
+
+        """
+        task = cast(asyncio.Task, asyncio.current_task())
+        with pytest.RaisesGroup(asyncio.CancelledError), CancelScope() as scope:
+            scope.cancel()
+            asyncio.get_running_loop().call_soon(task.cancel)
+            try:
+                await sleep_forever()
+            except asyncio.CancelledError as exc:
+                raise BaseExceptionGroup("", [exc]) from None
+
+        assert not scope.cancelled_caught
+        assert task.cancelling() == 1
+        task.uncancel()
+
+    async def test_native_cancel_after_scope_cancel_task_cancelled(self) -> None:
+        """
+        Test that a task whose cancel scope's deadline and a native cancellation are
+        both delivered in the same event loop iteration ends up cancelled, rather than
+        continuing as if only the deadline had expired (#1214).
+
+        """
+
+        async def taskfunc() -> None:
+            task = cast(asyncio.Task, asyncio.current_task())
+            with move_on_after(0):
+                # The scope's cancellation is already queued, so this one lands right
+                # after it, before the task gets to run again
+                asyncio.get_running_loop().call_soon(task.cancel)
+                await sleep_forever()
+
+            pytest.fail("The native cancellation was swallowed")
+
+        task = asyncio.get_running_loop().create_task(taskfunc())
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        assert task.cancelled()
 
     async def test_cancel_message_replaced(self) -> None:
         task = asyncio.current_task()
@@ -2360,6 +2368,35 @@ class TestCreateTask:
                 main, backend=anyio_backend_name, backend_options=anyio_backend_options
             )
 
+    def test_inspect_finished_handles_outside_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        failed: TaskHandle[Any] | None = None
+        cancelled: TaskHandle[Any] | None = None
+
+        async def taskfunc() -> NoReturn:
+            raise RuntimeError("dummy error")
+
+        async def main() -> None:
+            nonlocal failed, cancelled
+            with pytest.RaisesGroup(
+                pytest.RaisesExc(RuntimeError, match="dummy error")
+            ):
+                async with create_task_group() as tg:
+                    cancelled = tg.start_soon(sleep_forever)
+                    await wait_all_tasks_blocked()
+                    failed = tg.create_task(taskfunc())
+
+        anyio.run(
+            main, backend=anyio_backend_name, backend_options=anyio_backend_options
+        )
+
+        assert failed is not None
+        assert failed.status is TaskHandle.Status.FAILED
+        assert isinstance(failed.exception, RuntimeError)
+        assert cancelled is not None
+        assert cancelled.status is TaskHandle.Status.CANCELLED
+
     @pytest.mark.parametrize("wait_until_running", [True, False])
     async def test_cancel(self, wait_until_running: bool) -> None:
         """
@@ -2508,3 +2545,15 @@ async def test_task_from_asyncgen_asend(create_task: bool) -> None:
         assert handle.name == "async_generator.asend"
 
         assert await handle == 8
+
+
+async def test_nan_deadline_rejected() -> None:
+    """A NaN deadline raises ValueError on all backends."""
+    with pytest.raises(ValueError, match="deadline must not be NaN"):
+        CancelScope(deadline=math.nan)
+
+
+async def test_nan_deadline_setter_rejected() -> None:
+    """Assigning a NaN deadline raises ValueError on all backends."""
+    with pytest.raises(ValueError, match="deadline must not be NaN"):
+        CancelScope().deadline = math.nan

@@ -12,10 +12,7 @@ if sys.version_info >= (3, 13):
 else:
     from typing_extensions import TypeVar
 
-if sys.version_info >= (3, 11):
-    from typing import TypeVarTuple, Unpack
-else:
-    from typing_extensions import TypeVarTuple, Unpack
+from typing import TypeVarTuple, Unpack
 
 if TYPE_CHECKING:
     from .._core._tasks import CancelScope, TaskHandle
@@ -50,7 +47,7 @@ def get_callable_name(func: Callable, override: object = None) -> str:
 
 def call_for_coroutine(
     func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
-    args: tuple[Unpack[PosArgsT]],
+    args: tuple[*PosArgsT],
     **kwargs: Any,
 ) -> Coroutine[Any, Any, T_co]:
     """
@@ -138,7 +135,7 @@ class TaskGroup(metaclass=ABCMeta):
     def start_soon(
         self,
         func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
-        *args: Unpack[PosArgsT],
+        *args: *PosArgsT,
         name: object = None,
     ) -> TaskHandle[T_co]:
         """

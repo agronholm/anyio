@@ -46,60 +46,15 @@ This mechanism is called *edge cancellation*.
 
 The most common problem with edge cancellation is that if the task catches the :exc:`~asyncio.CancelledError` (which
 often happens by accident when the user code has a ``except BaseException:`` block and doesn't re-raise the exception),
-then no further action is taken, and the task keeps happily running until it is explicitly cancelled again::
+then no further action is taken, and the task keeps happily running until it is explicitly cancelled again:
 
-    import asyncio
-
-
-    async def sleeper():
-        try:
-            await asyncio.sleep(1)
-        except BaseException:
-            pass  # the first cancellation is caught here
-
-        # This call will never return unless the task is cancelled again
-        await asyncio.sleep(float("inf"))
-
-    async def main():
-        async with asyncio.TaskGroup() as tg:
-            task = tg.create_task(sleeper())
-            await asyncio.sleep(0)  # ensure that the task reaches the first sleep()
-            task.cancel()
-
-        print("done")
-
-    # Execution hangs
-    asyncio.run(main())
+.. literalinclude:: snippets/why/asyncio_edge_cancellation.py
 
 Another issue is that if a task that has already been scheduled to resume with a value (that is, the ``await`` is about
 to yield a result) is cancelled, a :exc:`~asyncio.CancelledError` will instead be raised in the task's coroutine when it
-resumes, thus potentially causing the awaitable result to be lost, even if the task catches the exception::
+resumes, thus potentially causing the awaitable result to be lost, even if the task catches the exception:
 
-    import asyncio
-
-
-    async def receive(f):
-        print(await f)
-        await asyncio.sleep(1)
-        print("The task will be cancelled before this is printed")
-
-
-    async def main():
-        f = asyncio.get_running_loop().create_future()
-        task = asyncio.create_task(receive(f))
-        await asyncio.sleep(0)  # make sure the task has started
-        f.set_result("hello")
-        task.cancel()
-
-        # The "hello" result is lost due to the cancellation
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
-
-
-    # No output
-    asyncio.run(main())
+.. literalinclude:: snippets/why/asyncio_lost_result.py
 
 Similarly, if a newly created task is cancelled, its coroutine function may never get to run and thus react to the
 cancellation. While the :external+python:doc:`asyncio documentation <library/asyncio-task>` claims that:
@@ -109,33 +64,9 @@ cancellation. While the :external+python:doc:`asyncio documentation <library/asy
 
 This is simply **not true** for tasks that are cancelled before they have had a chance to start! This is problematic in
 cases where the newly launched task is responsible for managing a resource. If the task is cancelled without getting to
-handle the :exc:`~asyncio.CancelledError`, it won't have a chance to close the managed resource::
+handle the :exc:`~asyncio.CancelledError`, it won't have a chance to close the managed resource:
 
-    import asyncio
-
-
-    class Resource:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc_val, exc_tb):
-            # Here would be the code that cleanly closes the resource
-            print("closed")
-
-
-    async def handle_resource(resource):
-        async with resource:
-            ...
-
-
-    async def main():
-        async with asyncio.TaskGroup() as tg:
-            task = tg.create_task(handle_resource(Resource()))
-            task.cancel()
-
-
-    # No output
-    asyncio.run(main())
+.. literalinclude:: snippets/why/asyncio_cancel_before_start.py
 
 .. note:: :func:`Eager task factories <asyncio.eager_task_factory>` and, likewise, tasks started with
    ``eager_start=True`` do not suffer from this particular issue, as there is no opportunity to cancel the task before
@@ -150,50 +81,14 @@ a way that the cancellation of the task awaiting on it will not propagate to the
 The trouble with this is that if the host task (the task that awaits for the shielded operation to complete) **is**
 cancelled, the shielded task is orphaned. If the shielded task then raises an exception, only a warning might be printed
 on the console, but the exception will not propagate anywhere. Worse yet, since asyncio only holds weak references to
-each task, there is nothing preventing the shielded task from being garbage collected, mid-execution::
+each task, there is nothing preventing the shielded task from being garbage collected, mid-execution:
 
-    import asyncio
-    import gc
-
-
-    async def shielded_task():
-        fut = asyncio.get_running_loop().create_future()
-        await fut
-
-
-    async def host_task():
-        await asyncio.shield(shielded_task())
-
-
-    async def main():
-        async with asyncio.TaskGroup() as tg:
-            task = tg.create_task(host_task())
-            await asyncio.sleep(0)  # allow the host task to start
-            task.cancel()
-            await asyncio.sleep(0)  # allow the cancellation to take effect on the host task
-            gc.collect()
-
-    # Prints warning: Task was destroyed but it is pending!
-    asyncio.run(main())
+.. literalinclude:: snippets/why/asyncio_shield_gc.py
 
 To make matters even worse, the shielding only prevents indirect cancellation through the host task. If the event loop
-is shut down, it will automatically cancel all tasks, including the supposedly shielded one::
+is shut down, it will automatically cancel all tasks, including the supposedly shielded one:
 
-    import asyncio
-    import signal
-
-
-    async def finalizer():
-        await asyncio.sleep(1)
-        print("Finalizer done")
-
-    async def main():
-        ...  # the business logic goes here
-        asyncio.get_running_loop().call_soon(signal.raise_signal, signal.SIGINT)  # simulate ctrl+C
-        await asyncio.shield(finalizer())
-
-    # Prints a traceback containing a KeyboardInterrupt and a CancelledError, but not the "Finalizer done" message
-    asyncio.run(main())
+.. literalinclude:: snippets/why/asyncio_shield_shutdown.py
 
 A good practical example of the issues with :func:`~asyncio.shield` can be drawn from the `Python Redis client`_ where
 the incorrect use of this function was responsible for a `significant outage of ChatGPT`_. The point here is not to lay
@@ -232,89 +127,19 @@ semantics and the ability to combine timeouts with shielding to easily implement
 
 The first asyncio example above demonstrated how a task cancellation is only delivered once, unless explicitly repeated.
 But with AnyIO's cancel scopes, every attempt to yield control to the event loop from a cancelled task results in a new
-:exc:`~asyncio.CancelledError`::
+:exc:`~asyncio.CancelledError`:
 
-    import asyncio
-
-    import anyio
-
-
-    async def sleeper():
-        try:
-            await asyncio.sleep(1)
-        except BaseException:
-            pass  # the first cancellation is caught here
-
-        # This will raise another CancelledError
-        await asyncio.sleep(float("inf"))
-
-    async def main():
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(sleeper)
-            await asyncio.sleep(0)  # ensure that the task reaches the first sleep()
-            tg.cancel_scope.cancel()
-
-        print("done")
-
-    # Output: "done"
-    asyncio.run(main())
+.. literalinclude:: snippets/why/anyio_level_cancellation.py
 
 The AnyIO version of the second example demonstrates that a task which is scheduled to resume will be able to process
-the result of the ``await`` before it gets cancelled::
+the result of the ``await`` before it gets cancelled:
 
-    import asyncio
-
-    import anyio
-
-
-    async def receive(f):
-        print(await f)
-        await asyncio.sleep(1)
-        print("The task will be cancelled before this is printed")
-
-
-    async def main():
-        f = asyncio.get_running_loop().create_future()
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(receive, f)
-            await asyncio.sleep(0)  # make sure the task has started
-            f.set_result("hello")
-            tg.cancel_scope.cancel()
-
-
-    # Output: "hello"
-    asyncio.run(main())
+.. literalinclude:: snippets/why/anyio_result_not_lost.py
 
 The third example demonstrated that if a newly created task is cancelled, it would not get an opportunity to react to
-the cancellation. With AnyIO's task groups, they do::
+the cancellation. With AnyIO's task groups, they do:
 
-    import asyncio
-
-    import anyio
-
-
-    class Resource:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc_val, exc_tb):
-            # Here would be the code that cleanly closes the resource
-            print("closed")
-
-
-    async def handle_resource(resource):
-        async with resource:
-            ...
-
-
-    async def main():
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(handle_resource, Resource())
-            tg.cancel_scope.cancel()
-
-
-    # Output: "closed"
-    asyncio.run(main())
+.. literalinclude:: snippets/why/anyio_cancel_before_start.py
 
 
 .. seealso:: :doc:`cancellation`
