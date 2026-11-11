@@ -162,6 +162,21 @@ async def test_delimiter_ending_at_limit(split: int) -> None:
         assert await stream.receive_exactly(4) == b"rest"
 
 
+async def test_delimiter_straddling_limit() -> None:
+    send, receive = create_memory_object_stream[bytes](2)
+    async with send, receive:
+        stream = BufferedByteReceiveStream(receive)
+        await send.send(b"ab")
+        await send.send(b"\r\nrest")
+        await send.aclose()
+
+        with pytest.raises(DelimiterNotFound):
+            await stream.receive_until(b"\r\n", 3)
+
+        assert await stream.receive_until(b"\r\n", 4) == b"ab"
+        assert await stream.receive_exactly(4) == b"rest"
+
+
 async def test_buffered_stream() -> None:
     send_stream, receive_stream = create_memory_object_stream[bytes](1)
     buffered_stream = BufferedByteStream(

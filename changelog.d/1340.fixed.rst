@@ -1,2 +1,2 @@
-Fixed buffered streams accepting a delimiter beyond ``receive_until()``'s
-``max_bytes`` limit when it arrived in a single chunk
+Fixed buffered streams accepting a delimiter ending beyond ``receive_until()``'s
+``max_bytes`` limit depending on chunk boundaries.
