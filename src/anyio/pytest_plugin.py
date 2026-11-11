@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import dataclasses
 import socket
-import sys
 from collections.abc import Callable, Generator, Iterator
 from contextlib import ExitStack, contextmanager
 from inspect import isasyncgenfunction, iscoroutinefunction, ismethod
@@ -25,8 +24,6 @@ from ._core._exceptions import iterate_exceptions
 if TYPE_CHECKING:
     from .abc import TestRunner
 
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 if TYPE_CHECKING:
     # pytest >= 9.2 keeps CallSpec2 as a TYPE_CHECKING-only alias of CallSpec
@@ -276,11 +273,15 @@ def pytest_pyfunc_call(pyfuncitem: Any) -> bool | None:
         backend_name, backend_options = extract_backend_and_options(backend)
 
         if hasattr(pyfuncitem.obj, "hypothesis"):
-            # Wrap the inner test function unless it's already wrapped
+            # Wrap the inner test function, unwrapping any previous wrapper so that
+            # each backend gets its own runner
             original_func = pyfuncitem.obj.hypothesis.inner_test
-            if original_func.__qualname__ != run_with_hypothesis.__qualname__:
-                if iscoroutinefunction(original_func):
-                    pyfuncitem.obj.hypothesis.inner_test = run_with_hypothesis
+            original_func = getattr(
+                original_func, "_anyio_original_func", original_func
+            )
+            if iscoroutinefunction(original_func):
+                run_with_hypothesis._anyio_original_func = original_func  # type: ignore[attr-defined]
+                pyfuncitem.obj.hypothesis.inner_test = run_with_hypothesis
 
             return None
 

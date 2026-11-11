@@ -1,14 +1,8 @@
 from __future__ import annotations
 
-import sys
 from abc import ABCMeta, abstractmethod
 from types import TracebackType
-from typing import TypeVar
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
+from typing import Self, TypeVar
 
 T = TypeVar("T")
 

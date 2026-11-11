@@ -177,14 +177,10 @@ if sys.version_info >= (3, 14):
     def no_other_refs() -> list[object]:
         return [sys._getframe(1).f_generator]
 
-elif sys.version_info >= (3, 11):
-
-    def no_other_refs() -> list[object]:
-        return []
 else:
 
     def no_other_refs() -> list[object]:
-        return [sys._getframe(1)]
+        return []
 
 
 @pytest.fixture

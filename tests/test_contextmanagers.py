@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from collections.abc import AsyncGenerator, Generator
 from contextlib import (
     AbstractContextManager,
@@ -9,11 +8,7 @@ from contextlib import (
     asynccontextmanager,
     contextmanager,
 )
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
+from typing import Self
 
 import pytest
 

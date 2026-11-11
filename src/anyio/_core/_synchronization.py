@@ -1,23 +1,17 @@
 from __future__ import annotations
 
 import math
-import sys
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from types import TracebackType
-from typing import TypeVar
+from typing import Self, TypeVar
 
 from ..lowlevel import checkpoint_if_cancelled
 from ._eventloop import get_async_backend
 from ._exceptions import BusyResourceError, NoEventLoopError
 from ._tasks import CancelScope
 from ._testing import TaskInfo, get_current_task
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
 
 T = TypeVar("T")
 
@@ -258,7 +252,10 @@ class LockAdapter(Lock):
 
     def locked(self) -> bool:
         """Return True if the lock is currently held."""
-        return self._lock.locked()
+        if self._internal_lock is None:
+            return False
+
+        return self._internal_lock.locked()
 
     def statistics(self) -> LockStatistics:
         """
