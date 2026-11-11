@@ -181,9 +181,6 @@ def test_dir() -> None:
     assert "Event" in dir(anyio)
     assert "AsyncBackend" in dir(anyio.abc)
 
-
-def test_dir_includes_lazy_submodules_and_deprecated_aliases() -> None:
-    # __getattr__ resolves these, so dir() must list them too
     for name in SUBMODULES:
         assert name in dir(anyio)
 
