@@ -1387,6 +1387,7 @@ class SocketStream(abc.SocketStream):
 
     async def aclose(self) -> None:
         self._closed = True
+        self._protocol.read_queue.clear()
         self._transport.abort()
         await AsyncIOBackend.checkpoint()
 

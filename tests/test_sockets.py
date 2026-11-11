@@ -729,6 +729,25 @@ class TestTCPStream:
         with pytest.raises(ClosedResourceError):
             await stream.receive()
 
+    @pytest.mark.parametrize("peer_closed", [False, True])
+    async def test_receive_buffered_after_close(
+        self,
+        server_sock: socket.socket,
+        server_addr: tuple[str, int],
+        peer_closed: bool,
+    ) -> None:
+        async with await connect_tcp(*server_addr) as stream:
+            client, _ = server_sock.accept()
+            with client:
+                client.sendall(b"hello")
+                if peer_closed:
+                    client.shutdown(socket.SHUT_WR)
+
+                assert await stream.receive(1) == b"h"
+                await stream.aclose()
+                with pytest.raises(ClosedResourceError):
+                    await stream.receive()
+
     async def test_send_after_close(self, server_addr: tuple[str, int]) -> None:
         stream = await connect_tcp(*server_addr)
         await stream.aclose()

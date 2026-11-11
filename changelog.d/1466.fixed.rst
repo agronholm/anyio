@@ -1,0 +1,1 @@
+Fixed asyncio socket streams returning buffered bytes from ``receive()`` after explicit closure
