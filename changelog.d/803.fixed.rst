@@ -1,0 +1,3 @@
+Fixed the pytest plugin not evaluating async fixtures used by synchronous tests
+marked with ``pytest.mark.anyio`` (unless the tests also requested the
+``anyio_backend`` fixture themselves)
