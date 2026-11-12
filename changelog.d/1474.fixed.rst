@@ -1,0 +1,2 @@
+Fixed socket extra attributes raising ``AttributeError`` after a TCP connection reset
+when using uvloop.
