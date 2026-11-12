@@ -261,6 +261,34 @@ class TestTCPStream:
             assert stream.extra(SocketAttribute.remote_port) == server_addr[1]
 
     @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_extra_attributes_after_connection_reset(
+        self, server_sock: socket.socket, server_addr: tuple[str, int]
+    ) -> None:
+        async with await connect_tcp(*server_addr) as stream:
+            client, _ = server_sock.accept()
+            client.setsockopt(
+                socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
+            )
+            client.close()
+            with pytest.raises(BrokenResourceError):
+                await stream.receive()
+
+            await checkpoint()
+            assert stream.extra(SocketAttribute.remote_address, None) in (
+                None,
+                server_addr,
+            )
+            assert stream.extra(SocketAttribute.remote_port, None) in (
+                None,
+                server_addr[1],
+            )
+            assert stream.extra(SocketAttribute.family, None) in (
+                None,
+                socket.AF_INET,
+                socket.AF_INET6,
+            )
+
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
     async def test_cancelled_receive_pauses_reading(
         self, server_addr: tuple[str, int]
     ) -> None:
