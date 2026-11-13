@@ -51,69 +51,18 @@ each sent item is only ever delivered to a single recipient.
 The receive ends of memory object streams can be iterated using the async iteration
 protocol. The loop exits when all clones of the send stream have been closed.
 
-Example::
+Example:
 
-    from anyio import create_task_group, create_memory_object_stream, run
-    from anyio.streams.memory import MemoryObjectReceiveStream
-
-
-    async def process_items(receive_stream: MemoryObjectReceiveStream[str]) -> None:
-        async with receive_stream:
-            async for item in receive_stream:
-                print('received', item)
-
-
-    async def main():
-        # The [str] specifies the type of the objects being passed through the
-        # memory object stream. This is a bit of trick, as create_memory_object_stream
-        # is actually a class masquerading as a function.
-        send_stream, receive_stream = create_memory_object_stream[str]()
-        async with create_task_group() as tg:
-            tg.start_soon(process_items, receive_stream)
-            async with send_stream:
-                for num in range(10):
-                    await send_stream.send(f'number {num}')
-
-    run(main)
+.. literalinclude:: snippets/streams/memory_object_stream.py
 
 Managing multiple producers and consumers
 ******************************************
 
 When several tasks share one stream end, the first task to finish would close that
 shared object and disrupt the others. Give each task its own clone so that it can close
-its stream independently::
+its stream independently:
 
-    from anyio import create_memory_object_stream, create_task_group, run
-    from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
-
-
-    async def producer(
-        name: str, send_stream: MemoryObjectSendStream[str]
-    ) -> None:
-        async with send_stream:
-            for number in range(3):
-                await send_stream.send(f"{number} from producer {name}")
-
-
-    async def consumer(
-        name: str, receive_stream: MemoryObjectReceiveStream[str]
-    ) -> None:
-        async with receive_stream:
-            async for item in receive_stream:
-                print(f"consumer {name} received {item!r}")
-
-
-    async def main() -> None:
-        send_stream, receive_stream = create_memory_object_stream[str]()
-        async with create_task_group() as tg, send_stream, receive_stream:
-            for name in "A", "B":
-                tg.start_soon(producer, name, send_stream.clone())
-
-            for name in "X", "Y":
-                tg.start_soon(consumer, name, receive_stream.clone())
-
-
-    run(main)
+.. literalinclude:: snippets/streams/memory_stream_cloning.py
 
 The original streams must also be closed after their clones are created. Otherwise,
 for example, the receiving tasks will never see the end of the stream while the
@@ -122,14 +71,9 @@ they do not broadcast every item to every consumer.
 
 In contrast to other AnyIO streams (but in line with Trio's Channels), memory object
 streams can be closed synchronously, using either the ``close()`` method or by using the
-stream as a context manager::
+stream as a context manager:
 
-    from anyio.streams.memory import MemoryObjectSendStream
-
-
-    def synchronous_callback(send_stream: MemoryObjectSendStream[str]) -> None:
-        with send_stream:
-            send_stream.send_nowait('hello')
+.. literalinclude:: snippets/streams/memory_stream_sync_callback.py
 
 Stapled streams
 ---------------
@@ -151,25 +95,9 @@ A buffered byte stream wraps an existing bytes-oriented receive stream and provi
 certain amenities that require buffering, such as receiving an exact number of bytes, or
 receiving until the given delimiter is found.
 
-Example::
+Example:
 
-    from anyio import run, create_memory_object_stream
-    from anyio.streams.buffered import BufferedByteReceiveStream
-
-
-    async def main():
-        send, receive = create_memory_object_stream[bytes](4)
-        buffered = BufferedByteReceiveStream(receive)
-        for part in b'hel', b'lo, ', b'wo', b'rld!':
-            await send.send(part)
-
-        result = await buffered.receive_exactly(8)
-        print(repr(result))
-
-        result = await buffered.receive_until(b'!', 10)
-        print(repr(result))
-
-    run(main)
+.. literalinclude:: snippets/streams/buffered_byte_stream.py
 
 The above script gives the following output::
 
@@ -185,25 +113,9 @@ Text streams
 Text streams wrap existing receive/send streams and encode/decode strings to bytes and
 vice versa.
 
-Example::
+Example:
 
-    from anyio import run, create_memory_object_stream
-    from anyio.streams.text import TextReceiveStream, TextSendStream
-
-
-    async def main():
-        bytes_send, bytes_receive = create_memory_object_stream[bytes](1)
-        text_send = TextSendStream(bytes_send)
-        await text_send.send('åäö')
-        result = await bytes_receive.receive()
-        print(repr(result))
-
-        text_receive = TextReceiveStream(bytes_receive)
-        await bytes_send.send(result)
-        result = await text_receive.receive()
-        print(repr(result))
-
-    run(main)
+.. literalinclude:: snippets/streams/text_stream.py
 
 The above script gives the following output::
 
@@ -219,24 +131,9 @@ File streams read from or write to files on the file system. They can be useful 
 substituting a file for another source of data, or writing output to a file for logging
 or debugging purposes.
 
-Example::
+Example:
 
-    from anyio import run
-    from anyio.streams.file import FileReadStream, FileWriteStream
-
-
-    async def main():
-        path = '/tmp/testfile'
-        async with await FileWriteStream.from_path(path) as stream:
-            await stream.send(b'Hello, World!')
-
-        async with await FileReadStream.from_path(path) as stream:
-            async for chunk in stream:
-                print(chunk.decode(), end='')
-
-        print()
-
-    run(main)
+.. literalinclude:: snippets/streams/file_streams.py
 
 .. versionadded:: 3.0
 
@@ -297,53 +194,13 @@ This creates a (2048 bit) private RSA key (``key.pem``) and a certificate (``cer
 matching the host name "localhost". The certificate will be valid for one year with
 these settings.
 
-To set up a server using this key-certificate pair::
+To set up a server using this key-certificate pair:
 
-    import ssl
+.. literalinclude:: snippets/streams/tls_server.py
 
-    from anyio import create_tcp_listener, run
-    from anyio.streams.tls import TLSListener
+Connecting to this server can then be done as follows:
 
-
-    async def handle(client):
-        async with client:
-            name = await client.receive()
-            await client.send(b'Hello, %s\n' % name)
-
-
-    async def main():
-        # Create a context for the purpose of authenticating clients
-        context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-
-        # Load the server certificate and private key
-        context.load_cert_chain(certfile='cert.pem', keyfile='key.pem')
-
-        # Create the listener and start serving connections
-        listener = TLSListener(await create_tcp_listener(local_port=1234), context)
-        await listener.serve(handle)
-
-    run(main)
-
-Connecting to this server can then be done as follows::
-
-    import ssl
-
-    from anyio import connect_tcp, run
-
-
-    async def main():
-        # These two steps are only required for certificates that are not trusted by the
-        # installed CA certificates on your machine, so you can skip this part if you
-        # use Let's Encrypt or a commercial certificate vendor
-        context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-        context.load_verify_locations(cafile='cert.pem')
-
-        async with await connect_tcp('localhost', 1234, ssl_context=context) as client:
-            await client.send(b'Client\n')
-            response = await client.receive()
-            print(response)
-
-    run(main)
+.. literalinclude:: snippets/streams/tls_client.py
 
 .. _openssl: https://www.openssl.org/
 
@@ -351,31 +208,9 @@ Creating self-signed certificates on the fly
 ********************************************
 
 When testing your TLS enabled service, it would be convenient to generate the
-certificates on the fly. To this end, you can use the trustme_ library::
+certificates on the fly. To this end, you can use the trustme_ library:
 
-    import ssl
-
-    import pytest
-    import trustme
-
-
-    @pytest.fixture(scope='session')
-    def ca():
-        return trustme.CA()
-
-
-    @pytest.fixture(scope='session')
-    def server_context(ca):
-        server_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        ca.issue_cert('localhost').configure_cert(server_context)
-        return server_context
-
-
-    @pytest.fixture(scope='session')
-    def client_context(ca):
-        client_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-        ca.configure_trust(client_context)
-        return client_context
+.. literalinclude:: snippets/streams/tls_trustme_fixtures.py
 
 You can then pass the server and client contexts from the above fixtures to
 :class:`~.streams.tls.TLSListener`, :meth:`~.streams.tls.TLSStream.wrap` or whatever you

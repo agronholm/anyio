@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import dataclasses
 import socket
-import sys
 from collections.abc import Callable, Generator, Iterator
 from contextlib import ExitStack, contextmanager
 from inspect import isasyncgenfunction, iscoroutinefunction, ismethod
@@ -25,8 +24,6 @@ from ._core._exceptions import iterate_exceptions
 if TYPE_CHECKING:
     from .abc import TestRunner
 
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 if TYPE_CHECKING:
     # pytest >= 9.2 keeps CallSpec2 as a TYPE_CHECKING-only alias of CallSpec

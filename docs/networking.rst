@@ -28,40 +28,18 @@ TCP (Transmission Control Protocol) is the most commonly used protocol on the In
 It allows one to connect to a port on a remote host and send and receive data in a
 reliable manner.
 
-To connect to a listening TCP socket somewhere, you can use :func:`~connect_tcp`::
+To connect to a listening TCP socket somewhere, you can use :func:`~connect_tcp`:
 
-    from anyio import connect_tcp, run
-
-
-    async def main():
-        async with await connect_tcp('hostname', 1234) as client:
-            await client.send(b'Client\n')
-            response = await client.receive()
-            print(response)
-
-    run(main)
+.. literalinclude:: snippets/networking/tcp_client.py
 
 As a convenience, you can also use :func:`~connect_tcp` to establish a TLS session with
 the peer after connection, by passing ``tls=True`` or by passing a nonempty value for
 either ``ssl_context`` or ``tls_hostname``.
 
 To receive incoming TCP connections, you first create a TCP listener with
-:func:`create_tcp_listener` and call :meth:`~.abc.Listener.serve` on it::
+:func:`create_tcp_listener` and call :meth:`~.abc.Listener.serve` on it:
 
-    from anyio import create_tcp_listener, run
-
-
-    async def handle(client):
-        async with client:
-            name = await client.receive(1024)
-            await client.send(b'Hello, %s\n' % name)
-
-
-    async def main():
-        listener = await create_tcp_listener(local_port=1234)
-        await listener.serve(handle)
-
-    run(main)
+.. literalinclude:: snippets/networking/tcp_server.py
 
 See the section on :ref:`TLS` for more information.
 
@@ -75,35 +53,13 @@ The API for UNIX domain sockets is much like the one for TCP sockets, except tha
 instead of host/port combinations, you use file system paths.
 
 This is what the client from the TCP example looks like when converted to use UNIX
-sockets::
+sockets:
 
-    from anyio import connect_unix, run
+.. literalinclude:: snippets/networking/unix_client.py
 
+And the listener:
 
-    async def main():
-        async with await connect_unix('/tmp/mysock') as client:
-            await client.send(b'Client\n')
-            response = await client.receive(1024)
-            print(response)
-
-    run(main)
-
-And the listener::
-
-    from anyio import create_unix_listener, run
-
-
-    async def handle(client):
-        async with client:
-            name = await client.receive(1024)
-            await client.send(b'Hello, %s\n' % name)
-
-
-    async def main():
-        listener = await create_unix_listener('/tmp/mysock')
-        await listener.serve(handle)
-
-    run(main)
+.. literalinclude:: snippets/networking/unix_server.py
 
 .. note:: The UNIX socket listener does not remove the socket it creates, so you may
    need to delete them manually.
@@ -119,41 +75,13 @@ The following is an example where a client connects to a UNIX socket server and 
 the descriptor of a file opened on the server, reads the contents of the file and then
 prints them on standard output.
 
-Client::
+Client:
 
-    import os
+.. literalinclude:: snippets/networking/fds_client.py
 
-    from anyio import connect_unix, run
+Server:
 
-
-    async def main():
-        async with await connect_unix('/tmp/mysock') as client:
-            _, fds = await client.receive_fds(0, 1)
-            with os.fdopen(fds[0]) as file:
-                print(file.read())
-
-    run(main)
-
-Server::
-
-    from pathlib import Path
-
-    from anyio import create_unix_listener, run
-
-
-    async def handle(client):
-        async with client:
-            with path.open('r') as file:
-                await client.send_fds(b'this message is ignored', [file])
-
-
-    async def main():
-        listener = await create_unix_listener('/tmp/mysock')
-        await listener.serve(handle)
-
-    path = Path('/tmp/examplefile')
-    path.write_text('Test file')
-    run(main)
+.. literalinclude:: snippets/networking/fds_server.py
 
 Working with UDP sockets
 ------------------------
@@ -163,21 +91,9 @@ features like connections, retries or error correction.
 
 For example, if you wanted to create a UDP "hello" service that just reads a packet and
 then sends a packet to the sender with the contents prepended with "Hello, ", you would
-do this::
+do this:
 
-    import socket
-
-    from anyio import create_udp_socket, run
-
-
-    async def main():
-        async with await create_udp_socket(
-            family=socket.AF_INET, local_port=1234
-        ) as udp:
-            async for packet, (host, port) in udp:
-                await udp.sendto(b'Hello, ' + packet, host, port)
-
-    run(main)
+.. literalinclude:: snippets/networking/udp_server.py
 
 .. note:: If you are testing on your local machine or don't know which family socket to
    use, it is a good idea to replace ``family=socket.AF_INET`` by
@@ -185,17 +101,9 @@ do this::
 
 If your use case involves sending lots of packets to a single destination, you can still
 "connect" your UDP socket to a specific host and port to avoid having to pass the
-address and port every time you send data to the peer::
+address and port every time you send data to the peer:
 
-    from anyio import create_connected_udp_socket, run
-
-
-    async def main():
-        async with await create_connected_udp_socket(
-                remote_host='hostname', remote_port=1234) as udp:
-            await udp.send(b'Hi there!\n')
-
-    run(main)
+.. literalinclude:: snippets/networking/udp_client.py
 
 Working with UNIX datagram sockets
 ----------------------------------
@@ -207,19 +115,9 @@ that while UNIX sockets implement reliable communication of a continuous byte st
 
 The API for UNIX datagram sockets is modeled after the one for UDP sockets, except that
 instead of host/port combinations, you use file system paths - here is the UDP "hello"
-service example written with UNIX datagram sockets::
+service example written with UNIX datagram sockets:
 
-    from anyio import create_unix_datagram_socket, run
-
-
-    async def main():
-        async with await create_unix_datagram_socket(
-            local_path='/tmp/mysock'
-        ) as unix_dg:
-            async for packet, path in unix_dg:
-                await unix_dg.sendto(b'Hello, ' + packet, path)
-
-    run(main)
+.. literalinclude:: snippets/networking/unix_datagram_server.py
 
 
 .. note:: If ``local_path`` is not set, the UNIX datagram socket will be bound on an
@@ -228,18 +126,9 @@ service example written with UNIX datagram sockets::
 
 Similarly to UDP sockets, if your case involves sending lots of packets to a single
 destination, you can "connect" your UNIX datagram socket to a specific path to avoid
-having to pass the path every time you send data to the peer::
+having to pass the path every time you send data to the peer:
 
-    from anyio import create_connected_unix_datagram_socket, run
-
-
-    async def main():
-        async with await create_connected_unix_datagram_socket(
-            remote_path='/dev/log'
-        ) as unix_dg:
-            await unix_dg.send(b'Hi there!\n')
-
-    run(main)
+.. literalinclude:: snippets/networking/unix_datagram_client.py
 
 Wrapping existing sockets as streams or listeners
 -------------------------------------------------
@@ -263,37 +152,9 @@ Abstracting remote connections using Connectables
 AnyIO offers a hierarchy of classes implementing either the
 :class:`.abc.ObjectStreamConnectable` or :class:`.abc.ByteStreamConnectable` interfaces
 which lets developers abstract out the connection mechanism for network clients.
-For example, you could create a network client class like this::
+For example, you could create a network client class like this:
 
-    from os import PathLike
-    from ssl import SSLContext
-
-    from anyio import as_connectable
-    from anyio.abc import ByteStreamConnectable
-
-
-    class MyNetworkClient:
-        def __init__(
-            self,
-            connectable: (
-                ByteStreamConnectable | tuple[str, int] | str | bytes | PathLike[str]
-            ),
-            tls: bool = False,
-            ssl_context: SSLContext | None = None,
-        ):
-            self.connectable = as_connectable(
-                connectable, tls=tls, ssl_context=ssl_context
-            )
-
-        async def __aenter__(self):
-            # Connect to the remote and enter the stream's context manager
-            self._stream = await self.connectable.connect()
-            await self._stream.__aenter__()
-            return self
-
-        async def __aexit__(self, exc_type, exc_val, exc_tb):
-            # Exit the stream's context manager, thus disconnecting it
-            await self._stream.__aexit__(exc_type, exc_val, exc_tb)
+.. literalinclude:: snippets/networking/connectables.py
 
 Here's a dissection of the type annotation for ``connectable``:
 

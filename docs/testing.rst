@@ -32,29 +32,18 @@ The simplest way is thus the following:
     configuration, thus making ``pytest-asyncio`` use its default strict mode.
 
 In case your AnyIO tests need to coexist with other async test plugins, the next best
-option is to use the ``pytest.mark.anyio`` marker::
+option is to use the ``pytest.mark.anyio`` marker:
 
-    import pytest
-
-    # This is the same as using the @pytest.mark.anyio on all test functions in the module
-    pytestmark = pytest.mark.anyio
-
-
-    async def test_something():
-        ...
+.. literalinclude:: snippets/testing/marker.py
 
 .. note:: The marker only affects asynchronous test functions.
 
 Marking modules, classes or functions with this marker has the same effect as applying
 the ``pytest.mark.usefixtures('anyio_backend')`` on them.
 
-Thus, you can also require the fixture directly in your tests and fixtures::
+Thus, you can also require the fixture directly in your tests and fixtures:
 
-    import pytest
-
-
-    async def test_something(anyio_backend):
-        ...
+.. literalinclude:: snippets/testing/fixture.py
 
 Specifying the backends to run on
 ---------------------------------
@@ -71,24 +60,9 @@ in your top level ``conftest.py``::
         return 'asyncio'
 
 If you want to specify different options for the selected backend, you can do so by
-passing a tuple of (backend name, options dict)::
+passing a tuple of (backend name, options dict):
 
-    import sys
-
-    import pytest
-
-
-    @pytest.fixture(params=[
-        pytest.param(('asyncio', {'use_uvloop': True}), id='asyncio+uvloop'),
-        pytest.param(('asyncio', {'use_uvloop': False}), id='asyncio'),
-        pytest.param(('trio', {'restrict_keyboard_interrupt_to_checkpoints': True}), id='trio')
-    ])
-    def anyio_backend(request):
-        backend, options = request.param
-        if backend == 'asyncio' and options.get('use_uvloop'):
-            pytest.importorskip('winloop' if sys.platform == 'win32' else 'uvloop')
-
-        return request.param
+.. literalinclude:: snippets/testing/backend_fixture.py
 
 The ``use_uvloop=True`` variant requires uvloop (winloop on Windows) to be installed.
 The ``importorskip()`` call skips only this variant if the optional dependency is
@@ -193,29 +167,9 @@ instances of the same test suite concurrently, either via ``pytest-xdist`` or ``
 similar tools which can run the test suite in multiple interpreters in parallel.
 
 For example, you could set up a network listener in an ephemeral port and then connect
-to it::
+to it:
 
-    from anyio import connect_tcp, create_task_group, create_tcp_listener
-    from anyio.abc import SocketStream
-
-
-    async def test_echo(free_tcp_port: int) -> None:
-        async def handle(client_stream: SocketStream) -> None:
-            async with client_stream:
-                payload = await client_stream.receive()
-                await client_stream.send(payload[::-1])
-
-        async with (
-            await create_tcp_listener(local_port=free_tcp_port) as listener,
-            create_task_group() as tg
-        ):
-            tg.start_soon(listener.serve, handle)
-
-            async with await connect_tcp("127.0.0.1", free_tcp_port) as stream:
-                await stream.send(b"hello")
-                assert await stream.receive() == b"olleh"
-
-            tg.cancel_scope.cancel()
+.. literalinclude:: snippets/testing/free_tcp_port.py
 
 .. warning:::: It is possible in rare cases, particularly in local development, that
     another process could bind to the port returned by one of these fixtures before your
@@ -224,29 +178,9 @@ to it::
 
 This is mostly useful with APIs that don't natively offer any way to bind to ephemeral
 ports (and retrieve those ports after binding). If you're working with AnyIO's own APIs,
-however, you could make use of this native capability::
+however, you could make use of this native capability:
 
-    from anyio import connect_tcp, create_task_group, create_tcp_listener
-    from anyio.abc import SocketAttribute, SocketStream
-
-    async def test_echo() -> None:
-        async def handle(client_stream: SocketStream) -> None:
-            async with client_stream:
-                payload = await client_stream.receive()
-                await client_stream.send(payload[::-1])
-
-        async with (
-            await create_tcp_listener(local_host="127.0.0.1") as listener,
-            create_task_group() as tg
-        ):
-            tg.start_soon(listener.serve, handle)
-            port = listener.extra(SocketAttribute.local_port)
-
-            async with await connect_tcp("127.0.0.1", port) as stream:
-                await stream.send(b"hello")
-                assert await stream.receive() == b"olleh"
-
-            tg.cancel_scope.cancel()
+.. literalinclude:: snippets/testing/free_tcp_port_factory.py
 
 .. versionadded:: 4.9.0
 
