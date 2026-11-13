@@ -1,0 +1,2 @@
+Fixed cancelled child tasks being retained until cyclic garbage collection on the asyncio
+backend
