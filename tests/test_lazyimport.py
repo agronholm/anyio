@@ -181,6 +181,13 @@ def test_dir() -> None:
     assert "Event" in dir(anyio)
     assert "AsyncBackend" in dir(anyio.abc)
 
+    for name in SUBMODULES:
+        assert name in dir(anyio)
+
+    for old_name in DEPRECATIONS:
+        module_name, attrname = old_name.rsplit(".", 1)
+        assert attrname in dir(sys.modules[module_name])
+
 
 def test_deprecations() -> None:
     for old_name, new_name in DEPRECATIONS.items():
