@@ -3375,6 +3375,10 @@ class TestAsConnectable:
         assert isinstance(connectable, TLSConnectable)
         assert connectable.hostname == "localhost"
 
+    def test_tls_unix_requires_hostname(self) -> None:
+        with pytest.raises(ValueError, match="tls_hostname is required"):
+            as_connectable("/foo/bar", tls=True)
+
 
 @pytest.mark.network
 async def test_getaddrinfo() -> None:
