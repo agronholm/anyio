@@ -4,25 +4,32 @@ import os
 import platform
 import sys
 from collections.abc import Callable
+from contextlib import nullcontext
+from functools import partial
 from pathlib import Path
-from subprocess import DEVNULL, CalledProcessError
+from subprocess import DEVNULL, PIPE, CalledProcessError
 from textwrap import dedent
 from typing import Any
 
 import pytest
 from pytest_mock.plugin import MockerFixture
 
+import anyio.lowlevel
 from anyio import (
     BrokenResourceError,
     CancelScope,
     ClosedResourceError,
     EndOfStream,
+    Event,
     create_task_group,
     fail_after,
+    get_cancelled_exc_class,
     open_process,
     run_process,
+    sleep_forever,
 )
 from anyio._core._eventloop import get_async_backend
+from anyio.abc import Process
 from anyio.streams.buffered import BufferedByteReceiveStream
 
 
@@ -69,6 +76,278 @@ async def test_run_process_checked() -> None:
     assert exc.value.returncode == 1
     assert exc.value.stdout.rstrip() == b"stdout-text"
     assert exc.value.stderr.rstrip() == b"stderr-text"
+
+
+async def test_run_process_start() -> None:
+    async with create_task_group() as tg:
+        process = await tg.start(
+            partial(
+                run_process,
+                [
+                    sys.executable,
+                    "-c",
+                    "import sys; assert sys.stdin.read() == 'hello'",
+                ],
+                stdin=PIPE,
+            )
+        )
+        assert isinstance(process, Process)
+        assert process.pid > 0
+        assert process.returncode is None
+        assert process.stdin is not None
+        await process.stdin.send(b"hello")
+        await process.stdin.aclose()
+
+    assert process.returncode == 0
+    with pytest.raises(ClosedResourceError):
+        await process.stdin.send(b"more")
+
+
+async def test_run_process_start_before_sending_input(tmp_path: Path) -> None:
+    """Starting must not wait for a child that is not ready to consume input yet."""
+    ready_path = tmp_path / "ready"
+    code = dedent("""\
+        import os, sys, time
+
+        while not os.path.exists(sys.argv[1]):
+            time.sleep(0.01)
+
+        assert sys.stdin.buffer.read() == b'x' * 1024 * 1024
+    """)
+    with fail_after(5):
+        async with create_task_group() as tg:
+            process = await tg.start(
+                partial(
+                    run_process,
+                    [sys.executable, "-c", code, str(ready_path)],
+                    input=b"x" * 1024 * 1024,
+                )
+            )
+            assert process.returncode is None
+            ready_path.touch()
+
+    assert process.returncode == 0
+
+
+@pytest.mark.parametrize("check", [False, True])
+async def test_run_process_start_checked(check: bool) -> None:
+    command = [
+        sys.executable,
+        "-c",
+        "import sys; print('out'); print('err', file=sys.stderr); sys.exit(42)",
+    ]
+    raises = pytest.RaisesGroup(CalledProcessError)
+    with raises if check else nullcontext() as exc:
+        async with create_task_group() as tg:
+            process = await tg.start(partial(run_process, command, check=check))
+
+    assert process.returncode == 42
+    if check:
+        assert exc is not None
+        error = exc.value.exceptions[0]
+        assert isinstance(error, CalledProcessError)
+        assert error.stdout.rstrip() == b"out"
+        assert error.stderr.rstrip() == b"err"
+
+
+async def test_run_process_start_failed(tmp_path: Path) -> None:
+    async with create_task_group() as tg:
+        with pytest.raises(FileNotFoundError):
+            await tg.start(run_process, [str(tmp_path / "missing-executable")])
+
+
+async def test_run_process_start_cancelled(mocker: MockerFixture) -> None:
+    processes: list[Process] = []
+
+    async def cancel_after_spawn(*args: Any, **kwargs: Any) -> Process:
+        process = await open_process(*args, **kwargs)
+        processes.append(process)
+        scope.cancel()
+        return process
+
+    mocker.patch(
+        "anyio._core._subprocesses.open_process", side_effect=cancel_after_spawn
+    )
+    with CancelScope() as scope:
+        async with create_task_group() as tg:
+            await tg.start(
+                partial(
+                    run_process,
+                    [sys.executable, "-c", "import sys; sys.stdin.read()"],
+                    stdin=PIPE,
+                )
+            )
+
+    assert len(processes) == 1
+    assert processes[0].returncode is not None
+    assert processes[0].returncode != 0
+
+
+@pytest.mark.parametrize("custom_cancel", [False, True])
+async def test_run_process_start_cancel(custom_cancel: bool) -> None:
+    cancelled_processes: list[Process] = []
+
+    async def deliver_cancel(process: Process) -> None:
+        cancelled_processes.append(process)
+        await anyio.lowlevel.checkpoint()
+        assert process.stdin is not None
+        await process.stdin.send(b"stop\n")
+
+    # The child must be able to finish writing even after cancellation has stopped
+    # the original stdout/stderr readers.
+    code = dedent("""\
+        import sys
+
+        assert sys.stdin.readline() == 'stop\\n'
+        sys.stdout.buffer.write(b'x' * 1024 * 1024)
+        sys.stderr.buffer.write(b'y' * 1024 * 1024)
+    """)
+    async with create_task_group() as tg:
+        process = await tg.start(
+            partial(
+                run_process,
+                [sys.executable, "-c", code],
+                stdin=PIPE,
+                deliver_cancel=deliver_cancel if custom_cancel else None,
+            )
+        )
+        tg.cancel_scope.cancel()
+
+    assert process.returncode is not None
+    if custom_cancel:
+        assert cancelled_processes == [process]
+        assert process.returncode == 0
+    else:
+        assert cancelled_processes == []
+        assert process.returncode != 0
+
+
+async def test_run_process_cancel_callback_cancelled_on_exit() -> None:
+    callback_finished = False
+
+    async def deliver_cancel(process: Process) -> None:
+        nonlocal callback_finished
+        try:
+            assert process.stdin is not None
+            await process.stdin.send(b"stop\n")
+            await sleep_forever()
+        finally:
+            callback_finished = True
+
+    async with create_task_group() as tg:
+        process = await tg.start(
+            partial(
+                run_process,
+                [sys.executable, "-c", "import sys; sys.stdin.readline()"],
+                stdin=PIPE,
+                deliver_cancel=deliver_cancel,
+            )
+        )
+        tg.cancel_scope.cancel()
+
+    assert process.returncode == 0
+    assert callback_finished
+
+
+async def test_run_process_cancel_callback_error() -> None:
+    async def deliver_cancel(process: Process) -> None:
+        await anyio.lowlevel.checkpoint()
+        raise RuntimeError("could not stop the child")
+
+    with pytest.RaisesGroup(
+        pytest.RaisesExc(RuntimeError, match="could not stop the child"),
+        flatten_subgroups=True,
+    ):
+        async with create_task_group() as tg:
+            process = await tg.start(
+                partial(
+                    run_process,
+                    [sys.executable, "-c", "import sys; sys.stdin.read()"],
+                    stdin=PIPE,
+                    deliver_cancel=deliver_cancel,
+                )
+            )
+            tg.cancel_scope.cancel()
+
+    assert process.returncode is not None
+    assert process.returncode != 0
+
+
+async def test_run_process_cancel_callback_raises_cancellation() -> None:
+    async def deliver_cancel(process: Process) -> None:
+        cancelled_exc: BaseException | None = None
+        with CancelScope() as scope:
+            scope.cancel()
+            try:
+                await sleep_forever()
+            except get_cancelled_exc_class() as exc:
+                cancelled_exc = exc
+
+        assert cancelled_exc is not None
+        raise cancelled_exc
+
+    async with create_task_group() as tg:
+        process = await tg.start(
+            partial(
+                run_process,
+                [sys.executable, "-c", "import sys; sys.stdin.read()"],
+                stdin=PIPE,
+                deliver_cancel=deliver_cancel,
+            )
+        )
+        tg.cancel_scope.cancel()
+
+    assert process.returncode is not None
+    assert process.returncode != 0
+
+
+async def test_run_process_cancel_direct_call(mocker: MockerFixture) -> None:
+    process_started = Event()
+    cancelled_processes: list[Process] = []
+
+    async def signal_spawn(*args: Any, **kwargs: Any) -> Process:
+        process = await open_process(*args, **kwargs)
+        process_started.set()
+        return process
+
+    async def cancel_when_ready() -> None:
+        await process_started.wait()
+        scope.cancel()
+
+    async def deliver_cancel(process: Process) -> None:
+        cancelled_processes.append(process)
+        assert process.stdin is not None
+        await process.stdin.send(b"stop\n")
+
+    mocker.patch("anyio._core._subprocesses.open_process", side_effect=signal_spawn)
+    with fail_after(5), CancelScope() as scope:
+        async with create_task_group() as tg:
+            tg.start_soon(cancel_when_ready)
+            await run_process(
+                [
+                    sys.executable,
+                    "-c",
+                    "import sys; assert sys.stdin.readline() == 'stop\\n'",
+                ],
+                stdin=PIPE,
+                deliver_cancel=deliver_cancel,
+            )
+
+    assert len(cancelled_processes) == 1
+    assert cancelled_processes[0].returncode == 0
+
+
+@pytest.mark.parametrize("returncode", [0, 42])
+async def test_run_process_no_cancellation(returncode: int) -> None:
+    async def deliver_cancel(process: Process) -> None:
+        pytest.fail("deliver_cancel() was called without cancellation")
+
+    result = await run_process(
+        [sys.executable, "-c", f"import sys; sys.exit({returncode})"],
+        check=False,
+        deliver_cancel=deliver_cancel,
+    )
+    assert result.returncode == returncode
 
 
 @pytest.mark.skipif(
