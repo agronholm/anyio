@@ -2360,12 +2360,15 @@ class TestUDPSocket:
         assert raw_socket.fileno() == -1
 
     async def test_receive_after_close(self) -> None:
-        udp = await create_udp_socket(
+        async with await create_udp_socket(
             family=AddressFamily.AF_INET, local_host="localhost"
-        )
-        await udp.aclose()
-        with pytest.raises(ClosedResourceError):
-            await udp.receive()
+        ) as udp:
+            host, port = cast(tuple[str, int], udp.extra(SocketAttribute.local_address))
+            await udp.sendto(b"buffered", host, port)
+            await wait_all_tasks_blocked()
+            await udp.aclose()
+            with pytest.raises(ClosedResourceError):
+                await udp.receive()
 
     async def test_send_after_close(self) -> None:
         udp = await create_udp_socket(
@@ -2636,12 +2639,21 @@ class TestConnectedUDPSocket:
         assert raw_socket.fileno() == -1
 
     async def test_receive_after_close(self, family: AnyIPAddressFamily) -> None:
-        udp = await create_connected_udp_socket(
-            "localhost", 5000, local_host="localhost", family=family
-        )
-        await udp.aclose()
-        with pytest.raises(ClosedResourceError):
-            await udp.receive()
+        async with await create_udp_socket(
+            family=family, local_host="localhost"
+        ) as peer:
+            host, port = cast(
+                tuple[str, int], peer.extra(SocketAttribute.local_address)
+            )
+            async with await create_connected_udp_socket(
+                host, port, local_host="localhost", family=family
+            ) as udp:
+                address = cast(IPSockAddrType, udp.extra(SocketAttribute.local_address))
+                await peer.send((b"buffered", address))
+                await wait_all_tasks_blocked()
+                await udp.aclose()
+                with pytest.raises(ClosedResourceError):
+                    await udp.receive()
 
     async def test_send_after_close(self, family: AnyIPAddressFamily) -> None:
         udp = await create_connected_udp_socket(
