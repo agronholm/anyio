@@ -1231,6 +1231,7 @@ class StreamProtocol(asyncio.Protocol):
     write_event: asyncio.Event
     exception: Exception | None = None
     is_at_eof: bool = False
+    disconnected: bool = False
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.read_queue = deque()
@@ -1240,6 +1241,7 @@ class StreamProtocol(asyncio.Protocol):
         cast(asyncio.Transport, transport).set_write_buffer_limits(0)
 
     def connection_lost(self, exc: Exception | None) -> None:
+        self.disconnected = True
         if exc:
             self.exception = exc
 
@@ -1268,6 +1270,7 @@ class DatagramProtocol(asyncio.DatagramProtocol):
     read_event: asyncio.Event
     write_event: asyncio.Event
     exception: Exception | None = None
+    disconnected: bool = False
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.read_queue = deque(maxlen=100)  # arbitrary value
@@ -1277,6 +1280,7 @@ class DatagramProtocol(asyncio.DatagramProtocol):
         cast(asyncio.WriteTransport, transport).set_write_buffer_limits(0)
 
     def connection_lost(self, exc: Exception | None) -> None:
+        self.disconnected = True
         self.read_event.set()
         self.write_event.set()
 
@@ -1388,7 +1392,12 @@ class SocketStream(abc.SocketStream):
     async def aclose(self) -> None:
         self._closed = True
         self._protocol.read_queue.clear()
-        self._transport.abort()
+        if not self._protocol.disconnected:
+            try:
+                self._transport.abort()
+            except (AttributeError, RuntimeError):
+                pass
+
         await AsyncIOBackend.checkpoint()
 
 
@@ -1686,7 +1695,12 @@ class UDPSocket(abc.UDPSocket):
 
     async def aclose(self) -> None:
         self._closed = True
-        self._transport.abort()
+        if not self._protocol.disconnected:
+            try:
+                self._transport.abort()
+            except (AttributeError, RuntimeError):
+                pass
+
         await AsyncIOBackend.checkpoint()
 
     async def receive(self) -> tuple[bytes, IPSockAddrType]:
@@ -1749,7 +1763,12 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
 
     async def aclose(self) -> None:
         self._closed = True
-        self._transport.abort()
+        if not self._protocol.disconnected:
+            try:
+                self._transport.abort()
+            except (AttributeError, RuntimeError):
+                pass
+
         await AsyncIOBackend.checkpoint()
 
     async def receive(self) -> bytes:
