@@ -5,7 +5,9 @@ import gc
 import math
 import re
 import sys
+import threading
 import time
+import warnings
 from asyncio import CancelledError
 from collections.abc import AsyncGenerator, Coroutine
 from contextlib import aclosing
@@ -2557,3 +2559,70 @@ async def test_nan_deadline_setter_rejected() -> None:
     """Assigning a NaN deadline raises ValueError on all backends."""
     with pytest.raises(ValueError, match="deadline must not be NaN"):
         CancelScope().deadline = math.nan
+
+
+def test_native_cancel_before_first_step_start_soon() -> None:
+    """A native cancel before the first step finishes the handle.
+
+    Regression test for #1458.
+    """
+    handle: TaskHandle[None] | None = None
+
+    async def child() -> None:
+        pass
+
+    async def spawner() -> None:
+        nonlocal handle
+        async with create_task_group() as tg:
+            handle = tg.start_soon(child)
+            await sleep_forever()
+
+    async def main() -> None:
+        spawner_task = asyncio.create_task(spawner())
+        await asyncio.sleep(0)
+        assert handle is not None
+        (child_task,) = asyncio.all_tasks() - {asyncio.current_task(), spawner_task}
+        child_task.cancel()
+        await asyncio.wait_for(handle.wait(), 1)
+        assert handle.status is TaskHandle.Status.CANCELLED
+        assert getcoroutinestate(handle.coro) == CORO_CLOSED
+        await asyncio.wait_for(spawner_task, 1)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        asyncio.run(main())
+        gc.collect()
+
+
+def test_native_cancel_before_first_step_start() -> None:
+    """``asyncio.run()`` returns when it cancels a ``start()`` child first.
+
+    Regression test for #1458.
+    """
+
+    async def child(*, task_status: TaskStatus[None]) -> None:
+        task_status.started()
+
+    async def spawner() -> None:
+        async with create_task_group() as tg:
+            await tg.start(child)
+
+    async def main() -> None:
+        asyncio.create_task(spawner())
+
+    errors: list[BaseException] = []
+
+    def run() -> None:
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                asyncio.run(main())
+                gc.collect()
+        except BaseException as exc:
+            errors.append(exc)
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    thread.join(5)
+    assert not thread.is_alive(), "asyncio.run() hung"
+    assert not errors
