@@ -1,0 +1,2 @@
+Fixed the asyncio pytest runner losing failed callback names by preserving event loop
+error messages as exception notes

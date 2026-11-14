@@ -197,6 +197,38 @@ def test_asyncio(testdir: Pytester, caplog: LogCaptureFixture) -> None:
     assert caplog.messages[0] == "bogus error"
 
 
+def test_asyncio_callback_exception_message(testdir: Pytester) -> None:
+    testdir.makepyfile(
+        """
+        import asyncio
+
+        import pytest
+
+
+        @pytest.fixture
+        def anyio_backend():
+            return "asyncio"
+
+        @pytest.mark.anyio
+        async def test_callback_exception():
+            loop = asyncio.get_running_loop()
+            future = loop.create_future()
+            future.set_result(None)
+            loop.call_soon(future.set_result, None)
+            await asyncio.sleep(0)
+        """
+    )
+
+    result = testdir.runpytest(*pytest_args)
+    result.assert_outcomes(failed=1)
+    result.stdout.fnmatch_lines(
+        [
+            "*InvalidStateError: invalid state*",
+            "*Exception in callback Future.set_result(*)*",
+        ]
+    )
+
+
 def test_autouse_async_fixture(testdir: Pytester) -> None:
     testdir.makeconftest(
         """
