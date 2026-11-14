@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import _thread
 import array
 import asyncio
 import concurrent.futures
@@ -56,6 +57,7 @@ from typing import (
     TypeVar,
     cast,
 )
+from warnings import warn
 from weakref import WeakKeyDictionary
 
 from .. import (
@@ -877,8 +879,9 @@ _Retval_Queue_Type = tuple[T_Retval | None, BaseException | None]
 
 
 class WorkerThreadPool:
-    def __init__(self, max_idle_time: float = 10) -> None:
+    def __init__(self, max_idle_time: float = 10, *, daemon: bool = False) -> None:
         self.max_idle_time = max_idle_time
+        self.daemon = daemon
         self.lock = threading.Lock()
         self.workers: set[WorkerThread] = set()
         self.idle_workers: dict[WorkerThread, None] = {}
@@ -945,7 +948,7 @@ class WorkerThread(Thread):
         if sys.version_info >= (3, 14):
             kwargs["context"] = Context()
 
-        super().__init__(name="AnyIO worker thread", daemon=False, **kwargs)
+        super().__init__(name="AnyIO worker thread", daemon=pool.daemon, **kwargs)
         self.pool = pool
         self.queue: Queue[
             tuple[Context, Callable, tuple, asyncio.Future, CancelScope] | None
@@ -1028,20 +1031,31 @@ class WorkerThread(Thread):
                 self.pool.workers.discard(self)
 
 
+# Daemon threads cannot be started in subinterpreters
+_daemon_threads_supported = getattr(_thread, "daemon_threads_allowed", lambda: True)()
+
 _threadpool = WorkerThreadPool()
+_daemon_threadpool = WorkerThreadPool(daemon=True)
+
+
+def _drain_threadpools() -> None:
+    _threadpool.drain()
+    _daemon_threadpool.drain()
 
 
 # Regular atexit callbacks run after Python joins non-daemon threads.
 try:
-    threading._register_atexit(lambda: _threadpool.drain())  # type: ignore[attr-defined]
+    threading._register_atexit(_drain_threadpools)  # type: ignore[attr-defined]
 except RuntimeError:
     # The main thread has already finished
     _threadpool.draining = True
+    _daemon_threadpool.draining = True
 
 
 def _reset_threadpool_after_fork() -> None:
-    global _threadpool
+    global _threadpool, _daemon_threadpool
     _threadpool = WorkerThreadPool()
+    _daemon_threadpool = WorkerThreadPool(daemon=True)
 
 
 if hasattr(os, "register_at_fork"):
@@ -2630,7 +2644,20 @@ class AsyncIOBackend(AsyncBackend):
                 else:
                     worker_scope = scope._parent_scope
 
-                return await _threadpool.submit(context, func, args, worker_scope)
+                pool = _threadpool
+                if abandon_on_cancel:
+                    if _daemon_threads_supported:
+                        pool = _daemon_threadpool
+                    else:
+                        warn(
+                            "abandon_on_cancel is not fully supported in a "
+                            "subinterpreter on the asyncio backend. Worker "
+                            "threads will not automatically be killed during "
+                            "subinterpreter shutdown.",
+                            stacklevel=3,
+                        )
+
+                return await pool.submit(context, func, args, worker_scope)
 
     @classmethod
     def check_cancelled(cls) -> None:

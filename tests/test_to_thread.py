@@ -255,6 +255,43 @@ def test_asyncio_worker_pool_interpreter_shutdown(
 
 
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_abandoned_worker_uses_daemon_thread() -> None:
+    assert await to_thread.run_sync(
+        lambda: threading.current_thread().daemon, abandon_on_cancel=True
+    )
+    assert not await to_thread.run_sync(lambda: threading.current_thread().daemon)
+
+
+def test_abandoned_worker_does_not_block_interpreter_shutdown() -> None:
+    """An abandoned worker call must not block interpreter exit, so the
+    assertion has to be made in a subprocess with a bounded timeout."""
+    script = dedent("""
+        import time
+
+        import anyio
+        import anyio.to_thread
+
+
+        async def main() -> None:
+            with anyio.move_on_after(1):
+                await anyio.to_thread.run_sync(
+                    time.sleep, 30, abandon_on_cancel=True
+                )
+
+        anyio.run(main, backend="asyncio")
+        print("finished", flush=True)
+    """)
+    process = subprocess.run(
+        [sys.executable, "-c", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert process.stdout == "finished\n"
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
 @pytest.mark.parametrize("queued_job", [False, True], ids=["running", "queued"])
 async def test_asyncio_worker_pool_shutdown(
     asyncio_worker_pool: Any, mocker: MockerFixture, queued_job: bool
@@ -481,7 +518,13 @@ def test_asyncio_worker_thread_loop_closed_during_result_report(
         release_result_report.set()
 
     worker_threads[0].queue.join()  # type: ignore[attr-defined]
-    assert anyio.run(to_thread.run_sync, threading.current_thread) is worker_threads[0]
+    assert (
+        anyio.run(
+            partial(to_thread.run_sync, abandon_on_cancel=True),
+            threading.current_thread,
+        )
+        is worker_threads[0]
+    )
 
 
 async def test_cancel_wait_on_thread() -> None:
