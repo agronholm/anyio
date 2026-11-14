@@ -1,0 +1,1 @@
+Fixed readiness callbacks raising KeyError when a socket retained an opposite-direction waiter on asyncio's selector-thread fallback.
