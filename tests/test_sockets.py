@@ -864,6 +864,7 @@ class TestTCPStream:
         assert response == b"olleh"
         thread.join()
 
+    @pytest.mark.usefixtures("deactivate_blockbuster")
     async def test_connect_tcp_with_tls_cert_check_fail(
         self,
         server_context: SSLContext,
