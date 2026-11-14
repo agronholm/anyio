@@ -1,0 +1,3 @@
+Fixed ``anyio.to_thread.run_sync(..., abandon_on_cancel=True)`` blocking interpreter
+shutdown on the asyncio backend by running abandoned calls on daemon worker threads,
+like on the Trio backend
