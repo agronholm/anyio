@@ -1579,6 +1579,12 @@ class TCPSocketListener(abc.SocketListener):
         with self._accept_guard:
             await AsyncIOBackend.checkpoint()
             with CancelScope() as self._accept_scope:
+                # The listener may have been closed while this task was suspended
+                # at the checkpoint above, before the accept scope could be
+                # registered for cancellation
+                if self._closed:
+                    raise ClosedResourceError from None
+
                 try:
                     client_sock, _addr = await self._loop.sock_accept(self._raw_socket)
                 except asyncio.CancelledError:

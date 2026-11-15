@@ -1158,6 +1158,30 @@ class TestTCPListener:
         assert len(nested_grp.exceptions) == 1
         assert isinstance(nested_grp.exceptions[0], ExceptionGroup)
 
+    async def test_close_during_accept_entry_checkpoint(
+        self, family: AnyIPAddressFamily
+    ) -> None:
+        """
+        Test that closing the listener while an accept() call has passed its
+        initial closed-check but has not yet entered its accept scope results
+        in ClosedResourceError instead of a raw OSError (or a hang).
+        """
+        multi = await create_tcp_listener(local_host="localhost", family=family)
+        listener = multi.listeners[0]
+        assert isinstance(listener, SocketListener)
+
+        async def accept() -> None:
+            with pytest.raises(ClosedResourceError):
+                await listener.accept()
+
+        async with multi, create_task_group() as tg:
+            tg.start_soon(accept)
+            # Let the accept() task advance exactly one step so that it is
+            # suspended at its entry checkpoint, before entering the accept
+            # scope, then close the listener from this task
+            await checkpoint()
+            await listener.aclose()
+
     @pytest.mark.parametrize("accepting", [False, True], ids=["idle", "accepting"])
     async def test_aclose_in_cancelled_scope_raises_cancelled_exc(
         self, family: AnyIPAddressFamily, accepting: bool
