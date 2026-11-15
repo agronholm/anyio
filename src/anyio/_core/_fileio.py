@@ -21,6 +21,7 @@ from typing import (
     ClassVar,
     Final,
     Generic,
+    Self,
     TypeVar,
     overload,
 )
@@ -28,11 +29,7 @@ from typing import (
 from .. import to_thread
 from ..abc import AsyncResource
 from ._synchronization import CapacityLimiter
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
+from ._tasks import CancelScope
 
 if sys.version_info >= (3, 14):
     from pathlib.types import PathInfo
@@ -114,7 +111,8 @@ class AsyncFile(AsyncResource, Generic[AnyStr]):
                 break
 
     async def aclose(self) -> None:
-        return await to_thread.run_sync(self._fp.close, limiter=self._limiter)
+        with CancelScope(shield=True):
+            await to_thread.run_sync(self._fp.close, limiter=self._limiter)
 
     async def read(self, size: int = -1) -> AnyStr:
         return await to_thread.run_sync(self._fp.read, size, limiter=self._limiter)
@@ -298,7 +296,7 @@ class Path:
     * :attr:`~pathlib.Path.info` (available on Python 3.14 or later)
     * :meth:`~pathlib.Path.is_junction` (available on Python 3.12 or later)
     * :meth:`~pathlib.PurePath.match` (the ``case_sensitive`` parameter is only
-      available on Python 3.13 or later)
+      available on Python 3.12 or later)
     * :meth:`~pathlib.Path.move` (available on Python 3.14 or later)
     * :meth:`~pathlib.Path.move_into` (available on Python 3.14 or later)
     * :meth:`~pathlib.PurePath.relative_to` (the ``walk_up`` parameter is only available
@@ -485,6 +483,8 @@ class Path:
         ) -> bool:
             return self._path.full_match(path_pattern, case_sensitive=case_sensitive)
 
+    if sys.version_info >= (3, 12):
+
         def match(
             self, path_pattern: str, *, case_sensitive: bool | None = None
         ) -> bool:
@@ -575,10 +575,21 @@ class Path:
         path = await to_thread.run_sync(pathlib.Path.cwd, limiter=limiter)
         return cls(path, limiter=limiter)
 
-    async def exists(self) -> bool:
-        return await to_thread.run_sync(
-            self._path.exists, abandon_on_cancel=True, limiter=self._limiter
-        )
+    if sys.version_info >= (3, 12):
+
+        async def exists(self, *, follow_symlinks: bool = True) -> bool:
+            return await to_thread.run_sync(
+                partial(self._path.exists, follow_symlinks=follow_symlinks),
+                abandon_on_cancel=True,
+                limiter=self._limiter,
+            )
+
+    else:
+
+        async def exists(self) -> bool:
+            return await to_thread.run_sync(
+                self._path.exists, abandon_on_cancel=True, limiter=self._limiter
+            )
 
     async def expanduser(self) -> Self:
         return type(self)(
@@ -622,10 +633,21 @@ class Path:
             )
             return _PathIterator(gen, self._limiter, type(self))
 
-    async def group(self) -> str:
-        return await to_thread.run_sync(
-            self._path.group, abandon_on_cancel=True, limiter=self._limiter
-        )
+    if sys.version_info >= (3, 13):
+
+        async def group(self, *, follow_symlinks: bool = True) -> str:
+            return await to_thread.run_sync(
+                partial(self._path.group, follow_symlinks=follow_symlinks),
+                abandon_on_cancel=True,
+                limiter=self._limiter,
+            )
+
+    else:
+
+        async def group(self) -> str:
+            return await to_thread.run_sync(
+                self._path.group, abandon_on_cancel=True, limiter=self._limiter
+            )
 
     async def hardlink_to(
         self, target: str | bytes | PathLike[str] | PathLike[bytes]
@@ -653,20 +675,42 @@ class Path:
             self._path.is_char_device, abandon_on_cancel=True, limiter=self._limiter
         )
 
-    async def is_dir(self) -> bool:
-        return await to_thread.run_sync(
-            self._path.is_dir, abandon_on_cancel=True, limiter=self._limiter
-        )
+    if sys.version_info >= (3, 13):
+
+        async def is_dir(self, *, follow_symlinks: bool = True) -> bool:
+            return await to_thread.run_sync(
+                partial(self._path.is_dir, follow_symlinks=follow_symlinks),
+                abandon_on_cancel=True,
+                limiter=self._limiter,
+            )
+
+    else:
+
+        async def is_dir(self) -> bool:
+            return await to_thread.run_sync(
+                self._path.is_dir, abandon_on_cancel=True, limiter=self._limiter
+            )
 
     async def is_fifo(self) -> bool:
         return await to_thread.run_sync(
             self._path.is_fifo, abandon_on_cancel=True, limiter=self._limiter
         )
 
-    async def is_file(self) -> bool:
-        return await to_thread.run_sync(
-            self._path.is_file, abandon_on_cancel=True, limiter=self._limiter
-        )
+    if sys.version_info >= (3, 13):
+
+        async def is_file(self, *, follow_symlinks: bool = True) -> bool:
+            return await to_thread.run_sync(
+                partial(self._path.is_file, follow_symlinks=follow_symlinks),
+                abandon_on_cancel=True,
+                limiter=self._limiter,
+            )
+
+    else:
+
+        async def is_file(self) -> bool:
+            return await to_thread.run_sync(
+                self._path.is_file, abandon_on_cancel=True, limiter=self._limiter
+            )
 
     if sys.version_info >= (3, 12):
 
@@ -763,20 +807,49 @@ class Path:
         )
         return AsyncFile(fp, limiter=self._limiter)
 
-    async def owner(self) -> str:
-        return await to_thread.run_sync(
-            self._path.owner, abandon_on_cancel=True, limiter=self._limiter
-        )
+    if sys.version_info >= (3, 13):
+
+        async def owner(self, *, follow_symlinks: bool = True) -> str:
+            return await to_thread.run_sync(
+                partial(self._path.owner, follow_symlinks=follow_symlinks),
+                abandon_on_cancel=True,
+                limiter=self._limiter,
+            )
+
+    else:
+
+        async def owner(self) -> str:
+            return await to_thread.run_sync(
+                self._path.owner, abandon_on_cancel=True, limiter=self._limiter
+            )
 
     async def read_bytes(self) -> bytes:
         return await to_thread.run_sync(self._path.read_bytes, limiter=self._limiter)
 
-    async def read_text(
-        self, encoding: str | None = None, errors: str | None = None
-    ) -> str:
-        return await to_thread.run_sync(
-            self._path.read_text, encoding, errors, limiter=self._limiter
-        )
+    if sys.version_info >= (3, 13):
+
+        async def read_text(
+            self,
+            encoding: str | None = None,
+            errors: str | None = None,
+            newline: str | None = None,
+        ) -> str:
+            return await to_thread.run_sync(
+                self._path.read_text,
+                encoding,
+                errors,
+                newline,
+                limiter=self._limiter,
+            )
+
+    else:
+
+        async def read_text(
+            self, encoding: str | None = None, errors: str | None = None
+        ) -> str:
+            return await to_thread.run_sync(
+                self._path.read_text, encoding, errors, limiter=self._limiter
+            )
 
     if sys.version_info >= (3, 12):
 

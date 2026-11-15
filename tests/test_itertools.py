@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import itertools
+import math
 from collections.abc import (
     AsyncGenerator,
     AsyncIterable,
@@ -561,6 +563,53 @@ class TestGroupby:
         for iterator in (groupby([]), groupby(aiter_from([]))):
             assert await collect(iterator) == []
 
+    async def test_identical_keys_not_equal_to_themselves(self) -> None:
+        # itertools.groupby() checks identity before equality, so the same NaN
+        # object is a single group
+        data = [math.nan, math.nan, 1.0]
+        expected = [(k, list(g)) for k, g in itertools.groupby(data)]
+        assert expected == [(math.nan, [math.nan, math.nan]), (1.0, [1.0])]
+        assert await collect(groupby(data)) == expected
+
+    async def test_keys_with_inconsistent_equality(self) -> None:
+        # The key decides by equality only when the keys are distinct objects, and
+        # itertools.groupby() asks whether they are equal, not whether they differ
+        class Key:
+            def __eq__(self, other: object) -> bool:
+                return False
+
+            def __ne__(self, other: object) -> bool:
+                return False
+
+            __hash__ = object.__hash__
+
+        a, b = Key(), Key()
+        data = [a, a, b, b, a]
+        # Key never compares equal, so these list comparisons match keys by identity
+        expected = [(a, 2), (b, 2), (a, 1)]
+        assert [(k, len(list(g))) for k, g in itertools.groupby(data)] == expected
+        for iterator in (groupby(data), groupby(aiter_from(data))):
+            assert [(k, len(g)) for k, g in await collect(iterator)] == expected
+
+    async def test_group_key_on_the_left_of_the_comparison(self) -> None:
+        # itertools.groupby() evaluates group_key == next_key, so an asymmetric
+        # __eq__ must be called on the group's key
+        class Key:
+            def __init__(self, n: int) -> None:
+                self.n = n
+
+            def __eq__(self, other: object) -> bool:
+                assert isinstance(other, Key)
+                return self.n <= other.n
+
+            __hash__ = object.__hash__
+
+        data = [Key(1), Key(2), Key(3)]
+        expected = [(data[0], 3)]
+        assert [(k, len(list(g))) for k, g in itertools.groupby(data)] == expected
+        for iterator in (groupby(data), groupby(aiter_from(data))):
+            assert [(k, len(g)) for k, g in await collect(iterator)] == expected
+
     async def test_checkpoints_empty_inputs(self) -> None:
         iterator: AsyncIterator[tuple[int, list[int]]]
         for iterator in (groupby([]), groupby(aiter_from([]))):
@@ -602,6 +651,12 @@ class TestIslice:
         iterator = iter([0, 1, 2, 3])
         assert await collect(islice(iterator, 2)) == [0, 1]
         assert next(iterator) == 2
+
+    async def test_consumes_start_items_when_stop_is_not_greater(self) -> None:
+        for args in [(3, 3), (3, 1), (3, 0)]:
+            iterator = iter([0, 1, 2, 3])
+            assert await collect(islice(iterator, *args)) == []
+            assert next(iterator) == 3
 
     async def test_invalid_argument_count(self) -> None:
         islice_any = cast(Any, islice)
@@ -755,6 +810,11 @@ class TestPermutations:
 
 
 class TestProduct:
+    async def test_zero_repeat_does_not_consume_iterables(self) -> None:
+        iterator = iter("AB")
+        assert await collect(product(iterator, repeat=0)) == [()]
+        assert next(iterator) == "A"
+
     async def test_basic_cases(self) -> None:
         cases = [
             (product("AB", "xy"), [("A", "x"), ("A", "y"), ("B", "x"), ("B", "y")]),
