@@ -4,6 +4,7 @@ import array
 import errno
 import gc
 import io
+import logging
 import os
 import platform
 import re
@@ -41,6 +42,7 @@ from _pytest.tmpdir import TempPathFactory
 from pytest import FixtureRequest
 from pytest_mock.plugin import MockerFixture
 
+import anyio
 from anyio import (
     BrokenResourceError,
     BusyResourceError,
@@ -1002,6 +1004,172 @@ class TestTCPStream:
         sock_or_fd = sock_or_fd_factory(socket.AF_INET, socket.SOCK_STREAM, bound=True)
         with pytest.raises(ValueError, match="the socket must be connected"):
             await SocketStream.from_socket(sock_or_fd)
+
+
+class TestSocketListenerServe:
+    @pytest.fixture(params=["tcp", "unix"])
+    async def listener(self, request: SubRequest) -> AsyncIterator[SocketListener]:
+        if request.param == "tcp":
+            async with await create_tcp_listener(local_host="127.0.0.1") as multi:
+                listener = multi.listeners[0]
+                assert isinstance(listener, SocketListener)
+                yield listener
+        else:
+            if sys.platform == "win32":
+                pytest.skip("UNIX sockets are not available on Windows")
+
+            with tempfile.TemporaryDirectory() as path:
+                async with await create_unix_listener(
+                    Path(path) / "socket"
+                ) as listener:
+                    yield listener
+
+    @pytest.mark.parametrize(
+        "error_number", [errno.EMFILE, errno.ENFILE, errno.ENOMEM, errno.ENOBUFS]
+    )
+    @pytest.mark.parametrize(
+        "wrapped", [False, True], ids=["oserror", "broken-resource"]
+    )
+    @pytest.mark.parametrize("external_task_group", [False, True])
+    async def test_resource_error_recovery(
+        self,
+        listener: SocketListener,
+        error_number: int,
+        wrapped: bool,
+        external_task_group: bool,
+        monkeypatch: MonkeyPatch,
+        caplog: LogCaptureFixture,
+        mocker: MockerFixture,
+    ) -> None:
+        error: OSError | BrokenResourceError = OSError(
+            error_number, "resource exhausted"
+        )
+        if wrapped:
+            wrapped_error = BrokenResourceError()
+            wrapped_error.__cause__ = error
+            error = wrapped_error
+
+        accept_original = listener.accept
+        accept_calls = 0
+
+        async def accept() -> SocketStream:
+            nonlocal accept_calls
+            accept_calls += 1
+            if accept_calls in (2, 3):
+                raise error
+
+            return await accept_original()
+
+        monkeypatch.setattr(listener, "accept", accept)
+        sleep_spy = mocker.spy(anyio, "sleep")
+        caplog.set_level(logging.ERROR, logger="anyio.abc._sockets")
+        first_started = Event()
+        recovered = Event()
+        handled = 0
+
+        async def handle(stream: SocketStream) -> None:
+            nonlocal handled
+            handled += 1
+            async with stream:
+                if handled == 1:
+                    first_started.set()
+                    await recovered.wait()
+                else:
+                    recovered.set()
+
+                await stream.send(b"hello")
+
+        async def connect() -> SocketStream:
+            address = listener.extra(SocketAttribute.local_address)
+            if isinstance(address, str):
+                return await connect_unix(address)
+
+            return await connect_tcp(*address)
+
+        async with create_task_group() as tg:
+            tg.start_soon(listener.serve, handle, tg if external_task_group else None)
+            async with await connect() as first:
+                await first_started.wait()
+                async with await connect() as second:
+                    assert await second.receive() == b"hello"
+                    assert await first.receive() == b"hello"
+
+            tg.cancel_scope.cancel()
+
+        assert handled == 2
+        assert accept_calls >= 4
+        assert sleep_spy.call_args_list == [mock.call(0.1), mock.call(0.1)]
+        records = [
+            record for record in caplog.records if record.name == "anyio.abc._sockets"
+        ]
+        assert len(records) == 2
+        for record in records:
+            assert record.levelno == logging.ERROR
+            assert record.exc_info is not None
+            assert record.exc_info[1] is error
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            OSError(errno.EBADF, "bad descriptor"),
+            OSError(errno.ECONNABORTED, "connection aborted"),
+            BrokenResourceError(),
+            ClosedResourceError(),
+            BusyResourceError("accepting connections from"),
+            ValueError("invalid listener"),
+        ],
+    )
+    @pytest.mark.parametrize("wrapped", [False, True])
+    async def test_non_resource_error(
+        self,
+        listener: SocketListener,
+        error: Exception,
+        wrapped: bool,
+        monkeypatch: MonkeyPatch,
+        caplog: LogCaptureFixture,
+    ) -> None:
+        if wrapped:
+            wrapped_error = BrokenResourceError()
+            wrapped_error.__cause__ = error
+            error = wrapped_error
+
+        async def accept() -> SocketStream:
+            raise error
+
+        async def handle(stream: SocketStream) -> None:
+            pytest.fail("unexpected connection")
+
+        monkeypatch.setattr(listener, "accept", accept)
+        async with create_task_group() as tg:
+            with pytest.raises(type(error)) as exc:
+                await listener.serve(handle, tg)
+
+        assert exc.value is error
+        assert not caplog.records
+
+    async def test_cancel_during_resource_error_retry(
+        self, listener: SocketListener, monkeypatch: MonkeyPatch
+    ) -> None:
+        accept_called = Event()
+        accept_calls = 0
+
+        async def accept() -> SocketStream:
+            nonlocal accept_calls
+            accept_calls += 1
+            accept_called.set()
+            raise OSError(errno.EMFILE, "resource exhausted")
+
+        async def handle(stream: SocketStream) -> None:
+            pytest.fail("unexpected connection")
+
+        monkeypatch.setattr(listener, "accept", accept)
+        async with create_task_group() as tg:
+            tg.start_soon(listener.serve, handle)
+            await accept_called.wait()
+            await wait_all_tasks_blocked()
+            tg.cancel_scope.cancel()
+
+        assert accept_calls == 1
 
 
 @pytest.mark.network

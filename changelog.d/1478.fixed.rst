@@ -1,0 +1,1 @@
+Fixed socket listener servers stopping and cancelling existing connection handlers on transient file descriptor or memory exhaustion

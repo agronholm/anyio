@@ -41,6 +41,13 @@ To receive incoming TCP connections, you first create a TCP listener with
 
 .. literalinclude:: snippets/networking/tcp_server.py
 
+If accepting a connection fails because file descriptors or memory are exhausted
+(``EMFILE``, ``ENFILE``, ``ENOMEM`` or ``ENOBUFS``), the listener logs the exception
+at ``ERROR`` level and retries after 100 ms. Existing connection handlers keep
+running, and cancellation still stops the retry loop. Other errors propagate as
+usual. This also applies to UNIX socket listeners; calling
+:meth:`~.abc.SocketListener.accept` directly does not retry these errors.
+
 See the section on :ref:`TLS` for more information.
 
 Working with UNIX sockets
