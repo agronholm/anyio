@@ -459,7 +459,9 @@ async def create_unix_listener(
     Not available on Windows.
 
     :param path: path of the socket
-    :param mode: permissions to set on the socket
+    :param mode: permissions to set on the socket (on platforms other than Linux, these
+        are set after the socket file has been created, so the parent directory should
+        not be writable by untrusted users)
     :param backlog: maximum number of queued incoming connections (up to a maximum of
         2**16, or 65536)
     :param kind: socket type (``SOCK_STREAM`` or ``SOCK_SEQPACKET``)
@@ -600,7 +602,9 @@ async def create_unix_datagram_socket(
     removed first.
 
     :param local_path: the path on which to bind to
-    :param local_mode: permissions to set on the local socket
+    :param local_mode: permissions to set on the local socket (on platforms other than
+        Linux, these are set after the socket file has been created, so the parent
+        directory should not be writable by untrusted users)
     :return: a UNIX datagram socket
 
     """
@@ -630,7 +634,9 @@ async def create_connected_unix_datagram_socket(
 
     :param remote_path: the path to set as the default target
     :param local_path: the path on which to bind to
-    :param local_mode: permissions to set on the local socket
+    :param local_mode: permissions to set on the local socket (on platforms other than
+        Linux, these are set after the socket file has been created, so the parent
+        directory should not be writable by untrusted users)
     :return: a connected UNIX datagram socket
 
     """
