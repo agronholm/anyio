@@ -2557,3 +2557,156 @@ async def test_nan_deadline_setter_rejected() -> None:
     """Assigning a NaN deadline raises ValueError on all backends."""
     with pytest.raises(ValueError, match="deadline must not be NaN"):
         CancelScope().deadline = math.nan
+
+
+# Tasks spawned into a task group whose cancel scope is already (effectively)
+# cancelled must be cancelled at their first checkpoint, even when nothing else in that
+# scope is cancellable at the time (#1486)
+
+
+async def run_loop_iterations() -> None:
+    """Run plenty of event loop iterations (only call this from a shielded scope)."""
+    for _ in range(50):
+        await checkpoint()
+
+
+async def test_spawn_into_cancelled_scope_own_scope_cancelled_while_host_shielded() -> (
+    None
+):
+    async with create_task_group() as tg:
+        with CancelScope(shield=True):
+            tg.cancel_scope.cancel()
+            await run_loop_iterations()
+            handle = tg.start_soon(sleep_forever)
+            await run_loop_iterations()
+            assert handle.status is TaskHandle.Status.CANCELLED
+
+
+async def test_spawn_into_cancelled_scope_enclosing_scope_cancelled_while_host_shielded() -> (
+    None
+):
+    with CancelScope() as outer:
+        async with create_task_group() as tg:
+            with CancelScope(shield=True):
+                outer.cancel()
+                await run_loop_iterations()
+                handle = tg.start_soon(sleep_forever)
+                await run_loop_iterations()
+                assert handle.status is TaskHandle.Status.CANCELLED
+
+
+async def test_spawn_into_cancelled_scope_enclosing_cancelled_scope_two_levels_up() -> (
+    None
+):
+    with CancelScope() as outer:
+        with CancelScope():
+            async with create_task_group() as tg:
+                with CancelScope(shield=True):
+                    outer.cancel()
+                    await run_loop_iterations()
+                    handle = tg.create_task(sleep_forever())
+                    await run_loop_iterations()
+                    assert handle.status is TaskHandle.Status.CANCELLED
+
+
+async def test_spawn_into_cancelled_scope_runs_until_first_checkpoint() -> None:
+    events: list[str] = []
+
+    async def child() -> None:
+        events.append("started")
+        try:
+            await checkpoint()
+        except get_cancelled_exc_class():
+            events.append("cancelled")
+            raise
+
+        events.append("not cancelled")
+
+    async with create_task_group() as tg:
+        with CancelScope(shield=True):
+            tg.cancel_scope.cancel()
+            await run_loop_iterations()
+            tg.start_soon(child)
+            await run_loop_iterations()
+
+    assert events == ["started", "cancelled"]
+
+
+async def test_spawn_into_cancelled_scope_spawned_task_own_shield_respected() -> None:
+    events: list[str] = []
+    release = Event()
+
+    async def child() -> None:
+        with CancelScope(shield=True):
+            await release.wait()
+            events.append("shielded part done")
+
+        await checkpoint()
+        events.append("not cancelled")
+
+    async with create_task_group() as tg:
+        with CancelScope(shield=True):
+            tg.cancel_scope.cancel()
+            await run_loop_iterations()
+            handle = tg.start_soon(child)
+            await run_loop_iterations()
+            statuses = [handle.status]
+            release.set()
+            await run_loop_iterations()
+            statuses.append(handle.status)
+
+    assert statuses == [TaskHandle.Status.PENDING, TaskHandle.Status.CANCELLED]
+    assert events == ["shielded part done"]
+
+
+async def test_spawn_into_cancelled_scope_helper_spawned_from_shielded_cleanup_does_not_hang() -> (
+    None
+):
+    statuses: list[Any] = []
+
+    async def worker() -> None:
+        try:
+            await sleep_forever()
+        finally:
+            with fail_after(2, shield=True):
+                await run_loop_iterations()
+                handle = tg.start_soon(sleep_forever)
+                await handle.wait()
+
+            statuses.append(handle.status)
+
+    async with create_task_group() as tg:
+        tg.start_soon(worker)
+        await wait_all_tasks_blocked()
+        tg.cancel_scope.cancel()
+
+    assert statuses == [TaskHandle.Status.CANCELLED]
+
+
+async def test_spawn_into_cancelled_scope_group_shielded_from_enclosing_cancellation() -> (
+    None
+):
+    """A task group whose own scope is shielded must stay unaffected."""
+    with CancelScope() as outer:
+        async with create_task_group() as tg:
+            tg.cancel_scope.shield = True
+            outer.cancel()
+            await run_loop_iterations()
+            handle = tg.start_soon(sleep, 0)
+            await run_loop_iterations()
+            assert handle.status is TaskHandle.Status.FINISHED
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_spawn_into_cancelled_scope_host_cancelling_count_untouched() -> None:
+    task = asyncio.current_task()
+    assert task is not None
+    with CancelScope() as outer:
+        async with create_task_group() as tg:
+            with CancelScope(shield=True):
+                outer.cancel()
+                await run_loop_iterations()
+                tg.start_soon(sleep_forever)
+                await run_loop_iterations()
+
+    assert task.cancelling() == 0
