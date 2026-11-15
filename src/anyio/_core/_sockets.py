@@ -8,8 +8,9 @@ import stat
 import sys
 from collections.abc import Awaitable
 from dataclasses import dataclass
+from functools import partial
 from ipaddress import IPv4Address, IPv6Address, ip_address
-from os import PathLike, fchmod
+from os import PathLike
 from socket import AddressFamily, SocketKind
 from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
@@ -916,10 +917,18 @@ async def setup_unix_local_socket(
 
     if path_str is not None:
         try:
-            if mode is not None:
-                fchmod(raw_socket.fileno(), mode)
+            # On Linux, bind() creates the socket file with the mode of the unbound
+            # socket. Other platforms don't allow fchmod() on sockets, so the mode has
+            # to be set after binding, without following symlinks.
+            if mode is not None and sys.platform == "linux":
+                os.fchmod(raw_socket.fileno(), mode)
 
             await to_thread.run_sync(raw_socket.bind, path_str, abandon_on_cancel=True)
+            if mode is not None and sys.platform != "linux":
+                await to_thread.run_sync(
+                    partial(os.chmod, path_str, mode, follow_symlinks=False),
+                    abandon_on_cancel=True,
+                )
         except BaseException:
             raw_socket.close()
             raise
