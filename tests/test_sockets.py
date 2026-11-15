@@ -3067,8 +3067,6 @@ class TestUNIXDatagramSocket:
         ],
     )
     async def test_local_mode(self, local_mode: int | None, expected_mode: int) -> None:
-        # Use stdlib tempdir generation
-        # Fixes `OSError: AF_UNIX path too long` from pytest generated temp_path
         with tempfile.TemporaryDirectory() as path:
             sock_path = Path(path) / "socket"
             async with await create_unix_datagram_socket(
