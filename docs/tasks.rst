@@ -98,9 +98,8 @@ exception is propagated from the task group context manager? The answer is "both
 practice this means that a special exception, :exc:`ExceptionGroup` (or
 :exc:`BaseExceptionGroup`) is raised which contains both exception objects.
 
-To catch such exceptions potentially nested in groups, special measures are required.
-On Python 3.11 and later, you can use the ``except*`` syntax to catch multiple
-exceptions::
+To catch such exceptions potentially nested in groups, you can use the ``except*``
+syntax to catch multiple exceptions::
 
     from anyio import create_task_group
 
@@ -114,49 +113,6 @@ exceptions::
     except* KeyError as excgroup:
         for exc in excgroup.exceptions:
             ...  # handle each KeyError
-
-If compatibility with older Python versions is required, you can use the ``catch()``
-function from the exceptiongroup_ package::
-
-    from anyio import create_task_group
-    from exceptiongroup import catch
-
-    def handle_valueerror(excgroup: ExceptionGroup) -> None:
-        for exc in excgroup.exceptions:
-            ...  # handle each ValueError
-
-    def handle_keyerror(excgroup: ExceptionGroup) -> None:
-        for exc in excgroup.exceptions:
-            ...  # handle each KeyError
-
-    with catch({
-        ValueError: handle_valueerror,
-        KeyError: handle_keyerror
-    }):
-        async with create_task_group() as tg:
-            tg.start_soon(some_task)
-            tg.start_soon(another_task)
-
-If you need to set local variables in the handlers, declare them as ``nonlocal``::
-
-    async def yourfunc():
-        somevariable: str | None = None
-
-        def handle_valueerror(exc):
-            nonlocal somevariable
-            somevariable = 'whatever'
-
-        with catch({
-            ValueError: handle_valueerror,
-            KeyError: handle_keyerror
-        }):
-            async with create_task_group() as tg:
-                tg.start_soon(some_task)
-                tg.start_soon(another_task)
-
-        print(f"{somevariable=}")
-
-.. _exceptiongroup: https://pypi.org/project/exceptiongroup/
 
 Context propagation
 -------------------

@@ -3,7 +3,7 @@ The basics
 
 .. py:currentmodule:: anyio
 
-AnyIO requires Python 3.10 or later to run. It is recommended that you set up a
+AnyIO requires Python 3.11 or later to run. It is recommended that you set up a
 virtualenv_ when developing or playing around with AnyIO.
 
 Installation
@@ -38,10 +38,6 @@ But AnyIO code is not required to be run via :func:`run`. You can just as well u
 native ``run()`` function of the backend library:
 
 .. literalinclude:: snippets/basics/native_trio_run.py
-
-.. versionchanged:: 4.0.0
-    On the ``asyncio`` backend, ``anyio.run()`` now uses a back-ported version of
-    :class:`asyncio.Runner` on Pythons older than 3.11.
 
 .. _backend options:
 

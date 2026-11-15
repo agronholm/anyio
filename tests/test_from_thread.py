@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import math
-import sys
 import threading
 from collections.abc import AsyncGenerator, Callable, Coroutine
 from concurrent import futures
@@ -44,8 +43,6 @@ from .conftest import asyncio_params, return_non_coro_awaitable
 if TYPE_CHECKING:
     from anyio.abc import TaskStatus
 
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 T = TypeVar("T")
 

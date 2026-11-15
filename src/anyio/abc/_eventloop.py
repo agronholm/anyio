@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-import sys
 from abc import ABCMeta, abstractmethod
 from collections.abc import (
     AsyncIterator,
@@ -23,13 +22,10 @@ from typing import (
     Literal,
     TypeAlias,
     TypeVar,
+    TypeVarTuple,
+    Unpack,
     overload,
 )
-
-if sys.version_info >= (3, 11):
-    from typing import TypeVarTuple, Unpack
-else:
-    from typing_extensions import TypeVarTuple, Unpack
 
 if TYPE_CHECKING:
     from _typeshed import FileDescriptorLike
@@ -63,7 +59,7 @@ class AsyncBackend(metaclass=ABCMeta):
     def run(
         cls,
         func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
-        args: tuple[Unpack[PosArgsT]],
+        args: tuple[*PosArgsT],
         kwargs: dict[str, Any],
         options: dict[str, Any],
     ) -> T_Retval:
@@ -204,7 +200,7 @@ class AsyncBackend(metaclass=ABCMeta):
     async def run_sync_in_worker_thread(
         cls,
         func: Callable[[Unpack[PosArgsT]], T_Retval],
-        args: tuple[Unpack[PosArgsT]],
+        args: tuple[*PosArgsT],
         abandon_on_cancel: bool = False,
         limiter: CapacityLimiter | None = None,
     ) -> T_Retval:
@@ -220,7 +216,7 @@ class AsyncBackend(metaclass=ABCMeta):
     def run_async_from_thread(
         cls,
         func: Callable[[Unpack[PosArgsT]], Coroutine[Any, Any, T_co]],
-        args: tuple[Unpack[PosArgsT]],
+        args: tuple[*PosArgsT],
         token: object,
     ) -> T_co:
         pass
@@ -230,7 +226,7 @@ class AsyncBackend(metaclass=ABCMeta):
     def run_sync_from_thread(
         cls,
         func: Callable[[Unpack[PosArgsT]], T_Retval],
-        args: tuple[Unpack[PosArgsT]],
+        args: tuple[*PosArgsT],
         token: object,
     ) -> T_Retval:
         pass
@@ -240,7 +236,7 @@ class AsyncBackend(metaclass=ABCMeta):
     def run_sync_soon(
         cls,
         func: Callable[[Unpack[PosArgsT]], object],
-        args: tuple[Unpack[PosArgsT]],
+        args: tuple[*PosArgsT],
         token: object,
     ) -> None:
         """Schedule a synchronous callable in an event loop without waiting."""

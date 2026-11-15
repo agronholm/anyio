@@ -38,8 +38,6 @@ if TYPE_CHECKING:
 else:
     FileDescriptorLike = object
 
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 if sys.version_info >= (3, 12):
     from typing import override
