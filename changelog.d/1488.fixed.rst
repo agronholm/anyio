@@ -1,0 +1,2 @@
+Fixed concurrent iterations of the same signal receiver on asyncio losing wakeups when a
+second task overwrote the shared wakeup future, leaving one task waiting forever

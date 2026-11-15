@@ -2210,13 +2210,19 @@ class _SignalReceiver:
         self._signals = signals
         self._loop = get_running_loop()
         self._signal_queue: deque[Signals] = deque()
-        self._future: asyncio.Future = asyncio.Future()
+        self._waiters: deque[asyncio.Future] = deque()
         self._handled_signals: set[Signals] = set()
 
     def _deliver(self, signum: Signals) -> None:
-        self._signal_queue.append(signum)
-        if not self._future.done():
-            self._future.set_result(None)
+        # Hand the signal to the first pending waiter, if any, so that each
+        # concurrently iterating task receives exactly one signal. Otherwise,
+        # buffer it for the next __anext__() call.
+        for waiter in self._waiters:
+            if not waiter.done():
+                waiter.set_result(signum)
+                break
+        else:
+            self._signal_queue.append(signum)
 
     def __enter__(self) -> Self:
         for sig in set(self._signals):
@@ -2239,11 +2245,24 @@ class _SignalReceiver:
 
     async def __anext__(self) -> Signals:
         await AsyncIOBackend.checkpoint()
-        if not self._signal_queue:
-            self._future = asyncio.Future()
-            await self._future
+        if self._signal_queue:
+            return self._signal_queue.popleft()
 
-        return self._signal_queue.popleft()
+        waiter = self._loop.create_future()
+        self._waiters.append(waiter)
+        try:
+            signum = await waiter
+        except BaseException:
+            # If the signal was already handed to this waiter but we cannot
+            # consume it (the task is being cancelled), put it back at the
+            # front of the queue so that it is not lost.
+            if waiter.done() and not waiter.cancelled():
+                self._signal_queue.appendleft(waiter.result())
+            raise
+        finally:
+            self._waiters.remove(waiter)
+
+        return signum
 
 
 #
