@@ -8,6 +8,7 @@ import os
 import platform
 import re
 import socket
+import stat
 import struct
 import sys
 import tempfile
@@ -3057,6 +3058,26 @@ class TestUNIXDatagramSocket:
             match="socket type mismatch: expected SOCK_DGRAM, got SOCK_STREAM",
         ):
             await UNIXDatagramSocket.from_socket(sock_or_fd)
+
+    @pytest.mark.parametrize(
+        "local_mode, expected_mode",
+        [
+            pytest.param(None, 0o755, id="default"),
+            pytest.param(0o644, 0o644, id="explicit"),
+        ],
+    )
+    async def test_local_mode(
+        self, tmp_path: Path, local_mode: int | None, expected_mode: int
+    ) -> None:
+        sock_path = tmp_path / "test.sock"
+        async with await create_unix_datagram_socket(
+            local_path=sock_path, local_mode=local_mode
+        ):
+            pass
+
+        assert (
+            stat.S_IMODE(sock_path.stat(follow_symlinks=False).st_mode) == expected_mode
+        )
 
 
 @pytest.mark.skipif(

@@ -9,7 +9,7 @@ import sys
 from collections.abc import Awaitable
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address, ip_address
-from os import PathLike, chmod
+from os import PathLike, fchmod
 from socket import AddressFamily, SocketKind
 from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
@@ -916,9 +916,10 @@ async def setup_unix_local_socket(
 
     if path_str is not None:
         try:
-            await to_thread.run_sync(raw_socket.bind, path_str, abandon_on_cancel=True)
             if mode is not None:
-                await to_thread.run_sync(chmod, path_str, mode, abandon_on_cancel=True)
+                fchmod(raw_socket.fileno(), mode)
+
+            await to_thread.run_sync(raw_socket.bind, path_str, abandon_on_cancel=True)
         except BaseException:
             raw_socket.close()
             raise
