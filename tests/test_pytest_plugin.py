@@ -223,7 +223,9 @@ def test_asyncio_callback_exception_message(testdir: Pytester) -> None:
     result.assert_outcomes(failed=1)
     result.stdout.fnmatch_lines(
         [
-            "*InvalidStateError: invalid state*",
+            # CPython 3.11 raises "invalid state"; PyPy 3.11 tracks a newer
+            # CPython and raises "FINISHED: <Future finished result=None>".
+            "*InvalidStateError*",
             "*Exception in callback Future.set_result(*)*",
         ]
     )
