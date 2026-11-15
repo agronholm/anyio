@@ -1,0 +1,4 @@
+Fixed ``TCPSocketListener.accept()`` on the asyncio backend hanging forever
+(ProactorEventLoop) or raising a bare ``OSError`` (SelectorEventLoop) when the
+listener is closed while an ``accept()`` is in its entry checkpoint -- it now
+raises ``ClosedResourceError`` as documented.
