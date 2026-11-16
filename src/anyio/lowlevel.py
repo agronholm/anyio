@@ -8,12 +8,24 @@ __all__ = (
     "checkpoint",
     "checkpoint_if_cancelled",
     "current_token",
+    "run_sync_soon",
 )
 
 import enum
+from collections.abc import Callable
 from dataclasses import dataclass
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, final, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Generic,
+    Literal,
+    TypeVar,
+    TypeVarTuple,
+    Unpack,
+    final,
+    overload,
+)
 from weakref import WeakKeyDictionary
 
 from ._core._eventloop import get_async_backend
@@ -23,6 +35,7 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 D = TypeVar("D")
+PosArgsT = TypeVarTuple("PosArgsT")
 
 
 async def checkpoint() -> None:
@@ -94,6 +107,37 @@ def current_token() -> EventLoopToken:
     backend_class = get_async_backend()
     raw_token = backend_class.current_token()
     return EventLoopToken(backend_class, raw_token)
+
+
+def run_sync_soon(
+    func: Callable[[Unpack[PosArgsT]], object],
+    *args: *PosArgsT,
+    token: EventLoopToken | None = None,
+) -> None:
+    """
+    Schedule a synchronous callable in an event loop without waiting for it to run.
+
+    The callable runs in the target event loop thread with a copy of the caller's
+    context. Its return value is discarded. Exceptions raised by the callable are
+    handled by the backend's native callback exception policy: asyncio reports them
+    through the loop's exception handler, while Trio treats them as internal errors
+    and terminates the run.
+
+    This function can be called from the event loop thread, from other threads, and
+    from Python signal handlers. When calling from outside an event loop, or from a
+    signal handler, pass a token obtained beforehand using :func:`current_token`.
+
+    :param func: a synchronous callable
+    :param args: positional arguments for the callable
+    :param token: the target event loop token (defaults to the current event loop)
+    :raises NoEventLoopError: if no token was supplied and no supported event loop
+        could be detected in the current thread
+    :raises RunFinishedError: if the target event loop has already finished
+    """
+    if token is None:
+        token = current_token()
+
+    token.backend_class.run_sync_soon(func, args, token.native_token)
 
 
 _run_vars: WeakKeyDictionary[object, dict[RunVar[Any], Any]] = WeakKeyDictionary()

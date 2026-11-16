@@ -19,6 +19,19 @@ AnyIO provides a simple mechanism for you to receive the signals you're interest
 .. note:: Windows does not natively support signals so do not rely on this in a cross
    platform application.
 
+Deferring work from a raw signal handler
+---------------------------------------
+
+If integration with an existing :func:`signal.signal` handler is necessary, use
+:func:`~anyio.lowlevel.run_sync_soon` to defer synchronous work to the event loop.
+Capture an :class:`~anyio.lowlevel.EventLoopToken` with
+:func:`~anyio.lowlevel.current_token` before installing the handler, and pass it as
+``token`` when scheduling the callback. The call returns immediately, without
+waiting for the callback to run. Avoid manipulating asynchronous queues or other
+synchronization primitives directly inside the signal handler.
+
+For normal signal handling, prefer :func:`open_signal_receiver`.
+
 Handling KeyboardInterrupt and SystemExit
 -----------------------------------------
 
