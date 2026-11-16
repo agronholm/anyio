@@ -199,7 +199,7 @@ def test_asyncio(testdir: Pytester, caplog: LogCaptureFixture) -> None:
 
     result = testdir.runpytest(*pytest_args)
     result.assert_outcomes(passed=4, failed=2, errors=2)
-    assert "Exception in callback Future.set_result()" in result.stdout.str()
+    assert "Exception in callback Future.set_result(" in result.stdout.str()
     assert len(caplog.messages) == 1
     assert caplog.messages[0] == "bogus error"
 
