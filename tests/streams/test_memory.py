@@ -432,7 +432,7 @@ async def test_cancel_during_send_buffered() -> None:
             receive.receive_nowait()
 
 
-@pytest.mark.parametrize("max_buffer_size", [0, 1])
+@pytest.mark.parametrize("max_buffer_size", [0, 1, 3])
 async def test_cancel_during_send_live_sender_behind(max_buffer_size: int) -> None:
     """
     Test that receiving skips a cancelled sender but still takes the item of a live
@@ -458,7 +458,7 @@ async def test_cancel_during_send_live_sender_behind(max_buffer_size: int) -> No
     received: list[str] = []
     send, receive = create_memory_object_stream[str](max_buffer_size)
     with send, receive:
-        if max_buffer_size:
+        for _ in range(max_buffer_size):
             send.send_nowait("first")
 
         async with create_task_group() as tg:
@@ -467,13 +467,13 @@ async def test_cancel_during_send_live_sender_behind(max_buffer_size: int) -> No
             await wait_all_tasks_blocked()
             assert send.statistics().tasks_waiting_send == 2
             sender_scope.cancel()
-            received.append(receive.receive_nowait())
-            if max_buffer_size:
-                received.append(receive.receive_nowait())
+            received.extend(
+                receive.receive_nowait() for _ in range(max_buffer_size + 1)
+            )
 
             # Checked inside the task group so that a wrong pick fails here instead
             # of leaving the live sender waiting forever
-            assert received == (["first", "live"] if max_buffer_size else ["live"])
+            assert received == ["first"] * max_buffer_size + ["live"]
 
         assert cancelled == [True]
         assert sent == [True]
