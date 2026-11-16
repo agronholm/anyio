@@ -465,7 +465,7 @@ class TestPath:
 
     @pytest.mark.skipif(
         sys.version_info < (3, 14),
-        reason="Path.copy() is only available on Python 3.14+",
+        reason="Path.copy_into() is only available on Python 3.14+",
     )
     async def test_copy_into(
         self, tmp_path: pathlib.Path, limiter: CapacityLimiter | None
@@ -480,7 +480,7 @@ class TestPath:
 
     @pytest.mark.skipif(
         sys.version_info < (3, 14),
-        reason="Path.copy() is only available on Python 3.14+",
+        reason="Path.move() is only available on Python 3.14+",
     )
     async def test_move(
         self, tmp_path: pathlib.Path, limiter: CapacityLimiter | None
@@ -495,7 +495,7 @@ class TestPath:
 
     @pytest.mark.skipif(
         sys.version_info < (3, 14),
-        reason="Path.copy() is only available on Python 3.14+",
+        reason="Path.move_into() is only available on Python 3.14+",
     )
     async def test_move_into(
         self, tmp_path: pathlib.Path, limiter: CapacityLimiter | None
