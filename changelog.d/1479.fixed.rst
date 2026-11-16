@@ -1,0 +1,1 @@
+Fixed asyncio callback exceptions losing the event loop's error message.

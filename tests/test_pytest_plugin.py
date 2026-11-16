@@ -173,6 +173,12 @@ def test_asyncio(testdir: Pytester, caplog: LogCaptureFixture) -> None:
             await asyncio.sleep(0)
             assert started
 
+        async def test_builtin_callback_exception_during_test() -> None:
+            future = asyncio.get_running_loop().create_future()
+            future.set_result(None)
+            asyncio.get_running_loop().call_soon(future.set_result, None)
+            await asyncio.sleep(0)
+
         async def test_callback_exception_during_setup(setup_fail_fixture):
             pass
 
@@ -192,7 +198,8 @@ def test_asyncio(testdir: Pytester, caplog: LogCaptureFixture) -> None:
     )
 
     result = testdir.runpytest(*pytest_args)
-    result.assert_outcomes(passed=4, failed=1, errors=2)
+    result.assert_outcomes(passed=4, failed=2, errors=2)
+    assert "Exception in callback Future.set_result()" in result.stdout.str()
     assert len(caplog.messages) == 1
     assert caplog.messages[0] == "bogus error"
 

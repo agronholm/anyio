@@ -2332,8 +2332,11 @@ class TestRunner(abc.TestRunner):
     def _exception_handler(
         self, loop: asyncio.AbstractEventLoop, context: dict[str, Any]
     ) -> None:
-        if isinstance(context.get("exception"), Exception):
-            self._exceptions.append(context["exception"])
+        exception = context.get("exception")
+        if isinstance(exception, Exception):
+            if isinstance(message := context.get("message"), str):
+                exception.add_note(message)
+            self._exceptions.append(exception)
         else:
             loop.default_exception_handler(context)
 
