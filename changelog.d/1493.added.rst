@@ -1,0 +1,2 @@
+Added :func:`anyio.lowlevel.run_sync_soon` to schedule synchronous callbacks on an
+event loop without waiting, including from other threads and Python signal handlers.

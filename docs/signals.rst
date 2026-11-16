@@ -20,7 +20,7 @@ AnyIO provides a simple mechanism for you to receive the signals you're interest
    platform application.
 
 Deferring work from a raw signal handler
----------------------------------------
+----------------------------------------
 
 If integration with an existing :func:`signal.signal` handler is necessary, use
 :func:`~anyio.lowlevel.run_sync_soon` to defer synchronous work to the event loop.
