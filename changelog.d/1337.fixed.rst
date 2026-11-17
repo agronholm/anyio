@@ -1,0 +1,2 @@
+Fixed worker processes and their streams not being cleaned up when initialization
+fails or is cancelled
