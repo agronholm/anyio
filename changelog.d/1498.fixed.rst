@@ -1,0 +1,1 @@
+Fixed ``Condition.wait()`` losing its lock and a notification when cancelled during lock reacquisition on asyncio.

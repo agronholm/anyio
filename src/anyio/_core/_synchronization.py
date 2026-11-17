@@ -8,7 +8,7 @@ from types import TracebackType
 from typing import Self, TypeVar
 
 from ..lowlevel import checkpoint_if_cancelled
-from ._eventloop import get_async_backend
+from ._eventloop import get_async_backend, get_cancelled_exc_class
 from ._exceptions import BusyResourceError, NoEventLoopError
 from ._tasks import CancelScope
 from ._testing import TaskInfo, get_current_task
@@ -340,19 +340,32 @@ class Condition:
         self._waiters.append(event)
         self.release()
         try:
-            await event.wait()
+            try:
+                await event.wait()
+            finally:
+                with CancelScope(shield=True):
+                    cancelled_exc: BaseException | None = None
+                    while True:
+                        try:
+                            await self.acquire()
+                            break
+                        except get_cancelled_exc_class() as exc:
+                            cancelled_exc = exc
+
+                    if cancelled_exc is not None:
+                        try:
+                            raise cancelled_exc
+                        finally:
+                            del cancelled_exc  # Break the reference cycle
         except BaseException:
             if not event.is_set():
                 self._waiters.remove(event)
             elif self._waiters:
-                # This task was notified by could not act on it, so pass
+                # This task was notified but could not act on it, so pass
                 # it on to the next task
                 self._waiters.popleft().set()
 
             raise
-        finally:
-            with CancelScope(shield=True):
-                await self.acquire()
 
     async def wait_for(self, predicate: Callable[[], T]) -> T:
         """
