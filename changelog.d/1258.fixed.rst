@@ -1,0 +1,2 @@
+Fixed cancellation delivery getting stuck when an asyncio task catches a pending
+native cancellation.
