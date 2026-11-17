@@ -96,6 +96,11 @@ class CancelScope:
         raise NotImplementedError
 
     @property
+    def _deadline_triggered(self) -> bool:
+        """``True`` if this scope's own deadline triggered the cancellation."""
+        raise NotImplementedError
+
+    @property
     def shield(self) -> bool:
         """
         ``True`` if this scope is shielded from external cancellation.
@@ -141,14 +146,13 @@ def fail_at(
     .. versionadded:: 4.15.0
 
     """
-    current_time = get_async_backend().current_time
     effective_deadline = math.inf if deadline is None else deadline
     with get_async_backend().create_cancel_scope(
         deadline=effective_deadline, shield=shield
     ) as cancel_scope:
         yield cancel_scope
 
-    if cancel_scope.cancelled_caught and current_time() >= cancel_scope.deadline:
+    if cancel_scope.cancelled_caught and cancel_scope._deadline_triggered:
         raise TimeoutError(reason) if reason else TimeoutError
 
 

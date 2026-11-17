@@ -758,14 +758,28 @@ async def test_fail_after_cancelled_before_deadline() -> None:
         await checkpoint()
 
 
-@pytest.mark.xfail(
-    reason="There is currently no way to tell if cancellation happened due to timeout "
-    "explicitly if the deadline has been exceeded"
-)
 async def test_fail_after_scope_cancelled_before_timeout() -> None:
     with fail_after(0.1) as scope:
         scope.cancel()
         time.sleep(0.11)  # noqa: ASYNC251
+        await checkpoint()
+
+
+async def test_fail_after_timeout_with_extra_cancel_in_finally() -> None:
+    """A redundant cancel() after the deadline must not hide the timeout."""
+    with pytest.raises(TimeoutError):
+        with fail_after(0.01) as scope:
+            try:
+                await sleep(1)
+            finally:
+                scope.cancel()
+
+
+async def test_fail_after_cancelled_after_deadline_before_delivery() -> None:
+    """An explicit cancel after the deadline passed but before it was delivered wins."""
+    with fail_after(0.01) as scope:
+        time.sleep(0.02)  # noqa: ASYNC251
+        scope.cancel()
         await checkpoint()
 
 

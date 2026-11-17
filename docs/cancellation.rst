@@ -63,10 +63,6 @@ Here's how you typically use timeouts:
 
 .. literalinclude:: snippets/cancellation/move_on_after.py
 
-.. note:: It's recommended not to directly cancel a scope from :func:`~fail_after`, as
-    that may currently result in :exc:`TimeoutError` being erroneously raised if exiting
-    the scope is delayed long enough for the deadline to be exceeded.
-
 Shielding
 ---------
 
