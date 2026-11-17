@@ -53,8 +53,10 @@ class StapledByteStream(ByteStream):
         await self.send_stream.aclose()
 
     async def aclose(self) -> None:
-        await self.send_stream.aclose()
-        await self.receive_stream.aclose()
+        try:
+            await self.send_stream.aclose()
+        finally:
+            await self.receive_stream.aclose()
 
     @property
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
@@ -99,8 +101,10 @@ class StapledObjectStream(ObjectStream[T_Item], Generic[T_Item]):
         await self.send_stream.aclose()
 
     async def aclose(self) -> None:
-        await self.send_stream.aclose()
-        await self.receive_stream.aclose()
+        try:
+            await self.send_stream.aclose()
+        finally:
+            await self.receive_stream.aclose()
 
     @property
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
