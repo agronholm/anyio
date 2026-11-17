@@ -1,8 +1,33 @@
 from __future__ import annotations
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from textwrap import dedent
+from traceback import format_exception
 from typing import Any
+
+
+class _RemoteTraceback(Exception):
+    """Readable traceback from another process, without live traceback frames."""
+
+
+def _restore_exception(exception: BaseException, traceback: str) -> BaseException:
+    if exception.__cause__ is None:
+        exception.__cause__ = _RemoteTraceback(f"\n{traceback}")
+
+    return exception
+
+
+class _ExceptionWithTraceback:
+    def __init__(self, exception: BaseException) -> None:
+        self.exception = exception
+        self.traceback = "".join(format_exception(exception))
+
+    def __reduce__(
+        self,
+    ) -> tuple[
+        Callable[[BaseException, str], BaseException], tuple[BaseException, str]
+    ]:
+        return _restore_exception, (self.exception, self.traceback)
 
 
 class BrokenResourceError(Exception):
