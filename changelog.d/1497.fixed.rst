@@ -1,0 +1,1 @@
+Fixed a spurious ``TimeoutError`` when a ``fail_after()`` scope was cancelled directly and exited after its deadline
