@@ -8,7 +8,7 @@ from contextlib import AsyncExitStack
 from io import IOBase
 from ipaddress import IPv4Address, IPv6Address
 from socket import AddressFamily
-from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar
+from typing import IO, TYPE_CHECKING, Any, TypeAlias, TypeVar
 
 from .._core._eventloop import get_async_backend
 from .._core._typedattr import (
@@ -198,6 +198,42 @@ class SocketStream(ByteStream, _SocketProvider):
         """
         sock = _validate_socket(sock_or_fd, socket.SOCK_STREAM, require_connected=True)
         return await get_async_backend().wrap_stream_socket(sock)
+
+    async def sendfile(
+        self, file: IO[bytes], offset: int = 0, count: int | None = None
+    ) -> int:
+        """
+        Send the contents of the binary file to the peer.
+
+        .. versionadded:: 4.17.0
+
+        :param file: a file object opened in binary mode, providing working
+            ``fileno()`` and ``seek()`` methods
+        :param offset: seek the file to this position before sending
+        :param count: send at most this many bytes (``None`` means until the end of
+            the file)
+        :return: the total number of bytes sent
+        :raises TypeError: if the file lacks a working ``fileno()`` or ``seek()``
+            method, or if the offset or count is not an integer
+        :raises ValueError: if the offset or count is negative (or the count is zero)
+        :raises ~anyio.ClosedResourceError: if the stream has been closed
+        :raises ~anyio.BrokenResourceError: if the connection is broken
+
+        Native zero-copy transfer is used where supported. Otherwise, the file is read
+        in a worker thread and its contents sent through the stream. The socket remains
+        nonblocking throughout the transfer.
+
+        The transfer is interrupted when the surrounding cancel scope is cancelled.
+        The file position is updated to the offset plus the number of bytes sent,
+        including after an interrupted transfer. In the copying fallback, only fully
+        sent chunks are counted; the last chunk may have been partially transmitted.
+        Do not access the file concurrently with this operation.
+
+        """
+        from .._core._sockets import sendfile_fallback, validate_sendfile_args
+
+        validate_sendfile_args(file, offset, count)
+        return await sendfile_fallback(file, offset, count, self.send)
 
 
 class UNIXSocketStream(SocketStream):
