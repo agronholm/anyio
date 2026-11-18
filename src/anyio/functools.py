@@ -294,7 +294,11 @@ def lru_cache(func: Callable[..., T], /) -> functools._lru_cache_wrapper[T]: ...
 
 
 def lru_cache(
-    func: Callable[..., Coroutine[Any, Any, Any]] | Callable[..., Any] | None = None,
+    func: (
+        Callable[..., Coroutine[Any, Any, Any]]
+        | Callable[..., Any]
+        | _InitialMissingType
+    ) = initial_missing,
     /,
     *,
     maxsize: int | None = 128,
@@ -315,7 +319,9 @@ def lru_cache(
     .. note:: Caches and locks are managed on a per-event loop basis.
 
     """
-    if func is None:
+    # A sentinel rather than None, so that lru_cache(None) is rejected below instead of
+    # silently creating a cache with the default maxsize
+    if func is initial_missing:
         return _LRUCacheWrapper(maxsize, typed, always_checkpoint, ttl)
 
     if not callable(func):
