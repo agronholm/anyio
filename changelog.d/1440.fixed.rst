@@ -1,0 +1,2 @@
+Fixed ``functools.lru_cache(always_checkpoint=True)`` skipping its checkpoint when
+caching is disabled with a zero or negative ``maxsize``
