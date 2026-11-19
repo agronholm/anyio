@@ -1,0 +1,3 @@
+Added the opt-in ``inherit_stderr`` argument to ``to_process.run_sync()`` so worker
+logging can reach the parent process's standard error stream while preserving the
+default private worker streams and protocol
