@@ -11,7 +11,6 @@ from unittest.mock import Mock
 
 import pytest
 import trustme
-import zuvloop
 from _pytest.fixtures import SubRequest
 from trustme import CA
 
