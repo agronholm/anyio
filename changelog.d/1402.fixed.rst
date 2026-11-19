@@ -1,0 +1,2 @@
+Fixed ``cancel_shielded_checkpoint()`` being ~70% slower than ``checkpoint()`` on the
+asyncio backend by no longer entering a temporary ``CancelScope`` on every call

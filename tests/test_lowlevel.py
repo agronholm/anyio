@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
+from pytest import MonkeyPatch
 
-from anyio import create_task_group, run
+from anyio import CancelScope, create_task_group, run
 from anyio.lowlevel import (
     RunVar,
     cancel_shielded_checkpoint,
     checkpoint,
     checkpoint_if_cancelled,
 )
+
+from .conftest import asyncio_params
 
 
 @pytest.mark.parametrize("cancel", [False, True])
@@ -60,6 +64,53 @@ async def test_cancel_shielded_checkpoint(cancel: bool) -> None:
 
     assert finished
     assert second_finished
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_cancel_shielded_checkpoint_delivered_cancellation() -> None:
+    task = asyncio.current_task()
+    assert task is not None
+
+    with CancelScope() as scope:
+        scope.cancel()
+        for _ in range(3):
+            await cancel_shielded_checkpoint()
+
+            # The scope's cancellation is delivered inside the checkpoint, which
+            # swallows it and returns instead of letting it propagate
+            assert task.cancelling() > 0
+
+    # Exiting the scope undoes the cancellation requests it made on the task
+    assert task.cancelling() == 0
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_cancel_shielded_checkpoint_propagates_external_cancel() -> None:
+    task = asyncio.current_task()
+    assert task is not None
+    task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await cancel_shielded_checkpoint()
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_cancel_shielded_checkpoint_enters_no_scope(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    scope_entries = 0
+    scope_type = type(CancelScope())
+    original_enter = scope_type.__enter__
+
+    def counting_enter(self: Any) -> Any:
+        nonlocal scope_entries
+        scope_entries += 1
+        return original_enter(self)
+
+    monkeypatch.setattr(scope_type, "__enter__", counting_enter)
+    await cancel_shielded_checkpoint()
+
+    assert scope_entries == 0
 
 
 @pytest.mark.parametrize("cancel", [False, True])
