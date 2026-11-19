@@ -1226,7 +1226,10 @@ class TrioBackend(AsyncBackend):
             else:
                 return os.fsdecode(str_or_bytes)
 
-        if isinstance(command, (str, bytes, PathLike)):
+        if isinstance(command, PathLike):
+            command = [command]
+
+        if isinstance(command, (str, bytes)):
             process = await trio.lowlevel.open_process(
                 convert_item(command),
                 stdin=stdin,

@@ -2736,7 +2736,7 @@ class AsyncIOBackend(AsyncBackend):
     ) -> Process:
         await cls.checkpoint()
         if isinstance(command, PathLike):
-            command = os.fspath(command)
+            command = [os.fspath(command)]
 
         # Use loop.subprocess_shell()/subprocess_exec() rather than their
         # asyncio.create_subprocess_*() counterparts to get access to
