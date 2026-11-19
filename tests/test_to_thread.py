@@ -424,6 +424,22 @@ async def test_cancel_worker_thread(
     assert last_active == expected_last_active
 
 
+async def test_abandon_on_cancel_uses_daemon_thread() -> None:
+    """
+    Test that a job run with abandon_on_cancel=True runs on a daemon thread,
+    so an abandoned job cannot block interpreter shutdown.
+
+    """
+    thread_daemon: bool | None = None
+
+    def record_daemon() -> None:
+        nonlocal thread_daemon
+        thread_daemon = threading.current_thread().daemon
+
+    await to_thread.run_sync(record_daemon, abandon_on_cancel=True)
+    assert thread_daemon is True
+
+
 def test_asyncio_worker_thread_loop_closed_during_result_report(
     mocker: MockerFixture,
 ) -> None:
@@ -481,7 +497,13 @@ def test_asyncio_worker_thread_loop_closed_during_result_report(
         release_result_report.set()
 
     worker_threads[0].queue.join()  # type: ignore[attr-defined]
-    assert anyio.run(to_thread.run_sync, threading.current_thread) is worker_threads[0]
+    # Since #1476, jobs run with abandon_on_cancel=True run on a dedicated
+    # daemon thread that retires after the job, so the follow-up call is
+    # served by a different (pooled) worker thread.
+    assert worker_threads[0].daemon
+    assert (
+        anyio.run(to_thread.run_sync, threading.current_thread) is not worker_threads[0]
+    )
 
 
 async def test_cancel_wait_on_thread() -> None:

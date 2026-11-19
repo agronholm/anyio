@@ -891,16 +891,18 @@ class WorkerThreadPool:
         func: Callable[[Unpack[PosArgsT]], T_Retval],
         args: tuple[*PosArgsT],
         cancel_scope: CancelScope,
+        *,
+        daemon: bool = False,
     ) -> asyncio.Future[T_Retval]:
         future = asyncio.Future[T_Retval]()
         with self.lock:
             if self.stopping:
                 raise RuntimeError("The worker thread pool is shutting down")
 
-            if self.idle_workers:
+            if self.idle_workers and not daemon:
                 worker, _ = self.idle_workers.popitem()
             else:
-                worker = WorkerThread(self)
+                worker = WorkerThread(self, daemon=daemon)
                 self.workers.add(worker)
                 try:
                     worker.start()
@@ -940,12 +942,12 @@ class WorkerThreadPool:
 
 
 class WorkerThread(Thread):
-    def __init__(self, pool: WorkerThreadPool):
+    def __init__(self, pool: WorkerThreadPool, *, daemon: bool = False):
         kwargs: dict[str, Any] = {}
         if sys.version_info >= (3, 14):
             kwargs["context"] = Context()
 
-        super().__init__(name="AnyIO worker thread", daemon=False, **kwargs)
+        super().__init__(name="AnyIO worker thread", daemon=daemon, **kwargs)
         self.pool = pool
         self.queue: Queue[
             tuple[Context, Callable, tuple, asyncio.Future, CancelScope] | None
@@ -2629,6 +2631,18 @@ class AsyncIOBackend(AsyncBackend):
                     worker_scope = scope
                 else:
                     worker_scope = scope._parent_scope
+
+                if abandon_on_cancel:
+                    # Run the job on a dedicated daemon thread (like Trio does)
+                    # so that if the job is abandoned, the still-running thread
+                    # cannot block interpreter shutdown. The throwaway pool is
+                    # set to draining so the worker retires after this one job
+                    # instead of lingering as an idle pooled worker.
+                    pool = WorkerThreadPool()
+                    pool.draining = True
+                    return await pool.submit(
+                        context, func, args, worker_scope, daemon=True
+                    )
 
                 return await _threadpool.submit(context, func, args, worker_scope)
 

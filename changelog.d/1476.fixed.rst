@@ -1,0 +1,4 @@
+Fixed ``to_thread.run_sync(..., abandon_on_cancel=True)`` on the asyncio backend
+running the job on a non-daemon pooled worker thread, so an abandoned job could
+block interpreter shutdown until it finished; such jobs now run on a dedicated
+daemon thread, matching the Trio backend
