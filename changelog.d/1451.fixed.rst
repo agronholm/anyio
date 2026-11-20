@@ -1,0 +1,3 @@
+Fixed UDP sockets on the asyncio backend silently discarding errors reported by the
+operating system. Pending send and receive operations now raise ``BrokenResourceError``
+with the original error as the cause, and each error is reported only once.
