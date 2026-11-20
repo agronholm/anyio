@@ -5,7 +5,7 @@ import pathlib
 import shutil
 import tempfile
 from typing import Any, AnyStr
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -80,6 +80,68 @@ class TestSpooledTemporaryFile:
             assert await stf.tell() == 5
             await stf.seek(0)
             assert await stf.read() == b"hello world"
+
+    @pytest.mark.parametrize(
+        "mode, sample1, sample2, sample3, expected",
+        [
+            ("w+b", b"aaaa", b"bbbbbbbb", b"cc", b"aaaabbbbbbbbcc"),
+            ("w+", "aaaa", "bbbbbbbb", "cc", "aaaabbbbbbbbcc"),
+        ],
+    )
+    async def test_rollover_failure_retains_data(
+        self,
+        tmp_path: pathlib.Path,
+        mode: Any,
+        sample1: Any,
+        sample2: Any,
+        sample3: Any,
+        expected: Any,
+    ) -> None:
+        missing_dir = tmp_path / "missing"
+        async with SpooledTemporaryFile(
+            max_size=8, mode=mode, dir=str(missing_dir)
+        ) as stf:
+            await stf.write(sample1)
+            with pytest.raises(FileNotFoundError):
+                await stf.write(sample2)
+
+            assert not stf._rolled
+            assert await stf.tell() == 12
+            missing_dir.mkdir()
+            await stf.write(sample3)
+            assert stf._rolled
+            await stf.seek(0)
+            assert await stf.read() == expected
+
+    @pytest.mark.parametrize(
+        "mode, sample1, sample2",
+        [
+            ("w+b", b"1234", b"5678"),
+            ("w+", "1234", "5678"),
+        ],
+    )
+    async def test_rollover_failure_closes_tempfile(
+        self, mode: Any, sample1: Any, sample2: Any
+    ) -> None:
+        created_file: Any = None
+        original = tempfile.TemporaryFile
+
+        def failing_create(**kwargs: Any) -> Any:
+            nonlocal created_file
+            created_file = original(**kwargs)
+            target = getattr(created_file, "buffer", created_file)
+            target.write = Mock(side_effect=OSError("write failed"))
+            return created_file
+
+        async with SpooledTemporaryFile(max_size=5, mode=mode) as stf:
+            await stf.write(sample1)
+            with patch("anyio._core._tempfile.tempfile.TemporaryFile", failing_create):
+                with pytest.raises(OSError, match="write failed"):
+                    await stf.write(sample2)
+
+            assert created_file is not None
+            assert created_file.closed
+            assert not stf._rolled
 
     @pytest.mark.parametrize("use_writelines", [False, True])
     async def test_default_max_size_no_rollover(self, use_writelines: bool) -> None:
