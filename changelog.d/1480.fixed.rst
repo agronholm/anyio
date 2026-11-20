@@ -1,0 +1,3 @@
+Fixed ``InvalidStateError`` being reported to the event loop's exception handler when a
+UNIX socket became ready just as a receive, send, connect or accept operation on it was
+cancelled on the asyncio backend
