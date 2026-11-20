@@ -28,6 +28,7 @@ from collections.abc import (
     Collection,
     Coroutine,
     Iterable,
+    Mapping,
     Sequence,
 )
 from concurrent.futures import Future
@@ -1306,6 +1307,13 @@ class SocketStream(abc.SocketStream):
     @property
     def _raw_socket(self) -> socket.socket:
         return self._transport.get_extra_info("socket")
+
+    @property
+    def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:
+        if self._transport.get_extra_info("socket") is None:
+            return {}
+
+        return super().extra_attributes
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
         if max_bytes < 1:
