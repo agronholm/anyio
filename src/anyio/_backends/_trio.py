@@ -17,10 +17,12 @@ from collections.abc import (
     Iterable,
     Sequence,
 )
+from concurrent.futures import Future
 from contextlib import AbstractContextManager
 from contextvars import Context, copy_context
 from dataclasses import dataclass
 from functools import partial, wraps
+from inspect import iscoroutine
 from io import IOBase
 from os import PathLike
 from signal import Signals
@@ -61,7 +63,7 @@ from .. import (
     WouldBlock,
     abc,
 )
-from .._core._eventloop import claim_worker_thread
+from .._core._eventloop import claim_worker_thread, threadlocals
 from .._core._exceptions import (
     BrokenResourceError,
     BusyResourceError,
@@ -1191,6 +1193,38 @@ class TrioBackend(AsyncBackend):
         token: object,
     ) -> T_Retval:
         trio_token = cast("trio.lowlevel.TrioToken | None", token)
+        try:
+            source_token = trio.lowlevel.current_trio_token()
+        except RuntimeError:
+            source_token = None
+
+        if source_token is not None:
+            target_token = trio_token or cast(
+                "trio.lowlevel.TrioToken", threadlocals.current_token.native_token
+            )
+            if source_token is not target_token:
+                # Trio rejects from_thread calls from every running Trio loop,
+                # including a different loop in a different thread. Only this
+                # cross-loop case needs an alternative submission path.
+                future: Future[T_Retval] = Future()
+
+                def wrapper() -> None:
+                    try:
+                        result = func(*args)
+                        if iscoroutine(result):
+                            result.close()
+                            raise TypeError(
+                                "Trio expected a synchronous function, but "
+                                f"{func!r} appears to be asynchronous"
+                            )
+
+                        future.set_result(result)
+                    except BaseException as exc:
+                        future.set_exception(exc)
+
+                cls.run_sync_soon(wrapper, (), target_token)
+                return future.result()
+
         try:
             return trio.from_thread.run_sync(func, *args, trio_token=trio_token)
         except trio.RunFinishedError:
