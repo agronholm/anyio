@@ -1,0 +1,2 @@
+Fixed the permissions of UNIX sockets created with an explicit ``mode`` being
+masked by the umask on Linux
