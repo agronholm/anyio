@@ -3520,3 +3520,63 @@ async def test_interrupted_by_close(socket_type: str) -> None:
             await wait_all_tasks_blocked()
             notify_closing(a_sock)
             a_sock.close()
+
+
+@pytest.mark.parametrize("event", ["readable", "writable"])
+async def test_wait_wake_cleanup_does_not_clobber_new_waiter(event: str) -> None:
+    """
+    Test that a waiter whose wait has been fulfilled does not remove the reader
+    (or writer) registration of another waiter that started waiting before the
+    first waiter's task got to run its cleanup.
+
+    See https://github.com/agronholm/anyio/pull/1489
+    """
+    wait = wait_readable if event == "readable" else wait_writable
+    finished_a = Event()
+    finished_b = Event()
+
+    async def waiter_a() -> None:
+        await wait(a)
+        finished_a.set()
+
+    async def waiter_b() -> None:
+        while True:
+            try:
+                await wait(a)
+            except BusyResourceError:
+                await checkpoint()
+            else:
+                break
+
+        finished_b.set()
+
+    a_sock, b_sock = socket.socketpair()
+    with a_sock, b_sock:
+        a_sock.setblocking(False)
+        b_sock.setblocking(False)
+        a: FileDescriptorLike = a_sock
+        if event == "writable":
+            fill_socket(a_sock)  # make the socket not writable (yet)
+
+        async with create_task_group() as tg:
+            tg.start_soon(waiter_a)
+            await wait_all_tasks_blocked()  # ensures waiter_a has registered
+            tg.start_soon(waiter_b)
+            # Let waiter_b hit BusyResourceError once and go through a checkpoint,
+            # so that it will (re)try waiting after waiter_a has been woken but
+            # before waiter_a's task has resumed to clean up after itself
+            await checkpoint()
+            if event == "readable":
+                b_sock.send(b"x")
+            else:
+                while True:
+                    try:
+                        b_sock.recv(65536)  # drain, making the socket writable
+                    except BlockingIOError:
+                        break
+
+            # On a buggy backend, waiter_b's registration is removed by
+            # waiter_a's cleanup, so waiter_b is never woken
+            with fail_after(3):
+                await finished_a.wait()
+                await finished_b.wait()

@@ -1,0 +1,3 @@
+Fixed ``wait_readable()``/``wait_writable()`` on asyncio: a fulfilled waiter's cleanup
+could remove the selector registration of a waiter that started waiting in the meantime,
+leaving the new waiter blocked forever
