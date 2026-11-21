@@ -106,6 +106,11 @@ def blockbuster() -> Iterator[BlockBuster | None]:
                 "anyio/_core/_sockets.py", "setup_unix_local_socket"
             )
 
+        # zuvloop spawns subprocesses like asyncio does, but blockbuster only
+        # allowlists the stdlib implementation
+        bb.functions["os.read"].can_block_in(
+            "zuvloop/_connect.py", {"subprocess_exec", "subprocess_shell"}
+        )
         yield bb
 
 
