@@ -39,6 +39,7 @@ asyncio_params = [
             "asyncio",
             {"debug": True, "loop_factory": zuvloop.new_event_loop},
         ),
+        marks=uvloop_marks,
         id="asyncio+zuvloop",
     ),
 ]
