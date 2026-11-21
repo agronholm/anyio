@@ -55,7 +55,7 @@ test = [
     "pytest-timeout >= 2.4.0",
     "trustme >= 1.0.0",
     "truststore >= 0.9.1",
-    "zuvloop >= 0.0.18; python_version >= '3.14'",
+    "zuvloop >= 0.0.19; python_version >= '3.14'",
 ]
 doc = [
     "packaging >= 14.1",
