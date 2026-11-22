@@ -1,9 +1,72 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Generator
+from collections import defaultdict
+from collections.abc import AsyncGenerator, Awaitable, Generator
+from contextlib import asynccontextmanager
 from typing import Any, cast
 
-from ._eventloop import get_async_backend
+from ._eventloop import get_async_backend, get_cancelled_exc_class
+
+
+class Sequencer:
+    """
+    Run blocks of code in different tasks in an explicit order.
+
+    Calling a sequencer with a sequence number returns an asynchronous context manager.
+    Sequence numbers must be consecutive integers starting at zero. Block zero starts
+    immediately, and each subsequent block waits for the preceding block to exit, even
+    if that block raises an exception.
+
+    Each sequence number can only be used once. Cancelling a task that is waiting for
+    its turn breaks the sequence and causes current and future waiters to raise
+    :exc:`RuntimeError`.
+    """
+
+    def __init__(self) -> None:
+        from ._synchronization import Event
+
+        self._sequence_points: defaultdict[int, Event] = defaultdict(Event)
+        self._claimed: set[int] = set()
+        self._broken = False
+
+    # Based on trio.testing.Sequencer (see LICENSE.TRIO) and Thomas Grainger's
+    # proposal in PR #262.
+    @asynccontextmanager
+    async def __call__(self, position: int) -> AsyncGenerator[None, None]:
+        """
+        Wait for the preceding block to exit and release the next block on exit.
+
+        :param position: the block's sequence number, starting at zero
+        :return: an asynchronous context manager for the block
+        :rtype: ~contextlib.AbstractAsyncContextManager[None]
+        :raises RuntimeError: if the sequence number has already been used or a waiter
+            has been cancelled
+        """
+        if position in self._claimed:
+            raise RuntimeError(f"Attempted to reuse sequence point {position}")
+        elif self._broken:
+            raise RuntimeError("sequence broken!")
+
+        self._claimed.add(position)
+        if position != 0:
+            try:
+                await self._sequence_points[position].wait()
+            except get_cancelled_exc_class():
+                self._broken = True
+                for event in self._sequence_points.values():
+                    event.set()
+
+                raise RuntimeError(
+                    "Sequencer wait cancelled -- sequence broken"
+                ) from None
+            else:
+                if self._broken:
+                    raise RuntimeError("sequence broken!")
+
+        try:
+            yield
+        finally:
+            self._sequence_points[position + 1].set()
 
 
 class TaskInfo:
