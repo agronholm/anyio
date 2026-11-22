@@ -262,6 +262,9 @@ Low level operations
 Testing and debugging
 ---------------------
 
+.. autoclass:: anyio.Sequencer
+   :special-members: __call__
+
 .. autoclass:: anyio.TaskInfo
 .. autoclass:: anyio.pytest_plugin.FreePortFactory
 .. autofunction:: anyio.get_current_task
