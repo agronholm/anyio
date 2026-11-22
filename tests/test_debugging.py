@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 
 import anyio
+import anyio.lowlevel
 from anyio import (
     Event,
     TaskInfo,
@@ -129,3 +130,150 @@ async def test_wait_all_tasks_blocked_cancelled_task() -> None:
         await tg.start(self_cancel)
         await wait_all_tasks_blocked()
         assert done
+
+
+class TestSequencer:
+    async def test_order(self) -> None:
+        sequencer = anyio.Sequencer()
+        events: list[tuple[int, str]] = []
+
+        async def worker(positions: tuple[int, int]) -> None:
+            for position in positions:
+                async with sequencer(position):
+                    events.append((position, "enter"))
+                    await anyio.lowlevel.checkpoint()
+                    events.append((position, "exit"))
+
+        async with create_task_group() as tg:
+            tg.start_soon(worker, (2, 5))
+            tg.start_soon(worker, (0, 3))
+            tg.start_soon(worker, (1, 4))
+
+        assert events == [
+            (position, event) for position in range(6) for event in ("enter", "exit")
+        ]
+
+    async def test_reuse_completed_position(self) -> None:
+        sequencer = anyio.Sequencer()
+        async with sequencer(0):
+            pass
+
+        with pytest.raises(RuntimeError, match="reuse sequence point 0"):
+            async with sequencer(0):
+                pytest.fail("A completed sequence number was reused")
+
+        async with sequencer(1):
+            pass
+
+    async def test_reuse_waiting_position(self) -> None:
+        sequencer = anyio.Sequencer()
+        entered = False
+
+        async def worker() -> None:
+            nonlocal entered
+            async with sequencer(1):
+                entered = True
+
+        async with create_task_group() as tg:
+            tg.start_soon(worker)
+            await wait_all_tasks_blocked()
+            with pytest.raises(RuntimeError, match="reuse sequence point 1"):
+                async with sequencer(1):
+                    pytest.fail("A waiting sequence number was reused")
+
+            assert not entered
+            async with sequencer(0):
+                pass
+
+        assert entered
+
+    async def test_cancelled_wait_breaks_sequence(self) -> None:
+        sequencer = anyio.Sequencer()
+        errors: dict[int, str] = {}
+
+        async def worker(
+            position: int, *, task_status: TaskStatus[anyio.CancelScope]
+        ) -> None:
+            with anyio.CancelScope() as scope:
+                task_status.started(scope)
+                try:
+                    async with sequencer(position):
+                        pytest.fail("A broken sequence was entered")
+                except RuntimeError as exc:
+                    errors[position] = str(exc)
+
+        async with create_task_group() as tg:
+            scope = await tg.start(worker, 1)
+            await tg.start(worker, 2)
+            await wait_all_tasks_blocked()
+            scope.cancel()
+
+        assert errors == {
+            1: "Sequencer wait cancelled -- sequence broken",
+            2: "sequence broken!",
+        }
+        for position in (0, 3):
+            with pytest.raises(RuntimeError, match="sequence broken"):
+                async with sequencer(position):
+                    pytest.fail("A broken sequence was entered")
+
+    async def test_exception_in_block_releases_next(self) -> None:
+        sequencer = anyio.Sequencer()
+        error = ValueError("test error")
+        entered = False
+
+        async def worker() -> None:
+            nonlocal entered
+            async with sequencer(1):
+                entered = True
+
+        async with create_task_group() as tg:
+            tg.start_soon(worker)
+            await wait_all_tasks_blocked()
+            with pytest.raises(ValueError) as exc:
+                async with sequencer(0):
+                    raise error
+
+            assert exc.value is error
+
+        assert entered
+
+    async def test_cancellation_in_block_releases_next(self) -> None:
+        sequencer = anyio.Sequencer()
+        entered = False
+
+        async def worker() -> None:
+            nonlocal entered
+            async with sequencer(1):
+                entered = True
+
+        async with create_task_group() as tg:
+            tg.start_soon(worker)
+            await wait_all_tasks_blocked()
+            with anyio.CancelScope() as scope:
+                async with sequencer(0):
+                    scope.cancel()
+                    await anyio.lowlevel.checkpoint()
+                    pytest.fail("Cancellation was not propagated")
+
+            assert scope.cancelled_caught
+
+        assert entered
+        async with sequencer(2):
+            pass
+
+    def test_create_without_event_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        sequencer = anyio.Sequencer()
+
+        async def main() -> None:
+            async with sequencer(0):
+                pass
+
+            async with sequencer(1):
+                pass
+
+        anyio.run(
+            main, backend=anyio_backend_name, backend_options=anyio_backend_options
+        )
