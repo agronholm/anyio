@@ -1,2 +1,3 @@
 Fixed the permissions of UNIX sockets created with an explicit ``mode`` being
-masked by the umask on Linux
+masked by the umask on Linux (the requested mode is now restored after binding;
+abstract namespace sockets, which have no file on disk, are unaffected)

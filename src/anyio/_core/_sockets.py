@@ -938,6 +938,9 @@ async def setup_unix_local_socket(
                 os.fchmod(raw_socket.fileno(), mode)
 
             await to_thread.run_sync(raw_socket.bind, path_str, abandon_on_cancel=True)
+            # Abstract namespace sockets have no file on disk, so there is nothing
+            # to chmod. Never follow symlinks here: if the path was swapped for a
+            # symlink after bind(), fail instead of touching the link target.
             if mode is not None and not path_str.startswith("\0"):
                 await to_thread.run_sync(
                     partial(os.chmod, path_str, mode, follow_symlinks=False),
