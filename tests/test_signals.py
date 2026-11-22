@@ -17,19 +17,17 @@ from anyio import (
 )
 
 pytestmark = [
+    pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Signal delivery cannot be tested on Windows",
+    ),
     # Workaround for https://github.com/MagicStack/uvloop/issues/703
     pytest.mark.filterwarnings(
         "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning"
     ),
 ]
 
-skip_no_signal_delivery = pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="Signal delivery cannot be tested on Windows",
-)
 
-
-@skip_no_signal_delivery
 async def test_receive_signals() -> None:
     with open_signal_receiver(signal.SIGUSR1, signal.SIGUSR2) as sigiter:
         await to_thread.run_sync(os.kill, os.getpid(), signal.SIGUSR1)
@@ -44,7 +42,6 @@ async def test_receive_signals() -> None:
             assert sigusr2 == signal.Signals.SIGUSR2
 
 
-@skip_no_signal_delivery
 async def test_task_group_cancellation_open() -> None:
     async def signal_handler() -> None:
         with open_signal_receiver(signal.SIGUSR1) as sigiter:
@@ -60,7 +57,6 @@ async def test_task_group_cancellation_open() -> None:
         tg.cancel_scope.cancel()
 
 
-@skip_no_signal_delivery
 async def test_task_group_cancellation_consume() -> None:
     async def consume(sigiter: AsyncIterable[int]) -> None:
         async for _ in sigiter:
