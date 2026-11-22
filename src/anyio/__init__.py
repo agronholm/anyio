@@ -112,6 +112,7 @@ if TYPE_CHECKING or not install_lazy_importer():
     from ._core._tempfile import gettempdirb as gettempdirb
     from ._core._tempfile import mkdtemp as mkdtemp
     from ._core._tempfile import mkstemp as mkstemp
+    from ._core._testing import Sequencer as Sequencer
     from ._core._testing import TaskInfo as TaskInfo
     from ._core._testing import get_current_task as get_current_task
     from ._core._testing import get_running_tasks as get_running_tasks
