@@ -280,8 +280,10 @@ class TestTryRunSyncSoon:
             token.try_run_sync_soon(lambda: None)
 
 
-@pytest.mark.parametrize("anyio_backend", ["trio"])
-def test_run_sync_soon_runs_callback_before_exit(anyio_backend: str) -> None:
+@pytest.mark.skipif(
+    "trio" not in get_available_backends(), reason="Trio is unavailable"
+)
+def test_run_sync_soon_runs_callback_before_exit() -> None:
     values: list[str] = []
 
     async def main() -> EventLoopToken:
@@ -290,7 +292,7 @@ def test_run_sync_soon_runs_callback_before_exit(anyio_backend: str) -> None:
         assert not values
         return token
 
-    token = run(main, backend=anyio_backend)
+    token = run(main, backend="trio")
     assert values == ["callback"]
     with pytest.raises(RunFinishedError):
         token.run_sync_soon(values.append, "after exit")
