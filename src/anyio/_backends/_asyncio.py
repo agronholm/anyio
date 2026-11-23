@@ -2634,7 +2634,26 @@ class AsyncIOBackend(AsyncBackend):
                 else:
                     worker_scope = scope._parent_scope
 
-                return await _threadpool.submit(context, func, args, worker_scope)
+                future = _threadpool.submit(context, func, args, worker_scope)
+                if abandon_on_cancel:
+                    return await future
+
+                try:
+                    return await asyncio.shield(future)
+                except CancelledError:
+                    # Native task cancellation bypasses the cancel scope shield.
+                    # Keep the limiter token until the worker finishes, even if
+                    # the caller cancels again while we are waiting.
+                    while not future.done():
+                        try:
+                            await asyncio.wait({future})
+                        except CancelledError:
+                            continue
+
+                    if not future.cancelled():
+                        future.exception()  # Retrieve any worker error before propagating cancellation.
+
+                    raise
 
     @classmethod
     def check_cancelled(cls) -> None:
