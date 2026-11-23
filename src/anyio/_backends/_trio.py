@@ -1209,6 +1209,8 @@ class TrioBackend(AsyncBackend):
         except trio.RunFinishedError:
             raise RunFinishedError from None
 
+    try_run_sync_soon = run_sync_soon
+
     @classmethod
     async def open_process(
         cls,

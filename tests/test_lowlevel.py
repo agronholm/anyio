@@ -12,7 +12,6 @@ import pytest
 
 from anyio import (
     Event,
-    NoEventLoopError,
     RunFinishedError,
     create_task_group,
     fail_after,
@@ -27,7 +26,6 @@ from anyio.lowlevel import (
     checkpoint,
     checkpoint_if_cancelled,
     current_token,
-    run_sync_soon,
 )
 
 
@@ -167,10 +165,9 @@ class TestRunVar:
         assert var.get() == 3
 
 
-class TestRunSyncSoon:
-    @pytest.mark.parametrize("explicit_token", [False, True])
-    async def test_deferred(self, explicit_token: bool) -> None:
-        token = current_token() if explicit_token else None
+class TestTryRunSyncSoon:
+    async def test_deferred(self) -> None:
+        token = current_token()
         finished = Event()
         values: list[object] = []
         thread_id = get_ident()
@@ -180,7 +177,7 @@ class TestRunSyncSoon:
             values.extend((value, count))
             finished.set()
 
-        run_sync_soon(callback, "hello", 42, token=token)
+        token.try_run_sync_soon(callback, "hello", 42)
         assert not values
         with fail_after(5):
             await finished.wait()
@@ -197,7 +194,7 @@ class TestRunSyncSoon:
             marker.set("callback")
             finished.set()
 
-        run_sync_soon(callback)
+        current_token().try_run_sync_soon(callback)
         marker.set("changed")
         with fail_after(5):
             await finished.wait()
@@ -219,7 +216,7 @@ class TestRunSyncSoon:
 
         def worker() -> None:
             marker.set("worker")
-            run_sync_soon(callback, "argument", token=token)
+            token.try_run_sync_soon(callback, "argument")
 
         with fail_after(5):
             await to_thread.run_sync(worker)
@@ -237,7 +234,7 @@ class TestRunSyncSoon:
             finished.set()
 
         async def source() -> None:
-            run_sync_soon(callback, token=token)
+            token.try_run_sync_soon(callback)
 
         with fail_after(5):
             await to_thread.run_sync(lambda: run(source, backend=source_backend))
@@ -258,7 +255,7 @@ class TestRunSyncSoon:
             nonlocal in_handler
             in_handler = True
             try:
-                run_sync_soon(callback, token=token)
+                token.try_run_sync_soon(callback)
             finally:
                 in_handler = False
 
@@ -270,10 +267,6 @@ class TestRunSyncSoon:
         finally:
             signal.signal(signal.SIGUSR1, previous)
 
-    def test_without_event_loop(self) -> None:
-        with pytest.raises(NoEventLoopError):
-            run_sync_soon(lambda: None)
-
     def test_finished_loop(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
@@ -284,4 +277,26 @@ class TestRunSyncSoon:
             get_token, backend=anyio_backend_name, backend_options=anyio_backend_options
         )
         with pytest.raises(RunFinishedError):
-            run_sync_soon(lambda: None, token=token)
+            token.try_run_sync_soon(lambda: None)
+
+
+@pytest.mark.parametrize("anyio_backend", ["trio"])
+def test_run_sync_soon_runs_callback_before_exit(anyio_backend: str) -> None:
+    values: list[str] = []
+
+    async def main() -> EventLoopToken:
+        token = current_token()
+        token.run_sync_soon(values.append, "callback")
+        assert not values
+        return token
+
+    token = run(main, backend=anyio_backend)
+    assert values == ["callback"]
+    with pytest.raises(RunFinishedError):
+        token.run_sync_soon(values.append, "after exit")
+
+
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_run_sync_soon_unsupported() -> None:
+    with pytest.raises(NotImplementedError, match="guaranteed callback scheduling"):
+        current_token().run_sync_soon(pytest.fail, "Callback should not be scheduled")

@@ -252,7 +252,7 @@ class BlockingPortal:
                     scope.cancel("the future was cancelled")
                 elif event_loop_thread_id is not None:
                     try:
-                        self._token.backend_class.run_sync_soon(
+                        self._token.backend_class.try_run_sync_soon(
                             scope.cancel,
                             ("the future was cancelled",),
                             self._token.native_token,
@@ -393,7 +393,7 @@ class BlockingPortal:
 
                 def cancel_target(_: Future[None]) -> None:
                     try:
-                        self._token.backend_class.run_sync_soon(
+                        self._token.backend_class.try_run_sync_soon(
                             scope.cancel,
                             ("the calling task was cancelled",),
                             self._token.native_token,
@@ -406,7 +406,7 @@ class BlockingPortal:
 
         def notify_source(_: Future[T_Retval]) -> None:
             try:
-                source_token.backend_class.run_sync_soon(
+                source_token.backend_class.try_run_sync_soon(
                     event.set, (), source_token.native_token
                 )
             except RunFinishedError:
@@ -420,7 +420,7 @@ class BlockingPortal:
                     future.set_exception(exc)
 
         future.add_done_callback(notify_source)
-        self._token.backend_class.run_sync_soon(
+        self._token.backend_class.try_run_sync_soon(
             spawn_task, (), self._token.native_token
         )
         try:

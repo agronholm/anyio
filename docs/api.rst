@@ -255,7 +255,6 @@ Low level operations
 .. autofunction:: anyio.lowlevel.checkpoint_if_cancelled
 .. autofunction:: anyio.lowlevel.cancel_shielded_checkpoint
 .. autofunction:: anyio.lowlevel.current_token
-.. autofunction:: anyio.lowlevel.run_sync_soon
 
 .. autoclass:: anyio.lowlevel.RunVar
 .. autoclass:: anyio.lowlevel.EventLoopToken

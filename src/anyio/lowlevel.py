@@ -8,7 +8,6 @@ __all__ = (
     "checkpoint",
     "checkpoint_if_cancelled",
     "current_token",
-    "run_sync_soon",
 )
 
 import enum
@@ -92,6 +91,50 @@ class EventLoopToken:
     backend_class: type[AsyncBackend]
     native_token: object
 
+    def try_run_sync_soon(
+        self, func: Callable[[Unpack[PosArgsT]], object], *args: *PosArgsT
+    ) -> None:
+        """
+        Schedule a synchronous callable in this token's event loop without waiting.
+
+        Scheduling is best effort. On asyncio, the event loop may stop after accepting
+        the callback but before executing it.
+
+        The callable runs in the target event loop thread with a copy of the caller's
+        context. Its return value is discarded. Asyncio reports callback exceptions
+        through the loop's exception handler. Trio treats them as internal errors
+        and terminates the run.
+
+        This method can be called from the event loop thread, from other threads, and
+        from Python signal handlers. Obtain the token using :func:`current_token`
+        before handing it to another thread or installing a signal handler.
+
+        :param func: a synchronous callable
+        :param args: positional arguments for the callable
+        :raises RunFinishedError: if the backend rejects scheduling because the run
+            has finished
+
+        """
+        self.backend_class.try_run_sync_soon(func, args, self.native_token)
+
+    def run_sync_soon(
+        self, func: Callable[[Unpack[PosArgsT]], object], *args: *PosArgsT
+    ) -> None:
+        """
+        Schedule a synchronous callable to run before the event loop exits.
+
+        The method returns without waiting for the callable, which runs with a copy
+        of the caller's context. Like :meth:`try_run_sync_soon`, this method can be
+        called from any thread or from a Python signal handler.
+
+        :param func: a synchronous callable
+        :param args: positional arguments for the callable
+        :raises RunFinishedError: if the run has already finished
+        :raises NotImplementedError: if the backend is asyncio
+
+        """
+        self.backend_class.run_sync_soon(func, args, self.native_token)
+
 
 def current_token() -> EventLoopToken:
     """
@@ -107,37 +150,6 @@ def current_token() -> EventLoopToken:
     backend_class = get_async_backend()
     raw_token = backend_class.current_token()
     return EventLoopToken(backend_class, raw_token)
-
-
-def run_sync_soon(
-    func: Callable[[Unpack[PosArgsT]], object],
-    *args: *PosArgsT,
-    token: EventLoopToken | None = None,
-) -> None:
-    """
-    Schedule a synchronous callable in an event loop without waiting for it to run.
-
-    The callable runs in the target event loop thread with a copy of the caller's
-    context. Its return value is discarded. Exceptions raised by the callable are
-    handled by the backend's native callback exception policy: asyncio reports them
-    through the loop's exception handler, while Trio treats them as internal errors
-    and terminates the run.
-
-    This function can be called from the event loop thread, from other threads, and
-    from Python signal handlers. When calling from outside an event loop, or from a
-    signal handler, pass a token obtained beforehand using :func:`current_token`.
-
-    :param func: a synchronous callable
-    :param args: positional arguments for the callable
-    :param token: the target event loop token (defaults to the current event loop)
-    :raises NoEventLoopError: if no token was supplied and no supported event loop
-        could be detected in the current thread
-    :raises RunFinishedError: if the target event loop has already finished
-    """
-    if token is None:
-        token = current_token()
-
-    token.backend_class.run_sync_soon(func, args, token.native_token)
 
 
 _run_vars: WeakKeyDictionary[object, dict[RunVar[Any], Any]] = WeakKeyDictionary()

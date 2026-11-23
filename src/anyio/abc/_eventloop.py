@@ -233,13 +233,25 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
+    def try_run_sync_soon(
+        cls,
+        func: Callable[[Unpack[PosArgsT]], object],
+        args: tuple[*PosArgsT],
+        token: object,
+    ) -> None:
+        """Schedule a synchronous callable in an event loop on a best-effort basis."""
+
+    @classmethod
     def run_sync_soon(
         cls,
         func: Callable[[Unpack[PosArgsT]], object],
         args: tuple[*PosArgsT],
         token: object,
     ) -> None:
-        """Schedule a synchronous callable in an event loop without waiting."""
+        """Schedule a callback that must run before the event loop exits."""
+        raise NotImplementedError(
+            "This backend does not support guaranteed callback scheduling"
+        )
 
     @classmethod
     @abstractmethod
