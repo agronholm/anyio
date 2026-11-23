@@ -882,8 +882,12 @@ class WorkerThreadPool:
         self.lock = threading.Lock()
         self.workers: set[WorkerThread] = set()
         self.idle_workers: dict[WorkerThread, None] = {}
+        self.idle_daemon_workers: dict[WorkerThread, None] = {}
         self.stopping = False
         self.draining = False
+
+    def _idle_pool(self, daemon: bool) -> dict[WorkerThread, None]:
+        return self.idle_daemon_workers if daemon else self.idle_workers
 
     def submit(
         self,
@@ -891,16 +895,19 @@ class WorkerThreadPool:
         func: Callable[[Unpack[PosArgsT]], T_Retval],
         args: tuple[*PosArgsT],
         cancel_scope: CancelScope,
+        *,
+        daemon: bool = False,
     ) -> asyncio.Future[T_Retval]:
         future = asyncio.Future[T_Retval]()
         with self.lock:
             if self.stopping:
                 raise RuntimeError("The worker thread pool is shutting down")
 
-            if self.idle_workers:
-                worker, _ = self.idle_workers.popitem()
+            idle_workers = self._idle_pool(daemon)
+            if idle_workers:
+                worker, _ = idle_workers.popitem()
             else:
-                worker = WorkerThread(self)
+                worker = WorkerThread(self, daemon=daemon)
                 self.workers.add(worker)
                 try:
                     worker.start()
@@ -921,6 +928,7 @@ class WorkerThreadPool:
             if not self.stopping:
                 self.stopping = True
                 self.idle_workers.clear()
+                self.idle_daemon_workers.clear()
                 for worker in workers:
                     # A job may still be queued. Leave room for the shutdown command
                     # behind it so submitted work can finish before the worker exits.
@@ -935,17 +943,20 @@ class WorkerThreadPool:
             self.draining = True
             for worker in self.idle_workers:
                 worker.queue.put_nowait(None)
+            for worker in self.idle_daemon_workers:
+                worker.queue.put_nowait(None)
 
             self.idle_workers.clear()
+            self.idle_daemon_workers.clear()
 
 
 class WorkerThread(Thread):
-    def __init__(self, pool: WorkerThreadPool):
+    def __init__(self, pool: WorkerThreadPool, *, daemon: bool = False):
         kwargs: dict[str, Any] = {}
         if sys.version_info >= (3, 14):
             kwargs["context"] = Context()
 
-        super().__init__(name="AnyIO worker thread", daemon=False, **kwargs)
+        super().__init__(name="AnyIO worker thread", daemon=daemon, **kwargs)
         self.pool = pool
         self.queue: Queue[
             tuple[Context, Callable, tuple, asyncio.Future, CancelScope] | None
@@ -988,7 +999,7 @@ class WorkerThread(Thread):
         with self.pool.lock:
             retire = self.pool.stopping or self.pool.draining
             if not retire:
-                self.pool.idle_workers[self] = None
+                self.pool._idle_pool(self.daemon)[self] = None
 
         try:
             loop.call_soon_threadsafe(self._report_result, future, result, exception)
@@ -1007,8 +1018,9 @@ class WorkerThread(Thread):
                     # Assignment and retirement use the same lock: if a submitter
                     # already selected us, its queued job must still be processed.
                     with self.pool.lock:
-                        if self in self.pool.idle_workers:
-                            del self.pool.idle_workers[self]
+                        idle_workers = self.pool._idle_pool(self.daemon)
+                        if self in idle_workers:
+                            del idle_workers[self]
                             return
 
                     continue
@@ -1024,7 +1036,7 @@ class WorkerThread(Thread):
                     self.queue.task_done()
         finally:
             with self.pool.lock:
-                self.pool.idle_workers.pop(self, None)
+                self.pool._idle_pool(self.daemon).pop(self, None)
                 self.pool.workers.discard(self)
 
 
@@ -2634,7 +2646,9 @@ class AsyncIOBackend(AsyncBackend):
                 else:
                     worker_scope = scope._parent_scope
 
-                return await _threadpool.submit(context, func, args, worker_scope)
+                return await _threadpool.submit(
+                    context, func, args, worker_scope, daemon=abandon_on_cancel
+                )
 
     @classmethod
     def check_cancelled(cls) -> None:
