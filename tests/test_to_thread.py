@@ -506,7 +506,9 @@ def test_asyncio_worker_thread_loop_closed_during_result_report(
     worker_threads[0].queue.join()  # type: ignore[attr-defined]
     assert (
         anyio.run(
-            partial(to_thread.run_sync, threading.current_thread, abandon_on_cancel=True)
+            partial(
+                to_thread.run_sync, threading.current_thread, abandon_on_cancel=True
+            )
         )
         is worker_threads[0]
     )
