@@ -1654,7 +1654,7 @@ class TestUNIXStream:
             received.append(msg)
             fds.extend(received_fds)
 
-        with send_sock, receive_sock, passed_sock, passed_peer:
+        try:
             async with (
                 await UNIXSocketStream.from_socket(send_sock) as sender,
                 await UNIXSocketStream.from_socket(receive_sock) as receiver,
@@ -1663,14 +1663,17 @@ class TestUNIXStream:
                 tg.start_soon(receive)
                 await sender.send_fds(message, [passed_sock])
 
-        assert received == [message]
-        assert len(fds) == 1
-        try:
-            # The received descriptor must refer to the socket that was passed in
+            assert received == [message]
+            assert len(fds) == 1
+            # The received descriptor must refer to the socket that was passed in,
+            # so write through the peer end and read it back from the descriptor.
             passed_peer.send(b"x")
             assert os.read(fds[0], 1) == b"x"
         finally:
-            os.close(fds[0])
+            for fd in fds:
+                os.close(fd)
+            passed_sock.close()
+            passed_peer.close()
 
     async def test_send_fds_large_message(self, tmp_path: Path) -> None:
         message = b"\xff" * 512 * 1024 + b"\x00" * 512 * 1024
