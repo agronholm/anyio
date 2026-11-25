@@ -278,27 +278,3 @@ class TestTryRunSyncSoon:
         )
         with pytest.raises(RunFinishedError):
             token.try_run_sync_soon(lambda: None)
-
-
-@pytest.mark.skipif(
-    "trio" not in get_available_backends(), reason="Trio is unavailable"
-)
-def test_run_sync_soon_runs_callback_before_exit() -> None:
-    values: list[str] = []
-
-    async def main() -> EventLoopToken:
-        token = current_token()
-        token.run_sync_soon(values.append, "callback")
-        assert not values
-        return token
-
-    token = run(main, backend="trio")
-    assert values == ["callback"]
-    with pytest.raises(RunFinishedError):
-        token.run_sync_soon(values.append, "after exit")
-
-
-@pytest.mark.parametrize("anyio_backend", ["asyncio"])
-async def test_run_sync_soon_unsupported() -> None:
-    with pytest.raises(NotImplementedError, match="guaranteed callback scheduling"):
-        current_token().run_sync_soon(pytest.fail, "Callback should not be scheduled")

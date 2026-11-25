@@ -1,4 +1,2 @@
 Added :meth:`anyio.lowlevel.EventLoopToken.try_run_sync_soon` for best-effort scheduling
 of synchronous callbacks from any thread or a Python signal handler.
-Added :meth:`anyio.lowlevel.EventLoopToken.run_sync_soon` for scheduling callbacks
-with a guarantee that they will run before the event loop exits (Trio only).

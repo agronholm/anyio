@@ -117,24 +117,6 @@ class EventLoopToken:
         """
         self.backend_class.try_run_sync_soon(func, args, self.native_token)
 
-    def run_sync_soon(
-        self, func: Callable[[Unpack[PosArgsT]], object], *args: *PosArgsT
-    ) -> None:
-        """
-        Schedule a synchronous callable to run before the event loop exits.
-
-        The method returns without waiting for the callable, which runs with a copy
-        of the caller's context. Like :meth:`try_run_sync_soon`, this method can be
-        called from any thread or from a Python signal handler.
-
-        :param func: a synchronous callable
-        :param args: positional arguments for the callable
-        :raises RunFinishedError: if the run has already finished
-        :raises NotImplementedError: if the backend is asyncio
-
-        """
-        self.backend_class.run_sync_soon(func, args, self.native_token)
-
 
 def current_token() -> EventLoopToken:
     """
