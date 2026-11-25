@@ -130,6 +130,28 @@ class TestSpooledTemporaryFile:
                 await stf.writelines([b"1234567890123456"])
                 assert rollover_called
 
+    async def test_failed_rollover_preserves_state(
+        self, tmp_path: pathlib.Path
+    ) -> None:
+        missing = str(tmp_path / "missing")
+        async with SpooledTemporaryFile[bytes](max_size=8, dir=missing) as stf:
+            await stf.write(b"aaaa")
+            with pytest.raises(FileNotFoundError):
+                await stf.write(b"bbbbbbbb")
+
+            assert not stf._rolled
+            assert await stf.tell() == 12
+            await stf.seek(0)
+            assert await stf.read() == b"aaaabbbbbbbb"
+
+            # Once the underlying problem is gone, the rollover is retried
+            os.mkdir(missing)
+            await stf.write(b"cccc")
+            assert stf._rolled
+            assert await stf.tell() == 16
+            await stf.seek(0)
+            assert await stf.read() == b"aaaabbbbbbbbcccc"
+
     async def test_rollover_preserves_position(self) -> None:
         """Rollover preserves the position of a partially read file."""
         async with SpooledTemporaryFile[bytes](max_size=1024) as stf:
