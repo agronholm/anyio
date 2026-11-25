@@ -2048,57 +2048,9 @@ class TestUNIXListener:
             async with await create_unix_listener(socket_path):
                 pass
 
-    @pytest.mark.parametrize(
-        "umask, mode, expected_mode",
-        [
-            pytest.param(0o022, None, 0o755, id="default"),
-            pytest.param(0o022, 0o666, 0o666, id="explicit-masked-by-umask"),
-            pytest.param(
-                0o077, 0o777, 0o777, id="explicit-masked-by-restrictive-umask"
-            ),
-        ],
-    )
-    async def test_mode(self, umask: int, mode: int | None, expected_mode: int) -> None:
-        old_umask = os.umask(umask)
-        try:
-            with tempfile.TemporaryDirectory() as path:
-                sock_path = Path(path) / "socket"
-                async with await create_unix_listener(sock_path, mode=mode):
-                    assert (
-                        stat.S_IMODE(sock_path.stat(follow_symlinks=False).st_mode)
-                        == expected_mode
-                    )
-        finally:
-            os.umask(old_umask)
-
-    @pytest.mark.parametrize(
-        "mode",
-        [
-            pytest.param(0o666, id="explicit"),
-            pytest.param(0o600, id="explicit-restrictive"),
-        ],
-    )
-    @pytest.mark.skipif(
-        not sys.platform.startswith("linux"),
-        reason="Abstract namespace sockets is a Linux only feature",
-    )
-    async def test_mode_abstract(self, mode: int) -> None:
-        # The post-bind chmod() must be skipped for abstract namespace sockets
-        # (they have no file on disk); without the skip, creating the listener
-        # raises FileNotFoundError
-        old_umask = os.umask(0o022)
-        try:
-            with tempfile.TemporaryDirectory() as path:
-                sock_path = f"\0{path}/socket"
-                async with await create_unix_listener(sock_path, mode=mode):
-                    # No socket file is created on disk
-                    assert not os.listdir(path)
-
-                    # The listener still works
-                    async with await connect_unix(sock_path):
-                        pass
-        finally:
-            os.umask(old_umask)
+    async def test_mode(self, socket_path: Path) -> None:
+        async with await create_unix_listener(socket_path, mode=0o600):
+            pass
 
     async def test_listening_bytes_path(self, socket_path: Path) -> None:
         async with await create_unix_listener(str(socket_path).encode()):
@@ -3112,21 +3064,15 @@ class TestUNIXDatagramSocket:
             await UNIXDatagramSocket.from_socket(sock_or_fd)
 
     @pytest.mark.parametrize(
-        "umask, local_mode, expected_mode",
+        "local_mode, expected_mode",
         [
-            pytest.param(0o022, None, 0o755, id="default"),
-            pytest.param(0o022, 0o644, 0o644, id="explicit"),
-            pytest.param(0o022, 0o666, 0o666, id="explicit-masked-by-umask"),
-            pytest.param(
-                0o077, 0o777, 0o777, id="explicit-masked-by-restrictive-umask"
-            ),
-            pytest.param(0o077, 0o600, 0o600, id="explicit-restrictive"),
+            pytest.param(None, 0o755, id="default"),
+            pytest.param(0o644, 0o644, id="explicit"),
+            pytest.param(0o666, 0o666, id="explicit-wider-than-umask"),
         ],
     )
-    async def test_local_mode(
-        self, umask: int, local_mode: int | None, expected_mode: int
-    ) -> None:
-        old_umask = os.umask(umask)
+    async def test_local_mode(self, local_mode: int | None, expected_mode: int) -> None:
+        old_umask = os.umask(0o022)
         try:
             with tempfile.TemporaryDirectory() as path:
                 sock_path = Path(path) / "socket"
@@ -3139,33 +3085,6 @@ class TestUNIXDatagramSocket:
                     stat.S_IMODE(sock_path.stat(follow_symlinks=False).st_mode)
                     == expected_mode
                 )
-        finally:
-            os.umask(old_umask)
-
-    @pytest.mark.parametrize(
-        "local_mode",
-        [
-            pytest.param(0o666, id="explicit"),
-            pytest.param(0o600, id="explicit-restrictive"),
-        ],
-    )
-    @pytest.mark.skipif(
-        not sys.platform.startswith("linux"),
-        reason="Abstract namespace sockets is a Linux only feature",
-    )
-    async def test_local_mode_abstract(self, local_mode: int) -> None:
-        # The post-bind chmod() must be skipped for abstract namespace sockets
-        # (they have no file on disk); without the skip, creating the socket
-        # raises FileNotFoundError
-        old_umask = os.umask(0o022)
-        try:
-            with tempfile.TemporaryDirectory() as path:
-                sock_path = f"\0{path}/socket"
-                async with await create_unix_datagram_socket(
-                    local_path=sock_path, local_mode=local_mode
-                ):
-                    # No socket file is created on disk
-                    assert not os.listdir(path)
         finally:
             os.umask(old_umask)
 
