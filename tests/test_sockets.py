@@ -1411,6 +1411,48 @@ class TestTCPListener:
 @pytest.mark.skipif(
     sys.platform == "win32", reason="UNIX sockets are not available on Windows"
 )
+async def test_cancelled_wait_after_socket_is_ready(anyio_backend_name: str) -> None:
+    """A cancelled socket wait must not leave a queued callback behind."""
+    if anyio_backend_name != "asyncio":
+        pytest.skip("asyncio-specific race")
+
+    import asyncio
+
+    loop = asyncio.get_running_loop()
+    reported: list[dict[str, Any]] = []
+    previous_handler = loop.get_exception_handler()
+    loop.set_exception_handler(lambda loop, context: reported.append(context))
+    try:
+        mine, theirs = socket.socketpair(socket.AF_UNIX)
+        scope = CancelScope()
+
+        async def receive(stream: UNIXSocketStream) -> None:
+            with scope:
+                await stream.receive()
+
+        def make_readable_and_cancel() -> None:
+            # The socket becomes readable at the next select(), and the
+            # cancellation is queued ahead of the reader callback.
+            theirs.send(b"x")
+            loop.call_soon(scope.cancel)
+
+        with theirs:
+            async with await UNIXSocketStream.from_socket(mine) as stream:
+                async with create_task_group() as task_group:
+                    task_group.start_soon(receive, stream)
+                    await wait_all_tasks_blocked()
+                    loop.call_soon(make_readable_and_cancel)
+
+        await wait_all_tasks_blocked()
+    finally:
+        loop.set_exception_handler(previous_handler)
+
+    assert not reported
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="UNIX sockets are not available on Windows"
+)
 class TestUNIXStream:
     @pytest.fixture(
         params=[
