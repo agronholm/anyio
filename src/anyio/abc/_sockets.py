@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import errno
+import logging
 import socket
 from abc import abstractmethod
 from collections.abc import Callable, Collection, Mapping
@@ -274,15 +275,31 @@ class SocketListener(Listener[SocketStream], _SocketProvider):
         handler: Callable[[SocketStream], Any],
         task_group: TaskGroup | None = None,
     ) -> None:
-        from .. import create_task_group
+        from .. import BrokenResourceError, create_task_group, sleep
 
         async with AsyncExitStack() as stack:
             if task_group is None:
                 task_group = await stack.enter_async_context(create_task_group())
 
             while True:
-                stream = await self.accept()
-                task_group.start_soon(handler, stream)
+                try:
+                    stream = await self.accept()
+                except (OSError, BrokenResourceError) as exc:
+                    cause = exc if isinstance(exc, OSError) else exc.__cause__
+                    if not isinstance(cause, OSError) or cause.errno not in (
+                        errno.EMFILE,
+                        errno.ENFILE,
+                        errno.ENOMEM,
+                        errno.ENOBUFS,
+                    ):
+                        raise
+
+                    logging.getLogger(__name__).exception(
+                        "accept() failed; retrying in 0.1 seconds"
+                    )
+                    await sleep(0.1)
+                else:
+                    task_group.start_soon(handler, stream)
 
 
 class UDPSocket(UnreliableObjectStream[UDPPacketType], _SocketProvider):
