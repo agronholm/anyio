@@ -1263,11 +1263,11 @@ class TrioBackend(AsyncBackend):
     ) -> SocketStream:
         family = socket.AF_INET6 if ":" in host else socket.AF_INET
         trio_socket = trio.socket.socket(family)
-        trio_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        if local_address:
-            await trio_socket.bind(local_address)
-
         try:
+            trio_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            if local_address:
+                await trio_socket.bind(local_address)
+
             await trio_socket.connect((host, port))
         except BaseException:
             trio_socket.close()
@@ -1339,13 +1339,21 @@ class TrioBackend(AsyncBackend):
     async def create_unix_datagram_socket(
         cls, raw_socket: socket.socket, remote_path: str | bytes | None
     ) -> abc.UNIXDatagramSocket | abc.ConnectedUNIXDatagramSocket:
-        trio_socket = trio.socket.from_stdlib_socket(raw_socket)
+        try:
+            trio_socket = trio.socket.from_stdlib_socket(raw_socket)
+        except BaseException:
+            raw_socket.close()
+            raise
 
-        if remote_path:
-            await trio_socket.connect(remote_path)
-            return ConnectedUNIXDatagramSocket(trio_socket)
-        else:
-            return UNIXDatagramSocket(trio_socket)
+        try:
+            if remote_path:
+                await trio_socket.connect(remote_path)
+                return ConnectedUNIXDatagramSocket(trio_socket)
+            else:
+                return UNIXDatagramSocket(trio_socket)
+        except BaseException:
+            trio_socket.close()
+            raise
 
     @classmethod
     async def getaddrinfo(
