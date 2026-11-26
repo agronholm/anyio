@@ -2928,11 +2928,8 @@ class AsyncIOBackend(AsyncBackend):
         fut: asyncio.Future[bool] = loop.create_future()
 
         def cb() -> None:
-            try:
+            if read_events.get(fd) is fut:
                 del read_events[fd]
-            except KeyError:
-                pass
-            else:
                 remove_reader(fd)
 
             try:
@@ -2955,11 +2952,10 @@ class AsyncIOBackend(AsyncBackend):
         try:
             success = await fut
         finally:
-            try:
+            # Only remove the registration if it is still ours - a new waiter
+            # may have replaced ours in the meantime
+            if read_events.get(fd) is fut:
                 del read_events[fd]
-            except KeyError:
-                pass
-            else:
                 remove_reader(fd)
 
         if not success:
@@ -2981,11 +2977,8 @@ class AsyncIOBackend(AsyncBackend):
         fut: asyncio.Future[bool] = loop.create_future()
 
         def cb() -> None:
-            try:
+            if write_events.get(fd) is fut:
                 del write_events[fd]
-            except KeyError:
-                pass
-            else:
                 remove_writer(fd)
 
             try:
@@ -3008,11 +3001,10 @@ class AsyncIOBackend(AsyncBackend):
         try:
             success = await fut
         finally:
-            try:
+            # Only remove the registration if it is still ours - a new waiter
+            # may have replaced ours in the meantime
+            if write_events.get(fd) is fut:
                 del write_events[fd]
-            except KeyError:
-                pass
-            else:
                 remove_writer(fd)
 
         if not success:
