@@ -179,6 +179,9 @@ class _BlockingPortalTaskStatus(TaskStatus):
         self._future = future
 
     def started(self, value: object = None) -> None:
+        if self._future.done():
+            raise RuntimeError("called 'started' twice on the same task status")
+
         self._future.set_result(value)
 
 

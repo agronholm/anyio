@@ -1,0 +1,3 @@
+Fixed ``BlockingPortal.start_task()`` raising ``concurrent.futures.InvalidStateError``
+instead of ``RuntimeError`` when the task calls ``task_status.started()`` twice, like
+``TaskGroup.start()`` does
