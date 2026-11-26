@@ -41,11 +41,6 @@ To receive incoming TCP connections, you first create a TCP listener with
 
 .. literalinclude:: snippets/networking/tcp_server.py
 
-The returned :class:`~.streams.stapled.MultiListener` may contain several listeners,
-such as separate IPv4 and IPv6 listeners. Closing it attempts to close every listener,
-even if closing one of them raises an exception or is cancelled. This also applies
-when using :func:`aclose_forcefully`.
-
 See the section on :ref:`TLS` for more information.
 
 Working with UNIX sockets
