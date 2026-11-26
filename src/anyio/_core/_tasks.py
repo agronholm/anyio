@@ -6,7 +6,7 @@ from collections.abc import (
     Coroutine,
     Generator,
 )
-from contextlib import AbstractContextManager, contextmanager
+from contextlib import contextmanager
 from enum import Enum, auto
 from inspect import iscoroutine
 from types import TracebackType
@@ -21,10 +21,7 @@ if sys.version_info >= (3, 13):
 else:
     from typing_extensions import TypeVar
 
-if sys.version_info >= (3, 11):
-    from typing import Never, Self, TypeVarTuple
-else:
-    from typing_extensions import Never, Self, TypeVarTuple
+from typing import Never, Self, TypeVarTuple
 
 T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
@@ -198,9 +195,7 @@ def move_on_at(deadline: float | None, shield: bool = False) -> CancelScope:
     )
 
 
-def move_on_after(
-    delay: float | None, shield: bool = False
-) -> AbstractContextManager[CancelScope]:
+def move_on_after(delay: float | None, shield: bool = False) -> CancelScope:
     """
     Create a cancel scope with a deadline that expires after the given delay.
 
@@ -290,6 +285,7 @@ class TaskHandle(Generic[T_co, T_startval_co]):
     __slots__ = (
         "__weakref__",
         "_cancel_scope",
+        "_cancelled_exc_class",
         "_coro",
         "_exception",
         "_finished_event",
@@ -301,11 +297,16 @@ class TaskHandle(Generic[T_co, T_startval_co]):
     _return_value: T_co
     _start_value: T_startval_co
 
-    def __init__(self, coro: Coroutine[Any, Any, T_co], name: object) -> None:
+    def __init__(
+        self,
+        coro: Coroutine[Any, Any, T_co],
+        name: object,
+        cancel_scope: CancelScope | None = None,
+    ) -> None:
         from ._synchronization import Event
 
         self._coro = coro
-        self._cancel_scope = CancelScope()
+        self._cancel_scope = cancel_scope if cancel_scope is not None else CancelScope()
         self._finished_event = Event()
         self._exception: BaseException | None = None
 
@@ -318,6 +319,7 @@ class TaskHandle(Generic[T_co, T_startval_co]):
 
     async def _run_coro(self) -> None:
         __tracebackhide__ = True
+        self._cancelled_exc_class = get_cancelled_exc_class()
 
         with self._cancel_scope:
             try:
@@ -371,7 +373,7 @@ class TaskHandle(Generic[T_co, T_startval_co]):
             else:
                 return TaskHandle.Status.PENDING
         elif self._exception is not None:
-            if isinstance(self._exception, get_cancelled_exc_class()):
+            if isinstance(self._exception, self._cancelled_exc_class):
                 return TaskHandle.Status.CANCELLED
             else:
                 return TaskHandle.Status.FAILED

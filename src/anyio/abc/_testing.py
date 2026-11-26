@@ -1,15 +1,9 @@
 from __future__ import annotations
 
-import sys
 import types
 from abc import ABCMeta, abstractmethod
 from collections.abc import AsyncGenerator, Callable, Coroutine, Iterable
-from typing import Any, TypeVar
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
+from typing import Any, Self, TypeVar
 
 _T = TypeVar("_T")
 

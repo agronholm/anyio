@@ -6,10 +6,11 @@ import socket
 import ssl
 import stat
 import sys
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from functools import partial
 from ipaddress import IPv4Address, IPv6Address, ip_address
-from os import PathLike, chmod
+from os import PathLike
 from socket import AddressFamily, SocketKind
 from typing import IO, TYPE_CHECKING, Any, Literal, cast, overload
 
@@ -26,7 +27,6 @@ from ..abc import (
     UNIXDatagramSocket,
     UNIXSocketStream,
 )
-from ..from_thread import check_cancelled
 from ..streams.stapled import MultiListener
 from ..streams.tls import TLSConnectable, TLSStream
 from ._eventloop import get_async_backend
@@ -39,8 +39,6 @@ if TYPE_CHECKING:
 else:
     FileDescriptorLike = object
 
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 if sys.version_info >= (3, 12):
     from typing import override
@@ -264,6 +262,11 @@ async def connect_tcp(
                 else ExceptionGroup("multiple connection attempts failed", oserrors)
             )
             raise OSError("All connection attempts failed") from cause
+    except BaseException:
+        if connected_stream is not None:
+            await aclose_forcefully(connected_stream)
+
+        raise
     finally:
         oserrors.clear()
 
@@ -283,19 +286,25 @@ async def connect_tcp(
     return connected_stream
 
 
-async def connect_unix(path: str | bytes | PathLike[Any]) -> UNIXSocketStream:
+async def connect_unix(
+    path: str | bytes | PathLike[Any],
+    kind: Literal[
+        SocketKind.SOCK_STREAM, SocketKind.SOCK_SEQPACKET
+    ] = socket.SOCK_STREAM,
+) -> UNIXSocketStream:
     """
     Connect to the given UNIX socket.
 
     Not available on Windows.
 
     :param path: path to the socket
+    :param kind: socket type (``SOCK_STREAM`` or ``SOCK_SEQPACKET``)
     :return: a socket stream object
     :raises ConnectionFailed: if the connection fails
 
     """
     path = os.fspath(path)
-    return await get_async_backend().connect_unix(path)
+    return await get_async_backend().connect_unix(path, kind)
 
 
 async def create_tcp_listener(
@@ -394,7 +403,7 @@ async def create_tcp_listener(
 
     errors: list[OSError] = []
     try:
-        for _ in range(len(sockaddrs)):
+        for _ in range(10):  # enough to absorb ephemeral port collisions
             listeners: list[SocketListener] = []
             bound_ephemeral_port = local_port
             try:
@@ -440,6 +449,9 @@ async def create_unix_listener(
     *,
     mode: int | None = None,
     backlog: int = 65536,
+    kind: Literal[
+        SocketKind.SOCK_STREAM, SocketKind.SOCK_SEQPACKET
+    ] = SocketKind.SOCK_STREAM,
 ) -> SocketListener:
     """
     Create a UNIX socket listener.
@@ -447,9 +459,14 @@ async def create_unix_listener(
     Not available on Windows.
 
     :param path: path of the socket
-    :param mode: permissions to set on the socket
+    :param mode: permissions to set on the socket (on Linux, the socket file is
+        created with no more than these permissions and then adjusted to exactly
+        these permissions; on other platforms, they are set after the socket file
+        has been created, so the parent directory should not be writable by
+        untrusted users)
     :param backlog: maximum number of queued incoming connections (up to a maximum of
         2**16, or 65536)
+    :param kind: socket type (``SOCK_STREAM`` or ``SOCK_SEQPACKET``)
     :return: a listener object
 
     .. versionchanged:: 3.0
@@ -458,7 +475,7 @@ async def create_unix_listener(
 
     """
     backlog = min(backlog, 65536)
-    raw_socket = await setup_unix_local_socket(path, mode, socket.SOCK_STREAM)
+    raw_socket = await setup_unix_local_socket(path, mode, kind)
     try:
         raw_socket.listen(backlog)
         return get_async_backend().create_unix_listener(raw_socket)
@@ -503,9 +520,9 @@ async def create_udp_socket(
         family = cast(AnyIPAddressFamily, gai_res[0][0])
         local_address = gai_res[0][-1]
     elif family is AddressFamily.AF_INET6:
-        local_address = ("::", 0)
+        local_address = ("::", local_port)
     else:
-        local_address = ("0.0.0.0", 0)
+        local_address = ("0.0.0.0", local_port)
 
     sock = await get_async_backend().create_udp_socket(
         family, local_address, None, reuse_port
@@ -557,6 +574,12 @@ async def create_connected_udp_socket(
     family = cast(AnyIPAddressFamily, gai_res[0][0])
     remote_address = gai_res[0][-1]
 
+    if local_address is None and local_port:
+        if family is AddressFamily.AF_INET6:
+            local_address = ("::", local_port)
+        else:
+            local_address = ("0.0.0.0", local_port)
+
     sock = await get_async_backend().create_udp_socket(
         family, local_address, remote_address, reuse_port
     )
@@ -581,7 +604,11 @@ async def create_unix_datagram_socket(
     removed first.
 
     :param local_path: the path on which to bind to
-    :param local_mode: permissions to set on the local socket
+    :param local_mode: permissions to set on the local socket (on Linux, the socket
+        file is created with no more than these permissions and then adjusted to
+        exactly these permissions; on other platforms, they are set after the socket
+        file has been created, so the parent directory should not be writable by
+        untrusted users)
     :return: a UNIX datagram socket
 
     """
@@ -611,7 +638,11 @@ async def create_connected_unix_datagram_socket(
 
     :param remote_path: the path to set as the default target
     :param local_path: the path on which to bind to
-    :param local_mode: permissions to set on the local socket
+    :param local_mode: permissions to set on the local socket (on Linux, the socket
+        file is created with no more than these permissions and then adjusted to
+        exactly these permissions; on other platforms, they are set after the socket
+        file has been created, so the parent directory should not be writable by
+        untrusted users)
     :return: a connected UNIX datagram socket
 
     """
@@ -898,9 +929,21 @@ async def setup_unix_local_socket(
 
     if path_str is not None:
         try:
+            # On Linux, bind() creates the socket file with the mode of the unbound
+            # socket, masked by the umask. Set the mode beforehand so the file is
+            # never created more permissive than requested, then restore the exact
+            # mode after binding. Other platforms don't allow fchmod() on sockets,
+            # so the mode has to be set after binding, without following symlinks.
+            if mode is not None and sys.platform == "linux":
+                os.fchmod(raw_socket.fileno(), mode)
+
             await to_thread.run_sync(raw_socket.bind, path_str, abandon_on_cancel=True)
-            if mode is not None:
-                await to_thread.run_sync(chmod, path_str, mode, abandon_on_cancel=True)
+            # Abstract namespace sockets have no file on disk; never follow symlinks.
+            if mode is not None and not path_str.startswith("\0"):
+                await to_thread.run_sync(
+                    partial(os.chmod, path_str, mode, follow_symlinks=False),
+                    abandon_on_cancel=True,
+                )
         except BaseException:
             raw_socket.close()
             raise
@@ -1038,74 +1081,87 @@ def validate_sendfile_args(file: IO[bytes], offset: int, count: int | None) -> N
             raise ValueError(f"count must be a positive integer (got {count!r})")
 
 
-def sendfile_blocking(
-    sock: socket.socket, file: IO[bytes], offset: int, count: int | None
+async def sendfile_fallback(
+    file: IO[bytes],
+    offset: int,
+    count: int | None,
+    send: Callable[[bytes], Awaitable[None]],
 ) -> int:
-    """
-    Send a file over a socket, blocking; the caller must hold the send guard.
+    """Copy a file through an unguarded stream send; the caller holds the send guard."""
+    from ._tasks import CancelScope
 
-    Note that we cannot use ``socket.sendfile()`` here since it doesn't work with
-    uvloop's pseudo-sockets.
-    """
     total = 0
-    if os.name == "posix":
-        sock_fd = sock.fileno()
-        os.set_blocking(sock_fd, True)
-        try:
-            file_fd = file.fileno()
-            size: int | None = None
-            position = offset
+    await to_thread.run_sync(file.seek, offset)
+    try:
+        while count is None or total < count:
+            size = 65536 if count is None else min(65536, count - total)
+            data = await to_thread.run_sync(file.read, size)
+            if not data:
+                break
 
-            while count is None or total < count:
-                check_cancelled()
-                if count is not None:
-                    to_send = count - total
+            await send(data)
+            total += len(data)
+    finally:
+        # Reading can run ahead of the bytes successfully sent. Restore the position
+        # even if a send was cancelled or the connection broke.
+        with CancelScope(shield=True):
+            await to_thread.run_sync(file.seek, offset + total)
+
+    return total
+
+
+async def sendfile_native(
+    sock: socket.socket,
+    file: IO[bytes],
+    offset: int,
+    count: int | None,
+    send: Callable[[bytes], Awaitable[None]],
+    wait_writable: Callable[[], Awaitable[object]] | None = None,
+) -> int:
+    """Send on a raw nonblocking socket, falling back when native sendfile is unavailable."""
+    from ._exceptions import BrokenResourceError
+    from ._tasks import CancelScope
+
+    backend = get_async_backend()
+    await backend.checkpoint()
+    if not hasattr(os, "sendfile"):
+        return await sendfile_fallback(file, offset, count, send)
+
+    total = 0
+    file_fd = file.fileno()
+    try:
+        while count is None or total < count:
+            size = 1024 * 1024 if count is None else min(1024 * 1024, count - total)
+            try:
+                sent = os.sendfile(sock.fileno(), file_fd, offset + total, size)
+            except BlockingIOError:
+                if wait_writable is None:
+                    await backend.wait_writable(sock)
                 else:
-                    if size is None:
-                        size = os.fstat(file_fd).st_size
+                    await wait_writable()
+                continue
+            except InterruptedError:
+                await backend.checkpoint()
+                continue
+            except OSError as exc:
+                if not total and exc.errno in (
+                    errno.ENOSYS,
+                    errno.EINVAL,
+                    errno.ENOTSUP,
+                    errno.EOPNOTSUPP,
+                ):
+                    return await sendfile_fallback(file, offset, count, send)
 
-                    to_send = size - position
+                raise BrokenResourceError from exc
 
-                if to_send <= 0:
-                    break
+            if not sent:
+                break
 
-                # Cap the amount sent per call: an uncapped sendfile() would not
-                # return until the whole transfer is done, leaving no opportunity
-                # for the next iteration (and its cancellation check) to run
-                sent = os.sendfile(sock_fd, file_fd, position, min(to_send, 65536))
-                if sent == 0:
-                    break
-
-                total += sent
-                position += sent
-        finally:
-            os.set_blocking(sock_fd, False)
-    else:
-        # On Windows, os.sendfile() has an incompatible signature (it mirrors
-        # the Windows TransmitFile() API)
-        sock.setblocking(True)
-        try:
-            file.seek(offset)
-            while count is None or total < count:
-                check_cancelled()
-                if count is None:
-                    chunk = file.read(65536)
-                else:
-                    remaining = count - total
-                    if remaining <= 0:
-                        break
-
-                    chunk = file.read(min(65536, remaining))
-
-                if not chunk:
-                    break
-
-                sock.sendall(chunk)
-                total += len(chunk)
-        finally:
-            sock.setblocking(False)
-
-    if total:
-        file.seek(offset + total)
+            total += sent
+            await backend.checkpoint()
+    finally:
+        if total:
+            with CancelScope(shield=True):
+                await to_thread.run_sync(file.seek, offset + total)
 
     return total

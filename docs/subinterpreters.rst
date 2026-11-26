@@ -24,21 +24,9 @@ Running functions in a worker interpreter makes sense when:
 If the code you're trying to run only does blocking network I/O, or file I/O, then
 you're better off using :doc:`worker thread <threads>` instead.
 
-This is done by using :func:`.to_interpreter.run_sync`::
+This is done by using :func:`.to_interpreter.run_sync`:
 
-    import time
-
-    from anyio import run, to_interpreter
-
-    from yourothermodule import cpu_intensive_function
-
-    async def main():
-        result = await to_interpreter.run_sync(
-            cpu_intensive_function, 'Hello, ', 'world!'
-        )
-        print(result)
-
-    run(main)
+.. literalinclude:: snippets/subinterpreters/run_sync.py
 
 Limitations
 -----------

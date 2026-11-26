@@ -1,23 +1,17 @@
 from __future__ import annotations
 
 import math
-import sys
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from types import TracebackType
-from typing import TypeVar
+from typing import Self, TypeVar
 
 from ..lowlevel import checkpoint_if_cancelled
 from ._eventloop import get_async_backend
 from ._exceptions import BusyResourceError, NoEventLoopError
 from ._tasks import CancelScope
 from ._testing import TaskInfo, get_current_task
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
 
 T = TypeVar("T")
 
@@ -258,7 +252,10 @@ class LockAdapter(Lock):
 
     def locked(self) -> bool:
         """Return True if the lock is currently held."""
-        return self._lock.locked()
+        if self._internal_lock is None:
+            return False
+
+        return self._internal_lock.locked()
 
     def statistics(self) -> LockStatistics:
         """
@@ -274,10 +271,9 @@ class LockAdapter(Lock):
 
 
 class Condition:
-    __slots__ = "__weakref__", "_lock", "_owner_task", "_waiters"
+    __slots__ = "__weakref__", "_lock", "_waiters"
 
     def __init__(self, lock: Lock | None = None):
-        self._owner_task: TaskInfo | None = None
         self._lock = lock or Lock()
         self._waiters: deque[Event] = deque()
 
@@ -293,13 +289,12 @@ class Condition:
         self.release()
 
     def _check_acquired(self) -> None:
-        if self._owner_task != get_current_task():
+        if self._lock.statistics().owner != get_current_task():
             raise RuntimeError("The current task is not holding the underlying lock")
 
     async def acquire(self) -> None:
         """Acquire the underlying lock."""
         await self._lock.acquire()
-        self._owner_task = get_current_task()
 
     def acquire_nowait(self) -> None:
         """
@@ -309,7 +304,6 @@ class Condition:
 
         """
         self._lock.acquire_nowait()
-        self._owner_task = get_current_task()
 
     def release(self) -> None:
         """Release the underlying lock."""
@@ -499,7 +493,9 @@ class SemaphoreAdapter(Semaphore):
     def _semaphore(self) -> Semaphore:
         if self._internal_semaphore is None:
             self._internal_semaphore = get_async_backend().create_semaphore(
-                self._initial_value, max_value=self._max_value
+                self._initial_value,
+                max_value=self._max_value,
+                fast_acquire=self._fast_acquire,
             )
 
         return self._internal_semaphore

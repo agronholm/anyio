@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable, Mapping
 from typing import Any, TypeVar, final, overload
 
 from ._exceptions import TypedAttributeLookupError
 
+if sys.version_info < (3, 15):
+    from typing_extensions import sentinel
+
 T_Attr = TypeVar("T_Attr")
 T_Default = TypeVar("T_Default")
-undefined = object()
+undefined = sentinel("undefined")
 
 
 def typed_attribute() -> Any:
@@ -23,7 +27,12 @@ class TypedAttributeSet:
     """
 
     def __init_subclass__(cls) -> None:
-        annotations: dict[str, Any] = getattr(cls, "__annotations__", {})
+        # Collect the annotations from the whole MRO, as __annotations__ only ever
+        # contains the ones declared in the class itself
+        annotations: set[str] = set()
+        for class_ in cls.__mro__:
+            annotations.update(getattr(class_, "__annotations__", {}))
+
         for attrname in dir(cls):
             if not attrname.startswith("_") and attrname not in annotations:
                 raise TypeError(
