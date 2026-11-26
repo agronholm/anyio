@@ -105,9 +105,8 @@ class EventLoopToken:
         through the loop's exception handler. Trio treats them as internal errors
         and terminates the run.
 
-        This method can be called from the event loop thread, from other threads, and
-        from Python signal handlers. Obtain the token using :func:`current_token`
-        before handing it to another thread or installing a signal handler.
+        This method is safe to call from the event loop thread, from other threads and
+        from standard library signal handlers.
 
         :param func: a synchronous callable
         :param args: positional arguments for the callable
