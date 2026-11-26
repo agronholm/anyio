@@ -219,7 +219,9 @@ class UNIXSocketStream(SocketStream):
         return await get_async_backend().wrap_unix_stream_socket(sock)
 
     @abstractmethod
-    async def send_fds(self, message: bytes, fds: Collection[int | IOBase]) -> None:
+    async def send_fds(
+        self, message: bytes, fds: Collection[int | IOBase | socket.socket]
+    ) -> None:
         """
         Send file descriptors along with a message to the peer.
 

@@ -8,6 +8,7 @@ import os
 import platform
 import re
 import socket
+import stat
 import struct
 import sys
 import tempfile
@@ -728,6 +729,25 @@ class TestTCPStream:
         await stream.aclose()
         with pytest.raises(ClosedResourceError):
             await stream.receive()
+
+    @pytest.mark.parametrize("peer_closed", [False, True])
+    async def test_receive_buffered_after_close(
+        self,
+        server_sock: socket.socket,
+        server_addr: tuple[str, int],
+        peer_closed: bool,
+    ) -> None:
+        async with await connect_tcp(*server_addr) as stream:
+            client, _ = server_sock.accept()
+            with client:
+                client.sendall(b"hello")
+                if peer_closed:
+                    client.shutdown(socket.SHUT_WR)
+
+                assert await stream.receive(1) == b"h"
+                await stream.aclose()
+                with pytest.raises(ClosedResourceError):
+                    await stream.receive()
 
     async def test_send_after_close(self, server_addr: tuple[str, int]) -> None:
         stream = await connect_tcp(*server_addr)
@@ -1622,6 +1642,23 @@ class TestUNIXStream:
                 await stream.send_fds(b"test", [file1, file2])
                 thread.join()
 
+    async def test_send_fds_socket_object(self) -> None:
+        send_sock, receive_sock = socket.socketpair()
+        passed_sock, peer_sock = socket.socketpair()
+        with passed_sock, peer_sock:
+            async with (
+                await UNIXSocketStream.from_socket(send_sock) as sender,
+                await UNIXSocketStream.from_socket(receive_sock) as receiver,
+            ):
+                await sender.send_fds(b"test", [passed_sock])
+                message, fds = await receiver.receive_fds(4, 1)
+
+            assert message == b"test"
+            assert len(fds) == 1
+            with socket.socket(fileno=fds[0]) as received_sock:
+                peer_sock.send(b"x")
+                assert received_sock.recv(1) == b"x"
+
     async def test_send_fds_large_message(self, tmp_path: Path) -> None:
         message = b"\xff" * 512 * 1024 + b"\x00" * 512 * 1024
         received = bytearray()
@@ -2027,6 +2064,10 @@ class TestUNIXListener:
         for _ in range(2):
             async with await create_unix_listener(socket_path):
                 pass
+
+    async def test_mode(self, socket_path: Path) -> None:
+        async with await create_unix_listener(socket_path, mode=0o600):
+            pass
 
     async def test_listening_bytes_path(self, socket_path: Path) -> None:
         async with await create_unix_listener(str(socket_path).encode()):
@@ -3038,6 +3079,31 @@ class TestUNIXDatagramSocket:
             match="socket type mismatch: expected SOCK_DGRAM, got SOCK_STREAM",
         ):
             await UNIXDatagramSocket.from_socket(sock_or_fd)
+
+    @pytest.mark.parametrize(
+        "local_mode, expected_mode",
+        [
+            pytest.param(None, 0o755, id="default"),
+            pytest.param(0o644, 0o644, id="explicit"),
+            pytest.param(0o666, 0o666, id="explicit-wider-than-umask"),
+        ],
+    )
+    async def test_local_mode(self, local_mode: int | None, expected_mode: int) -> None:
+        old_umask = os.umask(0o022)
+        try:
+            with tempfile.TemporaryDirectory() as path:
+                sock_path = Path(path) / "socket"
+                async with await create_unix_datagram_socket(
+                    local_path=sock_path, local_mode=local_mode
+                ):
+                    pass
+
+                assert (
+                    stat.S_IMODE(sock_path.stat(follow_symlinks=False).st_mode)
+                    == expected_mode
+                )
+        finally:
+            os.umask(old_umask)
 
 
 @pytest.mark.skipif(

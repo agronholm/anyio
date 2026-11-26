@@ -52,6 +52,15 @@ async def test_run_process(
     assert process.stdout.rstrip() == b"cba"
 
 
+async def test_pathlike_command_not_passed_to_shell(tmp_path: Path) -> None:
+    marker = tmp_path / "marker"
+    command = tmp_path / f"nonexistent; touch {marker} #"
+    with pytest.raises(FileNotFoundError):
+        await run_process(command)
+
+    assert not marker.exists()
+
+
 async def test_run_process_checked() -> None:
     with pytest.raises(CalledProcessError) as exc:
         await run_process(
