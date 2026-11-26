@@ -677,6 +677,13 @@ class TestPath:
         assert not Path("/foo/bar").match("/baz/*")
 
     @pytest.mark.skipif(
+        sys.version_info < (3, 12),
+        reason="Path.match() case_sensitive parameter is only available on Python 3.12+",
+    )
+    def test_match_case_sensitive(self) -> None:
+        assert Path("foo/bar.py").match("FOO/*.PY", case_sensitive=False)
+
+    @pytest.mark.skipif(
         platform.system() == "Windows", reason="chmod() is not available on Windows"
     )
     async def test_chmod(self, tmp_path: pathlib.Path) -> None:

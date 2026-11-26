@@ -1,0 +1,1 @@
+Fixed ``dir(anyio)`` and ``dir(anyio.abc)`` omitting lazy submodules and deprecated aliases that ``getattr()`` resolves

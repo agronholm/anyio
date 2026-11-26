@@ -296,7 +296,7 @@ class Path:
     * :attr:`~pathlib.Path.info` (available on Python 3.14 or later)
     * :meth:`~pathlib.Path.is_junction` (available on Python 3.12 or later)
     * :meth:`~pathlib.PurePath.match` (the ``case_sensitive`` parameter is only
-      available on Python 3.13 or later)
+      available on Python 3.12 or later)
     * :meth:`~pathlib.Path.move` (available on Python 3.14 or later)
     * :meth:`~pathlib.Path.move_into` (available on Python 3.14 or later)
     * :meth:`~pathlib.PurePath.relative_to` (the ``walk_up`` parameter is only available
@@ -482,6 +482,8 @@ class Path:
             self, path_pattern: str, *, case_sensitive: bool | None = None
         ) -> bool:
             return self._path.full_match(path_pattern, case_sensitive=case_sensitive)
+
+    if sys.version_info >= (3, 12):
 
         def match(
             self, path_pattern: str, *, case_sensitive: bool | None = None

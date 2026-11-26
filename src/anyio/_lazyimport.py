@@ -21,7 +21,7 @@ def install_lazy_importer() -> bool:
     module_prefix = module_name + "."
     module = sys.modules[module_name]
     lazy_map, deprecated_aliases, submodule_names = _build_lazy_map(module)
-    names = sorted(lazy_map)
+    names = sorted(set(lazy_map) | set(deprecated_aliases) | set(submodule_names))
 
     # Delete symbols that are not part of the API
     del module_globals["TYPE_CHECKING"]
