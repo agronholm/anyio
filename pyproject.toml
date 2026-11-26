@@ -55,14 +55,7 @@ test = [
     "pytest-timeout >= 2.4.0",
     "trustme >= 1.0.0",
     "truststore >= 0.9.1",
-    """\
-    uvloop >= 0.22.1; platform_python_implementation == 'CPython' \
-    and platform_system != 'Windows' \
-    """,
-    """
-    winloop >= 0.2.3; platform_python_implementation == 'CPython' \
-    and platform_system == 'Windows' \
-    """,
+    "zuvloop >= 0.0.19; python_version >= '3.12'",
 ]
 doc = [
     "packaging >= 14.1",

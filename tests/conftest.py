@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import platform
 import ssl
 import sys
 from collections.abc import Awaitable, Callable, Coroutine, Generator, Iterator
@@ -25,25 +24,11 @@ T = TypeVar("T")
 P = ParamSpec("P")
 
 uvloop_marks = []
-uvloop_name = "uvloop"
 try:
-    if platform.system() == "Windows":
-        uvloop_name = "winloop"
-        import winloop as uvloop
-    else:
-        import uvloop
+    import zuvloop
 except ImportError:
-    uvloop_marks.append(pytest.mark.skip(reason=f"{uvloop_name} not available"))
-    uvloop = Mock()
-else:
-    if hasattr(asyncio.AbstractEventLoop, "shutdown_default_executor") and not hasattr(
-        uvloop.loop.Loop, "shutdown_default_executor"
-    ):
-        uvloop_marks.append(
-            pytest.mark.skip(
-                reason=f"{uvloop_name} is missing shutdown_default_executor()"
-            )
-        )
+    uvloop_marks.append(pytest.mark.skip(reason="zuvloop not available"))
+    zuvloop = Mock()
 
 pytest_plugins = ["pytester"]
 
@@ -52,10 +37,10 @@ asyncio_params = [
     pytest.param(
         (
             "asyncio",
-            {"debug": True, "loop_factory": uvloop.new_event_loop},
+            {"debug": True, "loop_factory": zuvloop.new_event_loop},
         ),
         marks=uvloop_marks,
-        id=f"asyncio+{uvloop_name}",
+        id="asyncio+zuvloop",
     ),
 ]
 if sys.version_info >= (3, 12):
@@ -121,6 +106,11 @@ def blockbuster() -> Iterator[BlockBuster | None]:
                 "anyio/_core/_sockets.py", "setup_unix_local_socket"
             )
 
+        # zuvloop spawns subprocesses like asyncio does, but blockbuster only
+        # allowlists the stdlib implementation
+        bb.functions["os.read"].can_block_in(
+            "zuvloop/_connect.py", {"subprocess_exec", "subprocess_shell"}
+        )
         yield bb
 
 
