@@ -478,6 +478,26 @@ class CancelScope(BaseCancelScope):
 
             scope = scope._parent_scope
 
+    def _restart_cancellation(self) -> None:
+        """
+        Restart the cancellation effort in the closest directly cancelled scope visible
+        from this scope (including this scope itself), if it isn't already running.
+
+        """
+        scope: CancelScope | None = self
+        while scope is not None:
+            if scope._cancel_called:
+                if scope._cancel_handle is None:
+                    scope._deliver_cancellation(scope)
+
+                break
+
+            # No point in looking beyond any shielded scope
+            if scope._shield:
+                break
+
+            scope = scope._parent_scope
+
     def _reparent(self, new_parent: CancelScope) -> None:
         """
         Move this active scope from its current parent to ``new_parent``.
@@ -790,6 +810,9 @@ class TaskGroup(abc.TaskGroup):
         _task_states[task] = TaskState(parent_id=parent_id, cancel_scope=initial_scope)
         initial_scope._tasks.add(task)
         self._tasks.add(task)
+        # If the scope is already (effectively) cancelled but there was nothing left to
+        # cancel, the delivery loop has stopped, so it must be restarted for this task
+        initial_scope._restart_cancellation()
         if sys.version_info >= (3, 14) and self.cancel_scope._host_task is not None:
             asyncio.future_add_to_awaited_by(task, self.cancel_scope._host_task)
 

@@ -1,0 +1,3 @@
+Fixed a task spawned into an already cancelled task group never being cancelled (and
+potentially hanging) on asyncio when nothing else in the cancelled scope was cancellable at
+the time
