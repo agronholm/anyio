@@ -184,6 +184,23 @@ however, you could make use of this native capability:
 
 .. versionadded:: 4.9.0
 
+Ordering concurrent tasks
+-------------------------
+
+Use :class:`~anyio.Sequencer` when a test needs blocks in different tasks to run in a
+specific order. Call the sequencer with consecutive sequence numbers starting at zero,
+and use the returned asynchronous context managers around the blocks:
+
+.. literalinclude:: snippets/testing/sequencer.py
+
+This prints ``first``, ``second`` and ``third`` in that order, regardless of the order in
+which the tasks start. A block releases the next block when it exits, including when it
+raises an exception or is cancelled.
+
+Each sequence number can only be used once. If a task is cancelled while waiting for its
+turn, the sequence is broken: that task, other waiting tasks and subsequent attempts to
+enter the sequence raise :exc:`RuntimeError`.
+
 Technical details
 -----------------
 
