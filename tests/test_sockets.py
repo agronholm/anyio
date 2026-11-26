@@ -1644,36 +1644,20 @@ class TestUNIXStream:
 
     async def test_send_fds_socket_object(self) -> None:
         send_sock, receive_sock = socket.socketpair()
-        passed_sock, passed_peer = socket.socketpair()
-        message = b"test"
-        received: list[bytes] = []
-        fds: list[int] = []
-
-        async def receive() -> None:
-            msg, received_fds = await receiver.receive_fds(len(message), 1)
-            received.append(msg)
-            fds.extend(received_fds)
-
-        try:
+        passed_sock, peer_sock = socket.socketpair()
+        with passed_sock, peer_sock:
             async with (
                 await UNIXSocketStream.from_socket(send_sock) as sender,
                 await UNIXSocketStream.from_socket(receive_sock) as receiver,
-                create_task_group() as tg,
             ):
-                tg.start_soon(receive)
-                await sender.send_fds(message, [passed_sock])
+                await sender.send_fds(b"test", [passed_sock])
+                message, fds = await receiver.receive_fds(4, 1)
 
-            assert received == [message]
+            assert message == b"test"
             assert len(fds) == 1
-            # The received descriptor must refer to the socket that was passed in,
-            # so write through the peer end and read it back from the descriptor.
-            passed_peer.send(b"x")
-            assert os.read(fds[0], 1) == b"x"
-        finally:
-            for fd in fds:
-                os.close(fd)
-            passed_sock.close()
-            passed_peer.close()
+            with socket.socket(fileno=fds[0]) as received_sock:
+                peer_sock.send(b"x")
+                assert received_sock.recv(1) == b"x"
 
     async def test_send_fds_large_message(self, tmp_path: Path) -> None:
         message = b"\xff" * 512 * 1024 + b"\x00" * 512 * 1024
