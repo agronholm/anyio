@@ -254,6 +254,29 @@ def test_asyncio_worker_pool_interpreter_shutdown(
     assert "Exception in thread" not in process.stderr
 
 
+def test_asyncio_abandon_on_cancel_interpreter_shutdown() -> None:
+    script = dedent("""
+        import time
+        import anyio
+
+        async def main() -> None:
+            with anyio.move_on_after(0.05):
+                await anyio.to_thread.run_sync(time.sleep, 30, abandon_on_cancel=True)
+
+        anyio.run(main, backend="asyncio")
+        print("exiting", flush=True)
+    """)
+    process = subprocess.run(
+        [sys.executable, "-c", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    assert process.stdout == "exiting\n"
+    assert process.stderr == ""
+
+
 @pytest.mark.parametrize("anyio_backend", asyncio_params)
 @pytest.mark.parametrize("queued_job", [False, True], ids=["running", "queued"])
 async def test_asyncio_worker_pool_shutdown(
@@ -481,7 +504,14 @@ def test_asyncio_worker_thread_loop_closed_during_result_report(
         release_result_report.set()
 
     worker_threads[0].queue.join()  # type: ignore[attr-defined]
-    assert anyio.run(to_thread.run_sync, threading.current_thread) is worker_threads[0]
+    assert (
+        anyio.run(
+            partial(
+                to_thread.run_sync, threading.current_thread, abandon_on_cancel=True
+            )
+        )
+        is worker_threads[0]
+    )
 
 
 async def test_cancel_wait_on_thread() -> None:
