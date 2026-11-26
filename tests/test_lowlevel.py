@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import gc
+import weakref
 from typing import Any
 
 import pytest
 
 from anyio import create_task_group, run
+from anyio.from_thread import start_blocking_portal
 from anyio.lowlevel import (
     RunVar,
+    RunvarToken,
     cancel_shielded_checkpoint,
     checkpoint,
     checkpoint_if_cancelled,
+    current_token,
 )
 
 
@@ -147,3 +152,93 @@ class TestRunVar:
             assert var.get() == 4
 
         assert var.get() == 3
+
+    def test_reset_token_from_finished_event_loop(
+        self,
+        anyio_backend_name: str,
+        anyio_backend_options: dict[str, Any],
+    ) -> None:
+        var = RunVar[str]("var", default="default")
+
+        async def first_loop() -> tuple[RunvarToken[str], RunvarToken[str]]:
+            token_unset = var.set("first")
+            token_prev = var.set("second")
+            return token_unset, token_prev
+
+        async def second_loop() -> None:
+            var.set("loop2")
+            with pytest.raises(
+                ValueError, match="This token was created in a different event loop"
+            ):
+                var.reset(token_unset)
+
+            assert var.get() == "loop2"
+
+            with pytest.raises(
+                ValueError, match="This token was created in a different event loop"
+            ):
+                var.reset(token_prev)
+
+            assert var.get() == "loop2"
+
+        token_unset, token_prev = run(
+            first_loop,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
+        )
+        run(
+            second_loop,
+            backend=anyio_backend_name,
+            backend_options=anyio_backend_options,
+        )
+
+    def test_reset_token_from_concurrent_event_loop(
+        self,
+        anyio_backend_name: str,
+        anyio_backend_options: dict[str, Any],
+    ) -> None:
+        var = RunVar[str]("var", default="default")
+
+        with start_blocking_portal(
+            backend=anyio_backend_name, backend_options=anyio_backend_options
+        ) as portal:
+            token = portal.call(var.set, "loop1")
+            assert portal.call(var.get) == "loop1"
+
+            async def other_loop() -> None:
+                var.set("loop2")
+                with pytest.raises(
+                    ValueError, match="This token was created in a different event loop"
+                ):
+                    var.reset(token)
+
+                assert var.get() == "loop2"
+
+            run(
+                other_loop,
+                backend=anyio_backend_name,
+                backend_options=anyio_backend_options,
+            )
+
+            # The rejected cross-loop reset must not redeem the token
+            portal.call(var.reset, token)
+            assert portal.call(var.get) == "default"
+
+    def test_token_does_not_keep_finished_loop_alive(
+        self,
+        anyio_backend_name: str,
+        anyio_backend_options: dict[str, Any],
+    ) -> None:
+        var = RunVar[str]("var")
+
+        async def main() -> tuple[RunvarToken[str], weakref.ref[object]]:
+            token = var.set("value")
+            return token, weakref.ref(current_token().native_token)
+
+        token, loop_ref = run(
+            main, backend=anyio_backend_name, backend_options=anyio_backend_options
+        )
+        gc.collect()
+        gc.collect()
+        assert loop_ref() is None
+        assert token is not None

@@ -14,7 +14,7 @@ import enum
 from dataclasses import dataclass
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, final, overload
-from weakref import WeakKeyDictionary
+from weakref import WeakKeyDictionary, ref
 
 from ._core._eventloop import get_async_backend
 
@@ -111,12 +111,13 @@ class RunvarToken(Generic[T]):
     reset the variable on exit, or passed directly to :meth:`RunVar.reset`.
     """
 
-    __slots__ = "_redeemed", "_value", "_var"
+    __slots__ = "_loop_ref", "_redeemed", "_value", "_var"
 
     def __init__(self, var: RunVar[T], value: T | Literal[_NoValueSet.NO_VALUE_SET]):
         self._var = var
         self._value: T | Literal[_NoValueSet.NO_VALUE_SET] = value
         self._redeemed = False
+        self._loop_ref: ref[object] | None = None
 
     def __enter__(self) -> RunvarToken[T]:
         return self
@@ -194,8 +195,14 @@ class RunVar(Generic[T]):
         :return: a token that can be used to restore the previous value
 
         """
-        current_vars = self._current_vars
+        native_token = current_token().native_token
+        try:
+            current_vars = _run_vars[native_token]
+        except KeyError:
+            current_vars = _run_vars[native_token] = {}
+
         token = RunvarToken(self, current_vars.get(self, RunVar.NO_VALUE_SET))
+        token._loop_ref = ref(native_token)
         current_vars[self] = value
         return token
 
@@ -204,8 +211,8 @@ class RunVar(Generic[T]):
         Restore this run variable to the value it held before the matching :meth:`set`.
 
         :param token: the token returned by :meth:`set`
-        :raises ValueError: if the token belongs to a different :class:`RunVar` or the token
-            has already been used
+        :raises ValueError: if the token belongs to a different :class:`RunVar`, was
+            created in a different event loop, or has already been used
 
         """
         if token._var is not self:
@@ -214,13 +221,19 @@ class RunVar(Generic[T]):
         if token._redeemed:
             raise ValueError("This token has already been used")
 
+        native_token = current_token().native_token
+        if token._loop_ref is not None and token._loop_ref() is not native_token:
+            raise ValueError("This token was created in a different event loop")
+
+        current_vars = _run_vars.get(native_token)
         if token._value is _NoValueSet.NO_VALUE_SET:
-            try:
-                del self._current_vars[self]
-            except KeyError:
-                pass
+            if current_vars is not None:
+                current_vars.pop(self, None)
         else:
-            self._current_vars[self] = token._value
+            if current_vars is None:
+                current_vars = _run_vars[native_token] = {}
+
+            current_vars[self] = token._value
 
         token._redeemed = True
 
