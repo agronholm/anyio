@@ -183,6 +183,11 @@ class CancelScope(BaseCancelScope):
         return self.__original.cancelled_caught
 
     @property
+    def _deadline_triggered(self) -> bool:
+        reason = self.__original._cancel_reason
+        return reason is not None and reason.source == "deadline"
+
+    @property
     def shield(self) -> bool:
         return self.__original.shield
 

@@ -205,6 +205,7 @@ class CancelScope(BaseCancelScope):
         "_cancelling_at_enter",
         "_child_scopes",
         "_deadline",
+        "_deadline_expired",
         "_host_task",
         "_parent_scope",
         "_pending_uncancellations",
@@ -221,6 +222,7 @@ class CancelScope(BaseCancelScope):
             raise ValueError("deadline must not be NaN")
 
         self._deadline = deadline
+        self._deadline_expired = False
         self._shield = shield
         self._parent_scope: CancelScope | None = None
         self._child_scopes: set[CancelScope] = set()
@@ -405,6 +407,7 @@ class CancelScope(BaseCancelScope):
         if self._deadline != math.inf:
             loop = get_running_loop()
             if loop.time() >= self._deadline:
+                self._deadline_expired = True
                 self.cancel("deadline exceeded")
             else:
                 self._timeout_handle = loop.call_at(self._deadline, self._timeout)
@@ -540,6 +543,10 @@ class CancelScope(BaseCancelScope):
     @property
     def cancelled_caught(self) -> bool:
         return self._cancelled_caught
+
+    @property
+    def _deadline_triggered(self) -> bool:
+        return self._deadline_expired
 
     @property
     def shield(self) -> bool:
