@@ -1598,7 +1598,9 @@ class UNIXSocketStream(_RawSocketMixin, abc.UNIXSocketStream):
 
         return message, list(fds)
 
-    async def send_fds(self, message: bytes, fds: Collection[int | IOBase]) -> None:
+    async def send_fds(
+        self, message: bytes, fds: Collection[int | IOBase | socket.socket]
+    ) -> None:
         if not message:
             raise ValueError("message must not be empty")
         if not fds:
@@ -1609,7 +1611,7 @@ class UNIXSocketStream(_RawSocketMixin, abc.UNIXSocketStream):
         for fd in fds:
             if isinstance(fd, int):
                 filenos.append(fd)
-            elif isinstance(fd, IOBase):
+            elif isinstance(fd, (IOBase, socket.socket)):
                 filenos.append(fd.fileno())
 
         fdarray = array.array("i", filenos)
@@ -2407,7 +2409,11 @@ class TestRunner(abc.TestRunner):
         self, loop: asyncio.AbstractEventLoop, context: dict[str, Any]
     ) -> None:
         if isinstance(context.get("exception"), Exception):
-            self._exceptions.append(context["exception"])
+            exception = context["exception"]
+            if message := context.get("message"):
+                exception.add_note(message)
+
+            self._exceptions.append(exception)
         else:
             loop.default_exception_handler(context)
 
@@ -2810,7 +2816,7 @@ class AsyncIOBackend(AsyncBackend):
     ) -> Process:
         await cls.checkpoint()
         if isinstance(command, PathLike):
-            command = os.fspath(command)
+            command = [os.fspath(command)]
 
         # Use loop.subprocess_shell()/subprocess_exec() rather than their
         # asyncio.create_subprocess_*() counterparts to get access to

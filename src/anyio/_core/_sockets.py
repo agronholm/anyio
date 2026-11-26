@@ -8,8 +8,9 @@ import stat
 import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from functools import partial
 from ipaddress import IPv4Address, IPv6Address, ip_address
-from os import PathLike, chmod
+from os import PathLike
 from socket import AddressFamily, SocketKind
 from typing import IO, TYPE_CHECKING, Any, Literal, cast, overload
 
@@ -458,7 +459,11 @@ async def create_unix_listener(
     Not available on Windows.
 
     :param path: path of the socket
-    :param mode: permissions to set on the socket
+    :param mode: permissions to set on the socket (on Linux, the socket file is
+        created with no more than these permissions and then adjusted to exactly
+        these permissions; on other platforms, they are set after the socket file
+        has been created, so the parent directory should not be writable by
+        untrusted users)
     :param backlog: maximum number of queued incoming connections (up to a maximum of
         2**16, or 65536)
     :param kind: socket type (``SOCK_STREAM`` or ``SOCK_SEQPACKET``)
@@ -599,7 +604,11 @@ async def create_unix_datagram_socket(
     removed first.
 
     :param local_path: the path on which to bind to
-    :param local_mode: permissions to set on the local socket
+    :param local_mode: permissions to set on the local socket (on Linux, the socket
+        file is created with no more than these permissions and then adjusted to
+        exactly these permissions; on other platforms, they are set after the socket
+        file has been created, so the parent directory should not be writable by
+        untrusted users)
     :return: a UNIX datagram socket
 
     """
@@ -629,7 +638,11 @@ async def create_connected_unix_datagram_socket(
 
     :param remote_path: the path to set as the default target
     :param local_path: the path on which to bind to
-    :param local_mode: permissions to set on the local socket
+    :param local_mode: permissions to set on the local socket (on Linux, the socket
+        file is created with no more than these permissions and then adjusted to
+        exactly these permissions; on other platforms, they are set after the socket
+        file has been created, so the parent directory should not be writable by
+        untrusted users)
     :return: a connected UNIX datagram socket
 
     """
@@ -916,9 +929,21 @@ async def setup_unix_local_socket(
 
     if path_str is not None:
         try:
+            # On Linux, bind() creates the socket file with the mode of the unbound
+            # socket, masked by the umask. Set the mode beforehand so the file is
+            # never created more permissive than requested, then restore the exact
+            # mode after binding. Other platforms don't allow fchmod() on sockets,
+            # so the mode has to be set after binding, without following symlinks.
+            if mode is not None and sys.platform == "linux":
+                os.fchmod(raw_socket.fileno(), mode)
+
             await to_thread.run_sync(raw_socket.bind, path_str, abandon_on_cancel=True)
-            if mode is not None:
-                await to_thread.run_sync(chmod, path_str, mode, abandon_on_cancel=True)
+            # Abstract namespace sockets have no file on disk; never follow symlinks.
+            if mode is not None and not path_str.startswith("\0"):
+                await to_thread.run_sync(
+                    partial(os.chmod, path_str, mode, follow_symlinks=False),
+                    abandon_on_cancel=True,
+                )
         except BaseException:
             raw_socket.close()
             raise
