@@ -6,15 +6,42 @@ from dataclasses import InitVar, dataclass, field
 from typing import TypeVar
 
 import pytest
+from pytest_mock import MockerFixture
 
 from anyio import ClosedResourceError, EndOfStream
 from anyio.abc import (
     ByteReceiveStream,
     ByteSendStream,
+    Listener,
     ObjectReceiveStream,
     ObjectSendStream,
 )
-from anyio.streams.stapled import StapledByteStream, StapledObjectStream
+from anyio.streams.stapled import MultiListener, StapledByteStream, StapledObjectStream
+
+
+@pytest.mark.parametrize("failing_index", [0, 1, 2])
+async def test_multi_listener_close_error(
+    mocker: MockerFixture, failing_index: int
+) -> None:
+    listeners = [mocker.Mock(spec=Listener) for _ in range(3)]
+    close_calls = mocker.Mock()
+    for index, listener in enumerate(listeners):
+        close_calls.attach_mock(listener.aclose, f"close_{index}")
+
+    error = RuntimeError("listener close failed")
+    listeners[failing_index].aclose.side_effect = error
+    with pytest.raises(RuntimeError) as exc:
+        await MultiListener(listeners).aclose()
+
+    assert exc.value is error
+    for listener in listeners:
+        listener.aclose.assert_awaited_once_with()
+
+    assert close_calls.mock_calls == [
+        mocker.call.close_0(),
+        mocker.call.close_1(),
+        mocker.call.close_2(),
+    ]
 
 
 @dataclass
