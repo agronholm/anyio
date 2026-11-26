@@ -544,7 +544,9 @@ class UNIXSocketStream(SocketStream, abc.UNIXSocketStream):
 
         return message, list(fds)
 
-    async def send_fds(self, message: bytes, fds: Collection[int | IOBase]) -> None:
+    async def send_fds(
+        self, message: bytes, fds: Collection[int | IOBase | socket.socket]
+    ) -> None:
         if not message:
             raise ValueError("message must not be empty")
         if not fds:
@@ -554,7 +556,7 @@ class UNIXSocketStream(SocketStream, abc.UNIXSocketStream):
         for fd in fds:
             if isinstance(fd, int):
                 filenos.append(fd)
-            elif isinstance(fd, IOBase):
+            elif isinstance(fd, (IOBase, socket.socket)):
                 filenos.append(fd.fileno())
 
         fdarray = array.array("i", filenos)

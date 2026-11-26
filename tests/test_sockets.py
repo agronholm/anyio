@@ -1642,6 +1642,23 @@ class TestUNIXStream:
                 await stream.send_fds(b"test", [file1, file2])
                 thread.join()
 
+    async def test_send_fds_socket_object(self) -> None:
+        send_sock, receive_sock = socket.socketpair()
+        passed_sock, peer_sock = socket.socketpair()
+        with passed_sock, peer_sock:
+            async with (
+                await UNIXSocketStream.from_socket(send_sock) as sender,
+                await UNIXSocketStream.from_socket(receive_sock) as receiver,
+            ):
+                await sender.send_fds(b"test", [passed_sock])
+                message, fds = await receiver.receive_fds(4, 1)
+
+            assert message == b"test"
+            assert len(fds) == 1
+            with socket.socket(fileno=fds[0]) as received_sock:
+                peer_sock.send(b"x")
+                assert received_sock.recv(1) == b"x"
+
     async def test_send_fds_large_message(self, tmp_path: Path) -> None:
         message = b"\xff" * 512 * 1024 + b"\x00" * 512 * 1024
         received = bytearray()
