@@ -289,11 +289,7 @@ class TaskGroup(abc.TaskGroup):
         name: object = None,
         return_handle: Literal[False, True] = False,
     ) -> Any:
-        # The handle refers to the exception raised by the task, whose traceback
-        # includes the frame of run_coro_with_task_status(), so that frame must not
-        # keep the handle alive. The handle is passed to start() through this list
-        # instead, which start() empties when it's done, as the frame still refers to
-        # the list
+        # Emptied in the finally below to break a reference cycle
         handles: list[TaskHandle[T_co]] = []
 
         async def run_coro_with_task_status(

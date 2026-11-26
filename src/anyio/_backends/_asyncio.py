@@ -939,9 +939,6 @@ class TaskGroup(abc.TaskGroup):
                     RuntimeError("Child exited without calling task_status.started()")
                 )
 
-            # On Python 3.11+, Task.exception() raises the task's own CancelledError,
-            # adding this frame to its traceback, so keeping exc would create a
-            # reference cycle
             del exc
 
         if task_status_future is not None:
@@ -1055,9 +1052,6 @@ class TaskGroup(abc.TaskGroup):
                 with CancelScope(shield=True):
                     await handle.wait()
 
-            # The exception's traceback includes this frame, whose locals refer to the
-            # future that holds it, and the frame of the task, which refers to the
-            # future through the task status
             task_status._future = None  # type: ignore[assignment]
             del future, handle, task_status, coro
             raise
