@@ -531,9 +531,22 @@ def test_debugger_exit_in_taskgroup(testdir: Pytester, anyio_backend_name: str) 
 
 
 @pytest.mark.parametrize("anyio_backend_name", get_available_backends())
-def test_keyboardinterrupt_during_test(
-    testdir: Pytester, anyio_backend_name: str
+@pytest.mark.parametrize("location", ["test", "fixture setup", "fixture teardown"])
+@pytest.mark.parametrize(
+    "exception, interrupts_session",
+    [
+        pytest.param("KeyboardInterrupt", True, id="KeyboardInterrupt"),
+        pytest.param("SystemExit(3)", False, id="SystemExit"),
+    ],
+)
+def test_exit_exception_in_task_group(
+    testdir: Pytester,
+    anyio_backend_name: str,
+    location: str,
+    exception: str,
+    interrupts_session: bool,
 ) -> None:
+    raise_in_task_group = "await run_in_task_group()"
     testdir.makepyfile(
         f"""
         import pytest
@@ -543,18 +556,39 @@ def test_keyboardinterrupt_during_test(
         def anyio_backend():
             return {anyio_backend_name!r}
 
-        async def send_keyboardinterrupt():
-            raise KeyboardInterrupt
+        async def raise_exception():
+            raise {exception}
+
+        async def run_in_task_group():
+            async with create_task_group() as tg:
+                tg.start_soon(raise_exception)
+                await sleep(10)
+
+        @pytest.fixture
+        async def myfixture():
+            {raise_in_task_group if location == "fixture setup" else "pass"}
+            yield
+            {raise_in_task_group if location == "fixture teardown" else "pass"}
 
         @pytest.mark.anyio
-        async def test_anyio_mark_first():
-            async with create_task_group() as tg:
-                tg.start_soon(send_keyboardinterrupt)
-                await sleep(10)
+        async def test_first(myfixture):
+            {raise_in_task_group if location == "test" else "pass"}
+
+        @pytest.mark.anyio
+        async def test_second():
+            pass
         """
     )
 
-    testdir.runpytest_subprocess(*pytest_args, timeout=3)
+    result = testdir.runpytest_subprocess(*pytest_args, timeout=10)
+    if interrupts_session:
+        # pytest stops the session, so the second test never starts
+        assert result.ret == pytest.ExitCode.INTERRUPTED
+        result.stdout.no_fnmatch_line("*test_second*")
+    else:
+        # pytest only fails the test, but the exception must not be left in a group
+        assert result.ret == pytest.ExitCode.TESTS_FAILED
+        result.stdout.fnmatch_lines(["* - SystemExit: 3"])
 
 
 def test_keyboard_interrupt_does_not_resume_test(testdir: Pytester) -> None:
