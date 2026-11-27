@@ -1,0 +1,2 @@
+Added task group startup support and a ``deliver_cancel`` callback to ``run_process()``
+for managing background subprocesses and customizing their shutdown.
