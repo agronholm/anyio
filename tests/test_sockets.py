@@ -525,6 +525,24 @@ class TestTCPStream:
         ) as stream:
             assert stream.extra(SocketAttribute.local_port) == free_tcp_port
 
+    async def test_connect_tcp_bind_failure_closes_socket(
+        self,
+        server_sock: socket.socket,
+        server_addr: tuple[str, int],
+    ) -> None:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", ResourceWarning)
+            with pytest.raises(OSError):
+                await connect_tcp(
+                    *server_addr,
+                    local_host=server_addr[0],
+                    local_port=server_addr[1],
+                )
+
+            gc.collect()
+
+        assert not caught
+
     @pytest.mark.skipif(
         sys.implementation.name == "pypy",
         reason=(
@@ -3360,6 +3378,19 @@ class TestConnectedUNIXDatagramSocket:
         sock_or_fd = sock_or_fd_factory(socket.AF_UNIX, socket.SOCK_DGRAM, bound=True)
         with pytest.raises(ValueError, match="the socket must be connected"):
             await ConnectedUNIXDatagramSocket.from_socket(sock_or_fd)
+
+    async def test_connect_failure_closes_socket(
+        self,
+        socket_path: Path,
+    ) -> None:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", ResourceWarning)
+            with pytest.raises(OSError):
+                await create_connected_unix_datagram_socket(socket_path)
+
+            gc.collect()
+
+        assert not caught
 
 
 async def test_tcp_connectable(mocker: MockerFixture) -> None:

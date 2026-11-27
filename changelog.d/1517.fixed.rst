@@ -1,0 +1,1 @@
+Fixed the Trio backend leaking sockets when TCP ``bind()`` or UNIX datagram ``connect()`` fails
