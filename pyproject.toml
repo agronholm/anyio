@@ -72,6 +72,14 @@ doc = [
     "sphinx-tabs >= 3.3.1",
     "towncrier >= 24.7",
 ]
+pyright = [
+    "pyright >= 1.1.411",
+]
+zuban = [
+    "zuban >= 0.11.0",
+    "types-psutil",
+    {include-group = "test"},
+]
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
@@ -147,22 +155,27 @@ extend-safe-fixes = ["TC001"]
 "docs/snippets/networking/fds_server.py" = ["ASYNC230"]
 "docs/snippets/why/*.py" = ["S110"]
 
-[tool.mypy]
+[tool.zuban]
 python_version = "3.14"
 strict = true
+warn_unreachable = false
 disallow_any_generics = false
 warn_return_any = false
 files = ["src", "tests", "docs/snippets"]
 
-[[tool.mypy.overrides]]
+[[tool.zuban.overrides]]
+module = "tests.conftest"
+ignore_missing_imports = true
+
+[[tool.zuban.overrides]]
 # These snippets demonstrate a deliberately broken start_soon() call
 module = [
-    "snippets.contextmanagers.better_context_manager",
-    "snippets.contextmanagers.broken_context_manager",
+    "docs.snippets.contextmanagers.better_context_manager",
+    "docs.snippets.contextmanagers.broken_context_manager",
 ]
-disable_error_code = ["arg-type"]
+disable_error_code = ["call-arg"]
 
-[[tool.mypy.overrides]]
+[[tool.zuban.overrides]]
 # Placeholder module used in the subinterpreter docs
 module = "yourothermodule"
 ignore_missing_imports = true
@@ -233,8 +246,13 @@ depends = []
 allowlist_externals = ["pre-commit"]
 package = "skip"
 
+[tool.tox.env.zuban]
+commands = [["zuban", "check"]]
+dependency_groups = ["zuban"]
+extras = ["trio"]
+
 [tool.tox.env.pyright]
-deps = ["pyright"]
+dependency_groups = ["pyright"]
 commands = [["pyright", "--ignoreexternal", "--verifytypes", "anyio"]]
 
 [tool.tox.env.docs]

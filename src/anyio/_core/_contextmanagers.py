@@ -69,7 +69,7 @@ class ContextManagerMixin:
 
         value = cm.__enter__()
         self.__cm = cm
-        return value
+        return cast(_T_co, value)
 
     @final
     def __exit__(
@@ -162,7 +162,7 @@ class AsyncContextManagerMixin:
 
         value = await cm.__aenter__()
         self.__cm = cm
-        return value
+        return cast(_T_co, value)
 
     @final
     async def __aexit__(

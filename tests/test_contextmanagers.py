@@ -77,7 +77,7 @@ class TestContextManagerMixin:
                 return None  # type: ignore[return-value]
 
         with pytest.raises(TypeError, match="did not return a context manager"):
-            with BadContextManager():
+            with BadContextManager():  # type: ignore[misc]
                 pass
 
     def test_return_generator(self) -> None:
@@ -86,7 +86,7 @@ class TestContextManagerMixin:
                 yield self
 
         with pytest.raises(TypeError, match="returned a generator"):
-            with BadContextManager():
+            with BadContextManager():  # type: ignore[misc]
                 pass
 
     def test_return_self(self) -> None:
@@ -173,7 +173,7 @@ class TestAsyncContextManagerMixin:
                 return None
 
         with pytest.raises(TypeError, match="did not return an async context manager"):
-            async with BadContextManager():
+            async with BadContextManager():  # type: ignore[misc]
                 pass
 
     async def test_return_async_generator(self) -> None:
@@ -182,7 +182,7 @@ class TestAsyncContextManagerMixin:
                 yield self
 
         with pytest.raises(TypeError, match="returned an async generator"):
-            async with BadContextManager():
+            async with BadContextManager():  # type: ignore[misc]
                 pass
 
     async def test_return_self(self) -> None:
@@ -191,7 +191,7 @@ class TestAsyncContextManagerMixin:
                 return self
 
         with pytest.raises(TypeError, match="returned self"):
-            async with BadContextManager():
+            async with BadContextManager():  # type: ignore[misc]
                 pass
 
     async def test_return_coroutine(self) -> None:

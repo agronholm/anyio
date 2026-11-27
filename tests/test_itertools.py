@@ -3,7 +3,6 @@ from __future__ import annotations
 import itertools
 import math
 from collections.abc import (
-    AsyncGenerator,
     AsyncIterable,
     AsyncIterator,
     Iterable,
@@ -281,7 +280,7 @@ class TestCombinations:
             await anext(iterator)
 
     async def test_edge_cases(self) -> None:
-        cases = [
+        cases: list[tuple[AsyncIterator[object], object]] = [
             (combinations([1, 2, 3], 0), [()]),
             (combinations([], 0), [()]),
             (combinations([1, 2], 3), []),
@@ -332,7 +331,7 @@ class TestCombinationsWithReplacement:
             (1, 2, 2),
             (2, 2, 2),
         ]
-        cases = [
+        cases: list[tuple[AsyncIterator[object], object]] = [
             (combinations_with_replacement([1, 2, 3], 0), [()]),
             (combinations_with_replacement([], 0), [()]),
             (combinations_with_replacement(aiter_from([]), 0), [()]),
@@ -365,7 +364,7 @@ class TestCombinationsWithReplacement:
 
 class TestCompress:
     async def test_basic_cases(self) -> None:
-        cases = [
+        cases: list[tuple[AsyncIterator[object], object]] = [
             (compress("ABCDEF", [1, 0, 1, 0, 1, 1]), ["A", "C", "E", "F"]),
             (compress(aiter_from("ABCD"), [0, 1, 0, 1]), ["B", "D"]),
             (compress("ABCD", aiter_from([1, 0, 1, 1])), ["A", "C", "D"]),
@@ -407,7 +406,7 @@ class TestCount:
 
 class TestCycle:
     async def test_iterable(self) -> None:
-        iterator = cast(AsyncGenerator[int, None], cycle([1, 2, 3]))
+        iterator = cycle([1, 2, 3])
         try:
             assert await anext(iterator) == 1
             assert await anext(iterator) == 2
@@ -419,7 +418,7 @@ class TestCycle:
             await iterator.aclose()
 
     async def test_asynciter(self) -> None:
-        iterator = cast(AsyncGenerator[int, None], cycle(aiter_from([1, 2])))
+        iterator = cycle(aiter_from([1, 2]))
         try:
             assert await anext(iterator) == 1
             assert await anext(iterator) == 2
@@ -440,7 +439,7 @@ class TestCycle:
             await assert_cancelled_on_first_next(iterator)
 
     async def test_checkpoints_replay(self) -> None:
-        iterator = cast(AsyncGenerator[int, None], cycle([1]))
+        iterator = cycle([1])
         try:
             assert await anext(iterator) == 1
             await assert_cancelled_on_first_next(iterator)
@@ -469,7 +468,7 @@ class TestDropwhile:
             await checkpoint()
             return value < 4
 
-        cases = [
+        cases: list[tuple[AsyncIterator[object], object]] = [
             (dropwhile(less_than_zero, [1, 2, 3]), [1, 2, 3]),
             (dropwhile(less_than_four, [1, 2, 3]), []),
             (dropwhile(less_than_zero, []), []),
@@ -515,7 +514,7 @@ class TestFilterfalse:
             await checkpoint()
             return True
 
-        cases = [
+        cases: list[tuple[AsyncIterator[object], object]] = [
             (filterfalse(always_false, [1, 2, 3]), [1, 2, 3]),
             (filterfalse(always_true, [1, 2, 3]), []),
             (filterfalse(always_false, []), []),
@@ -618,7 +617,7 @@ class TestGroupby:
 
 class TestIslice:
     async def test_basic_slices(self) -> None:
-        cases = [
+        cases: list[tuple[AsyncIterator[object], object]] = [
             (islice([0, 1, 2, 3, 4], 3), [0, 1, 2]),
             (islice([0, 1, 2, 3, 4], None, 3), [0, 1, 2]),
             (islice([0, 1, 2, 3, 4], 1, 4), [1, 2, 3]),
@@ -816,7 +815,7 @@ class TestProduct:
         assert next(iterator) == "A"
 
     async def test_basic_cases(self) -> None:
-        cases = [
+        cases: list[tuple[AsyncIterator[object], object]] = [
             (product("AB", "xy"), [("A", "x"), ("A", "y"), ("B", "x"), ("B", "y")]),
             (
                 product(range(2), repeat=3),
@@ -865,7 +864,7 @@ class TestProduct:
 
 class TestRepeat:
     async def test_infinite(self) -> None:
-        iterator = cast(AsyncGenerator[str, None], repeat("x"))
+        iterator = repeat("x")
         try:
             assert await anext(iterator) == "x"
             assert await anext(iterator) == "x"
@@ -874,7 +873,7 @@ class TestRepeat:
             await iterator.aclose()
 
     async def test_checkpoints(self) -> None:
-        iterator = cast(AsyncGenerator[str, None], repeat("x"))
+        iterator = repeat("x")
         try:
             await assert_cancelled_on_first_next(iterator)
         finally:
@@ -886,7 +885,7 @@ class TestRepeat:
                 return 2
 
         repeat_any = cast(Any, repeat)
-        cases = [
+        cases: list[tuple[AsyncIterator[object], object]] = [
             (repeat("x", 3), ["x", "x", "x"]),
             (repeat("x", 0), []),
             (repeat("x", -1), []),
@@ -927,7 +926,7 @@ class TestStarmap:
             yield a
             yield b
 
-        cases = [
+        cases: list[tuple[AsyncIterator[object], object]] = [
             (starmap(power, [(2, 5), (3, 2), (10, 3)]), [32, 9, 1000]),
             (starmap(add, outer()), [3, 7]),
             (starmap(multiply, [args_iterable(2, 5), args_iterable(3, 2)]), [10, 6]),
@@ -953,7 +952,7 @@ class TestTakewhile:
             await checkpoint()
             return value < 3
 
-        cases = [
+        cases: list[tuple[AsyncIterator[object], object]] = [
             (takewhile(less_than_five, [1, 4, 6, 3, 8]), [1, 4]),
             (takewhile(less_than_three, aiter_from([1, 2, 3, 1])), [1, 2]),
         ]
@@ -969,7 +968,7 @@ class TestTakewhile:
             await checkpoint()
             return value < 0
 
-        cases = [
+        cases: list[tuple[AsyncIterator[object], object]] = [
             (takewhile(less_than_four, [1, 2, 3]), [1, 2, 3]),
             (takewhile(less_than_zero, [1, 2, 3]), []),
             (takewhile(less_than_zero, []), []),
@@ -1049,7 +1048,7 @@ class TestTee:
 
 class TestZipLongest:
     async def test_basic_cases(self) -> None:
-        cases = [
+        cases: list[tuple[AsyncIterator[object], object]] = [
             (
                 zip_longest("ABCD", "xy", fillvalue="-"),
                 [("A", "x"), ("B", "y"), ("C", "-"), ("D", "-")],
