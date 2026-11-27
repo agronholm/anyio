@@ -81,6 +81,23 @@ def get_runner(
             _runner_stack = _current_runner = None
 
 
+@contextmanager
+def unwrap_exit_exceptions() -> Generator[None]:
+    """
+    Re-raise a pytest exit exception, ``KeyboardInterrupt`` or ``SystemExit`` found in
+    an exception group as itself, so that it is not treated as an ordinary failure.
+
+    """
+    try:
+        yield
+    except BaseExceptionGroup as excgrp:
+        for exc in iterate_exceptions(excgrp):
+            if isinstance(exc, (Exit, KeyboardInterrupt, SystemExit)):
+                raise exc from excgrp
+
+        raise
+
+
 def pytest_addoption(parser: pytest.Parser) -> None:
     group = parser.getgroup("anyio")
     parser.addini(
@@ -158,10 +175,11 @@ def pytest_fixture_setup(fixturedef: Any, request: Any) -> Generator[Any]:
                     "likely caused by request.getfixturevalue() on an async fixture."
                 )
 
-            if isasyncgenfunction(local_func):
-                yield from runner.run_asyncgen_fixture(local_func, kwargs)
-            else:
-                yield runner.run_fixture(local_func, kwargs)
+            with unwrap_exit_exceptions():
+                if isasyncgenfunction(local_func):
+                    yield from runner.run_asyncgen_fixture(local_func, kwargs)
+                else:
+                    yield runner.run_fixture(local_func, kwargs)
 
     # Only apply this to coroutine functions and async generator functions in requests
     # that involve the anyio_backend fixture
@@ -289,14 +307,8 @@ def pytest_pyfunc_call(pyfuncitem: Any) -> bool | None:
             funcargs = pyfuncitem.funcargs
             testargs = {arg: funcargs[arg] for arg in pyfuncitem._fixtureinfo.argnames}
             with get_runner(backend_name, backend_options) as runner:
-                try:
+                with unwrap_exit_exceptions():
                     runner.run_test(pyfuncitem.obj, testargs)
-                except ExceptionGroup as excgrp:
-                    for exc in iterate_exceptions(excgrp):
-                        if isinstance(exc, (Exit, KeyboardInterrupt, SystemExit)):
-                            raise exc from excgrp
-
-                    raise
 
             return True
 

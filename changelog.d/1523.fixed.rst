@@ -1,0 +1,2 @@
+Fixed the pytest plugin failing a single test, instead of stopping the session, when
+``KeyboardInterrupt`` was raised inside a task group in a test or in an async fixture
