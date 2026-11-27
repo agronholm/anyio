@@ -78,7 +78,6 @@ pyright = [
 zuban = [
     "zuban >= 0.11.0",
     "types-psutil",
-    "trio >= 0.32.0",
     {include-group = "test"},
 ]
 
@@ -250,8 +249,7 @@ package = "skip"
 [tool.tox.env.zuban]
 commands = [["zuban", "check"]]
 dependency_groups = ["zuban"]
-allowlist_externals = ["zuban"]
-package = "skip"
+extras = ["trio"]
 
 [tool.tox.env.pyright]
 dependency_groups = ["pyright"]

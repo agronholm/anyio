@@ -85,7 +85,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m venv .venv
-        .venv/bin/pip install --group zuban -e .
+        .venv/bin/pip install --group zuban -e .[trio]
     - name: Run zuban
       run: |
         source .venv/bin/activate

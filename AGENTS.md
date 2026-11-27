@@ -10,7 +10,7 @@ AnyIO is a high-level asynchronous concurrency and networking library for Python
 - **Install the project and test dependencies**: `pip install --group test -e .`.
 - **Run tests**: `pytest` (runs from the `tests/` directory automatically via `pyproject.toml` config). Tests run against all supported backends by default.
 - **Linting**: The project uses **pre-commit** for linting and formatting. Run `pre-commit run -a` to check everything.
-- **Type checking**: The project uses **Zuban** for static type checking. Install it with `pip install --group zuban -e .` and run `zuban check`.
+- **Type checking**: The project uses **Zuban** for static type checking. Install it with `pip install --group zuban -e .[trio]` and run `zuban check`.
 
 ## Code Style
 
