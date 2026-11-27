@@ -8,10 +8,10 @@ import sys
 import time
 from asyncio import CancelledError
 from collections.abc import AsyncGenerator, Coroutine
-from contextlib import aclosing
+from contextlib import AsyncExitStack, aclosing
 from contextvars import ContextVar, copy_context
 from inspect import CORO_CLOSED, getcoroutinestate
-from typing import TYPE_CHECKING, Any, NoReturn, cast
+from typing import TYPE_CHECKING, Any, NoReturn, Self, cast
 from unittest import mock
 
 import pytest
@@ -659,6 +659,90 @@ async def test_cancel_exiting_task_group() -> None:
         tg.cancel_scope.cancel()
 
     assert cancel_received
+
+
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_taskgroup_exit_with_cyclic_exception_context() -> None:
+    """A task cancelled with a cyclic CancelledError context must not hang.
+
+    The cycle forms without any manual ``__context__`` manipulation when a
+    task is cancelled again while a previous cancellation is being handled:
+    asyncio's cancellation delivery chains the second ``CancelledError`` to
+    the first one, and ``contextlib.AsyncExitStack``'s context repair
+    (``_fix_exception_context``) then rewires the pending exception to
+    reference itself while the exit stack is unwound with it.
+
+    """
+
+    class ReRaise:
+        """A cleanup handler that re-raises the exception it unwinds with,
+        like ``TaskGroup.__aexit__`` / ``CancelScope.__exit__`` do."""
+
+        async def __aenter__(self) -> Self:
+            return self
+
+        async def __aexit__(
+            self, exc_type: object, exc: BaseException | None, tb: object
+        ) -> None:
+            if exc is not None:
+                raise exc
+
+    cyclic: list[BaseException] = []
+
+    async def victim() -> None:
+        stack = AsyncExitStack()
+        stack.push_async_exit(ReRaise())
+        second: BaseException | None = None
+        try:
+            await sleep_forever()
+        except BaseException:
+            # Cancelled by the task group; a second cancellation is delivered
+            # by asyncio at the await below:
+            task = asyncio.current_task()
+            assert task is not None
+            task.cancel()
+            try:
+                await sleep(0.1)
+            except BaseException as exc:
+                second = exc
+
+            # asyncio chained second.__context__ to the first cancellation on
+            # delivery. Exiting the stack from the still-active first
+            # cancellation's handler (the way nested cleanup code does) makes
+            # contextlib's context repair reference the exception itself:
+            if second is not None:
+                try:
+                    await stack.__aexit__(type(second), second, second.__traceback__)
+                except BaseException as exc:
+                    cyclic.append(exc)
+                    raise
+
+    async with create_task_group() as tg:
+        tg.start_soon(victim)
+        await wait_all_tasks_blocked()
+        tg.cancel_scope.cancel()
+
+    # The cycle actually formed (nothing in the test touched __context__),
+    # and the task group exited without hanging
+    assert len(cyclic) == 1
+    assert cyclic[0].__context__ is cyclic[0]
+
+
+@pytest.mark.parametrize(
+    "cycle_length", [pytest.param(1, id="self"), pytest.param(2, id="two-nodes")]
+)
+def test_is_anyio_cancellation_with_cyclic_context(cycle_length: int) -> None:
+    """The context-chain walk must terminate on cyclic contexts."""
+    from anyio._backends._asyncio import is_anyio_cancellation
+
+    first = CancelledError("some message")
+    node = first
+    for _ in range(cycle_length - 1):
+        node.__context__ = CancelledError("some other message")
+        node = node.__context__
+
+    node.__context__ = first
+    assert not is_anyio_cancellation(first)
 
 
 async def test_cancel_before_entering_scope() -> None:

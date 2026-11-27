@@ -180,6 +180,7 @@ def is_anyio_cancellation(exc: CancelledError) -> bool:
     # Sometimes third party frameworks catch a CancelledError and raise a new one, so as
     # a workaround we have to look at the previous ones in __context__ too for a
     # matching cancel message
+    seen: set[int] = set()
     while True:
         if (
             exc.args
@@ -188,6 +189,10 @@ def is_anyio_cancellation(exc: CancelledError) -> bool:
         ):
             return True
 
+        if id(exc) in seen:
+            return False
+
+        seen.add(id(exc))
         if isinstance(exc.__context__, CancelledError):
             exc = exc.__context__
             continue
@@ -724,8 +729,17 @@ class TaskGroup(abc.TaskGroup):
             try:
                 exc = _task.exception()
             except CancelledError as e:
+                # The context chain can be cyclic if the task was cancelled
+                # again while its previous cancellation was being handled
+                # (the re-raised exception may then reference itself via
+                # __context__), so guard against that here
+                seen: set[int] = set()
                 while isinstance(e.__context__, CancelledError):
                     e = e.__context__
+                    if id(e) in seen:
+                        break
+
+                    seen.add(id(e))
 
                 exc = e
 
