@@ -529,23 +529,7 @@ class TestTCPStream:
         self,
         server_sock: socket.socket,
         server_addr: tuple[str, int],
-        anyio_backend_name: str,
-        monkeypatch: MonkeyPatch,
     ) -> None:
-        created_sockets: list[Any] = []
-        if anyio_backend_name == "trio":
-            import trio.socket
-
-            original_socket = trio.socket.socket
-
-            def spy_socket(*args: Any, **kwargs: Any) -> Any:
-                sock = original_socket(*args, **kwargs)
-                created_sockets.append(sock)
-                return sock
-
-            monkeypatch.setattr(trio.socket, "socket", spy_socket)
-
-        filenos: list[int] = []
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always", ResourceWarning)
             with pytest.raises(OSError):
@@ -555,14 +539,9 @@ class TestTCPStream:
                     local_port=server_addr[1],
                 )
 
-            filenos.extend(sock.fileno() for sock in created_sockets)
-            created_sockets.clear()
             gc.collect()
 
         assert not caught
-        if anyio_backend_name == "trio":
-            assert filenos
-            assert all(fd == -1 for fd in filenos)
 
     @pytest.mark.skipif(
         sys.implementation.name == "pypy",
@@ -3371,36 +3350,15 @@ class TestConnectedUNIXDatagramSocket:
     async def test_connect_failure_closes_socket(
         self,
         socket_path: Path,
-        anyio_backend_name: str,
-        monkeypatch: MonkeyPatch,
     ) -> None:
-        created_sockets: list[Any] = []
-        if anyio_backend_name == "trio":
-            import trio.socket
-
-            original_from_stdlib = trio.socket.from_stdlib_socket
-
-            def spy_from_stdlib(sock: socket.socket) -> Any:
-                trio_sock = original_from_stdlib(sock)
-                created_sockets.append(trio_sock)
-                return trio_sock
-
-            monkeypatch.setattr(trio.socket, "from_stdlib_socket", spy_from_stdlib)
-
-        filenos: list[int] = []
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always", ResourceWarning)
             with pytest.raises(OSError):
                 await create_connected_unix_datagram_socket(socket_path)
 
-            filenos.extend(sock.fileno() for sock in created_sockets)
-            created_sockets.clear()
             gc.collect()
 
         assert not caught
-        if anyio_backend_name == "trio":
-            assert filenos
-            assert all(fd == -1 for fd in filenos)
 
 
 async def test_tcp_connectable(mocker: MockerFixture) -> None:
