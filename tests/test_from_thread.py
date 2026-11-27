@@ -342,7 +342,7 @@ class TestRunSyncFromThread:
 
 
 @pytest.mark.parametrize("close_during_schedule", [False, True])
-def test_run_sync_soon_closed_event_loop(close_during_schedule: bool) -> None:
+def test_try_run_sync_soon_closed_event_loop(close_during_schedule: bool) -> None:
     from anyio._backends._asyncio import AsyncIOBackend
 
     loop = asyncio.new_event_loop()
@@ -362,7 +362,7 @@ def test_run_sync_soon_closed_event_loop(close_during_schedule: bool) -> None:
 
     try:
         with pytest.raises(RunFinishedError):
-            AsyncIOBackend.run_sync_soon(callback, (), loop)
+            AsyncIOBackend.try_run_sync_soon(callback, (), loop)
     finally:
         loop.close()
 

@@ -1,15 +1,31 @@
 from __future__ import annotations
 
+import os
+import signal
+import sys
+from contextvars import ContextVar
+from threading import get_ident
+from types import FrameType
 from typing import Any
 
 import pytest
 
-from anyio import create_task_group, run
+from anyio import (
+    Event,
+    RunFinishedError,
+    create_task_group,
+    fail_after,
+    get_available_backends,
+    run,
+    to_thread,
+)
 from anyio.lowlevel import (
+    EventLoopToken,
     RunVar,
     cancel_shielded_checkpoint,
     checkpoint,
     checkpoint_if_cancelled,
+    current_token,
 )
 
 
@@ -147,3 +163,118 @@ class TestRunVar:
             assert var.get() == 4
 
         assert var.get() == 3
+
+
+class TestTryRunSyncSoon:
+    async def test_deferred(self) -> None:
+        token = current_token()
+        finished = Event()
+        values: list[object] = []
+        thread_id = get_ident()
+
+        def callback(value: str, count: int) -> None:
+            assert get_ident() == thread_id
+            values.extend((value, count))
+            finished.set()
+
+        token.try_run_sync_soon(callback, "hello", 42)
+        assert not values
+        with fail_after(5):
+            await finished.wait()
+
+        assert values == ["hello", 42]
+
+    async def test_context(self) -> None:
+        marker: ContextVar[str] = ContextVar("marker", default="default")
+        marker.set("caller")
+        finished = Event()
+
+        def callback() -> None:
+            assert marker.get() == "caller"
+            marker.set("callback")
+            finished.set()
+
+        current_token().try_run_sync_soon(callback)
+        marker.set("changed")
+        with fail_after(5):
+            await finished.wait()
+
+        assert marker.get() == "changed"
+
+    async def test_from_thread(self) -> None:
+        token = current_token()
+        thread_id = get_ident()
+        marker: ContextVar[str] = ContextVar("marker", default="default")
+        finished = Event()
+
+        def callback(value: str) -> None:
+            assert get_ident() == thread_id
+            assert current_token() == token
+            assert marker.get() == "worker"
+            assert value == "argument"
+            finished.set()
+
+        def worker() -> None:
+            marker.set("worker")
+            token.try_run_sync_soon(callback, "argument")
+
+        with fail_after(5):
+            await to_thread.run_sync(worker)
+            await finished.wait()
+
+        assert marker.get() == "default"
+
+    @pytest.mark.parametrize("source_backend", get_available_backends())
+    async def test_from_other_event_loop(self, source_backend: str) -> None:
+        token = current_token()
+        finished = Event()
+
+        def callback() -> None:
+            assert current_token() == token
+            finished.set()
+
+        async def source() -> None:
+            token.try_run_sync_soon(callback)
+
+        with fail_after(5):
+            await to_thread.run_sync(lambda: run(source, backend=source_backend))
+            await finished.wait()
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="Requires SIGUSR1")
+    async def test_from_signal_handler(self) -> None:
+        token = current_token()
+        finished = Event()
+        in_handler = False
+
+        def callback() -> None:
+            assert not in_handler
+            assert current_token() == token
+            finished.set()
+
+        def handler(signum: int, frame: FrameType | None) -> None:
+            nonlocal in_handler
+            in_handler = True
+            try:
+                token.try_run_sync_soon(callback)
+            finally:
+                in_handler = False
+
+        previous = signal.signal(signal.SIGUSR1, handler)
+        try:
+            os.kill(os.getpid(), signal.SIGUSR1)
+            with fail_after(5):
+                await finished.wait()
+        finally:
+            signal.signal(signal.SIGUSR1, previous)
+
+    def test_finished_loop(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        async def get_token() -> EventLoopToken:
+            return current_token()
+
+        token = run(
+            get_token, backend=anyio_backend_name, backend_options=anyio_backend_options
+        )
+        with pytest.raises(RunFinishedError):
+            token.try_run_sync_soon(lambda: None)

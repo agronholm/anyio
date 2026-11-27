@@ -11,9 +11,20 @@ __all__ = (
 )
 
 import enum
+from collections.abc import Callable
 from dataclasses import dataclass
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, final, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Generic,
+    Literal,
+    TypeVar,
+    TypeVarTuple,
+    Unpack,
+    final,
+    overload,
+)
 from weakref import WeakKeyDictionary
 
 from ._core._eventloop import get_async_backend
@@ -23,6 +34,7 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 D = TypeVar("D")
+PosArgsT = TypeVarTuple("PosArgsT")
 
 
 async def checkpoint() -> None:
@@ -78,6 +90,31 @@ class EventLoopToken:
 
     backend_class: type[AsyncBackend]
     native_token: object
+
+    def try_run_sync_soon(
+        self, func: Callable[[Unpack[PosArgsT]], object], *args: *PosArgsT
+    ) -> None:
+        """
+        Schedule a synchronous callable in this token's event loop without waiting.
+
+        Scheduling is best effort. On asyncio, the event loop may stop after accepting
+        the callback but before executing it.
+
+        The callable runs in the target event loop thread with a copy of the caller's
+        context. Its return value is discarded. Asyncio reports callback exceptions
+        through the loop's exception handler. Trio treats them as internal errors
+        and terminates the run.
+
+        This method is safe to call from the event loop thread, from other threads and
+        from standard library signal handlers.
+
+        :param func: a synchronous callable
+        :param args: positional arguments for the callable
+        :raises RunFinishedError: if the backend rejects scheduling because the run
+            has finished
+
+        """
+        self.backend_class.try_run_sync_soon(func, args, self.native_token)
 
 
 def current_token() -> EventLoopToken:

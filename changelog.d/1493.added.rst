@@ -1,0 +1,2 @@
+Added :meth:`anyio.lowlevel.EventLoopToken.try_run_sync_soon` for best-effort scheduling
+of synchronous callbacks from any thread or a Python signal handler

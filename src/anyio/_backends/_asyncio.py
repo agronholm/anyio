@@ -2715,7 +2715,7 @@ class AsyncIOBackend(AsyncBackend):
         return f.result()
 
     @classmethod
-    def run_sync_soon(
+    def try_run_sync_soon(
         cls,
         func: Callable[[Unpack[PosArgsT]], object],
         args: tuple[*PosArgsT],
