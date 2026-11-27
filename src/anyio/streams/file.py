@@ -8,7 +8,7 @@ __all__ = (
 
 from collections.abc import Callable, Mapping
 from io import SEEK_SET, UnsupportedOperation
-from os import PathLike
+from os import PathLike, fsdecode
 from pathlib import Path
 from typing import IO, Any
 
@@ -50,8 +50,10 @@ class _BaseFileStream:
             FileStreamAttribute.file: lambda: self._file,
         }
 
-        if hasattr(self._file, "name"):
-            attributes[FileStreamAttribute.path] = lambda: Path(self._file.name)
+        if isinstance(
+            name := getattr(self._file, "name", None), (str, bytes, PathLike)
+        ):
+            attributes[FileStreamAttribute.path] = lambda: Path(fsdecode(name))
 
         try:
             self._file.fileno()
