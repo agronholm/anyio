@@ -2123,6 +2123,21 @@ class TestUNIXListener:
         assert listener.extra(SocketAttribute.raw_socket).fileno() == -1
 
 
+async def test_multi_listener_cancelled_close() -> None:
+    listeners = [
+        (await create_tcp_listener(local_host="127.0.0.1")).listeners[0]
+        for _ in range(3)
+    ]
+    sockets = [listener.extra(SocketAttribute.raw_socket) for listener in listeners]
+    async with MultiListener(listeners) as multi_listener:
+        with CancelScope() as scope:
+            scope.cancel()
+            await multi_listener.aclose()
+
+        assert scope.cancelled_caught
+        assert [sock.fileno() for sock in sockets] == [-1, -1, -1]
+
+
 async def test_multi_listener(tmp_path_factory: TempPathFactory) -> None:
     async def handle(stream: SocketStream) -> None:
         client_addresses.append(stream.extra(SocketAttribute.remote_address))

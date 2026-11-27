@@ -7,6 +7,7 @@ __all__ = (
 )
 
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
@@ -148,8 +149,9 @@ class MultiListener(Listener[T_Stream], Generic[T_Stream]):
                 tg.start_soon(listener.serve, handler, task_group)
 
     async def aclose(self) -> None:
-        for listener in self.listeners:
-            await listener.aclose()
+        async with AsyncExitStack() as stack:
+            for listener in reversed(self.listeners):
+                stack.push_async_callback(listener.aclose)
 
     @property
     def extra_attributes(self) -> Mapping[Any, Callable[[], Any]]:

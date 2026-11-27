@@ -1,0 +1,2 @@
+Fixed ``MultiListener.aclose()`` leaving listeners open when closing another listener
+raises an exception or is cancelled
