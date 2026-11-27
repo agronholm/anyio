@@ -1412,7 +1412,7 @@ class _RawSocketMixin:
             loop.remove_reader(self.__raw_socket)
 
         f = self._receive_future = asyncio.Future()
-        loop.add_reader(self.__raw_socket, f.set_result, None)
+        loop.add_reader(self.__raw_socket, _set_result_unless_done, f)
         f.add_done_callback(callback)
         return f
 
@@ -1422,7 +1422,7 @@ class _RawSocketMixin:
             loop.remove_writer(self.__raw_socket)
 
         f = self._send_future = asyncio.Future()
-        loop.add_writer(self.__raw_socket, f.set_result, None)
+        loop.add_writer(self.__raw_socket, _set_result_unless_done, f)
         f.add_done_callback(callback)
         return f
 
@@ -1437,6 +1437,12 @@ class _RawSocketMixin:
                 self._send_future.set_result(None)
 
         await AsyncIOBackend.checkpoint()
+
+
+def _set_result_unless_done(future: asyncio.Future) -> None:
+    # The future can be cancelled before the reader or writer has been removed
+    if not future.done():
+        future.set_result(None)
 
 
 class UNIXSocketStream(_RawSocketMixin, abc.UNIXSocketStream):
@@ -1640,7 +1646,7 @@ class UNIXSocketListener(abc.SocketListener):
                     return UNIXSocketStream(client_sock)
                 except BlockingIOError:
                     f = self._accept_future = self._loop.create_future()
-                    self._loop.add_reader(self.__raw_socket, f.set_result, None)
+                    self._loop.add_reader(self.__raw_socket, _set_result_unless_done, f)
                     try:
                         await f
                     finally:
@@ -2818,7 +2824,7 @@ class AsyncIOBackend(AsyncBackend):
                 raw_socket.connect(path)
             except BlockingIOError:
                 f: asyncio.Future = asyncio.Future()
-                loop.add_writer(raw_socket, f.set_result, None)
+                loop.add_writer(raw_socket, _set_result_unless_done, f)
                 f.add_done_callback(lambda _: loop.remove_writer(raw_socket))
                 await f
             except BaseException:
@@ -2872,7 +2878,7 @@ class AsyncIOBackend(AsyncBackend):
                     raw_socket.connect(remote_path)
                 except BlockingIOError:
                     f: asyncio.Future = asyncio.Future()
-                    loop.add_writer(raw_socket, f.set_result, None)
+                    loop.add_writer(raw_socket, _set_result_unless_done, f)
                     f.add_done_callback(lambda _: loop.remove_writer(raw_socket))
                     await f
                 except BaseException:

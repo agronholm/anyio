@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import array
+import asyncio
 import errno
 import gc
 import io
@@ -1890,6 +1891,56 @@ class TestUNIXStream:
         with pytest.raises(ClosedResourceError):
             await stream.send(b"foo")
 
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    @pytest.mark.parametrize("operation", ["receive", "send"])
+    async def test_ready_in_the_iteration_that_cancels(
+        self,
+        operation: Literal["receive", "send"],
+        event_loop_implementation_name: str | None,
+    ) -> None:
+        loop = asyncio.get_running_loop()
+        mine, theirs = socket.socketpair(socket.AF_UNIX)
+        mine.setblocking(False)
+        theirs.setblocking(False)
+        scope = CancelScope()
+
+        async def operate() -> None:
+            with scope:
+                if operation == "receive":
+                    await stream.receive()
+                else:
+                    await stream.send(b"x")
+
+        def ready_and_cancelled() -> None:
+            if operation == "receive":
+                theirs.send(b"x")
+            else:
+                with suppress(BlockingIOError):
+                    while theirs.recv(65536):
+                        pass
+
+            # Cancel after the socket becomes ready but before the reader/writer
+            # callback runs: uvloop runs it in this loop iteration, asyncio in the
+            # next one
+            if event_loop_implementation_name in ("uvloop", "winloop"):
+                scope.cancel()
+            else:
+                loop.call_soon(scope.cancel)
+
+        if operation == "send":
+            with suppress(BlockingIOError):
+                while True:
+                    mine.send(b"\0" * 65536)
+
+        with theirs:
+            async with await UNIXSocketStream.from_socket(mine) as stream:
+                async with create_task_group() as tg:
+                    tg.start_soon(operate)
+                    await wait_all_tasks_blocked()
+                    loop.call_soon(ready_and_cancelled)
+
+                await wait_all_tasks_blocked()
+
     async def test_cannot_connect(self, socket_path: Path) -> None:
         if str(socket_path).startswith("\0"):
             with pytest.raises(ConnectionRefusedError):
@@ -2105,6 +2156,37 @@ class TestUNIXListener:
             await listener.aclose()
 
         assert listener.extra(SocketAttribute.raw_socket).fileno() == -1
+
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_connect_in_the_iteration_that_cancels(
+        self, socket_path: Path, event_loop_implementation_name: str | None
+    ) -> None:
+        loop = asyncio.get_running_loop()
+        scope = CancelScope()
+
+        async def accept() -> None:
+            with scope:
+                await listener.accept()
+
+        def connect_and_cancel() -> None:
+            client.connect(str(socket_path))
+            # Cancel after the listener becomes readable but before the reader
+            # callback runs: uvloop runs it in this loop iteration, asyncio in the
+            # next one
+            if event_loop_implementation_name in ("uvloop", "winloop"):
+                scope.cancel()
+            else:
+                loop.call_soon(scope.cancel)
+
+        with socket.socket(socket.AF_UNIX) as client:
+            client.setblocking(False)
+            async with await create_unix_listener(socket_path) as listener:
+                async with create_task_group() as tg:
+                    tg.start_soon(accept)
+                    await wait_all_tasks_blocked()
+                    loop.call_soon(connect_and_cancel)
+
+                await wait_all_tasks_blocked()
 
     async def test_aclose_in_cancelled_scope_raises_cancelled_exc(
         self, socket_path: Path
