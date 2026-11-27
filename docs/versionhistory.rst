@@ -170,6 +170,10 @@ This library adheres to `Semantic Versioning 2.0 <http://semver.org/>`_.
   borrower when the acquiring task was cancelled during the cancel-shielded
   checkpoint that runs after a non-blocking acquisition
 
+- Fixed ``run_process(input=b"")`` inheriting standard input instead of sending
+  end-of-file
+  (`#1338 <https://github.com/agronholm/anyio/pull/1338>`_; PR by @Aurelucien)
+
 **4.15.1**
 
 - Implemented a compatibility fix for supporting direct access of ``anyio.*`` submodules
