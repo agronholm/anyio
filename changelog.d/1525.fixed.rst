@@ -1,0 +1,2 @@
+Added a workaround for self-referencing exceptions
+caused by Python's exit stack cleanup code.
