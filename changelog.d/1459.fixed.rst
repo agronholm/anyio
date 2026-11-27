@@ -1,0 +1,2 @@
+Fixed reference cycle in ``to_thread.run_sync()`` on asyncio when the function raises an
+exception
