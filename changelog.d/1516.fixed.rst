@@ -1,0 +1,1 @@
+Fixed ``RunVar.reset()`` accepting tokens created in a different event loop
