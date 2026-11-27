@@ -691,31 +691,41 @@ async def test_taskgroup_exit_with_cyclic_exception_context() -> None:
 
     async def victim() -> None:
         stack = AsyncExitStack()
-        stack.push_async_exit(ReRaise())
-        second: BaseException | None = None
-        try:
-            await sleep_forever()
-        except BaseException:
-            # Cancelled by the task group; a second cancellation is delivered
-            # by asyncio at the await below:
-            task = asyncio.current_task()
-            assert task is not None
-            task.cancel()
-            try:
-                await sleep(0.1)
-            except BaseException as exc:
-                second = exc
+        stack.push_async_exit(ReRaise())  # runs LAST: re-raises its exception
+        held: list[BaseException] = []
 
-            # asyncio chained second.__context__ to the first cancellation on
-            # delivery. Exiting the stack from the still-active first
-            # cancellation's handler (the way nested cleanup code does) makes
-            # contextlib's context repair reference the exception itself:
-            if second is not None:
+        async def re_raise_second(*args: object) -> None:
+            # Re-raises the second cancellation caught below, the way nested
+            # application cleanup re-raises a caught exception
+            if held:
+                raise held[0]
+
+        stack.push_async_callback(re_raise_second)  # runs FIRST
+        try:
+            async with stack:
                 try:
-                    await stack.__aexit__(type(second), second, second.__traceback__)
-                except BaseException as exc:
-                    cyclic.append(exc)
+                    await sleep_forever()
+                except BaseException:
+                    # Cancelled by the task group; a second cancellation is
+                    # delivered by asyncio at the await below:
+                    task = asyncio.current_task()
+                    assert task is not None
+                    task.cancel()
+                    try:
+                        await sleep(0.1)
+                    except BaseException as exc:
+                        held.append(exc)  # chained to the first cancellation
+
+                    # Re-raise the first cancellation out of the with-block,
+                    # so the exit stack unwinds with it; the re-raise of the
+                    # held second cancellation by the first callback and the
+                    # re-raise of the stack's own exception then make
+                    # contextlib's context repair reference the exception
+                    # itself
                     raise
+        except BaseException as exc:
+            cyclic.append(exc)
+            raise  # the task must die with this exception
 
     async with create_task_group() as tg:
         tg.start_soon(victim)
