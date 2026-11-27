@@ -6,13 +6,13 @@ import socket
 import ssl
 import stat
 import sys
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from functools import partial
 from ipaddress import IPv4Address, IPv6Address, ip_address
 from os import PathLike
 from socket import AddressFamily, SocketKind
-from typing import TYPE_CHECKING, Any, Literal, cast, overload
+from typing import IO, TYPE_CHECKING, Any, Literal, cast, overload
 
 from .. import ConnectionFailed, to_thread
 from ..abc import (
@@ -1053,3 +1053,115 @@ def as_connectable(
         )
 
     return connectable
+
+
+def validate_sendfile_args(file: IO[bytes], offset: int, count: int | None) -> None:
+    """Validate the arguments of a ``sendfile()`` call."""
+    try:
+        file.fileno()
+    except (AttributeError, OSError) as exc:
+        raise TypeError(
+            "the file must be a file object with a working fileno() method"
+        ) from exc
+
+    if not hasattr(file, "seek"):
+        raise TypeError("the file must be a file object with a working seek() method")
+
+    if not isinstance(offset, int):
+        raise TypeError(f"offset must be a non-negative integer (got {offset!r})")
+
+    if offset < 0:
+        raise ValueError(f"offset must be a non-negative integer (got {offset!r})")
+
+    if count is not None:
+        if not isinstance(count, int):
+            raise TypeError(f"count must be a positive integer (got {count!r})")
+
+        if count < 1:
+            raise ValueError(f"count must be a positive integer (got {count!r})")
+
+
+async def sendfile_fallback(
+    file: IO[bytes],
+    offset: int,
+    count: int | None,
+    send: Callable[[bytes], Awaitable[None]],
+) -> int:
+    """Copy a file through an unguarded stream send; the caller holds the send guard."""
+    from ._tasks import CancelScope
+
+    total = 0
+    await to_thread.run_sync(file.seek, offset)
+    try:
+        while count is None or total < count:
+            size = 65536 if count is None else min(65536, count - total)
+            data = await to_thread.run_sync(file.read, size)
+            if not data:
+                break
+
+            await send(data)
+            total += len(data)
+    finally:
+        # Reading can run ahead of the bytes successfully sent. Restore the position
+        # even if a send was cancelled or the connection broke.
+        with CancelScope(shield=True):
+            await to_thread.run_sync(file.seek, offset + total)
+
+    return total
+
+
+async def sendfile_native(
+    sock: socket.socket,
+    file: IO[bytes],
+    offset: int,
+    count: int | None,
+    send: Callable[[bytes], Awaitable[None]],
+    wait_writable: Callable[[], Awaitable[object]] | None = None,
+) -> int:
+    """Send on a raw nonblocking socket, falling back when native sendfile is unavailable."""
+    from ._exceptions import BrokenResourceError
+    from ._tasks import CancelScope
+
+    backend = get_async_backend()
+    await backend.checkpoint()
+    if not hasattr(os, "sendfile"):
+        return await sendfile_fallback(file, offset, count, send)
+
+    total = 0
+    file_fd = file.fileno()
+    try:
+        while count is None or total < count:
+            size = 1024 * 1024 if count is None else min(1024 * 1024, count - total)
+            try:
+                sent = os.sendfile(sock.fileno(), file_fd, offset + total, size)
+            except BlockingIOError:
+                if wait_writable is None:
+                    await backend.wait_writable(sock)
+                else:
+                    await wait_writable()
+                continue
+            except InterruptedError:
+                await backend.checkpoint()
+                continue
+            except OSError as exc:
+                if not total and exc.errno in (
+                    errno.ENOSYS,
+                    errno.EINVAL,
+                    errno.ENOTSUP,
+                    errno.EOPNOTSUPP,
+                ):
+                    return await sendfile_fallback(file, offset, count, send)
+
+                raise BrokenResourceError from exc
+
+            if not sent:
+                break
+
+            total += sent
+            await backend.checkpoint()
+    finally:
+        if total:
+            with CancelScope(shield=True):
+                await to_thread.run_sync(file.seek, offset + total)
+
+    return total
