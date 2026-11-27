@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import platform
 import sys
@@ -265,6 +266,72 @@ async def test_process_aexit_cancellation_doesnt_orphan_process() -> None:
 
     assert process.returncode is not None
     assert process.returncode != 0
+
+
+async def test_run_process_killed_on_single_native_cancel(
+    anyio_backend_name: str,
+) -> None:
+    """
+    Regression test for #1518.
+
+    A single native asyncio.Task.cancel() must kill run_process()'s child
+    process instead of waiting for it to exit on its own.
+
+    """
+    if anyio_backend_name != "asyncio":
+        pytest.skip("native Task.cancel() is asyncio specific")
+
+    async def victim() -> None:
+        await run_process([sys.executable, "-c", "import time; time.sleep(30)"])
+
+    task = asyncio.create_task(victim())
+    await asyncio.sleep(0.5)
+    task.cancel()
+    # Wait for the task without awaiting it: awaiting it would let the
+    # fail_after deadline cancel the victim as well, masking the bug
+    with fail_after(5):
+        await asyncio.wait([task])
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+
+async def test_open_process_killed_on_single_native_cancel(
+    anyio_backend_name: str,
+) -> None:
+    """
+    Regression test for #1518.
+
+    A single native asyncio.Task.cancel() must kill the child process when the
+    task awaiting process.wait() is cancelled, instead of waiting for it to
+    exit on its own.
+
+    """
+    if anyio_backend_name != "asyncio":
+        pytest.skip("native Task.cancel() is asyncio specific")
+
+    process_holder: list[Any] = []
+
+    async def victim() -> None:
+        async with await open_process(
+            [sys.executable, "-c", "import time; time.sleep(30)"]
+        ) as process:
+            process_holder.append(process)
+            await process.wait()
+
+    task = asyncio.create_task(victim())
+    await asyncio.sleep(0.5)
+    task.cancel()
+    # Wait for the task without awaiting it: awaiting it would let the
+    # fail_after deadline cancel the victim as well, masking the bug
+    with fail_after(5):
+        await asyncio.wait([task])
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert process_holder[0].returncode is not None
+    assert process_holder[0].returncode != 0
 
 
 async def test_process_aexit_cancellation_closes_standard_streams() -> None:

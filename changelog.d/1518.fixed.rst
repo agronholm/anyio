@@ -1,0 +1,1 @@
+Fixed the child process of ``run_process()`` not being killed when the awaiting task was cancelled once with a native ``asyncio.Task.cancel()``

@@ -1131,6 +1131,17 @@ class Process(abc.Process):
 
             scope.shield = False
             try:
+                # A natively cancelled task only delivers the cancellation once,
+                # so if it was already consumed by an earlier await (e.g. the
+                # process.wait() in run_process()), no further cancellation will
+                # arrive to interrupt the wait below. If the host task still has
+                # a pending cancellation, kill the process now instead of waiting
+                # for it to exit on its own.
+                if cast(asyncio.Task, current_task()).cancelling():
+                    scope.shield = True
+                    # Closing the transport on asyncio also handles sending kill
+                    self._transport.close()
+
                 await self.wait()
             except BaseException:
                 scope.shield = True
