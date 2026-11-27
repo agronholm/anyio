@@ -955,6 +955,21 @@ class TestBlockingPortal:
             with pytest.raises(RuntimeError, match="Task exited"):
                 portal.start_task(taskfunc)
 
+    def test_start_started_twice(
+        self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
+    ) -> None:
+        async def taskfunc(*, task_status: TaskStatus[int]) -> None:
+            task_status.started(1)
+            task_status.started(2)
+
+        with start_blocking_portal(anyio_backend_name, anyio_backend_options) as portal:
+            future, value = portal.start_task(taskfunc)
+            assert value == 1
+            with pytest.raises(
+                RuntimeError, match="called 'started' twice on the same task status"
+            ):
+                future.result()
+
     def test_start_with_name(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:
