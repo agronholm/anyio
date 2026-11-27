@@ -10,17 +10,12 @@ import os
 import sys
 from collections import deque
 from collections.abc import Callable
-from typing import Any, Final, TypeVar
+from typing import Any, Final, TypeVar, TypeVarTuple, Unpack
 
 from . import current_time, to_thread
 from ._core._exceptions import BrokenWorkerInterpreter
 from ._core._synchronization import CapacityLimiter
 from .lowlevel import RunVar
-
-if sys.version_info >= (3, 11):
-    from typing import TypeVarTuple, Unpack
-else:
-    from typing_extensions import TypeVarTuple, Unpack
 
 if sys.version_info >= (3, 14):
     from concurrent.interpreters import ExecutionFailed, create
@@ -173,7 +168,7 @@ def _stop_workers(workers: deque[_Worker]) -> None:
 
 async def run_sync(
     func: Callable[[Unpack[PosArgsT]], T_Retval],
-    *args: Unpack[PosArgsT],
+    *args: *PosArgsT,
     limiter: CapacityLimiter | None = None,
 ) -> T_Retval:
     """

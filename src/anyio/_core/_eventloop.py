@@ -1,20 +1,14 @@
 from __future__ import annotations
 
 import math
-import sys
 import threading
 from collections.abc import Awaitable, Callable, Generator
 from contextlib import contextmanager
 from contextvars import Token
 from importlib import import_module
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar, TypeVarTuple, Unpack
 
 from ._exceptions import NoEventLoopError
-
-if sys.version_info >= (3, 11):
-    from typing import TypeVarTuple, Unpack
-else:
-    from typing_extensions import TypeVarTuple, Unpack
 
 sniffio: Any
 try:
@@ -37,7 +31,7 @@ loaded_backends: dict[str, type[AsyncBackend]] = {}
 
 def run(
     func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval]],
-    *args: Unpack[PosArgsT],
+    *args: *PosArgsT,
     backend: str = "asyncio",
     backend_options: dict[str, Any] | None = None,
 ) -> T_Retval:

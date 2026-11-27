@@ -3,7 +3,7 @@ The basics
 
 .. py:currentmodule:: anyio
 
-AnyIO requires Python 3.10 or later to run. It is recommended that you set up a
+AnyIO requires Python 3.11 or later to run. It is recommended that you set up a
 virtualenv_ when developing or playing around with AnyIO.
 
 Installation
@@ -24,15 +24,9 @@ To install a supported version of Trio_, you can install it as an extra like thi
 Running async programs
 ----------------------
 
-The simplest possible AnyIO program looks like this::
+The simplest possible AnyIO program looks like this:
 
-    from anyio import run
-
-
-    async def main():
-        print('Hello, world!')
-
-    run(main)
+.. literalinclude:: snippets/basics/hello_world.py
 
 This will run the program above on the default backend (asyncio). To explicitly specify
 which backend to run on, you can use the ``backend`` argument, like so::
@@ -41,23 +35,9 @@ which backend to run on, you can use the ``backend`` argument, like so::
     run(main, backend='asyncio')
 
 But AnyIO code is not required to be run via :func:`run`. You can just as well use the
-native ``run()`` function of the backend library::
+native ``run()`` function of the backend library:
 
-    import sniffio
-    import trio
-    from anyio import sleep
-
-
-    async def main():
-        print('Hello')
-        await sleep(1)
-        print("I'm running on", sniffio.current_async_library())
-
-    trio.run(main)
-
-.. versionchanged:: 4.0.0
-    On the ``asyncio`` backend, ``anyio.run()`` now uses a back-ported version of
-    :class:`asyncio.Runner` on Pythons older than 3.11.
+.. literalinclude:: snippets/basics/native_trio_run.py
 
 .. _backend options:
 

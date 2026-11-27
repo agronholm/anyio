@@ -1,3 +1,0 @@
-Fixed ``FileReadStream`` and ``FileWriteStream`` leaving files open when cancelled
-during context manager exit, including unflushed writes
-PR by @Kuang-xianxin

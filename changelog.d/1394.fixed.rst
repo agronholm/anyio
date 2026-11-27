@@ -1,2 +1,0 @@
-Fixed ``anyio.itertools.product()`` acquiring and consuming unused input iterables when
-``repeat=0``

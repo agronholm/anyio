@@ -1,3 +1,0 @@
-Fixed ``Semaphore(fast_acquire=True)`` losing its fast-acquire behavior when
-instantiated outside a running event loop
-PR by @feiiiiii5

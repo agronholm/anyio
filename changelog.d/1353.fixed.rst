@@ -1,2 +1,0 @@
-Fixed pytest plugin running Hypothesis async tests only on the first parametrized
-backend instead of each backend
