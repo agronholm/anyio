@@ -1,0 +1,3 @@
+Fixed ``SpooledTemporaryFile`` losing written data and never retrying the rollover
+when creating the disk-backed file failed (for example because the target
+directory did not exist)

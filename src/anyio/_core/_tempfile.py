@@ -325,13 +325,17 @@ class SpooledTemporaryFile(AsyncFile[AnyStr]):
 
         await checkpoint_if_cancelled()
         with CancelScope(shield=True):
-            self._rolled = True
+            # Create the disk-backed file before mutating any state, so that a
+            # failure here leaves the spooled file untouched and the rollover is
+            # retried on the next write, like tempfile.SpooledTemporaryFile does
+            new_fp = await to_thread.run_sync(
+                lambda: tempfile.TemporaryFile(**self._tempfile_params)
+            )
             buffer = self._fp
             position = buffer.tell()
             buffer.seek(0)
-            self._fp = await to_thread.run_sync(
-                lambda: tempfile.TemporaryFile(**self._tempfile_params)
-            )
+            self._fp = new_fp
+            self._rolled = True
             await self.write(buffer.read())
             await self.seek(position)
             buffer.close()
