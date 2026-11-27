@@ -307,6 +307,8 @@ class Path:
 
     * :meth:`~pathlib.Path.absolute`
     * :meth:`~pathlib.Path.chmod`
+    * :meth:`~pathlib.Path.copy` (available on Python 3.14 or later)
+    * :meth:`~pathlib.Path.copy_into` (available on Python 3.14 or later)
     * :meth:`~pathlib.Path.cwd`
     * :meth:`~pathlib.Path.exists`
     * :meth:`~pathlib.Path.expanduser`
@@ -325,6 +327,8 @@ class Path:
     * :meth:`~pathlib.Path.lchmod`
     * :meth:`~pathlib.Path.lstat`
     * :meth:`~pathlib.Path.mkdir`
+    * :meth:`~pathlib.Path.move` (available on Python 3.14 or later)
+    * :meth:`~pathlib.Path.move_into` (available on Python 3.14 or later)
     * :meth:`~pathlib.Path.open`
     * :meth:`~pathlib.Path.owner`
     * :meth:`~pathlib.Path.read_bytes`
@@ -339,16 +343,15 @@ class Path:
     * :meth:`~pathlib.Path.symlink_to`
     * :meth:`~pathlib.Path.touch`
     * :meth:`~pathlib.Path.unlink`
-    * :meth:`~pathlib.Path.walk`
     * :meth:`~pathlib.Path.write_bytes`
     * :meth:`~pathlib.Path.write_text`
 
-    Additionally, the following methods return an async iterator yielding
-    :class:`~.Path` objects:
+    Additionally, the following methods return an async iterator:
 
-    * :meth:`~pathlib.Path.glob`
-    * :meth:`~pathlib.Path.iterdir`
-    * :meth:`~pathlib.Path.rglob`
+    * :meth:`~pathlib.Path.glob` (yields :class:`~.Path` objects)
+    * :meth:`~pathlib.Path.iterdir` (yields :class:`~.Path` objects)
+    * :meth:`~pathlib.Path.rglob` (yields :class:`~.Path` objects)
+    * :meth:`~pathlib.Path.walk` (yields tuples of ``(root, dirs, files)``)
 
     .. versionchanged:: 4.14.0
         Added the ``limiter`` keyword argument.
@@ -552,6 +555,7 @@ class Path:
             self,
             target_dir: str | os.PathLike[str],
         ) -> Self:
+            target_dir = pathlib.Path(target_dir)
             return type(self)(
                 await to_thread.run_sync(
                     self._path.move_into, target_dir, limiter=self._limiter

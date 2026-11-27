@@ -28,7 +28,7 @@ Asynchronous path operations
 ----------------------------
 
 AnyIO provides an asynchronous version of the :class:`pathlib.Path` class. It differs
-with the original in a number of ways:
+from the original in a number of ways:
 
 * Operations that perform disk I/O (like :meth:`~pathlib.Path.read_bytes`) are run in a
   worker thread and thus require an ``await``
@@ -43,7 +43,7 @@ For example, to create a file with binary content:
 
 .. literalinclude:: snippets/fileio/path_write_bytes.py
 
-Asynchronously iterating a directory contents can be done as follows:
+Asynchronously iterating directory contents can be done as follows:
 
 .. literalinclude:: snippets/fileio/path_iterdir.py
 
