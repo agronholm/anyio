@@ -22,6 +22,9 @@ The snippet above runs the ``ps`` command within a shell. To run it directly:
 
 .. literalinclude:: snippets/subprocesses/run_process_shell.py
 
+If cancellation interrupts :func:`~run_process` while it is waiting for the subprocess,
+AnyIO kills the subprocess and waits for it to exit before propagating cancellation.
+
 Working with processes
 ----------------------
 
@@ -29,6 +32,9 @@ When you have more complex requirements for your interaction with subprocesses, 
 launch one with :func:`~open_process`:
 
 .. literalinclude:: snippets/subprocesses/open_process.py
+
+Exiting the process context because of cancellation also kills the subprocess and waits
+for it to exit.
 
 See the API documentation of :class:`~.abc.Process` for more information.
 

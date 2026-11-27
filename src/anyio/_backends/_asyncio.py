@@ -78,6 +78,7 @@ from .._core._exceptions import (
     RunFinishedError,
     WouldBlock,
 )
+from .._core._resources import aclose_forcefully
 from .._core._sockets import convert_ipv6_sockaddr
 from .._core._streams import create_memory_object_stream
 from .._core._synchronization import (
@@ -1111,6 +1112,18 @@ class Process(abc.Process):
     _stderr: StreamReaderWrapper | None
     _exited: asyncio.Event
     _transport: asyncio.SubprocessTransport
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        if isinstance(exc_val, CancelledError):
+            # Native task cancellation may already have been delivered in the body.
+            await aclose_forcefully(self)
+        else:
+            await self.aclose()
 
     async def aclose(self) -> None:
         with CancelScope(shield=True) as scope:

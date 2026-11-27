@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import platform
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from subprocess import DEVNULL, CalledProcessError
+from subprocess import DEVNULL, PIPE, CalledProcessError
 from textwrap import dedent
 from typing import Any
 
@@ -17,6 +18,7 @@ from anyio import (
     CancelScope,
     ClosedResourceError,
     EndOfStream,
+    Event,
     create_task_group,
     fail_after,
     open_process,
@@ -24,6 +26,8 @@ from anyio import (
 )
 from anyio._core._eventloop import get_async_backend
 from anyio.streams.buffered import BufferedByteReceiveStream
+
+from .conftest import asyncio_params
 
 
 @pytest.mark.parametrize(
@@ -78,6 +82,40 @@ async def test_run_process_checked() -> None:
     assert exc.value.returncode == 1
     assert exc.value.stdout.rstrip() == b"stdout-text"
     assert exc.value.stderr.rstrip() == b"stderr-text"
+
+
+@pytest.mark.parametrize("anyio_backend", asyncio_params)
+async def test_run_process_native_cancellation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from anyio._backends._asyncio import Process
+
+    waiting = Event()
+    child: Process | None = None
+    original_wait = Process.wait
+
+    async def wait(process: Process) -> int:
+        nonlocal child
+        child = process
+        waiting.set()
+        return await original_wait(process)
+
+    monkeypatch.setattr(Process, "wait", wait)
+    # Keep the child alive until cleanup closes stdin, then give cleanup time to kill it.
+    task = asyncio.create_task(
+        run_process(
+            [sys.executable, "-c", "import sys, time; sys.stdin.read(); time.sleep(2)"],
+            stdin=PIPE,
+        )
+    )
+    await waiting.wait()
+    task.cancel("stop subprocess")
+    with pytest.raises(asyncio.CancelledError, match="stop subprocess"):
+        await task
+
+    assert child is not None
+    assert child.returncode is not None
+    assert child.returncode != 0
 
 
 @pytest.mark.skipif(

@@ -1,0 +1,2 @@
+Fixed ``run_process()`` and ``open_process()`` contexts on asyncio to kill and reap the
+subprocess after a single native ``asyncio.Task.cancel()`` call
