@@ -1,0 +1,1 @@
+Fixed reference cycles left behind by cancelled or failed child tasks

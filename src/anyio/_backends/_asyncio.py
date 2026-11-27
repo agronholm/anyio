@@ -734,6 +734,7 @@ class TaskGroup(abc.TaskGroup):
                 # cancelled, so return immediately instead of adding one more
                 # CancelledError to the exceptions list
                 if task_status_future is not None and task_status_future.cancelled():
+                    del exc
                     return
 
                 if task_status_future is None or task_status_future.done():
@@ -748,6 +749,8 @@ class TaskGroup(abc.TaskGroup):
                 task_status_future.set_exception(
                     RuntimeError("Child exited without calling task_status.started()")
                 )
+
+            del exc
 
         if task_status_future is not None:
             parent_id = id(current_task())
@@ -860,6 +863,8 @@ class TaskGroup(abc.TaskGroup):
                 with CancelScope(shield=True):
                     await handle.wait()
 
+            task_status._future = None  # type: ignore[assignment]
+            del future, handle, task_status, coro
             raise
 
         if return_handle:
