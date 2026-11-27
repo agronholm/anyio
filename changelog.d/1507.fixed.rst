@@ -1,0 +1,3 @@
+Fixed ``to_thread.run_sync()`` releasing its capacity limiter token before the worker
+finishes when ``abandon_on_cancel=False`` and the awaiting task is cancelled via
+``asyncio.Task.cancel()``.
