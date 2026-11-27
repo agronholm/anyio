@@ -1392,6 +1392,14 @@ class SocketStream(abc.SocketStream):
         await AsyncIOBackend.checkpoint()
 
 
+def _set_result_if_not_done(future: asyncio.Future) -> None:
+    # A socket can become ready and queue its callback before the waiter is
+    # cancelled. Setting a result on a cancelled future makes the event loop
+    # report InvalidStateError, so the callback only completes live futures.
+    if not future.done():
+        future.set_result(None)
+
+
 class _RawSocketMixin:
     _receive_future: asyncio.Future | None = None
     _send_future: asyncio.Future | None = None
@@ -1413,7 +1421,7 @@ class _RawSocketMixin:
 
         f: asyncio.Future[None]
         f = self._receive_future = asyncio.Future()
-        loop.add_reader(self.__raw_socket, f.set_result, None)
+        loop.add_reader(self.__raw_socket, _set_result_if_not_done, f)
         f.add_done_callback(callback)
         return f
 
@@ -1424,7 +1432,7 @@ class _RawSocketMixin:
 
         f: asyncio.Future[None]
         f = self._send_future = asyncio.Future()
-        loop.add_writer(self.__raw_socket, f.set_result, None)
+        loop.add_writer(self.__raw_socket, _set_result_if_not_done, f)
         f.add_done_callback(callback)
         return f
 
@@ -1642,7 +1650,7 @@ class UNIXSocketListener(abc.SocketListener):
                     return UNIXSocketStream(client_sock)
                 except BlockingIOError:
                     f = self._accept_future = self._loop.create_future()
-                    self._loop.add_reader(self.__raw_socket, f.set_result, None)
+                    self._loop.add_reader(self.__raw_socket, _set_result_if_not_done, f)
                     try:
                         await f
                     finally:
@@ -2817,7 +2825,7 @@ class AsyncIOBackend(AsyncBackend):
                 raw_socket.connect(path)
             except BlockingIOError:
                 f: asyncio.Future = asyncio.Future()
-                loop.add_writer(raw_socket, f.set_result, None)
+                loop.add_writer(raw_socket, _set_result_if_not_done, f)
                 f.add_done_callback(lambda _: loop.remove_writer(raw_socket))
                 await f
             except BaseException:
@@ -2871,7 +2879,7 @@ class AsyncIOBackend(AsyncBackend):
                     raw_socket.connect(remote_path)
                 except BlockingIOError:
                     f: asyncio.Future = asyncio.Future()
-                    loop.add_writer(raw_socket, f.set_result, None)
+                    loop.add_writer(raw_socket, _set_result_if_not_done, f)
                     f.add_done_callback(lambda _: loop.remove_writer(raw_socket))
                     await f
                 except BaseException:
