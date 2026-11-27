@@ -2725,7 +2725,7 @@ class AsyncIOBackend(AsyncBackend):
         context = copy_context()
         context.run(set_current_async_library, "asyncio")
         try:
-            loop.call_soon_threadsafe(context.run, func, *args)
+            loop.call_soon_threadsafe(func, *args, context=context)
         except RuntimeError:
             if loop.is_closed():
                 raise RunFinishedError from None

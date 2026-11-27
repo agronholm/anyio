@@ -349,9 +349,9 @@ def test_run_sync_soon_closed_event_loop(close_during_schedule: bool) -> None:
     callback = Mock()
     original_call_soon_threadsafe = loop.call_soon_threadsafe
 
-    def call_soon_threadsafe(*args: Any) -> None:
+    def call_soon_threadsafe(*args: Any, **kwargs: Any) -> None:
         loop.close()
-        original_call_soon_threadsafe(*args)
+        original_call_soon_threadsafe(*args, **kwargs)
 
     if close_during_schedule:
         loop.call_soon_threadsafe = Mock(  # type: ignore[method-assign]

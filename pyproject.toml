@@ -76,7 +76,7 @@ pyright = [
     "pyright >= 1.1.411",
 ]
 zuban = [
-    "zuban >= 0.10.2",
+    "zuban >= 0.11.0",
     "types-psutil",
     "trio >= 0.32.0",
     {include-group = "test"},

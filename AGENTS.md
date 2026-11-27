@@ -9,7 +9,8 @@ AnyIO is a high-level asynchronous concurrency and networking library for Python
 - **Python**: Check the minimum Python version by looking at the `requires-python` field in `pyproject.toml`.
 - **Install the project and test dependencies**: `pip install --group test -e .`.
 - **Run tests**: `pytest` (runs from the `tests/` directory automatically via `pyproject.toml` config). Tests run against all supported backends by default.
-- **Linting**: The project uses **pre-commit** for linting, formatting and static type checking. Run `pre-commit run -a` to check everything.
+- **Linting**: The project uses **pre-commit** for linting and formatting. Run `pre-commit run -a` to check everything.
+- **Type checking**: The project uses **Zuban** for static type checking. Install it with `pip install --group zuban -e .` and run `zuban check`.
 
 ## Code Style
 
@@ -21,9 +22,9 @@ AnyIO is a high-level asynchronous concurrency and networking library for Python
 ## Documentation Code Snippets
 
 - Complete Python examples in the docs live in `docs/snippets/<page>/<name>.py` (where `<page>` is the `.rst` file name) and are included with `.. literalinclude:: snippets/<page>/<name>.py`. Do not add complete examples inline in `.rst` files.
-- Snippets are linted, formatted and type checked (strict mypy) like the rest of the code base, so they must be fully annotated. Do not add `from __future__ import annotations` to them.
+- Snippets are linted, formatted and type checked (strict Zuban) like the rest of the code base, so they must be fully annotated. Do not add `from __future__ import annotations` to them.
 - Only partial fragments (e.g. code that uses `await` outside a function or references undefined placeholder names) may stay inline.
-- When a snippet intentionally violates a lint rule or type check, disable it in `pyproject.toml` (per-file ignores / mypy overrides) rather than with inline `noqa` or `type: ignore` comments, which would show up in the rendered docs.
+- When a snippet intentionally violates a lint rule or type check, disable it in `pyproject.toml` (per-file ignores / Zuban overrides) rather than with inline `noqa` or `type: ignore` comments, which would show up in the rendered docs.
 
 ## Pull Request Guidelines
 
