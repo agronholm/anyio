@@ -2435,6 +2435,43 @@ class TestUDPSocket:
         ) as udp:
             assert udp.extra(SocketAttribute.local_port) == free_udp_port
 
+    async def test_create_udp_socket_requires_family_or_local_host(self) -> None:
+        """
+        Test that the "either family or local_host" check also catches the plain
+        integer value of ``AddressFamily.AF_UNSPEC``.
+
+        ``AddressFamily`` is an :class:`~enum.IntEnum`, so ``0`` and
+        ``AddressFamily.AF_UNSPEC`` carry the same value, and ``create_tcp_listener()``
+        (which compares with ``==``) accepts both interchangeably. Both spellings must
+        either raise ``ValueError`` or silently produce a socket of an arbitrary
+        address family, so both are checked here.
+
+        """
+        for family in (AddressFamily.AF_UNSPEC, AddressFamily.AF_UNSPEC.value):
+            try:
+                udp = await create_udp_socket(family=cast(AnyIPAddressFamily, family))
+            except ValueError as exc:
+                assert str(exc) == 'Either "family" or "local_host" must be given'
+            else:
+                await udp.aclose()
+                pytest.fail(f"family={family!r} did not raise ValueError")
+
+    @skip_ipv6_mark
+    async def test_create_udp_socket_family_as_plain_int(self) -> None:
+        """
+        Test that ``family`` is honored when given as the plain integer value of
+        ``AddressFamily.AF_INET6``, just like ``create_tcp_listener()`` honors it.
+
+        """
+        family = cast(AnyIPAddressFamily, AddressFamily.AF_INET6.value)
+        async with await create_udp_socket(family=family) as udp:
+            assert udp.extra(SocketAttribute.family) == AddressFamily.AF_INET6
+            local_address = cast(
+                IPSockAddrType, udp.extra(SocketAttribute.local_address)
+            )
+            assert local_address[0] == "::"
+            assert local_address[1] > 0
+
     async def test_from_socket(
         self, family: AnyIPAddressFamily, sock_or_fd_factory: SockFdFactoryProtocol
     ) -> None:

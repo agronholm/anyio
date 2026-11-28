@@ -506,7 +506,7 @@ async def create_udp_socket(
     :return: a UDP socket
 
     """
-    if family is AddressFamily.AF_UNSPEC and not local_host:
+    if family == AddressFamily.AF_UNSPEC and not local_host:
         raise ValueError('Either "family" or "local_host" must be given')
 
     if local_host:
@@ -519,7 +519,7 @@ async def create_udp_socket(
         )
         family = cast(AnyIPAddressFamily, gai_res[0][0])
         local_address = gai_res[0][-1]
-    elif family is AddressFamily.AF_INET6:
+    elif family == AddressFamily.AF_INET6:
         local_address = ("::", local_port)
     else:
         local_address = ("0.0.0.0", local_port)
