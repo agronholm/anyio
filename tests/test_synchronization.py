@@ -433,6 +433,41 @@ class TestCondition:
                 scope1.cancel()
                 condition.notify(1)
 
+    @pytest.mark.parametrize("anyio_backend", asyncio_params)
+    async def test_cancel_during_lock_reacquisition(self) -> None:
+        condition = Condition()
+        items: list[str] = []
+        consumed: list[str] = []
+
+        async def consumer() -> None:
+            async with condition:
+                await condition.wait_for(lambda: items)
+                consumed.append(items.pop())
+
+        first = asyncio.create_task(consumer())
+        await wait_all_tasks_blocked()
+        second = asyncio.create_task(consumer())
+        try:
+            await wait_all_tasks_blocked()
+            async with condition:
+                items.append("job")
+                condition.notify(1)
+                await wait_all_tasks_blocked()
+                first.cancel()
+                await wait_all_tasks_blocked()
+
+            with pytest.raises(asyncio.CancelledError):
+                await first
+
+            with fail_after(1):
+                await second
+
+            assert consumed == ["job"]
+        finally:
+            first.cancel()
+            second.cancel()
+            await asyncio.gather(first, second, return_exceptions=True)
+
     async def test_wait_no_lock(self) -> None:
         condition = Condition()
         with pytest.raises(
