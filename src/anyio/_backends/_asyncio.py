@@ -31,7 +31,7 @@ from collections.abc import (
     Sequence,
 )
 from concurrent.futures import Future
-from contextlib import AbstractContextManager, suppress
+from contextlib import AbstractContextManager, nullcontext, suppress
 from contextvars import Context, copy_context
 from dataclasses import dataclass, field
 from functools import partial, wraps
@@ -2286,6 +2286,77 @@ class AsyncIOTaskInfo(TaskInfo):
         return False
 
 
+class _LoopRunState:
+    __slots__ = ("finished", "lock", "pending")
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.finished = False
+        self.pending: set[Future[Any]] = set()
+
+
+_loop_run_states: WeakKeyDictionary[AbstractEventLoop, _LoopRunState] = (
+    WeakKeyDictionary()
+)
+
+
+def _set_run_finished(future: Future[Any]) -> None:
+    if not future.done():
+        with suppress(concurrent.futures.InvalidStateError):
+            future.set_exception(RunFinishedError())
+
+
+def _finish_loop_state(state: _LoopRunState) -> None:
+    with state.lock:
+        state.finished = True
+        pending = list(state.pending)
+        state.pending.clear()
+
+    for future in pending:
+        _set_run_finished(future)
+
+
+def _run_from_thread_on_loop(
+    token: object,
+    submit: Callable[[AbstractEventLoop], tuple[Future[T_Retval], object | None]],
+) -> T_Retval:
+    loop = cast("AbstractEventLoop", token or threadlocals.current_token.native_token)
+    state = _loop_run_states.get(loop)
+    with state.lock if state is not None else nullcontext():
+        if (state is not None and state.finished) or loop.is_closed():
+            raise RunFinishedError
+
+        try:
+            future, handle_obj = submit(loop)
+        except RuntimeError:
+            if loop.is_closed():
+                raise RunFinishedError from None
+
+            raise
+
+        if state is not None:
+            state.pending.add(future)
+
+    finalizer = (
+        weakref.finalize(handle_obj, _set_run_finished, future)
+        if handle_obj is not None
+        else None
+    )
+    del handle_obj
+    try:
+        if loop.is_closed() and not future.done():
+            raise RunFinishedError
+
+        return future.result()
+    finally:
+        if finalizer is not None:
+            finalizer.detach()
+
+        if state is not None:
+            with state.lock:
+                state.pending.discard(future)
+
+
 class TestRunner(abc.TestRunner):
     _send_stream: MemoryObjectSendStream[tuple[Awaitable[Any], asyncio.Future[Any]]]
 
@@ -2307,12 +2378,15 @@ class TestRunner(abc.TestRunner):
                 loop_factory = winloop.new_event_loop
 
         self._runner = Runner(debug=debug, loop_factory=loop_factory)
+        self._loop_state = _LoopRunState()
         self._exceptions: list[BaseException] = []
         self._runner_task: asyncio.Task | None = None
 
     def __enter__(self) -> Self:
         self._runner.__enter__()
-        self.get_loop().set_exception_handler(self._exception_handler)
+        loop = self.get_loop()
+        _loop_run_states[loop] = self._loop_state
+        loop.set_exception_handler(self._exception_handler)
         return self
 
     def __exit__(
@@ -2321,7 +2395,10 @@ class TestRunner(abc.TestRunner):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        self._runner.__exit__(exc_type, exc_val, exc_tb)
+        try:
+            self._runner.__exit__(exc_type, exc_val, exc_tb)
+        finally:
+            _finish_loop_state(self._loop_state)
 
     def get_loop(self) -> AbstractEventLoop:
         return self._runner.get_loop()
@@ -2517,8 +2594,13 @@ class AsyncIOBackend(AsyncBackend):
 
                 loop_factory = winloop.new_event_loop
 
-        with Runner(debug=debug, loop_factory=loop_factory) as runner:
-            return runner.run(wrapper())
+        state = _LoopRunState()
+        try:
+            with Runner(debug=debug, loop_factory=loop_factory) as runner:
+                _loop_run_states[runner.get_loop()] = state
+                return runner.run(wrapper())
+        finally:
+            _finish_loop_state(state)
 
     @classmethod
     def current_token(cls) -> object:
@@ -2673,19 +2755,23 @@ class AsyncIOBackend(AsyncBackend):
                 if scope is not None:
                     scope._tasks.discard(task)
 
-        loop = cast(
-            "AbstractEventLoop", token or threadlocals.current_token.native_token
-        )
-        if loop.is_closed():
-            raise RunFinishedError
-
         context = copy_context()
         context.run(set_current_async_library, "asyncio")
         scope = getattr(threadlocals, "current_cancel_scope", None)
-        f: concurrent.futures.Future[T_co] = context.run(
-            asyncio.run_coroutine_threadsafe, task_wrapper(), loop=loop
-        )
-        return f.result()
+
+        def submit(loop: AbstractEventLoop) -> tuple[Future[T_co], object | None]:
+            coro = task_wrapper()
+            try:
+                f: concurrent.futures.Future[T_co] = context.run(
+                    asyncio.run_coroutine_threadsafe, coro, loop=loop
+                )
+            except BaseException:
+                coro.close()
+                raise
+
+            return f, None
+
+        return _run_from_thread_on_loop(token, submit)
 
     @classmethod
     def run_sync_from_thread(
@@ -2694,25 +2780,23 @@ class AsyncIOBackend(AsyncBackend):
         args: tuple[*PosArgsT],
         token: object,
     ) -> T_Retval:
-        @wraps(func)
-        def wrapper() -> None:
-            try:
-                set_current_async_library("asyncio")
-                f.set_result(func(*args))
-            except BaseException as exc:
-                f.set_exception(exc)
-                if not isinstance(exc, Exception):
-                    raise
+        def submit(loop: AbstractEventLoop) -> tuple[Future[T_Retval], object]:
+            f: concurrent.futures.Future[T_Retval] = Future()
 
-        loop = cast(
-            "AbstractEventLoop", token or threadlocals.current_token.native_token
-        )
-        if loop.is_closed():
-            raise RunFinishedError
+            @wraps(func)
+            def wrapper() -> None:
+                try:
+                    set_current_async_library("asyncio")
+                    f.set_result(func(*args))
+                except BaseException as exc:
+                    f.set_exception(exc)
+                    if not isinstance(exc, Exception):
+                        raise
 
-        f: concurrent.futures.Future[T_Retval] = Future()
-        loop.call_soon_threadsafe(wrapper)
-        return f.result()
+            loop.call_soon_threadsafe(wrapper)
+            return f, wrapper
+
+        return _run_from_thread_on_loop(token, submit)
 
     @classmethod
     def try_run_sync_soon(

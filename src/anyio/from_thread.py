@@ -11,7 +11,7 @@ __all__ = (
 
 import sys
 from collections.abc import Awaitable, Callable, Coroutine, Generator
-from concurrent.futures import Future, InvalidStateError
+from concurrent.futures import CancelledError, Future, InvalidStateError
 from contextlib import (
     AbstractAsyncContextManager,
     AbstractContextManager,
@@ -19,7 +19,6 @@ from contextlib import (
 )
 from contextvars import Context
 from dataclasses import dataclass, field
-from functools import partial
 from inspect import isawaitable
 from threading import Lock, Thread, current_thread, get_ident
 from types import TracebackType
@@ -291,6 +290,21 @@ class BlockingPortal:
         finally:
             scope = None  # type: ignore[assignment]
 
+    def _spawn_task(
+        self,
+        func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
+        args: tuple[*PosArgsT],
+        kwargs: dict[str, Any],
+        name: object,
+        future: Future[T_Retval],
+    ) -> None:
+        if self._event_loop_thread_id is None:
+            raise RuntimeError("This portal is not running")
+
+        self._task_group.start_soon(
+            self._call_func, func, args, kwargs, future, name=name
+        )
+
     def _spawn_task_from_thread(
         self,
         func: Callable[[Unpack[PosArgsT]], Awaitable[T_Retval] | T_Retval],
@@ -311,11 +325,11 @@ class BlockingPortal:
 
         """
         run_sync(
-            partial(self._task_group.start_soon, name=name),
-            self._call_func,
+            self._spawn_task,
             func,
             args,
             kwargs,
+            name,
             future,
             token=self._token,
         )
@@ -664,7 +678,7 @@ def start_blocking_portal(
         finally:
             try:
                 portal.call(portal.stop, cancel_remaining_tasks)
-            except RuntimeError:
+            except (RuntimeError, CancelledError):
                 pass
     finally:
         thread.join()
