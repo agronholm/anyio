@@ -369,6 +369,89 @@ def test_try_run_sync_soon_closed_event_loop(close_during_schedule: bool) -> Non
     callback.assert_not_called()
 
 
+@pytest.mark.timeout(2)
+@pytest.mark.parametrize(
+    "close_timing", ["before_schedule", "during_schedule", "after_schedule"]
+)
+def test_run_sync_from_thread_closed_event_loop(close_timing: str) -> None:
+    from anyio._backends._asyncio import AsyncIOBackend
+
+    loop = asyncio.new_event_loop()
+    callback = Mock()
+    original_call_soon_threadsafe = loop.call_soon_threadsafe
+
+    def call_soon_threadsafe(*args: Any, **kwargs: Any) -> asyncio.Handle:
+        if close_timing == "during_schedule":
+            loop.close()
+            return original_call_soon_threadsafe(*args, **kwargs)
+
+        handle = original_call_soon_threadsafe(*args, **kwargs)
+        loop.close()
+        return handle
+
+    if close_timing == "before_schedule":
+        loop.close()
+    else:
+        loop.call_soon_threadsafe = call_soon_threadsafe  # type: ignore[method-assign]
+
+    try:
+        with pytest.raises(RunFinishedError):
+            AsyncIOBackend.run_sync_from_thread(callback, (), loop)
+    finally:
+        loop.close()
+
+    callback.assert_not_called()
+
+
+@pytest.mark.timeout(2)
+@pytest.mark.usefixtures("deactivate_blockbuster")
+def test_run_sync_from_thread_race_with_run_exit() -> None:
+    from anyio._backends._asyncio import AsyncIOBackend
+
+    token_future: Future[EventLoopToken] = Future()
+    ready_to_schedule = threading.Event()
+    scheduled = threading.Event()
+    callback = Mock()
+
+    async def main() -> None:
+        token = current_token()
+        loop = token.native_token
+        assert isinstance(loop, asyncio.AbstractEventLoop)
+        orig_close = loop.close
+        orig_call_soon = loop.call_soon_threadsafe
+
+        def hooked_call_soon(*args: Any, **kwargs: Any) -> asyncio.Handle:
+            handle = orig_call_soon(*args, **kwargs)
+            scheduled.set()
+            return handle
+
+        def hooked_close() -> None:
+            ready_to_schedule.set()
+            scheduled.wait()
+            orig_close()
+
+        loop.call_soon_threadsafe = hooked_call_soon  # type: ignore[method-assign]
+        loop.close = hooked_close  # type: ignore[method-assign]
+        token_future.set_result(token)
+
+    def caller() -> None:
+        token = token_future.result()
+        ready_to_schedule.wait()
+        with pytest.raises(RunFinishedError):
+            AsyncIOBackend.run_sync_from_thread(callback, (), token.native_token)
+
+    thread = threading.Thread(target=caller)
+    thread.start()
+    try:
+        run(main, backend="asyncio")
+    finally:
+        ready_to_schedule.set()
+        scheduled.set()
+        thread.join()
+
+    callback.assert_not_called()
+
+
 class TestBlockingPortal:
     class AsyncCM:
         def __init__(self, ignore_error: bool):
@@ -1017,7 +1100,6 @@ class TestBlockingPortal:
 
         assert not caplog.text
 
-    @pytest.mark.skip("This test is known to hang often on CI")
     def test_raise_baseexception_from_task(
         self, anyio_backend_name: str, anyio_backend_options: dict[str, Any]
     ) -> None:

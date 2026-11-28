@@ -1,0 +1,3 @@
+Fixed ``AsyncIOBackend.run_sync_from_thread()`` and
+``AsyncIOBackend.run_async_from_thread()`` deadlocking when the event loop closes
+after scheduling the callback but before executing it
