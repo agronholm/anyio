@@ -1690,6 +1690,7 @@ class UDPSocket(abc.UDPSocket):
 
     async def aclose(self) -> None:
         self._closed = True
+        self._protocol.read_queue.clear()
         self._transport.abort()
         await AsyncIOBackend.checkpoint()
 
@@ -1753,6 +1754,7 @@ class ConnectedUDPSocket(abc.ConnectedUDPSocket):
 
     async def aclose(self) -> None:
         self._closed = True
+        self._protocol.read_queue.clear()
         self._transport.abort()
         await AsyncIOBackend.checkpoint()
 
